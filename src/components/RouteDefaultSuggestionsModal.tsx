@@ -86,7 +86,7 @@ export const RouteDefaultSuggestionsModal = ({
   const fetchRoutes = async () => {
     setLoading(true);
     try {
-      const apiUrl = `${import.meta.env.VITE_API_URL || "http://localhost:4006"}/api/v1/itineraries/default-route-suggestions`;
+      const apiUrl = `${import.meta.env.VITE_API_DVI_BASE_URL || "http://localhost:4006"}/api/v1/itineraries/default-route-suggestions`;
 
       const response = await fetch(apiUrl, {
         method: "POST",

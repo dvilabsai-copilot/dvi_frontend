@@ -105,7 +105,7 @@ export async function exportAccountsManagerExcel(
   filters: AccountsFilters,
 ): Promise<void> {
   const qs = buildQuery(filters);
-  const response = await fetch(`${import.meta.env.VITE_API_URL}/accounts-export/manager/excel${qs}`, {
+  const response = await fetch(`${import.meta.env.VITE_API_DVI_BASE_URL}/accounts-export/manager/excel${qs}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
