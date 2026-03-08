@@ -1,6 +1,6 @@
 // FILE: src/pages/itineraries/ItineraryDetails.tsx
 
-import React, { useEffect, useState, useRef, useLayoutEffect, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -773,7 +773,26 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     groupType?: number; // ✅ NEW: group type for selected hotel
   }}>({});;
   
-  const [selectedHotels, setSelectedHotels] = useState<{[key: string]: boolean}>({});
+ const [selectedHotels, setSelectedHotels] = useState<{[key: string]: boolean}>({});
+
+// ✅ For "Para" modal: show ONLY 4 options (Recommended #1 - #4)
+const paraRecommendations = useMemo(() => {
+  if (!hotelDetails?.hotels?.length) return [];
+
+  // Keep unique items (avoid duplicates), then take first 4
+  const seen = new Set<string>();
+  const unique = [];
+
+  for (const h of hotelDetails.hotels) {
+    const key = `${h.day}|${h.hotelName}|${h.destination}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(h);
+    if (unique.length === 4) break;
+  }
+
+  return unique;
+}, [hotelDetails]);
 
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
@@ -3715,54 +3734,71 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             <DialogTitle>
               {clipboardType === 'recommended' && 'Copy Recommended Hotels'}
               {clipboardType === 'highlights' && 'Copy to Highlights'}
-              {clipboardType === 'para' && 'Copy to Paragraph Format'}
+              {clipboardType === 'para' && 'Recommended Hotel for Para'}
             </DialogTitle>
             <DialogDescription>
               {clipboardType === 'recommended' && 'Select recommended hotels to include in clipboard'}
               {clipboardType === 'highlights' && 'Hotel information will be copied in highlight/bullet format'}
-              {clipboardType === 'para' && 'Hotel information will be copied in paragraph format'}
+              {clipboardType === 'para' && 'Select from 4 recommended options to copy to clipboard'}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
-            {!hotelDetails || !hotelDetails.hotelTabs ? (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No hotel information available
-              </p>
-            ) : (
-              hotelDetails.hotelTabs.map((tab) => (
-                <div key={tab.groupType} className="border border-[#e5d9f2] rounded-lg p-3">
-                  <h4 className="font-semibold text-[#4a4260] mb-2">{tab.label}</h4>
-                  {hotelDetails.hotels
-                    .filter((h) => h.groupType === tab.groupType)
-                    .map((hotel, idx) => {
-                      const hotelKey = `${tab.groupType}-${idx}`;
-                      return (
-                        <div key={idx} className="flex items-center gap-3 py-2">
-                          <input
-                            type="checkbox"
-                            id={`hotel-${hotelKey}`}
-                            className="h-4 w-4 cursor-pointer"
-                            checked={selectedHotels[hotelKey] || false}
-                            onChange={(e) => {
-                              setSelectedHotels({
-                                ...selectedHotels,
-                                [hotelKey]: e.target.checked
-                              });
-                            }}
-                          />
-                          <label
-                            htmlFor={`hotel-${hotelKey}`}
-                            className="text-sm flex-1 cursor-pointer"
-                          >
-                            {hotel.hotelName} - {hotel.destination}
-                          </label>
-                        </div>
-                      );
-                    })}
-                </div>
-              ))
-            )}
+  {!hotelDetails?.hotels?.length ? (
+    <p className="text-sm text-[#6c6c6c] text-center py-8">
+      No hotel information available
+    </p>
+  ) : clipboardType === "para" ? (
+    <div className="space-y-3">
+      {paraRecommendations.map((_, idx) => {
+        const key = `para-${idx}`;
+        return (
+          <div key={key} className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id={`para-${key}`}
+              className="h-4 w-4 cursor-pointer"
+              checked={selectedHotels[key] || false}
+              onChange={(e) =>
+                setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
+              }
+            />
+            <label htmlFor={`para-${key}`} className="text-sm cursor-pointer">
+              Recommended #{idx + 1}
+            </label>
           </div>
+        );
+      })}
+    </div>
+  ) : (
+    hotelDetails.hotelTabs.map((tab) => (
+      <div key={tab.groupType} className="border border-[#e5d9f2] rounded-lg p-3">
+        <h4 className="font-semibold text-[#4a4260] mb-2">{tab.label}</h4>
+
+        {hotelDetails.hotels
+          .filter((h) => h.groupType === tab.groupType)
+          .map((hotel, idx) => {
+            const hotelKey = `${tab.groupType}-${idx}`;
+            return (
+              <div key={idx} className="flex items-center gap-3 py-2">
+                <input
+                  type="checkbox"
+                  id={`hotel-${hotelKey}`}
+                  className="h-4 w-4 cursor-pointer"
+                  checked={selectedHotels[hotelKey] || false}
+                  onChange={(e) =>
+                    setSelectedHotels({ ...selectedHotels, [hotelKey]: e.target.checked })
+                  }
+                />
+                <label htmlFor={`hotel-${hotelKey}`} className="text-sm flex-1 cursor-pointer">
+                  {hotel.hotelName} - {hotel.destination}
+                </label>
+              </div>
+            );
+          })}
+      </div>
+    ))
+  )}
+</div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => {
               setClipboardModal(false);
@@ -3772,39 +3808,54 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             </Button>
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-              onClick={() => {
-                // Build clipboard text based on selected hotels and type
-                let clipboardText = '';
-                const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
-                
-                if (selectedCount === 0) {
-                  toast.error('Please select at least one hotel');
-                  return;
-                }
+             onClick={() => {
+  let clipboardText = "";
 
-                if (!hotelDetails) return;
+  const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
+  if (selectedCount === 0) {
+    toast.error("Please select at least one hotel");
+    return;
+  }
 
-                hotelDetails.hotelTabs.forEach((tab) => {
-                  const tabHotels = hotelDetails.hotels.filter((h) => h.groupType === tab.groupType);
-                  tabHotels.forEach((hotel, idx) => {
-                    const hotelKey = `${tab.groupType}-${idx}`;
-                    if (selectedHotels[hotelKey]) {
-                      if (clipboardType === 'highlights') {
-                        clipboardText += `• ${hotel.day} - ${hotel.hotelName}, ${hotel.destination}\n`;
-                      } else if (clipboardType === 'para') {
-                        clipboardText += `On ${hotel.day}, accommodation at ${hotel.hotelName} in ${hotel.destination}. `;
-                      } else {
-                        clipboardText += `${tab.label}: ${hotel.hotelName} - ${hotel.destination}\n`;
-                      }
-                    }
-                  });
-                });
+  if (!hotelDetails) return;
 
-                navigator.clipboard.writeText(clipboardText);
-                toast.success('Copied to clipboard!');
-                setClipboardModal(false);
-                setSelectedHotels({});
-              }}
+  // ✅ Para uses ONLY the 4 "Recommended #1-#4" options
+  if (clipboardType === "para") {
+    paraRecommendations.forEach((hotel, idx) => {
+      const key = `para-${idx}`;
+      if (selectedHotels[key]) {
+        clipboardText += `On ${hotel.day}, accommodation at ${hotel.hotelName} in ${hotel.destination}. `;
+      }
+    });
+
+    navigator.clipboard.writeText(clipboardText.trim());
+    toast.success("Copied to clipboard!");
+    setClipboardModal(false);
+    setSelectedHotels({});
+    return;
+  }
+
+  // ✅ Keep existing behavior for recommended/highlights
+  hotelDetails.hotelTabs.forEach((tab) => {
+    const tabHotels = hotelDetails.hotels.filter((h) => h.groupType === tab.groupType);
+
+    tabHotels.forEach((hotel, idx) => {
+      const hotelKey = `${tab.groupType}-${idx}`;
+      if (!selectedHotels[hotelKey]) return;
+
+      if (clipboardType === "highlights") {
+        clipboardText += `• ${hotel.day} - ${hotel.hotelName}, ${hotel.destination}\n`;
+      } else {
+        clipboardText += `${tab.label}: ${hotel.hotelName} - ${hotel.destination}\n`;
+      }
+    });
+  });
+
+  navigator.clipboard.writeText(clipboardText);
+  toast.success("Copied to clipboard!");
+  setClipboardModal(false);
+  setSelectedHotels({});
+}}
             >
               Copy Selected
             </Button>
