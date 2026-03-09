@@ -1,0 +1,57 @@
+name: Deploy DVI Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+        env:
+          VITE_API_DVI_BASE_URL: ${{ secrets.VITE_API_DVI_BASE_URL }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_RAZORPAY_KEY_ID: ${{ secrets.VITE_RAZORPAY_KEY_ID }}
+
+      - name: Upload dist to server temp folder
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT }}
+          source: "dist/*"
+          target: "/tmp/dvi-frontend-deploy"
+
+      - name: Move build to live folder
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USERNAME }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT }}
+          script: |
+            sudo mkdir -p /var/www/dvi-travel
+            sudo apt-get update -y
+            sudo apt-get install -y rsync
+            sudo rsync -av --delete /tmp/dvi-frontend-deploy/dist/ /var/www/dvi-travel/
+            sudo chown -R www-data:www-data /var/www/dvi-travel
+            sudo nginx -t
+            sudo systemctl reload nginx
+            rm -rf /tmp/dvi-frontend-deploy
