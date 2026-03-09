@@ -26,8 +26,6 @@ jobs:
         run: npm run build
         env:
           VITE_API_DVI_BASE_URL: ${{ secrets.VITE_API_DVI_BASE_URL }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_RAZORPAY_KEY_ID: ${{ secrets.VITE_RAZORPAY_KEY_ID }}
 
       - name: Upload dist to server temp folder
         uses: appleboy/scp-action@v0.1.7
