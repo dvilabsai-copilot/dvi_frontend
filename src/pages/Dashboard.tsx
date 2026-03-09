@@ -591,7 +591,7 @@ export default function Dashboard() {
       {/* Welcome Section */}
       <div className="space-y-2">
         <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-          Welcome back, Admin 👋
+          Welcome back, Admin HII👋
         </h3>
         <p className="text-muted-foreground">
           Your progress this week is Awesome. Let's keep it up and get a lot of points reward!
