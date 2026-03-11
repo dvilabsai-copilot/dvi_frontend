@@ -761,39 +761,310 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   
   // Hotel Selection State (Multi-Provider)
   // Structure: { [routeId]: { provider, hotelCode, bookingCode, roomType, netAmount, hotelName, checkInDate, checkOutDate, groupType } }
-  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{[routeId: number]: {
-    provider: string;
-    hotelCode: string;
-    bookingCode: string;
-    roomType: string;
-    netAmount: number;
-    hotelName: string;
-    checkInDate: string;
-    checkOutDate: string;
-    groupType?: number; // ✅ NEW: group type for selected hotel
-  }}>({});;
-  
- const [selectedHotels, setSelectedHotels] = useState<{[key: string]: boolean}>({});
+  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{ [routeId: number]: {
+  provider: string;
+  hotelCode: string;
+  bookingCode: string;
+  roomType: string;
+  netAmount: number;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  groupType?: number;
+}}>({});
 
-// ✅ For "Para" modal: show ONLY 4 options (Recommended #1 - #4)
+const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+
+// ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
-  if (!hotelDetails?.hotels?.length) return [];
+  if (!hotelDetails?.hotelTabs?.length) return [];
 
-  // Keep unique items (avoid duplicates), then take first 4
-  const seen = new Set<string>();
-  const unique = [];
-
-  for (const h of hotelDetails.hotels) {
-    const key = `${h.day}|${h.hotelName}|${h.destination}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(h);
-    if (unique.length === 4) break;
-  }
-
-  return unique;
+  return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
+    label: `Recommended #${idx + 1}`,
+    groupType: tab.groupType,
+    tabLabel: tab.label,
+    hotels: hotelDetails.hotels.filter((h) => h.groupType === tab.groupType),
+  }));
 }, [hotelDetails]);
 
+const escapeHtml = (value: unknown) => {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value || 0);
+  return `₹ ${amount.toFixed(2)}`;
+};
+
+const copyHtmlToClipboard = async (html: string, plainText: string) => {
+  try {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      const item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([plainText], { type: "text/plain" }),
+      });
+
+      await navigator.clipboard.write([item]);
+    } else {
+      await navigator.clipboard.writeText(plainText);
+    }
+  } catch (error) {
+    console.error("Clipboard copy failed", error);
+    await navigator.clipboard.writeText(plainText);
+  }
+};
+
+type ClipboardMode = "recommended" | "highlights" | "para";
+
+type ClipboardGroup = {
+  label: string;
+  groupType: number;
+  hotels: ItineraryHotelRow[];
+};
+
+const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
+  if (!hotelDetails) return [];
+
+  return paraRecommendations
+    .filter((item, idx) => selectedHotels[`para-${idx}`])
+    .map((item) => ({
+      label: item.label,
+      groupType: item.groupType,
+      hotels: item.hotels,
+    }));
+};
+
+const buildClipboardHtml = (mode: ClipboardMode) => {
+  if (!hotelDetails || !itinerary) {
+    return { html: "", plainText: "" };
+  }
+
+  const selectedGroups = getSelectedClipboardGroups(mode);
+
+  if (!selectedGroups.length) {
+    return { html: "", plainText: "" };
+  }
+
+  const sectionTitle =
+    mode === "highlights"
+      ? "Highlights"
+      : mode === "recommended"
+      ? "Recommended Hotels"
+      : "Recommended Hotel";
+
+  const summaryHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <tr>
+        <td colspan="4" align="center" style="font-size:22px;line-height:40px;font-weight:600;">
+          Tour Itinerary Plan
+        </td>
+      </tr>
+    </table>
+
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
+      <tr>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.quoteId)}</span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Trip Date Range</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.dateRange)}</span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Total Pax</span>
+          <span style="font-weight:700;display:block;">
+            ${escapeHtml(itinerary.adults)} Adult, ${escapeHtml(itinerary.children)} Children, ${escapeHtml(itinerary.infants)} Infant
+          </span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Room Count</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.roomCount)}</span>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  const hotelSectionsHtml = selectedGroups
+    .map((group) => {
+      const rowsHtml =
+        group.hotels.length > 0
+          ? group.hotels
+              .map((hotel, index) => {
+                const totalPrice =
+                  Number(hotel.totalHotelCost || 0) +
+                  Number(hotel.totalHotelTaxAmount || 0);
+
+                return `
+                  <tr>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      Day- ${index + 1} | ${escapeHtml(hotel.day)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.destination)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
+                    </td>
+                    ${
+                      hotelDetails.hotelRatesVisible
+                        ? `
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        <b>${escapeHtml(formatCurrency(totalPrice))}</b>
+                      </td>
+                    `
+                        : ""
+                    }
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.mealPlan)}
+                    </td>
+                  </tr>
+                `;
+              })
+              .join("")
+          : `
+            <tr>
+              <td colspan="${hotelDetails.hotelRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
+                No hotel available
+              </td>
+            </tr>
+          `;
+
+      return `
+        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+          <tr>
+            <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+              ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
+            </td>
+          </tr>
+        </table>
+
+        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+          <tr>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
+            ${
+              hotelDetails.hotelRatesVisible
+                ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>`
+                : ""
+            }
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      `;
+    })
+    .join("");
+
+  const vehicleRowsHtml =
+    itinerary.vehicles?.length > 0
+      ? itinerary.vehicles
+          .map((vehicle) => {
+            return `
+              <tr>
+                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:85%;">
+                  ${escapeHtml(vehicle.vehicleTypeName || "Vehicle")} (${escapeHtml(vehicle.totalQty)}) -
+                  ${escapeHtml(vehicle.fromLabel || "")} ==> ${escapeHtml(vehicle.toLabel || "")}
+                </td>
+                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:15%;">
+                  <b>${escapeHtml(formatCurrency(vehicle.totalAmount || 0))}</b>
+                </td>
+              </tr>
+            `;
+          })
+          .join("")
+      : `
+        <tr>
+          <td colspan="2" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
+            No Vehicle available
+          </td>
+        </tr>
+      `;
+
+  const vehicleSectionHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+      <tr>
+        <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+          Vehicle Details
+        </td>
+      </tr>
+    </table>
+
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <tr>
+        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
+        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
+      </tr>
+      ${vehicleRowsHtml}
+    </table>
+  `;
+
+  const costSectionHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+      <tr>
+        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+          Overall Cost
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Amount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalVehicleAmount || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmount || 0))}</strong></td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Coupon Discount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">- ${escapeHtml(formatCurrency(itinerary.costBreakdown.couponDiscount || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Round Off</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalRoundOff || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Net Payable To ${escapeHtml(itinerary.costBreakdown.companyName || "DVI Holidays")}</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.netPayable || 0))}</strong></td>
+      </tr>
+    </table>
+  `;
+
+  const fullHtml = `
+    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
+        ${summaryHtml}
+        ${hotelSectionsHtml}
+        ${vehicleSectionHtml}
+        ${costSectionHtml}
+      </div>
+    </div>
+  `;
+
+  const plainText = selectedGroups
+    .map((group) => {
+      const hotelLines = group.hotels
+        .map(
+          (hotel, index) =>
+            `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan}`
+        )
+        .join("\n");
+
+      return `${sectionTitle} - ${group.label}\n${hotelLines}`;
+    })
+    .join("\n\n");
+
+  return { html: fullHtml, plainText };
+};
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
   const [voucherModal, setVoucherModal] = useState(false);
@@ -3737,19 +4008,17 @@ const paraRecommendations = useMemo(() => {
               {clipboardType === 'para' && 'Recommended Hotel for Para'}
             </DialogTitle>
             <DialogDescription>
-              {clipboardType === 'recommended' && 'Select recommended hotels to include in clipboard'}
-              {clipboardType === 'highlights' && 'Hotel information will be copied in highlight/bullet format'}
-              {clipboardType === 'para' && 'Select from 4 recommended options to copy to clipboard'}
-            </DialogDescription>
+  Select from 4 recommended options to copy to clipboard
+</DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
-  {!hotelDetails?.hotels?.length ? (
+  {!paraRecommendations.length ? (
     <p className="text-sm text-[#6c6c6c] text-center py-8">
       No hotel information available
     </p>
-  ) : clipboardType === "para" ? (
+  ) : (
     <div className="space-y-3">
-      {paraRecommendations.map((_, idx) => {
+      {paraRecommendations.map((item, idx) => {
         const key = `para-${idx}`;
         return (
           <div key={key} className="flex items-center gap-3">
@@ -3763,40 +4032,12 @@ const paraRecommendations = useMemo(() => {
               }
             />
             <label htmlFor={`para-${key}`} className="text-sm cursor-pointer">
-              Recommended #{idx + 1}
+              {item.label}
             </label>
           </div>
         );
       })}
     </div>
-  ) : (
-    hotelDetails.hotelTabs.map((tab) => (
-      <div key={tab.groupType} className="border border-[#e5d9f2] rounded-lg p-3">
-        <h4 className="font-semibold text-[#4a4260] mb-2">{tab.label}</h4>
-
-        {hotelDetails.hotels
-          .filter((h) => h.groupType === tab.groupType)
-          .map((hotel, idx) => {
-            const hotelKey = `${tab.groupType}-${idx}`;
-            return (
-              <div key={idx} className="flex items-center gap-3 py-2">
-                <input
-                  type="checkbox"
-                  id={`hotel-${hotelKey}`}
-                  className="h-4 w-4 cursor-pointer"
-                  checked={selectedHotels[hotelKey] || false}
-                  onChange={(e) =>
-                    setSelectedHotels({ ...selectedHotels, [hotelKey]: e.target.checked })
-                  }
-                />
-                <label htmlFor={`hotel-${hotelKey}`} className="text-sm flex-1 cursor-pointer">
-                  {hotel.hotelName} - {hotel.destination}
-                </label>
-              </div>
-            );
-          })}
-      </div>
-    ))
   )}
 </div>
           <DialogFooter className="gap-2">
@@ -3809,52 +4050,35 @@ const paraRecommendations = useMemo(() => {
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
              onClick={() => {
-  let clipboardText = "";
-
   const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
+
   if (selectedCount === 0) {
-    toast.error("Please select at least one hotel");
+    toast.error(
+      clipboardType === "para"
+        ? "Please select at least one recommendation"
+        : "Please select at least one hotel"
+    );
     return;
   }
 
-  if (!hotelDetails) return;
+  if (!hotelDetails || !itinerary) return;
 
-  // ✅ Para uses ONLY the 4 "Recommended #1-#4" options
-  if (clipboardType === "para") {
-    paraRecommendations.forEach((hotel, idx) => {
-      const key = `para-${idx}`;
-      if (selectedHotels[key]) {
-        clipboardText += `On ${hotel.day}, accommodation at ${hotel.hotelName} in ${hotel.destination}. `;
-      }
-    });
+  const { html, plainText } = buildClipboardHtml(clipboardType);
 
-    navigator.clipboard.writeText(clipboardText.trim());
-    toast.success("Copied to clipboard!");
-    setClipboardModal(false);
-    setSelectedHotels({});
+  if (!html || !plainText) {
+    toast.error("Failed to prepare clipboard content");
     return;
   }
 
-  // ✅ Keep existing behavior for recommended/highlights
-  hotelDetails.hotelTabs.forEach((tab) => {
-    const tabHotels = hotelDetails.hotels.filter((h) => h.groupType === tab.groupType);
-
-    tabHotels.forEach((hotel, idx) => {
-      const hotelKey = `${tab.groupType}-${idx}`;
-      if (!selectedHotels[hotelKey]) return;
-
-      if (clipboardType === "highlights") {
-        clipboardText += `• ${hotel.day} - ${hotel.hotelName}, ${hotel.destination}\n`;
-      } else {
-        clipboardText += `${tab.label}: ${hotel.hotelName} - ${hotel.destination}\n`;
-      }
+  copyHtmlToClipboard(html, plainText)
+    .then(() => {
+      toast.success("Formatted clipboard content copied!");
+      setClipboardModal(false);
+      setSelectedHotels({});
+    })
+    .catch(() => {
+      toast.error("Failed to copy clipboard content");
     });
-  });
-
-  navigator.clipboard.writeText(clipboardText);
-  toast.success("Copied to clipboard!");
-  setClipboardModal(false);
-  setSelectedHotels({});
 }}
             >
               Copy Selected
