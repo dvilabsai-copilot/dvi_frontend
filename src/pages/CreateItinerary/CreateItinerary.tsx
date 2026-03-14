@@ -370,24 +370,31 @@ useEffect(() => {
 
             if (Array.isArray(existing.routes) && existing.routes.length) {
               setRouteDetails(
-                existing.routes.map((r: any, idx: number): RouteRow => ({
-                  id: idx + 1,
-                  day: r.no_of_days ?? idx + 1,
-                  date: r.itinerary_route_date
-                    ? toDDMMYYYY(new Date(r.itinerary_route_date))
-                    : "",
-                  source: r.location_name ?? "",
-                  next: r.next_visiting_location ?? "",
-                  via: r.via_route ?? "",
-                  via_routes: Array.isArray(r.via_routes) 
-                    ? r.via_routes.map((vr: any) => ({
-                        itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
-                        itinerary_via_location_name: String(vr.itinerary_via_location_name),
-                      }))
-                    : [],
-                  directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
-                }))
-              );
+  existing.routes.map((r: any, idx: number): RouteRow => ({
+    id: idx + 1,
+    day: r.no_of_days ?? idx + 1,
+    date: r.itinerary_route_date
+      ? toDDMMYYYY(new Date(r.itinerary_route_date))
+      : "",
+    source: r.location_name ?? "",
+    next: r.next_visiting_location ?? "",
+    via: r.via_route ?? "",
+    via_routes: Array.isArray(r.via_routes)
+      ? r.via_routes.map((vr: any) => ({
+          itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+          itinerary_via_location_name: String(vr.itinerary_via_location_name),
+        }))
+      : [],
+    no_of_km:
+      r.no_of_km !== undefined &&
+      r.no_of_km !== null &&
+      String(r.no_of_km).trim() !== ""
+        ? Number(r.no_of_km)
+        : 0,
+    directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
+  }))
+);
+              
             }
 
             if (Array.isArray(existing.vehicles) && existing.vehicles.length) {
@@ -477,6 +484,12 @@ useEffect(() => {
           next: r.next || "",
           via: r.via || "",
           via_routes: [],
+           no_of_km:
+      r.no_of_km !== undefined &&
+      r.no_of_km !== null &&
+      String(r.no_of_km).trim() !== ""
+        ? Number(r.no_of_km)
+        : 0,
           directVisit: r.directVisit ? "Yes" : "No",
         }))
       );
@@ -665,7 +678,12 @@ const buildPayload = () => {
       ? toISOFromDDMMYYYY(r.date)
       : undefined, // +05:30 from utils
     no_of_days: r.day,
-    no_of_km: "",
+     no_of_km:
+    r.no_of_km !== undefined &&
+    r.no_of_km !== null &&
+    String(r.no_of_km).trim() !== ""
+      ? Number(r.no_of_km)
+      : 0,
     direct_to_next_visiting_place: r.directVisit === "Yes" ? 1 : 0,
     via_route: r.via || "",
     via_routes: r.via_routes || [], // include via routes array for backend
