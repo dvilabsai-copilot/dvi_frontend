@@ -24,6 +24,7 @@ export type RouteRow = {
   next: string;
   via: string; // comma separated hotspots for this segment
   via_routes: ViaRouteItem[]; // array of via route objects for backend
+  no_of_km?: number | string; // intercity distance between source and next
   directVisit: "Yes" | "No";
 };
 
@@ -51,17 +52,18 @@ export function useItineraryRoutes({
   toast,
 }: UseItineraryRoutesArgs) {
   const [routeDetails, setRouteDetails] = useState<RouteRow[]>([
-    {
-      id: 1,
-      day: 1,
-      date: "",
-      source: "",
-      next: "",
-      via: "",
-      via_routes: [],
-      directVisit: "Yes",
-    },
-  ]);
+  {
+    id: 1,
+    day: 1,
+    date: "",
+    source: "",
+    next: "",
+    via: "",
+    via_routes: [],
+    no_of_km: 0,
+    directVisit: "Yes",
+  },
+]);
 
   const [viaDialogOpen, setViaDialogOpen] = useState(false);
   const [activeViaRouteRow, setActiveViaRouteRow] = useState<RouteRow | null>(
@@ -98,16 +100,17 @@ export function useItineraryRoutes({
         const currentDate = new Date(start.getTime() + i * ONE_DAY);
         const existing = prev[i];
 
-        nextRoutes.push({
-          id: existing?.id ?? i + 1,
-          day: i + 1,
-          date: toDDMMYYYY(currentDate),
-          source: existing?.source ?? "",
-          via_routes: existing?.via_routes ?? [],
-          next: existing?.next ?? "",
-          via: existing?.via ?? "",
-          directVisit: existing?.directVisit ?? "Yes",
-        });
+      nextRoutes.push({
+  id: existing?.id ?? i + 1,
+  day: i + 1,
+  date: toDDMMYYYY(currentDate),
+  source: existing?.source ?? "",
+  via_routes: existing?.via_routes ?? [],
+  next: existing?.next ?? "",
+  via: existing?.via ?? "",
+  no_of_km: existing?.no_of_km ?? 0,
+  directVisit: existing?.directVisit ?? "Yes",
+});
       }
 
       // Prefill DAY 1 source from Arrival

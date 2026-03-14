@@ -27,6 +27,7 @@ type RouteDetailRow = {
   source: string;
   next: string;
   via: string;
+  no_of_km?: number | string;
   directVisit: string;
 };
 
@@ -185,6 +186,7 @@ export const RouteDetailsBlock = ({
             source: "",
             next: "",
             via: "",
+            no_of_km: 0,
             directVisit: "Yes",
           },
         ];
@@ -205,14 +207,15 @@ export const RouteDetailsBlock = ({
       };
 
       // Add new day row
-      updated.push({
-        day: last.day + 1,
-        date: addOneDay(last.date),
-        source: copiedSource,
-        next: movedFinalDestination,
-        via: "",
-        directVisit: "Yes",
-      });
+    updated.push({
+  day: last.day + 1,
+  date: addOneDay(last.date),
+  source: copiedSource,
+  next: movedFinalDestination,
+  via: "",
+  no_of_km: 0,
+  directVisit: "Yes",
+});
 
       return updated;
     });
@@ -235,20 +238,23 @@ export const RouteDetailsBlock = ({
         <Table>
           <TableHeader>
             <TableRow className="bg-[#faf1ff]">
-              <TableHead className="text-xs text-[#4a4260] w-[80px]">DAY</TableHead>
-              <TableHead className="text-xs text-[#4a4260] w-[140px]">DATE</TableHead>
-              <TableHead className="text-xs text-[#4a4260] w-[200px]">
-                SOURCE DESTINATION
-              </TableHead>
-              <TableHead className="text-xs text-[#4a4260] w-[280px]">
-                NEXT DESTINATION
-              </TableHead>
-              <TableHead className="text-xs text-[#4a4260] w-[100px] text-center">
-                VIA ROUTE
-              </TableHead>
-              <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
-                DIRECT DESTINATION VISIT
-              </TableHead>
+             <TableHead className="text-xs text-[#4a4260] w-[80px]">DAY</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[140px]">DATE</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[200px]">
+  SOURCE DESTINATION
+</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[280px]">
+  NEXT DESTINATION
+</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
+  INTERCITY KM
+</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[100px] text-center">
+  VIA ROUTE
+</TableHead>
+<TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
+  DIRECT DESTINATION VISIT
+</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -294,149 +300,160 @@ export const RouteDetailsBlock = ({
 
               return (
                 <TableRow key={idx}>
-                  <TableCell>{`DAY ${row.day}`}</TableCell>
+  <TableCell>{`DAY ${row.day}`}</TableCell>
 
-                  {/* DATE – read-only from selected range */}
-                  <TableCell>
-                    <Input
-                      tabIndex={-1}
-                      readOnly
-                      placeholder="DD/MM/YYYY"
-                      value={row.date}
-                      className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs"
-                    />
-                  </TableCell>
+  <TableCell>
+    <Input
+      tabIndex={-1}
+      readOnly
+      placeholder="DD/MM/YYYY"
+      value={row.date}
+      className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs"
+    />
+  </TableCell>
 
-                  {/* SOURCE DESTINATION – read only, but validated for first row */}
-                  <TableCell
-                    data-field={isFirstRow ? "firstRouteSource" : undefined}
-                    className={
-                      isFirstRow && firstRouteSourceError ? "align-top" : ""
-                    }
-                  >
-                    <div
-                      className={
-                        isFirstRow && firstRouteSourceError
-                          ? "border border-red-500 rounded-md p-1"
-                          : ""
-                      }
-                    >
-                      <Input
-                        tabIndex={-1}
-                        readOnly
-                        placeholder="Source Location"
-                        value={row.source}
-                        className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed"
-                      />
-                    </div>
-                    {isFirstRow && firstRouteSourceError && (
-                      <p className="mt-1 text-xs text-red-500">
-                        {firstRouteSourceError}
-                      </p>
-                    )}
-                  </TableCell>
+  <TableCell
+    data-field={isFirstRow ? "firstRouteSource" : undefined}
+    className={isFirstRow && firstRouteSourceError ? "align-top" : ""}
+  >
+    <div
+      className={
+        isFirstRow && firstRouteSourceError
+          ? "border border-red-500 rounded-md p-1"
+          : ""
+      }
+    >
+      <Input
+        tabIndex={-1}
+        readOnly
+        placeholder="Source Location"
+        value={row.source}
+        className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed"
+      />
+    </div>
+    {isFirstRow && firstRouteSourceError && (
+      <p className="mt-1 text-xs text-red-500">
+        {firstRouteSourceError}
+      </p>
+    )}
+  </TableCell>
 
-                  {/* NEXT DESTINATION – autosuggest, chained to next row source */}
-                  <TableCell
-                    data-field={isFirstRow ? "firstRouteNext" : undefined}
-                    className={
-                      isFirstRow && firstRouteNextError ? "align-top" : ""
-                    }
-                  >
-                    <div
-                      id={`next-destination-${idx}`}
-                      className={
-                        isFirstRow && firstRouteNextError
-                          ? "border border-red-500 rounded-md p-1"
-                          : ""
-                      }
-                    >
-                      <AutoSuggestSelect
-                        ref={(el) => {
-                          nextDestinationRefs.current[idx] = el;
-                        }}
-                        mode="single"
-                        value={nextDestinationValue}
-                        onChange={(val) => {
-                          // Don't allow changes on last row
-                          if (isLastRowLocked) return;
+  <TableCell
+    data-field={isFirstRow ? "firstRouteNext" : undefined}
+    className={isFirstRow && firstRouteNextError ? "align-top" : ""}
+  >
+    <div
+      id={`next-destination-${idx}`}
+      className={
+        isFirstRow && firstRouteNextError
+          ? "border border-red-500 rounded-md p-1"
+          : ""
+      }
+    >
+      <AutoSuggestSelect
+        ref={(el) => {
+          nextDestinationRefs.current[idx] = el;
+        }}
+        mode="single"
+        value={nextDestinationValue}
+        onChange={(val) => {
+          if (isLastRowLocked) return;
 
-                          setRouteDetails((prev) => {
-                            const updated = [...prev];
-                            const chosen = (val as string) || "";
+          setRouteDetails((prev) => {
+            const updated = [...prev];
+            const chosen = (val as string) || "";
 
-                            updated[idx] = {
-                              ...updated[idx],
-                              next: chosen,
-                            };
+            updated[idx] = {
+              ...updated[idx],
+              next: chosen,
+            };
 
-                            // PHP behaviour: selected NEXT becomes SOURCE of next day
-                            if (idx + 1 < updated.length) {
-                              updated[idx + 1] = {
-                                ...updated[idx + 1],
-                                source: chosen,
-                              };
-                            }
+            if (idx + 1 < updated.length) {
+              updated[idx + 1] = {
+                ...updated[idx + 1],
+                source: chosen,
+              };
+            }
 
-                            return updated;
-                          });
-                        }}
-                        onSelectionCommit={(reason) => {
-                          // Don't move focus on last row (or do nothing)
-                          if (isLastRowLocked) return;
-                          // After selection, move focus to next row's Next Destination
-                          // This handles click, enter, and tab selections
-                          moveFocusToNextDestination(idx);
-                        }}
-                        disabled={isLastRowLocked}
-                        readOnly={isLastRowLocked}
-                        options={rowSpecificOptions}
-                        placeholder="Next Destination"
-                      />
-                    </div>
-                    {isFirstRow && firstRouteNextError && (
-                      <p className="mt-1 text-xs text-red-500">
-                        {firstRouteNextError}
-                      </p>
-                    )}
-                  </TableCell>
+            return updated;
+          });
+        }}
+        onSelectionCommit={() => {
+          if (isLastRowLocked) return;
+          moveFocusToNextDestination(idx);
+        }}
+        disabled={isLastRowLocked}
+        readOnly={isLastRowLocked}
+        options={rowSpecificOptions}
+        placeholder="Next Destination"
+      />
+    </div>
+    {isFirstRow && firstRouteNextError && (
+      <p className="mt-1 text-xs text-red-500">
+        {firstRouteNextError}
+      </p>
+    )}
+  </TableCell>
 
-                  {/* VIA ROUTE – icon button opens popup */}
-                  <TableCell className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => onOpenViaRoutes?.(row)}
-                      className="btn btn-outline-primary btn-sm"
-                      title="Via Route"
-                    >
-                      <i className="ti ti-route ti-tada-hover"></i>
-                    </button>
-                  </TableCell>
+  <TableCell className="text-center">
+    <Input
+      type="number"
+      min="0"
+      step="0.01"
+      placeholder="KM"
+      value={row.no_of_km ?? ""}
+      onChange={(e) => {
+        const value = e.target.value;
 
-                  {/* DIRECT DESTINATION VISIT – toggle button */}
-                  <TableCell className="text-center">
-                    <button
-                      type="button"
-                      aria-pressed={row.directVisit === "Yes"}
-                      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""}`}
-                      title={row.directVisit === "Yes" ? "Active" : "Inactive"}
-                      onClick={() =>
-                        setRouteDetails((prev) =>
-                          prev.map((r, i) =>
-                            i === idx
-                              ? {
-                                  ...r,
-                                  directVisit: r.directVisit === "Yes" ? "" : "Yes",
-                                }
-                              : r
-                          )
-                        )
-                      }
-                    >
-                      <span className="hotel-toggle-knob"></span>
-                    </button>
-                  </TableCell>
-                </TableRow>
+        setRouteDetails((prev) =>
+          prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  no_of_km: value,
+                }
+              : r
+          )
+        );
+      }}
+      className="h-8 rounded-md border-[#e5d7f6] text-xs text-center"
+    />
+  </TableCell>
+
+  <TableCell className="text-center">
+    <button
+      type="button"
+      onClick={() => onOpenViaRoutes?.(row)}
+      className="btn btn-outline-primary btn-sm"
+      title="Via Route"
+    >
+      <i className="ti ti-route ti-tada-hover"></i>
+    </button>
+  </TableCell>
+
+  <TableCell className="text-center">
+    <button
+      type="button"
+      aria-pressed={row.directVisit === "Yes"}
+      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""}`}
+      title={row.directVisit === "Yes" ? "Active" : "Inactive"}
+      onClick={() =>
+        setRouteDetails((prev) =>
+          prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  directVisit: r.directVisit === "Yes" ? "" : "Yes",
+                }
+              : r
+          )
+        )
+      }
+    >
+      <span className="hotel-toggle-knob"></span>
+    </button>
+  </TableCell>
+</TableRow>
               );
             })}
           </TableBody>

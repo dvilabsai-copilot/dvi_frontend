@@ -131,7 +131,9 @@ type ItineraryDay = {
   date: string; // ISO
   departure: string | null;
   arrival: string | null;
-  distance: string;
+  distance: string; // total distance
+  intercityDistance?: string; // only main destination-to-destination distance
+  sightseeingDistance?: string; // only sightseeing/local movement distance
   startTime: string; // "12:00 PM"
   endTime: string; // "08:00 PM"
   viaRoutes?: ViaRouteItem[];
@@ -296,6 +298,13 @@ const formatHeaderDate = (iso: string) => {
     month: "short",
     year: "numeric",
   });
+};
+
+const getDisplayDistances = (day: ItineraryDay) => {
+  return {
+    intercityDistance: day.intercityDistance || day.distance,
+    sightseeingDistance: day.sightseeingDistance || "0.00 KM",
+  };
 };
 
 const parseDisplayTimeToHms = (displayTime: string): string => {
@@ -2385,8 +2394,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       </Card>
 
       {/* Daily Itinerary */}
-      {itinerary.days.map((day) => (
-        <Card key={day.id} className="border border-[#e5d9f2] bg-white">
+      {itinerary.days.map((day) => {
+  const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
+
+  return (
+    <Card key={day.id} className="border border-[#e5d9f2] bg-white">
           <CardContent className="pt-2">
             {/* Day Header */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-3 p-3 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2]">
@@ -2435,11 +2447,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full">
-                  {day.distance}
-                </span>
-              </div>
+              <div className="flex flex-col items-start lg:items-end gap-2 text-sm">
+  <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium">
+    Travel: {intercityDistance}
+  </span>
+</div>
             </div>
 
             {/* Time Range */}
@@ -3013,9 +3025,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
               </div>
             </div>
           </CardContent>
-        </Card>
-      ))}
-
+               </Card>
+      );
+    })}
       {/* Hotel List (separate component) */}
       {hotelDetails && (
         <HotelList
