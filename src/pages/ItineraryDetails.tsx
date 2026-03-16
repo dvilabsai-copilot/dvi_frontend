@@ -789,8 +789,6 @@ const selectedHotelTotal = useMemo(
   () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
   [selectedHotelBookings]
 );
-const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
-const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
@@ -1140,6 +1138,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const [prebookData, setPrebookData] = useState<any | null>(null);
   const [isPrebooking, setIsPrebooking] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
+  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
+  const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
   const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
