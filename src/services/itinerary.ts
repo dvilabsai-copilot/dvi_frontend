@@ -314,10 +314,12 @@ export const ItineraryService = {
         title: string;
         firstName: string;
         lastName: string;
+        nationality?: string;
         email?: string;
         paxType: number;
         leadPassenger: boolean;
         age: number;
+        panNo?: string;
         passportNo?: string;
         passportIssueDate?: string;
         passportExpDate?: string;
@@ -340,10 +342,12 @@ export const ItineraryService = {
         title: string;
         firstName: string;
         lastName: string;
+        nationality?: string;
         email?: string;
         paxType: number;
         leadPassenger: boolean;
         age: number;
+        panNo?: string;
         passportNo?: string;
         passportIssueDate?: string;
         passportExpDate?: string;
@@ -360,6 +364,43 @@ export const ItineraryService = {
     endUserIp?: string;
   }) {
     return api("itineraries/confirm-quotation", {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async prebookHotels(data: {
+    itinerary_plan_ID: number;
+    hotel_bookings: Array<{
+      routeId: number;
+      provider: string;
+      hotelCode: string;
+      bookingCode: string;
+      roomType: string;
+      checkInDate: string;
+      checkOutDate: string;
+      numberOfRooms: number;
+      guestNationality: string;
+      netAmount: number;
+      passengers: Array<{
+        title: string;
+        firstName: string;
+        lastName: string;
+        nationality?: string;
+        email?: string;
+        paxType: number;
+        leadPassenger: boolean;
+        age: number;
+        panNo?: string;
+        passportNo?: string;
+        passportIssueDate?: string;
+        passportExpDate?: string;
+        phoneNo?: string;
+      }>;
+    }>;
+    endUserIp?: string;
+  }) {
+    return api("itineraries/hotels/prebook", {
       method: "POST",
       body: data,
     });
@@ -552,11 +593,21 @@ export const ItineraryService = {
     checkOutDate: string;
     roomCount: number;
     guestCount: number;
+    adultCount?: number;
+    childCount?: number;
+    infantCount?: number;
+    childAges?: number[];
+    guestNationality?: string;
     hotelName?: string;
   }) {
+    const payload = {
+      ...searchParams,
+      guestNationality: searchParams.guestNationality,
+    };
+
     return api("hotels/search", {
       method: "POST",
-      body: searchParams,
+      body: payload,
     });
   },
 

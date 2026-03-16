@@ -712,6 +712,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     routeId: null,
     routeDate: "",
   });
+  const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
   
   const [roomSelectionModal, setRoomSelectionModal] = useState<{
     open: boolean;
@@ -783,6 +784,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 }}>({});
 
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+
+const selectedHotelTotal = useMemo(
+  () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
+  [selectedHotelBookings]
+);
+const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
+const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
@@ -1098,11 +1106,24 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     agent_name: string;
     agent_id?: number;
   } | null>(null);
+
+  type AdditionalPassenger = {
+    title: string;
+    name: string;
+    age: string;
+    nationality: string;
+    panNo: string;
+    passportNo: string;
+  };
+
   const [guestDetails, setGuestDetails] = useState({
     salutation: 'Mr',
     name: '',
     contactNo: '',
     age: '',
+    nationality: '',
+    panNo: '',
+    passportNo: '',
     alternativeContactNo: '',
     emailId: '',
     arrivalDateTime: '',
@@ -1112,12 +1133,101 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     departurePlace: '',
     departureFlightDetails: '',
   });
-  const [additionalAdults, setAdditionalAdults] = useState<Array<{ name: string; age: string }>>([]);
-  const [additionalChildren, setAdditionalChildren] = useState<Array<{ name: string; age: string }>>([]);
-  const [additionalInfants, setAdditionalInfants] = useState<Array<{ name: string; age: string }>>([]);
+  const [additionalAdults, setAdditionalAdults] = useState<AdditionalPassenger[]>([]);
+  const [additionalChildren, setAdditionalChildren] = useState<AdditionalPassenger[]>([]);
+  const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [prebookData, setPrebookData] = useState<any | null>(null);
+  const [isPrebooking, setIsPrebooking] = useState(false);
+  const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
+
+  const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
+  const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+
+  const defaultPassenger = (title: string): AdditionalPassenger => ({
+    title,
+    name: '',
+    age: '',
+    nationality: guestDetails.nationality,
+    panNo: '',
+    passportNo: '',
+  });
+
+  const buildTboOccupancies = (
+    roomCount: number,
+    totalAdults: number,
+    childAges: number[],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+      childrenAges: [] as number[],
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    for (const age of childAges) {
+      let assigned = false;
+      for (let idx = 0; idx < rooms; idx++) {
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          occupancies[idx].childrenAges.push(age);
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  };
+
+  const normalizeNameParts = (name: string) => {
+    const trimmed = name.trim();
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || trimmed;
+    const lastName = parts.slice(1).join(' ') || firstName;
+    return { firstName, lastName };
+  };
+
+  const getSafeErrorMessage = (error: unknown, fallback: string) => {
+    const text = String((error as any)?.message || fallback);
+    if (/session expired|stale|availability changed|booking code invalid|price changed/i.test(text)) {
+      return 'This hotel session has expired or rates changed. Please refresh hotel selection and run prebook again.';
+    }
+    return text;
+  };
+
+  const normalizePrebookItems = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        return item?.name || item?.text || item?.description || JSON.stringify(item);
+      })
+      .map((text) => String(text || '').trim())
+      .filter(Boolean);
+  };
 
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
@@ -1784,6 +1894,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     // ⚡ Lazy-load hotel details when modal opens (not on initial page load)
     ensureHotelDetailsLoaded();
 
+    const itineraryChildCount = Number(itinerary?.children || 0);
+    setHotelSearchChildAges((prev) =>
+      Array.from({ length: itineraryChildCount }, (_, idx) => prev[idx] || '')
+    );
+
     setHotelSelectionModal({
       open: true,
       planId,
@@ -1839,7 +1954,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       }
     } catch (e: any) {
       console.error("Failed to select hotel", e);
-      toast.error(e?.message || "Failed to select hotel");
+      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
     } finally {
       setIsSelectingHotel(false);
     }
@@ -1895,6 +2010,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           checkOutDate: formatDate(checkOutDate),
         }
       }));
+      setPrebookData(null);
+      setHasAcceptedUpdatedPrice(false);
       
       console.log('DEBUG: Hotel selected and stored', {
         routeId: hotelSelectionModal.routeId,
@@ -1933,7 +2050,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       }
     } catch (e: any) {
       console.error("Failed to select hotel", e);
-      toast.error(e?.message || "Failed to select hotel");
+      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
       throw e; // Re-throw for modal to handle
     } finally {
       setIsSelectingHotel(false);
@@ -1955,6 +2072,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     }
 
     setConfirmQuotationModal(true);
+    setPrebookData(null);
+    setHasAcceptedUpdatedPrice(false);
+    setFormErrors({});
 
     try {
       // Fetch customer info form data
@@ -2035,44 +2155,108 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       return;
     }
 
-    // Validate required fields - only name and contact number are mandatory
-    if (!guestDetails.name || !guestDetails.contactNo) {
-      toast.error('Please fill in guest name and contact number');
+    const nextErrors: Record<string, string> = {};
+    const requiredPrimaryFields: Array<[keyof typeof guestDetails, string]> = [
+      ['name', 'Primary guest name is required.'],
+      ['contactNo', 'Primary guest contact number is required.'],
+      ['nationality', 'Primary guest nationality is required.'],
+    ];
+
+    requiredPrimaryFields.forEach(([key, message]) => {
+      if (!String(guestDetails[key] || '').trim()) {
+        nextErrors[`primary-${String(key)}`] = message;
+      }
+    });
+
+    if (!ALLOWED_TITLES.includes(guestDetails.salutation)) {
+      nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
+    }
+
+    if (!isValidPassengerName(guestDetails.name)) {
+      nextErrors['primary-name'] = 'Primary guest name must be 2-25 characters and contain only letters, spaces, apostrophe or hyphen.';
+    }
+
+    if (!isValidIsoNationality(guestDetails.nationality)) {
+      nextErrors['primary-nationality'] = 'Primary guest nationality must be a valid ISO-2 code (example: IN).';
+    }
+
+    const primaryAge = Number(guestDetails.age);
+    if (!Number.isFinite(primaryAge) || primaryAge <= 0) {
+      nextErrors['primary-age'] = 'Primary guest age must be a valid number.';
+    }
+
+    const validateAdditionalPassengers = (
+      list: AdditionalPassenger[],
+      label: 'adult' | 'child' | 'infant',
+      expectedCount: number,
+      minAge: number,
+      maxAge: number,
+    ) => {
+      if (list.length !== expectedCount) {
+        nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? '' : 's'}, but found ${list.length}.`;
+      }
+
+      list.forEach((item, index) => {
+        if (!item.title) {
+          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is required.`;
+        } else if (!ALLOWED_TITLES.includes(item.title)) {
+          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is invalid.`;
+        }
+        if (!item.name.trim()) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
+        } else if (!isValidPassengerName(item.name)) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name must be 2-25 valid characters.`;
+        }
+        if (!item.nationality.trim()) {
+          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
+        } else if (!isValidIsoNationality(item.nationality)) {
+          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality must be ISO-2 code (example: IN).`;
+        }
+        const parsedAge = Number(item.age);
+        if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
+          nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
+        }
+      });
+    };
+
+    const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
+    const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
+    const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
+
+    validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 17);
+    validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      toast.error('Please fix guest details before confirming quotation.');
       return;
     }
 
+    setFormErrors({});
     setIsConfirmingQuotation(true);
 
     try {
-      // ℹ️ NOTE: Hotel selections are sent in the confirm-quotation payload
-      // No need to save them separately via hotels/select
-
-      // ✅ AUTO-SELECT: If user hasn't selected a hotel for a route, auto-select first hotel from Budget tier (groupType 1)
       let autoSelectedHotels = { ...selectedHotelBookings };
-      
+
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        // Get all routes that have hotels available
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
-        
-        // For each route with hotels, check if user has already selected
+
         routesWithHotels.forEach((routeId: number) => {
           if (!autoSelectedHotels[routeId]) {
-            // Find first hotel from this route (should be Budget/groupType 1)
             const firstHotelForRoute = hotelDetails.hotels.find(
               (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
             );
-            
+
             if (firstHotelForRoute) {
-              // Calculate check-in and check-out dates
-              const routeDay = itinerary?.days?.find(d => d.id === routeId);
+              const routeDay = itinerary?.days?.find((d) => d.id === routeId);
               const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay 
-                ? new Date(new Date(routeDay.date).getTime() + 24*60*60*1000).toISOString().split('T')[0] 
+              const checkOutDate = routeDay
+                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
                 : '';
-              
-              // Auto-select this hotel
+
               autoSelectedHotels[routeId] = {
-                provider: firstHotelForRoute.provider || 'tbo', // Get provider from hotel data
+                provider: firstHotelForRoute.provider || 'tbo',
                 hotelCode: String(firstHotelForRoute.hotelCode || firstHotelForRoute.hotelId),
                 bookingCode: firstHotelForRoute.bookingCode || String(firstHotelForRoute.hotelId),
                 roomType: firstHotelForRoute.roomType || 'Standard',
@@ -2081,99 +2265,163 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 checkInDate,
                 checkOutDate,
               };
-              
-              console.log(`ℹ️ Auto-selected for Route ${routeId}: ${firstHotelForRoute.hotelName} (Budget Tier)`);
             }
           }
         });
       }
-      
-      console.log('DEBUG: Auto-selected hotels (merged):', autoSelectedHotels);
 
-      // Build passengers array for hotel booking (works for all providers: TBO, ResAvenue, HOBSE)
+      const primaryName = normalizeNameParts(guestDetails.name);
       const passengers = [
         {
           title: guestDetails.salutation,
-          firstName: guestDetails.name.split(' ')[0],
-          lastName: guestDetails.name.split(' ').slice(1).join(' ') || guestDetails.name,
+          firstName: primaryName.firstName,
+          lastName: primaryName.lastName,
+          nationality: guestDetails.nationality,
           email: guestDetails.emailId || undefined,
-          paxType: 1, // 1 = Adult
-          leadPassenger: true, // ✅ IMPORTANT: Lead passenger for HOBSE/backend
-          age: parseInt(guestDetails.age) || 0,
-          passportNo: undefined,
+          paxType: 1,
+          leadPassenger: true,
+          age: Number(guestDetails.age),
+          panNo: guestDetails.panNo || undefined,
+          passportNo: guestDetails.passportNo || undefined,
           passportIssueDate: undefined,
           passportExpDate: undefined,
           phoneNo: guestDetails.contactNo,
         },
-        // Additional adults
-        ...additionalAdults.map((adult, idx) => ({
-          title: 'Mr',
-          firstName: adult.name.split(' ')[0],
-          lastName: adult.name.split(' ').slice(1).join(' ') || adult.name,
-          email: undefined,
-          paxType: 1, // 1 = Adult
-          leadPassenger: false,
-          age: parseInt(adult.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
-        // Children
-        ...additionalChildren.map((child, idx) => ({
-          title: 'Mr',
-          firstName: child.name.split(' ')[0],
-          lastName: child.name.split(' ').slice(1).join(' ') || child.name,
-          email: undefined,
-          paxType: 2, // 2 = Child
-          leadPassenger: false,
-          age: parseInt(child.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
-        // Infants
-        ...additionalInfants.map((infant, idx) => ({
-          title: 'Mr',
-          firstName: infant.name.split(' ')[0],
-          lastName: infant.name.split(' ').slice(1).join(' ') || infant.name,
-          email: undefined,
-          paxType: 3, // 3 = Infant
-          leadPassenger: false,
-          age: parseInt(infant.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
+        ...additionalAdults.map((adult) => {
+          const name = normalizeNameParts(adult.name);
+          return {
+            title: adult.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: adult.nationality,
+            email: undefined,
+            paxType: 1,
+            leadPassenger: false,
+            age: Number(adult.age),
+            panNo: adult.panNo || undefined,
+            passportNo: adult.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
+        ...additionalChildren.map((child) => {
+          const name = normalizeNameParts(child.name);
+          return {
+            title: child.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: child.nationality,
+            email: undefined,
+            paxType: 2,
+            leadPassenger: false,
+            age: Number(child.age),
+            panNo: child.panNo || undefined,
+            passportNo: child.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
+        ...additionalInfants.map((infant) => {
+          const name = normalizeNameParts(infant.name);
+          return {
+            title: infant.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: infant.nationality,
+            email: undefined,
+            paxType: 2,
+            leadPassenger: false,
+            age: Number(infant.age),
+            panNo: infant.panNo || undefined,
+            passportNo: infant.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
       ];
 
-      // Build hotel_bookings array with provider field - using auto-selected hotels if user didn't manually select
-      // ✅ FIX: Only book hotels that were selected (manually or auto-selected)
-      console.log('DEBUG: autoSelectedHotels state:', autoSelectedHotels);
-      
+      const childAgesForBooking = [
+        ...additionalChildren.map((c) => Number(c.age)),
+        ...additionalInfants.map((i) => Number(i.age)),
+      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 17);
+
+      const occupanciesForBooking = buildTboOccupancies(
+        Number(itinerary.roomCount || 1),
+        Math.max(Number(itinerary.adults || 1), 1),
+        childAgesForBooking,
+      );
+
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
-        provider: hotelData.provider, // Provider from hotel selection (tbo, ResAvenue, etc.)
-        routeId: parseInt(routeId),
+        occupancies: occupanciesForBooking,
+        provider: hotelData.provider,
+        routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
         bookingCode: hotelData.bookingCode,
         roomType: hotelData.roomType,
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: 1,
-        guestNationality: 'IN',
-        netAmount: hotelData.netAmount,
-        passengers: passengers.filter(p => p.paxType !== 3 || passengers.length === 1),
+        numberOfRooms: Number(itinerary.roomCount || 1),
+        guestNationality: guestDetails.nationality,
+        netAmount: Number(hotelData.netAmount || 0),
+        passengers,
       }));
-      
-      console.log('DEBUG: Final hotel_bookings array (with auto-selected):', hotelBookings);
 
-      // Get client IP
+      if (hotelBookings.length === 0) {
+        toast.error('No hotels selected for booking. Please select hotels and retry.');
+        return;
+      }
+
       const clientIp = await fetch('https://api.ipify.org?format=json')
-        .then(res => res.json())
-        .then(data => data.ip)
+        .then((res) => res.json())
+        .then((data) => data.ip)
         .catch(() => '192.168.1.1');
 
-      // Extract hotel_group_type from selected hotels (all selections should have same groupType)
+      if (!prebookData) {
+        setIsPrebooking(true);
+        try {
+          const prebookResponse = await ItineraryService.prebookHotels({
+            itinerary_plan_ID: itinerary.planId,
+            hotel_bookings: hotelBookings,
+            endUserIp: clientIp,
+          });
+          const normalizedPrebook = prebookResponse?.data || prebookResponse;
+          setPrebookData(normalizedPrebook);
+
+          const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
+          const prebookTotal = Number(
+            normalizedPrebook?.updatedTotalPrice ||
+              normalizedPrebook?.finalPrice ||
+              normalizedPrebook?.totalAmount ||
+              0
+          );
+
+          if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+            toast.warning('Prebook returned an updated price. Please review and confirm updated price to continue.');
+            return;
+          }
+        } catch (prebookError) {
+          toast.error(getSafeErrorMessage(prebookError, 'Failed to prebook selected hotels.'));
+          return;
+        } finally {
+          setIsPrebooking(false);
+        }
+      }
+
+      const prebookTotal = Number(
+        prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0
+      );
+      const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
+      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+        toast.warning('Accept updated prebook price before final confirmation.');
+        return;
+      }
+
       const groupTypeValue = Object.values(selectedHotelBookings)[0]?.groupType ?? 1;
       const selectedGroupType = String(groupTypeValue);
 
-      // ✅ Build primaryGuest object as fallback for HOBSE/backend
       const primaryGuest = {
         salutation: guestDetails.salutation,
         name: guestDetails.name,
@@ -2202,11 +2450,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         departure_date_time: guestDetails.departureDateTime,
         departure_place: guestDetails.departurePlace,
         departure_flight_details: guestDetails.departureFlightDetails,
-        price_confirmation_type: 'old',
+        price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
         hotel_group_type: selectedGroupType,
-        // ✅ Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
         hotel_bookings: hotelBookings.length > 0 ? hotelBookings : undefined,
-        // ✅ NEW: Primary guest fallback for HOBSE/backend if lead passenger missing
         primaryGuest,
         endUserIp: clientIp,
       });
@@ -2226,6 +2472,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         name: '',
         contactNo: '',
         age: '',
+        nationality: '',
+        panNo: '',
+        passportNo: '',
         alternativeContactNo: '',
         emailId: '',
         arrivalDateTime: '',
@@ -2238,12 +2487,16 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       setAdditionalAdults([]);
       setAdditionalChildren([]);
       setAdditionalInfants([]);
+      setPrebookData(null);
+      setHasAcceptedUpdatedPrice(false);
+      setFormErrors({});
       setSelectedHotelBookings({});
     } catch (e: any) {
       console.error('Failed to confirm quotation', e);
-      toast.error(e?.message || 'Failed to confirm quotation');
+      toast.error(getSafeErrorMessage(e, 'Failed to confirm quotation'));
     } finally {
       setIsConfirmingQuotation(false);
+      setIsPrebooking(false);
     }
   };
 
@@ -3900,12 +4153,20 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
               routeId: null,
               routeDate: "",
             });
+            setHotelSearchChildAges([]);
           }
         }}
         cityCode={hotelSelectionModal.cityCode || ""}
         cityName={hotelSelectionModal.cityName || ""}
         checkInDate={hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate}
         checkOutDate={hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate}
+        roomCount={Number(itinerary?.roomCount || 1)}
+        adultCount={Number(itinerary?.adults || 0)}
+        childCount={Number(itinerary?.children || 0)}
+        infantCount={Number(itinerary?.infants || 0)}
+        childAges={hotelSearchChildAges}
+        guestNationality={guestDetails.nationality.toUpperCase()}
+        onChildAgesChange={setHotelSearchChildAges}
         onSelectHotel={handleSelectHotelFromSearch}
         isSelectingHotel={isSelectingHotel}
       />
@@ -4212,6 +4473,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     <option value="Mr">Mr</option>
                     <option value="Ms">Ms</option>
                     <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Mx">Mx</option>
+                    <option value="Dr">Dr</option>
                   </select>
                 </div>
 
@@ -4224,8 +4488,16 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Name"
                     value={guestDetails.name}
-                    onChange={(e) => setGuestDetails({...guestDetails, name: e.target.value})}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, name: e.target.value});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-name'];
+                        return next;
+                      });
+                    }}
                   />
+                  {formErrors['primary-name'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-name']}</p>}
                 </div>
 
                 <div className="col-span-1">
@@ -4239,6 +4511,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     value={guestDetails.age}
                     onChange={(e) => setGuestDetails({...guestDetails, age: e.target.value})}
                   />
+                  {formErrors['primary-age'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-age']}</p>}
                 </div>
               </div>
 
@@ -4252,8 +4525,16 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Contact No"
                     value={guestDetails.contactNo}
-                    onChange={(e) => setGuestDetails({...guestDetails, contactNo: e.target.value})}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, contactNo: e.target.value});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-contactNo'];
+                        return next;
+                      });
+                    }}
                   />
+                  {formErrors['primary-contactNo'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-contactNo']}</p>}
                 </div>
 
                 <div>
@@ -4266,6 +4547,53 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     placeholder="Enter the Alternative Contact No"
                     value={guestDetails.alternativeContactNo}
                     onChange={(e) => setGuestDetails({...guestDetails, alternativeContactNo: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    Nationality <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="IN"
+                    value={guestDetails.nationality}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, nationality: e.target.value.toUpperCase()});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-nationality'];
+                        return next;
+                      });
+                    }}
+                  />
+                  {formErrors['primary-nationality'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-nationality']}</p>}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    PAN (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="ABCDE1234F"
+                    value={guestDetails.panNo}
+                    onChange={(e) => setGuestDetails({...guestDetails, panNo: e.target.value.toUpperCase()})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    Passport No (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="Passport number"
+                    value={guestDetails.passportNo}
+                    onChange={(e) => setGuestDetails({...guestDetails, passportNo: e.target.value.toUpperCase()})}
                   />
                 </div>
               </div>
@@ -4291,56 +4619,109 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalAdults([...additionalAdults, { name: '', age: '' }])}
+                    onClick={() => setAdditionalAdults([...additionalAdults, defaultPassenger('Mr')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Adult
                   </Button>
                 </div>
+                {formErrors['count-adult'] && <p className="text-[11px] text-red-600">{formErrors['count-adult']}</p>}
                 {additionalAdults.map((adult, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Adult {index + 2} Name
-                      </label>
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={adult.title}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].title = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="Name"
+                          value={adult.name}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].name = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="Age"
+                          value={adult.age}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].age = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="IN"
+                          value={adult.nationality}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].nationality = e.target.value.toUpperCase();
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAdditionalAdults(additionalAdults.filter((_, i) => i !== index))}
+                          className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={adult.name}
+                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                        placeholder="PAN (Optional)"
+                        value={adult.panNo}
                         onChange={(e) => {
-                          const newAdults = [...additionalAdults];
-                          newAdults[index].name = e.target.value;
-                          setAdditionalAdults(newAdults);
+                          const next = [...additionalAdults];
+                          next[index].panNo = e.target.value.toUpperCase();
+                          setAdditionalAdults(next);
                         }}
                       />
-                    </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
                       <input
                         type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={adult.age}
+                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                        placeholder="Passport No (Optional)"
+                        value={adult.passportNo}
                         onChange={(e) => {
-                          const newAdults = [...additionalAdults];
-                          newAdults[index].age = e.target.value;
-                          setAdditionalAdults(newAdults);
+                          const next = [...additionalAdults];
+                          next[index].passportNo = e.target.value.toUpperCase();
+                          setAdditionalAdults(next);
                         }}
                       />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalAdults(additionalAdults.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
                 ))}
@@ -4354,56 +4735,53 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalChildren([...additionalChildren, { name: '', age: '' }])}
+                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Miss')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Child
                   </Button>
                 </div>
+                {formErrors['count-child'] && <p className="text-[11px] text-red-600">{formErrors['count-child']}</p>}
                 {additionalChildren.map((child, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Child {index + 1} Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={child.name}
-                        onChange={(e) => {
-                          const newChildren = [...additionalChildren];
-                          newChildren[index].name = e.target.value;
-                          setAdditionalChildren(newChildren);
-                        }}
-                      />
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={child.title}
+                          onChange={(e) => {
+                            const next = [...additionalChildren];
+                            next[index].title = e.target.value;
+                            setAdditionalChildren(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Child {index + 1} Name</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={child.name} onChange={(e) => { const next = [...additionalChildren]; next[index].name = e.target.value; setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-1">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={child.age}
-                        onChange={(e) => {
-                          const newChildren = [...additionalChildren];
-                          newChildren[index].age = e.target.value;
-                          setAdditionalChildren(newChildren);
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={child.panNo} onChange={(e) => { const next = [...additionalChildren]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={child.passportNo} onChange={(e) => { const next = [...additionalChildren]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                     </div>
                   </div>
                 ))}
@@ -4417,56 +4795,53 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalInfants([...additionalInfants, { name: '', age: '' }])}
+                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Miss')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Infant
                   </Button>
                 </div>
+                {formErrors['count-infant'] && <p className="text-[11px] text-red-600">{formErrors['count-infant']}</p>}
                 {additionalInfants.map((infant, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Infant {index + 1} Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={infant.name}
-                        onChange={(e) => {
-                          const newInfants = [...additionalInfants];
-                          newInfants[index].name = e.target.value;
-                          setAdditionalInfants(newInfants);
-                        }}
-                      />
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={infant.title}
+                          onChange={(e) => {
+                            const next = [...additionalInfants];
+                            next[index].title = e.target.value;
+                            setAdditionalInfants(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Infant {index + 1} Name</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={infant.name} onChange={(e) => { const next = [...additionalInfants]; next[index].name = e.target.value; setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-1">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={infant.age}
-                        onChange={(e) => {
-                          const newInfants = [...additionalInfants];
-                          newInfants[index].age = e.target.value;
-                          setAdditionalInfants(newInfants);
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={infant.panNo} onChange={(e) => { const next = [...additionalInfants]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={infant.passportNo} onChange={(e) => { const next = [...additionalInfants]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                     </div>
                   </div>
                 ))}
@@ -4564,6 +4939,86 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 />
               </div>
             </div>
+
+            {prebookData && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="font-semibold text-[#4a4260]">
+                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#6c6c6c]">Cancellation Policy</p>
+                    {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).length > 0 ? (
+                      <ul className="font-medium text-[#4a4260] whitespace-pre-wrap list-disc pl-5 space-y-1">
+                        {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).map((item, idx) => (
+                          <li key={`cancelPolicy-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="font-medium text-[#4a4260] whitespace-pre-wrap">No cancellation policy returned</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Room Promotion</p>
+                  {normalizePrebookItems(prebookData.roomPromotion).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1">
+                      {normalizePrebookItems(prebookData.roomPromotion).map((item, idx) => (
+                        <li key={`roomPromotion-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No room promotion returned</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Rate Conditions</p>
+                  {normalizePrebookItems(prebookData.rateConditions).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.rateConditions).map((item, idx) => (
+                        <li key={`rateCondition-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements</p>
+                  {normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
+                        <li key={`supplement-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
+                  )}
+                </div>
+
+                {hasPrebookPriceChanged && (
+                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
+                  </p>
+                )}
+
+                {hasPrebookPriceChanged && (
+                  <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={hasAcceptedUpdatedPrice}
+                      onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                    />
+                    <span>I reviewed prebook response and accept updated price/conditions before final booking.</span>
+                  </label>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">
@@ -4576,6 +5031,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                   name: '',
                   contactNo: '',
                   age: '',
+                  nationality: '',
+                  panNo: '',
+                  passportNo: '',
                   alternativeContactNo: '',
                   emailId: '',
                   arrivalDateTime: '',
@@ -4588,6 +5046,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 setAdditionalAdults([]);
                 setAdditionalChildren([]);
                 setAdditionalInfants([]);
+                setPrebookData(null);
+                setHasAcceptedUpdatedPrice(false);
+                setFormErrors({});
               }}
             >
               Cancel
@@ -4595,9 +5056,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
               onClick={handleConfirmQuotation}
-              disabled={isConfirmingQuotation}
+              disabled={isConfirmingQuotation || isPrebooking}
             >
-              {isConfirmingQuotation ? 'Submitting...' : 'Submit'}
+              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : prebookData ? 'Confirm Booking' : 'Run Prebook & Continue'}
             </Button>
           </DialogFooter>
         </DialogContent>
