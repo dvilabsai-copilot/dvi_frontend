@@ -30,6 +30,9 @@ interface UseHotelSearchOptions {
 }
 
 export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
+  const MAX_ROOMS = 6;
+  const MAX_ADULTS_PER_ROOM = 8;
+  const MAX_CHILDREN_PER_ROOM = 4;
   const { debounceMs = 500 } = options;
   const [searchResults, setSearchResults] = useState<HotelSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -43,7 +46,14 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
       checkInDate: string,
       checkOutDate: string,
       roomCount: number = 1,
-      guestCount: number = 2
+      guestCount: number = 2,
+      occupancy?: {
+        adultCount?: number;
+        childCount?: number;
+        infantCount?: number;
+        childAges?: number[];
+      },
+      guestNationality?: string
     ) => {
       // Clear previous timer
       if (debounceTimerRef.current) {
@@ -54,6 +64,60 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
       if (!searchQuery.trim()) {
         setSearchResults([]);
         setError(null);
+        return;
+      }
+
+      if (!cityCode || !checkInDate || !checkOutDate) {
+        setError('Missing destination or travel dates for hotel search.');
+        setSearchResults([]);
+        return;
+      }
+
+      const normalizedGuestNationality = (guestNationality || '').trim().toUpperCase();
+
+      if (!normalizedGuestNationality || !/^[A-Z]{2}$/i.test(normalizedGuestNationality)) {
+        setError('Guest nationality is required as ISO-2 code (example: IN).');
+        setSearchResults([]);
+        return;
+      }
+
+      if (!Number.isFinite(roomCount) || roomCount < 1) {
+        setError('Please provide a valid room count before searching hotels.');
+        setSearchResults([]);
+        return;
+      }
+
+      if (roomCount > MAX_ROOMS) {
+        setError(`Maximum ${MAX_ROOMS} rooms are allowed per search.`);
+        setSearchResults([]);
+        return;
+      }
+
+      const adultCount = occupancy?.adultCount ?? 0;
+      const childCount = occupancy?.childCount ?? 0;
+      const childAges = occupancy?.childAges ?? [];
+
+      if (roomCount === 1 && adultCount > MAX_ADULTS_PER_ROOM) {
+        setError(`Maximum ${MAX_ADULTS_PER_ROOM} adults are allowed per room.`);
+        setSearchResults([]);
+        return;
+      }
+
+      if (roomCount === 1 && childCount > MAX_CHILDREN_PER_ROOM) {
+        setError(`Maximum ${MAX_CHILDREN_PER_ROOM} children are allowed per room.`);
+        setSearchResults([]);
+        return;
+      }
+
+      if (adultCount > 0 && adultCount + childCount > 0 && guestCount < adultCount + childCount) {
+        setError('Invalid guest combination. Please verify adults and children count.');
+        setSearchResults([]);
+        return;
+      }
+
+      if (childCount > 0 && childAges.length !== childCount) {
+        setError('Please provide age for each child before searching hotels.');
+        setSearchResults([]);
         return;
       }
 
@@ -69,6 +133,11 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             checkOutDate,
             roomCount,
             guestCount,
+            adultCount: occupancy?.adultCount,
+            childCount: occupancy?.childCount,
+            infantCount: occupancy?.infantCount,
+            childAges: occupancy?.childAges,
+            guestNationality: normalizedGuestNationality,
             hotelName: searchQuery,
           });
 
