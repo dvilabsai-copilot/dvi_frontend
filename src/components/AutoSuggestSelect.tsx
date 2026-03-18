@@ -123,14 +123,24 @@ export const AutoSuggestSelect = forwardRef<
   }, [open]);
 
   // Scroll highlighted option into view
-  useEffect(() => {
-    if (!open) return;
-    const el = optionRefs.current[highlightIndex];
-    if (el) {
-      el.scrollIntoView({ block: "nearest" });
-    }
-  }, [highlightIndex, open]);
+useEffect(() => {
+  if (!open) return;
 
+  const el = optionRefs.current[highlightIndex];
+  const container = el?.parentElement;
+
+  if (el && container) {
+    const topPadding = 30;
+    const safeTopGap = 20;
+
+    const scrollTop = Math.max(0, el.offsetTop - topPadding - safeTopGap);
+
+    container.scrollTo({
+      top: scrollTop,
+      behavior: "smooth",
+    });
+  }
+}, [highlightIndex, open]);
   const renderLabelForValue = (val: string) => {
     const opt = options.find((o) => o.value === val);
     return opt ? opt.label : val;
