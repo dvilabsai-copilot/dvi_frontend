@@ -150,21 +150,32 @@ export const RouteDetailsBlock = ({
     return `${dd}/${mm}/${yyyy}`;
   };
 
-  const moveFocusToNextDestination = (currentRowIdx: number) => {
-    const nextRowIdx = currentRowIdx + 1;
-    
-    // If there's a next row, focus its Next Destination
-    if (nextRowIdx < routeDetails.length) {
-      setTimeout(() => {
-        nextDestinationRefs.current[nextRowIdx]?.focus();
-      }, 0);
-    } else {
-      // Otherwise, focus the "Add Day" button
-      setTimeout(() => {
-        addDayButtonRef.current?.focus();
-      }, 0);
-    }
-  };
+ const moveFocusToNextDestination = (currentRowIdx: number) => {
+  const nextRowIdx = currentRowIdx + 1;
+
+  if (nextRowIdx < routeDetails.length) {
+    setTimeout(() => {
+      const nextRef = nextDestinationRefs.current[nextRowIdx];
+
+      nextRef?.focus();
+
+      const element = document.getElementById(`next-destination-${nextRowIdx}`);
+      element?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  } else {
+    setTimeout(() => {
+      addDayButtonRef.current?.focus();
+
+      addDayButtonRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  }
+};
 
   const handleAddDay = () => {
     if (addDay) {
@@ -351,42 +362,43 @@ export const RouteDetailsBlock = ({
       }
     >
       <AutoSuggestSelect
-        ref={(el) => {
-          nextDestinationRefs.current[idx] = el;
-        }}
-        mode="single"
-        value={nextDestinationValue}
-        onChange={(val) => {
-          if (isLastRowLocked) return;
+  ref={(el) => {
+    nextDestinationRefs.current[idx] = el;
+  }}
+  mode="single"
+  value={nextDestinationValue}
+  scrollToValue={row.source}
+  onChange={(val) => {
+    if (isLastRowLocked) return;
 
-          setRouteDetails((prev) => {
-            const updated = [...prev];
-            const chosen = (val as string) || "";
+    setRouteDetails((prev) => {
+      const updated = [...prev];
+      const chosen = (val as string) || "";
 
-            updated[idx] = {
-              ...updated[idx],
-              next: chosen,
-            };
+      updated[idx] = {
+        ...updated[idx],
+        next: chosen,
+      };
 
-            if (idx + 1 < updated.length) {
-              updated[idx + 1] = {
-                ...updated[idx + 1],
-                source: chosen,
-              };
-            }
+      if (idx + 1 < updated.length) {
+        updated[idx + 1] = {
+          ...updated[idx + 1],
+          source: chosen,
+        };
+      }
 
-            return updated;
-          });
-        }}
-        onSelectionCommit={() => {
-          if (isLastRowLocked) return;
-          moveFocusToNextDestination(idx);
-        }}
-        disabled={isLastRowLocked}
-        readOnly={isLastRowLocked}
-        options={rowSpecificOptions}
-        placeholder="Next Destination"
-      />
+      return updated;
+    });
+  }}
+  onSelectionCommit={() => {
+    if (isLastRowLocked) return;
+    moveFocusToNextDestination(idx);
+  }}
+  disabled={isLastRowLocked}
+  readOnly={isLastRowLocked}
+  options={rowSpecificOptions}
+  placeholder="Next Destination"
+/>
     </div>
     {isFirstRow && firstRouteNextError && (
       <p className="mt-1 text-xs text-red-500">
