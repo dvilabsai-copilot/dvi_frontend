@@ -74,35 +74,50 @@ import { AgentSubscriptionPlanFormPage } from "./pages/Settings/agent-subscripti
 import { AgentSubscriptionPlanListPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanListPage";
 import { AgentSubscriptionPlanPreviewPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanPreviewPage";
 
+// ── Deep-link helpers: /hotels/:id/<tab> → /hotels/:id/edit?tab=<tab> ──
 const RoomsRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=rooms`} replace />;
 };
-
 const AmenitiesRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=amenities`} replace />;
 };
-
 const PriceBookRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=pricebook`} replace />;
 };
-
 const ReviewsRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=reviews`} replace />;
 };
-
 const PreviewRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=preview`} replace />;
 };
 
+/**
+ * Auth guard: blocks all protected routes when no token is present.
+ */
 const RequireAuth = () => {
   const token = getToken();
   if (!token) return <Navigate to="/login" replace />;
   return <Outlet />;
+};
+
+/**
+ * TEMP placeholder only for /drivers/:id view route
+ */
+const DriverViewPage = () => {
+  const { id } = useParams();
+  return (
+    <div className="p-6">
+      <h1 className="text-xl font-semibold text-slate-800">View Driver</h1>
+      <p className="text-sm text-slate-500 mt-2">
+        Placeholder page for driver ID: <span className="font-medium">{id}</span>
+      </p>
+    </div>
+  );
 };
 
 const queryClient = new QueryClient();
@@ -117,32 +132,406 @@ const App = () => (
         <DynamicMeta />
 
         <Routes>
-
+          {/* Public */}
           <Route path="/login" element={<Login />} />
 
+          {/* All routes below require auth */}
           <Route element={<RequireAuth />}>
+            <Route
+              path="/"
+              element={
+                <MainLayout>
+                  <Dashboard />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/" element={<MainLayout><Dashboard /></MainLayout>} />
+            <Route
+              path="/create-itinerary"
+              element={
+                <MainLayout>
+                  <CreateItinerary />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/latest-itinerary"
+              element={
+                <MainLayout>
+                  <LatestItinerary />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/confirmed-itinerary"
+              element={
+                <MainLayout>
+                  <ConfirmedItineraries />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/confirmed-itinerary/:id"
+              element={
+                <MainLayout>
+                  <ItineraryDetailsRouter />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/cancelled-itinerary"
+              element={
+                <MainLayout>
+                  <CancelledItineraries />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/itinerary-details/:id"
+              element={
+                <MainLayout>
+                  <ItineraryDetailsRouter />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/create-itinerary" element={<MainLayout><CreateItinerary /></MainLayout>} />
+            <Route
+              path="/accounts-manager"
+              element={
+                <MainLayout>
+                  <AccountsManager />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/accounts-ledger"
+              element={
+                <MainLayout>
+                  <AccountsLedger />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/latest-itinerary" element={<MainLayout><LatestItinerary /></MainLayout>} />
+            {/* Daily Moment */}
+            <Route
+              path="/daily-moment-tracker"
+              element={
+                <MainLayout>
+                  <DailyMomentTracker />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/daily-moment"
+              element={
+                <MainLayout>
+                  <DailyMomentTracker />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/daily-moment/day-view/:planId/:routeId"
+              element={
+                <MainLayout>
+                  <DailyMomentDayView />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/confirmed-itinerary" element={<MainLayout><ConfirmedItineraries /></MainLayout>} />
+            {/* Hotels */}
+            <Route
+              path="/hotels"
+              element={
+                <MainLayout>
+                  <Hotels />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotels/new"
+              element={
+                <MainLayout>
+                  <HotelForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotels/:id/edit"
+              element={
+                <MainLayout>
+                  <HotelForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotels/:id"
+              element={
+                <MainLayout>
+                  <HotelForm />
+                </MainLayout>
+              }
+            />
+            <Route path="/hotels/:id/rooms" element={<RoomsRedirect />} />
+            <Route path="/hotels/:id/amenities" element={<AmenitiesRedirect />} />
+            <Route path="/hotels/:id/pricebook" element={<PriceBookRedirect />} />
+            <Route path="/hotels/:id/reviews" element={<ReviewsRedirect />} />
+            <Route path="/hotels/:id/preview" element={<PreviewRedirect />} />
 
-            <Route path="/cancelled-itinerary" element={<MainLayout><CancelledItineraries /></MainLayout>} />
+            {/* Vendor */}
+            <Route
+              path="/vendor"
+              element={
+                <MainLayout>
+                  <VendorsPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/vendor/new"
+              element={
+                <MainLayout>
+                  <VendorFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/vendor/:id"
+              element={
+                <MainLayout>
+                  <VendorFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/vendor/:id/edit"
+              element={
+                <MainLayout>
+                  <VendorFormPage />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/accounts-manager" element={<MainLayout><AccountsManager /></MainLayout>} />
+            {/* Drivers */}
+            <Route
+              path="/drivers"
+              element={
+                <MainLayout>
+                  <DriversPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/drivers/new"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/drivers/create"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/drivers/:id/edit"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/drivers/:id"
+              element={
+                <MainLayout>
+                  <DriverViewPage />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/accounts-ledger" element={<MainLayout><AccountsLedger /></MainLayout>} />
+            {/* Vehicle Availability */}
+            <Route
+              path="/vehicle-availability"
+              element={
+                <MainLayout>
+                  <VehicleAvailabilityPage />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/hotels" element={<MainLayout><Hotels /></MainLayout>} />
+            {/* Hotspots */}
+            <Route
+              path="/hotspots"
+              element={
+                <MainLayout>
+                  <HotspotList />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotspots/new"
+              element={
+                <MainLayout>
+                  <HotspotForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotspots/:id/edit"
+              element={
+                <MainLayout>
+                  <HotspotForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotspots/:id/preview"
+              element={
+                <MainLayout>
+                  <HotspotPreview />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
+            {/* Hotspot Distance Cache */}
+            <Route
+              path="/hotspot-distance-cache"
+              element={
+                <MainLayout>
+                  <HotspotDistanceCacheList />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotspot-distance-cache/new"
+              element={
+                <MainLayout>
+                  <HotspotDistanceCacheForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotspot-distance-cache/:id/edit"
+              element={
+                <MainLayout>
+                  <HotspotDistanceCacheForm />
+                </MainLayout>
+              }
+            />
 
-            <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
+            {/* Activities */}
+            <Route
+              path="/activities"
+              element={
+                <MainLayout>
+                  <ActivityListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/activities/new"
+              element={
+                <MainLayout>
+                  <ActivityForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/activities/:id/edit"
+              element={
+                <MainLayout>
+                  <ActivityForm />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/activities/:id/preview"
+              element={
+                <MainLayout>
+                  <ActivityPreviewPage />
+                </MainLayout>
+              }
+            />
 
-            {/* NEW ROUTE ADDED */}
+            {/* Staff */}
+            <Route
+              path="/staff"
+              element={
+                <MainLayout>
+                  <StaffListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/staff/new"
+              element={
+                <MainLayout>
+                  <StaffFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/staff/:id/edit"
+              element={
+                <MainLayout>
+                  <StaffFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/staff/:id/preview"
+              element={
+                <MainLayout>
+                  <StaffPreviewPage />
+                </MainLayout>
+              }
+            />
+
+            {/* Agent */}
+            <Route
+              path="/agent"
+              element={
+                <MainLayout>
+                  <AgentListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/agent/:id/preview/"
+              element={
+                <MainLayout>
+                  <AgentPreviewPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/agent/:id/edit"
+              element={
+                <MainLayout>
+                  <AgentFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <MainLayout>
+                  <Profile />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/wallet-history"
+              element={
+                <MainLayout>
+                  <WalletHistory />
+                </MainLayout>
+              }
+            />
             <Route
               path="/subscription-history"
               element={
@@ -152,12 +541,200 @@ const App = () => (
               }
             />
 
-            <Route path="/settings/subscription-plan" element={<MainLayout><AgentSubscriptionPlanListPage /></MainLayout>} />
+            {/* Guide */}
+            <Route
+              path="/guide"
+              element={
+                <MainLayout>
+                  <GuideListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/guide/new"
+              element={
+                <MainLayout>
+                  <GuideFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/guide/:id/edit"
+              element={
+                <MainLayout>
+                  <GuideFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/guide/:id/preview"
+              element={
+                <MainLayout>
+                  <GuidePreview />
+                </MainLayout>
+              }
+            />
 
+            {/* Parking Charge Bulk Import */}
+            <Route
+              path="/parking-charge-bulk-import"
+              element={
+                <MainLayout>
+                  <ParkingChargeBulkImport />
+                </MainLayout>
+              }
+            />
+
+            {/* Locations */}
+            <Route
+              path="/locations"
+              element={
+                <MainLayout>
+                  <LocationsPage />
+                </MainLayout>
+              }
+            />
+
+            {/* Locations Preview */}
+            <Route
+              path="/locations/:id/preview"
+              element={
+                <MainLayout>
+                  <LocationsPreviewPage />
+                </MainLayout>
+              }
+            />
+
+            {/* Pricebook Export */}
+            <Route
+              path="/pricebook-export"
+              element={
+                <MainLayout>
+                  <PricebookExportPage />
+                </MainLayout>
+              }
+            />
+
+            {/* Settings */}
+            <Route
+              path="/settings/global"
+              element={
+                <MainLayout>
+                  <GlobalSettingsPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/cities"
+              element={
+                <MainLayout>
+                  <CitiesPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/hotel-category"
+              element={
+                <MainLayout>
+                  <HotelCategoryPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/gst"
+              element={
+                <MainLayout>
+                  <GstSettingsPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/amenities"
+              element={
+                <MainLayout>
+                  <InbuiltAmenitiesPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/vehicle-type"
+              element={
+                <MainLayout>
+                  <VehicleTypePage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/settings/language"
+              element={
+                <MainLayout>
+                  <LanguagePage />
+                </MainLayout>
+              }
+            />
+
+            {/* Role Permission */}
+            <Route
+              path="/settings/role-permission"
+              element={
+                <MainLayout>
+                  <RolePermissionListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/role-permission/new"
+              element={
+                <MainLayout>
+                  <RolePermissionFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/role-permission/:id/edit"
+              element={
+                <MainLayout>
+                  <RolePermissionFormPage />
+                </MainLayout>
+              }
+            />
           </Route>
+          { /* Agent Subscription Plan */}
+          <Route
+              path="/settings/subscription-plan"
+              element={
+                <MainLayout>
+                  <AgentSubscriptionPlanListPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/agent-subscription-plan/new"
+              element={
+                <MainLayout>  
+                  <AgentSubscriptionPlanFormPage />
+                </MainLayout>
+              } 
+            />
+            <Route
+              path="/agent-subscription-plan/:id/edit"
+              element={
+                <MainLayout>
+                  <AgentSubscriptionPlanFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/agent-subscription-plan/:id/preview"
+              element={
+                <MainLayout>
+                  <AgentSubscriptionPlanPreviewPage />
+                </MainLayout>
+              }
+            />
 
+          {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
-
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
