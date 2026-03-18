@@ -1,33 +1,26 @@
-// FILE: src/layouts/Sidebar.tsx
-
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   Home,
   FileText,
   CheckCircle,
   Wallet,
-  Building2,
   Clock,
   Users,
-  MapPin,
-  Map,
-  UserSquare2,
-  UserCircle,
-  FileDown,
-  Settings,
   ChevronRight,
-  Lock,
-  Unlock,
+  History,
+  Settings,
+  MapPin,
   LucideIcon,
 } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 function parseJwt(token: string) {
   try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
     return null;
   }
 }
@@ -50,9 +43,9 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { id: "dashboard", title: "Dashboard", icon: Home, path: "/" },
   { id: "create-itinerary", title: "Create Itinerary", icon: FileText, path: "/create-itinerary" },
+  { id: "download-packages", title: "Download Packages", icon: FileText, path: "/download-packages" },
   { id: "latest-itinerary", title: "Latest Itinerary", icon: FileText, path: "/latest-itinerary" },
   { id: "confirmed-itinerary", title: "Confirmed Itinerary", icon: CheckCircle, path: "/confirmed-itinerary" },
-  { id: "cancelled-itinerary", title: "Cancelled Itinerary", icon: Clock, path: "/cancelled-itinerary" },
 
   {
     id: "accounts",
@@ -63,54 +56,60 @@ const menuItems: MenuItem[] = [
     children: [
       { id: "accounts-manager", title: "Accounts Manager", path: "/accounts-manager" },
       { id: "accounts-ledger", title: "Accounts Ledger", path: "/accounts-ledger" },
-      { id: "wallet-history", title: "Wallet History", path: "/wallet-history" },
     ],
   },
 
-  { id: "hotels", title: "Hotels", icon: Building2, path: "/hotels" },
+  { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
   { id: "daily-moment", title: "Daily Moment Tracker", icon: Clock, path: "/daily-moment" },
 
   {
-    id: "vendor-mgmt",
+    id: "vendor-management",
     title: "Vendor Management",
     icon: Users,
     path: "/vendor-management",
     hasSubmenu: true,
     children: [
       { id: "vendor", title: "Vendor", path: "/vendor" },
-      { id: "drivers", title: "Driver", path: "/drivers" },
-      { id: "vehicle-availability", title: "Vehicle Availability Chart", path: "/vehicle-availability" },
+      { id: "driver", title: "Driver", path: "/driver" },
+      { id: "vehicle-chart", title: "Vehicle Availability Chart", path: "/vehicle-availability" },
     ],
   },
 
-  // Submenu with same title as a single link (OK now because ids differ)
   {
-    id: "hotspots-submenu",
+    id: "hotspot",
     title: "Hotspot",
     icon: MapPin,
-    path: "/hotspots",
+    path: "/hotspot",
     hasSubmenu: true,
     children: [
-      { id: "hotspots-new", title: "New Hotspot", path: "/hotspots" },
+      { id: "new-hotspot", title: "New Hotspot", path: "/hotspots" },
       { id: "parking-charge", title: "Parking Charge", path: "/parking-charge-bulk-import" },
-      { id: "distance-cache", title: "Distance Cache", path: "/hotspot-distance-cache" },
     ],
   },
-    // Single links
-  { id: "activities-link", title: "Activity", icon: Map, path: "/activities" },
-  
+
+  { id: "activity", title: "Activity", icon: FileText, path: "/activities" },
+
   {
     id: "locations",
     title: "Locations",
     icon: MapPin,
     path: "/locations",
     hasSubmenu: true,
+    children: [
+      { id: "locations-main", title: "Locations", path: "/locations" },
+      { id: "toll-charge", title: "Toll Charge", path: "/toll-charge" },
+    ],
   },
-  { id: "guide", title: "Guide", icon: UserSquare2, path: "/guide" },
+
+  { id: "guide", title: "Guide", icon: Users, path: "/guide" },
   { id: "staff", title: "Staff", icon: Users, path: "/staff" },
-  { id: "agent", title: "Agent", icon: UserCircle, path: "/agent" },
-  { id: "profile", title: "My Profile", icon: UserCircle, path: "/profile" },
-  { id: "pricebook-export", title: "Pricebook Export", icon: FileDown, path: "/pricebook-export" },
+  { id: "agent", title: "Agent", icon: Users, path: "/agent" },
+
+  { id: "wallet", title: "Wallet", icon: Wallet, path: "/wallet" },
+  { id: "subscription-history", title: "Subscription History", icon: History, path: "/subscription-history" },
+
+  { id: "pricebook", title: "Pricebook Export", icon: FileText, path: "/pricebook-export" },
+
   {
     id: "settings",
     title: "Settings",
@@ -119,9 +118,9 @@ const menuItems: MenuItem[] = [
     hasSubmenu: true,
     children: [
       { id: "global-settings", title: "Global Settings", path: "/settings/global" },
-      { id: "gst", title: "GST Settings", path: "/settings/gst" },
+      { id: "gst", title: "GST Setting", path: "/settings/gst" },
       { id: "hotel-category", title: "Hotel Category", path: "/settings/hotel-category" },
-      { id: "amenities", title: "Inbuilt Amenities", path: "/settings/amenities" },
+      { id: "amenities", title: "Inbuild Amenities", path: "/settings/amenities" },
       { id: "vehicle-type", title: "Vehicle Type", path: "/settings/vehicle-type" },
       { id: "cities", title: "Cities", path: "/settings/cities" },
       { id: "language", title: "Language", path: "/settings/language" },
@@ -132,278 +131,251 @@ const menuItems: MenuItem[] = [
 ];
 
 interface SidebarProps {
-  collapsed: boolean;
-  onToggle: () => void;
   mobileOpen: boolean;
   onMobileToggle: () => void;
 }
 
-export const Sidebar = ({
-  collapsed,
-  onToggle,
-  mobileOpen,
-  onMobileToggle,
-}: SidebarProps) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
-  // Track open submenu by ID (not title) to avoid collisions
-  const [openParentId, setOpenParentId] = useState<string | null>("vendor-mgmt");
-  const location = useLocation();
+export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
 
-  const isExpanded = !collapsed || isHovered || isPinned;
+  const [openParentId, setOpenParentId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   const token = localStorage.getItem("accessToken");
   const user = token ? parseJwt(token) : null;
   const role = user?.role;
 
-  const filteredMenuItems = menuItems.map(item => {
-    // Filter children if they exist
-    const filteredChildren = item.children?.filter(child => {
-      if (role === 4) { // Agent
-        return ["wallet-history"].includes(child.id);
-      }
-      if (role === 6) { // Accounts
-        return ["accounts-manager", "accounts-ledger"].includes(child.id);
-      }
-      return true; // Admin/Others see all
-    });
+  const filteredMenuItems = menuItems.filter((item) => {
 
-    return { ...item, children: filteredChildren };
-  }).filter(item => {
-    // Role 4 is Agent
     if (role === 4) {
-      return ["dashboard", "create-itinerary", "latest-itinerary", "confirmed-itinerary", "cancelled-itinerary", "accounts", "staff", "profile"].includes(item.id);
+      return [
+        "dashboard",
+        "create-itinerary",
+        "download-packages",
+        "latest-itinerary",
+        "confirmed-itinerary",
+        "staff",
+        "wallet",
+        "subscription-history"
+      ].includes(item.id);
     }
-    // Role 6 is Accounts
-    if (role === 6) {
-      return ["dashboard", "accounts", "profile"].includes(item.id);
+
+    if (role === 1) {
+      return [
+        "dashboard",
+        "create-itinerary",
+        "download-packages",
+        "latest-itinerary",
+        "confirmed-itinerary",
+        "accounts",
+        "hotels",
+        "daily-moment",
+        "vendor-management",
+        "hotspot",
+        "activity",
+        "locations",
+        "guide",
+        "staff",
+        "agent",
+        "pricebook",
+        "settings"
+      ].includes(item.id);
     }
-    // Role 2 is Vendor
-    if (role === 2) {
-      return ["dashboard", "vendor-mgmt", "profile"].includes(item.id);
-    }
-    // Role 3 or 8 is Travel Expert / Staff
-    if (role === 3 || role === 8 || (user?.staffId && user.staffId > 0)) {
-      return ["dashboard", "create-itinerary", "latest-itinerary", "confirmed-itinerary", "cancelled-itinerary", "accounts", "agent", "profile"].includes(item.id);
-    }
-    // Role 5 is Guide
-    if (role === 5 || (user?.guideId && user.guideId > 0)) {
-      return ["dashboard", "profile"].includes(item.id);
-    }
-    return true;
+
+    return false;
   });
 
-  const handleTogglePin = () => {
-    setIsPinned((p) => !p);
-    onToggle();
-  };
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
 
-  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <>
-      {/* header / logo */}
-      <div className="relative flex items-center gap-0 px-2 py-2 border-b border-sidebar-border">
-        <div className="flex items-center gap-0 min-w-0">
+      {/* HEADER */}
+      <div className="flex items-center justify-between px-4 py-4 border-b">
+
+        <div className="flex items-center gap-3">
           <img
             src="/assets/img/DVi-Logo1-2048x1860.png"
-            alt="DVi Logo"
-            className="h-10 object-contain"
+            alt="DoView Holidays"
+            className="h-8 object-contain"
           />
-          {(isMobile || isExpanded) && (
-            <span className="font-bold text-lg whitespace-nowrap leading-tight app-brand-text">
-              DoView Holidays
-            </span>
-          )}
+          {!collapsed && <span className="font-semibold text-lg">DoView Holidays</span>}
         </div>
 
-        {!isMobile && isExpanded && (
-          <button
-            onClick={handleTogglePin}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white flex items-center justify-center shadow hover:shadow-md transition"
-          >
-            {isPinned ? (
-              <Lock className="w-4 h-4 text-gray-700" />
-            ) : (
-              <Unlock className="w-4 h-4 text-gray-700" />
-            )}
-          </button>
-        )}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100"
+        >
+          ●
+        </button>
+
       </div>
 
-      {/* menu */}
+      {/* MENU */}
       <nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
-          {filteredMenuItems.map((item, idx) => {
+
+          {filteredMenuItems.map((item) => {
+
             const Icon = item.icon;
 
-            const isParentActive =
-              location.pathname === item.path ||
-              (item.children &&
-                item.children.some((c) => location.pathname.startsWith(c.path)));
+            if (item.hasSubmenu && item.children && !collapsed) {
 
-            const isOpen =
-              isExpanded &&
-              item.hasSubmenu &&
-              (openParentId === item.id || isParentActive);
+              const isOpen = openParentId === item.id;
 
-            // PARENT WITH SUBMENU
-            if (item.hasSubmenu && item.children) {
               return (
-                <li key={item.id ?? item.path ?? `parent-${idx}`}>
+                <li key={item.id}>
+
                   <button
-                    type="button"
                     onClick={() =>
-                      setOpenParentId((prev) =>
-                        prev === item.id ? null : item.id
-                      )
+                      setOpenParentId(prev => prev === item.id ? null : item.id)
                     }
-                    className={cn(
-                      "w-full flex items-center gap-3 rounded-lg transition-all relative",
-                      "px-3 py-2.5",
-                      "hover:bg-[#f5e8ff]",
-                      isParentActive && "bg-[#f5e8ff] text-[#5e3a82] shadow-sm"
-                    )}
+                    className="flex items-center w-full gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]"
                   >
-                    <Icon
-                      className={cn(
-                        "h-5 w-5 shrink-0",
-                        isParentActive && "text-[#5e3a82]"
-                      )}
+
+                    <Icon className="h-5 w-5" />
+
+                    <span className="flex-1 text-sm text-left">{item.title}</span>
+
+                    <ChevronRight
+                      className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")}
                     />
-                    {(isMobile || isExpanded) && (
-                      <>
-                        <span
-                          className={cn(
-                            "flex-1 text-sm text-left font-medium",
-                            isParentActive && "text-[#5e3a82]"
-                          )}
-                        >
-                          {item.title}
-                        </span>
-                        <ChevronRight
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            isOpen && "rotate-90"
-                          )}
-                        />
-                      </>
-                    )}
+
                   </button>
 
                   {isOpen && (
-                    <ul className="mt-1 space-y-1">
-                      {item.children.map((child, cIdx) => (
-                        <li key={child.id ?? child.path ?? `child-${item.id}-${cIdx}`}>
+                    <ul className="pl-8 mt-1 space-y-1 border-l border-gray-200">
+
+                      {item.children.map(child => (
+
+                        <li key={child.id}>
+
                           <NavLink
                             to={child.path}
-                            onClick={isMobile ? () => onMobileToggle() : undefined}
                             className={({ isActive }) =>
                               cn(
-                                "ml-5 mr-2 flex items-center gap-2 rounded-lg px-3 py-2 transition-all",
-                                "hover:bg-[#f2ccff]/50",
-                                isActive &&
-                                  "bg-gradient-to-r from-primary to-pink-500 text-white shadow"
+                                "block py-1 pl-3 text-sm rounded hover:text-pink-500",
+                                isActive && "text-pink-500 font-medium"
                               )
                             }
                           >
-                            <span className="text-sm font-medium">
-                              {child.title}
-                            </span>
+                            {child.title}
                           </NavLink>
+
                         </li>
+
                       ))}
+
                     </ul>
                   )}
+
                 </li>
               );
             }
 
-            // NORMAL ITEM
             return (
-              <li key={item.id ?? item.path ?? `item-${idx}`}>
+              <li key={item.id}>
+
                 <NavLink
                   to={item.path}
-                  onClick={isMobile ? () => onMobileToggle() : undefined}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 rounded-lg transition-all",
-                      "px-3 py-2.5",
-                      "hover:bg-[#f5e8ff]",
-                      isActive &&
-                        "bg-gradient-to-r from-primary to-pink-500 text-white shadow"
+                      "flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]",
+                      isActive && "bg-gradient-to-r from-primary to-pink-500 text-white"
                     )
                   }
                 >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        className={cn(
-                          "h-5 w-5 shrink-0",
-                          isActive && "text-white"
-                        )}
-                      />
-                      {(isMobile || isExpanded) && (
-                        <span
-                          className={cn(
-                            "flex-1 text-sm text-left font-medium truncate",
-                            isActive && "text-white"
-                          )}
-                        >
-                          {item.title}
-                        </span>
-                      )}
-                    </>
-                  )}
+
+                  <Icon className="h-5 w-5" />
+
+                  {!collapsed && <span className="text-sm">{item.title}</span>}
+
                 </NavLink>
+
               </li>
             );
+
           })}
+
         </ul>
       </nav>
 
-      {/* bottom user */}
-      <div className="border-t border-sidebar-border p-4">
-        <div
-          className={cn(
-            "flex items-center gap-3",
-            !isMobile && !isExpanded && "flex-col items-start"
-          )}
-        >
-          <div className="h-10 w-10 rounded-full bg-gradient-to-r from-primary to-pink-500 flex items-center justify-center">
-            <span className="text-white font-medium text-sm">A</span>
-          </div>
-          {(isMobile || isExpanded) && (
-            <div className="flex-1 min-w-0">
-              <h6 className="text-sm font-semibold leading-tight">Admindvi</h6>
-              <p className="text-xs text-muted-foreground leading-tight">
-                Super Admin
+      {/* AGENT WALLET */}
+      {role === 4 && !collapsed && (
+
+        <div className="px-4 py-3 border-t">
+
+          <div className="bg-gray-100 rounded-lg p-3 flex items-center gap-3">
+
+            <Wallet className="text-yellow-500" />
+
+            <div>
+
+              <p className="text-sm font-semibold">
+                ₹ 2,873,811.00
               </p>
+
+              <p className="text-xs text-pink-500">
+                Total Wallet Amount
+              </p>
+
             </div>
-          )}
+
+          </div>
+
         </div>
-      </div>
-    </>
+
+      )}
+
+      {/* PROFILE */}
+      {!collapsed && (
+
+        <div className="border-t p-4">
+
+          <div className="flex items-center gap-3">
+
+            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
+              A
+            </div>
+
+            <div>
+
+              <p className="text-sm font-semibold">
+                {role === 4 ? "DVI Demo Agent" : user?.name || "AdminDvi"}
+              </p>
+
+              <p className="text-xs text-pink-500">
+                {role === 1 ? "Super Admin" : "Agent"}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+    </div>
   );
 
   return (
     <>
-      {/* mobile */}
+
       <Sheet open={mobileOpen} onOpenChange={onMobileToggle}>
         <SheetContent side="left" className="w-64 p-0 md:hidden">
-          <SidebarContent isMobile={true} />
+          <SidebarContent />
         </SheetContent>
       </Sheet>
 
-      {/* desktop */}
       <aside
         className={cn(
-          "hidden md:flex fixed left-0 top-0 h-screen bg-white border-r border-sidebar-border transition-all duration-300 z-50 flex-col",
-          isExpanded ? "w-64" : "w-20"
+          "hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300",
+          collapsed ? "w-20" : "w-64"
         )}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
       >
-        <SidebarContent isMobile={false} />
+
+        <SidebarContent />
+
       </aside>
+
     </>
   );
 };
