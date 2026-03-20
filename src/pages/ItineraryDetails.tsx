@@ -1,7 +1,7 @@
 // FILE: src/pages/itineraries/ItineraryDetails.tsx
 
 import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -439,7 +439,10 @@ interface ItineraryDetailsProps {
 
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
+  const location = useLocation();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
+  //Extra
+  console.log('🔵 Current location pathname:', location.pathname);
   
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
@@ -1212,66 +1215,76 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   }, []);
 
   useEffect(() => {
-    if (!quoteId) {
-      setError("Missing quote id in URL");
-      setLoading(false);
-      return;
-    }
+  if (!quoteId) {
+    setError("Missing quote id in URL");
+    setLoading(false);
+    return;
+  }
 
-    // If we're already fetching this quoteId, skip duplicate fetch
-    if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-      return;
-    }
+  // Prevent wrong API call when this component is opened on confirmed route
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+    console.warn(
+      "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
+      { quoteId, pathname: location.pathname }
+    );
+    setLoading(false);
+    return;
+  }
 
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
+  // If we're already fetching this quoteId, skip duplicate fetch
+  if (currentFetchRef.current === quoteId) {
+    console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+    return;
+  }
 
-    const fetchDetails = async () => {
-      try {
-        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-        setLoading(true);
-        setError(null);
+  // Mark that we're fetching this quoteId
+  currentFetchRef.current = quoteId;
+  isMountedRef.current = true;
 
-        // Fetch both details and hotel data in parallel
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
+  const fetchDetails = async () => {
+    try {
+      console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
+      setLoading(true);
+      setError(null);
 
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) {
-          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-          return;
-        }
+      // Fetch both details and hotel data in parallel
+      const [detailsRes, hotelRes] = await Promise.all([
+        ItineraryService.getDetails(quoteId),
+        ItineraryService.getHotelDetails(quoteId),
+      ]);
 
-        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      } catch (e: any) {
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) return;
-        
-        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-        setError(e?.message || "Failed to load itinerary details");
-        setItinerary(null);
-        setHotelDetails(null);
-      } finally {
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) {
+        console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
+        return;
       }
-    };
 
-    fetchDetails();
+      console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
+      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+    } catch (e: any) {
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
+      
+      console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
+      setError(e?.message || "Failed to load itinerary details");
+      setItinerary(null);
+      setHotelDetails(null);
+    } finally {
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
 
-    // Cleanup: Mark component as unmounted
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [quoteId]);
+  fetchDetails();
+
+  // Cleanup: Mark component as unmounted
+  return () => {
+    isMountedRef.current = false;
+  };
+}, [quoteId, location.pathname]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -2255,26 +2268,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     );
   }
 
-  if (error || !itinerary) {
-    return (
-      <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
-        <p className="text-sm text-red-600">
-          {error || "Itinerary details not found"}
-        </p>
-        {itinerary?.planId && (
-          <Link to={`/create-itinerary?id=${itinerary.planId}`}>
-            <Button
-              variant="outline"
-              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Route List
-            </Button>
-          </Link>
-        )}
-      </div>
-    );
-  }
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+  return null;
+}
+
+if (error || !itinerary) {
+  return (
+    <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
+      <p className="text-sm text-red-600">
+        {error || "Itinerary details not found"}
+      </p>
+      {itinerary?.planId && (
+        <Link to={`/create-itinerary?id=${itinerary.planId}`}>
+          <Button
+            variant="outline"
+            className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Route List
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
+}
 
   const backToListHref = itinerary.planId
     ? `/create-itinerary?id=${itinerary.planId}`
