@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ItineraryService } from '@/services/itinerary';
 import { ItineraryDetails } from './ItineraryDetails';
+import { ConfirmedItineraryDetails } from './ConfirmedItineraryDetails';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -22,34 +23,27 @@ export const ItineraryDetailsRouter: React.FC = () => {
       return;
     }
 
+    const isConfirmedRoute = location.pathname.startsWith('/confirmed-itinerary/');
+
+    // If this is a confirmed itinerary route,
+    // do not call the normal itinerary details API
+    if (isConfirmedRoute) {
+      setIsConfirmed(true);
+      setError(null);
+      return;
+    }
+
     const checkConfirmationStatus = async () => {
       try {
-        // 1) Detect if current URL path starts with "/confirmed-itinerary/"
-        const isConfirmedRoute = location.pathname.startsWith("/confirmed-itinerary/");
-        console.log('[Router] Route-based detection - isConfirmedRoute:', isConfirmedRoute);
-        
-        // 2) Fetch itinerary details from API
         const response = await ItineraryService.getDetails(id);
-        
-        console.log('[Router] API Response - isConfirmed:', response?.isConfirmed, 'status:', response?.status);
-        
-        // 3) Determine confirmed using API response (robust)
-        const apiConfirmed = response?.isConfirmed === true || response?.status === "CONFIRMED";
-        
-        // 4) Final: confirmed if either route or API says so
-        const confirmationStatus = isConfirmedRoute || apiConfirmed;
-        setIsConfirmed(confirmationStatus);
-        
-        if (confirmationStatus) {
-          console.log('✅ CONFIRMED MODE: Rendering ItineraryDetails in readOnly mode');
-        } else {
-          console.log('✏️ EDIT MODE: Rendering ItineraryDetails in editable mode');
-        }
 
+        const apiConfirmed =
+          response?.isConfirmed === true || response?.status === 'CONFIRMED';
+
+        setIsConfirmed(apiConfirmed);
         setError(null);
       } catch (err: any) {
         console.error('Failed to check itinerary status:', err);
-        // Default to edit mode on error
         setIsConfirmed(false);
         setError(err?.message || 'Failed to load itinerary');
       }
@@ -70,12 +64,17 @@ export const ItineraryDetailsRouter: React.FC = () => {
     );
   }
 
+  // Confirmed itinerary route
+  if (location.pathname.startsWith('/confirmed-itinerary/')) {
+    return <ConfirmedItineraryDetails confirmedPlanId={Number(id)} />;
+  }
+
   // Error state - default to edit mode
   if (error) {
     console.warn('Error checking confirmation status, loading in edit mode:', error);
     return <ItineraryDetails readOnly={false} />;
   }
 
-  // Render based on confirmation status - SINGLE PAGE ONLY
+  // Normal itinerary route
   return <ItineraryDetails readOnly={isConfirmed} />;
 };
