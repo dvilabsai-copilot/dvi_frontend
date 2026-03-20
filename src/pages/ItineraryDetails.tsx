@@ -28,6 +28,7 @@ import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
+import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
@@ -2344,7 +2345,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
             lastName: name.lastName,
             nationality: infant.nationality,
             email: undefined,
-            paxType: 2,
+            paxType: 3,
             leadPassenger: false,
             age: Number(infant.age),
             panNo: infant.panNo || undefined,
@@ -2358,7 +2359,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
       const childAgesForBooking = [
         ...additionalChildren.map((c) => Number(c.age)),
-        ...additionalInfants.map((i) => Number(i.age)),
       ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 17);
 
       const occupanciesForBooking = buildTboOccupancies(
@@ -2421,6 +2421,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         } finally {
           setIsPrebooking(false);
         }
+        // After first successful prebook, return and let modal display for user review
+        return;
       }
 
       const prebookTotal = Number(
@@ -2429,6 +2431,12 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
       if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
         toast.warning('Accept updated prebook price before final confirmation.');
+        return;
+      }
+
+      // TBO Certification: Require acknowledgement of prebook details before final booking
+      if (!hasAcceptedUpdatedPrice) {
+        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
         return;
       }
 
@@ -5005,8 +5013,10 @@ if (error || !itinerary) {
                   )}
                 </div>
                 <div>
-                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements</p>
-                  {normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
+                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
+                  {prebookData?.normalizedSupplements && prebookData.normalizedSupplements.length > 0 ? (
+                    <SupplementDisplay supplements={prebookData.normalizedSupplements} showHeading={false} />
+                  ) : normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
                     <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                       {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
                         <li key={`supplement-${idx}`}>{item}</li>
@@ -5016,6 +5026,18 @@ if (error || !itinerary) {
                     <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
                   )}
                 </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Package Inclusions</p>
+                  {normalizePrebookItems(prebookData.inclusions).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.inclusions).map((item, idx) => (
+                        <li key={`inclusion-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No inclusions returned</p>
+                  )}
+                </div>
 
                 {hasPrebookPriceChanged && (
                   <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
@@ -5023,17 +5045,15 @@ if (error || !itinerary) {
                   </p>
                 )}
 
-                {hasPrebookPriceChanged && (
-                  <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={hasAcceptedUpdatedPrice}
-                      onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                    />
-                    <span>I reviewed prebook response and accept updated price/conditions before final booking.</span>
-                  </label>
-                )}
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the inclusions, rate conditions, and room promotion details before final booking confirmation.</span>
+                </label>
               </div>
             )}
           </div>
