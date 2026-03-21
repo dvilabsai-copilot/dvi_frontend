@@ -77,7 +77,8 @@ export const RoomsBlock = ({
   const [childrenDetailsMap, setChildrenDetailsMap] =
     useState<ChildrenDetailsMap>({});
 
-  const totalRooms = rooms.length || 1;
+    const totalRooms = rooms.length || 1;
+
 
   const validateCombination = (
     adult: number,
@@ -135,7 +136,7 @@ export const RoomsBlock = ({
     });
   };
 
-  // sync childrenDetailsMap with children count
+   // sync childrenDetailsMap with children count
   useEffect(() => {
     setChildrenDetailsMap((prev) => {
       const next: ChildrenDetailsMap = { ...prev };
@@ -175,6 +176,20 @@ export const RoomsBlock = ({
       return next;
     });
   }, [rooms]);
+
+  // sync roomCount automatically for every room
+  useEffect(() => {
+    const calculatedTotalRooms = rooms.length || 1;
+
+    if (rooms.some((room) => room.roomCount !== calculatedTotalRooms)) {
+      setRooms((prev) =>
+        prev.map((room) => ({
+          ...room,
+          roomCount: calculatedTotalRooms,
+        }))
+      );
+    }
+  }, [rooms, setRooms]);
 
   const handleTotalRoomsChange = (value: number) => {
     if (!Number.isFinite(value) || value < 1) value = 1;
@@ -338,7 +353,24 @@ export const RoomsBlock = ({
   </div>
 
   {/* Children */}
-  <div className="flex flex-col items-start gap-1">
+<div className="flex flex-col items-start shrink-0">
+  {room.children === 0 ? (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-7 text-xs border-[#d39ce8] whitespace-nowrap"
+      onClick={() =>
+        tryUpdateCounts(
+          room,
+          room.adults,
+          1,
+          room.infants
+        )
+      }
+    >
+      + Add Child
+    </Button>
+  ) : (
     <div className="flex items-center border rounded-md bg-white">
       <Button
         type="button"
@@ -355,9 +387,11 @@ export const RoomsBlock = ({
       >
         -
       </Button>
+
       <span className="px-3 text-sm select-none">
         {room.children}
       </span>
+
       <Button
         type="button"
         variant="ghost"
@@ -374,8 +408,8 @@ export const RoomsBlock = ({
         +
       </Button>
     </div>
-  </div>
-
+  )}
+</div>
   {/* Infant */}
   <div className="flex flex-col items-start gap-1">
     {room.infants === 0 ? (
@@ -472,7 +506,7 @@ export const RoomsBlock = ({
     </div>
   ))}
 
-  {/* Total Rooms */}
+     {/* Total People In Room */}
   <div className="flex items-center gap-2">
     <span className="text-xs text-muted-foreground">Total</span>
 
@@ -480,10 +514,8 @@ export const RoomsBlock = ({
       type="number"
       min={1}
       className="w-16 h-8 bg-white"
-      value={totalRooms}
-      onChange={(e) =>
-        handleTotalRoomsChange(Number(e.target.value) || 1)
-      }
+      value={room.adults + room.children + room.infants}
+      readOnly
     />
 
     <Button
