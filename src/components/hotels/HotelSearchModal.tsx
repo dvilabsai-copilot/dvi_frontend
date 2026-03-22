@@ -116,10 +116,10 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
       }
       const hasInvalidChildAge = childAges.some((age) => {
         const parsed = Number(age);
-        return !Number.isFinite(parsed) || parsed < 0 || parsed > 17;
+        return !Number.isFinite(parsed) || parsed < 0 || parsed > 11;
       });
       if (hasInvalidChildAge) {
-        return 'Child ages must be valid numbers between 0 and 17.';
+        return 'Child ages must be valid numbers between 0 and 11.';
       }
     }
     return null;
@@ -277,7 +277,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
                     <input
                       type="number"
                       min={0}
-                      max={17}
+                      max={11}
                       value={childAges[idx] || ''}
                       onChange={(e) => handleChildAgeChange(idx, e.target.value)}
                       className="w-full px-2 py-1.5 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4ba3c3] text-sm"
