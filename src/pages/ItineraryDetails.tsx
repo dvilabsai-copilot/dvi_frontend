@@ -172,6 +172,16 @@ export type ItineraryHotelTab = {
   totalAmount: number;
 };
 
+type HotelAvailabilityMeta = {
+  hasSupplierHotels: boolean;
+  supplierHotelCount: number;
+  placeholderRowCount: number;
+  totalSearchRoutes: number;
+  emptySearchRoutes: number;
+  isPlaceholderOnly: boolean;
+  message: string;
+};
+
 // --------- VEHICLES ---------
 
 type VehicleCostBreakdownItem = {
@@ -286,6 +296,7 @@ type ItineraryHotelDetailsResponse = {
   hotelRatesVisible: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
+  hotelAvailability?: HotelAvailabilityMeta;
 };
 
 // ----------------- Helper functions -----------------
@@ -3344,6 +3355,7 @@ if (error || !itinerary) {
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
           hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          hotelAvailability={hotelDetails.hotelAvailability}
           quoteId={quoteId!}
           planId={itinerary.planId}
           onRefresh={refreshHotelData}

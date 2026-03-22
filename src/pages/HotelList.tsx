@@ -24,6 +24,15 @@ type HotelListProps = {
   hotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
   hotelRatesVisible: boolean;
+  hotelAvailability?: {
+    hasSupplierHotels: boolean;
+    supplierHotelCount: number;
+    placeholderRowCount: number;
+    totalSearchRoutes: number;
+    emptySearchRoutes: number;
+    isPlaceholderOnly: boolean;
+    message: string;
+  };
   quoteId: string; // ✅ Required: Quote ID from parent
   planId: number; // ✅ Required: Plan ID for hotel selection
   // Optional: in case you later wire an API to persist the toggle
@@ -108,6 +117,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotels,
   hotelTabs,
   hotelRatesVisible,
+  hotelAvailability,
   quoteId, // ✅ Receive quoteId from parent
   planId, // ✅ Receive planId from parent
   onToggleHotelRates,
@@ -820,6 +830,21 @@ export const HotelList: React.FC<HotelListProps> = ({
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
             <span className="text-amber-600 font-medium">⚠️ {unsavedSelections.size} unsaved hotel selection(s)</span>
             <span className="text-amber-600 text-sm">- Changes will be saved when you confirm the quotation</span>
+          </div>
+        )}
+
+        {hotelAvailability && (
+          <div
+            className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+              hotelAvailability.isPlaceholderOnly
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            <p className="font-medium">{hotelAvailability.message}</p>
+            <p className="mt-1 text-xs opacity-90">
+              Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
+            </p>
           </div>
         )}
 
