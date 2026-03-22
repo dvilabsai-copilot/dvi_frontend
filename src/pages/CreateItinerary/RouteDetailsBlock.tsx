@@ -49,6 +49,9 @@ type RouteDetailsBlockProps = {
 
   // Departure location to lock last row's Next Destination
   departureLocation?: string;
+
+  // Hide Intercity KM only where needed
+  hideIntercityKm?: boolean;
 };
 
 export const RouteDetailsBlock = ({
@@ -59,6 +62,7 @@ export const RouteDetailsBlock = ({
   addDay,
   validationErrors,
   departureLocation,
+  hideIntercityKm = false,
 }: RouteDetailsBlockProps) => {
   // Global fallback options (like PHP selectize list)
   const globalLocationOptions: AutoSuggestOption[] = locations.map((loc) => ({
@@ -257,9 +261,11 @@ export const RouteDetailsBlock = ({
 <TableHead className="text-xs text-[#4a4260] w-[280px]">
   NEXT DESTINATION
 </TableHead>
-<TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
-  INTERCITY KM
-</TableHead>
+{!hideIntercityKm && (
+  <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
+    INTERCITY KM
+  </TableHead>
+)}
 <TableHead className="text-xs text-[#4a4260] w-[100px] text-center">
   VIA ROUTE
 </TableHead>
@@ -407,6 +413,7 @@ export const RouteDetailsBlock = ({
     )}
   </TableCell>
 
+  {!hideIntercityKm && (
   <TableCell className="text-center">
     <Input
       type="number"
@@ -431,11 +438,12 @@ export const RouteDetailsBlock = ({
       className="h-8 rounded-md border-[#e5d7f6] text-xs text-center"
     />
   </TableCell>
+)}
 
-  <TableCell className="text-center">
-    <button
-      type="button"
-      onClick={() => onOpenViaRoutes?.(row)}
+<TableCell className="text-center">
+  <button
+    type="button"
+    onClick={() => onOpenViaRoutes?.(row)}
       className="btn btn-outline-primary btn-sm"
       title="Via Route"
     >
