@@ -784,6 +784,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   hotelName: string;
   checkInDate: string;
   checkOutDate: string;
+    searchInitiatedAt?: string;
   groupType?: number;
 }}>({});
 
@@ -1146,6 +1147,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
   const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
 
@@ -2022,6 +2024,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           hotelName: hotel.hotelName,
           checkInDate: formatDate(checkInDate),
           checkOutDate: formatDate(checkOutDate),
+          searchInitiatedAt: new Date().toISOString(),
         }
       }));
       setPrebookData(null);
@@ -2089,6 +2092,10 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     setPrebookData(null);
     setHasAcceptedUpdatedPrice(false);
     setFormErrors({});
+    // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
+    setAdditionalAdults([]);
+    setAdditionalChildren([]);
+    setAdditionalInfants([]);
 
     try {
       // Fetch customer info form data
@@ -2164,8 +2171,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   };
 
   const handleConfirmQuotation = async () => {
-    if (!itinerary?.planId || !agentInfo?.agent_id) {
-      toast.error('Missing required information');
+    if (!itinerary?.planId) {
+      toast.error('Missing itinerary plan information');
       return;
     }
 
@@ -2238,7 +2245,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
     validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 17);
+    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 11);
     validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -2278,6 +2285,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 hotelName: firstHotelForRoute.hotelName,
                 checkInDate,
                 checkOutDate,
+                searchInitiatedAt: new Date().toISOString(),
               };
             }
           }
@@ -2359,7 +2367,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
       const childAgesForBooking = [
         ...additionalChildren.map((c) => Number(c.age)),
-      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 17);
+      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
 
       const occupanciesForBooking = buildTboOccupancies(
         Number(itinerary.roomCount || 1),
@@ -2379,11 +2387,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         numberOfRooms: Number(itinerary.roomCount || 1),
         guestNationality: guestDetails.nationality,
         netAmount: Number(hotelData.netAmount || 0),
+        searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers,
       }));
 
       if (hotelBookings.length === 0) {
         toast.error('No hotels selected for booking. Please select hotels and retry.');
+        return;
+      }
+
+      const staleHotel = hotelBookings.find((booking) => {
+        if (!booking.searchInitiatedAt) {
+          return false;
+        }
+        const parsed = new Date(String(booking.searchInitiatedAt));
+        if (Number.isNaN(parsed.getTime())) {
+          return true;
+        }
+        return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+      });
+
+      if (staleHotel) {
+        setPrebookData(null);
+        setHasAcceptedUpdatedPrice(false);
+        toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
         return;
       }
 
@@ -2449,6 +2476,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         phone: guestDetails.contactNo,
         email: guestDetails.emailId,
       };
+
+      if (!agentInfo?.agent_id) {
+        toast.error('Missing agent information for final confirmation. Please reopen Confirm Quotation and retry.');
+        return;
+      }
 
       await ItineraryService.confirmQuotation({
         itinerary_plan_ID: itinerary.planId,
@@ -5091,6 +5123,7 @@ if (error || !itinerary) {
               Cancel
             </Button>
             <Button
+              type="button"
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
               onClick={handleConfirmQuotation}
               disabled={isConfirmingQuotation || isPrebooking}

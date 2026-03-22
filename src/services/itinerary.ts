@@ -310,6 +310,7 @@ export const ItineraryService = {
       numberOfRooms: number;
       guestNationality: string;
       netAmount: number;
+      searchInitiatedAt?: string;
       passengers: Array<{
         title: string;
         firstName: string;
@@ -338,6 +339,7 @@ export const ItineraryService = {
       numberOfRooms: number;
       guestNationality: string;
       netAmount: number;
+      searchInitiatedAt?: string;
       passengers: Array<{
         title: string;
         firstName: string;
@@ -382,6 +384,7 @@ export const ItineraryService = {
       numberOfRooms: number;
       guestNationality: string;
       netAmount: number;
+      searchInitiatedAt?: string;
       passengers: Array<{
         title: string;
         firstName: string;
