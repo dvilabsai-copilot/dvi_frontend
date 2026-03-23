@@ -101,29 +101,43 @@ export const RouteDetailsBlock = ({
     return () => window.clearTimeout(t);
   }, [focusNextIdx]);
 
-  // For each row that has a source, load destination list if we haven't yet
+    // For each row that has a source, load destination list if we haven't yet
   useEffect(() => {
     routeDetails.forEach((row, idx) => {
       if (!row.source) return;
 
+      const requestKey = [
+        row.source,
+        row.day,
+        routeDetails.length,
+        departureLocation || "",
+      ].join("|");
+
       const alreadyLoadedForThisSource =
-        loadedSources[idx] && loadedSources[idx] === row.source;
+        loadedSources[idx] && loadedSources[idx] === requestKey;
       if (alreadyLoadedForThisSource) return;
 
       (async () => {
         try {
-          const destLocations = await fetchLocations("destination", row.source);
+          const destLocations = await fetchLocations("destination", row.source, {
+            dayNo: row.day,
+            totalNoOfDays: routeDetails.length,
+            departureLocation,
+          });
+
           const opts: AutoSuggestOption[] = destLocations.map((loc) => ({
             value: loc.name,
             label: loc.name,
           }));
+
           setDestinationOptionsMap((prev) => ({
             ...prev,
             [idx]: opts,
           }));
+
           setLoadedSources((prev) => ({
             ...prev,
-            [idx]: row.source,
+            [idx]: requestKey,
           }));
         } catch (err) {
           console.error(
@@ -134,7 +148,7 @@ export const RouteDetailsBlock = ({
         }
       })();
     });
-  }, [routeDetails, loadedSources]);
+  }, [routeDetails, loadedSources, departureLocation]);
 
   const parseDDMMYYYY = (value: string): Date | null => {
     if (!value) return null;
