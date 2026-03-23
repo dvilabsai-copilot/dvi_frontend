@@ -958,6 +958,7 @@ const handleSaveWithType = async (
             setRouteDetails={setRouteDetails}
             onOpenViaRoutes={openViaRoutes}
             departureLocation={departureLocation}
+            hideIntercityKm={true}
           />
         )}
         {validationErrors.firstRouteSource && (
