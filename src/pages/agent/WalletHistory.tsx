@@ -19,23 +19,52 @@ function getAgentId() {
   return user?.agentId || user?.id || user?.agent_ID;
 }
 
-function normalizeRows(rows: any[], type: "cash" | "coupon") {
-  return (rows || []).map((tx: any, index: number) => ({
-    id: String(tx?.id ?? tx?.cash_wallet_ID ?? tx?.coupon_wallet_ID ?? index + 1),
-    transactionDate: tx?.transactionDate ?? tx?.transaction_date ?? "",
-    transactionAmount: Number(tx?.transactionAmount ?? tx?.transaction_amount ?? 0),
-    transactionType:
+type WalletRow = {
+  id: string;
+  transactionDate: string;
+  transactionAmount: number;
+  transactionType: "Credit" | "Debit";
+  transactionId?: string;
+  remark: string;
+};
+
+function normalizeRows(rows: any[], type: "cash" | "coupon"): WalletRow[] {
+  return (rows || []).map((tx: any, index: number): WalletRow => {
+    const isCredit =
       String(tx?.transactionType ?? tx?.transaction_type ?? "").toLowerCase() === "credit" ||
-      Number(tx?.transactionType ?? tx?.transaction_type) === 1
-        ? "Credit"
-        : "Debit",
-    transactionId: type === "cash" ? tx?.transaction_id ?? tx?.transactionId ?? "--" : undefined,
-    remark: tx?.remark ?? tx?.remarks ?? "N/A",
-  }));
+      Number(tx?.transactionType ?? tx?.transaction_type) === 1;
+
+    return {
+      id: String(tx?.id ?? tx?.cash_wallet_ID ?? tx?.coupon_wallet_ID ?? index + 1),
+      transactionDate: String(tx?.transactionDate ?? tx?.transaction_date ?? ""),
+      transactionAmount: Number(tx?.transactionAmount ?? tx?.transaction_amount ?? 0),
+      transactionType: isCredit ? "Credit" : "Debit",
+      transactionId: type === "cash" ? String(tx?.transaction_id ?? tx?.transactionId ?? "--") : undefined,
+      remark: String(tx?.remark ?? tx?.remarks ?? "N/A"),
+    };
+  });
 }
 
 function formatCurrency(amount: number) {
   return `₹ ${Number(amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "--";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function TypeBadge({ value }: { value: "Credit" | "Debit" }) {
@@ -51,14 +80,6 @@ function TypeBadge({ value }: { value: "Credit" | "Debit" }) {
 }
 
 // WalletTable component
-type WalletRow = {
-  id: string;
-  transactionDate: string;
-  transactionAmount: number;
-  transactionType: "Credit" | "Debit";
-  transactionId?: string;
-  remark: string;
-};
 
 function WalletTable({
   title,
@@ -88,9 +109,13 @@ function WalletTable({
     );
   }, [rows, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+
   const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { setPage(1); }, [search, rows]);
+  useEffect(() => { 
+    setPage(1); 
+  }, [search, rows]);
 
   return (
     <Card className="border border-[#eedcf6] shadow-sm">
@@ -107,10 +132,17 @@ function WalletTable({
           </div>
 
           <div className="flex items-center gap-3 text-[18px] text-[#6d6d86]">
-            <label>Search:</label>
+            <label htmlFor="wallet-search">Search:</label>
+
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={(e) => onSearchChange(e.target.value)} className="w-full min-w-[220px] pl-9 md:w-[280px]" />
+
+              <Input
+                id="wallet-search"
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full min-w-[220px] pl-9 md:w-[280px]"
+              />
             </div>
           </div>
         </div>
@@ -137,7 +169,7 @@ function WalletTable({
               ) : (
                 paginatedRows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{row.transactionDate || "--"}</TableCell>
+                    <TableCell>{formatDate(row.transactionDate)}</TableCell>
                     <TableCell>{formatCurrency(row.transactionAmount)}</TableCell>
                     <TableCell><TypeBadge value={row.transactionType} /></TableCell>
                     {showTransactionId && <TableCell>{row.transactionId || "--"}</TableCell>}
@@ -148,6 +180,33 @@ function WalletTable({
             </TableBody>
           </Table>
         </div>
+
+        <div className="flex items-center justify-between pt-4">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+              disabled={page === 1}
+            >
+              Previous
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={page === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+
       </div>
     </Card>
   );
@@ -190,7 +249,7 @@ const WalletHistory = () => {
     <div className="space-y-6 p-6">
 
       <div className="flex justify-end">
-        <Button onClick={() => toast.info("Topup modal coming soon")}>+ Add Cash Wallet</Button>
+        <Button disabled>+ Add Cash Wallet</Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">

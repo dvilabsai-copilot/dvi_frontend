@@ -140,6 +140,7 @@ const App = () => (
 
             <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
 
+            <Route path="/wallet" element={<MainLayout><WalletHistory /></MainLayout>} />
             <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
 
             {/* NEW ROUTE ADDED */}
