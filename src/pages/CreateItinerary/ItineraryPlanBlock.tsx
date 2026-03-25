@@ -647,11 +647,6 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
         setHoveredToDate(day);
       }}
-      onDayMouseLeave={() => {
-        if (!tripEndDateObj) {
-          setHoveredToDate(undefined);
-        }
-      }}
       disabled={disablePastAndToday}
       defaultMonth={tripStartDateObj || undefined}
       initialFocus
