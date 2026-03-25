@@ -457,6 +457,8 @@ const App = () => (
               }
             />
 
+            <Route path="/wallet" element={<MainLayout><WalletHistory /></MainLayout>} />
+            <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
             {/* Staff */}
             <Route
               path="/staff"
