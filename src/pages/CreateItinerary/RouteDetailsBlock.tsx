@@ -49,6 +49,9 @@ type RouteDetailsBlockProps = {
 
   // Departure location to lock last row's Next Destination
   departureLocation?: string;
+
+  // Hide Intercity KM only where needed
+  hideIntercityKm?: boolean;
 };
 
 export const RouteDetailsBlock = ({
@@ -59,6 +62,7 @@ export const RouteDetailsBlock = ({
   addDay,
   validationErrors,
   departureLocation,
+  hideIntercityKm = false,
 }: RouteDetailsBlockProps) => {
   // Global fallback options (like PHP selectize list)
   const globalLocationOptions: AutoSuggestOption[] = locations.map((loc) => ({
@@ -97,29 +101,43 @@ export const RouteDetailsBlock = ({
     return () => window.clearTimeout(t);
   }, [focusNextIdx]);
 
-  // For each row that has a source, load destination list if we haven't yet
+    // For each row that has a source, load destination list if we haven't yet
   useEffect(() => {
     routeDetails.forEach((row, idx) => {
       if (!row.source) return;
 
+      const requestKey = [
+        row.source,
+        row.day,
+        routeDetails.length,
+        departureLocation || "",
+      ].join("|");
+
       const alreadyLoadedForThisSource =
-        loadedSources[idx] && loadedSources[idx] === row.source;
+        loadedSources[idx] && loadedSources[idx] === requestKey;
       if (alreadyLoadedForThisSource) return;
 
       (async () => {
         try {
-          const destLocations = await fetchLocations("destination", row.source);
+          const destLocations = await fetchLocations("destination", row.source, {
+            dayNo: row.day,
+            totalNoOfDays: routeDetails.length,
+            departureLocation,
+          });
+
           const opts: AutoSuggestOption[] = destLocations.map((loc) => ({
             value: loc.name,
             label: loc.name,
           }));
+
           setDestinationOptionsMap((prev) => ({
             ...prev,
             [idx]: opts,
           }));
+
           setLoadedSources((prev) => ({
             ...prev,
-            [idx]: row.source,
+            [idx]: requestKey,
           }));
         } catch (err) {
           console.error(
@@ -130,7 +148,7 @@ export const RouteDetailsBlock = ({
         }
       })();
     });
-  }, [routeDetails, loadedSources]);
+  }, [routeDetails, loadedSources, departureLocation]);
 
   const parseDDMMYYYY = (value: string): Date | null => {
     if (!value) return null;
@@ -150,21 +168,32 @@ export const RouteDetailsBlock = ({
     return `${dd}/${mm}/${yyyy}`;
   };
 
-  const moveFocusToNextDestination = (currentRowIdx: number) => {
-    const nextRowIdx = currentRowIdx + 1;
-    
-    // If there's a next row, focus its Next Destination
-    if (nextRowIdx < routeDetails.length) {
-      setTimeout(() => {
-        nextDestinationRefs.current[nextRowIdx]?.focus();
-      }, 0);
-    } else {
-      // Otherwise, focus the "Add Day" button
-      setTimeout(() => {
-        addDayButtonRef.current?.focus();
-      }, 0);
-    }
-  };
+ const moveFocusToNextDestination = (currentRowIdx: number) => {
+  const nextRowIdx = currentRowIdx + 1;
+
+  if (nextRowIdx < routeDetails.length) {
+    setTimeout(() => {
+      const nextRef = nextDestinationRefs.current[nextRowIdx];
+
+      nextRef?.focus();
+
+      const element = document.getElementById(`next-destination-${nextRowIdx}`);
+      element?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  } else {
+    setTimeout(() => {
+      addDayButtonRef.current?.focus();
+
+      addDayButtonRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  }
+};
 
   const handleAddDay = () => {
     if (addDay) {
@@ -246,9 +275,11 @@ export const RouteDetailsBlock = ({
 <TableHead className="text-xs text-[#4a4260] w-[280px]">
   NEXT DESTINATION
 </TableHead>
-<TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
-  INTERCITY KM
-</TableHead>
+{!hideIntercityKm && (
+  <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
+    INTERCITY KM
+  </TableHead>
+)}
 <TableHead className="text-xs text-[#4a4260] w-[100px] text-center">
   VIA ROUTE
 </TableHead>
@@ -351,42 +382,43 @@ export const RouteDetailsBlock = ({
       }
     >
       <AutoSuggestSelect
-        ref={(el) => {
-          nextDestinationRefs.current[idx] = el;
-        }}
-        mode="single"
-        value={nextDestinationValue}
-        onChange={(val) => {
-          if (isLastRowLocked) return;
+  ref={(el) => {
+    nextDestinationRefs.current[idx] = el;
+  }}
+  mode="single"
+  value={nextDestinationValue}
+  scrollToValue={row.source}
+  onChange={(val) => {
+    if (isLastRowLocked) return;
 
-          setRouteDetails((prev) => {
-            const updated = [...prev];
-            const chosen = (val as string) || "";
+    setRouteDetails((prev) => {
+      const updated = [...prev];
+      const chosen = (val as string) || "";
 
-            updated[idx] = {
-              ...updated[idx],
-              next: chosen,
-            };
+      updated[idx] = {
+        ...updated[idx],
+        next: chosen,
+      };
 
-            if (idx + 1 < updated.length) {
-              updated[idx + 1] = {
-                ...updated[idx + 1],
-                source: chosen,
-              };
-            }
+      if (idx + 1 < updated.length) {
+        updated[idx + 1] = {
+          ...updated[idx + 1],
+          source: chosen,
+        };
+      }
 
-            return updated;
-          });
-        }}
-        onSelectionCommit={() => {
-          if (isLastRowLocked) return;
-          moveFocusToNextDestination(idx);
-        }}
-        disabled={isLastRowLocked}
-        readOnly={isLastRowLocked}
-        options={rowSpecificOptions}
-        placeholder="Next Destination"
-      />
+      return updated;
+    });
+  }}
+  onSelectionCommit={() => {
+    if (isLastRowLocked) return;
+    moveFocusToNextDestination(idx);
+  }}
+  disabled={isLastRowLocked}
+  readOnly={isLastRowLocked}
+  options={rowSpecificOptions}
+  placeholder="Next Destination"
+/>
     </div>
     {isFirstRow && firstRouteNextError && (
       <p className="mt-1 text-xs text-red-500">
@@ -395,6 +427,7 @@ export const RouteDetailsBlock = ({
     )}
   </TableCell>
 
+  {!hideIntercityKm && (
   <TableCell className="text-center">
     <Input
       type="number"
@@ -419,11 +452,12 @@ export const RouteDetailsBlock = ({
       className="h-8 rounded-md border-[#e5d7f6] text-xs text-center"
     />
   </TableCell>
+)}
 
-  <TableCell className="text-center">
-    <button
-      type="button"
-      onClick={() => onOpenViaRoutes?.(row)}
+<TableCell className="text-center">
+  <button
+    type="button"
+    onClick={() => onOpenViaRoutes?.(row)}
       className="btn btn-outline-primary btn-sm"
       title="Via Route"
     >

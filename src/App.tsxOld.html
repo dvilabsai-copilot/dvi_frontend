@@ -58,7 +58,6 @@ import AgentFormPage from "./pages/agent/AgentFormPage";
 import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
-import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -457,8 +456,6 @@ const App = () => (
               }
             />
 
-            <Route path="/wallet" element={<MainLayout><WalletHistory /></MainLayout>} />
-            <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
             {/* Staff */}
             <Route
               path="/staff"
@@ -531,14 +528,6 @@ const App = () => (
               element={
                 <MainLayout>
                   <WalletHistory />
-                </MainLayout>
-              }
-            />
-            <Route
-              path="/subscription-history"
-              element={
-                <MainLayout>
-                  <SubscriptionHistory />
                 </MainLayout>
               }
             />
@@ -743,4 +732,4 @@ const App = () => (
   </QueryClientProvider>
 );
 
-export default App;
+export default App;   

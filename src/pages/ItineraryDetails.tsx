@@ -1,7 +1,7 @@
 // FILE: src/pages/itineraries/ItineraryDetails.tsx
 
 import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,6 +28,7 @@ import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
+import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
@@ -171,6 +172,16 @@ export type ItineraryHotelTab = {
   totalAmount: number;
 };
 
+type HotelAvailabilityMeta = {
+  hasSupplierHotels: boolean;
+  supplierHotelCount: number;
+  placeholderRowCount: number;
+  totalSearchRoutes: number;
+  emptySearchRoutes: number;
+  isPlaceholderOnly: boolean;
+  message: string;
+};
+
 // --------- VEHICLES ---------
 
 type VehicleCostBreakdownItem = {
@@ -285,6 +296,7 @@ type ItineraryHotelDetailsResponse = {
   hotelRatesVisible: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
+  hotelAvailability?: HotelAvailabilityMeta;
 };
 
 // ----------------- Helper functions -----------------
@@ -439,7 +451,10 @@ interface ItineraryDetailsProps {
 
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
+  const location = useLocation();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
+  //Extra
+  console.log('🔵 Current location pathname:', location.pathname);
   
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
@@ -780,6 +795,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   hotelName: string;
   checkInDate: string;
   checkOutDate: string;
+    searchInitiatedAt?: string;
   groupType?: number;
 }}>({});
 
@@ -1142,6 +1158,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
   const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
 
@@ -1322,66 +1339,76 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   }, []);
 
   useEffect(() => {
-    if (!quoteId) {
-      setError("Missing quote id in URL");
-      setLoading(false);
-      return;
-    }
+  if (!quoteId) {
+    setError("Missing quote id in URL");
+    setLoading(false);
+    return;
+  }
 
-    // If we're already fetching this quoteId, skip duplicate fetch
-    if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-      return;
-    }
+  // Prevent wrong API call when this component is opened on confirmed route
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+    console.warn(
+      "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
+      { quoteId, pathname: location.pathname }
+    );
+    setLoading(false);
+    return;
+  }
 
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
+  // If we're already fetching this quoteId, skip duplicate fetch
+  if (currentFetchRef.current === quoteId) {
+    console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+    return;
+  }
 
-    const fetchDetails = async () => {
-      try {
-        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-        setLoading(true);
-        setError(null);
+  // Mark that we're fetching this quoteId
+  currentFetchRef.current = quoteId;
+  isMountedRef.current = true;
 
-        // Fetch both details and hotel data in parallel
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
+  const fetchDetails = async () => {
+    try {
+      console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
+      setLoading(true);
+      setError(null);
 
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) {
-          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-          return;
-        }
+      // Fetch both details and hotel data in parallel
+      const [detailsRes, hotelRes] = await Promise.all([
+        ItineraryService.getDetails(quoteId),
+        ItineraryService.getHotelDetails(quoteId),
+      ]);
 
-        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      } catch (e: any) {
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) return;
-        
-        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-        setError(e?.message || "Failed to load itinerary details");
-        setItinerary(null);
-        setHotelDetails(null);
-      } finally {
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) {
+        console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
+        return;
       }
-    };
 
-    fetchDetails();
+      console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
+      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+    } catch (e: any) {
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
+      
+      console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
+      setError(e?.message || "Failed to load itinerary details");
+      setItinerary(null);
+      setHotelDetails(null);
+    } finally {
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
 
-    // Cleanup: Mark component as unmounted
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [quoteId]);
+  fetchDetails();
+
+  // Cleanup: Mark component as unmounted
+  return () => {
+    isMountedRef.current = false;
+  };
+}, [quoteId, location.pathname]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -2008,6 +2035,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           hotelName: hotel.hotelName,
           checkInDate: formatDate(checkInDate),
           checkOutDate: formatDate(checkOutDate),
+          searchInitiatedAt: new Date().toISOString(),
         }
       }));
       setPrebookData(null);
@@ -2075,6 +2103,10 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     setPrebookData(null);
     setHasAcceptedUpdatedPrice(false);
     setFormErrors({});
+    // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
+    setAdditionalAdults([]);
+    setAdditionalChildren([]);
+    setAdditionalInfants([]);
 
     try {
       // Fetch customer info form data
@@ -2150,8 +2182,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   };
 
   const handleConfirmQuotation = async () => {
-    if (!itinerary?.planId || !agentInfo?.agent_id) {
-      toast.error('Missing required information');
+    if (!itinerary?.planId) {
+      toast.error('Missing itinerary plan information');
       return;
     }
 
@@ -2224,7 +2256,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
     validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 17);
+    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 11);
     validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
 
     if (Object.keys(nextErrors).length > 0) {
@@ -2264,6 +2296,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 hotelName: firstHotelForRoute.hotelName,
                 checkInDate,
                 checkOutDate,
+                searchInitiatedAt: new Date().toISOString(),
               };
             }
           }
@@ -2331,7 +2364,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
             lastName: name.lastName,
             nationality: infant.nationality,
             email: undefined,
-            paxType: 2,
+            paxType: 3,
             leadPassenger: false,
             age: Number(infant.age),
             panNo: infant.panNo || undefined,
@@ -2345,8 +2378,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
       const childAgesForBooking = [
         ...additionalChildren.map((c) => Number(c.age)),
-        ...additionalInfants.map((i) => Number(i.age)),
-      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 17);
+      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
 
       const occupanciesForBooking = buildTboOccupancies(
         Number(itinerary.roomCount || 1),
@@ -2366,11 +2398,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         numberOfRooms: Number(itinerary.roomCount || 1),
         guestNationality: guestDetails.nationality,
         netAmount: Number(hotelData.netAmount || 0),
+        searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers,
       }));
 
       if (hotelBookings.length === 0) {
         toast.error('No hotels selected for booking. Please select hotels and retry.');
+        return;
+      }
+
+      const staleHotel = hotelBookings.find((booking) => {
+        if (!booking.searchInitiatedAt) {
+          return false;
+        }
+        const parsed = new Date(String(booking.searchInitiatedAt));
+        if (Number.isNaN(parsed.getTime())) {
+          return true;
+        }
+        return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+      });
+
+      if (staleHotel) {
+        setPrebookData(null);
+        setHasAcceptedUpdatedPrice(false);
+        toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
         return;
       }
 
@@ -2408,6 +2459,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         } finally {
           setIsPrebooking(false);
         }
+        // After first successful prebook, return and let modal display for user review
+        return;
       }
 
       const prebookTotal = Number(
@@ -2416,6 +2469,12 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
       if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
         toast.warning('Accept updated prebook price before final confirmation.');
+        return;
+      }
+
+      // TBO Certification: Require acknowledgement of prebook details before final booking
+      if (!hasAcceptedUpdatedPrice) {
+        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
         return;
       }
 
@@ -2428,6 +2487,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         phone: guestDetails.contactNo,
         email: guestDetails.emailId,
       };
+
+      if (!agentInfo?.agent_id) {
+        toast.error('Missing agent information for final confirmation. Please reopen Confirm Quotation and retry.');
+        return;
+      }
 
       await ItineraryService.confirmQuotation({
         itinerary_plan_ID: itinerary.planId,
@@ -2508,26 +2572,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     );
   }
 
-  if (error || !itinerary) {
-    return (
-      <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
-        <p className="text-sm text-red-600">
-          {error || "Itinerary details not found"}
-        </p>
-        {itinerary?.planId && (
-          <Link to={`/create-itinerary?id=${itinerary.planId}`}>
-            <Button
-              variant="outline"
-              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Route List
-            </Button>
-          </Link>
-        )}
-      </div>
-    );
-  }
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+  return null;
+}
+
+if (error || !itinerary) {
+  return (
+    <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
+      <p className="text-sm text-red-600">
+        {error || "Itinerary details not found"}
+      </p>
+      {itinerary?.planId && (
+        <Link to={`/create-itinerary?id=${itinerary.planId}`}>
+          <Button
+            variant="outline"
+            className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Route List
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
+}
 
   const backToListHref = itinerary.planId
     ? `/create-itinerary?id=${itinerary.planId}`
@@ -3287,6 +3355,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
           hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          hotelAvailability={hotelDetails.hotelAvailability}
           quoteId={quoteId!}
           planId={itinerary.planId}
           onRefresh={refreshHotelData}
@@ -4988,8 +5057,10 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                   )}
                 </div>
                 <div>
-                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements</p>
-                  {normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
+                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
+                  {prebookData?.normalizedSupplements && prebookData.normalizedSupplements.length > 0 ? (
+                    <SupplementDisplay supplements={prebookData.normalizedSupplements} showHeading={false} />
+                  ) : normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
                     <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                       {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
                         <li key={`supplement-${idx}`}>{item}</li>
@@ -4999,6 +5070,18 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                     <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
                   )}
                 </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Package Inclusions</p>
+                  {normalizePrebookItems(prebookData.inclusions).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.inclusions).map((item, idx) => (
+                        <li key={`inclusion-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No inclusions returned</p>
+                  )}
+                </div>
 
                 {hasPrebookPriceChanged && (
                   <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
@@ -5006,17 +5089,15 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                   </p>
                 )}
 
-                {hasPrebookPriceChanged && (
-                  <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      checked={hasAcceptedUpdatedPrice}
-                      onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                    />
-                    <span>I reviewed prebook response and accept updated price/conditions before final booking.</span>
-                  </label>
-                )}
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the inclusions, rate conditions, and room promotion details before final booking confirmation.</span>
+                </label>
               </div>
             )}
           </div>
@@ -5054,6 +5135,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
               Cancel
             </Button>
             <Button
+              type="button"
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
               onClick={handleConfirmQuotation}
               disabled={isConfirmingQuotation || isPrebooking}
