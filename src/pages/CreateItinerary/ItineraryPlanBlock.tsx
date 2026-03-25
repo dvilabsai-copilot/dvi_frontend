@@ -239,12 +239,15 @@ const previewRange = useMemo(() => {
     return { from: tripStartDateObj, to: tripEndDateObj };
   }
 
-  // Live hover preview before departure click
-  if (hoveredToDate) {
-    return hoveredToDate >= tripStartDateObj
-      ? { from: tripStartDateObj, to: hoveredToDate }
-      : { from: hoveredToDate, to: tripStartDateObj };
+ // Live hover preview before departure click
+if (hoveredToDate) {
+  // Ignore hover before arrival (match click behavior)
+  if (hoveredToDate < tripStartDateObj) {
+    return { from: tripStartDateObj, to: tripStartDateObj };
   }
+
+  return { from: tripStartDateObj, to: hoveredToDate };
+}
 
   // Only arrival selected
   return { from: tripStartDateObj, to: tripStartDateObj };
