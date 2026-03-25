@@ -224,27 +224,87 @@ export const ItineraryPlanBlock = ({
 }: ItineraryPlanBlockProps) => {
 const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
 const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
+const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
 
 const tripStartDateObj = parseDDMMYYYY(tripStartDate);
 const tripEndDateObj = parseDDMMYYYY(tripEndDate);
 
-const selectedRange = useMemo(
-  () => ({ from: tripStartDateObj, to: tripEndDateObj }),
-  [tripStartDateObj, tripEndDateObj]
-);
+const previewRange = useMemo(() => {
+  if (!tripStartDateObj) {
+    return undefined;
+  }
 
-const previewToDate = tripEndDateObj ?? hoveredToDate;
+  // Final selected range
+  if (tripEndDateObj) {
+    return { from: tripStartDateObj, to: tripEndDateObj };
+  }
+
+ // Live hover preview before departure click
+if (hoveredToDate) {
+  // Ignore hover before arrival (match click behavior)
+  if (hoveredToDate < tripStartDateObj) {
+    return { from: tripStartDateObj, to: tripStartDateObj };
+  }
+
+  return { from: tripStartDateObj, to: hoveredToDate };
+}
+
+  // Only arrival selected
+  return { from: tripStartDateObj, to: tripStartDateObj };
+}, [tripStartDateObj, tripEndDateObj, hoveredToDate]);
+
+const previewToDate = tripEndDateObj
+  ? tripEndDateObj
+  : hoveredToDate
+  ? hoveredToDate
+  : tripStartDateObj;
 
 const previewNoOfDays = useMemo(() => {
-  if (!tripStartDateObj) return 1;
-  if (!previewToDate) return 1;
-  return Math.max(1, differenceInCalendarDays(previewToDate, tripStartDateObj) + 1);
+  if (!tripStartDateObj || !previewToDate) return 1;
+
+  const from =
+    previewToDate >= tripStartDateObj ? tripStartDateObj : previewToDate;
+  const to =
+    previewToDate >= tripStartDateObj ? previewToDate : tripStartDateObj;
+
+  return Math.max(1, differenceInCalendarDays(to, from) + 1);
 }, [tripStartDateObj, previewToDate]);
 
 const previewNoOfNights = useMemo(
   () => Math.max(0, previewNoOfDays - 1),
   [previewNoOfDays]
 );
+
+const handleTripDayClick = (day: Date, disabled?: boolean) => {
+  if (disabled) return;
+
+  const clickedDate = formatDDMMYYYY(day);
+
+  // First click, or when full range already exists -> start fresh from clicked date
+  if (!tripStartDateObj || tripEndDateObj || !isSelectingDeparture) {
+    setTripStartDate(clickedDate);
+    setTripEndDate("");
+    setHoveredToDate(undefined);
+    setIsSelectingDeparture(true);
+    return;
+  }
+
+  // While selecting departure:
+  // If clicked date is before arrival, treat it as a new arrival date
+  if (day < tripStartDateObj) {
+    setTripStartDate(clickedDate);
+    setTripEndDate("");
+    setHoveredToDate(undefined);
+    setIsSelectingDeparture(true);
+    return;
+  }
+
+  // Valid departure selection
+  setTripEndDate(clickedDate);
+  setHoveredToDate(undefined);
+  setIsSelectingDeparture(false);
+  setIsTripDatesOpen(false);
+};
   const hotelCategory: string[] = selectedHotelCategoryIds.map((id) => String(id));
   const handleHotelCategoryChange = (vals: string[]) => {
     const ids = (vals || [])
@@ -505,80 +565,102 @@ const handleHotelFacilityChange = (vals: string[]) => {
       data-field="tripEndDate"
     >
       <Label className="text-sm block mb-1">Trip Dates *</Label>
-      <Popover
-        open={isTripDatesOpen}
-        onOpenChange={(open) => {
-          setIsTripDatesOpen(open);
-          if (!open) {
-            setHoveredToDate(undefined);
-          }
-        }}
-      >
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={`w-full justify-start h-9 text-left font-normal ${
-              !tripStartDate && !tripEndDate ? "text-muted-foreground" : ""
-            }`}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {tripStartDate ? (
-              tripEndDate ? (
-                `${tripStartDate} - ${tripEndDate}`
-              ) : (
-                `${tripStartDate} - Select end date`
-              )
-            ) : (
-              "DD/MM/YYYY"
-            )}
-          </Button>
-        </PopoverTrigger>
+     <Popover
+  open={isTripDatesOpen}
+  onOpenChange={(open) => {
+    setIsTripDatesOpen(open);
 
-        <PopoverContent
-          align="start"
-          className="z-50 w-fit p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
-        >
-          <Calendar
-            mode="range"
-            numberOfMonths={2}
-            showOutsideDays={false}
-            selected={selectedRange}
-            onSelect={(range) => {
-              const from = range?.from;
-              const to = range?.to;
+    if (!open) {
+      setHoveredToDate(undefined);
+      setIsSelectingDeparture(false);
+      return;
+    }
 
-              if (from) {
-                setTripStartDate(formatDDMMYYYY(from));
-              } else {
-                setTripStartDate("");
-              }
+    // When reopening:
+    // if a full range already exists, next click should start a fresh arrival selection
+    if (tripStartDateObj && tripEndDateObj) {
+      setIsSelectingDeparture(false);
+    } else if (tripStartDateObj && !tripEndDateObj) {
+      setIsSelectingDeparture(true);
+    } else {
+      setIsSelectingDeparture(false);
+    }
+  }}
+>
+  <PopoverTrigger asChild>
+    <Button
+      variant="outline"
+      className={`w-full justify-start h-9 text-left font-normal ${
+        !tripStartDate && !tripEndDate ? "text-muted-foreground" : ""
+      }`}
+    >
+      <CalendarIcon className="mr-2 h-4 w-4" />
+      {tripStartDate ? (
+        tripEndDate ? (
+          `${tripStartDate} - ${tripEndDate}`
+        ) : (
+          `${tripStartDate} - Select end date`
+        )
+      ) : (
+        "DD/MM/YYYY"
+      )}
+    </Button>
+  </PopoverTrigger>
 
-              if (to) {
-                setTripEndDate(formatDDMMYYYY(to));
-                setIsTripDatesOpen(false);
-              } else {
-                setTripEndDate("");
-              }
+  <PopoverContent
+    align="start"
+    className="z-50 w-fit p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
+  >
+    <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-medium text-[#4a4260]">
+          {tripStartDateObj && !tripEndDateObj
+            ? "Select departure date"
+            : "Select trip dates"}
+        </div>
 
-              setHoveredToDate(undefined);
-            }}
-            onDayMouseEnter={(day) => {
-              if (tripStartDateObj && !tripEndDateObj) {
-                setHoveredToDate(day);
-              }
-            }}
-            disabled={disablePastAndToday}
-            defaultMonth={tripStartDateObj || undefined}
-            initialFocus
-            classNames={{
-              day_today: "",
-              day_outside: "text-[#2f2f2f] opacity-100",
-              day_range_middle: "bg-[#f3ecfb] text-[#2f2f2f]",
-              day_hidden: "invisible",
-            }}
-          />
-        </PopoverContent>
-      </Popover>
+        <div className="flex items-center gap-2">
+          <div className="rounded-full bg-[#f3ecfb] px-3 py-1 text-xs font-medium text-[#5c2db1]">
+            {previewNoOfNights} Night{previewNoOfNights !== 1 ? "s" : ""}
+          </div>
+          <div className="rounded-full bg-[#f3ecfb] px-3 py-1 text-xs font-medium text-[#5c2db1]">
+            {previewNoOfDays} Day{previewNoOfDays !== 1 ? "s" : ""}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <Calendar
+      mode="range"
+      numberOfMonths={2}
+      showOutsideDays={false}
+      selected={previewRange}
+      onDayClick={(day, modifiers) => {
+        handleTripDayClick(day, modifiers.disabled);
+      }}
+      onDayMouseEnter={(day, modifiers) => {
+        if (
+          modifiers.disabled ||
+          !tripStartDateObj ||
+          tripEndDateObj ||
+          !isSelectingDeparture
+        ) {
+          return;
+        }
+
+        setHoveredToDate(day);
+      }}
+      disabled={disablePastAndToday}
+      defaultMonth={tripStartDateObj || undefined}
+      initialFocus
+      classNames={{
+        day_today: "",
+        day_range_middle: "bg-[#f3ecfb] text-[#2f2f2f]",
+        day_hidden: "invisible",
+      }}
+    />
+  </PopoverContent>
+</Popover>
 
       {(validationErrors?.tripStartDate || validationErrors?.tripEndDate) && (
         <p className="mt-1 text-xs text-red-500">
