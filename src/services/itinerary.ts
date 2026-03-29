@@ -170,6 +170,17 @@ export const ItineraryService = {
     });
   },
 
+  async previewActivityForAllHotspots(data: {
+    planId: number;
+    routeId: number;
+    activityId: number;
+  }) {
+    return api(`itineraries/activities/preview-all-hotspots`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
   async addActivity(data: {
     planId: number;
     routeId: number;
