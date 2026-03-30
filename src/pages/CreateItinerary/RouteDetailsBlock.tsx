@@ -49,8 +49,10 @@ type RouteDetailsBlockProps = {
 
   // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
-  onRefreshRouteDistance?: (row: RouteDetailRow) => Promise<number | string>; // <-- updated type here
+  onRefreshRouteDistance?: (row: RouteDetailRow) => Promise<number | string>;
+  onDeleteDay?: () => void;
   addDay?: () => void;
+
   // optional validation from parent
   validationErrors?: ValidationErrors;
 
@@ -67,6 +69,7 @@ export const RouteDetailsBlock = ({
   locations,
   onOpenViaRoutes,
   onRefreshRouteDistance,
+  onDeleteDay,
   addDay,
   validationErrors,
   departureLocation,
@@ -318,7 +321,7 @@ export const RouteDetailsBlock = ({
       INTERCITY KM
     </TableHead>
   )}
-  <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
+   <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
     DIRECT DESTINATION VISIT
   </TableHead>
 </TableRow>
@@ -532,6 +535,16 @@ export const RouteDetailsBlock = ({
         >
           + Add Day
         </Button>
+
+         <Button
+    type="button"
+    variant="outline"
+    onClick={() => onDeleteDay?.()}
+    disabled={routeDetails.length === 1}
+    className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
+  >
+    Delete Day
+  </Button>
       </CardContent>
     </Card>
   );

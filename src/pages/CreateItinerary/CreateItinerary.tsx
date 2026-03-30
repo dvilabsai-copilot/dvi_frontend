@@ -82,18 +82,43 @@ function calculateDaysBetweenDates(startDate: string, endDate: string): number {
     // Parse DD/MM/YYYY format
     const [startDay, startMonth, startYear] = startDate.split("/").map(Number);
     const [endDay, endMonth, endYear] = endDate.split("/").map(Number);
-    
+
     const start = new Date(startYear, startMonth - 1, startDay);
     const end = new Date(endYear, endMonth - 1, endDay);
-    
+
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
-    
+
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return Math.max(1, diffDays);
   } catch {
     return 1;
   }
+}
+
+function parseDDMMYYYY(value: string): Date | null {
+  if (!value) return null;
+  const [day, month, year] = value.split("/").map(Number);
+  if (!day || !month || !year) return null;
+
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDDMMYYYY(date: Date): string {
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
+  const date = parseDDMMYYYY(value);
+  if (!date) return "";
+
+  const next = new Date(date);
+  next.setDate(next.getDate() + daysToAdd);
+  return formatDDMMYYYY(next);
 }
 
 // ----------------- main component ------------
@@ -498,6 +523,7 @@ useEffect(() => {
     setShowDefaultRouteSuggestions(false);
   };
 
+   
   const addVehicle = () => {
     setVehicles((prev) => {
       const last = prev[prev.length - 1];
@@ -505,10 +531,85 @@ useEffect(() => {
     });
   };
 
-  const removeVehicle = (idToRemove: number) => {
+   const removeVehicle = (idToRemove: number) => {
     setVehicles((prev) => prev.filter((v) => v.id !== idToRemove));
   };
 
+const deleteDay = () => {
+  setRouteDetails((prev) => {
+    if (prev.length <= 1) return prev;
+
+    const updated = prev
+      .slice(0, -1)
+      .map((row, index) => ({
+        ...row,
+        id: index + 1,
+        day: index + 1,
+        date: tripStartDate ? addDaysToDDMMYYYY(tripStartDate, index) : row.date,
+      }));
+
+    if (tripStartDate) {
+      setTripEndDate(addDaysToDDMMYYYY(tripStartDate, updated.length - 1));
+    }
+
+    return updated;
+  });
+};
+
+const addDay = () => {
+  setRouteDetails((prev) => {
+    if (!prev.length) {
+      const firstDate = tripStartDate || "";
+      const initialRows = [
+        {
+          id: 1,
+          day: 1,
+          date: firstDate,
+          source: "",
+          next: "",
+          via: "",
+          via_routes: [],
+          no_of_km: 0,
+          directVisit: "Yes" as const,
+        },
+      ];
+
+      if (tripStartDate) {
+        setTripEndDate(tripStartDate);
+      }
+
+      return initialRows;
+    }
+
+    const last = prev[prev.length - 1];
+    const nextDayNumber = prev.length + 1;
+    const nextDate =
+      tripStartDate
+        ? addDaysToDDMMYYYY(tripStartDate, prev.length)
+        : last.date;
+
+    const updated = [
+      ...prev,
+      {
+        id: nextDayNumber,
+        day: nextDayNumber,
+        date: nextDate,
+        source: last.source,
+        next: last.next,
+        via: "",
+        via_routes: [],
+        no_of_km: 0,
+        directVisit: "Yes" as const,
+      },
+    ];
+
+    if (tripStartDate) {
+      setTripEndDate(addDaysToDDMMYYYY(tripStartDate, updated.length - 1));
+    }
+
+    return updated;
+  });
+};
   // ----------------- VALIDATION -----------------
 
   const validateBeforeSave = (): boolean => {
@@ -861,9 +962,8 @@ const handleSaveWithType = async (
     return <div className="p-4">Loading...</div>;
   }
 
-  // ✅ COMPUTED DERIVED VALUES (top-level, one source of truth)
-  const noOfNights = calculateNights(tripStartDate, tripEndDate);
-  const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
+ const noOfNights = calculateNights(tripStartDate, tripEndDate);
+const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
 
   return (
     <div className="p-4 space-y-4">
@@ -961,6 +1061,8 @@ const handleSaveWithType = async (
             onRefreshRouteDistance={refreshRouteDistance}
             departureLocation={departureLocation}
             hideIntercityKm={false}
+            onDeleteDay={deleteDay}
+            addDay={addDay}
           />
         )}
         {validationErrors.firstRouteSource && (

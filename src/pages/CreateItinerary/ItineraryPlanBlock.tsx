@@ -275,6 +275,19 @@ const previewNoOfNights = useMemo(
   [previewNoOfDays]
 );
 
+const previewArrivalDateLabel = tripStartDateObj
+  ? formatDDMMYYYY(tripStartDateObj)
+  : "DD/MM/YYYY";
+
+const previewDepartureDateLabel =
+  tripEndDateObj
+    ? formatDDMMYYYY(tripEndDateObj)
+    : hoveredToDate && tripStartDateObj && hoveredToDate >= tripStartDateObj
+    ? formatDDMMYYYY(hoveredToDate)
+    : tripStartDateObj
+    ? "Select end date"
+    : "DD/MM/YYYY";
+
 const handleTripDayClick = (day: Date, disabled?: boolean) => {
   if (disabled) return;
 
@@ -611,24 +624,30 @@ const handleHotelFacilityChange = (vals: string[]) => {
     align="start"
     className="z-50 w-fit p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
   >
-    <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-[#4a4260]">
-          {tripStartDateObj && !tripEndDateObj
-            ? "Select departure date"
-            : "Select trip dates"}
-        </div>
+   <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
+  <div className="space-y-2">
+    <div className="text-sm font-medium text-[#4a4260]">
+      {tripStartDateObj && !tripEndDateObj
+        ? "Select departure date"
+        : "Select trip dates"}
+    </div>
 
-        <div className="flex items-center gap-2">
-          <div className="rounded-full bg-[#f3ecfb] px-3 py-1 text-xs font-medium text-[#5c2db1]">
-            {previewNoOfNights} Night{previewNoOfNights !== 1 ? "s" : ""}
-          </div>
-          <div className="rounded-full bg-[#f3ecfb] px-3 py-1 text-xs font-medium text-[#5c2db1]">
-            {previewNoOfDays} Day{previewNoOfDays !== 1 ? "s" : ""}
-          </div>
-        </div>
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <div className="rounded-full bg-[#f8f3ff] px-3 py-1 font-medium text-[#5c2db1] border border-[#eadcff]">
+        Arrival: {previewArrivalDateLabel}
+      </div>
+      <div className="rounded-full bg-[#f8f3ff] px-3 py-1 font-medium text-[#5c2db1] border border-[#eadcff]">
+        Departure: {previewDepartureDateLabel}
+      </div>
+      <div className="rounded-full bg-[#f3ecfb] px-3 py-1 font-medium text-[#5c2db1]">
+        {previewNoOfNights} Night{previewNoOfNights !== 1 ? "s" : ""}
+      </div>
+      <div className="rounded-full bg-[#f3ecfb] px-3 py-1 font-medium text-[#5c2db1]">
+        {previewNoOfDays} Day{previewNoOfDays !== 1 ? "s" : ""}
       </div>
     </div>
+  </div>
+</div>
 
     <Calendar
       mode="range"
