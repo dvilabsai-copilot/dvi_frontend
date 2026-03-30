@@ -206,91 +206,119 @@ export function useItineraryRoutes({
   };
 
   const handleViaDialogSubmit = async (selectedOptions: SimpleOption[]) => {
-    if (!activeViaRouteRow) {
-      setViaDialogOpen(false);
+  if (!activeViaRouteRow) {
+    setViaDialogOpen(false);
+    return;
+  }
+
+  try {
+    const viaRouteIds = selectedOptions.map((o) => o.id);
+
+    // CASE 1: User removed all via routes → clear VIA and KM only for this row
+    if (!viaRouteIds.length) {
+  const updatedRow: RouteRow = {
+    ...activeViaRouteRow,
+    via: "",
+    via_routes: [],
+    no_of_km: 0,
+  };
+
+  setRouteDetails((prev) =>
+    prev.map((r) =>
+      r.id === activeViaRouteRow.id
+        ? updatedRow
+        : r
+    )
+  );
+
+  // Recalculate direct source -> destination distance using the same API
+  await refreshRouteDistance(updatedRow);
+
+  setViaDialogOpen(false);
+  setActiveViaRouteRow(null);
+  setActiveViaRouteIds([]);
+
+  toast({
+    description: "Via Route removed for this day.",
+  });
+
+  return;
+}
+    // CASE 2: We have via routes selected → validate and read total KM
+    const checkBody = {
+      source: activeViaRouteRow.source,
+      destination: activeViaRouteRow.next,
+      via_routes: viaRouteIds,
+    };
+
+    const checkData = await api(
+      "/itinerary-via-routes/check-distance-limit",
+      {
+        method: "POST",
+        body: checkBody,
+      }
+    );
+
+    if (!checkData?.success) {
+      const msg =
+        checkData?.errors?.result_error || "Distance KM Limit Exceeded !!!";
+      toast({
+        title: "Via Route Limit",
+        description: msg,
+        variant: "destructive",
+      });
       return;
     }
 
-    try {
-      const viaRouteIds = selectedOptions.map((o) => o.id);
+    // Try to read total KM from API response
+    const rawKm =
+      checkData?.data?.total_km ??
+      checkData?.data?.total_distance_km ??
+      checkData?.total_km ??
+      checkData?.total_distance_km ??
+      checkData?.distance_km;
 
-      // CASE 1: User removed all via routes → just clear them in state
-      if (!viaRouteIds.length) {
-        // Local UI: clear VIA column and via_routes array
-        setRouteDetails((prev) =>
-          prev.map((r) =>
-            r.id === activeViaRouteRow.id ? { ...r, via: "", via_routes: [] } : r
-          )
-        );
+    const calculatedKm = Number(rawKm);
+    const finalKm = Number.isFinite(calculatedKm) ? calculatedKm : 0;
 
-        setViaDialogOpen(false);
-        setActiveViaRouteRow(null);
-        setActiveViaRouteIds([]);
+    const viaText = selectedOptions.map((o) => o.label).join(", ");
+    const viaRoutesArray = selectedOptions.map((o) => ({
+      itinerary_via_location_ID: Number(o.id),
+      itinerary_via_location_name: o.label,
+    }));
 
-        toast({
-          description: "Via Route removed for this day.",
-        });
+    const updatedActiveRow = {
+  ...activeViaRouteRow,
+  via: viaText,
+  via_routes: viaRoutesArray,
+  no_of_km: finalKm,
+};
 
-        return;
-      }
+setRouteDetails((prev) =>
+  prev.map((r) =>
+    r.id === activeViaRouteRow.id
+      ? updatedActiveRow
+      : r
+  )
+);
 
-      // CASE 2: We have via routes selected → check distance limit then store in state
-      const checkBody = {
-        source: activeViaRouteRow.source,
-        destination: activeViaRouteRow.next,
-        via_routes: viaRouteIds,
-      };
+setActiveViaRouteRow(updatedActiveRow);
+setViaDialogOpen(false);
+setActiveViaRouteRow(null);
+setActiveViaRouteIds([]);
 
-      const checkData = await api(
-        "/itinerary-via-routes/check-distance-limit",
-        {
-          method: "POST",
-          body: checkBody,
-        }
-      );
-
-      if (!checkData?.success) {
-        const msg =
-          checkData?.errors?.result_error || "Distance KM Limit Exceeded !!!";
-        toast({
-          title: "Via Route Limit",
-          description: msg,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Local UI update – VIA column and via_routes array
-      const viaText = selectedOptions.map((o) => o.label).join(", ");
-      const viaRoutesArray = selectedOptions.map((o) => ({
-        itinerary_via_location_ID: Number(o.id),
-        itinerary_via_location_name: o.label,
-      }));
-
-      setRouteDetails((prev) =>
-        prev.map((r) =>
-          r.id === activeViaRouteRow.id
-            ? { ...r, via: viaText, via_routes: viaRoutesArray }
-            : r
-        )
-      );
-
-      setViaDialogOpen(false);
-      setActiveViaRouteRow(null);
-      setActiveViaRouteIds([]);
-
-      toast({
-        description: "Via Route Added Successfully",
-      });
-    } catch (err) {
-      console.error("Via route submit failed", err);
-      toast({
-        title: "Via Route Error",
-        description: "Something went wrong while saving via route.",
-        variant: "destructive",
-      });
-    }
-  };
+toast({
+  description: "Via Route Added Successfully",
+});
+  } catch (err) {
+    console.error("Via route submit failed", err);
+    toast({
+      title: "Via Route Error",
+      description: "Something went wrong while saving via route.",
+      variant: "destructive",
+    });
+  }
+};
 
   const handleViaDialogOpenChange = (isOpen: boolean) => {
     setViaDialogOpen(isOpen);
@@ -299,6 +327,32 @@ export function useItineraryRoutes({
       setActiveViaRouteIds([]);
     }
   };
+
+
+
+// ✅ ADD HERE — inside hook, before return
+const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => {
+  if (!row.source || !row.next) return 0;
+  try {
+    // Replace this with your actual API call logic
+    const response = await api(
+      "/itinerary-via-routes/check-distance-limit",
+      {
+        method: "POST",
+        body: {
+          source: row.source,
+          destination: row.next,
+          via_routes: row.via_routes || [],
+        },
+      }
+    );
+    // Suppose the backend returns { distance: number }
+    return response?.distance ?? 0;
+  } catch (err) {
+    // Optionally handle error
+    return 0;
+  }
+};
 
   return {
     routeDetails,
@@ -311,5 +365,6 @@ export function useItineraryRoutes({
     openViaRoutes,
     handleViaDialogSubmit,
     handleViaDialogOpenChange,
+    refreshRouteDistance,
   };
 }

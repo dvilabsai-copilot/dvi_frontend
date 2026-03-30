@@ -162,7 +162,7 @@ export const CreateItinerary = () => {
   const [budget, setBudget] = useState<number | "">("");
 
   // routes + via routes hook
-  const {
+    const {
     routeDetails,
     setRouteDetails,
     viaDialogOpen,
@@ -173,6 +173,7 @@ export const CreateItinerary = () => {
     openViaRoutes,
     handleViaDialogSubmit,
     handleViaDialogOpenChange,
+    refreshRouteDistance,
   } = useItineraryRoutes({
     tripStartDate,
     tripEndDate,
@@ -952,13 +953,14 @@ const handleSaveWithType = async (
             onOpenViaRoutes={openViaRoutes}
           />
         ) : (
-          <RouteDetailsBlock
+                   <RouteDetailsBlock
             locations={locations}
             routeDetails={routeDetails}
             setRouteDetails={setRouteDetails}
             onOpenViaRoutes={openViaRoutes}
+            onRefreshRouteDistance={refreshRouteDistance}
             departureLocation={departureLocation}
-            hideIntercityKm={true}
+            hideIntercityKm={false}
           />
         )}
         {validationErrors.firstRouteSource && (
