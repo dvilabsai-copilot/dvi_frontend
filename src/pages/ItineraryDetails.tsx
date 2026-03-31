@@ -1152,7 +1152,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     name: '',
     contactNo: '',
     age: '',
-    nationality: '',
+    nationality: 'IN',
     panNo: '',
     passportNo: '',
     alternativeContactNo: '',
