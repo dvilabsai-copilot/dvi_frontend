@@ -206,7 +206,7 @@ export const RoomsBlock = ({
           lastId += 1;
           current.push({
             id: lastId,
-            adults: 2,
+            adults: 1,
             children: 0,
             infants: 0,
             roomCount: 1,
