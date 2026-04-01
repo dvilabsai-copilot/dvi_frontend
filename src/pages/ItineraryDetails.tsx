@@ -823,6 +823,34 @@ const selectedHotelTotal = useMemo(
   [selectedHotelBookings]
 );
 
+const getRecommendedHotelsForGroup = (groupType: number) => {
+  if (!hotelDetails?.hotels?.length) return [];
+
+  const groupHotels = hotelDetails.hotels.filter(
+    (hotel) => hotel.groupType === groupType
+  );
+
+  const seenRouteIds = new Set<number>();
+  const seenDayKeys = new Set<string>();
+
+  return groupHotels.filter((hotel, index) => {
+    if (hotel.itineraryRouteId && !seenRouteIds.has(hotel.itineraryRouteId)) {
+      seenRouteIds.add(hotel.itineraryRouteId);
+      return true;
+    }
+
+    const fallbackDayKey =
+      String(hotel.day || "").trim() || `fallback-day-${index}`;
+
+    if (seenDayKeys.has(fallbackDayKey)) {
+      return false;
+    }
+
+    seenDayKeys.add(fallbackDayKey);
+    return true;
+  });
+};
+
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
   if (!hotelDetails?.hotelTabs?.length) return [];
@@ -831,7 +859,7 @@ const paraRecommendations = useMemo(() => {
     label: `Recommended #${idx + 1}`,
     groupType: tab.groupType,
     tabLabel: tab.label,
-    hotels: hotelDetails.hotels.filter((h) => h.groupType === tab.groupType),
+    hotels: getRecommendedHotelsForGroup(tab.groupType),
   }));
 }, [hotelDetails]);
 
