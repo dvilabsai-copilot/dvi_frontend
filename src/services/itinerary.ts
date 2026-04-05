@@ -6,6 +6,8 @@ export type ItinerarySaveType =
   | "itineary_basic_info_with_optimized_route"
   | undefined;
 
+export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -102,6 +104,44 @@ export const ItineraryService = {
 
   async getHotelDetails(quoteId: string) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}`, {
+      method: "GET",
+    });
+  },
+
+  async getClipboardContent(
+    quoteId: string,
+    mode: ItineraryClipboardMode,
+    groupTypes: number[],
+  ): Promise<{ html: string; plainText: string }> {
+    const endpoint =
+      mode === "highlights"
+        ? "clipboard-highlights"
+        : mode === "para"
+        ? "clipboard-para"
+        : "clipboard";
+
+    const params = new URLSearchParams();
+    const normalizedGroups = Array.from(
+      new Set(
+        groupTypes
+          .map((g) => Number(g))
+          .filter((g) => Number.isInteger(g) && g >= 1 && g <= 4),
+      ),
+    );
+
+    normalizedGroups.forEach((groupType) => {
+      params.append("groupType", String(groupType));
+    });
+
+    const recommendedKeys = ["recommended1", "recommended2", "recommended3", "recommended4"];
+    normalizedGroups.slice(0, 4).forEach((groupType, idx) => {
+      params.append(recommendedKeys[idx], String(groupType));
+    });
+
+    const qs = params.toString();
+    const url = `itineraries/${endpoint}/${encodeURIComponent(quoteId)}${qs ? `?${qs}` : ""}`;
+
+    return api(url, {
       method: "GET",
     });
   },

@@ -800,6 +800,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [clipboardModal, setClipboardModal] = useState(false);
   const [shareModal, setShareModal] = useState(false);
   const [clipboardType, setClipboardType] = useState<'recommended' | 'highlights' | 'para'>('recommended');
+  const [clipboardRatesVisible, setClipboardRatesVisible] = useState<boolean>(false);
   
   // Hotel Selection State (Multi-Provider)
   // Structure: { [routeId]: { provider, hotelCode, bookingCode, roomType, netAmount, hotelName, checkInDate, checkOutDate, groupType } }
@@ -823,45 +824,62 @@ const selectedHotelTotal = useMemo(
   [selectedHotelBookings]
 );
 
-const getRecommendedHotelsForGroup = (groupType: number) => {
-  if (!hotelDetails?.hotels?.length) return [];
-
-  const groupHotels = hotelDetails.hotels.filter(
-    (hotel) => hotel.groupType === groupType
-  );
-
-  const seenRouteIds = new Set<number>();
-  const seenDayKeys = new Set<string>();
-
-  return groupHotels.filter((hotel, index) => {
-    if (hotel.itineraryRouteId && !seenRouteIds.has(hotel.itineraryRouteId)) {
-      seenRouteIds.add(hotel.itineraryRouteId);
-      return true;
-    }
-
-    const fallbackDayKey =
-      String(hotel.day || "").trim() || `fallback-day-${index}`;
-
-    if (seenDayKeys.has(fallbackDayKey)) {
-      return false;
-    }
-
-    seenDayKeys.add(fallbackDayKey);
-    return true;
-  });
-};
-
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
   if (!hotelDetails?.hotelTabs?.length) return [];
+
+  const getRenderedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
+    const grouped = new Map<number, ItineraryHotelRow[]>();
+
+    hotelDetails.hotels
+      .filter((h) => h.groupType === groupType)
+      .forEach((hotel) => {
+        const routeId = Number(hotel.itineraryRouteId || 0);
+        if (!grouped.has(routeId)) {
+          grouped.set(routeId, []);
+        }
+        grouped.get(routeId)!.push(hotel);
+      });
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, hotelsForRoute]) => {
+        return hotelsForRoute.reduce((best, curr) => {
+          const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+          const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+          return currTotal < bestTotal ? curr : best;
+        });
+      });
+  };
 
   return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
     label: `Recommended #${idx + 1}`,
     groupType: tab.groupType,
     tabLabel: tab.label,
-    hotels: getRecommendedHotelsForGroup(tab.groupType),
+    hotels: getRenderedHotelsForGroup(tab.groupType),
   }));
 }, [hotelDetails]);
+
+const buildDefaultClipboardSelection = () => {
+  const next: Record<string, boolean> = {};
+  paraRecommendations.forEach((_item, idx) => {
+    next[`para-${idx}`] = true;
+  });
+  return next;
+};
+
+useEffect(() => {
+  setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
+}, [hotelDetails]);
+
+useEffect(() => {
+  if (!clipboardModal || !paraRecommendations.length) return;
+
+  const hasAnySelected = Object.values(selectedHotels).some(Boolean);
+  if (!hasAnySelected) {
+    setSelectedHotels(buildDefaultClipboardSelection());
+  }
+}, [clipboardModal, paraRecommendations, selectedHotels]);
 
 const escapeHtml = (value: unknown) => {
   return String(value ?? "")
@@ -979,7 +997,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 return `
                   <tr>
                     <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.day)}
+                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
                     </td>
                     <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
                       ${escapeHtml(hotel.destination)}
@@ -991,7 +1009,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                       ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
                     </td>
                     ${
-                      hotelDetails.hotelRatesVisible
+                      clipboardRatesVisible
                         ? `
                       <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
                         <b>${escapeHtml(formatCurrency(totalPrice))}</b>
@@ -1008,7 +1026,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
               .join("")
           : `
             <tr>
-              <td colspan="${hotelDetails.hotelRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
+              <td colspan="${clipboardRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
                 No hotel available
               </td>
             </tr>
@@ -1030,7 +1048,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
             <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
             <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
             ${
-              hotelDetails.hotelRatesVisible
+              clipboardRatesVisible
                 ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>`
                 : ""
             }
@@ -1140,6 +1158,76 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     .join("\n\n");
 
   return { html: fullHtml, plainText };
+};
+
+const extractHotelSectionFromHtml = (html: string): string => {
+  if (!html) return "";
+
+  const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
+  if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
+    return "";
+  }
+
+  const headingIndex = hotelHeadingMatch.index;
+  const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
+  if (hotelSectionStart === -1) return "";
+
+  const vehicleHeadingMatch = html.match(/Vehicle Details/i);
+  if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
+    return "";
+  }
+
+  const vehicleHeadingIndex = vehicleHeadingMatch.index;
+  const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
+  if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
+    return "";
+  }
+
+  return html.slice(hotelSectionStart, vehicleSectionStart);
+};
+
+const mergeClipboardWithRenderedHotels = (
+  backendHtml: string,
+  renderedHotelsHtml: string,
+): string => {
+  if (!backendHtml || !renderedHotelsHtml) return backendHtml;
+
+  const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
+  if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
+    return backendHtml;
+  }
+
+  const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
+  const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
+  if (backendHotelStart === -1) return backendHtml;
+
+  const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
+  if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
+    return backendHtml;
+  }
+
+  const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
+  const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
+  if (backendVehicleStart === -1 || backendVehicleStart <= backendHotelStart) {
+    return backendHtml;
+  }
+
+  return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+};
+
+const htmlToPlainText = (html: string): string => {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
 };
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
@@ -3490,6 +3578,7 @@ if (error || !itinerary) {
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
           hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
           hotelAvailability={hotelDetails.hotelAvailability}
           quoteId={quoteId!}
           planId={itinerary.planId}
@@ -3763,6 +3852,7 @@ if (error || !itinerary) {
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
                 setClipboardType('recommended');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -3772,6 +3862,7 @@ if (error || !itinerary) {
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
                 setClipboardType('highlights');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -3781,6 +3872,7 @@ if (error || !itinerary) {
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
               onClick={() => {
                 setClipboardType('para');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -4577,12 +4669,12 @@ if (error || !itinerary) {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {clipboardType === 'recommended' && 'Copy Recommended Hotels'}
-              {clipboardType === 'highlights' && 'Copy to Highlights'}
+              {clipboardType === 'recommended' && 'Recommended Hotel for Recommended'}
+              {clipboardType === 'highlights' && 'Recommended Hotel for Highlights'}
               {clipboardType === 'para' && 'Recommended Hotel for Para'}
             </DialogTitle>
             <DialogDescription>
-  Select from 4 recommended options to copy to clipboard
+  Select recommended options to copy to clipboard
 </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
@@ -4591,7 +4683,7 @@ if (error || !itinerary) {
       No hotel information available
     </p>
   ) : (
-    <div className="space-y-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {paraRecommendations.map((item, idx) => {
         const key = `para-${idx}`;
         return (
@@ -4599,13 +4691,13 @@ if (error || !itinerary) {
             <input
               type="checkbox"
               id={`para-${key}`}
-              className="h-4 w-4 cursor-pointer"
+              className="h-6 w-6 cursor-pointer accent-[#5f259f] border-[#5f259f]"
               checked={selectedHotels[key] || false}
               onChange={(e) =>
                 setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
               }
             />
-            <label htmlFor={`para-${key}`} className="text-sm cursor-pointer">
+            <label htmlFor={`para-${key}`} className="text-xl text-[#d546ab] font-medium cursor-pointer">
               {item.label}
             </label>
           </div>
@@ -4623,7 +4715,7 @@ if (error || !itinerary) {
             </Button>
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-             onClick={() => {
+             onClick={async () => {
   const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
 
   if (selectedCount === 0) {
@@ -4637,25 +4729,44 @@ if (error || !itinerary) {
 
   if (!hotelDetails || !itinerary) return;
 
-  const { html, plainText } = buildClipboardHtml(clipboardType);
+  try {
+    const selectedGroups = getSelectedClipboardGroups(clipboardType);
+    const groupTypes = selectedGroups.map((group) => group.groupType);
 
-  if (!html || !plainText) {
+    const { html, plainText } = await ItineraryService.getClipboardContent(
+      itinerary.quoteId,
+      clipboardType,
+      groupTypes,
+    );
+
+    if (!html || !plainText) {
+      toast.error("Failed to prepare clipboard content");
+      return;
+    }
+
+    // Keep backend structure, but use the already-rendered hotel HTML from frontend state
+    // so clipboard hotels match what user sees without relying on backend hotel section.
+    const localClipboard = buildClipboardHtml(clipboardType);
+    const renderedHotelsHtml = extractHotelSectionFromHtml(localClipboard.html);
+    const mergedHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+    const mergedPlainText = htmlToPlainText(mergedHtml);
+
+    await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+      .then(() => {
+        toast.success("Formatted clipboard content copied!");
+        setClipboardModal(false);
+        setSelectedHotels({});
+      })
+      .catch(() => {
+        toast.error("Failed to copy clipboard content");
+      });
+  } catch (error) {
+    console.error("Failed to fetch clipboard content", error);
     toast.error("Failed to prepare clipboard content");
-    return;
   }
-
-  copyHtmlToClipboard(html, plainText)
-    .then(() => {
-      toast.success("Formatted clipboard content copied!");
-      setClipboardModal(false);
-      setSelectedHotels({});
-    })
-    .catch(() => {
-      toast.error("Failed to copy clipboard content");
-    });
 }}
             >
-              Copy Selected
+              Copy Clipboard
             </Button>
           </DialogFooter>
         </DialogContent>

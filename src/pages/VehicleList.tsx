@@ -73,8 +73,13 @@ const formatCurrencyINR = (value: number | string | undefined | null) => {
 
 const safe = (v?: string | null) => v || "";
 
-const getCheapestVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
+const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
+
+  const assigned = vehicles.find((v) => Boolean(v.isAssigned) && Number(v.vendorEligibleId || 0) > 0);
+  if (assigned?.vendorEligibleId) {
+    return assigned.vendorEligibleId;
+  }
 
   const cheapest = vehicles.reduce((prev, curr) => {
     const prevAmount =
@@ -113,7 +118,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [expandedVendorIndex, setExpandedVendorIndex] = useState<number | null>(null);
  const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(() => {
-  return getCheapestVendorEligibleId(vehicles);
+    return getPreferredVendorEligibleId(vehicles);
 });
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVendorSelection, setPendingVendorSelection] = useState<{
@@ -127,11 +132,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   // Sync selected vendor when assigned vendor changes (from API refresh)
   // Only sync if the assigned vendor ID is different from current selection
  useEffect(() => {
-  const cheapestId = getCheapestVendorEligibleId(vehicles);
+  const preferredId = getPreferredVendorEligibleId(vehicles);
 
-  if (cheapestId && cheapestId !== selectedVendorEligibleId) {
-    console.log(`[${vehicleTypeLabel}] Cheapest vendor changed to:`, cheapestId);
-    setSelectedVendorEligibleId(cheapestId);
+  if (preferredId && preferredId !== selectedVendorEligibleId) {
+    console.log(`[${vehicleTypeLabel}] Preferred vendor changed to:`, preferredId);
+    setSelectedVendorEligibleId(preferredId);
   }
 }, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
 
