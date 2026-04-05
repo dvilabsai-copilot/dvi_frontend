@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CreateLocationPayload } from "@/services/locations";
+import { CreateLocationPayload, locationsApi } from "@/services/locations";
+import { LocationAutosuggestInput } from "./LocationAutosuggestInput";
 
 interface AddLocationDialogProps {
   open: boolean;
@@ -54,18 +55,20 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location City *</label>
-              <Input
+              <LocationAutosuggestInput
                 placeholder="Enter Source City"
                 value={form.source_city}
-                onChange={(e) => handleChange("source_city", e.target.value)}
+                onValueChange={(value) => handleChange("source_city", value)}
+                search={locationsApi.searchCities}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location State *</label>
-              <Input
+              <LocationAutosuggestInput
                 placeholder="Enter Source State"
                 value={form.source_state}
-                onChange={(e) => handleChange("source_state", e.target.value)}
+                onValueChange={(value) => handleChange("source_state", value)}
+                search={locationsApi.searchStates}
               />
             </div>
           </div>
