@@ -134,22 +134,24 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     setLoading(true);
     try {
       const [dc, out, loc] = await Promise.all([
-        api(`/vendors/${vendorId}/vehicle-type-costs`),
-        api(`/vendors/${vendorId}/outstation-km-limits`),
-        api(`/vendors/${vendorId}/local-km-limits`),
-      ]);
+  api(`/vendors/${vendorId}/vehicle-types`),
+  api(`/vendors/${vendorId}/pricebook/outstation`),
+  api(`/vendors/${vendorId}/pricebook/local`),
+]);
 
-      setDriverCostRows((dc as any[]).map(r => ({
-        id: r.v_type_id,
-        vehicleType: String(r.vehicle_type_id),
-        vehicleTypeId: r.vehicle_type_id,
-        driverBhatta: String(r.driver_bhatta),
-        foodCost: String(r.food_cost),
-        accommodationCost: String(r.accommodation_cost),
-        extraCost: String(r.extra_cost),
-        morningCharges: String(r.morning_charges),
-        eveningCharges: String(r.evening_charges),
-      })));
+      setDriverCostRows(
+  (dc as any[]).map((r) => ({
+    id: Number(r.vendor_vehicle_type_ID ?? 0),
+    vehicleType: String(r.vehicle_type_id ?? ""),
+    vehicleTypeId: Number(r.vehicle_type_id ?? 0),
+    driverBhatta: String(r.driver_batta ?? 0),
+    foodCost: String(r.food_cost ?? 0),
+    accommodationCost: String(r.accomodation_cost ?? 0),
+    extraCost: String(r.extra_cost ?? 0),
+    morningCharges: String(r.driver_early_morning_charges ?? 0),
+    eveningCharges: String(r.driver_evening_charges ?? 0),
+  }))
+);
 
       setOutstationRows((out as any[]).map(r => ({
         id: r.out_km_id,
@@ -252,30 +254,53 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     setShowDriverCostModal(true);
   };
 
-  const handleSaveDriverCost = async () => {
-    if (!driverFormVehicleType || !vendorId) return;
-    setSaving(true);
-    try {
-      await api(`/vendors/${vendorId}/vehicle-type-costs`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(driverFormVehicleType),
-          driver_bhatta: Number(driverFormFields.driverBhatta),
-          food_cost: Number(driverFormFields.foodCost),
-          accommodation_cost: Number(driverFormFields.accommodationCost),
-          extra_cost: Number(driverFormFields.extraCost),
-          morning_charges: Number(driverFormFields.morningCharges),
-          evening_charges: Number(driverFormFields.eveningCharges),
-        }),
-      });
-      await fetchData();
-      setShowDriverCostModal(false);
-    } catch (e) {
-      console.error("Failed to save driver cost", e);
-    } finally {
-      setSaving(false);
-    }
-  };
+ const handleSaveDriverCost = async () => {
+  if (!driverFormVehicleType || !vendorId) return;
+
+  setSaving(true);
+
+  try {
+    const driverBhattaNum = Number(driverFormFields.driverBhatta);
+const foodCostNum = Number(driverFormFields.foodCost);
+const accommodationCostNum = Number(driverFormFields.accommodationCost);
+const extraCostNum = Number(driverFormFields.extraCost);
+const morningChargesNum = Number(driverFormFields.morningCharges);
+const eveningChargesNum = Number(driverFormFields.eveningCharges);
+
+if (
+  !Number.isFinite(driverBhattaNum) ||
+  !Number.isFinite(foodCostNum) ||
+  !Number.isFinite(accommodationCostNum) ||
+  !Number.isFinite(extraCostNum) ||
+  !Number.isFinite(morningChargesNum) ||
+  !Number.isFinite(eveningChargesNum)
+) {
+  alert("Please enter only numeric values in all cost fields.");
+  setSaving(false);
+  return;
+}
+
+await api(`/vendors/${vendorId}/vehicle-types`, {
+  method: "POST",
+  body: JSON.stringify({
+    vehicle_type_id: Number(driverFormVehicleType),
+    driver_batta: driverBhattaNum,
+    food_cost: foodCostNum,
+    accomodation_cost: accommodationCostNum,
+    extra_cost: extraCostNum,
+    driver_early_morning_charges: morningChargesNum,
+    driver_evening_charges: eveningChargesNum,
+  }),
+});
+    await fetchData();
+    setShowDriverCostModal(false);
+    setEditingDriverRow(null);
+  } catch (e) {
+    console.error("Failed to save driver cost", e);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDeleteDriverCost = async (rowId: number) => {
     // Backend doesn't have delete yet, but we can just re-save with 0 or ignore
@@ -302,26 +327,26 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   };
 
   const handleSaveOutstation = async () => {
-    if (!outstationFormVehicleType || !vendorId) return;
-    setSaving(true);
-    try {
-      await api(`/vendors/${vendorId}/outstation-km-limits`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(outstationFormVehicleType),
-          out_km_title: outstationFormFields.title,
-          out_km_limit: Number(outstationFormFields.limit),
-          status: 0, // Active
-        }),
-      });
-      await fetchData();
-      setShowOutstationModal(false);
-    } catch (e) {
-      console.error("Failed to save outstation limit", e);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!outstationFormVehicleType || !vendorId) return;
+  setSaving(true);
+  try {
+    await api(`/vendors/${vendorId}/pricebook/outstation`, {
+      method: "POST",
+      body: JSON.stringify({
+        vehicle_type_id: Number(outstationFormVehicleType),
+        out_km_title: outstationFormFields.title,
+        out_km_limit: Number(outstationFormFields.limit),
+        status: 0,
+      }),
+    });
+    await fetchData();
+    setShowOutstationModal(false);
+  } catch (e) {
+    console.error("Failed to save outstation limit", e);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDeleteOutstation = (rowId: number) => {
     setOutstationRows((prev) => prev.filter((row) => row.id !== rowId));
@@ -350,27 +375,27 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   };
 
   const handleSaveLocal = async () => {
-    if (!localFormVehicleType || !vendorId) return;
-    setSaving(true);
-    try {
-      await api(`/vendors/${vendorId}/local-km-limits`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(localFormVehicleType),
-          loc_km_title: localFormFields.title,
-          loc_km_hour: Number(localFormFields.hours),
-          loc_km_limit: Number(localFormFields.km),
-          status: 0, // Active
-        }),
-      });
-      await fetchData();
-      setShowLocalModal(false);
-    } catch (e) {
-      console.error("Failed to save local limit", e);
-    } finally {
-      setSaving(false);
-    }
-  };
+  if (!localFormVehicleType || !vendorId) return;
+  setSaving(true);
+  try {
+    await api(`/vendors/${vendorId}/pricebook/local`, {
+      method: "POST",
+      body: JSON.stringify({
+        vehicle_type_id: Number(localFormVehicleType),
+        loc_km_title: localFormFields.title,
+        loc_km_hour: Number(localFormFields.hours),
+        loc_km_limit: Number(localFormFields.km),
+        status: 0,
+      }),
+    });
+    await fetchData();
+    setShowLocalModal(false);
+  } catch (e) {
+    console.error("Failed to save local limit", e);
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleDeleteLocal = (rowId: number) => {
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
@@ -912,7 +937,15 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
           ============================================================ */}
 
       {/* DRIVER COST MODAL */}
-      <Dialog open={showDriverCostModal} onOpenChange={setShowDriverCostModal}>
+      <Dialog
+  open={showDriverCostModal}
+  onOpenChange={(open) => {
+    setShowDriverCostModal(open);
+    if (!open) {
+      setEditingDriverRow(null);
+    }
+  }}
+>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-800">
@@ -1048,13 +1081,14 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
-              onClick={handleSaveDriverCost}
-            >
-              Save
-            </Button>
+           <Button
+  type="button"
+  className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
+  onClick={handleSaveDriverCost}
+  disabled={saving}
+>
+  {saving ? "Saving..." : editingDriverRow ? "Update" : "Save"}
+</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
