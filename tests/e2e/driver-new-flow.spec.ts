@@ -133,9 +133,9 @@ test('driver edit flow validates and fills all remaining tabs', async ({ page, b
 
   await selectFirstComboOption(page, 0); // doc type inside modal
   await page.locator('input[type="file"]').last().setInputFiles({
-    name: 'driver-document.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from(`document-${stamp}`),
+    name: 'driver-document.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   });
   await page.getByRole('button', { name: /^Save$/i }).click();
 
