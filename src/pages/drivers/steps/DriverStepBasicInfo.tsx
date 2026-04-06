@@ -1,5 +1,5 @@
 // FILE: src/drivers/steps/DriverStepBasicInfo.tsx
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar as CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -133,6 +133,20 @@ export function DriverStepBasicInfo({
 
   const vendorItems = useMemo(() => vendors ?? [], [vendors]);
   const vehicleTypeItems = useMemo(() => vehicleTypes ?? [], [vehicleTypes]);
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState<string>(values.profileUrl || "");
+
+  useEffect(() => {
+    if (values.profileFile) {
+      const objectUrl = URL.createObjectURL(values.profileFile);
+      setProfilePreviewUrl(objectUrl);
+      return () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+    }
+
+    setProfilePreviewUrl(values.profileUrl || "");
+    return undefined;
+  }, [values.profileFile, values.profileUrl]);
 
   function validate() {
     const e: Record<string, string> = {};
@@ -424,6 +438,16 @@ export function DriverStepBasicInfo({
               onChange={(e) => onChange({ profileFile: e.target.files?.[0] ?? null })}
               ref={(el) => (refs.current.profileFile = el)}
             />
+            {profilePreviewUrl ? (
+              <div className="mt-3">
+                <div className="text-xs text-gray-500 mb-1">Profile Preview</div>
+                <img
+                  src={profilePreviewUrl}
+                  alt="Driver profile preview"
+                  className="h-20 w-20 rounded-md border object-cover"
+                />
+              </div>
+            ) : null}
           </div>
 
           <div>
