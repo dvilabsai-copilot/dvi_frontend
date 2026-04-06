@@ -12,7 +12,9 @@
     "preview": "vite preview",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "e2e:vendor": "playwright test tests/e2e/vendor-new-flow.spec.ts"
+    "e2e:vendor": "playwright test tests/e2e/vendor-new-flow.spec.ts",
+    "e2e:vehicle-availability": "playwright test tests/e2e/vehicle-availability-add-forms.spec.ts tests/e2e/vehicle-availability-duplicate-registration.spec.ts",
+    "e2e:vehicle-availability:duplicate": "playwright test tests/e2e/vehicle-availability-duplicate-registration.spec.ts"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-build-classic": "^44.3.0",
