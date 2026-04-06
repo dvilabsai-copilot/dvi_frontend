@@ -73,6 +73,7 @@ export const RoomsBlock = ({
   if (!(itineraryPreference === "hotel" || itineraryPreference === "both")) {
     return null;
   }
+  const [targetRoomCount, setTargetRoomCount] = useState<number>(rooms.length || 1);
 
   const [childrenDetailsMap, setChildrenDetailsMap] =
     useState<ChildrenDetailsMap>({});
@@ -506,7 +507,7 @@ export const RoomsBlock = ({
     </div>
   ))}
 
-     {/* Total People In Room */}
+         {/* Total Rooms */}
   <div className="flex items-center gap-2">
     <span className="text-xs text-muted-foreground">Total</span>
 
@@ -514,15 +515,18 @@ export const RoomsBlock = ({
       type="number"
       min={1}
       className="w-16 h-8 bg-white"
-      value={room.adults + room.children + room.infants}
-      readOnly
+      value={targetRoomCount}
+      onChange={(e) => {
+        const value = Number(e.target.value);
+        setTargetRoomCount(Number.isFinite(value) && value > 0 ? value : 1);
+      }}
     />
 
     <Button
       type="button"
       variant="link"
       className="h-8 px-0 text-primary"
-      onClick={() => handleTotalRoomsChange(totalRooms + 1)}
+      onClick={() => handleTotalRoomsChange(targetRoomCount)}
     >
       <span className="inline-flex items-center text-sm">
         <span className="mr-1">+</span> Add Rooms

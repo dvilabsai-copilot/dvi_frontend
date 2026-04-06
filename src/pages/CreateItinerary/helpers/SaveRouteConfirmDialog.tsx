@@ -35,9 +35,9 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
         </div>
 
         <p className="text-sm text-slate-600">
-          Do you really want to proceed with the{" "}
-          <span className="font-semibold text-slate-900">same route</span>{" "}
-          details?
+          Optimize route for  {" "}
+          <span className="font-semibold text-slate-900">better</span>{" "}
+          planning
         </p>
 
         <div className="mt-8 flex items-center justify-center gap-4">

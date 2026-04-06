@@ -1025,7 +1025,15 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
           ============================================================ */}
 
       {/* DRIVER COST MODAL */}
-      <Dialog open={showDriverCostModal} onOpenChange={setShowDriverCostModal}>
+      <Dialog
+  open={showDriverCostModal}
+  onOpenChange={(open) => {
+    setShowDriverCostModal(open);
+    if (!open) {
+      setEditingDriverRow(null);
+    }
+  }}
+>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-800">
@@ -1199,13 +1207,14 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
             >
               Cancel
             </Button>
-            <Button
-              type="button"
-              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
-              onClick={handleSaveDriverCost}
-            >
-              Save
-            </Button>
+           <Button
+  type="button"
+  className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
+  onClick={handleSaveDriverCost}
+  disabled={saving}
+>
+  {saving ? "Saving..." : editingDriverRow ? "Update" : "Save"}
+</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
