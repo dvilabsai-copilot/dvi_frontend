@@ -63,6 +63,29 @@ type LocalKmLimitRow = {
 
 type ActiveTab = "driverCost" | "outstation" | "local";
 
+type DriverFieldErrors = Partial<{
+  vehicleType: string;
+  driverBhatta: string;
+  foodCost: string;
+  accommodationCost: string;
+  extraCost: string;
+  morningCharges: string;
+  eveningCharges: string;
+}>;
+
+type OutstationFieldErrors = Partial<{
+  vehicleType: string;
+  title: string;
+  limit: string;
+}>;
+
+type LocalFieldErrors = Partial<{
+  vehicleType: string;
+  title: string;
+  hours: string;
+  km: string;
+}>;
+
 export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   vendorId,
   onBack,
@@ -92,6 +115,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     morningCharges: "",
     eveningCharges: "",
   });
+  const [driverFieldErrors, setDriverFieldErrors] = useState<DriverFieldErrors>({});
 
   // ---- Outstation KM Limit state ----
   const [outstationRows, setOutstationRows] = useState<OutstationKmLimitRow[]>(
@@ -108,6 +132,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     title: "",
     limit: "",
   });
+  const [outstationFieldErrors, setOutstationFieldErrors] = useState<OutstationFieldErrors>({});
 
   // ---- Local KM Limit state ----
   const [localRows, setLocalRows] = useState<LocalKmLimitRow[]>([]);
@@ -122,6 +147,14 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     hours: "",
     km: "",
   });
+  const [localFieldErrors, setLocalFieldErrors] = useState<LocalFieldErrors>({});
+
+  const isValidNumberInput = (value: string): boolean => {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) return false;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed >= 0;
+  };
 
   useEffect(() => {
     if (vendorId) {
@@ -134,42 +167,40 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     setLoading(true);
     try {
       const [dc, out, loc] = await Promise.all([
-  api(`/vendors/${vendorId}/vehicle-types`),
-  api(`/vendors/${vendorId}/pricebook/outstation`),
-  api(`/vendors/${vendorId}/pricebook/local`),
-]);
+        api(`/vendors/${vendorId}/vehicle-type-costs`),
+        api(`/vendors/${vendorId}/outstation-km-limits`),
+        api(`/vendors/${vendorId}/local-km-limits`),
+      ]);
 
-      setDriverCostRows(
-  (dc as any[]).map((r) => ({
-    id: Number(r.vendor_vehicle_type_ID ?? 0),
-    vehicleType: String(r.vehicle_type_id ?? ""),
-    vehicleTypeId: Number(r.vehicle_type_id ?? 0),
-    driverBhatta: String(r.driver_batta ?? 0),
-    foodCost: String(r.food_cost ?? 0),
-    accommodationCost: String(r.accomodation_cost ?? 0),
-    extraCost: String(r.extra_cost ?? 0),
-    morningCharges: String(r.driver_early_morning_charges ?? 0),
-    eveningCharges: String(r.driver_evening_charges ?? 0),
-  }))
-);
-
-      setOutstationRows((out as any[]).map(r => ({
-        id: r.out_km_id,
+      setDriverCostRows((dc as any[]).map(r => ({
+        id: Number(r.vendor_vehicle_type_ID),
         vehicleType: String(r.vehicle_type_id),
         vehicleTypeId: r.vehicle_type_id,
-        title: r.out_km_title,
-        limit: String(r.out_km_limit),
-        status: r.status === 0 ? "Active" : "Inactive",
+        driverBhatta: String(r.driver_batta ?? r.driver_bhatta ?? 0),
+        foodCost: String(r.food_cost),
+        accommodationCost: String(r.accomodation_cost ?? r.accommodation_cost ?? 0),
+        extraCost: String(r.extra_cost),
+        morningCharges: String(r.driver_early_morning_charges ?? r.morning_charges ?? 0),
+        eveningCharges: String(r.driver_evening_charges ?? r.evening_charges ?? 0),
+      })));
+
+      setOutstationRows((out as any[]).map(r => ({
+        id: Number(r.kms_limit_id),
+        vehicleType: String(r.vehicle_type_id),
+        vehicleTypeId: Number(r.vehicle_type_id),
+        title: r.kms_limit_title,
+        limit: String(r.kms_limit),
+        status: Number(r.status) === 1 ? "Active" : "Inactive",
       })));
 
       setLocalRows((loc as any[]).map(r => ({
-        id: r.loc_km_id,
+        id: Number(r.time_limit_id),
         vehicleType: String(r.vehicle_type_id),
-        vehicleTypeId: r.vehicle_type_id,
-        title: r.loc_km_title,
-        hours: String(r.loc_km_hour),
-        km: String(r.loc_km_limit),
-        status: r.status === 0 ? "Active" : "Inactive",
+        vehicleTypeId: Number(r.vehicle_type_id),
+        title: r.time_limit_title,
+        hours: String(r.hours_limit),
+        km: String(r.km_limit),
+        status: Number(r.status) === 1 ? "Active" : "Inactive",
       })));
     } catch (e) {
       console.error("Failed to fetch vehicle type costs", e);
@@ -237,6 +268,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
       morningCharges: "",
       eveningCharges: "",
     });
+    setDriverFieldErrors({});
     setShowDriverCostModal(true);
   };
 
@@ -251,56 +283,65 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
       morningCharges: row.morningCharges,
       eveningCharges: row.eveningCharges,
     });
+    setDriverFieldErrors({});
     setShowDriverCostModal(true);
   };
 
- const handleSaveDriverCost = async () => {
-  if (!driverFormVehicleType || !vendorId) return;
+  const handleSaveDriverCost = async () => {
+    if (!vendorId) return;
 
-  setSaving(true);
+    const errors: DriverFieldErrors = {};
+    if (!String(driverFormVehicleType ?? "").trim()) {
+      errors.vehicleType = "This value is required.";
+    }
+    if (!isValidNumberInput(driverFormFields.driverBhatta)) {
+      errors.driverBhatta = "Please enter valid price";
+    }
+    if (!isValidNumberInput(driverFormFields.foodCost)) {
+      errors.foodCost = "Please enter valid cost";
+    }
+    if (!isValidNumberInput(driverFormFields.accommodationCost)) {
+      errors.accommodationCost = "Please enter valid cost";
+    }
+    if (!isValidNumberInput(driverFormFields.extraCost)) {
+      errors.extraCost = "Please enter valid cost";
+    }
+    if (!isValidNumberInput(driverFormFields.morningCharges)) {
+      errors.morningCharges = "Please enter valid price";
+    }
+    if (!isValidNumberInput(driverFormFields.eveningCharges)) {
+      errors.eveningCharges = "Please enter valid price";
+    }
 
-  try {
-    const driverBhattaNum = Number(driverFormFields.driverBhatta);
-const foodCostNum = Number(driverFormFields.foodCost);
-const accommodationCostNum = Number(driverFormFields.accommodationCost);
-const extraCostNum = Number(driverFormFields.extraCost);
-const morningChargesNum = Number(driverFormFields.morningCharges);
-const eveningChargesNum = Number(driverFormFields.eveningCharges);
+    if (Object.keys(errors).length > 0) {
+      setDriverFieldErrors(errors);
+      return;
+    }
 
-if (
-  !Number.isFinite(driverBhattaNum) ||
-  !Number.isFinite(foodCostNum) ||
-  !Number.isFinite(accommodationCostNum) ||
-  !Number.isFinite(extraCostNum) ||
-  !Number.isFinite(morningChargesNum) ||
-  !Number.isFinite(eveningChargesNum)
-) {
-  alert("Please enter only numeric values in all cost fields.");
-  setSaving(false);
-  return;
-}
-
-await api(`/vendors/${vendorId}/vehicle-types`, {
-  method: "POST",
-  body: JSON.stringify({
-    vehicle_type_id: Number(driverFormVehicleType),
-    driver_batta: driverBhattaNum,
-    food_cost: foodCostNum,
-    accomodation_cost: accommodationCostNum,
-    extra_cost: extraCostNum,
-    driver_early_morning_charges: morningChargesNum,
-    driver_evening_charges: eveningChargesNum,
-  }),
-});
-    await fetchData();
-    setShowDriverCostModal(false);
-    setEditingDriverRow(null);
-  } catch (e) {
-    console.error("Failed to save driver cost", e);
-  } finally {
-    setSaving(false);
-  }
-};
+    setDriverFieldErrors({});
+    setSaving(true);
+    try {
+      await api(`/vendors/${vendorId}/vehicle-type-costs`, {
+        method: "POST",
+        body: JSON.stringify({
+          vehicle_type_id: Number(driverFormVehicleType),
+          driver_bhatta: Number(driverFormFields.driverBhatta),
+          food_cost: Number(driverFormFields.foodCost),
+          accommodation_cost: Number(driverFormFields.accommodationCost),
+          extra_cost: Number(driverFormFields.extraCost),
+          morning_charges: Number(driverFormFields.morningCharges),
+          evening_charges: Number(driverFormFields.eveningCharges),
+        }),
+      });
+      await fetchData();
+      setDriverFieldErrors({});
+      setShowDriverCostModal(false);
+    } catch (e) {
+      console.error("Failed to save driver cost", e);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDeleteDriverCost = async (rowId: number) => {
     // Backend doesn't have delete yet, but we can just re-save with 0 or ignore
@@ -316,6 +357,7 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
     setEditingOutstationRow(null);
     setOutstationFormVehicleType("");
     setOutstationFormFields({ title: "", limit: "" });
+    setOutstationFieldErrors({});
     setShowOutstationModal(true);
   };
 
@@ -323,30 +365,51 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
     setEditingOutstationRow(row);
     setOutstationFormVehicleType(row.vehicleType);
     setOutstationFormFields({ title: row.title, limit: row.limit });
+    setOutstationFieldErrors({});
     setShowOutstationModal(true);
   };
 
   const handleSaveOutstation = async () => {
-  if (!outstationFormVehicleType || !vendorId) return;
-  setSaving(true);
-  try {
-    await api(`/vendors/${vendorId}/pricebook/outstation`, {
-      method: "POST",
-      body: JSON.stringify({
-        vehicle_type_id: Number(outstationFormVehicleType),
-        out_km_title: outstationFormFields.title,
-        out_km_limit: Number(outstationFormFields.limit),
-        status: 0,
-      }),
-    });
-    await fetchData();
-    setShowOutstationModal(false);
-  } catch (e) {
-    console.error("Failed to save outstation limit", e);
-  } finally {
-    setSaving(false);
-  }
-};
+    if (!vendorId) return;
+
+    const errors: OutstationFieldErrors = {};
+    if (!String(outstationFormVehicleType ?? "").trim()) {
+      errors.vehicleType = "This value is required.";
+    }
+    if (!String(outstationFormFields.title ?? "").trim()) {
+      errors.title = "This value is required.";
+    }
+    if (!isValidNumberInput(outstationFormFields.limit)) {
+      errors.limit = "Please enter valid KM limit";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setOutstationFieldErrors(errors);
+      return;
+    }
+
+    setOutstationFieldErrors({});
+    setSaving(true);
+    try {
+      await api(`/vendors/${vendorId}/outstation-km-limits`, {
+        method: "POST",
+        body: JSON.stringify({
+          out_km_id: editingOutstationRow?.id,
+          vehicle_type_id: Number(outstationFormVehicleType),
+          out_km_title: outstationFormFields.title,
+          out_km_limit: Number(outstationFormFields.limit),
+          status: 1,
+        }),
+      });
+      await fetchData();
+      setOutstationFieldErrors({});
+      setShowOutstationModal(false);
+    } catch (e) {
+      console.error("Failed to save outstation limit", e);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDeleteOutstation = (rowId: number) => {
     setOutstationRows((prev) => prev.filter((row) => row.id !== rowId));
@@ -360,6 +423,7 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
     setEditingLocalRow(null);
     setLocalFormVehicleType("");
     setLocalFormFields({ title: "", hours: "", km: "" });
+    setLocalFieldErrors({});
     setShowLocalModal(true);
   };
 
@@ -371,31 +435,55 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
       hours: row.hours,
       km: row.km,
     });
+    setLocalFieldErrors({});
     setShowLocalModal(true);
   };
 
   const handleSaveLocal = async () => {
-  if (!localFormVehicleType || !vendorId) return;
-  setSaving(true);
-  try {
-    await api(`/vendors/${vendorId}/pricebook/local`, {
-      method: "POST",
-      body: JSON.stringify({
-        vehicle_type_id: Number(localFormVehicleType),
-        loc_km_title: localFormFields.title,
-        loc_km_hour: Number(localFormFields.hours),
-        loc_km_limit: Number(localFormFields.km),
-        status: 0,
-      }),
-    });
-    await fetchData();
-    setShowLocalModal(false);
-  } catch (e) {
-    console.error("Failed to save local limit", e);
-  } finally {
-    setSaving(false);
-  }
-};
+    if (!vendorId) return;
+
+    const errors: LocalFieldErrors = {};
+    if (!String(localFormVehicleType ?? "").trim()) {
+      errors.vehicleType = "This value is required.";
+    }
+    if (!String(localFormFields.title ?? "").trim()) {
+      errors.title = "This value is required.";
+    }
+    if (!isValidNumberInput(localFormFields.hours)) {
+      errors.hours = "Please enter valid hours";
+    }
+    if (!isValidNumberInput(localFormFields.km)) {
+      errors.km = "Please enter valid KM limit";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setLocalFieldErrors(errors);
+      return;
+    }
+
+    setLocalFieldErrors({});
+    setSaving(true);
+    try {
+      await api(`/vendors/${vendorId}/local-km-limits`, {
+        method: "POST",
+        body: JSON.stringify({
+          loc_km_id: editingLocalRow?.id,
+          vehicle_type_id: Number(localFormVehicleType),
+          loc_km_title: localFormFields.title,
+          loc_km_hour: Number(localFormFields.hours),
+          loc_km_limit: Number(localFormFields.km),
+          status: 1,
+        }),
+      });
+      await fetchData();
+      setLocalFieldErrors({});
+      setShowLocalModal(false);
+    } catch (e) {
+      console.error("Failed to save local limit", e);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleDeleteLocal = (rowId: number) => {
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
@@ -960,9 +1048,14 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Select
                 value={driverFormVehicleType}
-                onValueChange={setDriverFormVehicleType}
+                onValueChange={(value) => {
+                  setDriverFormVehicleType(value);
+                  setDriverFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className={`w-full ${driverFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
                   <SelectValue placeholder="Choose Any One" />
                 </SelectTrigger>
                 <SelectContent>
@@ -973,6 +1066,9 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                   ))}
                 </SelectContent>
               </Select>
+              {driverFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{driverFieldErrors.vehicleType}</p>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -982,14 +1078,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Driver Bhatta"
+                  className={driverFieldErrors.driverBhatta ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.driverBhatta}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       driverBhatta: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, driverBhatta: undefined }));
+                  }}
                 />
+                {driverFieldErrors.driverBhatta ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.driverBhatta}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -997,14 +1098,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Food Cost"
+                  className={driverFieldErrors.foodCost ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.foodCost}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       foodCost: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, foodCost: undefined }));
+                  }}
                 />
+                {driverFieldErrors.foodCost ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.foodCost}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -1013,14 +1119,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Accomodation Cost"
+                  className={driverFieldErrors.accommodationCost ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.accommodationCost}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       accommodationCost: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, accommodationCost: undefined }));
+                  }}
                 />
+                {driverFieldErrors.accommodationCost ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.accommodationCost}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -1028,14 +1139,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Extra Cost"
+                  className={driverFieldErrors.extraCost ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.extraCost}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       extraCost: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, extraCost: undefined }));
+                  }}
                 />
+                {driverFieldErrors.extraCost ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.extraCost}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -1044,14 +1160,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Early Morning Charges"
+                  className={driverFieldErrors.morningCharges ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.morningCharges}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       morningCharges: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, morningCharges: undefined }));
+                  }}
                 />
+                {driverFieldErrors.morningCharges ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.morningCharges}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -1060,14 +1181,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Evening Charges"
+                  className={driverFieldErrors.eveningCharges ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={driverFormFields.eveningCharges}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setDriverFormFields((prev) => ({
                       ...prev,
                       eveningCharges: e.target.value,
-                    }))
-                  }
+                    }));
+                    setDriverFieldErrors((prev) => ({ ...prev, eveningCharges: undefined }));
+                  }}
                 />
+                {driverFieldErrors.eveningCharges ? (
+                  <p className="text-xs text-red-600">{driverFieldErrors.eveningCharges}</p>
+                ) : null}
               </div>
             </div>
           </div>
@@ -1114,9 +1240,14 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Select
                 value={outstationFormVehicleType}
-                onValueChange={setOutstationFormVehicleType}
+                onValueChange={(value) => {
+                  setOutstationFormVehicleType(value);
+                  setOutstationFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className={`w-full ${outstationFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
                   <SelectValue placeholder="Choose Vehicle Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1127,6 +1258,9 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                   ))}
                 </SelectContent>
               </Select>
+              {outstationFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.vehicleType}</p>
+              ) : null}
             </div>
 
             <div className="space-y-1">
@@ -1136,14 +1270,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Input
                 placeholder="Outstation KM Limit Title"
+                className={outstationFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={outstationFormFields.title}
-                onChange={(e) =>
+                onChange={(e) => {
                   setOutstationFormFields((prev) => ({
                     ...prev,
                     title: e.target.value,
-                  }))
-                }
+                  }));
+                  setOutstationFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }}
               />
+              {outstationFieldErrors.title ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.title}</p>
+              ) : null}
             </div>
 
             <div className="space-y-1">
@@ -1152,14 +1291,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Input
                 placeholder="Outstation KM Limit"
+                className={outstationFieldErrors.limit ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={outstationFormFields.limit}
-                onChange={(e) =>
+                onChange={(e) => {
                   setOutstationFormFields((prev) => ({
                     ...prev,
                     limit: e.target.value,
-                  }))
-                }
+                  }));
+                  setOutstationFieldErrors((prev) => ({ ...prev, limit: undefined }));
+                }}
               />
+              {outstationFieldErrors.limit ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.limit}</p>
+              ) : null}
             </div>
           </div>
 
@@ -1199,9 +1343,14 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Select
                 value={localFormVehicleType}
-                onValueChange={setLocalFormVehicleType}
+                onValueChange={(value) => {
+                  setLocalFormVehicleType(value);
+                  setLocalFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  className={`w-full ${localFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
                   <SelectValue placeholder="Choose Vehicle Type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1212,6 +1361,9 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                   ))}
                 </SelectContent>
               </Select>
+              {localFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{localFieldErrors.vehicleType}</p>
+              ) : null}
             </div>
 
             <div className="space-y-1">
@@ -1220,14 +1372,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
               </Label>
               <Input
                 placeholder="Enter Title"
+                className={localFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={localFormFields.title}
-                onChange={(e) =>
+                onChange={(e) => {
                   setLocalFormFields((prev) => ({
                     ...prev,
                     title: e.target.value,
-                  }))
-                }
+                  }));
+                  setLocalFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }}
               />
+              {localFieldErrors.title ? (
+                <p className="text-xs text-red-600">{localFieldErrors.title}</p>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1237,14 +1394,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="Enter Hours"
+                  className={localFieldErrors.hours ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={localFormFields.hours}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setLocalFormFields((prev) => ({
                       ...prev,
                       hours: e.target.value,
-                    }))
-                  }
+                    }));
+                    setLocalFieldErrors((prev) => ({ ...prev, hours: undefined }));
+                  }}
                 />
+                {localFieldErrors.hours ? (
+                  <p className="text-xs text-red-600">{localFieldErrors.hours}</p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label>
@@ -1252,14 +1414,19 @@ await api(`/vendors/${vendorId}/vehicle-types`, {
                 </Label>
                 <Input
                   placeholder="KM Limit"
+                  className={localFieldErrors.km ? "border-red-400 focus-visible:ring-red-300" : ""}
                   value={localFormFields.km}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setLocalFormFields((prev) => ({
                       ...prev,
                       km: e.target.value,
-                    }))
-                  }
+                    }));
+                    setLocalFieldErrors((prev) => ({ ...prev, km: undefined }));
+                  }}
                 />
+                {localFieldErrors.km ? (
+                  <p className="text-xs text-red-600">{localFieldErrors.km}</p>
+                ) : null}
               </div>
             </div>
           </div>

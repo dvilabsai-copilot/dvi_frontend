@@ -419,6 +419,7 @@ export function DriverStepBasicInfo({
             <Input
               id="profileFile"
               type="file"
+              accept=".jpg,.jpeg,.png,.webp"
               className="mt-2 h-11"
               onChange={(e) => onChange({ profileFile: e.target.files?.[0] ?? null })}
               ref={(el) => (refs.current.profileFile = el)}

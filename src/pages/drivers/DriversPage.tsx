@@ -60,7 +60,7 @@ export const DriversPage: React.FC = () => {
 
     // Ctrl/Cmd click should open wizard in new tab (nice UX + matches browser behavior)
     const openInNewTab = Boolean(e && (e.ctrlKey || e.metaKey || e.button === 1));
-    const url = `/drivers/create?from=${encodeURIComponent(from)}`;
+    const url = `/driver/create?from=${encodeURIComponent(from)}`;
 
     if (openInNewTab) {
       window.open(url, "_blank");
@@ -400,7 +400,7 @@ export const DriversPage: React.FC = () => {
                         <button
                           type="button"
                           className="text-purple-500 hover:text-purple-600"
-                          onClick={() => navigate(`/drivers/${driver.id}`)}
+                          onClick={() => navigate(`/driver/${driver.id}`)}
                           title="View"
                         >
                           <Eye className="w-4 h-4" />
@@ -408,7 +408,7 @@ export const DriversPage: React.FC = () => {
                         <button
                           type="button"
                           className="text-indigo-500 hover:text-indigo-600"
-                          onClick={() => navigate(`/drivers/${driver.id}/edit`)}
+                          onClick={() => navigate(`/driver/${driver.id}/edit`)}
                           title="Edit"
                         >
                           <Pencil className="w-4 h-4" />

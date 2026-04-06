@@ -54,6 +54,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
     vehicleType: "",
     state: "",
   });
+  const [permitFieldErrors, setPermitFieldErrors] = useState<Partial<Record<"vehicleType" | "state", string>>>({});
+  const [destinationCostError, setDestinationCostError] = useState("");
 
   const [destinationCosts, setDestinationCosts] = useState<{ [key: string]: string }>({});
 
@@ -94,10 +96,23 @@ export const VendorStepPermitCost: React.FC<Props> = ({
     try {
       const [vtRes, sRes] = await Promise.all([
         api("/dropdowns/vehicle-types"),
-        api("/dropdowns/states?countryId=1"), // Assuming India
+        api("/dropdowns/permit-states"),
       ]);
-      setVehicleTypeOptions(vtRes as Option[]);
-      setStateOptions(sRes as Option[]);
+      const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+      const stateItems = ((sRes as any)?.items ?? sRes ?? []) as any[];
+
+      setVehicleTypeOptions(
+        vehicleItems.map((v: any) => ({
+          id: String(v.id ?? v.vehicle_type_id ?? ""),
+          label: String(v.label ?? v.name ?? v.vehicle_type_title ?? ""),
+        }))
+      );
+      setStateOptions(
+        stateItems.map((s: any) => ({
+          id: String(s.id ?? s.state_id ?? ""),
+          label: String(s.label ?? s.name ?? s.state_name ?? ""),
+        }))
+      );
     } catch (e) {
       console.error("Failed to fetch dropdowns", e);
     }
@@ -108,6 +123,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
     value: string
   ): void => {
     setPermitForm((prev) => ({ ...prev, [field]: value }));
+    setPermitFieldErrors((prev) => ({ ...prev, [field]: undefined }));
+    setDestinationCostError("");
     if (field === "state" || field === "vehicleType") {
       // Fetch existing costs for this combination if editing
       // For now, just clear
@@ -128,7 +145,28 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   }, [rows, searchText, vehicleTypeOptions, stateOptions]);
 
   const handleSavePermit = async () => {
-    if (!vendorId || !permitForm.vehicleType || !permitForm.state) return;
+    if (!vendorId) return;
+
+    const fieldErrors: Partial<Record<"vehicleType" | "state", string>> = {};
+    if (!String(permitForm.vehicleType ?? "").trim()) fieldErrors.vehicleType = "This value is required.";
+    if (!String(permitForm.state ?? "").trim()) fieldErrors.state = "This value is required.";
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setPermitFieldErrors(fieldErrors);
+      return;
+    }
+    setPermitFieldErrors({});
+
+    const hasAnyDestinationCost = Object.values(destinationCosts).some((cost) =>
+      String(cost ?? "").trim()
+    );
+
+    if (!hasAnyDestinationCost) {
+      setDestinationCostError("Please enter at least one destination state permit cost.");
+      return;
+    }
+
+    setDestinationCostError("");
     setSaving(true);
     try {
       // In legacy PHP, it saves multiple destination states.
@@ -150,6 +188,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
         }
       }
       await fetchPermitCosts();
+      setPermitFieldErrors({});
+      setDestinationCostError("");
       setIsAddMode(false);
     } catch (e) {
       console.error("Failed to save permit costs", e);
@@ -210,6 +250,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
             onClick={() => {
               setPermitForm({ vehicleType: "", state: "" });
               setDestinationCosts({});
+              setPermitFieldErrors({});
+              setDestinationCostError("");
               setIsAddMode(true);
             }}
             disabled={!vendorId}
@@ -347,7 +389,11 @@ export const VendorStepPermitCost: React.FC<Props> = ({
           type="button"
           variant="outline"
           className="bg-gray-100 px-6"
-          onClick={() => setIsAddMode(false)}
+          onClick={() => {
+            setPermitFieldErrors({});
+            setDestinationCostError("");
+            setIsAddMode(false);
+          }}
         >
           Back To List
         </Button>
@@ -362,7 +408,7 @@ export const VendorStepPermitCost: React.FC<Props> = ({
             value={permitForm.vehicleType}
             onValueChange={(v) => handleFormChange("vehicleType", v)}
           >
-            <SelectTrigger>
+            <SelectTrigger className={permitFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}>
               <SelectValue placeholder="Choose Vehicle Type" />
             </SelectTrigger>
             <SelectContent>
@@ -373,6 +419,9 @@ export const VendorStepPermitCost: React.FC<Props> = ({
               ))}
             </SelectContent>
           </Select>
+          {permitFieldErrors.vehicleType ? (
+            <p className="text-xs text-red-600">{permitFieldErrors.vehicleType}</p>
+          ) : null}
         </div>
 
         <div className="space-y-1">
@@ -383,7 +432,7 @@ export const VendorStepPermitCost: React.FC<Props> = ({
             value={permitForm.state}
             onValueChange={(v) => handleFormChange("state", v)}
           >
-            <SelectTrigger>
+            <SelectTrigger className={permitFieldErrors.state ? "border-red-400 focus-visible:ring-red-300" : ""}>
               <SelectValue placeholder="Select Any One" />
             </SelectTrigger>
             <SelectContent>
@@ -394,6 +443,9 @@ export const VendorStepPermitCost: React.FC<Props> = ({
               ))}
             </SelectContent>
           </Select>
+          {permitFieldErrors.state ? (
+            <p className="text-xs text-red-600">{permitFieldErrors.state}</p>
+          ) : null}
         </div>
       </div>
 
@@ -410,11 +462,17 @@ export const VendorStepPermitCost: React.FC<Props> = ({
                   placeholder="Cost" 
                   className="h-8 text-xs"
                   value={destinationCosts[state.id] || ""}
-                  onChange={(e) => setDestinationCosts(prev => ({...prev, [state.id]: e.target.value}))}
+                  onChange={(e) => {
+                    setDestinationCostError("");
+                    setDestinationCosts(prev => ({...prev, [state.id]: e.target.value}));
+                  }}
                 />
               </div>
             ))}
           </div>
+          {destinationCostError ? (
+            <p className="mt-2 text-xs text-red-600">{destinationCostError}</p>
+          ) : null}
         </div>
       )}
 
@@ -423,7 +481,11 @@ export const VendorStepPermitCost: React.FC<Props> = ({
           type="button"
           variant="outline"
           className="bg-gray-100 px-8"
-          onClick={() => setIsAddMode(false)}
+          onClick={() => {
+            setPermitFieldErrors({});
+            setDestinationCostError("");
+            setIsAddMode(false);
+          }}
         >
           Back To List
         </Button>
