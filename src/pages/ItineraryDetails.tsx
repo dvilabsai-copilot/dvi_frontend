@@ -2943,117 +2943,128 @@ if (error || !itinerary) {
     <Card key={day.id} className="border border-[#e5d9f2] bg-white">
           <CardContent className="pt-2">
             {/* Day Header */}
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-3 p-3 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2]">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-[#d546ab]" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-[#4a4260]">
-                      DAY {day.dayNumber} - {formatHeaderDate(day.date)}
-                    </h3>
-                    {/* Show rebuild button if this route needs rebuild */}
-                    {routeNeedsRebuild === day.id && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
-                        disabled={isRebuilding}
-                        className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
-                      >
-                        {isRebuilding ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Rebuilding...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Rebuild Route
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#6c6c6c] flex-wrap">
-                    <span className="font-medium">{day.departure}</span>
-                    {day.viaRoutes && day.viaRoutes.length > 0 && (
-                      <>
-                        <ArrowRight className="h-4 w-4 text-[#d546ab] mx-1" />
-                        <span className="text-[#4a4260]" title={day.viaRoutes.map(v => v.name).join(', ')}>
-                          {day.viaRoutes.map(v => v.name).join(', ')}
-                        </span>
-                      </>
-                    )}
-                    <MapPin className="h-3 w-3 mx-1" />
-                    <span className="font-medium">{day.arrival}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col items-start lg:items-end gap-2 text-sm">
-  <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium">
-    Travel: {intercityDistance}
-  </span>
+           <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
+  <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
+    <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h3 className="font-semibold text-[#4a4260]">
+          DAY {day.dayNumber} - {formatHeaderDate(day.date)}
+        </h3>
+        {routeNeedsRebuild === day.id && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
+            disabled={isRebuilding}
+            className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
+          >
+            {isRebuilding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rebuilding...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rebuild Route
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 text-sm text-[#6c6c6c] flex-wrap">
+        <span className="font-medium">{day.departure}</span>
+        {day.viaRoutes && day.viaRoutes.length > 0 && (
+          <>
+            <ArrowRight className="h-4 w-4 text-[#d546ab] mx-1" />
+            <span
+              className="text-[#4a4260]"
+              title={day.viaRoutes.map((v) => v.name).join(", ")}
+            >
+              {day.viaRoutes.map((v) => v.name).join(", ")}
+            </span>
+          </>
+        )}
+        <MapPin className="h-3 w-3 mx-1" />
+        <span className="font-medium">{day.arrival}</span>
+      </div>
+    </div>
+  </div>
+
+  <div className="flex justify-center lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2">
+    <div className="flex items-center gap-2 bg-white border border-[#e5d9f2] rounded-full px-2 py-1 shadow-sm">
+      <Popover>
+        <PopoverTrigger asChild>
+          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
+            {day.startTime}
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <TimePickerPopover
+            value={day.startTime}
+            label="Start Time"
+            onSave={async (newTime) => {
+              await handleUpdateRouteTimesDirect(
+                itinerary.planId || 0,
+                day.id,
+                day.dayNumber,
+                newTime,
+                day.endTime
+              );
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+
+      <ArrowRight className="h-4 w-4 text-[#d546ab]" />
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
+            {day.endTime}
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <TimePickerPopover
+            value={day.endTime}
+            label="End Time"
+            onSave={async (newTime) => {
+              await handleUpdateRouteTimesDirect(
+                itinerary.planId || 0,
+                day.id,
+                day.dayNumber,
+                day.startTime,
+                newTime
+              );
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  </div>
+
+  <div className="flex justify-center lg:justify-end lg:pl-[260px]">
+    <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium whitespace-nowrap">
+      Travel: {intercityDistance}
+    </span>
+  </div>
 </div>
-            </div>
 
-            {/* Time Range */}
-            <div className="flex items-center justify-between mb-4 ml-2">
-              <div className="flex items-center gap-2 bg-white border border-[#e5d9f2] rounded-lg p-1 shadow-sm">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <div className="px-3 py-1.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors border border-transparent hover:border-[#d546ab]">
-                      {day.startTime}
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <TimePickerPopover 
-                      value={day.startTime} 
-                      label="Start Time"
-                      onSave={async (newTime) => {
-                        await handleUpdateRouteTimesDirect(itinerary.planId || 0, day.id, day.dayNumber, newTime, day.endTime);
-                        // Close popover by clicking outside or using state if we had it
-                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-                
-                <ArrowRight className="h-4 w-4 text-[#d546ab]" />
-                
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <div className="px-3 py-1.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors border border-transparent hover:border-[#d546ab]">
-                      {day.endTime}
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <TimePickerPopover 
-                      value={day.endTime} 
-                      label="End Time"
-                      onSave={async (newTime) => {
-                        await handleUpdateRouteTimesDirect(itinerary.planId || 0, day.id, day.dayNumber, day.startTime, newTime);
-                        // Close popover
-                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
+ {/* Add Guide Button */}
+              <div className="flex justify-start mt-2 ml-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Guide
+                </Button>
               </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-[#d546ab] text-[#d546ab] hover:bg-[#f3e8ff] rounded-full px-4"
-                onClick={() => {
-                  // TODO: Implement Add Guide
-                  toast.info("Add Guide feature coming soon");
-                }}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Guide
-              </Button>
-            </div>
-
             {/* Segments */}
             <div className="space-y-4">
               {day.segments.map((segment, idx) => (
@@ -3556,17 +3567,7 @@ if (error || !itinerary) {
                 </div>
               ))}
 
-              {/* Add Guide Button */}
-              <div className="flex justify-end mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Guide
-                </Button>
-              </div>
+             
             </div>
           </CardContent>
                </Card>
