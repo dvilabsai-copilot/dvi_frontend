@@ -162,7 +162,7 @@ export const RouteDetailsBlock = ({
   }, [routeDetails, loadedSources, departureLocation]);
 
   useEffect(() => {
-  if (!routeDetails.length || !departureLocationObj) return;
+  if (routeDetails.length <= 1 || !departureLocationObj) return;
 
   const lastIdx = routeDetails.length - 1;
   const lastRow = routeDetails[lastIdx];
@@ -328,16 +328,17 @@ export const RouteDetailsBlock = ({
           </TableHeader>
           <TableBody>
             {routeDetails.map((row, idx) => {
-              const isFirstRow = idx === 0;
-              const isLastRow = idx === routeDetails.length - 1;
+             const isFirstRow = idx === 0;
+const isLastRow = idx === routeDetails.length - 1;
+const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 
               // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
               let isLastRowLocked = false;
               let nextDestinationValue = row.next;
 
-             if (isLastRow && departureLocationObj) {
-  // Lock last row to departure location
+            if (shouldLockAsDepartureRow && departureLocationObj) {
+  // Lock only the actual last day when total days > 1
   rowSpecificOptions = [
     {
       value: departureLocationObj.name,
@@ -346,7 +347,7 @@ export const RouteDetailsBlock = ({
   ];
   isLastRowLocked = true;
   nextDestinationValue = departureLocationObj.name;
-}else {
+} else {
                 // Normal row: use provided options or global fallback
                 rowSpecificOptions =
                   destinationOptionsMap[idx] &&
