@@ -14,10 +14,10 @@ import { VendorStepPermitCost } from "./steps/VendorStepPermitCost";
 const steps = [
   "Basic Info",
   "Branch",
-  "Vehicle",
-  "Permit Cost",
   "Vehicle Type (Driver Cost)",
+  "Vehicle",
   "Vehicle Pricebook",
+  "Permit Cost",
 ];
 
 const emptyBasicInfo: BasicInfoForm = {
@@ -66,6 +66,9 @@ type VendorDetailResponse = {
   branches: any[];
 };
 
+type BasicInfoErrors = Partial<Record<keyof BasicInfoForm, string>>;
+type BranchErrors = Record<number, Partial<Record<keyof BranchForm, string>>>;
+
 export default function VendorFormPage() {
   const navigate = useNavigate();
   const params = useParams<{ id?: string }>();
@@ -78,6 +81,8 @@ export default function VendorFormPage() {
 
   const [basicInfo, setBasicInfo] = useState<BasicInfoForm>(emptyBasicInfo);
   const [branches, setBranches] = useState<BranchForm[]>([emptyBranch]);
+  const [basicFieldErrors, setBasicFieldErrors] = useState<BasicInfoErrors>({});
+  const [branchFieldErrors, setBranchFieldErrors] = useState<BranchErrors>({});
 
   // dropdowns
   const [countryOptions, setCountryOptions] = useState<Option[]>([]);
@@ -242,18 +247,52 @@ export default function VendorFormPage() {
         const mappedBranches: BranchForm[] =
           existingBranches?.map((b: any) => ({
             id: b.vendor_branch_id,
-            name: b.branch_name ?? "",
-            location: b.branch_location ?? "",
-            email: b.branch_email ?? "",
-            primaryMobile: b.primary_mobile_number ?? "",
-            altMobile: b.alternative_mobile_number ?? "",
-            countryId: b.country_id ? String(b.country_id) : "",
-            stateId: b.state_id ? String(b.state_id) : "",
-            cityId: b.city_id ? String(b.city_id) : "",
-            pincode: b.pincode ?? "",
-            gstType: b.gst_type ?? "included",
-            gstPercent: b.gst_percent != null ? String(b.gst_percent) : "",
-            address: b.address ?? "",
+            name: b.vendor_branch_name ?? b.branch_name ?? "",
+            location: b.vendor_branch_location ?? b.branch_location ?? "",
+            email: b.vendor_branch_emailid ?? b.branch_email ?? "",
+            primaryMobile:
+              b.vendor_branch_primary_mobile_number ??
+              b.primary_mobile_number ??
+              "",
+            altMobile:
+              b.vendor_branch_alternative_mobile_number ??
+              b.alternative_mobile_number ??
+              "",
+            countryId:
+              b.vendor_branch_country != null
+                ? String(b.vendor_branch_country)
+                : b.country_id != null
+                ? String(b.country_id)
+                : "",
+            stateId:
+              b.vendor_branch_state != null
+                ? String(b.vendor_branch_state)
+                : b.state_id != null
+                ? String(b.state_id)
+                : "",
+            cityId:
+              b.vendor_branch_city != null
+                ? String(b.vendor_branch_city)
+                : b.city_id != null
+                ? String(b.city_id)
+                : "",
+            pincode:
+              b.vendor_branch_pincode != null
+                ? String(b.vendor_branch_pincode)
+                : b.pincode != null
+                ? String(b.pincode)
+                : "",
+            gstType:
+              b.vendor_branch_gst_type != null
+                ? String(b.vendor_branch_gst_type)
+                : b.gst_type ?? "included",
+            gstPercent:
+              b.vendor_branch_gst != null
+                ? String(b.vendor_branch_gst)
+                : b.gst_percent != null
+                ? String(b.gst_percent)
+                : "",
+            address: b.vendor_branch_address ?? b.address ?? "",
           })) ?? [];
 
         setBranches(mappedBranches.length ? mappedBranches : [emptyBranch]);
@@ -267,9 +306,77 @@ export default function VendorFormPage() {
     loadVendor();
   }, [editingId]);
 
+  useEffect(() => {
+    if (activeStep !== 1) setBasicFieldErrors({});
+    if (activeStep !== 2) setBranchFieldErrors({});
+  }, [activeStep]);
+
   /** ---------- Save handlers (same as earlier single-file version) ---------- */
 
-  const handleSaveBasicInfo = async () => {
+  const isFilled = (value?: string) => Boolean(String(value ?? "").trim());
+
+  const validateBasicInfo = (): boolean => {
+    const errors: BasicInfoErrors = {};
+
+    if (!isFilled(basicInfo.vendorName)) errors.vendorName = "This value is required.";
+    if (!isFilled(basicInfo.email)) errors.email = "This value is required.";
+    if (!isFilled(basicInfo.primaryMobile)) errors.primaryMobile = "This value is required.";
+    if (!isFilled(basicInfo.altMobile)) errors.altMobile = "This value is required.";
+    if (!isFilled(basicInfo.countryId)) errors.countryId = "This value is required.";
+    if (!isFilled(basicInfo.stateId)) errors.stateId = "This value is required.";
+    if (!isFilled(basicInfo.cityId)) errors.cityId = "This value is required.";
+    if (!isFilled(basicInfo.pincode)) errors.pincode = "This value is required.";
+    if (!isFilled(basicInfo.username)) errors.username = "This value is required.";
+    if (!isEdit && !isFilled(basicInfo.password)) errors.password = "This value is required.";
+    if (!isFilled(basicInfo.roleId)) errors.roleId = "This value is required.";
+    if (!isFilled(basicInfo.marginPercent)) errors.marginPercent = "This value is required.";
+    if (!isFilled(basicInfo.marginGstType)) errors.marginGstType = "This value is required.";
+    if (!isFilled(basicInfo.marginGstPercent)) errors.marginGstPercent = "This value is required.";
+    if (!isFilled(basicInfo.address)) errors.address = "This value is required.";
+    if (!isFilled(basicInfo.invoiceCompanyName)) errors.invoiceCompanyName = "This value is required.";
+    if (!isFilled(basicInfo.invoiceAddress)) errors.invoiceAddress = "This value is required.";
+    if (!isFilled(basicInfo.invoicePincode)) errors.invoicePincode = "This value is required.";
+    if (!isFilled(basicInfo.invoiceGstin)) errors.invoiceGstin = "This value is required.";
+    if (!isFilled(basicInfo.invoicePan)) errors.invoicePan = "This value is required.";
+    if (!isFilled(basicInfo.invoiceContactNo)) errors.invoiceContactNo = "This value is required.";
+    if (!isFilled(basicInfo.invoiceEmail)) errors.invoiceEmail = "This value is required.";
+
+    setBasicFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateBranches = (): boolean => {
+    const allErrors: BranchErrors = {};
+
+    for (let i = 0; i < branches.length; i += 1) {
+      const b = branches[i];
+      const errors: Partial<Record<keyof BranchForm, string>> = {};
+
+      if (!isFilled(b.name)) errors.name = "This value is required.";
+      if (!isFilled(b.location)) errors.location = "This value is required.";
+      if (!isFilled(b.email)) errors.email = "This value is required.";
+      if (!isFilled(b.primaryMobile)) errors.primaryMobile = "This value is required.";
+      if (!isFilled(b.altMobile)) errors.altMobile = "This value is required.";
+      if (!isFilled(b.countryId)) errors.countryId = "This value is required.";
+      if (!isFilled(b.stateId)) errors.stateId = "This value is required.";
+      if (!isFilled(b.cityId)) errors.cityId = "This value is required.";
+      if (!isFilled(b.pincode)) errors.pincode = "This value is required.";
+      if (!isFilled(b.gstType)) errors.gstType = "This value is required.";
+      if (!isFilled(b.gstPercent)) errors.gstPercent = "This value is required.";
+      if (!isFilled(b.address)) errors.address = "This value is required.";
+
+      if (Object.keys(errors).length > 0) {
+        allErrors[i] = errors;
+      }
+    }
+
+    setBranchFieldErrors(allErrors);
+    return Object.keys(allErrors).length === 0;
+  };
+
+  const handleSaveBasicInfo = async (): Promise<number | undefined> => {
+    if (!validateBasicInfo()) return undefined;
+
     setSaving(true);
     try {
       const payload = {
@@ -315,19 +422,22 @@ export default function VendorFormPage() {
 
       const newVendorId = res.vendor.vendor_id as number;
       setVendorId(newVendorId);
+      setBasicFieldErrors({});
       setActiveStep(2);
+      return newVendorId;
     } catch (e) {
       console.error("Failed to save basic info", e);
+      return undefined;
     } finally {
       setSaving(false);
     }
   };
 
   const handleSaveBranches = async () => {
-    if (!vendorId) {
-      await handleSaveBasicInfo();
-      if (!vendorId) return;
-    }
+    if (!validateBranches()) return;
+
+    const effectiveVendorId = vendorId ?? (await handleSaveBasicInfo());
+    if (!effectiveVendorId) return;
 
     setSaving(true);
     try {
@@ -353,12 +463,13 @@ export default function VendorFormPage() {
             body: JSON.stringify(payload),
           });
         } else {
-          await api(`/vendors/${vendorId}/branches`, {
+          await api(`/vendors/${effectiveVendorId}/branches`, {
             method: "POST",
             body: JSON.stringify(payload),
           });
         }
       }
+      setBranchFieldErrors({});
       setActiveStep(3);
     } catch (e) {
       console.error("Failed to save branches", e);
@@ -429,6 +540,10 @@ export default function VendorFormPage() {
           gstPercentOptions={gstPercentOptions}
           saving={saving}
           isEdit={isEdit}
+          fieldErrors={basicFieldErrors}
+          onClearFieldError={(field) =>
+            setBasicFieldErrors((prev) => ({ ...prev, [field]: undefined }))
+          }
           onBack={() => navigate(-1)}
           onSaveAndNext={handleSaveBasicInfo}
         />
@@ -443,6 +558,13 @@ export default function VendorFormPage() {
           gstTypeOptions={gstTypeOptions}
           gstPercentOptions={gstPercentOptions}
           saving={saving}
+          fieldErrors={branchFieldErrors}
+          onClearFieldError={(index, field) =>
+            setBranchFieldErrors((prev) => ({
+              ...prev,
+              [index]: { ...(prev[index] || {}), [field]: undefined },
+            }))
+          }
           onBack={() => setActiveStep(1)}
           onSaveAndNext={handleSaveBranches}
           onDeleteBranch={handleDeleteBranch}
@@ -451,7 +573,7 @@ export default function VendorFormPage() {
     }
     if (activeStep === 3) {
       return (
-        <VendorStepVehicle
+        <VendorStepVehicleTypeCost
           vendorId={vendorId}
           onBack={() => setActiveStep(2)}
           onNext={() => setActiveStep(4)}
@@ -460,7 +582,7 @@ export default function VendorFormPage() {
     }
     if (activeStep === 4) {
       return (
-        <VendorStepPermitCost
+        <VendorStepVehicle
           vendorId={vendorId}
           onBack={() => setActiveStep(3)}
           onNext={() => setActiveStep(5)}
@@ -469,18 +591,18 @@ export default function VendorFormPage() {
     }
     if (activeStep === 5) {
       return (
-        <VendorStepVehicleTypeCost
+        <VendorStepVehiclePricebook
           vendorId={vendorId}
           onBack={() => setActiveStep(4)}
-          onNext={() => setActiveStep(6)}
+          onFinish={() => setActiveStep(6)}
         />
       );
     }
     return (
-      <VendorStepVehiclePricebook
+      <VendorStepPermitCost
         vendorId={vendorId}
         onBack={() => setActiveStep(5)}
-        onFinish={() => navigate("/vendor")}
+        onNext={() => navigate("/vendor")}
       />
     );
   };

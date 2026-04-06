@@ -1,7 +1,11 @@
 // FILE: src/pages/vendor/steps/VendorStepVehicle.tsx
 
 import React,{useEffect,useMemo,useState} from "react";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { format, isValid, parseISO } from "date-fns";
 import {api} from "@/lib/api";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Props={
 vendorId?:number;
@@ -25,6 +29,67 @@ statusLabel:string;
 branchId:number;
 _full?:any;
 };
+
+type VehicleFormErrors = Partial<{
+registrationNumber:string;
+registrationDate:string;
+engineNumber:string;
+vehicleType:string;
+ownerName:string;
+ownerContactNumber:string;
+country:string;
+state:string;
+city:string;
+}>;
+
+const toPickerDate=(value:string)=>{
+if(!value) return undefined;
+const parsed=parseISO(value);
+return isValid(parsed) ? parsed : undefined;
+};
+
+const toYmd=(date?:Date)=>{
+if(!date) return "";
+return format(date,"yyyy-MM-dd");
+};
+
+function DatePickerField({
+value,
+onChange,
+placeholder,
+hasError,
+}:{
+value:string;
+onChange:(value:string)=>void;
+placeholder:string;
+hasError?:boolean;
+}){
+const selected=toPickerDate(value);
+
+return (
+<Popover>
+<PopoverTrigger asChild>
+<button
+type="button"
+className={`rounded border px-3 py-2 text-left flex items-center justify-between ${hasError ? "border-red-400" : ""}`}
+>
+<span className={selected ? "text-slate-900" : "text-slate-400"}>
+{selected ? format(selected,"dd-MM-yyyy") : placeholder}
+</span>
+<CalendarIcon className="h-4 w-4 text-violet-600" />
+</button>
+</PopoverTrigger>
+<PopoverContent className="w-auto p-2" align="start">
+<Calendar
+mode="single"
+selected={selected}
+onSelect={(date)=>onChange(toYmd(date))}
+initialFocus
+/>
+</PopoverContent>
+</Popover>
+);
+}
 
 export const VendorStepVehicle:React.FC<Props>=({
 
@@ -56,8 +121,10 @@ const selectedBranch=useMemo(
 const [isAddMode,setIsAddMode]=useState(false);
 const [editingVehicleId,setEditingVehicleId]=useState<number|null>(null);
 const [saving,setSaving]=useState(false);
+const [statusUpdatingId,setStatusUpdatingId]=useState<number|null>(null);
 const [stateOptions,setStateOptions]=useState<any[]>([]);
 const [cityOptions,setCityOptions]=useState<any[]>([]);
+const [vehicleFormErrors,setVehicleFormErrors]=useState<VehicleFormErrors>({});
 
 const emptyVehicleForm={
 vehicleType:"",
@@ -119,6 +186,7 @@ field:keyof typeof vehicleForm,
 value:string
 )=>{
 setVehicleForm(prev=>({...prev,[field]:value}));
+setVehicleFormErrors(prev=>({ ...prev, [field]: undefined }));
 };
 
 useEffect(()=>{
@@ -300,6 +368,7 @@ setIsVehicleListOpen(false);
 const handleOpenAddVehicle = () => {
 setEditingVehicleId(null);
 setVehicleForm(emptyVehicleForm);
+setVehicleFormErrors({});
 setIsVehicleListOpen(false);
 setIsAddMode(true);
 };
@@ -579,12 +648,31 @@ rtoCode:v.RTO_code || "",
 
 setIsVehicleListOpen(false);
 setIsAddMode(true);
+setVehicleFormErrors({});
 
 };
 
 const handleSaveVehicle=async()=>{
 
 if(!vendorId || !selectedBranchId) return;
+
+const errors:VehicleFormErrors={};
+if(!String(vehicleForm.registrationNumber ?? "").trim()) errors.registrationNumber="This value is required.";
+if(!String(vehicleForm.registrationDate ?? "").trim()) errors.registrationDate="This value is required.";
+if(!String(vehicleForm.engineNumber ?? "").trim()) errors.engineNumber="This value is required.";
+if(!String(vehicleForm.vehicleType ?? "").trim()) errors.vehicleType="This value is required.";
+if(!String(vehicleForm.ownerName ?? "").trim()) errors.ownerName="This value is required.";
+if(!String(vehicleForm.ownerContactNumber ?? "").trim()) errors.ownerContactNumber="This value is required.";
+if(!String(vehicleForm.country ?? "").trim()) errors.country="This value is required.";
+if(!String(vehicleForm.state ?? "").trim()) errors.state="This value is required.";
+if(!String(vehicleForm.city ?? "").trim()) errors.city="This value is required.";
+
+if(Object.keys(errors).length>0){
+setVehicleFormErrors(errors);
+return;
+}
+
+setVehicleFormErrors({});
 
 setSaving(true);
 
@@ -635,6 +723,7 @@ setIsAddMode(false);
 setIsVehicleListOpen(true);
 setEditingVehicleId(null);
 setVehicleForm(emptyVehicleForm);
+setVehicleFormErrors({});
 
 }catch(e){
 console.error("Failed to save vehicle",e);
@@ -642,6 +731,31 @@ console.error("Failed to save vehicle",e);
 setSaving(false);
 }
 
+};
+
+const handleToggleVehicleStatus=async(row:VehicleRow)=>{
+if(statusUpdatingId===row.id) return;
+
+setStatusUpdatingId(row.id);
+try{
+const oldStatus=Number(row.status ?? 0);
+const res=(await api(`/vendors/vehicles/${row.id}/status-toggle`,{
+method:"POST",
+body:JSON.stringify({ oldstatus: oldStatus }),
+})) as { success?: boolean; status?: number };
+
+const nextStatus=res?.status != null ? Number(res.status) : (oldStatus===1 ? 0 : 1);
+
+setVehicleRows(prev=>prev.map(v=>v.id===row.id ? {
+...v,
+status:nextStatus,
+statusLabel:nextStatus===1 ? "Active" : "Inactive",
+} : v));
+}catch(e){
+console.error("Failed to toggle vehicle status",e);
+}finally{
+setStatusUpdatingId(null);
+}
 };
 
 return (
@@ -825,13 +939,26 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
         </td>
 
         <td className="px-4 py-5">
-          <div className="inline-flex h-8 w-14 items-center rounded-full bg-violet-400 px-1">
-            <div className="ml-auto h-6 w-6 rounded-full bg-white" />
-          </div>
+          <button
+            type="button"
+            onClick={() => handleToggleVehicleStatus(row)}
+            disabled={statusUpdatingId===row.id}
+            className={`inline-flex h-8 w-14 items-center rounded-full px-1 transition ${
+              row.status===1 ? "bg-violet-400" : "bg-slate-300"
+            } ${statusUpdatingId===row.id ? "opacity-60" : ""}`}
+          >
+            <div
+              className={`h-6 w-6 rounded-full bg-white transition-transform ${
+                row.status===1 ? "translate-x-6" : "translate-x-0"
+              }`}
+            />
+          </button>
         </td>
 
         <td className="px-4 py-5">
-          <span className="inline-flex rounded-md bg-green-100 px-4 py-2 text-[15px] font-medium text-green-600">
+          <span className={`inline-flex rounded-md px-4 py-2 text-[15px] font-medium ${
+            row.status===1 ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+          }`}>
             {row.statusLabel}
           </span>
         </td>
@@ -867,84 +994,111 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   </h3>
 
   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-    <input
-      value={vehicleForm.registrationNumber}
-      onChange={(e)=>handleFieldChange("registrationNumber",e.target.value)}
-      placeholder="Registration Number"
-      className="rounded border px-3 py-2"
-    />
+    <div className="space-y-1">
+      <input
+        value={vehicleForm.registrationNumber}
+        onChange={(e)=>handleFieldChange("registrationNumber",e.target.value)}
+        placeholder="Registration Number"
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.registrationNumber ? "border-red-400" : ""}`}
+      />
+      {vehicleFormErrors.registrationNumber ? <p className="text-xs text-red-600">{vehicleFormErrors.registrationNumber}</p> : null}
+    </div>
 
-    <input
-      type="date"
-      value={vehicleForm.registrationDate}
-      onChange={(e)=>handleFieldChange("registrationDate",e.target.value)}
-      className="rounded border px-3 py-2"
-    />
+    <div className="space-y-1">
+      <DatePickerField
+        value={vehicleForm.registrationDate}
+        onChange={(value)=>handleFieldChange("registrationDate",value)}
+        placeholder="Registration Date"
+        hasError={Boolean(vehicleFormErrors.registrationDate)}
+      />
+      {vehicleFormErrors.registrationDate ? <p className="text-xs text-red-600">{vehicleFormErrors.registrationDate}</p> : null}
+    </div>
 
-    <input
-      value={vehicleForm.engineNumber}
-      onChange={(e)=>handleFieldChange("engineNumber",e.target.value)}
-      placeholder="Engine Number"
-      className="rounded border px-3 py-2"
-    />
+    <div className="space-y-1">
+      <input
+        value={vehicleForm.engineNumber}
+        onChange={(e)=>handleFieldChange("engineNumber",e.target.value)}
+        placeholder="Engine Number"
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.engineNumber ? "border-red-400" : ""}`}
+      />
+      {vehicleFormErrors.engineNumber ? <p className="text-xs text-red-600">{vehicleFormErrors.engineNumber}</p> : null}
+    </div>
 
-    <select
-      value={vehicleForm.vehicleType}
-      onChange={(e)=>handleFieldChange("vehicleType",e.target.value)}
-      className="rounded border px-3 py-2"
-    >
-      <option value="">Choose Vehicle Type</option>
-      {vehicleTypeOptions.map((opt)=>(
-        <option key={opt.id} value={opt.id}>{opt.label}</option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <select
+        value={vehicleForm.vehicleType}
+        onChange={(e)=>handleFieldChange("vehicleType",e.target.value)}
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleType ? "border-red-400" : ""}`}
+      >
+        <option value="">Choose Vehicle Type</option>
+        {vehicleTypeOptions.map((opt)=>(
+          <option key={opt.id} value={opt.id}>{opt.label}</option>
+        ))}
+      </select>
+      {vehicleFormErrors.vehicleType ? <p className="text-xs text-red-600">{vehicleFormErrors.vehicleType}</p> : null}
+    </div>
 
-    <input
-      value={vehicleForm.ownerName}
-      onChange={(e)=>handleFieldChange("ownerName",e.target.value)}
-      placeholder="Owner Name"
-      className="rounded border px-3 py-2"
-    />
+    <div className="space-y-1">
+      <input
+        value={vehicleForm.ownerName}
+        onChange={(e)=>handleFieldChange("ownerName",e.target.value)}
+        placeholder="Owner Name"
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.ownerName ? "border-red-400" : ""}`}
+      />
+      {vehicleFormErrors.ownerName ? <p className="text-xs text-red-600">{vehicleFormErrors.ownerName}</p> : null}
+    </div>
 
-    <input
-      value={vehicleForm.ownerContactNumber}
-      onChange={(e)=>handleFieldChange("ownerContactNumber",e.target.value)}
-      placeholder="Owner Contact Number"
-      className="rounded border px-3 py-2"
-    />
+    <div className="space-y-1">
+      <input
+        value={vehicleForm.ownerContactNumber}
+        onChange={(e)=>handleFieldChange("ownerContactNumber",e.target.value)}
+        placeholder="Owner Contact Number"
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.ownerContactNumber ? "border-red-400" : ""}`}
+      />
+      {vehicleFormErrors.ownerContactNumber ? <p className="text-xs text-red-600">{vehicleFormErrors.ownerContactNumber}</p> : null}
+    </div>
 
-    <select
-      value={vehicleForm.country}
-      onChange={(e)=>handleFieldChange("country",e.target.value)}
-      className="rounded border px-3 py-2"
-    >
-      <option value="">Choose Country</option>
-      {countryOptions.map((opt)=>(
-        <option key={opt.id} value={opt.id}>{opt.label}</option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <select
+        value={vehicleForm.country}
+        onChange={(e)=>handleFieldChange("country",e.target.value)}
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.country ? "border-red-400" : ""}`}
+      >
+        <option value="">Choose Country</option>
+        {countryOptions.map((opt)=>(
+          <option key={opt.id} value={opt.id}>{opt.label}</option>
+        ))}
+      </select>
+      {vehicleFormErrors.country ? <p className="text-xs text-red-600">{vehicleFormErrors.country}</p> : null}
+    </div>
 
-    <select
-      value={vehicleForm.state}
-      onChange={(e)=>handleFieldChange("state",e.target.value)}
-      className="rounded border px-3 py-2"
-    >
-      <option value="">Choose State</option>
-      {stateOptions.map((opt)=>(
-        <option key={opt.id} value={opt.id}>{opt.label}</option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <select
+        value={vehicleForm.state}
+        onChange={(e)=>handleFieldChange("state",e.target.value)}
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.state ? "border-red-400" : ""}`}
+      >
+        <option value="">Choose State</option>
+        {stateOptions.map((opt)=>(
+          <option key={opt.id} value={opt.id}>{opt.label}</option>
+        ))}
+      </select>
+      {vehicleFormErrors.state ? <p className="text-xs text-red-600">{vehicleFormErrors.state}</p> : null}
+    </div>
 
-    <select
-      value={vehicleForm.city}
-      onChange={(e)=>handleFieldChange("city",e.target.value)}
-      className="rounded border px-3 py-2"
-    >
-      <option value="">Choose City</option>
-      {cityOptions.map((opt)=>(
-        <option key={opt.id} value={opt.id}>{opt.label}</option>
-      ))}
-    </select>
+    <div className="space-y-1">
+      <select
+        value={vehicleForm.city}
+        onChange={(e)=>handleFieldChange("city",e.target.value)}
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.city ? "border-red-400" : ""}`}
+      >
+        <option value="">Choose City</option>
+        {cityOptions.map((opt)=>(
+          <option key={opt.id} value={opt.id}>{opt.label}</option>
+        ))}
+      </select>
+      {vehicleFormErrors.city ? <p className="text-xs text-red-600">{vehicleFormErrors.city}</p> : null}
+    </div>
   </div>
 
   <div className="flex justify-between">
@@ -953,6 +1107,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       onClick={()=>{
         setIsAddMode(false);
         setIsVehicleListOpen(true);
+        setVehicleFormErrors({});
       }}
       className="rounded bg-slate-200 px-4 py-2"
     >

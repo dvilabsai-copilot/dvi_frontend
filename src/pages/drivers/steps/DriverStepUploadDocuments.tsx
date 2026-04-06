@@ -232,6 +232,7 @@ export function DriverStepUploadDocuments({
                 </Label>
                 <Input
                   type="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
                   className={["mt-2", err.file ? "border-red-500" : ""].join(" ")}
                   onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 />

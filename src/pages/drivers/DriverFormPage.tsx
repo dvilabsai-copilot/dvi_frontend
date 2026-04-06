@@ -308,7 +308,7 @@ export default function DriverFormPage() {
 
   function back() {
     if (step === 0) {
-      nav("/drivers");
+      nav("/driver");
       return;
     }
     setStep((s) => clampStepIndex(s - 1));
@@ -409,7 +409,7 @@ export default function DriverFormPage() {
             vendors={vendors}
             vehicleTypes={vehicleTypes}
             onBack={back}
-            onFinish={() => nav("/drivers")}
+            onFinish={() => nav("/driver")}
           />
         )}
       </div>
