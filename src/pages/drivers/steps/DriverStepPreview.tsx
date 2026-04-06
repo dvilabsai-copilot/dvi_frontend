@@ -1,5 +1,5 @@
 // FILE: src/drivers/steps/DriverStepPreview.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DriverBasicInfo, DriverCostDetails, DriverDocument, DriverReview, Option } from "@/services/drivers";
@@ -13,6 +13,11 @@ function findLabel(list: Option[], id: any) {
   const s = String(id ?? "");
   const found = list.find((o) => String(o.id) === s);
   return found?.label || "--";
+}
+
+function isImageUrl(url?: string) {
+  if (!url) return false;
+  return /\.(jpg|jpeg|png|webp|gif|bmp|svg)(\?.*)?$/i.test(url);
 }
 
 export function DriverStepPreview({
@@ -34,6 +39,21 @@ export function DriverStepPreview({
   onBack: () => void;
   onFinish: () => void;
 }) {
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState<string>(basic.profileUrl || "");
+
+  useEffect(() => {
+    if (basic.profileFile) {
+      const objectUrl = URL.createObjectURL(basic.profileFile);
+      setProfilePreviewUrl(objectUrl);
+      return () => {
+        URL.revokeObjectURL(objectUrl);
+      };
+    }
+
+    setProfilePreviewUrl(basic.profileUrl || "");
+    return undefined;
+  }, [basic.profileFile, basic.profileUrl]);
+
   return (
     <Card className="border-0 shadow-sm">
       <CardContent className="p-6">
@@ -114,6 +134,21 @@ export function DriverStepPreview({
             <div className="text-gray-500">Address</div>
             <div className="text-gray-800 mt-1">{val(basic.address)}</div>
           </div>
+
+          <div className="md:col-span-4">
+            <div className="text-gray-500">Profile Picture</div>
+            <div className="mt-2">
+              {profilePreviewUrl ? (
+                <img
+                  src={profilePreviewUrl}
+                  alt="Driver profile"
+                  className="h-24 w-24 rounded-md border object-cover"
+                />
+              ) : (
+                <div className="text-gray-500">--</div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="mt-10 text-2xl font-semibold text-gray-800">
@@ -135,13 +170,31 @@ export function DriverStepPreview({
 
         <div className="mt-4 text-sm text-gray-700">
           {docs?.length ? (
-            <ul className="list-disc pl-6 space-y-1">
+            <ul className="space-y-4">
               {docs.map((d) => (
-                <li key={String(d.id)}>
-                  {d.documentType} -{" "}
-                  <a className="text-violet-600 hover:underline" href={d.fileUrl} target="_blank" rel="noreferrer">
-                    {d.fileName}
-                  </a>
+                <li key={String(d.id)} className="border rounded-md p-3">
+                  <div className="font-medium text-gray-800 mb-2">{d.documentType}</div>
+
+                  {isImageUrl(d.fileUrl) ? (
+                    <a href={d.fileUrl} target="_blank" rel="noreferrer" className="inline-block">
+                      <img
+                        src={d.fileUrl}
+                        alt={d.fileName}
+                        className="h-24 w-24 rounded-md border object-cover"
+                      />
+                    </a>
+                  ) : null}
+
+                  <div className="mt-2">
+                    <a
+                      className="text-violet-600 hover:underline break-all"
+                      href={d.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {d.fileName}
+                    </a>
+                  </div>
                 </li>
               ))}
             </ul>
