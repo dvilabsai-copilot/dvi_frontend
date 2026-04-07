@@ -20,7 +20,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
 
       - name: Build frontend
         run: npm run build
@@ -46,8 +46,6 @@ jobs:
           port: ${{ secrets.DO_PORT }}
           script: |
             sudo mkdir -p /var/www/dvi-travel
-            sudo apt-get update -y
-            sudo apt-get install -y rsync
             sudo rsync -av --delete /tmp/dvi-frontend-deploy/dist/ /var/www/dvi-travel/
             sudo chown -R www-data:www-data /var/www/dvi-travel
             sudo nginx -t
