@@ -2,7 +2,7 @@
 // REPLACE-WHOLE-FILE
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Eye, Pencil, Trash2, Plus, Upload,
   Copy as CopyIcon, FileSpreadsheet, FileText
@@ -68,6 +68,7 @@ function downloadBlob(name: string, mime: string, content: string) {
 
 export default function HotspotList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [rows, setRows] = useState<HotspotListItem[]>([]);
   const [filtered, setFiltered] = useState<HotspotListItem[]>([]);
   const [search, setSearch] = useState("");
@@ -76,6 +77,15 @@ export default function HotspotList() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const prefill = String((location.state as any)?.prefillSearch || "").trim();
+    if (!prefill) return;
+    setSearch(prefill);
+    toast.success(`Showing newly saved hotspot: ${prefill}`);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   useEffect(() => {
     const q = search.toLowerCase();
     setFiltered(
