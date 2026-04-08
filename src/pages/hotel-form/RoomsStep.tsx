@@ -78,6 +78,7 @@ const generateRoomRefCode = (hotelId: string | number, rowIndex: number) => {
 
 /* ========= Lightweight chip multi-select (no external lib) ========= */
 type Opt = { id: number | string; name: string };
+const uiErrorMessage = (_err: any, fallback: string) => fallback;
 function AmenityPicker({
   options,
   value,
@@ -306,6 +307,10 @@ export default function RoomsStep({
 }) {
   const qc = useQueryClient();
   const [rows, setRows] = useState<RoomForm[]>([]);
+  const initialRowsRef = useRef<any[]>([]);
+  const [validationError, setValidationError] = useState<string>("");
+  const [statusMessage, setStatusMessage] = useState<string>("");
+  const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
 
   const defaultRow: RoomForm = {
     room_type: "",
@@ -506,6 +511,7 @@ export default function RoomsStep({
         const co = to24h(getTimeString(r?.check_out_time)) || "11:00";
 
         const base: any = {
+          room_ID: r.room_ID ?? r.room_id ?? undefined,
           room_type: r.room_type_id ?? r.roomtype_id ?? r.room_type ?? "",
           room_title: r.room_title ?? r.title ?? "",
           preferred_for: prefArr,
@@ -545,13 +551,18 @@ export default function RoomsStep({
         return base as RoomForm;
       });
 
-      setRows(mapped.length ? mapped : [defaultRow]);
+      const effectiveRows = mapped.length ? mapped : [defaultRow];
+      setRows(effectiveRows);
+      initialRowsRef.current = effectiveRows.map((r) => comparableRow(r));
       return mapped;
     },
   });
 
   /* ========= Handlers ========= */
   const handleChange = (i: number, field: keyof RoomForm, value: any) => {
+    setValidationError("");
+    setStatusMessage("");
+    setStatusKind("");
     setRows((prev) => {
       const copy = [...prev] as any[];
       if (field === "gst_type") value = toGstNum(value);
@@ -574,13 +585,82 @@ export default function RoomsStep({
   const removeRow = (i: number) =>
     setRows((p) => (p.length === 1 ? p : p.filter((_, idx) => idx !== i)));
 
+  const validateRows = (items: RoomForm[]) => {
+    for (let i = 0; i < items.length; i += 1) {
+      const row: any = items[i];
+      const n = i + 1;
+
+      if (!String(row.room_type ?? "").trim()) return `Room ${n}: Room Type is required`;
+      if (!String(row.room_title ?? "").trim()) return `Room ${n}: Room Title is required`;
+      if (!String(row.no_of_rooms ?? "").trim()) return `Room ${n}: No of Rooms Availability is required`;
+      if (row.ac_availability === "" || row.ac_availability === null || row.ac_availability === undefined) {
+        return `Room ${n}: AC Availability is required`;
+      }
+      if (row.status === "" || row.status === null || row.status === undefined) {
+        return `Room ${n}: Status is required`;
+      }
+      if (!String(row.max_adult ?? "").trim()) return `Room ${n}: Max Adult is required`;
+      if (!String(row.max_children ?? "").trim()) return `Room ${n}: Max Children is required`;
+      if (!String(row.check_in_time ?? "").trim()) return `Room ${n}: Check-In Time is required`;
+      if (!String(row.check_out_time ?? "").trim()) return `Room ${n}: Check-Out Time is required`;
+      if (row.gst_type === "" || row.gst_type === null || row.gst_type === undefined) {
+        return `Room ${n}: GST Type is required`;
+      }
+      if (row.gst_percentage === "" || row.gst_percentage === null || row.gst_percentage === undefined) {
+        return `Room ${n}: GST Percentage is required`;
+      }
+    }
+    return null;
+  };
+
+  const comparableRow = (row: any) => {
+    const amenities = Array.isArray(row?.amenities)
+      ? [...row.amenities].map(String).sort()
+      : [];
+    const preferred = Array.isArray(row?.preferred_for)
+      ? [...row.preferred_for].map(String).sort()
+      : [];
+    return {
+      room_ID: row?.room_ID ?? row?.room_id ?? null,
+      room_ref_code: row?.room_ref_code ?? "",
+      room_type: String(row?.room_type ?? ""),
+      room_title: String(row?.room_title ?? ""),
+      preferred_for: preferred,
+      no_of_rooms: String(row?.no_of_rooms ?? ""),
+      ac_availability: String(row?.ac_availability ?? ""),
+      status: String(row?.status ?? ""),
+      max_adult: String(row?.max_adult ?? ""),
+      max_children: String(row?.max_children ?? ""),
+      check_in_time: String(row?.check_in_time ?? ""),
+      check_out_time: String(row?.check_out_time ?? ""),
+      gst_type: String(row?.gst_type ?? ""),
+      gst_percentage: String(row?.gst_percentage ?? ""),
+      amenities,
+      food_breakfast: Boolean(row?.food_breakfast),
+      food_lunch: Boolean(row?.food_lunch),
+      food_dinner: Boolean(row?.food_dinner),
+    };
+  };
+
   /* ========= Save ========= */
   const saveMut = useMutation({
     mutationFn: async (items: RoomForm[]) => {
       const hotelIdNum = Number(hotelId);
 
+      const changedItems = items.filter((row, idx) => {
+        const hasGallery = Boolean((row as any)?.gallery && (row as any).gallery.length);
+        if (hasGallery) return true;
+        const prev = initialRowsRef.current[idx];
+        if (!prev) return true;
+        return JSON.stringify(comparableRow(row)) !== JSON.stringify(prev);
+      });
+
+      if (!changedItems.length) {
+        return { success: true, count: 0, skipped: true } as any;
+      }
+
       // ✅ Map UI → dvi_hotel_rooms column names & types
-      const payload = items.map((r, index) => {
+      const payload = changedItems.map((r, index) => {
         // Resolve room_type_id from typed text or numeric value
         const rawType = (r as any).room_type;
         let room_type_id: number | null = null;
@@ -594,6 +674,11 @@ export default function RoomsStep({
             const n = Number(id);
             room_type_id = Number.isFinite(n) ? n : null;
           }
+        }
+
+        if (room_type_id === null) {
+          const fallbackId = Number(roomTypeOptions?.[0]?.id ?? 1);
+          room_type_id = Number.isFinite(fallbackId) ? fallbackId : 1;
         }
 
         const preferred_for = Array.isArray(r.preferred_for)
@@ -614,6 +699,7 @@ export default function RoomsStep({
           generateRoomRefCode(hotelIdNum || hotelId, index);
 
         return {
+          room_ID: (r as any).room_ID ?? (r as any).room_id,
           hotel_id: hotelIdNum,
           room_type_id,
           room_title: r.room_title || null,
@@ -647,23 +733,34 @@ export default function RoomsStep({
       ];
       let lastErr: any;
       let jsonResult: any;
+      const chunkSize = 25;
+      const chunks: any[][] = [];
+      for (let i = 0; i < payload.length; i += chunkSize) {
+        chunks.push(payload.slice(i, i + chunkSize));
+      }
 
       // 1) Save room rows as before
-      for (const p of endpoints) {
-        try {
+      const batchResults: any[] = [];
+      for (const batch of chunks) {
+        jsonResult = null;
+        for (const p of endpoints) {
           try {
-            jsonResult = await api.apiPost(p, { items: payload });
-          } catch {
-            jsonResult = await api.apiPost(p, payload);
+            try {
+              jsonResult = await api.apiPost(p, { items: batch });
+            } catch {
+              jsonResult = await api.apiPost(p, batch);
+            }
+            break;
+          } catch (e) {
+            lastErr = e;
           }
-          break;
-        } catch (e) {
-          lastErr = e;
         }
+        if (!jsonResult) {
+          throw lastErr || new Error("No rooms endpoint available");
+        }
+        batchResults.push(jsonResult);
       }
-      if (!jsonResult) {
-        throw lastErr || new Error("No rooms endpoint available");
-      }
+      jsonResult = { success: true, batches: batchResults.length, items: batchResults };
 
       // 2) NEW: upload room gallery files (non-blocking for main flow)
       try {
@@ -688,7 +785,7 @@ export default function RoomsStep({
 
         const uploadPromises: Promise<any>[] = [];
 
-        items.forEach((row, index) => {
+        changedItems.forEach((row, index) => {
           const filesLike: any = (row as any).gallery;
           if (!filesLike || (filesLike as FileList).length === 0) return;
 
@@ -741,21 +838,37 @@ export default function RoomsStep({
     },
     onSuccess: () => {
       qc.invalidateQueries();
-      alert("✅ Rooms saved");
+      setStatusKind("success");
+      setStatusMessage("Rooms saved successfully.");
       onNext();
     },
-    onError: (e: any) => alert(`Failed: ${e?.message || "Unknown error"}`),
+    onError: (e: any) => {
+      setStatusKind("error");
+      setStatusMessage(uiErrorMessage(e, "Failed to save rooms. Please try again."));
+    },
   });
 
   return (
     <>
       <h3 className="text-pink-600 font-semibold mb-4">Rooms</h3>
 
+      <div className="flex justify-end mb-3">
+        <button
+          type="button"
+          onClick={addRow}
+          className="px-4 py-2 rounded-lg border border-dashed border-purple-300 text-purple-700 text-sm"
+        >
+          + Add Rooms
+        </button>
+      </div>
+
       <div className="grid grid-cols-12 gap-4">
         {rows.map((row, idx) => (
           <div key={idx} className="col-span-12 border-b border-dashed pb-4 mb-4">
             <div className="flex justify-between items-center mb-2">
-              <h6 className="font-semibold text-sm">Room #{idx + 1}</h6>
+              <h6 className="font-semibold text-sm">
+                Room {idx + 1}/{rows.length}
+              </h6>
               <button
                 type="button"
                 onClick={() => removeRow(idx)}
@@ -789,6 +902,29 @@ export default function RoomsStep({
               </div>
 
               <div className="col-span-12 md:col-span-3">
+                <label className="block text-xs font-medium">
+                  No of Rooms Availability *
+                </label>
+                <input
+                  className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                  value={row.no_of_rooms}
+                  onChange={(e) => handleChange(idx, "no_of_rooms", e.target.value)}
+                  placeholder="Enter the No. of Rooms Available"
+                />
+              </div>
+
+              <div className="col-span-12 md:col-span-3">
+                <label className="block text-xs font-medium">Room Code *</label>
+                <input
+                  className="mt-1 w-full border rounded-lg px-3 py-2 text-sm bg-gray-100"
+                  value={(row as any).room_ref_code || ""}
+                  placeholder="Enter the Ref Code"
+                  disabled
+                  readOnly
+                />
+              </div>
+
+              <div className="col-span-12 md:col-span-3">
                 <label className="block text-xs font-medium">Prefered For *</label>
                 <AmenityPicker
                   options={preferredForOptions}
@@ -801,18 +937,6 @@ export default function RoomsStep({
                     handleChange(idx, "preferred_for" as any, ids)
                   }
                   placeholder="Select audience (multi)"
-                />
-              </div>
-
-              <div className="col-span-12 md:col-span-3">
-                <label className="block text-xs font-medium">
-                  No of Rooms Availability *
-                </label>
-                <input
-                  className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
-                  value={row.no_of_rooms}
-                  onChange={(e) => handleChange(idx, "no_of_rooms", e.target.value)}
-                  placeholder="Enter the No. of Rooms Available"
                 />
               </div>
 
@@ -1006,15 +1130,18 @@ export default function RoomsStep({
         ))}
       </div>
 
-      <div className="flex justify-between items-center mt-4">
-        <button
-          type="button"
-          onClick={addRow}
-          className="px-4 py-2 rounded-lg border border-dashed border-purple-300 text-purple-700 text-sm"
+      {validationError && (
+        <div className="mt-3 text-sm text-red-600">{validationError}</div>
+      )}
+      {statusMessage && (
+        <div
+          className={`mt-2 text-sm ${
+            statusKind === "success" ? "text-green-600" : "text-red-600"
+          }`}
         >
-          + Add Room
-        </button>
-      </div>
+          {statusMessage}
+        </div>
+      )}
 
       <div className="flex items-center justify-between mt-8">
         <button
@@ -1026,7 +1153,17 @@ export default function RoomsStep({
         </button>
         <button
           type="button"
-          onClick={() => saveMut.mutate(rows)}
+          onClick={() => {
+            const msg = validateRows(rows);
+            if (msg) {
+              setValidationError(msg);
+              return;
+            }
+            setValidationError("");
+            setStatusMessage("");
+            setStatusKind("");
+            saveMut.mutate(rows);
+          }}
           className="px-5 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white"
         >
           Update & Continue

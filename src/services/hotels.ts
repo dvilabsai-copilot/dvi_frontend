@@ -77,7 +77,7 @@ function fromBackend(h: any): Hotel {
     gstPercent: h.hotel_margin_gst_percentage ?? h.gstPercent ?? null,
 
     // toggles
-    powerBackup: toBool(h.hotel_powerbackup ?? h.powerBackup ?? false),
+    powerBackup: toBool(h.hotel_power_backup ?? h.hotel_powerbackup ?? h.powerBackup ?? false),
     hotSpot: toBool(h.hotel_hotspot_status ?? h.hotSpot ?? false),
 
     // description
@@ -89,7 +89,7 @@ function fromBackend(h: any): Hotel {
     place: h.hotel_place ?? h.place ?? null,
     city: h.hotel_city ?? h.city ?? null,
     state: h.hotel_state ?? h.state ?? null,
-    country: h.country ?? null,
+    country: h.hotel_country ?? h.country ?? null,
     pinCode: h.hotel_pincode ?? h.pinCode ?? null,
     phone: h.hotel_mobile ?? h.phone ?? null,
     email: h.hotel_email ?? h.email ?? null,
@@ -118,7 +118,7 @@ function toBackend(body: Partial<Hotel>): any {
   if (body.city !== undefined) out.hotel_city = body.city ?? null;
   if (body.state !== undefined) out.hotel_state = body.state ?? null;
   if (body.pinCode !== undefined) out.hotel_pincode = body.pinCode ?? null;
-  if (body.country !== undefined) out.country = body.country ?? null;
+  if (body.country !== undefined) out.hotel_country = body.country ?? null;
   if (body.addressLine2 !== undefined) out.addressLine2 = body.addressLine2 ?? null;
 
   // Contact
@@ -140,7 +140,10 @@ function toBackend(body: Partial<Hotel>): any {
   if (body.gstPercent !== undefined) out.hotel_margin_gst_percentage = numOrNull(body.gstPercent);
 
   // Toggles (backend expects 0|1)
-  if (body.powerBackup !== undefined) out.hotel_powerbackup = body.powerBackup ? 1 : 0;
+  if (body.powerBackup !== undefined) {
+    out.hotel_powerbackup = body.powerBackup ? 1 : 0;
+    out.hotel_power_backup = body.powerBackup ? 1 : 0;
+  }
   if (body.hotSpot !== undefined) out.hotel_hotspot_status = body.hotSpot ? 1 : 0;
 
   // Status (backend expects 0|1)
@@ -175,9 +178,23 @@ async function apiWithFallback<T>(
  * Public API
  * ========================= */
 
-export async function listHotels(params: { search?: string; page?: number; limit?: number } = {}) {
+export async function listHotels(
+  params: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    hotel_state?: string | number;
+    hotel_city?: string | number;
+  } = {}
+) {
   const q = new URLSearchParams();
   if (params.search) q.set("search", params.search);
+  if (params.hotel_state !== undefined && params.hotel_state !== null && String(params.hotel_state) !== "") {
+    q.set("hotel_state", String(params.hotel_state));
+  }
+  if (params.hotel_city !== undefined && params.hotel_city !== null && String(params.hotel_city) !== "") {
+    q.set("hotel_city", String(params.hotel_city));
+  }
   q.set("page", String(params.page ?? 1));
   q.set("limit", String(params.limit ?? 20));
 
@@ -241,14 +258,23 @@ export async function deleteHotel(id: string) {
 
 /* ========= Meta (states / cities) ========= */
 
-export async function listStatesMeta() {
-  // backend: GET /meta/states?all=1
-  return api(`/meta/states?all=1`);
+export async function listStatesMeta(opts: { all?: boolean; countryId?: string | number } = {}) {
+  const q = new URLSearchParams();
+  if (opts.all !== false) q.set("all", "1");
+  if (opts.countryId !== undefined && opts.countryId !== null && String(opts.countryId) !== "") {
+    q.set("countryId", String(opts.countryId));
+  }
+  return api(`/meta/states?${q.toString()}`);
 }
 
-export async function listCitiesMeta() {
-  // backend: GET /meta/cities?all=1
-  return api(`/meta/cities?all=1`);
+export async function listCitiesMeta(opts: { all?: boolean; stateId?: string | number } = {}) {
+  const q = new URLSearchParams();
+  if (opts.all !== false) q.set("all", "1");
+  if (opts.stateId !== undefined && opts.stateId !== null && String(opts.stateId) !== "") {
+    q.set("stateId", String(opts.stateId));
+    q.set("all", "0");
+  }
+  return api(`/meta/cities?${q.toString()}`);
 }
 
 /* =========================

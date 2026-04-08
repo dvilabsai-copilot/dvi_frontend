@@ -119,6 +119,23 @@ const S = (v: any) => (v === null || v === undefined ? "" : String(v)); // to st
 const N = (v: any) =>
   v === "" || v === undefined || v === null ? null : Number(v); // to number or null
 
+const findOptionValue = (options: any[], current: string) => {
+  const normalized = S(current).trim();
+  if (!normalized) return "";
+
+  const exact = options.find((o: any) => S(o?.id ?? o?.value ?? o) === normalized);
+  if (exact) return S(exact?.id ?? exact?.value ?? exact);
+
+  const byName = options.find(
+    (o: any) => S(o?.name ?? o?.label ?? "").trim().toLowerCase() === normalized.toLowerCase()
+  );
+  if (byName) return S(byName?.id ?? byName?.value ?? byName);
+
+  return normalized;
+};
+
+const uiErrorMessage = (_err: any, fallback: string) => fallback;
+
 export default function BasicStep({
   api,
   isEdit,
@@ -131,6 +148,8 @@ export default function BasicStep({
   onNext: (newId: string | number) => void;
 }) {
   const qc = useQueryClient();
+  const [statusMessage, setStatusMessage] = useState<string>("");
+  const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
 
   const {
     register,
@@ -216,24 +235,27 @@ export default function BasicStep({
     enabled: !!stateId,
   });
 
-  /* ====== FIX: re-apply saved state/city once options load (and coerce to strings) ====== */
+  const watchedState = S(watch("hotel_state"));
+  const watchedCity = S(watch("hotel_city"));
+
+  /* ====== FIX: re-apply saved state/city once options load (supports id or label payloads) ====== */
   useEffect(() => {
-    const current = S(watch("hotel_state"));
+    const current = watchedState;
     if (!current || !(states as any[]).length) return;
-    const has = (states as any[]).some((s: any) => S(s?.id ?? s?.value ?? s) === current);
-    if (!has) {
-      setValue("hotel_state", current, { shouldValidate: true, shouldDirty: false });
+    const resolved = findOptionValue(states as any[], current);
+    if (resolved !== current) {
+      setValue("hotel_state", resolved, { shouldValidate: true, shouldDirty: false });
     }
-  }, [states, setValue, watch]);
+  }, [states, watchedState, setValue]);
 
   useEffect(() => {
-    const current = S(watch("hotel_city"));
+    const current = watchedCity;
     if (!current || !(cities as any[]).length) return;
-    const has = (cities as any[]).some((c: any) => S(c?.id ?? c?.value ?? c) === current);
-    if (!has) {
-      setValue("hotel_city", current, { shouldValidate: true, shouldDirty: false });
+    const resolved = findOptionValue(cities as any[], current);
+    if (resolved !== current) {
+      setValue("hotel_city", resolved, { shouldValidate: true, shouldDirty: false });
     }
-  }, [cities, setValue, watch]);
+  }, [cities, watchedCity, setValue]);
 
   // GST types & percentages
   const { data: gstTypes = [] } = useQuery({
@@ -446,11 +468,17 @@ export default function BasicStep({
       api.apiPost("/api/v1/hotels", normalizePayload(payload)),
     onSuccess: (res: any) => {
       qc.invalidateQueries();
-      alert("✅ Hotel Basic Details Saved");
+      setStatusKind("success");
+      setStatusMessage("Hotel Basic Details Saved.");
       const newId = res?.hotel_id ?? res?.id ?? res?.data?.hotel_id ?? res?.data?.id;
       onNext(newId);
     },
-    onError: (e: any) => alert(`Failed: ${e?.message || "Unknown error"}`),
+    onError: (e: any) => {
+      setStatusKind("error");
+      setStatusMessage(
+        uiErrorMessage(e, "Failed to save basic details. Please try again.")
+      );
+    },
   });
 
   const updateMut = useMutation({
@@ -458,14 +486,39 @@ export default function BasicStep({
       api.apiPatch(`/api/v1/hotels/${hotelId}`, normalizePayload(payload)),
     onSuccess: () => {
       qc.invalidateQueries();
-      alert("✅ Hotel Basic Details Updated");
+      setStatusKind("success");
+      setStatusMessage("Hotel Basic Details Updated.");
       onNext(String(hotelId));
     },
-    onError: (e: any) => alert(`Failed: ${e?.message || "Unknown error"}`),
+    onError: (e: any) => {
+      setStatusKind("error");
+      setStatusMessage(
+        uiErrorMessage(e, "Failed to update basic details. Please try again.")
+      );
+    },
   });
 
-  const onSubmit = (data: any) => (isEdit ? updateMut.mutate(data) : createMut.mutate(data));
+  const onSubmit = (data: any) => {
+    setStatusMessage("");
+    setStatusKind("");
+    return isEdit ? updateMut.mutate(data) : createMut.mutate(data);
+  };
   const isSaving = isSubmitting || (createMut as any).isPending || (updateMut as any).isPending;
+
+  const countryReg = register("hotel_country", {
+    required: true,
+    onChange: () => {
+      setValue("hotel_state", "", { shouldValidate: true });
+      setValue("hotel_city", "", { shouldValidate: true });
+    },
+  });
+
+  const stateReg = register("hotel_state", {
+    required: true,
+    onChange: () => {
+      setValue("hotel_city", "", { shouldValidate: true });
+    },
+  });
 
   return (
     <>
@@ -601,7 +654,7 @@ export default function BasicStep({
             <label className="block text-sm font-medium">Country *</label>
             <select
               className="mt-1 w-full border rounded-lg px-3 py-2"
-              {...register("hotel_country", { required: true })}
+              {...countryReg}
             >
               <option value="">Choose Country</option>
               {countries.map((c: any) => (
@@ -616,7 +669,8 @@ export default function BasicStep({
             <label className="block text-sm font-medium">State *</label>
             <select
               className="mt-1 w-full border rounded-lg px-3 py-2"
-              {...register("hotel_state", { required: true })}
+              disabled={!countryId}
+              {...stateReg}
             >
               <option value="">Please Choose State</option>
               {(states as any[]).map((s: any) => (
@@ -631,6 +685,7 @@ export default function BasicStep({
             <label className="block text-sm font-medium">City *</label>
             <select
               className="mt-1 w-full border rounded-lg px-3 py-2"
+              disabled={!stateId}
               {...register("hotel_city", { required: true })}
             >
               <option value="">Please Choosen City</option>
@@ -751,6 +806,16 @@ export default function BasicStep({
             />
           </div>
         </div>
+
+        {statusMessage && (
+          <div
+            className={`mt-3 text-sm ${
+              statusKind === "success" ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {statusMessage}
+          </div>
+        )}
 
         <div className="flex items-center justify-between mt-8">
           <button
