@@ -38,6 +38,12 @@ type HotelRow = {
   isActive: boolean;
 };
 
+type MetaOption = {
+  id: string;
+  name: string;
+  stateId?: string;
+};
+
 type SortKey = "id" | "name" | "code" | "stateName" | "cityName" | "mobile";
 type SortDir = "asc" | "desc";
 
@@ -137,16 +143,14 @@ const HotelPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const [filterState, setFilterState] = useState(""); // filter by stateName
-  const [filterCity, setFilterCity] = useState(""); // filter by cityName
+  const [filterState, setFilterState] = useState(""); // state id
+  const [filterCity, setFilterCity] = useState(""); // city id
 
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   // data
   const [rows, setRows] = useState<HotelRow[]>([]);
-  /** Unfiltered rows (used to build fast, lightweight filter options) */
-  const [allRows, setAllRows] = useState<HotelRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
@@ -157,6 +161,8 @@ const HotelPage: React.FC = () => {
   // ===== Meta lookups =====
   const [stateMap, setStateMap] = useState<Record<string, string>>({});
   const [cityMap, setCityMap] = useState<Record<string, string>>({});
+  const [stateOptions, setStateOptions] = useState<MetaOption[]>([]);
+  const [cityOptions, setCityOptions] = useState<MetaOption[]>([]);
 
   // ===== Price Book dropdown =====
   const [pbOpen, setPbOpen] = useState(false);
@@ -177,15 +183,12 @@ const HotelPage: React.FC = () => {
     };
   }, []);
 
-  // Fetch states & cities once (FROM SERVICE, not TSX HTTP)
+  // Fetch state options once
   useEffect(() => {
     let aborted = false;
     (async () => {
       try {
-        const [states, cities] = await Promise.all([
-          listStatesMeta().catch(() => []),
-          listCitiesMeta().catch(() => []),
-        ]);
+        const states = await listStatesMeta({ all: true }).catch(() => []);
 
         if (aborted) return;
 
@@ -195,6 +198,33 @@ const HotelPage: React.FC = () => {
             name: String(s.name ?? s.state_name ?? s.stateName ?? "").trim(),
           }))
           .filter((x) => x.id);
+
+        const sMap: Record<string, string> = {};
+        for (const s of normStates) sMap[s.id] = s.name || s.id;
+
+        setStateMap(sMap);
+        setStateOptions(normStates.map((s) => ({ id: s.id, name: s.name })));
+      } catch {
+        // keep maps empty
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, []);
+
+  // Fetch cities when state changes (PHP-like dependent dropdown)
+  useEffect(() => {
+    let aborted = false;
+    (async () => {
+      if (!filterState) {
+        setCityOptions([]);
+        setCityMap({});
+        return;
+      }
+      try {
+        const cities = await listCitiesMeta({ stateId: filterState }).catch(() => []);
+        if (aborted) return;
 
         const normCities: Array<{ id: string; name: string; state_id?: string }> =
           (cities || [])
@@ -210,22 +240,19 @@ const HotelPage: React.FC = () => {
             }))
             .filter((x) => x.id);
 
-        const sMap: Record<string, string> = {};
-        for (const s of normStates) sMap[s.id] = s.name || s.id;
-
         const cMap: Record<string, string> = {};
         for (const c of normCities) cMap[c.id] = c.name || c.id;
-
-        setStateMap(sMap);
         setCityMap(cMap);
+        setCityOptions(normCities.map((c) => ({ id: c.id, name: c.name, stateId: c.state_id })));
       } catch {
-        // keep maps empty
+        setCityOptions([]);
+        setCityMap({});
       }
     })();
     return () => {
       aborted = true;
     };
-  }, []);
+  }, [filterState]);
 
   // Adapter: API Hotel → UI row (without names yet)
   const toRowBase = (h: Hotel, ix: number): Omit<HotelRow, "stateName" | "cityName"> => ({
@@ -263,38 +290,20 @@ const HotelPage: React.FC = () => {
     (async () => {
       try {
         setLoading(true);
-        const resp = await listHotels({ search, page, limit: entries });
+        const resp = await listHotels({
+          search,
+          page,
+          limit: entries,
+          hotel_state: filterState || undefined,
+          hotel_city: filterCity || undefined,
+        });
 
         // `listHotels` already normalizes backend shapes to { page, total, items }
         const source: Hotel[] = resp.items ?? [];
         const mapped: HotelRow[] = source.map((h: Hotel, ix: number) =>
           withNames(toRowBase(h, ix))
         );
-
-        if (!aborted) setAllRows(mapped);
-
         let list = mapped.slice();
-
-        if (filterState) list = list.filter((r) => r.stateName === filterState);
-        if (filterCity) list = list.filter((r) => r.cityName === filterCity);
-
-        const q = (search || "").trim().toLowerCase();
-        if (q) {
-          list = list.filter((r) => {
-            const fields = [
-              String(r.id),
-              r.name,
-              r.code,
-              r.stateName,
-              r.cityName,
-              r.mobile,
-              r.isActive ? "active" : "inactive",
-            ];
-            return fields.some((v) =>
-              (v ?? "").toString().toLowerCase().includes(q)
-            );
-          });
-        }
 
         list = list.slice().sort((a, b) => {
           const va = a[sortKey];
@@ -311,9 +320,7 @@ const HotelPage: React.FC = () => {
 
         if (!aborted) {
           setRows(list);
-          const anyClientFilter = !!filterState || !!filterCity || !!q;
-          const totalFromApi = Number(resp.total ?? source.length);
-          setTotal(anyClientFilter ? list.length : totalFromApi);
+          setTotal(Number(resp.total ?? source.length));
         }
       } finally {
         if (!aborted) setLoading(false);
@@ -435,20 +442,15 @@ const HotelPage: React.FC = () => {
   const endPage = Math.min(totalPages, startPage + windowSize - 1);
 
   // fast filter options (from current list only)
-  const stateOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of allRows) if (r.stateName) set.add(r.stateName);
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [allRows]);
+  const sortedStateOptions = useMemo(
+    () => [...stateOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [stateOptions]
+  );
 
-  const cityOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of allRows) {
-      if (filterState && r.stateName !== filterState) continue;
-      if (r.cityName) set.add(r.cityName);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [allRows, filterState]);
+  const sortedCityOptions = useMemo(
+    () => [...cityOptions].sort((a, b) => a.name.localeCompare(b.name)),
+    [cityOptions]
+  );
 
   // PRICE BOOK item handlers
   const goRoomsPriceBook = () => {
@@ -539,9 +541,9 @@ const HotelPage: React.FC = () => {
                 className="hotel-filter-select"
               >
                 <option value="">Choose State</option>
-                {stateOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
+                {sortedStateOptions.map((state) => (
+                  <option key={state.id} value={state.id}>
+                    {state.name}
                   </option>
                 ))}
               </select>
@@ -555,11 +557,12 @@ const HotelPage: React.FC = () => {
                   setPage(1);
                 }}
                 className="hotel-filter-select"
+                disabled={!filterState}
               >
                 <option value="">Please Choose City</option>
-                {cityOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {sortedCityOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
