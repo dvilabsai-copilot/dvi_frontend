@@ -39,6 +39,43 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+    const parseLatLngPair = (value: string) => {
+    const match = String(value || "")
+      .trim()
+      .match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+
+    if (!match) return null;
+
+    return {
+      latitude: match[1],
+      longitude: match[2],
+    };
+  };
+
+  const handleCoordinatePaste =
+    (
+      latitudeField:
+        | "source_latitude"
+        | "destination_latitude",
+      longitudeField:
+        | "source_longitude"
+        | "destination_longitude"
+    ) =>
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      const pastedText = e.clipboardData.getData("text");
+      const coords = parseLatLngPair(pastedText);
+
+      if (!coords) return;
+
+      e.preventDefault();
+
+      setForm((prev) => ({
+        ...prev,
+        [latitudeField]: coords.latitude,
+        [longitudeField]: coords.longitude,
+      }));
+    };
+
   const handleSubmit = () => {
     onSubmit(form);
   };
@@ -53,12 +90,13 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
         <div className="space-y-6">
           {/* Row 1: Source Location, City, State (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
+                       <div className="space-y-2">
               <label className="text-sm font-medium">Source Location *</label>
-              <Input
-                placeholder="Enter Source Location"
+              <LocationAutosuggestInput
+                placeholder="Type Source Location"
                 value={form.source_location || ""}
-                onChange={(e) => handleChange("source_location", e.target.value)}
+                onValueChange={(value) => handleChange("source_location", value)}
+                search={locationsApi.searchSources}
               />
             </div>
             <div className="space-y-2">
@@ -85,28 +123,38 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Latitude *</label>
-              <Input
-                type="number"
+                            <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Latitude"
                 value={form.source_latitude || ""}
                 onChange={(e) => handleChange("source_latitude", e.target.value)}
+                onPaste={handleCoordinatePaste("source_latitude", "source_longitude")}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Longitude *</label>
-              <Input
-                type="number"
+                           <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Longitude"
                 value={form.source_longitude || ""}
                 onChange={(e) => handleChange("source_longitude", e.target.value)}
+                onPaste={handleCoordinatePaste("source_latitude", "source_longitude")}
               />
             </div>
-            <div className="space-y-2">
+                        <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location *</label>
-              <Input
-                placeholder="Enter Destination Location"
+              <LocationAutosuggestInput
+                placeholder="Type Destination Location"
                 value={form.destination_location || ""}
-                onChange={(e) => handleChange("destination_location", e.target.value)}
+                onValueChange={(value) => handleChange("destination_location", value)}
+                search={(phrase) =>
+                  locationsApi.searchDestinations(
+                    phrase,
+                    String(form.source_location || "")
+                  )
+                }
               />
             </div>
           </div>
@@ -131,11 +179,13 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location Latitude *</label>
-              <Input
-                type="number"
+                            <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Destination Latitude"
                 value={form.destination_latitude || ""}
                 onChange={(e) => handleChange("destination_latitude", e.target.value)}
+                onPaste={handleCoordinatePaste("destination_latitude", "destination_longitude")}
               />
             </div>
           </div>
@@ -144,11 +194,13 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location Longitude *</label>
-              <Input
-                type="number"
+                           <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Destination Longitude"
                 value={form.destination_longitude || ""}
                 onChange={(e) => handleChange("destination_longitude", e.target.value)}
+                onPaste={handleCoordinatePaste("destination_latitude", "destination_longitude")}
               />
             </div>
             <div className="space-y-2">

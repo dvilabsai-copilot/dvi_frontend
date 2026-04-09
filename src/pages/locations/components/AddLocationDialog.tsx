@@ -20,6 +20,36 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
     source_longitude: "",
   });
 
+    const parseLatLngPair = (value: string) => {
+    const match = String(value || "")
+      .trim()
+      .match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+
+    if (!match) return null;
+
+    return {
+      latitude: match[1],
+      longitude: match[2],
+    };
+  };
+
+  const handleCoordinatePaste =
+    (latitudeField: keyof CreateLocationPayload, longitudeField: keyof CreateLocationPayload) =>
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
+      const pastedText = e.clipboardData.getData("text");
+      const coords = parseLatLngPair(pastedText);
+
+      if (!coords) return;
+
+      e.preventDefault();
+
+      setForm((prev) => ({
+        ...prev,
+        [latitudeField]: coords.latitude,
+        [longitudeField]: coords.longitude,
+      }));
+    };
+
   const handleChange = (field: string, value: string | number) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -45,12 +75,13 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
         <div className="space-y-6">
           {/* Row 1: Source Location, City, State (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
+                       <div className="space-y-2">
               <label className="text-sm font-medium">Source Location *</label>
-              <Input
-                placeholder="Enter Source Location"
+              <LocationAutosuggestInput
+                placeholder="Type Source Location"
                 value={form.source_location}
-                onChange={(e) => handleChange("source_location", e.target.value)}
+                onValueChange={(value) => handleChange("source_location", value)}
+                search={locationsApi.searchSources}
               />
             </div>
             <div className="space-y-2">
@@ -77,20 +108,24 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Latitude *</label>
-              <Input
-                type="number"
+                           <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Latitude"
                 value={form.source_latitude}
                 onChange={(e) => handleChange("source_latitude", e.target.value)}
+                onPaste={handleCoordinatePaste("source_latitude", "source_longitude")}
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Longitude *</label>
-              <Input
-                type="number"
+                           <Input
+                type="text"
+                inputMode="decimal"
                 placeholder="Enter Longitude"
                 value={form.source_longitude}
                 onChange={(e) => handleChange("source_longitude", e.target.value)}
+                onPaste={handleCoordinatePaste("source_latitude", "source_longitude")}
               />
             </div>
           </div>
