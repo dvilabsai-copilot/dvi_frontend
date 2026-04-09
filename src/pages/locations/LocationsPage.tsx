@@ -11,6 +11,7 @@ import { locationsApi, LocationRow, TollRow } from "@/services/locations";
 import { useNavigate } from "react-router-dom";
 import { AddLocationDialog } from "./components/AddLocationDialog";
 import { EditLocationDialog } from "./components/EditLocationDialog";
+import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -48,10 +49,16 @@ function normalizeRow(raw: any): LocationRow {
       raw.destination_location_longitude ??
       "",
 
-    distance_km: Number(
-      raw.distance_km ?? raw.distance ?? 0
-    ),
-    duration_text: String(raw.duration_text ?? raw.duration ?? ""),
+        distance_km: Number(raw.distance_km ?? raw.distance ?? 0),
+    duration_text:
+      String(raw.duration_text ?? raw.duration ?? "").trim() ||
+      (
+        String(raw.source_location ?? "").trim().toLowerCase() ===
+          String(raw.destination_location ?? "").trim().toLowerCase() &&
+        Number(raw.distance_km ?? raw.distance ?? 0) === 0
+          ? "0 hours 0 mins"
+          : ""
+      ),
 
     location_description: raw.location_description ?? null,
   };
@@ -71,8 +78,9 @@ export default function LocationsPage() {
   const [search, setSearch] = useState("");
 
   // dialogs
-  const [addOpen, setAddOpen] = useState(false);
+   const [addOpen, setAddOpen] = useState(false);
   const [editRow, setEditRow] = useState<LocationRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<LocationRow | null>(null);
   const [renameInfo, setRenameInfo] = useState<{
     open: boolean;
     row: LocationRow | null;
@@ -127,13 +135,60 @@ export default function LocationsPage() {
   }, [rows, search]);
 
   // ---------- handlers ----------
+             function openModifyLocation() {
+    const rowToEdit = selectedRow ?? rows[0] ?? null;
+
+    if (!rowToEdit) {
+      toast.error("No location available to modify");
+      return;
+    }
+
+    setSelectedRow(rowToEdit);
+    setEditRow(rowToEdit);
+  }
+
+  function openRenameLocation() {
+    const rowToRename = selectedRow ?? rows[0] ?? null;
+
+    if (!rowToRename) {
+      toast.error("No location available to rename");
+      return;
+    }
+
+    setSelectedRow(rowToRename);
+    setRenameInfo({ open: true, row: rowToRename, scope: "source" });
+  }
+
+  function openDeleteLocationName() {
+    const rowToDelete = selectedRow ?? rows[0] ?? null;
+
+    if (!rowToDelete) {
+      toast.error("No location available to delete");
+      return;
+    }
+
+    setSelectedRow(rowToDelete);
+    setDeleteRow(rowToDelete);
+  }
+
+  async function openSelectedTolls() {
+    const rowForTolls = selectedRow ?? rows[0] ?? null;
+
+    if (!rowForTolls) {
+      toast.error("No location available for toll charges");
+      return;
+    }
+
+    setSelectedRow(rowForTolls);
+    await openTolls(rowForTolls);
+  }
   async function handleCreate(payload: Omit<LocationRow, "location_ID">) {
     await locationsApi.create(payload);
     toast.success("Location added");
     setAddOpen(false);
     setPage(1);
-    await loadList();
-  }
+    await Promise.all([loadList(), loadDropdowns()]);
+}
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
@@ -152,12 +207,28 @@ export default function LocationsPage() {
     await loadList();
   }
 
-  async function handleDelete() {
+    async function handleDelete() {
     if (!deleteRow) return;
-    await locationsApi.remove(deleteRow.location_ID);
-    toast.success("Location deleted");
+
+    const rowToDelete = deleteRow;
+    const deletedLabel = `${rowToDelete.source_location} → ${rowToDelete.destination_location}`;
+
+    await locationsApi.remove(rowToDelete.location_ID);
+
     setDeleteRow(null);
+    setSelectedRow(null);
     await loadList();
+
+    toast.success(`Deleted location: ${deletedLabel}`, {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          await locationsApi.restore(rowToDelete.location_ID);
+          toast.success(`Restored location: ${deletedLabel}`);
+          await loadList();
+        },
+      },
+    });
   }
 
   async function openTolls(row: LocationRow) {
@@ -178,34 +249,59 @@ export default function LocationsPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of Locations</h1>
-        <div className="flex gap-2">
-          <Button onClick={() => setAddOpen(true)}><Plus className="mr-2 h-4 w-4" />Add Locations</Button>
-          <Button variant="outline" onClick={() => rows[0] && setRenameInfo({ open: true, row: rows[0], scope: "source" })}>Modify Location Name</Button>
-          <Button variant="outline" onClick={() => rows[0] && setDeleteRow(rows[0])}>Delete Location Name</Button>
-          <Button variant="outline" onClick={() => rows[0] && openTolls(rows[0])}><IndianRupee className="mr-2 h-4 w-4" />Toll Charges</Button>
+                      <div className="flex gap-2">
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Locations
+          </Button>
+
+          <Button variant="outline" onClick={openModifyLocation}>
+            Modify Location
+          </Button>
+
+          <Button variant="outline" onClick={openRenameLocation}>
+            Update Location Name
+          </Button>
+
+          <Button variant="outline" onClick={openDeleteLocationName}>
+            Delete Location Name
+          </Button>
+
+          <Button variant="outline" onClick={openSelectedTolls}>
+            <IndianRupee className="mr-2 h-4 w-4" />
+            Toll Charges
+          </Button>
         </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+                   <div>
             <div className="text-xs mb-1">Source Location *</div>
-            <Select value={source} onValueChange={(v) => { setSource(v); setPage(1); }}>
-              <SelectTrigger><SelectValue placeholder="Select source" /></SelectTrigger>
-              <SelectContent>
-                {sources.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <LocationAutosuggestInput
+              placeholder="Type source location"
+              value={source}
+              onValueChange={(value) => {
+                setSource(value);
+                setDestination("");
+                setPage(1);
+              }}
+              search={locationsApi.searchSources}
+            />
           </div>
+
           <div>
             <div className="text-xs mb-1">Destination Location *</div>
-            <Select value={destination} onValueChange={(v) => { setDestination(v); setPage(1); }}>
-              <SelectTrigger><SelectValue placeholder="Select destination" /></SelectTrigger>
-              <SelectContent>
-                {destinations.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <LocationAutosuggestInput
+              placeholder="Type destination location"
+              value={destination}
+              onValueChange={(value) => {
+                setDestination(value);
+                setPage(1);
+              }}
+              search={(phrase) => locationsApi.searchDestinations(phrase, source)}
+            />
           </div>
           <div className="flex items-end gap-2">
             <Button
@@ -247,14 +343,52 @@ export default function LocationsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map((r, idx) => (
-              <TableRow key={r.location_ID}>
+                        {filtered.map((r, idx) => (
+              <TableRow
+                key={r.location_ID}
+                onClick={() => setSelectedRow(r)}
+                className={selectedRow?.location_ID === r.location_ID ? "bg-muted/50" : "cursor-pointer"}
+              >
                 <TableCell>{(page - 1) * pageSize + idx + 1}</TableCell>
                 <TableCell>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => navigate(`/locations/${r.location_ID}/preview`)}><Eye className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}><Pencil className="h-4 w-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => setDeleteRow(r)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/locations/${r.location_ID}/preview`);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+
+                         {renameInfo.open && renameInfo.row && (
+        <SimpleRenameDialog
+          open
+          title="Update Location Name"
+          currentName={
+            renameInfo.scope === "source"
+              ? renameInfo.row.source_location
+              : renameInfo.row.destination_location
+          }
+          onClose={() =>
+            setRenameInfo({ open: false, row: null, scope: "source" })
+          }
+          onSubmit={handleRename}
+        />
+      )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRow(r);
+                        setDeleteRow(r);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
                   </div>
                 </TableCell>
                 <TableCell>{r.source_location}</TableCell>
@@ -294,9 +428,9 @@ export default function LocationsPage() {
 
       {/* Modify Name */}
       {renameInfo.open && renameInfo.row && (
-        <SimpleRenameDialog
+               <SimpleRenameDialog
           open
-          title={`Modify ${renameInfo.scope === "source" ? "Source" : "Destination"} Name`}
+          title="Update Location Name"
           currentName={renameInfo.scope === "source" ? renameInfo.row.source_location : renameInfo.row.destination_location}
           onClose={() => setRenameInfo({ open: false, row: null, scope: "source" })}
           onSubmit={handleRename}
@@ -304,11 +438,13 @@ export default function LocationsPage() {
       )}
 
       {/* Delete confirm */}
-      {deleteRow && (
+            {deleteRow && (
         <SimpleConfirmDialog
           open
           title="Delete Location"
-          message="Do you really want to delete this record? This process cannot be undone."
+          locationLabel={`${deleteRow.source_location} → ${deleteRow.destination_location}`}
+          message="Do you really want to delete this location record?"
+          warning="You can undo this immediately after deletion."
           onClose={() => setDeleteRow(null)}
           onConfirm={handleDelete}
         />
@@ -330,16 +466,45 @@ export default function LocationsPage() {
 }
 
 // ---------- Dialogs ----------
-function SimpleConfirmDialog(props: { open: boolean; title: string; message: string; onConfirm: () => void; onClose: () => void }) {
-  const { open, title, message, onConfirm, onClose } = props;
+function SimpleConfirmDialog(props: {
+  open: boolean;
+  title: string;
+  locationLabel: string;
+  message: string;
+  warning?: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { open, title, locationLabel, message, warning, onConfirm, onClose } = props;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="text-sm">{message}</div>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="text-sm">{message}</div>
+
+          <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
+            {locationLabel}
+          </div>
+
+          {warning ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              {warning}
+            </div>
+          ) : null}
+        </div>
+
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Delete
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
