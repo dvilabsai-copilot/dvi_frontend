@@ -34,6 +34,7 @@ import VendorsPage from "./pages/vendor/VendorsPage";
 import VendorFormPage from "./pages/vendor/VendorFormPage";
 import DriversPage from "./pages/drivers/DriversPage";
 import DriverFormPage from "./pages/drivers/DriverFormPage";
+import DriverViewPage from "./pages/drivers/DriverViewPage";
 import VehicleAvailabilityPage from "./pages/vehicle-availability/VehicleAvailabilityPage";
 import { ItineraryDetailsRouter } from "./pages/ItineraryDetailsRouter";
 import HotspotList from "./pages/hotspot/HotspotList";
@@ -58,6 +59,7 @@ import AgentFormPage from "./pages/agent/AgentFormPage";
 import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
+import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -104,21 +106,6 @@ const RequireAuth = () => {
   return <Outlet />;
 };
 
-/**
- * TEMP placeholder only for /drivers/:id view route
- */
-const DriverViewPage = () => {
-  const { id } = useParams();
-  return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold text-slate-800">View Driver</h1>
-      <p className="text-sm text-slate-500 mt-2">
-        Placeholder page for driver ID: <span className="font-medium">{id}</span>
-      </p>
-    </div>
-  );
-};
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -127,7 +114,12 @@ const App = () => (
       <Toaster />
       <Sonner />
 
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <DynamicMeta />
 
         <Routes>
@@ -320,7 +312,23 @@ const App = () => (
               }
             />
             <Route
+              path="/driver"
+              element={
+                <MainLayout>
+                  <DriversPage />
+                </MainLayout>
+              }
+            />
+            <Route
               path="/drivers/new"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/driver/new"
               element={
                 <MainLayout>
                   <DriverFormPage />
@@ -336,6 +344,14 @@ const App = () => (
               }
             />
             <Route
+              path="/driver/create"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
               path="/drivers/:id/edit"
               element={
                 <MainLayout>
@@ -344,7 +360,23 @@ const App = () => (
               }
             />
             <Route
+              path="/driver/:id/edit"
+              element={
+                <MainLayout>
+                  <DriverFormPage />
+                </MainLayout>
+              }
+            />
+            <Route
               path="/drivers/:id"
+              element={
+                <MainLayout>
+                  <DriverViewPage />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/driver/:id"
               element={
                 <MainLayout>
                   <DriverViewPage />
@@ -456,6 +488,8 @@ const App = () => (
               }
             />
 
+            <Route path="/wallet" element={<MainLayout><WalletHistory /></MainLayout>} />
+            <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
             {/* Staff */}
             <Route
               path="/staff"
@@ -528,6 +562,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <WalletHistory />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/subscription-history"
+              element={
+                <MainLayout>
+                  <SubscriptionHistory />
                 </MainLayout>
               }
             />

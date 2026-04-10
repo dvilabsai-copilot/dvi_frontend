@@ -73,6 +73,31 @@ const formatCurrencyINR = (value: number | string | undefined | null) => {
 
 const safe = (v?: string | null) => v || "";
 
+const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
+  if (!vehicles.length) return null;
+
+  const assigned = vehicles.find((v) => Boolean(v.isAssigned) && Number(v.vendorEligibleId || 0) > 0);
+  if (assigned?.vendorEligibleId) {
+    return assigned.vendorEligibleId;
+  }
+
+  const cheapest = vehicles.reduce((prev, curr) => {
+    const prevAmount =
+      typeof prev.totalAmount === "number"
+        ? prev.totalAmount
+        : parseFloat(String(prev.totalAmount || "0")) || 0;
+
+    const currAmount =
+      typeof curr.totalAmount === "number"
+        ? curr.totalAmount
+        : parseFloat(String(curr.totalAmount || "0")) || 0;
+
+    return currAmount < prevAmount ? curr : prev;
+  });
+
+  return cheapest.vendorEligibleId ?? null;
+};
+
 export type VehicleListProps = {
   vehicleTypeLabel: string;
   vehicles: ItineraryVehicleRow[];
@@ -92,11 +117,9 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [expandedVendorIndex, setExpandedVendorIndex] = useState<number | null>(null);
-  const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(() => {
-    // Find the first assigned vendor by ID, not index
-    const assignedVendor = vehicles.find(v => v.isAssigned);
-    return assignedVendor?.vendorEligibleId ?? null;
-  });
+ const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(() => {
+    return getPreferredVendorEligibleId(vehicles);
+});
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVendorSelection, setPendingVendorSelection] = useState<{
     index: number;
@@ -108,16 +131,14 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
   // Sync selected vendor when assigned vendor changes (from API refresh)
   // Only sync if the assigned vendor ID is different from current selection
-  useEffect(() => {
-    const assignedVendor = vehicles.find(v => v.isAssigned);
-    const assignedId = assignedVendor?.vendorEligibleId ?? null;
-    
-    // Only update if there's an assigned vendor and it's different from current selection
-    if (assignedId && assignedId !== selectedVendorEligibleId) {
-      console.log(`[${vehicleTypeLabel}] Assigned vendor changed to:`, assignedVendor?.vendorName, assignedId);
-      setSelectedVendorEligibleId(assignedId);
-    }
-  }, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
+ useEffect(() => {
+  const preferredId = getPreferredVendorEligibleId(vehicles);
+
+  if (preferredId && preferredId !== selectedVendorEligibleId) {
+    console.log(`[${vehicleTypeLabel}] Preferred vendor changed to:`, preferredId);
+    setSelectedVendorEligibleId(preferredId);
+  }
+}, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
 
 
 
@@ -185,6 +206,20 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     setCarouselIndex((prev) => (prev === vehicles.length - 1 ? 0 : prev + 1));
   };
 
+
+  const sortedVehicles = [...vehicles].sort((a, b) => {
+  const aAmount =
+    typeof a.totalAmount === "number"
+      ? a.totalAmount
+      : parseFloat(String(a.totalAmount || "0")) || 0;
+
+  const bAmount =
+    typeof b.totalAmount === "number"
+      ? b.totalAmount
+      : parseFloat(String(b.totalAmount || "0")) || 0;
+
+  return aAmount - bAmount;
+});
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
       <div className="flex items-center justify-between mb-4">
@@ -211,7 +246,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             </tr>
           </thead>
           <tbody>
-            {vehicles.map((v, index) => {
+            {sortedVehicles.map((v, index) => {
               const radioId = `vehicle_${index}`;
               const qty = parseInt(v.totalQty || "0", 10) || 0;
               const totalAmtNum =

@@ -15,6 +15,8 @@ type ApiCtx = {
   token?: () => string;
 };
 
+const uiErrorMessage = (_err: any, fallback: string) => fallback;
+
 function normalizeCell(v: any) {
   if (v === null || v === undefined) return "";
   return String(v);
@@ -114,10 +116,11 @@ export default function ReviewStep({
     handleSubmit,
     reset,
     setValue,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = useForm<ReviewForm>({
     defaultValues: { hotel_rating: "", review_description: "" },
   });
+  const [formError, setFormError] = useState<string>("");
 
   const { data: reviewsRaw = [], refetch, isFetching } = useQuery({
     queryKey: ["hotel-reviews", hotelId],
@@ -134,6 +137,12 @@ export default function ReviewStep({
 
   // === EDIT/DELETE state ===
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const stars = (rating: string) => {
+    const n = Number(rating);
+    if (!Number.isFinite(n) || n <= 0) return "-";
+    return "★".repeat(Math.max(1, Math.min(5, Math.trunc(n))));
+  };
 
   const saveMut = useMutation({
     mutationFn: async (data: ReviewForm) => {
@@ -184,10 +193,12 @@ export default function ReviewStep({
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hotel-reviews", hotelId] });
       reset({ hotel_rating: "", review_description: "" });
+      setFormError("");
       setEditingId(null);
       refetch();
     },
-    onError: (e: any) => alert(`Failed: ${e?.message || "Unknown error"}`),
+    onError: (e: any) =>
+      setFormError(uiErrorMessage(e, "Unable to save review. Please try again.")),
   });
 
   const deleteMut = useMutation({
@@ -210,12 +221,17 @@ export default function ReviewStep({
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["hotel-reviews", hotelId] });
+      setFormError("");
       refetch();
     },
-    onError: (e: any) => alert(`Delete failed: ${e?.message || "Unknown error"}`),
+    onError: (e: any) =>
+      setFormError(uiErrorMessage(e, "Delete failed. Please try again.")),
   });
 
-  const onSubmit = (data: ReviewForm) => saveMut.mutate(data);
+  const onSubmit = (data: ReviewForm) => {
+    setFormError("");
+    saveMut.mutate(data);
+  };
   const ratingOptions = [5, 4, 3, 2, 1];
 
   /** ===== Table UX (client-side like screenshot) ===== */
@@ -338,7 +354,7 @@ export default function ReviewStep({
               <select
                 id="hotel_rating"
                 className="rv-select"
-                {...register("hotel_rating", { required: true })}
+                {...register("hotel_rating", { required: "Rating is required" })}
               >
                 <option value="">Select Rating</option>
                 {ratingOptions.map((r) => (
@@ -347,6 +363,9 @@ export default function ReviewStep({
                   </option>
                 ))}
               </select>
+              {errors.hotel_rating && (
+                <div className="rv-error">{String(errors.hotel_rating.message)}</div>
+              )}
               <div className="rv-help">All reviews are from genuine customers</div>
             </div>
 
@@ -358,9 +377,18 @@ export default function ReviewStep({
                 id="review_description"
                 rows={6}
                 className="rv-textarea"
-                {...register("review_description", { required: true })}
+                {...register("review_description", {
+                  required: "Review Description Required",
+                })}
               />
+              {errors.review_description && (
+                <div className="rv-error">
+                  {String(errors.review_description.message)}
+                </div>
+              )}
             </div>
+
+            {formError && <div className="rv-error">{formError}</div>}
 
             <div className="rv-form-actions">
               <button
@@ -372,7 +400,7 @@ export default function ReviewStep({
                   setEditingId(null);
                 }}
               >
-                {editingId == null ? "Cancel" : "Cancel Edit"}
+                Cancel
               </button>
 
               <button
@@ -511,7 +539,7 @@ export default function ReviewStep({
                   visible.map((r, i) => (
                     <tr key={`${r.reviewId}-${i}`}>
                       <td>{start + i + 1}</td>
-                      <td>{r.rating ? `${r.rating} ★` : "-"}</td>
+                      <td>{stars(r.rating)}</td>
                       <td>{r.description}</td>
                       <td>{r.createdOn}</td>
                       <td>
@@ -612,6 +640,7 @@ export default function ReviewStep({
         .rv-select:focus, .rv-textarea:focus, .rv-input:focus{ box-shadow: 0 0 0 3px rgba(139,92,246,.14); border-color:#d5c7ff; }
         .rv-textarea{ resize: vertical; }
         .rv-help{ font-size:12px; color:var(--rv-muted); }
+        .rv-error{ font-size:12px; color:#dc2626; }
 
         .rv-form-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
         .rv-btn{ display:inline-flex; align-items:center; gap:.45rem; border-radius: 10px; padding: .55rem 1rem; font-weight:600; border: 1px solid transparent; cursor:pointer; transition: all .15s ease-in-out; }

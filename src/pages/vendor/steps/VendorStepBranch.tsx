@@ -1,7 +1,7 @@
 // FILE: src/pages/vendor/steps/VendorStepBranch.tsx
 // REPLACE-WHOLE-FILE
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { BranchForm, Option } from "../vendorFormTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,8 @@ type Props = {
   gstTypeOptions: Option[];
   gstPercentOptions: Option[];
   saving: boolean;
+  fieldErrors?: Record<number, Partial<Record<keyof BranchForm, string>>>;
+  onClearFieldError?: (index: number, field: keyof BranchForm) => void;
   onBack: () => void;
   onSaveAndNext: () => void;
   onDeleteBranch: (index: number) => void;
@@ -40,10 +42,14 @@ export const VendorStepBranch: React.FC<Props> = ({
   gstTypeOptions,
   gstPercentOptions,
   saving,
+  fieldErrors = {},
+  onClearFieldError,
   onBack,
   onSaveAndNext,
   onDeleteBranch,
 }) => {
+  const inputErrorClass = "border-red-400 focus-visible:ring-red-300";
+
   const [dropdowns, setDropdowns] = useState<Record<number, BranchDropdownState>>(
     {}
   );
@@ -64,7 +70,7 @@ export const VendorStepBranch: React.FC<Props> = ({
       const states = await api(`/dropdowns/states?countryId=${countryId}`);
       const options: Option[] = (states || []).map((s: any) => ({
         id: String(s.id ?? s.state_id),
-        label: s.name ?? s.state_name,
+        label: s.label ?? s.name ?? s.state_name ?? "",
       }));
       setDropdowns((prev) => ({
         ...prev,
@@ -82,7 +88,7 @@ export const VendorStepBranch: React.FC<Props> = ({
       const cities = await api(`/dropdowns/cities?stateId=${stateId}`);
       const options: Option[] = (cities || []).map((c: any) => ({
         id: String(c.id ?? c.city_id),
-        label: c.name ?? c.city_name,
+        label: c.label ?? c.name ?? c.city_name ?? "",
       }));
       setDropdowns((prev) => ({
         ...prev,
@@ -100,6 +106,17 @@ export const VendorStepBranch: React.FC<Props> = ({
       return copy;
     });
   };
+
+  useEffect(() => {
+    branches.forEach((b, index) => {
+      if (b.countryId && !(dropdowns[index]?.states?.length)) {
+        void loadStates(index, b.countryId);
+      }
+      if (b.stateId && !(dropdowns[index]?.cities?.length)) {
+        void loadCities(index, b.stateId);
+      }
+    });
+  }, [branches]);
 
   return (
     <Card>
@@ -133,6 +150,7 @@ export const VendorStepBranch: React.FC<Props> = ({
       <CardContent className="space-y-6">
         {branches.map((b, idx) => {
           const dd = dropdowns[idx] || { states: [], cities: [] };
+          const e = fieldErrors[idx] || {};
           return (
             <div
               key={idx}
@@ -156,42 +174,54 @@ export const VendorStepBranch: React.FC<Props> = ({
                 <div>
                   <Label>Branch Name *</Label>
                   <Input
+                    className={e.name ? inputErrorClass : ""}
                     value={b.name}
-                    onChange={(e) =>
-                      updateBranch(idx, { name: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { name: event.target.value });
+                      onClearFieldError?.(idx, "name");
+                    }}
                     placeholder="Branch Name"
                   />
+                  {e.name ? <p className="text-xs text-red-600">{e.name}</p> : null}
                 </div>
                 <div>
                   <Label>Branch Location *</Label>
                   <Input
+                    className={e.location ? inputErrorClass : ""}
                     value={b.location}
-                    onChange={(e) =>
-                      updateBranch(idx, { location: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { location: event.target.value });
+                      onClearFieldError?.(idx, "location");
+                    }}
                     placeholder="Branch Location"
                   />
+                  {e.location ? <p className="text-xs text-red-600">{e.location}</p> : null}
                 </div>
                 <div>
                   <Label>Email ID *</Label>
                   <Input
+                    className={e.email ? inputErrorClass : ""}
                     value={b.email}
-                    onChange={(e) =>
-                      updateBranch(idx, { email: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { email: event.target.value });
+                      onClearFieldError?.(idx, "email");
+                    }}
                     placeholder="Email ID"
                   />
+                  {e.email ? <p className="text-xs text-red-600">{e.email}</p> : null}
                 </div>
                 <div>
                   <Label>Primary Mobile Number *</Label>
                   <Input
+                    className={e.primaryMobile ? inputErrorClass : ""}
                     value={b.primaryMobile}
-                    onChange={(e) =>
-                      updateBranch(idx, { primaryMobile: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { primaryMobile: event.target.value });
+                      onClearFieldError?.(idx, "primaryMobile");
+                    }}
                     placeholder="Primary Mobile Number"
                   />
+                  {e.primaryMobile ? <p className="text-xs text-red-600">{e.primaryMobile}</p> : null}
                 </div>
               </div>
 
@@ -199,12 +229,15 @@ export const VendorStepBranch: React.FC<Props> = ({
                 <div>
                   <Label>Alternative Mobile Number *</Label>
                   <Input
+                    className={e.altMobile ? inputErrorClass : ""}
                     value={b.altMobile}
-                    onChange={(e) =>
-                      updateBranch(idx, { altMobile: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { altMobile: event.target.value });
+                      onClearFieldError?.(idx, "altMobile");
+                    }}
                     placeholder="Alternative Mobile Number"
                   />
+                  {e.altMobile ? <p className="text-xs text-red-600">{e.altMobile}</p> : null}
                 </div>
                 <div>
                   <Label>Country *</Label>
@@ -217,9 +250,10 @@ export const VendorStepBranch: React.FC<Props> = ({
                         cityId: "",
                       });
                       loadStates(idx, val);
+                      onClearFieldError?.(idx, "countryId");
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={e.countryId ? inputErrorClass : ""}>
                       <SelectValue placeholder="Choose Country" />
                     </SelectTrigger>
                     <SelectContent>
@@ -230,6 +264,7 @@ export const VendorStepBranch: React.FC<Props> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {e.countryId ? <p className="text-xs text-red-600">{e.countryId}</p> : null}
                 </div>
                 <div>
                   <Label>State *</Label>
@@ -238,9 +273,10 @@ export const VendorStepBranch: React.FC<Props> = ({
                     onValueChange={(val) => {
                       updateBranch(idx, { stateId: val, cityId: "" });
                       loadCities(idx, val);
+                      onClearFieldError?.(idx, "stateId");
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={e.stateId ? inputErrorClass : ""}>
                       <SelectValue placeholder="Choose State" />
                     </SelectTrigger>
                     <SelectContent>
@@ -251,16 +287,18 @@ export const VendorStepBranch: React.FC<Props> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {e.stateId ? <p className="text-xs text-red-600">{e.stateId}</p> : null}
                 </div>
                 <div>
                   <Label>City *</Label>
                   <Select
                     value={b.cityId}
-                    onValueChange={(val) =>
-                      updateBranch(idx, { cityId: val })
-                    }
+                    onValueChange={(val) => {
+                      updateBranch(idx, { cityId: val });
+                      onClearFieldError?.(idx, "cityId");
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={e.cityId ? inputErrorClass : ""}>
                       <SelectValue placeholder="Choose City" />
                     </SelectTrigger>
                     <SelectContent>
@@ -271,6 +309,7 @@ export const VendorStepBranch: React.FC<Props> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {e.cityId ? <p className="text-xs text-red-600">{e.cityId}</p> : null}
                 </div>
               </div>
 
@@ -278,22 +317,26 @@ export const VendorStepBranch: React.FC<Props> = ({
                 <div>
                   <Label>Pincode *</Label>
                   <Input
+                    className={e.pincode ? inputErrorClass : ""}
                     value={b.pincode}
-                    onChange={(e) =>
-                      updateBranch(idx, { pincode: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { pincode: event.target.value });
+                      onClearFieldError?.(idx, "pincode");
+                    }}
                     placeholder="Pincode"
                   />
+                  {e.pincode ? <p className="text-xs text-red-600">{e.pincode}</p> : null}
                 </div>
                 <div>
                   <Label>GST Type *</Label>
                   <Select
                     value={b.gstType}
-                    onValueChange={(val) =>
-                      updateBranch(idx, { gstType: val })
-                    }
+                    onValueChange={(val) => {
+                      updateBranch(idx, { gstType: val });
+                      onClearFieldError?.(idx, "gstType");
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={e.gstType ? inputErrorClass : ""}>
                       <SelectValue placeholder="Included / Excluded" />
                     </SelectTrigger>
                     <SelectContent>
@@ -304,16 +347,18 @@ export const VendorStepBranch: React.FC<Props> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {e.gstType ? <p className="text-xs text-red-600">{e.gstType}</p> : null}
                 </div>
                 <div>
                   <Label>GST% *</Label>
                   <Select
                     value={b.gstPercent}
-                    onValueChange={(val) =>
-                      updateBranch(idx, { gstPercent: val })
-                    }
+                    onValueChange={(val) => {
+                      updateBranch(idx, { gstPercent: val });
+                      onClearFieldError?.(idx, "gstPercent");
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={e.gstPercent ? inputErrorClass : ""}>
                       <SelectValue placeholder="GST%" />
                     </SelectTrigger>
                     <SelectContent>
@@ -324,16 +369,20 @@ export const VendorStepBranch: React.FC<Props> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  {e.gstPercent ? <p className="text-xs text-red-600">{e.gstPercent}</p> : null}
                 </div>
                 <div>
                   <Label>Address *</Label>
                   <Input
+                    className={e.address ? inputErrorClass : ""}
                     value={b.address}
-                    onChange={(e) =>
-                      updateBranch(idx, { address: e.target.value })
-                    }
+                    onChange={(event) => {
+                      updateBranch(idx, { address: event.target.value });
+                      onClearFieldError?.(idx, "address");
+                    }}
                     placeholder="Address"
                   />
+                  {e.address ? <p className="text-xs text-red-600">{e.address}</p> : null}
                 </div>
               </div>
             </div>

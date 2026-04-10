@@ -40,6 +40,7 @@ type FormGetResponse = {
     hotspot_foreign_infant_entry_cost?: number | null;
     hotspot_rating?: number | null;
     hotspot_video_url?: string | null;
+    hotspot_duration?: string | null;
     hotspot_latitude?: string | null;
     hotspot_longitude?: string | null;
     hotspot_location_list?: string[];
@@ -105,6 +106,7 @@ export type HotspotFormData = {
 export type ParkingUploadResponse = {
   sessionId: string;
   stagedCount: number;
+  rejectedCount?: number;
 };
 export type ParkingTempRow = {
   id: number;
@@ -112,6 +114,8 @@ export type ParkingTempRow = {
   hotspot_location: string;
   vehicle_type_title: string;
   parking_charge: number;
+  row_status?: "staged" | "imported" | "rejected";
+  reason?: string;
 };
 export type ParkingTempListResponse = {
   sessionId: string;
@@ -129,6 +133,13 @@ function imgFromHtml(html: string): string {
   const m = /<img[^>]*src=["']([^"']+)["']/i.exec(html || "");
   return m?.[1] ?? "";
 }
+
+function toAbsoluteFileUrl(url: string): string {
+  const u = (url || "").trim();
+  if (!u) return "";
+  if (/^https?:\/\//i.test(u)) return u;
+  return `${FILE_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
+}
 function brToArray(s: string | null): string[] {
   return (s || "")
     .split(/<br\s*\/?>/i)
@@ -139,6 +150,16 @@ function fileNameFromUrl(u: string): string {
   const p = (u || "").split("?")[0]; // strip query if any
   const seg = p.split("/");
   return seg[seg.length - 1] || "";
+}
+
+function normalizeDurationHHmm(v: string | null | undefined): string | null {
+  const s = (v || "").trim();
+  if (!s) return null;
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(s);
+  if (!m) return null;
+  const hh = String(Math.max(0, Math.min(23, Number(m[1])))).padStart(2, "0");
+  const mm = String(Math.max(0, Math.min(59, Number(m[2])))).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 function buildGalleryPayload(form: Partial<HotspotFormData>) {
   // Prefer advanced mode if provided (preserves ids/deletes on edit)
@@ -180,7 +201,7 @@ export const hotspotService = {
     const rows: ListRow[] = json.data ?? [];
     return rows.map((r) => ({
       id: String(r.modify),
-      imageUrl: imgFromHtml(r.hotspot_photo_url),
+      imageUrl: toAbsoluteFileUrl(imgFromHtml(r.hotspot_photo_url)),
       name: r.hotspot_name ?? "",
       priority: Number(r.hotspot_priority ?? 0),
       places: brToArray(r.hotspot_locations),
@@ -285,6 +306,7 @@ export const hotspotService = {
       hotspot_foreign_infant_entry_cost: form.foreignInfantCost ?? null,
       hotspot_rating: form.rating ?? null,
       hotspot_video_url: form.videoUrl ?? null,
+      hotspot_duration: normalizeDurationHHmm(form.duration ?? "01:00") ?? "01:00",
       hotspot_latitude: lat,
       hotspot_longitude: lng,
       hotspot_location_list: form.locations ?? [],

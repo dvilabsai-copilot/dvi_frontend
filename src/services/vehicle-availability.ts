@@ -56,7 +56,8 @@ export type VehicleAvailabilityQuery = {
 
   // UI filters (backend must support if you want server-side filtering)
   agentId?: number;
-  locationId?: number;
+  locationLabel?: string;
+  locationId?: string; // backward compatibility alias
 };
 
 function buildQueryString(params: Record<string, string | number | undefined | null>) {
@@ -126,10 +127,23 @@ export async function fetchVehiclesForAssign(
 // Drivers for Assign modal (by vendor [+ vendor_vehicle_type_ID])
 export async function fetchDriversForAssign(
   vendorId: number,
-  vendorVehicleTypeId?: number
+  vendorVehicleTypeId?: number,
+  itineraryPlanId?: number,
 ): Promise<SimpleOption[]> {
   return api(
-    `/vehicle-availability/drivers-for-assign${buildQueryString({ vendorId, vendorVehicleTypeId })}`,
+    `/vehicle-availability/drivers-for-assign${buildQueryString({ vendorId, vendorVehicleTypeId, itineraryPlanId })}`,
+    { auth: true },
+  );
+}
+
+export async function checkVehicleDuplication(params: {
+  type: "registration_number" | "engine_number" | "chassis_number" | "insurance_policy_number";
+  value: string;
+  vendorId: number;
+  oldValue?: string;
+}): Promise<{ success: boolean }> {
+  return api(
+    `/vehicle-availability/check-vehicle-duplication${buildQueryString(params)}`,
     { auth: true },
   );
 }

@@ -151,6 +151,10 @@ const VendorsPage: React.FC = () => {
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [togglingIds, setTogglingIds] = useState<Record<string, boolean>>({});
+  const [deleteTarget, setDeleteTarget] = useState<VendorRow | null>(null);
+  const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // ===== Fetch vendor list once =====
     useEffect(() => {
@@ -305,22 +309,53 @@ const VendorsPage: React.FC = () => {
 
   // Delete a vendor with confirmation, then update UI
   const handleDeleteVendor = async (row: VendorRow) => {
-    const ok = window.confirm(
-      `Are you sure you want to delete vendor "${row.name}"?`
-    );
-    if (!ok) return;
+    setDeleteTarget(row);
+    setDeleteError(null);
+  };
+
+  const handleConfirmDeleteVendor = async () => {
+    if (!deleteTarget) return;
+
+    setDeletingVendorId(deleteTarget.backendId);
+    setDeleteError(null);
 
     try {
-      // Assumes your NestJS controller exposes DELETE /vendors/:id
-      await api(`/vendors/${row.backendId}`, { method: "DELETE" });
+      await api(`/vendors/${deleteTarget.backendId}`, { method: "DELETE" });
 
-      // Remove from current list
-      setRows((prev) => prev.filter((r) => r.backendId !== row.backendId));
+      setRows((prev) => prev.filter((r) => r.backendId !== deleteTarget.backendId));
+      setDeleteTarget(null);
     } catch (err: any) {
       console.error("Failed to delete vendor", err);
-      alert(
-        err?.message || "Failed to delete vendor. Please try again later."
+      setDeleteError(err?.message || "Failed to delete vendor. Please try again later.");
+    } finally {
+      setDeletingVendorId(null);
+    }
+  };
+
+  const handleToggleVendorStatus = async (row: VendorRow) => {
+    const oldStatus = row.isActive ? 1 : 0;
+    setTogglingIds((prev) => ({ ...prev, [row.backendId]: true }));
+    try {
+      const res = (await api(`/vendors/${row.backendId}/status-toggle`, {
+        method: "POST",
+        body: JSON.stringify({ oldstatus: oldStatus }),
+      })) as { success?: boolean; status?: number };
+
+      const nextActive = res?.status != null ? Number(res.status) === 1 : !row.isActive;
+      setRows((prev) =>
+        prev.map((r) =>
+          r.backendId === row.backendId ? { ...r, isActive: nextActive } : r
+        )
       );
+    } catch (err: any) {
+      console.error("Failed to toggle vendor status", err);
+      alert(err?.message || "Failed to update vendor status.");
+    } finally {
+      setTogglingIds((prev) => {
+        const copy = { ...prev };
+        delete copy[row.backendId];
+        return copy;
+      });
     }
   };
 
@@ -521,6 +556,8 @@ const VendorsPage: React.FC = () => {
                         }`}
                         title={row.isActive ? "Active" : "Inactive"}
                         type="button"
+                        onClick={() => handleToggleVendorStatus(row)}
+                        disabled={Boolean(togglingIds[row.backendId])}
                       >
                         <span className="hotel-toggle-knob" />
                       </button>
@@ -901,7 +938,123 @@ const VendorsPage: React.FC = () => {
           font-size:.7rem;
           color:#9ca3af;
         }
+
+        .vendor-delete-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(17, 24, 39, 0.35);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 60;
+          padding: 1rem;
+        }
+        .vendor-delete-modal {
+          width: min(92vw, 520px);
+          background: #fff;
+          border-radius: .6rem;
+          box-shadow: 0 22px 60px rgba(0,0,0,.25);
+          border: 1px solid #e5e7eb;
+          padding: 2rem 1.6rem 1.4rem;
+          text-align: center;
+        }
+        .vendor-delete-icon {
+          margin: 0 auto .7rem;
+          color: #6b7280;
+        }
+        .vendor-delete-title {
+          margin: 0;
+          font-size: 1.6rem;
+          color: #4b5563;
+          font-weight: 500;
+        }
+        .vendor-delete-desc {
+          margin: .8rem auto 0;
+          line-height: 1.4;
+          color: #6b7280;
+          font-size: 1.02rem;
+          max-width: 430px;
+        }
+        .vendor-delete-error {
+          margin-top: .85rem;
+          border: 1px solid #fecaca;
+          background: #fef2f2;
+          color: #b91c1c;
+          border-radius: .5rem;
+          padding: .55rem .7rem;
+          font-size: .85rem;
+        }
+        .vendor-delete-actions {
+          margin-top: 1.15rem;
+          display: flex;
+          justify-content: center;
+          gap: .45rem;
+        }
+        .vendor-delete-close,
+        .vendor-delete-confirm {
+          border: none;
+          border-radius: .45rem;
+          min-width: 72px;
+          height: 34px;
+          font-size: .95rem;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .vendor-delete-close {
+          background: #9ca3af;
+          color: #fff;
+        }
+        .vendor-delete-confirm {
+          background: #ef4444;
+          color: #fff;
+        }
+        .vendor-delete-close:disabled,
+        .vendor-delete-confirm:disabled {
+          opacity: .65;
+          cursor: not-allowed;
+        }
       `}</style>
+
+      {deleteTarget ? (
+        <div className="vendor-delete-overlay" role="dialog" aria-modal="true" aria-label="Delete Vendor Confirmation">
+          <div className="vendor-delete-modal">
+            <Trash2 className="vendor-delete-icon" size={40} />
+            <p className="vendor-delete-title">Are you sure?</p>
+            <p className="vendor-delete-desc">
+              Do you really want to delete this record?
+              <br />
+              This process cannot be undone.
+              <br />
+              This process includes deletion of Branch, Permits, drivers, Users and price against the Vendor.
+            </p>
+
+            {deleteError ? <div className="vendor-delete-error">{deleteError}</div> : null}
+
+            <div className="vendor-delete-actions">
+              <button
+                type="button"
+                className="vendor-delete-close"
+                onClick={() => {
+                  if (deletingVendorId) return;
+                  setDeleteTarget(null);
+                  setDeleteError(null);
+                }}
+                disabled={Boolean(deletingVendorId)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="vendor-delete-confirm"
+                onClick={handleConfirmDeleteVendor}
+                disabled={Boolean(deletingVendorId)}
+              >
+                {deletingVendorId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

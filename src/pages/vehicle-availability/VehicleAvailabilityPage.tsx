@@ -1,10 +1,13 @@
 // REPLACE-WHOLE-FILE: src/pages/VehicleAvailability/VehicleAvailabilityPage.tsx
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Filter } from "lucide-react";
+import { Pencil } from "lucide-react";
 import {
+  assignVehicle,
   fetchAgents,
+  fetchDriversForAssign,
   fetchVehicleAvailability,
+  fetchVehiclesForAssign,
   fetchVehicleTypes,
   fetchVendors,
   fetchLocations,
@@ -33,6 +36,11 @@ function defaultMonthRange() {
   return { dateFrom: toYmd(first), dateTo: toYmd(last) };
 }
 
+function includeOptionIfMissing(options: SimpleOption[], id: number, fallbackLabel: string): SimpleOption[] {
+  if (options.some((o) => Number(o.id) === Number(id))) return options;
+  return [{ id, label: fallbackLabel }, ...options];
+}
+
 type SelectedCell = { row: VehicleAvailabilityRow; cell: VehicleAvailabilityCell } | null;
 
 export default function VehicleAvailabilityPage() {
@@ -40,7 +48,6 @@ export default function VehicleAvailabilityPage() {
   const today = useMemo(() => toYmd(new Date()), []);
 
   // filter UI
-  const [showFilters, setShowFilters] = useState(false);
   const [dateFrom, setDateFrom] = useState(initialRange.dateFrom);
   const [dateTo, setDateTo] = useState(initialRange.dateTo);
   const [vendorId, setVendorId] = useState<number | "">("");
@@ -63,9 +70,16 @@ export default function VehicleAvailabilityPage() {
 
   // search
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<SelectedCell>(null);
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [addDriverOpen, setAddDriverOpen] = useState(false);
+
+  const [assigning, setAssigning] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignContext, setAssignContext] = useState<SelectedCell>(null);
+  const [assignVehicleId, setAssignVehicleId] = useState<number | "">("");
+  const [assignDriverId, setAssignDriverId] = useState<number | "">("");
+  const [assignVehicleOptions, setAssignVehicleOptions] = useState<SimpleOption[]>([]);
+  const [assignDriverOptions, setAssignDriverOptions] = useState<SimpleOption[]>([]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -149,7 +163,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
       vendorId: vendorId === "" ? undefined : vendorId,
       vehicleTypeId: vehicleTypeId === "" ? undefined : vehicleTypeId,
       agentId: agentId === "" ? undefined : agentId,
-      // NOTE: locationId is now a string label, not a numeric ID, so we do client-side filtering
+      locationLabel: locationId || undefined,
     });
 
     // 1) Build dynamic dropdown options from routeSegments, then MERGE with base list
@@ -158,7 +172,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
       Array.from(new Set([...(prev || []), ...derivedLocations])).sort((x, y) => x.localeCompare(y)),
     );
 
-    // 2) Apply location filter locally (so results change only after clicking Apply -> loadChart())
+    // 2) Keep a client-side fallback filter (backend already applies when locationLabel is sent)
     const loc = (locationId || "").trim();
     const rowsFilteredByLoc = loc ? res.rows.filter((r) => rowHasLocation(r, loc)) : res.rows;
 
@@ -170,6 +184,75 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
       setLoading(false);
     }
   }
+
+  async function openAssignModal(row: VehicleAvailabilityRow, cell: VehicleAvailabilityCell) {
+    if (!cell.itineraryPlanId) return;
+    const existingVehicleId = cell.isVehicleAssigned ? cell.assignedVehicleId : null;
+    const existingDriverId = cell.hasDriver ? cell.driverId : null;
+
+    setAssignContext({ row, cell });
+    setAssignVehicleId(existingVehicleId ?? "");
+    setAssignDriverId(existingDriverId ?? "");
+    setAssignVehicleOptions([]);
+    setAssignDriverOptions([]);
+    setAssignModalOpen(true);
+
+    try {
+      const [vehicles, drivers] = await Promise.all([
+        fetchVehiclesForAssign(row.vendorId, row.vehicleTypeId),
+        fetchDriversForAssign(row.vendorId, row.vehicleTypeId, cell.itineraryPlanId),
+      ]);
+      let vehicleOptions = vehicles || [];
+      let driverOptions = drivers || [];
+
+      if (existingVehicleId) {
+        vehicleOptions = includeOptionIfMissing(vehicleOptions, existingVehicleId, row.registrationNumber || `Vehicle #${existingVehicleId}`);
+      }
+      if (existingDriverId) {
+        driverOptions = includeOptionIfMissing(driverOptions, existingDriverId, `Driver #${existingDriverId}`);
+      }
+
+      setAssignVehicleOptions(vehicleOptions);
+      setAssignDriverOptions(driverOptions);
+    } catch (e: any) {
+      setError(e?.message || "Failed to load assign options.");
+    }
+  }
+
+  async function submitAssignVehicle() {
+    if (!assignContext?.cell.itineraryPlanId) return;
+    if (assignVehicleId === "") {
+      setError("Please choose a vehicle to assign.");
+      return;
+    }
+
+    try {
+      setAssigning(true);
+      await assignVehicle({
+        itineraryPlanId: assignContext.cell.itineraryPlanId,
+        vendor_id: assignContext.row.vendorId,
+        vehicle_type_id: assignContext.row.vehicleTypeId,
+        vehicle_id: Number(assignVehicleId),
+        driver_id: assignDriverId === "" ? null : Number(assignDriverId),
+      });
+      setAssignModalOpen(false);
+      setAssignContext(null);
+      await loadChart();
+    } catch (e: any) {
+      setError(e?.message || "Failed to assign vehicle.");
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  const vehicleTypeOptionsForFilter = useMemo(() => {
+    if (vendorId === "") return vehicleTypes;
+    return data.rows
+      .filter((r) => r.vendorId === Number(vendorId))
+      .map((r) => ({ id: r.vehicleTypeId, label: r.vehicleTypeTitle || `Type #${r.vehicleTypeId}` }))
+      .filter((v, idx, arr) => arr.findIndex((x) => x.id === v.id) === idx)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [vendorId, vehicleTypes, data.rows]);
 
   function handleClear() {
     const r = defaultMonthRange();
@@ -193,32 +276,34 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
 
   const stickyHeaderClass = "sticky top-0 z-20 bg-white border-b border-slate-200";
   const stickyCol1 = "sticky left-0 z-10 bg-white border-r border-slate-200";
-  const stickyCol2 = "sticky left-[240px] z-10 bg-white border-r border-slate-200";
+  const stickyCol2 = "sticky left-[210px] z-10 bg-white border-r border-slate-200";
+
+  function formatDisplayDate(ymd: string) {
+    const d = new Date(`${ymd}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return ymd;
+    const month = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate().toString().padStart(2, "0");
+    const year = d.getFullYear();
+    return `${month} ${day},${year}`;
+  }
 
   return (
     <div className="p-4">
-      {/* Top Right Filter button like screenshot */}
       <div className="mb-3 flex items-center justify-end">
-        <button
-            className="flex items-center gap-2 rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100"
-            onClick={() => setShowFilters((s) => !s)}
-            type="button"
-          >
-            <Filter size={16} />
-            Filter
-          </button>
+        <span className="text-sm text-slate-500">Legacy PHP UI parity mode</span>
       </div>
 
-      {/* Filter Panel (open only when user clicks Filter) */}
-      {showFilters ? (
-        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 text-lg font-semibold text-slate-900">Filter</div>
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-0">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <h5 className="text-base font-semibold text-slate-800">List of Vehicle Availability</h5>
+        </div>
+
+        <div className="mx-4 my-4 rounded-lg border border-indigo-300 bg-transparent p-4">
+          <h5 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-700">Filter</h5>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Date from<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Date from</label>
               <input
                 type="date"
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
@@ -228,9 +313,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Date To<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Date To</label>
               <input
                 type="date"
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
@@ -240,9 +323,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Vendor<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Vendor</label>
               <select
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
                 value={vendorId === "" ? "" : String(vendorId)}
@@ -258,9 +339,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Vehicle Type<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Vehicle Type</label>
               <select
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
                 value={vehicleTypeId === "" ? "" : String(vehicleTypeId)}
@@ -269,7 +348,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
                 }
               >
                 <option value="">Choose Vehicle Types</option>
-                {vehicleTypes.map((v) => (
+                {vehicleTypeOptionsForFilter.map((v) => (
                   <option key={v.id} value={String(v.id)}>
                     {v.label}
                   </option>
@@ -278,9 +357,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Agent<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Agent</label>
               <select
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
                 value={agentId === "" ? "" : String(agentId)}
@@ -296,9 +373,7 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-slate-700">
-                Location<span className="text-red-500">*</span>
-              </label>
+              <label className="text-sm text-slate-700">Location</label>
               <select
                 className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm"
                 value={locationId}
@@ -318,7 +393,6 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
                 className="h-11 w-[120px] rounded-md bg-slate-900 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
                 onClick={() => {
                   loadChart();
-                  setShowFilters(false); // like PHP: apply closes filter panel
                 }}
                 disabled={loading}
                 type="button"
@@ -337,9 +411,8 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
-      {/* Header row like screenshot 2 */}
       <div className="mb-3 rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-lg font-semibold text-slate-900">
@@ -350,16 +423,16 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
             <button
               className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100"
               type="button"
-              onClick={() => setAddVehicleOpen(true)}
+              onClick={() => setAddDriverOpen(true)}
             >
-              + Add New Vehicle
+              + Add Driver
             </button>
             <button
               className="rounded-md border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100"
               type="button"
-              onClick={() => setAddDriverOpen(true)}
+              onClick={() => setAddVehicleOpen(true)}
             >
-              + Add New Driver
+              + Add Vehicle
             </button>
 
             <div className="flex items-center gap-2">
@@ -391,29 +464,29 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
                   className={clsx(
                     stickyHeaderClass,
                     stickyCol1,
-                    "min-w-[240px] p-2 text-left font-semibold text-slate-800",
+                    "min-w-[210px] border border-slate-300 bg-[#9b9b9b] p-2 text-left font-semibold text-white",
                   )}
                 >
-                  Vendor
+                  Vendor Name
                 </th>
                 <th
                   className={clsx(
                     stickyHeaderClass,
                     stickyCol2,
-                    "min-w-[340px] p-2 text-left font-semibold text-slate-800",
+                    "min-w-[240px] border border-slate-300 bg-[#9b9b9b] p-2 text-left font-semibold text-white",
                   )}
                 >
-                  Vehicle
+                  Vehicle Type
                 </th>
                 {data.dates.map((d) => (
                   <th
                     key={d}
                     className={clsx(
                       stickyHeaderClass,
-                      "min-w-[120px] px-2 py-2 text-center font-semibold text-slate-700",
+                      "min-w-[190px] border border-slate-300 bg-[#9b9b9b] px-2 py-2 text-left font-semibold text-white",
                     )}
                   >
-                    <div className="text-xs">{d}</div>
+                    <div className="text-xs">{formatDisplayDate(d)}</div>
                   </th>
                 ))}
               </tr>
@@ -433,102 +506,93 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
 
               {filteredRows.map((row) => (
                 <tr key={`${row.vendorId}-${row.vehicleTypeId}-${row.vehicleId}`}>
-                  <td className={clsx(stickyCol1, "border-b border-slate-200 p-2 align-top")}>
-                    <div className="font-medium text-slate-900">
+                  <td className={clsx(stickyCol1, "border border-slate-300 bg-[#fbf9ff] p-2 align-top")}>
+                    <div className="text-sm font-medium text-slate-900">
                       {row.vendorName || `Vendor #${row.vendorId}`}
                     </div>
                   </td>
 
-                  <td className={clsx(stickyCol2, "border-b border-slate-200 p-2 align-top")}>
-                    <div className="font-medium text-slate-900">
+                  <td className={clsx(stickyCol2, "border border-slate-300 bg-[#fbf9ff] p-2 align-top")}>
+                    <div className="text-sm font-medium text-slate-900">
                       {row.vehicleTypeTitle?.trim()
                         ? row.vehicleTypeTitle
                         : `Type #${row.vehicleTypeId}`}
                     </div>
                     <div className="text-xs text-slate-600">
-                      {" "}
-                      <span className="font-semibold text-blue-700">
-                        {row.registrationNumber}
-                      </span>
+                      <span className="font-semibold text-blue-700">{row.registrationNumber}</span>
                     </div>
                   </td>
 
                   {row.cells.map((cell) => {
                     const inTrip = Boolean(cell.isWithinTrip && cell.itineraryPlanId);
-                    const bg =
-                      !inTrip
-                        ? "bg-white"
-                        : cell.isStart
-                        ? "bg-green-50"
-                        : cell.isEnd
-                        ? "bg-rose-50"
-                        : "bg-amber-50";
+                    const bg = !inTrip
+                      ? "bg-white"
+                      : cell.isStart
+                      ? "bg-[#e0d7fa96]"
+                      : cell.isEnd
+                      ? "bg-[#dffbdf]"
+                      : "bg-[#faebd794]";
 
-                    const todayRing = cell.date === today ? "ring-2 ring-slate-600" : "";
+                    const todayRing = cell.date === today ? "ring-1 ring-slate-500" : "";
 
                     return (
                       <td
                         key={`${row.vehicleId}-${cell.date}`}
-                        className="border-b border-slate-200 px-1 py-1 align-top"
+                        className={clsx("border border-slate-300 px-2 py-2 align-top", bg)}
                       >
-                        <button
-                          type="button"
-                          className={clsx(
-                            "w-[110px] rounded-md border border-slate-200 p-2 text-left",
-                            bg,
-                            todayRing,
-                            inTrip ? "hover:border-slate-400" : "hover:bg-slate-50",
-                          )}
-                          disabled={!cell.itineraryPlanId}
-                          onClick={() => {
-                            if (!cell.itineraryPlanId) return;
-                            setSelected({ row, cell });
-                          }}
-                          title={cell.itineraryPlanId ? "Click to view details" : "No trip"}
-                        >
-                          {!cell.itineraryPlanId ? (
-                            <div className="h-[48px]" />
-                          ) : (
-                            <>
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="text-[11px] font-semibold text-slate-900">
-                                  {cell.itineraryQuoteId || `Plan #${cell.itineraryPlanId}`}
-                                </div>
-                                <div className="text-[10px] text-slate-600">
-                                  {cell.isStart ? "START" : cell.isEnd ? "END" : "MID"}
-                                </div>
-                              </div>
+                        {!cell.itineraryPlanId ? null : (
+                          <div className={clsx("rounded p-1", todayRing)}>
+                            {!cell.isVehicleAssigned ? (
+                              <button
+                                type="button"
+                                className="mb-2 rounded bg-green-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-green-700"
+                                onClick={() => openAssignModal(row, cell)}
+                              >
+                                + Assign Vehicle
+                              </button>
+                            ) : null}
 
-                              <div className="mt-1 flex flex-wrap gap-1">
-                                <span
-                                  className={clsx(
-                                    "rounded-full px-2 py-[2px] text-[10px] font-medium",
-                                    cell.isVehicleAssigned
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : "bg-slate-100 text-slate-700",
-                                  )}
-                                >
+                            <h6 className="mb-1 text-xs font-semibold text-blue-700">
+                              {cell.itineraryQuoteId || `CQ-PLAN-${cell.itineraryPlanId}`}
+                              {cell.isStart ? " • Start" : cell.isEnd ? " • End" : ""}
+                            </h6>
+
+                            {cell.routeSegments.length > 0 ? (
+                              <div className="mb-2 space-y-1">
+                                {cell.routeSegments.slice(0, 2).map((seg, idx) => (
+                                  <div key={`${idx}-${seg.locationName}-${seg.nextVisitingLocation}`} className="text-xs text-slate-800">
+                                    {seg.locationName} =&gt; {seg.nextVisitingLocation}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="mb-1 text-xs text-slate-700">
+                                  Driver - {cell.hasDriver ? "Assigned" : "Not Assigned"}
+                                </div>
+                                <span className={clsx(
+                                  "inline-flex rounded px-2 py-[2px] text-[10px] font-semibold",
+                                  cell.isVehicleAssigned ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700",
+                                )}>
                                   {cell.isVehicleAssigned ? "Assigned" : "Unassigned"}
                                 </span>
-
-                                <span
-                                  className={clsx(
-                                    "rounded-full px-2 py-[2px] text-[10px] font-medium",
-                                    cell.hasDriver
-                                      ? "bg-indigo-100 text-indigo-800"
-                                      : "bg-slate-100 text-slate-600",
-                                  )}
-                                >
-                                  {cell.hasDriver ? "Driver ✓" : "Driver —"}
-                                </span>
-
-                                <span className="rounded-full bg-purple-100 px-2 py-[2px] text-[10px] font-medium text-purple-800">
-                                  Routes: {cell.routeSegments.length}
-                                </span>
                               </div>
-                            </>
-                          )}
-                        </button>
+
+                              {cell.isVehicleAssigned ? (
+                                <button
+                                  type="button"
+                                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
+                                  onClick={() => openAssignModal(row, cell)}
+                                  title="Edit assignment"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                              ) : null}
+                            </div>
+                          </div>
+                        )}
                       </td>
                     );
                   })}
@@ -539,114 +603,83 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
         </div>
       </div>
 
-      {/* Details Modal */}
-      {selected ? (
+      {assignModalOpen && assignContext ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setSelected(null)}
+          className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
+          onClick={() => {
+            if (assigning) return;
+            setAssignModalOpen(false);
+            setAssignContext(null);
+          }}
         >
           <div
-            className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-4">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">
-                  {selected.cell.itineraryQuoteId ||
-                    `Itinerary Plan #${selected.cell.itineraryPlanId}`}
-                </div>
-                <div className="mt-1 text-xs text-slate-600">
-                  Date: <span className="font-medium">{selected.cell.date}</span> • Vendor:{" "}
-                  <span className="font-medium">{selected.row.vendorName}</span> • Vehicle:{" "}
-                  <span className="font-medium">
-                    {(selected.row.vehicleTypeTitle?.trim()
-                      ? selected.row.vehicleTypeTitle
-                      : `Type #${selected.row.vehicleTypeId}`) +
-                      ` (${selected.row.registrationNumber})`}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                onClick={() => setSelected(null)}
-              >
-                Close
-              </button>
+            <div className="mb-3 text-base font-semibold text-slate-900">Assign Vehicle</div>
+            <div className="mb-4 text-xs text-slate-600">
+              {assignContext.cell.itineraryQuoteId || `Plan #${assignContext.cell.itineraryPlanId}`} • {assignContext.cell.date}
             </div>
 
-            <div className="p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-xs font-semibold text-slate-700">Trip Position</div>
-                  <div className="mt-2 text-sm text-slate-900">
-                    {selected.cell.isStart
-                      ? "Start day"
-                      : selected.cell.isEnd
-                      ? "End day"
-                      : "In-between day"}
-                  </div>
-                  <div className="mt-2 text-xs text-slate-600">
-                    Today highlight:{" "}
-                    <span className="font-medium">
-                      {selected.cell.isToday ? "Yes" : "No"}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-slate-200 p-3">
-                  <div className="text-xs font-semibold text-slate-700">Assignment</div>
-                  <div className="mt-2 text-sm text-slate-900">
-                    Vehicle:{" "}
-                    <span className="font-medium">
-                      {selected.cell.isVehicleAssigned ? "Assigned" : "Not assigned"}
-                    </span>
-                  </div>
-                  <div className="mt-2 text-sm text-slate-900">
-                    Driver:{" "}
-                    <span className="font-medium">
-                      {selected.cell.hasDriver ? "Assigned" : "Not assigned"}
-                    </span>
-                  </div>
-                  {selected.cell.driverId ? (
-                    <div className="mt-1 text-xs text-slate-600">
-                      Driver ID: <span className="font-medium">{selected.cell.driverId}</span>
-                    </div>
-                  ) : null}
-                </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Vehicle</label>
+                <select
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
+                  value={assignVehicleId === "" ? "" : String(assignVehicleId)}
+                  onChange={(e) => setAssignVehicleId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">Choose Vehicle</option>
+                  {assignVehicleOptions.map((v) => (
+                    <option key={v.id} value={String(v.id)}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <div className="mt-4 rounded-lg border border-slate-200 p-3">
-                <div className="text-xs font-semibold text-slate-700">
-                  Route Segments (this day)
-                </div>
-
-                {selected.cell.routeSegments.length === 0 ? (
-                  <div className="mt-2 text-sm text-slate-600">No routes.</div>
-                ) : (
-                  <div className="mt-2 space-y-2">
-                    {selected.cell.routeSegments.map((r, idx) => (
-                      <div
-                        key={`${idx}-${r.locationName}-${r.nextVisitingLocation}`}
-                        className="rounded-md bg-slate-50 p-2 text-sm text-slate-900"
-                      >
-                        <span className="font-medium">{r.locationName}</span>{" "}
-                        <span className="text-slate-500">→</span>{" "}
-                        <span className="font-medium">{r.nextVisitingLocation}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div>
+                <label className="mb-1 block text-sm text-slate-700">Driver (optional)</label>
+                <select
+                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
+                  value={assignDriverId === "" ? "" : String(assignDriverId)}
+                  onChange={(e) => setAssignDriverId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">Choose Driver</option>
+                  {assignDriverOptions.map((v) => (
+                    <option key={v.id} value={String(v.id)}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
 
-              <div className="mt-4 text-[11px] text-slate-500">
-                If you want Agent/Location filters to affect results, backend must accept
-                agentId/locationId in query DTO and apply the same filtering logic as PHP.
-              </div>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700"
+                disabled={assigning}
+                onClick={() => {
+                  setAssignModalOpen(false);
+                  setAssignContext(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                disabled={assigning}
+                onClick={submitAssignVehicle}
+              >
+                {assigning ? "Saving..." : "Assign"}
+              </button>
             </div>
           </div>
         </div>
       ) : null}
+
       <AddVehicleModal
           open={addVehicleOpen}
           onClose={() => setAddVehicleOpen(false)}

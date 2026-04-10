@@ -192,11 +192,11 @@ export function AddDriverModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4 py-8"
+      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[760px] rounded-lg bg-white shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[760px] overflow-y-auto rounded-lg bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="pt-10 text-center">

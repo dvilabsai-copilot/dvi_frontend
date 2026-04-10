@@ -59,11 +59,7 @@ export const VehicleBlock = ({
   const { toast } = useToast();
 
   const pref = itineraryPreference ?? "both";
-
-  // Only show block when itineraryPreference allows vehicles
-  if (!(pref === "vehicle" || pref === "both")) {
-    return null;
-  }
+  const showVehicleBlock = pref === "vehicle" || pref === "both";
 
   const hasVehicleTypes = vehicleTypes && vehicleTypes.length > 0;
 
@@ -80,6 +76,11 @@ export const VehicleBlock = ({
       );
     }
   }, [selectedVehicleIds, vehicles.length, setVehicles]);
+
+  // Keep hook order stable across renders; conditionally render only after hooks.
+  if (!showVehicleBlock) {
+    return null;
+  }
 
   const internalAddVehicle = () => {
     setVehicles((prev) => [

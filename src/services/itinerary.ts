@@ -6,6 +6,8 @@ export type ItinerarySaveType =
   | "itineary_basic_info_with_optimized_route"
   | undefined;
 
+export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -106,6 +108,44 @@ export const ItineraryService = {
     });
   },
 
+  async getClipboardContent(
+    quoteId: string,
+    mode: ItineraryClipboardMode,
+    groupTypes: number[],
+  ): Promise<{ html: string; plainText: string }> {
+    const endpoint =
+      mode === "highlights"
+        ? "clipboard-highlights"
+        : mode === "para"
+        ? "clipboard-para"
+        : "clipboard";
+
+    const params = new URLSearchParams();
+    const normalizedGroups = Array.from(
+      new Set(
+        groupTypes
+          .map((g) => Number(g))
+          .filter((g) => Number.isInteger(g) && g >= 1 && g <= 4),
+      ),
+    );
+
+    normalizedGroups.forEach((groupType) => {
+      params.append("groupType", String(groupType));
+    });
+
+    const recommendedKeys = ["recommended1", "recommended2", "recommended3", "recommended4"];
+    normalizedGroups.slice(0, 4).forEach((groupType, idx) => {
+      params.append(recommendedKeys[idx], String(groupType));
+    });
+
+    const qs = params.toString();
+    const url = `itineraries/${endpoint}/${encodeURIComponent(quoteId)}${qs ? `?${qs}` : ""}`;
+
+    return api(url, {
+      method: "GET",
+    });
+  },
+
   async getConfirmedItinerary(confirmedId: number) {
     return api(`itineraries/confirmed/${confirmedId}`, {
       method: "GET",
@@ -165,6 +205,17 @@ export const ItineraryService = {
     activityId: number;
   }) {
     return api(`itineraries/activities/preview`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async previewActivityForAllHotspots(data: {
+    planId: number;
+    routeId: number;
+    activityId: number;
+  }) {
+    return api(`itineraries/activities/preview-all-hotspots`, {
       method: "POST",
       body: data,
     });
@@ -310,14 +361,17 @@ export const ItineraryService = {
       numberOfRooms: number;
       guestNationality: string;
       netAmount: number;
+      searchInitiatedAt?: string;
       passengers: Array<{
         title: string;
         firstName: string;
         lastName: string;
+        nationality?: string;
         email?: string;
         paxType: number;
         leadPassenger: boolean;
         age: number;
+        panNo?: string;
         passportNo?: string;
         passportIssueDate?: string;
         passportExpDate?: string;
@@ -336,14 +390,17 @@ export const ItineraryService = {
       numberOfRooms: number;
       guestNationality: string;
       netAmount: number;
+      searchInitiatedAt?: string;
       passengers: Array<{
         title: string;
         firstName: string;
         lastName: string;
+        nationality?: string;
         email?: string;
         paxType: number;
         leadPassenger: boolean;
         age: number;
+        panNo?: string;
         passportNo?: string;
         passportIssueDate?: string;
         passportExpDate?: string;
@@ -360,6 +417,44 @@ export const ItineraryService = {
     endUserIp?: string;
   }) {
     return api("itineraries/confirm-quotation", {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async prebookHotels(data: {
+    itinerary_plan_ID: number;
+    hotel_bookings: Array<{
+      routeId: number;
+      provider: string;
+      hotelCode: string;
+      bookingCode: string;
+      roomType: string;
+      checkInDate: string;
+      checkOutDate: string;
+      numberOfRooms: number;
+      guestNationality: string;
+      netAmount: number;
+      searchInitiatedAt?: string;
+      passengers: Array<{
+        title: string;
+        firstName: string;
+        lastName: string;
+        nationality?: string;
+        email?: string;
+        paxType: number;
+        leadPassenger: boolean;
+        age: number;
+        panNo?: string;
+        passportNo?: string;
+        passportIssueDate?: string;
+        passportExpDate?: string;
+        phoneNo?: string;
+      }>;
+    }>;
+    endUserIp?: string;
+  }) {
+    return api("itineraries/hotels/prebook", {
       method: "POST",
       body: data,
     });
@@ -552,11 +647,21 @@ export const ItineraryService = {
     checkOutDate: string;
     roomCount: number;
     guestCount: number;
+    adultCount?: number;
+    childCount?: number;
+    infantCount?: number;
+    childAges?: number[];
+    guestNationality?: string;
     hotelName?: string;
   }) {
+    const payload = {
+      ...searchParams,
+      guestNationality: searchParams.guestNationality,
+    };
+
     return api("hotels/search", {
       method: "POST",
-      body: searchParams,
+      body: payload,
     });
   },
 

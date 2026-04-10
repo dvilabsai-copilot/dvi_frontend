@@ -8,10 +8,34 @@ type ApiCtx = {
 
 // Safe string render
 const S = (v: any) => (v === null || v === undefined || v === "" ? "-" : String(v));
+const isNumericLike = (v: any) => {
+  if (v === null || v === undefined || v === "") return false;
+  const n = Number(v);
+  return Number.isFinite(n);
+};
+
+const to12h = (val: any) => {
+  const raw = String(val ?? "").trim();
+  if (!raw || raw === "-") return "-";
+  const hhmmss = raw.match(/^(\d{2}):(\d{2})(?::\d{2})?$/);
+  if (!hhmmss) return raw;
+  let h = Number(hhmmss[1]);
+  const m = hhmmss[2];
+  const suffix = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${String(h).padStart(2, "0")}:${m} ${suffix}`;
+};
+
+const gstTypeLabel = (v: any) => {
+  const s = String(v ?? "").toLowerCase();
+  if (v === 1 || s.includes("include")) return "Included";
+  if (v === 2 || s.includes("exclude")) return "Excluded";
+  return S(v);
+};
 
 export default function PreviewStep({
-  api,          // kept for signature parity (not used here)
-  hotelId,      // kept for parity if you later want to refetch before preview
+  api,
+  hotelId,
   hotelData,
   onPrev,
 }: {
@@ -85,6 +109,159 @@ export default function PreviewStep({
     };
   }, [hotelData]);
 
+  const { data: roomsRaw = [] } = useQuery({
+    queryKey: ["preview-rooms", hotelId],
+    enabled: !!hotelId,
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          `/api/v1/hotels/${hotelId}/rooms`,
+          `/api/v1/hotels/rooms?hotelId=${hotelId}`,
+          `/api/v1/rooms?hotelId=${hotelId}`,
+        ])
+        .catch(() => []),
+  });
+
+  const { data: amenitiesRaw = [] } = useQuery({
+    queryKey: ["preview-amenities", hotelId],
+    enabled: !!hotelId,
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          `/api/v1/hotels/${hotelId}/amenities`,
+          `/api/v1/hotel-amenities?hotelId=${hotelId}`,
+        ])
+        .catch(() => []),
+  });
+
+  const { data: reviewsRaw = [] } = useQuery({
+    queryKey: ["preview-reviews", hotelId],
+    enabled: !!hotelId,
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          `/api/v1/hotels/${hotelId}/reviews`,
+          `/api/v1/hotels/${hotelId}/feedback`,
+          `/api/v1/hotels/reviews?hotelId=${hotelId}`,
+        ])
+        .catch(() => []),
+  });
+
+  const { data: categoriesRaw = [] } = useQuery({
+    queryKey: ["preview-categories"],
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          "/api/v1/hotels/categories",
+          "/api/v1/hotels/meta/categories",
+          "/api/v1/meta/hotels/categories",
+        ])
+        .catch(() => []),
+  });
+
+  const { data: countriesRaw = [] } = useQuery({
+    queryKey: ["preview-countries"],
+    queryFn: () =>
+      api
+        .apiGetFirst(["/api/v1/meta/countries", "/api/v1/locations/countries", "/api/v1/countries"])
+        .catch(() => []),
+  });
+
+  const { data: statesRaw = [] } = useQuery({
+    queryKey: ["preview-states-all"],
+    queryFn: () =>
+      api
+        .apiGetFirst(["/api/v1/meta/states?all=1", "/api/v1/locations/states?all=1", "/api/v1/states?all=1"])
+        .catch(() => []),
+  });
+
+  const { data: citiesRaw = [] } = useQuery({
+    queryKey: ["preview-cities-all"],
+    queryFn: () =>
+      api
+        .apiGetFirst(["/api/v1/meta/cities?all=1", "/api/v1/locations/cities?all=1", "/api/v1/cities?all=1"])
+        .catch(() => []),
+  });
+
+  const resolveLabel = (value: any, list: any[]) => {
+    const str = String(value ?? "").trim();
+    if (!str || str === "-") return "-";
+    const hit = (list || []).find((x: any) => String(x?.id ?? x?.value ?? x) === str);
+    if (hit) return String(hit?.name ?? hit?.label ?? hit?.title ?? hit);
+    return str;
+  };
+
+  const categoryLabel =
+    isNumericLike(info.hotelCategory) && Array.isArray(categoriesRaw)
+      ? resolveLabel(info.hotelCategory, categoriesRaw as any[])
+      : info.hotelCategory;
+
+  const countryLabel =
+    isNumericLike(info.country) && Array.isArray(countriesRaw)
+      ? resolveLabel(info.country, countriesRaw as any[])
+      : info.country;
+
+  const stateLabel =
+    isNumericLike(info.state) && Array.isArray(statesRaw)
+      ? resolveLabel(info.state, statesRaw as any[])
+      : info.state;
+
+  const cityLabel =
+    isNumericLike(info.city) && Array.isArray(citiesRaw)
+      ? resolveLabel(info.city, citiesRaw as any[])
+      : info.city;
+
+  const rooms = useMemo(() => {
+    const src = Array.isArray(roomsRaw)
+      ? roomsRaw
+      : roomsRaw?.items ?? roomsRaw?.data ?? roomsRaw?.rows ?? [];
+    return (src as any[]).map((r: any) => {
+      const food: string[] = [];
+      if (Number(r.breakfast_included ?? 0) === 1) food.push("Breakfast");
+      if (Number(r.lunch_included ?? 0) === 1) food.push("Lunch");
+      if (Number(r.dinner_included ?? 0) === 1) food.push("Dinner");
+
+      return {
+        title: S(r.room_title ?? r.title),
+        refCode: S(r.room_ref_code),
+        maxAdults: S(r.total_max_adults ?? r.max_adult),
+        maxChildren: S(r.total_max_childrens ?? r.max_children),
+        ac: Number(r.air_conditioner_availability ?? 0) === 1 ? "Yes" : "No",
+        food: food.length ? food.join(", ") : "N/A",
+        checkIn: S(r.check_in_time),
+        checkOut: S(r.check_out_time),
+        gstType: gstTypeLabel(r.gst_type),
+        gstPct: S(r.gst_percentage),
+        amenities: S(r.inbuilt_amenities),
+      };
+    });
+  }, [roomsRaw]);
+
+  const amenities = useMemo(() => {
+    const src = Array.isArray(amenitiesRaw)
+      ? amenitiesRaw
+      : amenitiesRaw?.items ?? amenitiesRaw?.data ?? amenitiesRaw?.rows ?? [];
+    return (src as any[]).map((a: any) => ({
+      title: S(a.amenities_title ?? a.title),
+      quantity: S(a.quantity ?? a.amenities_qty),
+      availability: Number(a.availability_type ?? 1) === 2 ? "Duration" : "24/7",
+      start: Number(a.availability_type ?? 1) === 2 ? S(a.start_time ?? a.available_start_time) : "--",
+      end: Number(a.availability_type ?? 1) === 2 ? S(a.end_time ?? a.available_end_time) : "--",
+      status: Number(a.status ?? 1) === 1 ? "Active" : "In-Active",
+    }));
+  }, [amenitiesRaw]);
+
+  const reviews = useMemo(() => {
+    const src = Array.isArray(reviewsRaw)
+      ? reviewsRaw
+      : reviewsRaw?.items ?? reviewsRaw?.data ?? reviewsRaw?.rows ?? [];
+    return (src as any[]).map((r: any) => ({
+      rating: S(r.hotel_rating ?? r.rating),
+      description: S(r.hotel_description ?? r.description ?? r.review_description),
+      createdOn: S(r.createdon ?? r.createdAt ?? r.created_at),
+    }));
+  }, [reviewsRaw]);
+
   return (
     <>
       {/* Step header to match the “Preview” tab look */}
@@ -120,21 +297,21 @@ export default function PreviewStep({
           </div>
           <div className="pv-field">
             <div className="pv-label">Hotel Category</div>
-            <div className="pv-value">{info.hotelCategory}</div>
+            <div className="pv-value">{categoryLabel}</div>
           </div>
 
           {/* Row 3 */}
           <div className="pv-field">
             <div className="pv-label">Country</div>
-            <div className="pv-value">{info.country}</div>
+            <div className="pv-value">{countryLabel}</div>
           </div>
           <div className="pv-field">
             <div className="pv-label">State</div>
-            <div className="pv-value">{info.state}</div>
+            <div className="pv-value">{stateLabel}</div>
           </div>
           <div className="pv-field">
             <div className="pv-label">City</div>
-            <div className="pv-value">{info.city}</div>
+            <div className="pv-value">{cityLabel}</div>
           </div>
 
           {/* Row 4 */}
@@ -167,6 +344,81 @@ export default function PreviewStep({
         </div>
 
         <hr className="pv-divider" />
+
+        <div className="pv-section-title">Rooms</div>
+        {rooms.length === 0 ? (
+          <div className="pv-empty-text">No Rooms Found</div>
+        ) : (
+          rooms.map((r, idx) => (
+            <div key={`room-${idx}`} className="pv-block">
+              <h5 className="pv-subtitle">Rooms #{idx + 1}/{rooms.length}</h5>
+              <div className="pv-grid">
+                <div className="pv-field"><div className="pv-label">Room Title</div><div className="pv-value">{r.title}</div></div>
+                <div className="pv-field"><div className="pv-label">Room Reference Code</div><div className="pv-value">{r.refCode}</div></div>
+                <div className="pv-field"><div className="pv-label">Total Max Adults</div><div className="pv-value">{r.maxAdults}</div></div>
+                <div className="pv-field"><div className="pv-label">Total Max Children</div><div className="pv-value">{r.maxChildren}</div></div>
+                <div className="pv-field"><div className="pv-label">Air Conditioner</div><div className="pv-value">{r.ac}</div></div>
+                <div className="pv-field"><div className="pv-label">Food Applicable</div><div className="pv-value">{r.food}</div></div>
+                <div className="pv-field"><div className="pv-label">Check In Time</div><div className="pv-value">{to12h(r.checkIn)}</div></div>
+                <div className="pv-field"><div className="pv-label">Check Out Time</div><div className="pv-value">{to12h(r.checkOut)}</div></div>
+                <div className="pv-field"><div className="pv-label">GST Type</div><div className="pv-value">{r.gstType}</div></div>
+                <div className="pv-field"><div className="pv-label">GST Percentage</div><div className="pv-value">{r.gstPct}</div></div>
+                <div className="pv-field"><div className="pv-label">Inbuilt Amenities</div><div className="pv-value">{r.amenities}</div></div>
+              </div>
+              <hr className="pv-divider" />
+            </div>
+          ))
+        )}
+
+        <div className="pv-section-title">Amenities</div>
+        {amenities.length === 0 ? (
+          <div className="pv-empty-text">No Amenities Found</div>
+        ) : (
+          amenities.map((a, idx) => (
+            <div key={`amenity-${idx}`} className="pv-block">
+              <h5 className="pv-subtitle">Amenities #{idx + 1}/{amenities.length}</h5>
+              <div className="pv-grid">
+                <div className="pv-field"><div className="pv-label">Amenities Title</div><div className="pv-value">{a.title}</div></div>
+                <div className="pv-field"><div className="pv-label">Quantity</div><div className="pv-value">{a.quantity}</div></div>
+                <div className="pv-field"><div className="pv-label">Availability Type</div><div className="pv-value">{a.availability}</div></div>
+                <div className="pv-field"><div className="pv-label">Start Time</div><div className="pv-value">{a.start}</div></div>
+                <div className="pv-field"><div className="pv-label">End Time</div><div className="pv-value">{a.end}</div></div>
+                <div className="pv-field"><div className="pv-label">Status</div><div className="pv-value">{a.status}</div></div>
+              </div>
+              <hr className="pv-divider" />
+            </div>
+          ))
+        )}
+
+        <div className="pv-section-title">List of Reviews</div>
+        <div className="pv-table-wrap">
+          <table className="pv-table">
+            <thead>
+              <tr>
+                <th>S.no</th>
+                <th>Rating</th>
+                <th>Description</th>
+                <th>Created On</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reviews.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="pv-empty-text">No Reviews Found</td>
+                </tr>
+              ) : (
+                reviews.map((r, idx) => (
+                  <tr key={`review-${idx}`}>
+                    <td>{idx + 1}</td>
+                    <td>{r.rating}</td>
+                    <td>{r.description}</td>
+                    <td>{r.createdOn}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="pv-bottom">
@@ -248,6 +500,14 @@ export default function PreviewStep({
           border:0; border-top:1px solid var(--pv-border);
           margin-top:16px;
         }
+
+        .pv-subtitle{ color:#b012ce; font-size:16px; margin:8px 0; }
+        .pv-empty-text{ color:#6b7280; font-size:14px; padding:8px 0; }
+        .pv-block{ margin-bottom:8px; }
+        .pv-table-wrap{ border:1px solid var(--pv-border); border-radius:10px; overflow:hidden; }
+        .pv-table{ width:100%; border-collapse:collapse; }
+        .pv-table th,.pv-table td{ padding:8px 10px; border-bottom:1px solid var(--pv-border); text-align:left; font-size:13px; }
+        .pv-table thead th{ background:#faf7ff; color:#5b5f6b; }
 
         .pv-bottom{
           display:flex; align-items:center; justify-content:flex-start;

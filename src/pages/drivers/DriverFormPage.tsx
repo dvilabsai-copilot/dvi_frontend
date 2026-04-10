@@ -198,8 +198,8 @@ export default function DriverFormPage() {
   const goToStep = async (nextIdx: number) => {
     const idx = clampStepIndex(nextIdx);
 
-    // ADD mode: keep existing behavior (don’t allow jumping forward)
-    if (!isEdit && idx > step) return;
+    // ADD mode: allow only sequential progression (current or next), block larger jumps.
+    if (!isEdit && idx > step + 1) return;
 
     // Safety: steps > 0 require driverId
     if (idx > 0 && !driverId) {
@@ -264,7 +264,8 @@ export default function DriverFormPage() {
         title: "Saved",
         description: "Basic info saved successfully.",
       });
-      await goToStep(1); // Cost Details
+      // In add mode, setDriverId is async; move step directly to avoid stale-state blocking.
+      setStep(1); // Cost Details
     } catch (e: any) {
       console.error("Failed to save basic info", e);
       toast({
@@ -308,7 +309,7 @@ export default function DriverFormPage() {
 
   function back() {
     if (step === 0) {
-      nav("/drivers");
+      nav("/driver");
       return;
     }
     setStep((s) => clampStepIndex(s - 1));
@@ -409,7 +410,7 @@ export default function DriverFormPage() {
             vendors={vendors}
             vehicleTypes={vehicleTypes}
             onBack={back}
-            onFinish={() => nav("/drivers")}
+            onFinish={() => nav("/driver")}
           />
         )}
       </div>

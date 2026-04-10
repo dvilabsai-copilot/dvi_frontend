@@ -8,8 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 
 export default function Login() {
-  const [email, setEmail] = useState("admin@dvi.co.in");
-  const [password, setPassword] = useState("Keerthi@2404ias");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();

@@ -24,6 +24,15 @@ type HotelListProps = {
   hotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
   hotelRatesVisible: boolean;
+  hotelAvailability?: {
+    hasSupplierHotels: boolean;
+    supplierHotelCount: number;
+    placeholderRowCount: number;
+    totalSearchRoutes: number;
+    emptySearchRoutes: number;
+    isPlaceholderOnly: boolean;
+    message: string;
+  };
   quoteId: string; // ✅ Required: Quote ID from parent
   planId: number; // ✅ Required: Plan ID for hotel selection
   // Optional: in case you later wire an API to persist the toggle
@@ -108,6 +117,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotels,
   hotelTabs,
   hotelRatesVisible,
+  hotelAvailability,
   quoteId, // ✅ Receive quoteId from parent
   planId, // ✅ Receive planId from parent
   onToggleHotelRates,
@@ -119,6 +129,11 @@ export const HotelList: React.FC<HotelListProps> = ({
   onTotalChange, // ✅ NEW: Callback for total amount changes
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
 }) => {
+  const toNumber = (value: unknown, fallback = 0): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
   // ✅ Track selected hotel PER GROUP TYPE and PER ROUTE
   // Structure: selectedByGroup[groupType][routeId] = selected hotel row
   // This ensures each groupType has its own independent selections
@@ -232,7 +247,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Initialise active tab from backend groups
   useEffect(() => {
     if (!activeGroupType && hotelTabs && hotelTabs.length > 0) {
-      const initialGroupType = hotelTabs[0].groupType;
+      const initialGroupType = toNumber(hotelTabs[0].groupType, 1);
       setActiveGroupType(initialGroupType);
       // Notify parent of initial group type
       if (onGroupTypeChange) {
@@ -291,14 +306,31 @@ export const HotelList: React.FC<HotelListProps> = ({
     // ✅ For confirmed itineraries (readOnly mode), show ONLY ONE confirmed hotel per route
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
+      const confirmedHotels = localHotels.filter(
+        (h) => toNumber(h.itineraryPlanHotelDetailsId) > 0,
+      );
+      const sourceHotels =
+        confirmedHotels.length > 0
+          ? confirmedHotels
+          : (() => {
+              const fallbackGroupType = toNumber(
+                activeGroupType ?? hotelTabs?.[0]?.groupType,
+                1,
+              );
+              const hotelsInFallbackGroup = localHotels.filter(
+                (h) => toNumber(h.groupType) === fallbackGroupType,
+              );
+              return hotelsInFallbackGroup.length > 0
+                ? hotelsInFallbackGroup
+                : localHotels;
+            })();
       
       // For each route, keep only the first (confirmed) hotel
-      localHotels
-        .filter(h => h.itineraryPlanHotelDetailsId && h.itineraryPlanHotelDetailsId > 0)
-        .forEach(h => {
+      sourceHotels.forEach(h => {
           // Only add if this route doesn't already have a confirmed hotel
-          if (!hotelsByRoute.has(h.itineraryRouteId)) {
-            hotelsByRoute.set(h.itineraryRouteId, h);
+          const routeId = toNumber(h.itineraryRouteId);
+          if (!hotelsByRoute.has(routeId)) {
+            hotelsByRoute.set(routeId, h);
           }
         });
       
@@ -313,8 +345,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     // Get all unique routes for this groupType
     const routesInGroup = new Set<number>();
     localHotels
-      .filter(h => h.groupType === activeGroupType)
-      .forEach(h => routesInGroup.add(h.itineraryRouteId));
+      .filter(h => toNumber(h.groupType) === toNumber(activeGroupType))
+      .forEach(h => routesInGroup.add(toNumber(h.itineraryRouteId)));
     
     // For each route, show the selected hotel for this groupType
     const displayHotels: ItineraryHotelRow[] = [];
@@ -584,14 +616,14 @@ export const HotelList: React.FC<HotelListProps> = ({
       });
       
       // ✅ Store selection by groupType and routeId
-      const routeId = Number(room.itineraryRouteId);
-      const groupType = pendingHotelAction.groupType || activeGroupType || 1;
+      const routeId = toNumber(room.itineraryRouteId);
+      const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       
       // Find the full hotel row from localHotels
       const selectedHotel = localHotels.find(h => 
-        h.hotelId === room.hotelId && 
-        h.itineraryRouteId === routeId &&
-        h.groupType === groupType
+        toNumber(h.hotelId) === toNumber(room.hotelId) && 
+        toNumber(h.itineraryRouteId) === routeId &&
+        toNumber(h.groupType) === groupType
       );
       
       if (!selectedHotel) {
@@ -720,8 +752,8 @@ export const HotelList: React.FC<HotelListProps> = ({
       const selections: Record<number, any> = {};
       selectedHotels.forEach(hotel => {
         const routeDay = localHotels.find(h => 
-          h.itineraryRouteId === hotel.itineraryRouteId && 
-          h.groupType === activeGroupType
+          toNumber(h.itineraryRouteId) === toNumber(hotel.itineraryRouteId) && 
+          toNumber(h.groupType) === toNumber(activeGroupType)
         );
         
         if (routeDay) {
@@ -743,7 +775,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             hotelName: hotel.hotelName || '',
             checkInDate,
             checkOutDate,
-            groupType: activeGroupType,
+            groupType: toNumber(activeGroupType, 1),
           };
         }
       });
@@ -801,6 +833,21 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         )}
 
+        {hotelAvailability && (
+          <div
+            className={`mb-4 rounded-lg border px-3 py-2 text-sm ${
+              hotelAvailability.isPlaceholderOnly
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            <p className="font-medium">{hotelAvailability.message}</p>
+            <p className="mt-1 text-xs opacity-90">
+              Supplier hotels: {hotelAvailability.supplierHotelCount} | Placeholder rows: {hotelAvailability.placeholderRowCount} | Empty routes: {hotelAvailability.emptySearchRoutes}/{hotelAvailability.totalSearchRoutes}
+            </p>
+          </div>
+        )}
+
         {/* Recommended Hotel Groups – based on real backend groups */}
         {/* ✅ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
@@ -808,8 +855,9 @@ export const HotelList: React.FC<HotelListProps> = ({
             {hotelTabs && hotelTabs.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {hotelTabs.map((tab, index) => {
-                  const isActive = tab.groupType === activeGroupType;
-                  const tabTotal = getGroupTotal(tab.groupType);
+                  const tabGroupType = toNumber(tab.groupType, index + 1);
+                  const isActive = tabGroupType === toNumber(activeGroupType, -1);
+                  const tabTotal = getGroupTotal(tabGroupType);
                   const recommendationLabels = [
                     "Recommended #1",
                     "Recommended #2", 
@@ -818,10 +866,10 @@ export const HotelList: React.FC<HotelListProps> = ({
                   ];
                   return (
                     <button
-                      key={tab.groupType}
+                      key={tabGroupType}
                       disabled={loadingRowKey !== null}
                       onClick={() => {
-                        setActiveGroupType(tab.groupType);
+                        setActiveGroupType(tabGroupType);
                         setLoadingRowKey("tab-switch");
                         setExpandedRowKey(null);
                         setRoomDetails([]);
@@ -830,7 +878,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                           setLoadingRowKey(null);
                           // Notify parent that group type changed
                           if (onGroupTypeChange) {
-                            onGroupTypeChange(tab.groupType);
+                            onGroupTypeChange(tabGroupType);
                           }
                         }, 500);
                       }}

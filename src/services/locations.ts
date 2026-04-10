@@ -55,6 +55,24 @@ const asNum = (v: any) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+function uniqueCaseInsensitive(values: string[]) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const text = asStr(value).trim();
+    if (!text) continue;
+
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(text);
+  }
+
+  return result;
+}
+
 /** Normalize one raw row from backend (PHP/Nest) into LocationRow expected by UI */
 function toLocationRow(raw: any): LocationRow {
   // Handle alternate keys + common typos ("lattitude")
@@ -170,5 +188,37 @@ export const locationsApi = {
   async get(id: number) {
     const data = (await api(`/locations/${id}`)) as any;
     return toLocationRow(data);
+  },
+
+  async searchCities(phrase: string) {
+    const normalized = asStr(phrase).trim();
+    if (!normalized) return [];
+
+    const data = (await api(
+      `/locations/autosuggest/cities${qs({
+        phrase: normalized,
+        format: "json",
+        type: "city",
+      })}`
+    )) as any;
+
+    const rows = Array.isArray(data) ? data : [];
+    return uniqueCaseInsensitive(rows.map((r) => asStr(r?.get_city)));
+  },
+
+  async searchStates(phrase: string) {
+    const normalized = asStr(phrase).trim();
+    if (!normalized) return [];
+
+    const data = (await api(
+      `/locations/autosuggest/states${qs({
+        phrase: normalized,
+        format: "json",
+        type: "state",
+      })}`
+    )) as any;
+
+    const rows = Array.isArray(data) ? data : [];
+    return uniqueCaseInsensitive(rows.map((r) => asStr(r?.get_state)));
   },
 };

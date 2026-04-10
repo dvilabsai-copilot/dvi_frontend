@@ -14,7 +14,7 @@ dvi-journey-manager/
 │   ├── hooks/
 │   │   └── ✨ useHotelSearch.ts ............... NEW
 │   │       │
-│   │       ├─ Hook for hotel search with debouncing
+│   │       ├─ Hook for hotel search with debouncing 
 │   │       ├─ State: searchResults, isSearching, error
 │   │       ├─ Methods: search(), clearSearch()
 │   │       ├─ Type: HotelSearchResult

@@ -1,11 +1,12 @@
 // FILE: src/pages/hotel-form/PriceBookStep.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { PricebookRow } from "./HotelForm";
 
 type ApiCtx = {
   apiGetFirst: (ps: string[]) => Promise<any>;
   apiPost: (p: string, b: any) => Promise<any>;
+  apiPatch?: (p: string, b: any) => Promise<any>;
 };
 
 type AmenityOption = { id: number; name: string };
@@ -14,6 +15,23 @@ type RoomRow = {
   room_title?: string | null;
   room_ref_code?: string | null;
   room_type_id?: number | null;
+  gst_type?: any;
+  gst_percentage?: any;
+};
+
+const LOCAL_VALIDATION_MESSAGES = new Set([
+  "Start date and End date should be required.",
+  "Start date should be required.",
+  "End date should be required.",
+  "Please enter at least one price for the amenities.",
+  "Please enter at least one price for the rooms.",
+  "No rooms to update",
+]);
+
+const uiErrorMessage = (err: any, fallback: string) => {
+  const msg = String(err?.message ?? "").trim();
+  if (LOCAL_VALIDATION_MESSAGES.has(msg)) return msg;
+  return fallback;
 };
 
 export default function PriceBookStep({
@@ -28,6 +46,14 @@ export default function PriceBookStep({
   onNext: () => void;
 }) {
   const qc = useQueryClient();
+  const [hotelDetailsError, setHotelDetailsError] = useState<string>("");
+  const [mealError, setMealError] = useState<string>("");
+  const [amenitiesError, setAmenitiesError] = useState<string>("");
+  const [roomError, setRoomError] = useState<string>("");
+  const [hotelDetailsSuccess, setHotelDetailsSuccess] = useState<string>("");
+  const [mealSuccess, setMealSuccess] = useState<string>("");
+  const [amenitiesSuccess, setAmenitiesSuccess] = useState<string>("");
+  const [roomSuccess, setRoomSuccess] = useState<string>("");
 
   // ---------- helpers ----------
   const toNum = (v: any) => {
@@ -39,7 +65,16 @@ export default function PriceBookStep({
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
   };
-  const ymd = (d: string) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+  const ymd = (d: string) => {
+    const s = String(d ?? "").trim();
+    if (!s) return "";
+    const ymdFormat = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymdFormat) return `${ymdFormat[1]}-${ymdFormat[2]}-${ymdFormat[3]}`;
+    const dmyFormat = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (dmyFormat) return `${dmyFormat[3]}-${dmyFormat[2]}-${dmyFormat[1]}`;
+    const dt = new Date(s);
+    return Number.isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 10);
+  };
 
   /* -----------------------------------------------------------
    *  STATE: (kept) Margin & Meal section state (unchanged)
@@ -55,16 +90,17 @@ export default function PriceBookStep({
 
   const [mealStartDate, setMealStartDate] = useState<string>("");
   const [mealEndDate, setMealEndDate] = useState<string>("");
+  const mealStartRef = useRef<HTMLInputElement | null>(null);
+  const mealEndRef = useRef<HTMLInputElement | null>(null);
 
   /* -----------------------------------------------------------
    *  NEW: Amenities Details section state
    * --------------------------------------------------------- */
   const [amenitiesStartDate, setAmenitiesStartDate] = useState<string>("");
   const [amenitiesEndDate, setAmenitiesEndDate] = useState<string>("");
-  const [amenityId, setAmenityId] = useState<number | "">("");
-  const [hoursCharge, setHoursCharge] = useState<string>("");
-  const [dayCharge, setDayCharge] = useState<string>("");
-  const [amenityPickerOpen, setAmenityPickerOpen] = useState(false);
+  const amenitiesStartRef = useRef<HTMLInputElement | null>(null);
+  const amenitiesEndRef = useRef<HTMLInputElement | null>(null);
+  const [amenityCharges, setAmenityCharges] = useState<Record<number, { hours?: string; day?: string }>>({});
 
   /* -----------------------------------------------------------
    *  NEW: Room Details section state
@@ -80,6 +116,10 @@ export default function PriceBookStep({
     endDate?: string;
   };
   const [roomInputs, setRoomInputs] = useState<Record<number, RoomInput>>({});
+  const [roomStartDate, setRoomStartDate] = useState<string>("");
+  const [roomEndDate, setRoomEndDate] = useState<string>("");
+  const roomStartRef = useRef<HTMLInputElement | null>(null);
+  const roomEndRef = useRef<HTMLInputElement | null>(null);
 
   /* ================= Static dropdowns ================= */
   const gstTypes = [
@@ -118,6 +158,12 @@ export default function PriceBookStep({
     return "Included";
   };
 
+  const toApiGstType = (val: string): number => {
+    const s = String(val ?? "").toLowerCase();
+    if (s.includes("exclude")) return 2;
+    return 1;
+  };
+
   useEffect(() => {
     if (!basicInfoRaw) return;
 
@@ -153,6 +199,22 @@ export default function PriceBookStep({
     setHotelMarginGstPercentage(gstPctId);
   }, [basicInfoRaw]);
 
+  const basicRequiredFields = useMemo(() => {
+    const row = Array.isArray(basicInfoRaw)
+      ? basicInfoRaw[0] ?? null
+      : basicInfoRaw;
+
+    const code = String(row?.hotel_code ?? row?.code ?? "").trim();
+    const email = String(
+      row?.hotel_email_id ?? row?.hotel_email ?? row?.email ?? "",
+    ).trim();
+
+    return {
+      hotel_code: code || `DVI${hotelId}`,
+      hotel_email_id: email || "noreply@dvi.co.in",
+    };
+  }, [basicInfoRaw, hotelId]);
+
   /* ================= Load: Amenities list ================= */
   const { data: amenityOptions = [] as AmenityOption[] } = useQuery({
     queryKey: ["hotel-amenities", hotelId],
@@ -181,15 +243,15 @@ export default function PriceBookStep({
   });
 
   useEffect(() => {
-    if (amenityOptions.length && amenityId === "") {
-      setAmenityId(amenityOptions[0].id);
-    }
-  }, [amenityOptions, amenityId]);
-
-  const selectedAmenity = useMemo(
-    () => amenityOptions.find((a) => a.id === amenityId) ?? null,
-    [amenityOptions, amenityId]
-  );
+    if (!amenityOptions.length) return;
+    setAmenityCharges((prev) => {
+      const next = { ...prev };
+      amenityOptions.forEach((a) => {
+        if (!next[a.id]) next[a.id] = { hours: "", day: "" };
+      });
+      return next;
+    });
+  }, [amenityOptions]);
 
   /* ================= Load: Rooms list ================= */
   const { data: rooms = [] as RoomRow[] } = useQuery({
@@ -211,13 +273,69 @@ export default function PriceBookStep({
         room_title: r.room_title ?? r.title ?? null,
         room_ref_code: r.room_ref_code ?? r.room_type ?? null,
         room_type_id: r.room_type_id ?? null,
+        gst_type: r.gst_type,
+        gst_percentage: r.gst_percentage,
       }));
     },
   });
 
+  useEffect(() => {
+    if (!rooms.length) return;
+    setRoomInputs((prev) => {
+      const next = { ...prev };
+      rooms.forEach((r) => {
+        if (!next[r.room_ID]) {
+          next[r.room_ID] = {
+            gstType: toUiGstType(r.gst_type ?? 1),
+            gstPct:
+              r.gst_percentage === null ||
+              r.gst_percentage === undefined ||
+              r.gst_percentage === ""
+                ? "0"
+                : String(Number(r.gst_percentage)),
+          };
+        }
+      });
+      return next;
+    });
+  }, [rooms]);
+
   /* -----------------------------------------------------------
    *  MUTATIONS
    * --------------------------------------------------------- */
+
+  const hotelDetailsMut = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        hotel_margin: toMaybeNum(hotelMargin) ?? 0,
+        hotel_margin_gst_type: toApiGstType(hotelMarginGstType),
+        hotel_margin_gst_percentage: toMaybeNum(hotelMarginGstPercentage) ?? 0,
+        hotel_code: basicRequiredFields.hotel_code,
+        hotel_email_id: basicRequiredFields.hotel_email_id,
+        hotel_email: basicRequiredFields.hotel_email_id,
+      };
+      const patchPath = `/api/v1/hotels/${hotelId}`;
+
+      // Primary parity route in Nest: PATCH /hotels/:id
+      if (api.apiPatch) {
+        return api.apiPatch(patchPath, payload);
+      }
+
+      // Fallback if apiPatch is unavailable in context
+      return api.apiPost(patchPath, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["hotel-basic-info-for-pricebook", hotelId] });
+      setHotelDetailsError("");
+      setHotelDetailsSuccess("Hotel details updated successfully.");
+    },
+    onError: (e: any) => {
+      setHotelDetailsSuccess("");
+      setHotelDetailsError(
+        uiErrorMessage(e, "Hotel details update failed. Please try again.")
+      );
+    },
+  });
 
   // Meal details save (kept)
   const mealMut = useMutation({
@@ -229,8 +347,8 @@ export default function PriceBookStep({
       dinnerCost?: number;
     }) => {
       const payload: any = {
-        startDate: body.startDate,
-        endDate: body.endDate,
+        startDate: ymd(body.startDate) || body.startDate,
+        endDate: ymd(body.endDate) || body.endDate,
       };
       if (Number.isFinite(body.breakfastCost as number))
         payload.breakfastCost = body.breakfastCost;
@@ -239,15 +357,32 @@ export default function PriceBookStep({
       if (Number.isFinite(body.dinnerCost as number))
         payload.dinnerCost = body.dinnerCost;
 
-      const paths = [
-        `/api/v1/hotels/${hotelId}/meal-pricebook`,
-        `/api/v1/hotel-meal-pricebook?hotelId=${hotelId}`,
-        `/api/v1/hotels/${hotelId}/meal-price-book`,
+      const attempts: Array<{ path: string; body: any }> = [
+        {
+          path: `/api/v1/hotels/${hotelId}/meal-pricebook`,
+          body: payload,
+        },
+        {
+          path: `/api/v1/hotels/meal-pricebook/${hotelId}`,
+          body: payload,
+        },
+        {
+          path: `/api/v1/hotel-meal-pricebook`,
+          body: { ...payload, hotel_id: toNum(hotelId) },
+        },
+        {
+          path: `/api/v1/hotel-meal-pricebook?hotelId=${hotelId}`,
+          body: payload,
+        },
+        {
+          path: `/api/v1/hotels/${hotelId}/meal-price-book`,
+          body: payload,
+        },
       ];
       let lastErr: any;
-      for (const p of paths) {
+      for (const attempt of attempts) {
         try {
-          return await api.apiPost(p, payload);
+          return await api.apiPost(attempt.path, attempt.body);
         } catch (e) {
           lastErr = e;
         }
@@ -255,55 +390,80 @@ export default function PriceBookStep({
       throw lastErr || new Error("No meal pricebook endpoint available");
     },
     onSuccess: () => {
-      alert("✅ Meal details saved");
+      setMealError("");
+      setMealSuccess("Meal details saved successfully.");
     },
     onError: (e: any) => {
-      alert(`Meal save failed: ${e?.message || "Unknown error"}`);
+      setMealSuccess("");
+      setMealError(uiErrorMessage(e, "Meal save failed. Please try again."));
     },
   });
 
   // ---------- Amenities price book: match your controller + service exactly ----------
   const amenityMut = useMutation({
     mutationFn: async () => {
-      if (!amenityId || !amenitiesStartDate || !amenitiesEndDate) {
-        throw new Error("Amenity, Start Date and End Date are required");
+      const amenitiesStart = amenitiesStartDate || amenitiesStartRef.current?.value || "";
+      const amenitiesEnd = amenitiesEndDate || amenitiesEndRef.current?.value || "";
+
+      if (!amenitiesStart || !amenitiesEnd) {
+        throw new Error("Start date and End date should be required.");
       }
 
-      const startDate = ymd(amenitiesStartDate);
-      const endDate = ymd(amenitiesEndDate);
+      const startDate = ymd(amenitiesStart);
+      const endDate = ymd(amenitiesEnd);
 
-      // Exact DTO your controller expects:
-      // UpsertAmenityPricebookDto { startDate, endDate, hoursCharge?, dayCharge? }
-      const payload = {
-        startDate,
-        endDate,
-        hoursCharge: toMaybeNum(hoursCharge),
-        dayCharge: toMaybeNum(dayCharge),
-      };
+      const filled = amenityOptions
+        .map((a) => {
+          const val = amenityCharges[a.id] || {};
+          return {
+            amenityId: a.id,
+            hoursCharge: toMaybeNum(val.hours),
+            dayCharge: toMaybeNum(val.day),
+          };
+        })
+        .filter((x) => x.hoursCharge !== undefined || x.dayCharge !== undefined);
 
-      // Primary route from HotelsController:
-      const primary = `/api/v1/hotels/${hotelId}/amenities/${amenityId}/pricebook`;
-      // Alias from PreviewAliasesController (requires *both* hotelId & amenityId):
-      const alias = `/api/v1/hotel-amenities-pricebook?hotelId=${hotelId}&amenityId=${amenityId}`;
-
-      let err: any;
-      try {
-        return await api.apiPost(primary, payload);
-      } catch (e) {
-        err = e;
+      if (!filled.length) {
+        throw new Error("Please enter at least one price for the amenities.");
       }
-      return api.apiPost(alias, payload).catch((e) => {
-        throw err || e;
-      });
+
+      const results: any[] = [];
+      for (const row of filled) {
+        const payload = {
+          startDate,
+          endDate,
+          hoursCharge: row.hoursCharge,
+          dayCharge: row.dayCharge,
+        };
+
+        const primary = `/api/v1/hotels/${hotelId}/amenities/${row.amenityId}/pricebook`;
+        const alias = `/api/v1/hotel-amenities-pricebook?hotelId=${hotelId}&amenityId=${row.amenityId}`;
+
+        let err: any;
+        try {
+          results.push(await api.apiPost(primary, payload));
+          continue;
+        } catch (e) {
+          err = e;
+        }
+        results.push(
+          await api.apiPost(alias, payload).catch((e) => {
+            throw err || e;
+          })
+        );
+      }
+
+      return results;
     },
     onSuccess: () => {
-      alert("✅ Amenities price book saved");
+      setAmenitiesError("");
+      setAmenitiesSuccess("Amenities price book saved successfully.");
       qc.invalidateQueries({ queryKey: ["hotel-amenities", hotelId] });
     },
     onError: (e: any) => {
-      alert(
-        `Amenities save failed: ${e?.message || "Unknown error"}\n` +
-          `Tip: ensure amenityId is selected (the alias requires it in the query).`
+      setAmenitiesSuccess("");
+      setAmenitiesError(
+        uiErrorMessage(e, "Amenities save failed. Please try again.")
       );
     },
   });
@@ -312,6 +472,9 @@ export default function PriceBookStep({
   const roomMut = useMutation({
     mutationFn: async () => {
       if (!rooms.length) throw new Error("No rooms to update");
+
+      const roomStart = roomStartDate || roomStartRef.current?.value || "";
+      const roomEnd = roomEndDate || roomEndRef.current?.value || "";
 
       const items = rooms
         .map((r) => {
@@ -322,16 +485,14 @@ export default function PriceBookStep({
             v.childWithBed ||
             v.childWithoutBed ||
             v.gstType ||
-            v.gstPct ||
-            v.startDate ||
-            v.endDate;
+            v.gstPct;
           if (!hasAny) return null;
 
           return {
             hotel_id: toNum(hotelId),
             room_id: r.room_ID,
-            startDate: v.startDate || "",
-            endDate: v.endDate || "",
+            startDate: ymd(roomStart) || roomStart,
+            endDate: ymd(roomEnd) || roomEnd,
             roomPrice: toMaybeNum(v.roomPrice),
             extraBed: toMaybeNum(v.extraBed),
             childWithBed: toMaybeNum(v.childWithBed),
@@ -343,7 +504,27 @@ export default function PriceBookStep({
         })
         .filter(Boolean) as any[];
 
-      if (!items.length) throw new Error("Nothing to save");
+      const hasAnyCharge = items.some(
+        (x) =>
+          x.roomPrice !== undefined ||
+          x.extraBed !== undefined ||
+          x.childWithBed !== undefined ||
+          x.childWithoutBed !== undefined
+      );
+
+      if (!hasAnyCharge) {
+        throw new Error("Please enter at least one price for the rooms.");
+      }
+
+      if (!roomStart && !roomEnd) {
+        throw new Error("Start date and End date should be required.");
+      }
+      if (!roomStart) {
+        throw new Error("Start date should be required.");
+      }
+      if (!roomEnd) {
+        throw new Error("End date should be required.");
+      }
 
       const payload = { items, status: 1 };
 
@@ -363,23 +544,43 @@ export default function PriceBookStep({
       throw lastErr || new Error("No room pricebook endpoint available");
     },
     onSuccess: () => {
-      alert("✅ Room price book saved");
+      setRoomError("");
+      setRoomSuccess("Room price book saved successfully.");
     },
     onError: (e: any) => {
-      alert(`Room pricebook failed: ${e?.message || "Unknown error"}`);
+      setRoomSuccess("");
+      setRoomError(uiErrorMessage(e, "Room pricebook failed. Please try again."));
     },
   });
 
   /* -----------------------------------------------------------
    *  Derived state & helpers
    * --------------------------------------------------------- */
-  const canSaveMeals =
-    !!mealStartDate &&
-    !!mealEndDate &&
-    (breakfastCost !== "" || lunchCost !== "" || dinnerCost !== "");
+  const validateMealSection = () => {
+    const startVal = mealStartDate || mealStartRef.current?.value || "";
+    const endVal = mealEndDate || mealEndRef.current?.value || "";
+    if (!startVal && !endVal) return "Start date and End date should be required.";
+    if (!startVal) return "Start date should be required.";
+    if (!endVal) return "End date should be required.";
+    if (breakfastCost === "" && lunchCost === "" && dinnerCost === "") {
+      return "Please enter at least one price for the meal.";
+    }
+    return null;
+  };
 
-  const canSaveAmenities =
-    !!amenityId && !!amenitiesStartDate && !!amenitiesEndDate;
+  const validateAmenitiesSection = () => {
+    const startVal = amenitiesStartDate || amenitiesStartRef.current?.value || "";
+    const endVal = amenitiesEndDate || amenitiesEndRef.current?.value || "";
+    if (!startVal && !endVal) return "Start date and End date should be required.";
+    if (!startVal) return "Start date should be required.";
+    if (!endVal) return "End date should be required.";
+    const hasAny = amenityOptions.some((a) => {
+      const val = amenityCharges[a.id] || {};
+      return (val.hours ?? "") !== "" || (val.day ?? "") !== "";
+    });
+    if (!hasAny) return "Please enter at least one price for the amenities.";
+    return null;
+  };
 
   const setRoomField = (
     roomId: number,
@@ -412,7 +613,27 @@ export default function PriceBookStep({
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">
             Hotel Margin
           </h5>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setHotelDetailsError("");
+                setHotelDetailsSuccess("");
+                hotelDetailsMut.mutate();
+              }}
+              className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600"
+            >
+              {hotelDetailsMut.isPending ? "Saving..." : "Update"}
+            </button>
+          </div>
         </div>
+
+        {hotelDetailsError && (
+          <div className="mb-3 text-sm text-red-600">{hotelDetailsError}</div>
+        )}
+        {hotelDetailsSuccess && (
+          <div className="mb-3 text-sm text-green-600">{hotelDetailsSuccess}</div>
+        )}
 
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
@@ -474,6 +695,7 @@ export default function PriceBookStep({
 
           <div className="flex items-center gap-2">
             <input
+              ref={mealStartRef}
               type="date"
               className="border rounded-lg px-3 py-2 text-sm"
               placeholder="Start Date"
@@ -481,6 +703,7 @@ export default function PriceBookStep({
               onChange={(e) => setMealStartDate(e.target.value)}
             />
             <input
+              ref={mealEndRef}
               type="date"
               className="border rounded-lg px-3 py-2 text-sm"
               placeholder="End Date"
@@ -489,16 +712,25 @@ export default function PriceBookStep({
             />
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                const msg = validateMealSection();
+                if (msg) {
+                  setMealError(msg);
+                  return;
+                }
+                const mealStart = mealStartDate || mealStartRef.current?.value || "";
+                const mealEnd = mealEndDate || mealEndRef.current?.value || "";
+                setMealError("");
+                setMealSuccess("");
                 mealMut.mutate({
-                  startDate: mealStartDate,
-                  endDate: mealEndDate,
+                  startDate: mealStart,
+                  endDate: mealEnd,
                   breakfastCost: toMaybeNum(breakfastCost),
                   lunchCost: toMaybeNum(lunchCost),
                   dinnerCost: toMaybeNum(dinnerCost),
-                } as any)
-              }
-              disabled={!canSaveMeals || mealMut.isPending}
+                } as any);
+              }}
+              disabled={mealMut.isPending}
               className={`px-4 py-2 rounded-lg text-white text-sm
                 bg-gradient-to-r from-pink-500 to-purple-600
                 disabled:opacity-50`}
@@ -507,6 +739,9 @@ export default function PriceBookStep({
             </button>
           </div>
         </div>
+
+        {mealError && <div className="mb-3 text-sm text-red-600">{mealError}</div>}
+  {mealSuccess && <div className="mb-3 text-sm text-green-600">{mealSuccess}</div>}
 
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
@@ -559,6 +794,7 @@ export default function PriceBookStep({
 
           <div className="flex items-center gap-2">
             <input
+              ref={amenitiesStartRef}
               type="date"
               className="border rounded-lg px-3 py-2 text-sm"
               placeholder="Start Date"
@@ -566,6 +802,7 @@ export default function PriceBookStep({
               onChange={(e) => setAmenitiesStartDate(e.target.value)}
             />
             <input
+              ref={amenitiesEndRef}
               type="date"
               className="border rounded-lg px-3 py-2 text-sm"
               placeholder="End Date"
@@ -574,8 +811,21 @@ export default function PriceBookStep({
             />
             <button
               type="button"
-              onClick={() => amenityMut.mutate()}
-              disabled={!canSaveAmenities || amenityMut.isPending}
+              onClick={() => {
+                const msg = validateAmenitiesSection();
+                if (msg) {
+                  setAmenitiesError(msg);
+                  return;
+                }
+                const aStart = amenitiesStartDate || amenitiesStartRef.current?.value || "";
+                const aEnd = amenitiesEndDate || amenitiesEndRef.current?.value || "";
+                setAmenitiesStartDate(aStart);
+                setAmenitiesEndDate(aEnd);
+                setAmenitiesError("");
+                setAmenitiesSuccess("");
+                amenityMut.mutate();
+              }}
+              disabled={amenityMut.isPending}
               className={`px-4 py-2 rounded-lg text-white text-sm
                 bg-gradient-to-r from-pink-500 to-purple-600
                 disabled:opacity-50`}
@@ -585,68 +835,59 @@ export default function PriceBookStep({
           </div>
         </div>
 
+        {amenitiesError && (
+          <div className="mb-3 text-sm text-red-600">{amenitiesError}</div>
+        )}
+        {amenitiesSuccess && (
+          <div className="mb-3 text-sm text-green-600">{amenitiesSuccess}</div>
+        )}
+
         <div className="grid grid-cols-12 gap-3">
-          {/* Amenity Title (read-only, click to change) */}
-          <div className="col-span-12 md:col-span-4">
-            <label className="block text-xs font-medium mb-1">
-              Amenities Title
-            </label>
-
-            {!amenityPickerOpen ? (
-              <button
-                type="button"
-                className="text-pink-600 font-semibold text-base hover:underline"
-                onClick={() => {
-                  if (amenityOptions.length > 1) setAmenityPickerOpen(true);
-                }}
-                title={
-                  amenityOptions.length > 1
-                    ? "Click to change amenity"
-                    : undefined
-                }
-              >
-                {selectedAmenity?.name || "—"}
-              </button>
-            ) : (
-              <select
-                className="w-full border rounded-lg px-3 py-2 text-sm"
-                value={amenityId}
-                onChange={(e) => {
-                  const v = e.target.value === "" ? "" : Number(e.target.value);
-                  setAmenityId(v as number | "");
-                  setAmenityPickerOpen(false);
-                }}
-              >
-                {amenityOptions.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div className="col-span-12 md:col-span-4">
-            <label className="block text-xs font-medium mb-1">Hours Charge (₹)</label>
-            <input
-              type="number"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="Hours Charge"
-              value={hoursCharge}
-              onChange={(e) => setHoursCharge(e.target.value)}
-            />
-          </div>
-
-          <div className="col-span-12 md:col-span-4">
-            <label className="block text-xs font-medium mb-1">Day Charge (₹)</label>
-            <input
-              type="number"
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              placeholder="Day Charge"
-              value={dayCharge}
-              onChange={(e) => setDayCharge(e.target.value)}
-            />
-          </div>
+          {amenityOptions.length === 0 ? (
+            <div className="col-span-12 text-sm text-gray-500">No more amenities found.</div>
+          ) : (
+            amenityOptions.map((a) => {
+              const val = amenityCharges[a.id] || { hours: "", day: "" };
+              return (
+                <React.Fragment key={a.id}>
+                  <div className="col-span-12 md:col-span-4">
+                    <label className="block text-xs font-medium mb-1">Amenities Title</label>
+                    <div className="text-pink-600 font-semibold text-sm mt-2">{a.name}</div>
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <label className="block text-xs font-medium mb-1">Hours Charge (₹)</label>
+                    <input
+                      type="number"
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                      placeholder="Hours Charge"
+                      value={val.hours || ""}
+                      onChange={(e) =>
+                        setAmenityCharges((prev) => ({
+                          ...prev,
+                          [a.id]: { ...(prev[a.id] || {}), hours: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <label className="block text-xs font-medium mb-1">Day Charge (₹)</label>
+                    <input
+                      type="number"
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                      placeholder="Day Charge"
+                      value={val.day || ""}
+                      onChange={(e) =>
+                        setAmenityCharges((prev) => ({
+                          ...prev,
+                          [a.id]: { ...(prev[a.id] || {}), day: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                </React.Fragment>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -657,16 +898,44 @@ export default function PriceBookStep({
             Room Details
           </h5>
 
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              ref={roomStartRef}
+              type="date"
+              className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="Start Date"
+              value={roomStartDate}
+              onChange={(e) => setRoomStartDate(e.target.value)}
+            />
+            <input
+              ref={roomEndRef}
+              type="date"
+              className="border rounded-lg px-3 py-2 text-sm"
+              placeholder="End Date"
+              value={roomEndDate}
+              onChange={(e) => setRoomEndDate(e.target.value)}
+            />
+
             <button
               type="button"
-              onClick={() => roomMut.mutate()}
+              onClick={() => {
+                const rStart = roomStartDate || roomStartRef.current?.value || "";
+                const rEnd = roomEndDate || roomEndRef.current?.value || "";
+                setRoomStartDate(rStart);
+                setRoomEndDate(rEnd);
+                setRoomError("");
+                setRoomSuccess("");
+                roomMut.mutate();
+              }}
               className="px-4 py-2 rounded-lg text-white text-sm bg-gradient-to-r from-pink-500 to-purple-600"
             >
               Update
             </button>
           </div>
         </div>
+
+        {roomError && <div className="mb-3 text-sm text-red-600">{roomError}</div>}
+        {roomSuccess && <div className="mb-3 text-sm text-green-600">{roomSuccess}</div>}
 
         {rooms.length === 0 ? (
           <div className="text-sm text-gray-500">No rooms found.</div>
@@ -683,27 +952,6 @@ export default function PriceBookStep({
                     <h6 className="font-semibold text-sm text-gray-700">
                       {roomCardHeader(r, idx)}
                     </h6>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
-                        className="border rounded-lg px-3 py-2 text-sm"
-                        placeholder="Start Date"
-                        value={v.startDate || ""}
-                        onChange={(e) =>
-                          setRoomField(r.room_ID, "startDate", e.target.value)
-                        }
-                      />
-                      <input
-                        type="date"
-                        className="border rounded-lg px-3 py-2 text-sm"
-                        placeholder="End Date"
-                        value={v.endDate || ""}
-                        onChange={(e) =>
-                          setRoomField(r.room_ID, "endDate", e.target.value)
-                        }
-                      />
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-12 gap-3">

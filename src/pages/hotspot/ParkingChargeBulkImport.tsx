@@ -9,13 +9,18 @@ type TempRow = {
   hotspot_location: string;
   vehicle_type_title: string;
   parking_charge: number;
+  row_status?: "staged" | "imported" | "rejected";
+  reason?: string;
 };
+
+const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
 
 function downloadSample() {
   const rows = [
     ["hotspot_name", "hotspot_location", "vehicle_type_title", "parking_charge"],
-    ["Marina Beach", "Chennai", "Sedan", "80"],
-    ["Brihadeeswarar Temple", "Thanjavur", "SUV", "120"],
+    ["Calangute Beach", "Goa", "Sedan", "80"],
+    ["Dudhsagar Falls", "Goa Railway Station", "SUV", "120"],
+    ["Basilica of Bom Jesus", "Goa Bus Stand", "Tempo Traveller", "150"],
   ];
   const csv = rows.map(r => r.map(s => {
     const v = String(s ?? "");
@@ -36,17 +41,39 @@ const Page: React.FC = () => {
   const [sessionId, setSessionId] = useState<string>("");
   const [rows, setRows] = useState<TempRow[]>([]);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
+  const [lastConfirm, setLastConfirm] = useState<null | {
+    sessionId: string;
+    total: number;
+    imported: number;
+    failed: number;
+  }>(null);
+
+  const stagedCount = useMemo(
+    () => rows.filter((r) => (r.row_status ?? "staged") === "staged").length,
+    [rows]
+  );
+  const importedCount = useMemo(
+    () => rows.filter((r) => r.row_status === "imported").length,
+    [rows]
+  );
+  const rejectedCount = useMemo(
+    () => rows.filter((r) => r.row_status === "rejected").length,
+    [rows]
+  );
 
   const selectedIds = useMemo(
     () => Object.entries(selected).filter(([, v]) => v).map(([k]) => Number(k)),
     [selected]
   );
   const allChecked = useMemo(
-    () => rows.length > 0 && rows.every(r => selected[r.id]),
+    () => {
+      const stagedRows = rows.filter((r) => (r.row_status ?? "staged") === "staged");
+      return stagedRows.length > 0 && stagedRows.every((r) => selected[r.id]);
+    },
     [rows, selected]
   );
   const someChecked = useMemo(
-    () => rows.some(r => selected[r.id]),
+    () => rows.some(r => (r.row_status ?? "staged") === "staged" && selected[r.id]),
     [rows, selected]
   );
 
@@ -55,7 +82,9 @@ const Page: React.FC = () => {
     const res = await hotspotService.getParkingTempList(id);
     setRows(res.rows || []);
     const next: Record<number, boolean> = {};
-    (res.rows || []).forEach(r => (next[r.id] = true));
+    (res.rows || []).forEach(r => {
+      next[r.id] = (r.row_status ?? "staged") === "staged";
+    });
     setSelected(next);
   };
 
@@ -66,8 +95,11 @@ const Page: React.FC = () => {
     try {
       const out = await hotspotService.uploadParkingCsv(file);
       setSessionId(out.sessionId);
+      localStorage.setItem(PARKING_IMPORT_SESSION_KEY, out.sessionId);
+      setLastConfirm(null);
       await refreshTemplist(out.sessionId);
-      alert(`Uploaded. Staged ${out.stagedCount} row(s).`);
+      const rejected = Number(out.rejectedCount ?? 0);
+      alert(`Uploaded. Staged ${out.stagedCount} row(s). Rejected ${rejected} row(s).`);
     } catch (err: any) {
       alert(err?.message || "Upload failed");
     } finally {
@@ -83,6 +115,12 @@ const Page: React.FC = () => {
     setBusy(true);
     try {
       const res = await hotspotService.confirmParkingImport(sessionId, selectedIds);
+      setLastConfirm({
+        sessionId: res.sessionId,
+        total: Number(res.total ?? 0),
+        imported: Number(res.imported ?? 0),
+        failed: Number(res.failed ?? 0),
+      });
       alert(`Imported ${res.imported}/${res.total}. Failed: ${res.failed}.`);
       await refreshTemplist();
     } catch (e: any) {
@@ -96,6 +134,11 @@ const Page: React.FC = () => {
     if (sessionId) refreshTemplist(sessionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(PARKING_IMPORT_SESSION_KEY) || "";
+    if (saved) setSessionId(saved);
+  }, []);
 
   return (
     <div className="px-8 py-6">
@@ -137,7 +180,12 @@ const Page: React.FC = () => {
             <div className="w-full">
               <div className="flex items-center justify-between mb-3">
                 <div className="text-sm text-gray-600">
-                  {sessionId ? <>Session: <span className="font-mono">{sessionId}</span> • {rows.length} staged</> : "Upload a CSV to start staging rows"}
+                  {sessionId ? (
+                    <>
+                      Session: <span className="font-mono">{sessionId}</span> •
+                      {" "}Staged {stagedCount} • Imported {importedCount} • Rejected {rejectedCount}
+                    </>
+                  ) : "Upload a CSV to start staging rows"}
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => refreshTemplist()} disabled={!sessionId || busy} className="px-4 py-2 rounded-full text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 transition disabled:opacity-60">
@@ -148,6 +196,15 @@ const Page: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {lastConfirm && (
+                <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
+                  Last import summary: Imported {lastConfirm.imported}/{lastConfirm.total}, Failed {lastConfirm.failed}.
+                  {stagedCount === 0 && rows.length > 0 && (
+                    <span className="ml-2 text-emerald-700">No staged rows remain, but imported/rejected rows are shown below.</span>
+                  )}
+                </div>
+              )}
 
               <div className="overflow-x-auto rounded-xl border border-[#f0dafb]">
                 <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -161,7 +218,12 @@ const Page: React.FC = () => {
                             ref={(el) => { if (el) el.indeterminate = !allChecked && someChecked; }}
                             onChange={() => {
                               const next: Record<number, boolean> = {};
-                              const v = !allChecked; rows.forEach(r => (next[r.id] = v)); setSelected(next);
+                              const v = !allChecked;
+                              rows.forEach(r => {
+                                if ((r.row_status ?? "staged") === "staged") next[r.id] = v;
+                                else next[r.id] = false;
+                              });
+                              setSelected(next);
                             }}
                           />
                           <span>Select</span>
@@ -171,21 +233,44 @@ const Page: React.FC = () => {
                       <th className="px-4 py-2 text-left">Location (token)</th>
                       <th className="px-4 py-2 text-left">Vehicle Type</th>
                       <th className="px-4 py-2 text-right">Parking Charge</th>
+                      <th className="px-4 py-2 text-left">Status</th>
+                      <th className="px-4 py-2 text-left">Reason</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {rows.length === 0 ? (
-                      <tr><td className="px-4 py-8 text-center text-gray-500" colSpan={5}>No staged rows.</td></tr>
+                      <tr>
+                        <td className="px-4 py-8 text-center text-gray-500" colSpan={7}>
+                          {lastConfirm
+                            ? "No rows found for this session."
+                            : "No rows."}
+                        </td>
+                      </tr>
                     ) : (
                       rows.map((r) => (
                         <tr key={r.id} className="hover:bg-gray-50">
                           <td className="px-4 py-2">
-                            <input type="checkbox" checked={!!selected[r.id]} onChange={(e) => setSelected(p => ({ ...p, [r.id]: e.target.checked }))}/>
+                            <input
+                              type="checkbox"
+                              checked={!!selected[r.id]}
+                              disabled={(r.row_status ?? "staged") !== "staged"}
+                              onChange={(e) => setSelected(p => ({ ...p, [r.id]: e.target.checked }))}
+                            />
                           </td>
                           <td className="px-4 py-2 font-medium">{r.hotspot_name}</td>
                           <td className="px-4 py-2">{r.hotspot_location}</td>
                           <td className="px-4 py-2">{r.vehicle_type_title}</td>
                           <td className="px-4 py-2 text-right">{r.parking_charge}</td>
+                          <td className="px-4 py-2">
+                            {(r.row_status ?? "staged") === "staged" ? (
+                              <span className="rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">Staged</span>
+                            ) : r.row_status === "imported" ? (
+                              <span className="rounded bg-sky-50 px-2 py-1 text-xs text-sky-700">Imported</span>
+                            ) : (
+                              <span className="rounded bg-rose-50 px-2 py-1 text-xs text-rose-700">Rejected</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-xs text-gray-600">{r.reason || "-"}</td>
                         </tr>
                       ))
                     )}

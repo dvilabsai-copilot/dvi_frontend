@@ -31,7 +31,7 @@ export function useRoomsAndTravellers() {
     {
       id: 1,
       roomCount: 1,
-      adults: 2,
+      adults: 1,
       children: 0,
       infants: 0,
       childrenDetails: [],
@@ -46,7 +46,7 @@ export function useRoomsAndTravellers() {
         {
           id: last.id + 1,
           roomCount: 1,
-          adults: 2,
+          adults: 1,
           children: 0,
           infants: 0,
           childrenDetails: [],

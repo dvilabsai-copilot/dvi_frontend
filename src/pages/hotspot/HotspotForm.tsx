@@ -182,6 +182,15 @@ function TimePickerField({
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 
+function normalizeDurationHHmm(value: string): string {
+  const trimmed = String(value || "").trim();
+  const m = /^(\d{1,2}):(\d{1,2})$/.exec(trimmed);
+  if (!m) return "01:00";
+  const hh = String(Math.max(0, Math.min(23, Number(m[1])))).padStart(2, "0");
+  const mm = String(Math.max(0, Math.min(59, Number(m[2])))).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 export default function HotspotForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -221,6 +230,11 @@ export default function HotspotForm() {
   }>({ types: [], locations: [], vehicleTypes: [] });
 
   const [loading, setLoading] = useState(false);
+  const [hotspotTypeInput, setHotspotTypeInput] = useState("");
+  const [locationInput, setLocationInput] = useState("");
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadOptions();
@@ -262,6 +276,7 @@ export default function HotspotForm() {
         foreignChildCost: Number(p.hotspot_foreign_child_entry_cost ?? 0),
         foreignInfantCost: Number(p.hotspot_foreign_infant_entry_cost ?? 0),
         rating: Number(p.hotspot_rating ?? 0),
+        duration: normalizeDurationHHmm(p.hotspot_duration ?? "01:00"),
         latitude: p.hotspot_latitude ?? "",
         longitude: p.hotspot_longitude ?? "",
         videoUrl: p.hotspot_video_url ?? "",
@@ -283,6 +298,8 @@ export default function HotspotForm() {
           ])
         ),
       });
+      setHotspotTypeInput(p.hotspot_type ?? "");
+      setPendingGalleryFiles([]);
     } catch {
       toast.error("Failed to load hotspot");
     } finally {
@@ -293,7 +310,16 @@ export default function HotspotForm() {
   async function onUploadFiles(files: FileList | null) {
     if (!files || !files.length) return;
     if (!form.id) {
-      toast.message("Images will be uploaded after you save the hotspot.");
+      const selected = Array.from(files);
+      setPendingGalleryFiles((prev) => [...prev, ...selected]);
+      setForm((prev) => ({
+        ...prev,
+        galleryImages: [
+          ...(prev.galleryImages || []),
+          ...selected.map((f) => URL.createObjectURL(f)),
+        ],
+      }));
+      toast.message("Images queued. They will upload after hotspot is saved.");
       return;
     }
     try {
@@ -319,6 +345,10 @@ export default function HotspotForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.locations || form.locations.length === 0) {
+      toast.error("Hotspot Location is required");
+      return;
+    }
     try {
       setLoading(true);
 
@@ -337,9 +367,22 @@ export default function HotspotForm() {
         // ensure operatingHours stays as is
       };
 
-      await hotspotService.saveHotspot(payload as any);
+      const saved = await hotspotService.saveHotspot(payload as any);
+
+      const hotspotIdForUpload = Number(form.id ?? saved.id);
+      if (pendingGalleryFiles.length > 0 && hotspotIdForUpload > 0) {
+        await Promise.all(
+          pendingGalleryFiles.map((f) => hotspotService.uploadGallery(hotspotIdForUpload, f))
+        );
+      }
+
       toast.success("Hotspot saved successfully");
-      navigate("/hotspots");
+      navigate("/hotspots", {
+        state: {
+          prefillSearch: String(form.name || "").trim(),
+          createdId: hotspotIdForUpload,
+        },
+      });
     } catch {
       toast.error("Failed to save hotspot");
     } finally {
@@ -351,6 +394,36 @@ export default function HotspotForm() {
     () => Object.fromEntries(options.vehicleTypes.map((v) => [String(v.id), v.name])),
     [options]
   );
+
+  const locationOptionsFiltered = useMemo(() => {
+    const selected = new Set((form.locations || []).map((x) => x.toLowerCase()));
+    const query = locationInput.trim().toLowerCase();
+    return options.locations
+      .filter((loc) => !selected.has(loc.toLowerCase()))
+      .filter((loc) => (!query ? true : loc.toLowerCase().includes(query)))
+      .slice(0, 12);
+  }, [options.locations, form.locations, locationInput]);
+
+  function addLocation(raw: string) {
+    const v = raw.trim();
+    if (!v) return;
+    setForm((prev) => {
+      const next = prev.locations || [];
+      if (next.some((x) => x.toLowerCase() === v.toLowerCase())) {
+        return prev;
+      }
+      return { ...prev, locations: [...next, v] };
+    });
+    setLocationInput("");
+    setLocationOpen(false);
+  }
+
+  function removeLocation(v: string) {
+    setForm((prev) => ({
+      ...prev,
+      locations: (prev.locations || []).filter((x) => x !== v),
+    }));
+  }
 
   return (
     <div className="p-6">
@@ -373,18 +446,23 @@ export default function HotspotForm() {
             </div>
             <div>
               <Label htmlFor="type">Hotspot Type *</Label>
-              <Select value={form.type ?? ""} onValueChange={(v) => setForm({ ...form, type: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose Hotspot Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.types.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                id="type"
+                list="hotspot-type-options"
+                value={hotspotTypeInput}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setHotspotTypeInput(v);
+                  setForm({ ...form, type: v || null });
+                }}
+                placeholder="Choose Hotspot Type"
+                required
+              />
+              <datalist id="hotspot-type-options">
+                {options.types.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </div>
             <div>
               <Label htmlFor="adultCost">Adult Entry Cost (₹)*</Label>
@@ -517,22 +595,19 @@ export default function HotspotForm() {
               <Label htmlFor="duration">Duration *</Label>
               <Input
                 id="duration"
-                type="time"
-                step={60}
+                type="text"
                 value={form.duration || "01:00"}
                 onChange={(e) =>
                   setForm({ ...form, duration: (e.target as HTMLInputElement).value })
                 }
                 onBlur={(e) => {
-                  const v = (e.target as HTMLInputElement).value || "01:00";
-                  const [h = "01", m = "00"] = v.split(":");
-                  const hh = String(Math.max(0, Math.min(23, Number(h)))).padStart(2, "0");
-                  const mm = String(Math.max(0, Math.min(59, Number(m)))).padStart(2, "0");
-                  if (`${hh}:${mm}` !== form.duration) {
-                    setForm((f) => ({ ...f, duration: `${hh}:${mm}` }));
+                  const normalized = normalizeDurationHHmm((e.target as HTMLInputElement).value);
+                  if (normalized !== form.duration) {
+                    setForm((f) => ({ ...f, duration: normalized }));
                   }
                 }}
-                placeholder="Duration"
+                placeholder="HH:mm"
+                pattern="^([01]?\d|2[0-3]):[0-5]\d$"
                 required
               />
             </div>
@@ -575,24 +650,77 @@ export default function HotspotForm() {
             </div>
           </div>
 
-          {/* Row 6: Hotspot Location (single-select) */}
+          {/* Row 6: Hotspot Location (multi-select with type/search) */}
           <div className="space-y-2">
             <Label htmlFor="hotspotLocation">Hotspot Location *</Label>
-            <Select
-              value={(form.locations?.[0] ?? "") as string}
-              onValueChange={(v) => setForm({ ...form, locations: v ? [v] : [] })}
-            >
-              <SelectTrigger id="hotspotLocation" className="w-full">
-                <SelectValue placeholder="Choose Location" />
-              </SelectTrigger>
-              <SelectContent>
-                {options.locations.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
+            <div className="rounded-md border p-2 space-y-2">
+              <div className="flex flex-wrap gap-2">
+                {(form.locations || []).map((loc) => (
+                  <span
+                    key={loc}
+                    className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
+                  >
                     {loc}
-                  </SelectItem>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => removeLocation(loc)}
+                      aria-label={`Remove ${loc}`}
+                    >
+                      x
+                    </button>
+                  </span>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+
+              <div className="relative">
+                <Input
+                  id="hotspotLocation"
+                  value={locationInput}
+                  onFocus={() => setLocationOpen(true)}
+                  onChange={(e) => {
+                    setLocationInput(e.target.value);
+                    setLocationOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      addLocation(locationInput.replace(/,+$/g, ""));
+                    }
+                    if (e.key === "Backspace" && !locationInput && (form.locations || []).length) {
+                      const last = (form.locations || [])[form.locations!.length - 1];
+                      if (last) removeLocation(last);
+                    }
+                  }}
+                  placeholder="Type to search locations and press Enter to add"
+                />
+                {locationOpen && locationOptionsFiltered.length > 0 && (
+                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-white p-1 shadow-md">
+                    {locationOptionsFiltered.map((loc) => (
+                      <button
+                        key={loc}
+                        type="button"
+                        onClick={() => addLocation(loc)}
+                        className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addLocation(locationInput)}
+                >
+                  Add Location
+                </Button>
+              </div>
+            </div>
             {(form.locations?.length ?? 0) === 0 && (
               <p className="text-xs text-destructive mt-1">Location is required.</p>
             )}
@@ -603,11 +731,17 @@ export default function HotspotForm() {
             <div>
               <Label>Hotspot Gallery*</Label>
               <Input
+                ref={galleryInputRef}
                 type="file"
                 multiple
                 accept="image/*"
                 onChange={(e) => onUploadFiles(e.target.files)}
               />
+              {!!pendingGalleryFiles.length && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {pendingGalleryFiles.length} image(s) queued for upload on save.
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="videoUrl">Hotspot Video URL *</Label>
@@ -624,10 +758,25 @@ export default function HotspotForm() {
           {/* Thumbnails preview */}
           <div className="mt-2">
             <p className="text-sm font-medium mb-2">Uploaded hotspot Gallery</p>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-3 flex-wrap">
               {(form.galleryImages || []).map((img, i) => (
-                <img key={i} src={img} alt="" className="h-20 w-20 object-cover rounded" />
+                <button
+                  key={i}
+                  type="button"
+                  className="overflow-hidden rounded-md border bg-muted/20"
+                  onClick={() => window.open(img, "_blank", "noopener,noreferrer")}
+                  title="Open image preview"
+                >
+                  <img
+                    src={img}
+                    alt={`Hotspot Gallery ${i + 1}`}
+                    className="h-24 w-36 object-cover"
+                  />
+                </button>
               ))}
+              {(!form.galleryImages || form.galleryImages.length === 0) && (
+                <p className="text-xs text-muted-foreground">No gallery images uploaded yet.</p>
+              )}
             </div>
           </div>
         </div>
@@ -662,7 +811,7 @@ export default function HotspotForm() {
           <h2 className="text-lg font-semibold text-primary">Opening Hours</h2>
 
           {/* header row */}
-          <div className="grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 rounded-md px-4 py-2">
+          <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 rounded-md px-4 py-2">
             <div className="col-span-3">DAY</div>
             <div className="col-span-2 text-center">OPENS 24 HOURS</div>
             <div className="col-span-2 text-center">CLOSES 24 HOURS</div>
@@ -716,15 +865,13 @@ export default function HotspotForm() {
               const disabled = !!current.is24Hours || !!current.closed24Hours;
 
               return (
-                <div
-                  key={day}
-                  className="grid grid-cols-12 items-center border rounded-md px-4 py-3 gap-3"
-                >
+                <div key={day} className="grid grid-cols-1 md:grid-cols-12 border rounded-md px-4 py-3 gap-3">
                   {/* Day */}
-                  <div className="col-span-3 capitalize font-medium">{day}</div>
+                  <div className="md:col-span-3 capitalize font-medium">{day}</div>
 
                   {/* Opens 24 Hours */}
-                  <div className="col-span-2 flex justify-center">
+                  <div className="md:col-span-2 flex md:justify-center items-center gap-2">
+                    <span className="text-xs text-muted-foreground md:hidden">Opens 24 Hours</span>
                     <Switch
                       checked={!!current.is24Hours}
                       disabled={!!current.closed24Hours}
@@ -740,7 +887,8 @@ export default function HotspotForm() {
                   </div>
 
                   {/* Closes 24 Hours */}
-                  <div className="col-span-2 flex justify-center">
+                  <div className="md:col-span-2 flex md:justify-center items-center gap-2">
+                    <span className="text-xs text-muted-foreground md:hidden">Closes 24 Hours</span>
                     <Switch
                       checked={!!current.closed24Hours}
                       disabled={!!current.is24Hours}
@@ -756,7 +904,7 @@ export default function HotspotForm() {
                   </div>
 
                   {/* New Timings */}
-                  <div className="col-span-4">
+                  <div className="md:col-span-4">
                     {current.is24Hours ? (
                       <span className="inline-block text-xs px-3 py-1 rounded-md bg-pink-50 text-pink-600 font-semibold">
                         Opens 24 Hours
@@ -769,7 +917,7 @@ export default function HotspotForm() {
                       <div className="space-y-2">
                         {(current.timeSlots?.length ? current.timeSlots : [{ start: "", end: "" }]).map(
                           (slot: OpeningSlot, idx: number) => (
-                            <div key={idx} className="flex items-center gap-3">
+                            <div key={idx} className="flex flex-wrap items-center gap-3">
                               <TimePickerField
                                 value={slot.start || ""}
                                 onChange={(v) => updateSlot(idx, "start", v)}
@@ -787,6 +935,7 @@ export default function HotspotForm() {
                                 size="sm"
                                 onClick={() => removeSlot(idx)}
                                 disabled={disabled || (current.timeSlots?.length ?? 0) === 0}
+                                className="md:ml-1"
                               >
                                 Remove
                               </Button>
@@ -798,7 +947,7 @@ export default function HotspotForm() {
                   </div>
 
                   {/* Action */}
-                  <div className="col-span-1 flex justify-center">
+                  <div className="md:col-span-1 flex md:justify-center md:items-start">
                     <Button
                       type="button"
                       size="sm"

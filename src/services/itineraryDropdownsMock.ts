@@ -116,12 +116,30 @@ async function fetchSimple(path: string): Promise<SimpleOption[]> {
  */
 export async function fetchLocations(
   mode: "source" | "destination" = "source",
-  sourceLocation?: string
+  sourceLocation?: string,
+  options?: {
+    dayNo?: number;
+    totalNoOfDays?: number;
+    departureLocation?: string;
+  }
 ): Promise<LocationOption[]> {
   const params = new URLSearchParams();
   params.set("type", mode);
+
   if (mode === "destination" && sourceLocation) {
     params.set("source", sourceLocation);
+
+    if (options?.dayNo != null) {
+      params.set("day_no", String(options.dayNo));
+    }
+
+    if (options?.totalNoOfDays != null) {
+      params.set("total_no_of_days", String(options.totalNoOfDays));
+    }
+
+    if (options?.departureLocation) {
+      params.set("departure_location", options.departureLocation);
+    }
   }
 
   const res = await api(

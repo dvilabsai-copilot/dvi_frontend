@@ -1,7 +1,7 @@
 // FILE: src/pages/itineraries/ItineraryDetails.tsx
 
-import React, { useEffect, useState, useRef, useLayoutEffect, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,6 +28,7 @@ import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
+import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
@@ -131,7 +132,9 @@ type ItineraryDay = {
   date: string; // ISO
   departure: string | null;
   arrival: string | null;
-  distance: string;
+  distance: string; // total distance
+  intercityDistance?: string; // only main destination-to-destination distance
+  sightseeingDistance?: string; // only sightseeing/local movement distance
   startTime: string; // "12:00 PM"
   endTime: string; // "08:00 PM"
   viaRoutes?: ViaRouteItem[];
@@ -167,6 +170,16 @@ export type ItineraryHotelTab = {
   groupType: number;
   label: string;
   totalAmount: number;
+};
+
+type HotelAvailabilityMeta = {
+  hasSupplierHotels: boolean;
+  supplierHotelCount: number;
+  placeholderRowCount: number;
+  totalSearchRoutes: number;
+  emptySearchRoutes: number;
+  isPlaceholderOnly: boolean;
+  message: string;
 };
 
 // --------- VEHICLES ---------
@@ -283,6 +296,7 @@ type ItineraryHotelDetailsResponse = {
   hotelRatesVisible: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
+  hotelAvailability?: HotelAvailabilityMeta;
 };
 
 // ----------------- Helper functions -----------------
@@ -296,6 +310,13 @@ const formatHeaderDate = (iso: string) => {
     month: "short",
     year: "numeric",
   });
+};
+
+const getDisplayDistances = (day: ItineraryDay) => {
+  return {
+    intercityDistance: day.intercityDistance || day.distance,
+    sightseeingDistance: day.sightseeingDistance || "0.00 KM",
+  };
 };
 
 const parseDisplayTimeToHms = (displayTime: string): string => {
@@ -430,7 +451,10 @@ interface ItineraryDetailsProps {
 
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
+  const location = useLocation();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
+  //Extra
+  console.log('🔵 Current location pathname:', location.pathname);
   
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
@@ -498,6 +522,23 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [isAddingActivity, setIsAddingActivity] = useState(false);
   const [activityPreview, setActivityPreview] = useState<any>(null);
   const [previewingActivityId, setPreviewingActivityId] = useState<number | null>(null);
+
+  // All-hotspots preview modal state
+  const [allHotspotsPreviewModal, setAllHotspotsPreviewModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    data: any | null;
+    planId: number | null;
+    routeId: number | null;
+    activityId: number | null;
+  }>({
+    open: false,
+    loading: false,
+    data: null,
+    planId: null,
+    routeId: null,
+    activityId: null,
+  });
 
   // Delete activity modal state
   const [deleteActivityModal, setDeleteActivityModal] = useState<{
@@ -703,6 +744,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     routeId: null,
     routeDate: "",
   });
+  const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
   
   const [roomSelectionModal, setRoomSelectionModal] = useState<{
     open: boolean;
@@ -758,23 +800,435 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [clipboardModal, setClipboardModal] = useState(false);
   const [shareModal, setShareModal] = useState(false);
   const [clipboardType, setClipboardType] = useState<'recommended' | 'highlights' | 'para'>('recommended');
+  const [clipboardRatesVisible, setClipboardRatesVisible] = useState<boolean>(false);
   
   // Hotel Selection State (Multi-Provider)
   // Structure: { [routeId]: { provider, hotelCode, bookingCode, roomType, netAmount, hotelName, checkInDate, checkOutDate, groupType } }
-  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{[routeId: number]: {
-    provider: string;
-    hotelCode: string;
-    bookingCode: string;
-    roomType: string;
-    netAmount: number;
-    hotelName: string;
-    checkInDate: string;
-    checkOutDate: string;
-    groupType?: number; // ✅ NEW: group type for selected hotel
-  }}>({});;
-  
-  const [selectedHotels, setSelectedHotels] = useState<{[key: string]: boolean}>({});
+  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{ [routeId: number]: {
+  provider: string;
+  hotelCode: string;
+  bookingCode: string;
+  roomType: string;
+  netAmount: number;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate: string;
+    searchInitiatedAt?: string;
+  groupType?: number;
+}}>({});
 
+const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+
+const selectedHotelTotal = useMemo(
+  () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
+  [selectedHotelBookings]
+);
+
+// ✅ Para should use recommendation GROUPS, not first 4 random hotels
+const paraRecommendations = useMemo(() => {
+  if (!hotelDetails?.hotelTabs?.length) return [];
+
+  const getRenderedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
+    const grouped = new Map<number, ItineraryHotelRow[]>();
+
+    hotelDetails.hotels
+      .filter((h) => h.groupType === groupType)
+      .forEach((hotel) => {
+        const routeId = Number(hotel.itineraryRouteId || 0);
+        if (!grouped.has(routeId)) {
+          grouped.set(routeId, []);
+        }
+        grouped.get(routeId)!.push(hotel);
+      });
+
+    return Array.from(grouped.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([, hotelsForRoute]) => {
+        return hotelsForRoute.reduce((best, curr) => {
+          const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+          const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+          return currTotal < bestTotal ? curr : best;
+        });
+      });
+  };
+
+  return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
+    label: `Recommended #${idx + 1}`,
+    groupType: tab.groupType,
+    tabLabel: tab.label,
+    hotels: getRenderedHotelsForGroup(tab.groupType),
+  }));
+}, [hotelDetails]);
+
+const buildDefaultClipboardSelection = () => {
+  const next: Record<string, boolean> = {};
+  paraRecommendations.forEach((_item, idx) => {
+    next[`para-${idx}`] = true;
+  });
+  return next;
+};
+
+useEffect(() => {
+  setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
+}, [hotelDetails]);
+
+useEffect(() => {
+  if (!clipboardModal || !paraRecommendations.length) return;
+
+  const hasAnySelected = Object.values(selectedHotels).some(Boolean);
+  if (!hasAnySelected) {
+    setSelectedHotels(buildDefaultClipboardSelection());
+  }
+}, [clipboardModal, paraRecommendations, selectedHotels]);
+
+const escapeHtml = (value: unknown) => {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value || 0);
+  return `₹ ${amount.toFixed(2)}`;
+};
+
+const copyHtmlToClipboard = async (html: string, plainText: string) => {
+  try {
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      const item = new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([plainText], { type: "text/plain" }),
+      });
+
+      await navigator.clipboard.write([item]);
+    } else {
+      await navigator.clipboard.writeText(plainText);
+    }
+  } catch (error) {
+    console.error("Clipboard copy failed", error);
+    await navigator.clipboard.writeText(plainText);
+  }
+};
+
+type ClipboardMode = "recommended" | "highlights" | "para";
+
+type ClipboardGroup = {
+  label: string;
+  groupType: number;
+  hotels: ItineraryHotelRow[];
+};
+
+const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
+  if (!hotelDetails) return [];
+
+  return paraRecommendations
+    .filter((item, idx) => selectedHotels[`para-${idx}`])
+    .map((item) => ({
+      label: item.label,
+      groupType: item.groupType,
+      hotels: item.hotels,
+    }));
+};
+
+const buildClipboardHtml = (mode: ClipboardMode) => {
+  if (!hotelDetails || !itinerary) {
+    return { html: "", plainText: "" };
+  }
+
+  const selectedGroups = getSelectedClipboardGroups(mode);
+
+  if (!selectedGroups.length) {
+    return { html: "", plainText: "" };
+  }
+
+  const sectionTitle =
+    mode === "highlights"
+      ? "Highlights"
+      : mode === "recommended"
+      ? "Recommended Hotels"
+      : "Recommended Hotel";
+
+  const summaryHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <tr>
+        <td colspan="4" align="center" style="font-size:22px;line-height:40px;font-weight:600;">
+          Tour Itinerary Plan
+        </td>
+      </tr>
+    </table>
+
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
+      <tr>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.quoteId)}</span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Trip Date Range</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.dateRange)}</span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Total Pax</span>
+          <span style="font-weight:700;display:block;">
+            ${escapeHtml(itinerary.adults)} Adult, ${escapeHtml(itinerary.children)} Children, ${escapeHtml(itinerary.infants)} Infant
+          </span>
+        </td>
+        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
+          <span style="color:#afafaf;font-weight:500;display:block;">Room Count</span>
+          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.roomCount)}</span>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  const hotelSectionsHtml = selectedGroups
+    .map((group) => {
+      const rowsHtml =
+        group.hotels.length > 0
+          ? group.hotels
+              .map((hotel, index) => {
+                const totalPrice =
+                  Number(hotel.totalHotelCost || 0) +
+                  Number(hotel.totalHotelTaxAmount || 0);
+
+                return `
+                  <tr>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.destination)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
+                    </td>
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
+                    </td>
+                    ${
+                      clipboardRatesVisible
+                        ? `
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        <b>${escapeHtml(formatCurrency(totalPrice))}</b>
+                      </td>
+                    `
+                        : ""
+                    }
+                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                      ${escapeHtml(hotel.mealPlan)}
+                    </td>
+                  </tr>
+                `;
+              })
+              .join("")
+          : `
+            <tr>
+              <td colspan="${clipboardRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
+                No hotel available
+              </td>
+            </tr>
+          `;
+
+      return `
+        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+          <tr>
+            <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+              ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
+            </td>
+          </tr>
+        </table>
+
+        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+          <tr>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
+            ${
+              clipboardRatesVisible
+                ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>`
+                : ""
+            }
+            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
+          </tr>
+          ${rowsHtml}
+        </table>
+      `;
+    })
+    .join("");
+
+  const vehicleRowsHtml =
+    itinerary.vehicles?.length > 0
+      ? itinerary.vehicles
+          .map((vehicle) => {
+            return `
+              <tr>
+                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:85%;">
+                  ${escapeHtml(vehicle.vehicleTypeName || "Vehicle")} (${escapeHtml(vehicle.totalQty)}) -
+                  ${escapeHtml(vehicle.fromLabel || "")} ==> ${escapeHtml(vehicle.toLabel || "")}
+                </td>
+                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:15%;">
+                  <b>${escapeHtml(formatCurrency(vehicle.totalAmount || 0))}</b>
+                </td>
+              </tr>
+            `;
+          })
+          .join("")
+      : `
+        <tr>
+          <td colspan="2" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
+            No Vehicle available
+          </td>
+        </tr>
+      `;
+
+  const vehicleSectionHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+      <tr>
+        <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+          Vehicle Details
+        </td>
+      </tr>
+    </table>
+
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <tr>
+        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
+        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
+      </tr>
+      ${vehicleRowsHtml}
+    </table>
+  `;
+
+  const costSectionHtml = `
+    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+      <tr>
+        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+          Overall Cost
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Amount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalVehicleAmount || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmount || 0))}</strong></td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Coupon Discount</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">- ${escapeHtml(formatCurrency(itinerary.costBreakdown.couponDiscount || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Round Off</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalRoundOff || 0))}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Net Payable To ${escapeHtml(itinerary.costBreakdown.companyName || "DVI Holidays")}</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.netPayable || 0))}</strong></td>
+      </tr>
+    </table>
+  `;
+
+  const fullHtml = `
+    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
+      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
+        ${summaryHtml}
+        ${hotelSectionsHtml}
+        ${vehicleSectionHtml}
+        ${costSectionHtml}
+      </div>
+    </div>
+  `;
+
+  const plainText = selectedGroups
+    .map((group) => {
+      const hotelLines = group.hotels
+        .map(
+          (hotel, index) =>
+            `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan}`
+        )
+        .join("\n");
+
+      return `${sectionTitle} - ${group.label}\n${hotelLines}`;
+    })
+    .join("\n\n");
+
+  return { html: fullHtml, plainText };
+};
+
+const extractHotelSectionFromHtml = (html: string): string => {
+  if (!html) return "";
+
+  const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
+  if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
+    return "";
+  }
+
+  const headingIndex = hotelHeadingMatch.index;
+  const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
+  if (hotelSectionStart === -1) return "";
+
+  const vehicleHeadingMatch = html.match(/Vehicle Details/i);
+  if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
+    return "";
+  }
+
+  const vehicleHeadingIndex = vehicleHeadingMatch.index;
+  const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
+  if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
+    return "";
+  }
+
+  return html.slice(hotelSectionStart, vehicleSectionStart);
+};
+
+const mergeClipboardWithRenderedHotels = (
+  backendHtml: string,
+  renderedHotelsHtml: string,
+): string => {
+  if (!backendHtml || !renderedHotelsHtml) return backendHtml;
+
+  const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
+  if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
+    return backendHtml;
+  }
+
+  const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
+  const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
+  if (backendHotelStart === -1) return backendHtml;
+
+  const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
+  if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
+    return backendHtml;
+  }
+
+  const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
+  const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
+  if (backendVehicleStart === -1 || backendVehicleStart <= backendHotelStart) {
+    return backendHtml;
+  }
+
+  return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+};
+
+const htmlToPlainText = (html: string): string => {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+};
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
   const [voucherModal, setVoucherModal] = useState(false);
@@ -799,11 +1253,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     agent_name: string;
     agent_id?: number;
   } | null>(null);
+
+  type AdditionalPassenger = {
+    title: string;
+    name: string;
+    age: string;
+    nationality: string;
+    panNo: string;
+    passportNo: string;
+  };
+
   const [guestDetails, setGuestDetails] = useState({
     salutation: 'Mr',
     name: '',
     contactNo: '',
     age: '',
+    nationality: 'IN',
+    panNo: '',
+    passportNo: '',
     alternativeContactNo: '',
     emailId: '',
     arrivalDateTime: '',
@@ -813,12 +1280,104 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     departurePlace: '',
     departureFlightDetails: '',
   });
-  const [additionalAdults, setAdditionalAdults] = useState<Array<{ name: string; age: string }>>([]);
-  const [additionalChildren, setAdditionalChildren] = useState<Array<{ name: string; age: string }>>([]);
-  const [additionalInfants, setAdditionalInfants] = useState<Array<{ name: string; age: string }>>([]);
+  const [additionalAdults, setAdditionalAdults] = useState<AdditionalPassenger[]>([]);
+  const [additionalChildren, setAdditionalChildren] = useState<AdditionalPassenger[]>([]);
+  const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [prebookData, setPrebookData] = useState<any | null>(null);
+  const [isPrebooking, setIsPrebooking] = useState(false);
+  const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
+  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
+  const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
+
+  const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
+  const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
+  const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+
+  const defaultPassenger = (title: string): AdditionalPassenger => ({
+    title,
+    name: '',
+    age: '',
+    nationality: guestDetails.nationality,
+    panNo: '',
+    passportNo: '',
+  });
+
+  const buildTboOccupancies = (
+    roomCount: number,
+    totalAdults: number,
+    childAges: number[],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+      childrenAges: [] as number[],
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    for (const age of childAges) {
+      let assigned = false;
+      for (let idx = 0; idx < rooms; idx++) {
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          occupancies[idx].childrenAges.push(age);
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  };
+
+  const normalizeNameParts = (name: string) => {
+    const trimmed = name.trim();
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || trimmed;
+    const lastName = parts.slice(1).join(' ') || firstName;
+    return { firstName, lastName };
+  };
+
+  const getSafeErrorMessage = (error: unknown, fallback: string) => {
+    const text = String((error as any)?.message || fallback);
+    if (/session expired|stale|availability changed|booking code invalid|price changed/i.test(text)) {
+      return 'This hotel session has expired or rates changed. Please refresh hotel selection and run prebook again.';
+    }
+    return text;
+  };
+
+  const normalizePrebookItems = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        return item?.name || item?.text || item?.description || JSON.stringify(item);
+      })
+      .map((text) => String(text || '').trim())
+      .filter(Boolean);
+  };
 
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
@@ -913,66 +1472,76 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, []);
 
   useEffect(() => {
-    if (!quoteId) {
-      setError("Missing quote id in URL");
-      setLoading(false);
-      return;
-    }
+  if (!quoteId) {
+    setError("Missing quote id in URL");
+    setLoading(false);
+    return;
+  }
 
-    // If we're already fetching this quoteId, skip duplicate fetch
-    if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-      return;
-    }
+  // Prevent wrong API call when this component is opened on confirmed route
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+    console.warn(
+      "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
+      { quoteId, pathname: location.pathname }
+    );
+    setLoading(false);
+    return;
+  }
 
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
+  // If we're already fetching this quoteId, skip duplicate fetch
+  if (currentFetchRef.current === quoteId) {
+    console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+    return;
+  }
 
-    const fetchDetails = async () => {
-      try {
-        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-        setLoading(true);
-        setError(null);
+  // Mark that we're fetching this quoteId
+  currentFetchRef.current = quoteId;
+  isMountedRef.current = true;
 
-        // Fetch both details and hotel data in parallel
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
+  const fetchDetails = async () => {
+    try {
+      console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
+      setLoading(true);
+      setError(null);
 
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) {
-          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-          return;
-        }
+      // Fetch both details and hotel data in parallel
+      const [detailsRes, hotelRes] = await Promise.all([
+        ItineraryService.getDetails(quoteId),
+        ItineraryService.getHotelDetails(quoteId),
+      ]);
 
-        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      } catch (e: any) {
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) return;
-        
-        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-        setError(e?.message || "Failed to load itinerary details");
-        setItinerary(null);
-        setHotelDetails(null);
-      } finally {
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setLoading(false);
-        }
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) {
+        console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
+        return;
       }
-    };
 
-    fetchDetails();
+      console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
+      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+    } catch (e: any) {
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
+      
+      console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
+      setError(e?.message || "Failed to load itinerary details");
+      setItinerary(null);
+      setHotelDetails(null);
+    } finally {
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
 
-    // Cleanup: Mark component as unmounted
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, [quoteId]);
+  fetchDetails();
+
+  // Cleanup: Mark component as unmounted
+  return () => {
+    isMountedRef.current = false;
+  };
+}, [quoteId, location.pathname]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -1144,6 +1713,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       hotspotName,
     });
 
+    // Reset stale preview state whenever modal opens for a hotspot.
+    setActivityPreview(null);
+    setPreviewingActivityId(null);
+
     // Fetch available activities
     setLoadingActivities(true);
     try {
@@ -1210,14 +1783,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       setActivityPreview(null);
       setPreviewingActivityId(null);
 
-      // Reload itinerary data
+      // Reload itinerary — always, independently of hotel reload
       if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        try {
+          const detailsRes = await ItineraryService.getDetails(quoteId);
+          setItinerary(detailsRes as ItineraryDetailsResponse);
+        } catch (reloadErr) {
+          console.error("Failed to reload itinerary after add", reloadErr);
+        }
+        try {
+          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        } catch {
+          // Non-critical
+        }
       }
     } catch (e: any) {
       console.error("Failed to add activity", e);
@@ -1225,6 +1804,40 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     } finally {
       setIsAddingActivity(false);
     }
+  };
+
+  const formatPreviewTime = (value: string | Date | null | undefined) => {
+    if (!value) return 'N/A';
+
+    const d = new Date(value as any);
+    if (Number.isNaN(d.getTime())) return String(value);
+
+    const hours = d.getUTCHours();
+    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h12 = hours % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+  };
+
+  const formatActivityDuration = (value: string | null | undefined) => {
+    if (!value) return 'Not specified';
+
+    const match = String(value).match(/(?:T)?(\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (!match) return String(value);
+
+    const hours = Number(match[1] || 0);
+    const minutes = Number(match[2] || 0);
+    const parts: string[] = [];
+
+    if (hours > 0) {
+      parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
+    }
+
+    if (minutes > 0) {
+      parts.push(`${minutes} Min`);
+    }
+
+    return parts.length > 0 ? parts.join(' ') : '0 Min';
   };
 
   const handlePreviewActivity = async (activityId: number) => {
@@ -1253,6 +1866,43 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
   };
 
+  const handleOpenPreviewAllHotspots = async (activityId: number) => {
+    if (!addActivityModal.planId || !addActivityModal.routeId) {
+      return;
+    }
+
+    setAllHotspotsPreviewModal(prev => ({
+      ...prev,
+      loading: true,
+      open: true,
+      planId: addActivityModal.planId,
+      routeId: addActivityModal.routeId,
+      activityId: activityId,
+    }));
+
+    try {
+      const preview = await ItineraryService.previewActivityForAllHotspots({
+        planId: addActivityModal.planId,
+        routeId: addActivityModal.routeId,
+        activityId,
+      });
+
+      setAllHotspotsPreviewModal(prev => ({
+        ...prev,
+        loading: false,
+        data: preview,
+      }));
+    } catch (e: any) {
+      console.error("Failed to preview activity for all hotspots", e);
+      toast.error(e?.message || "Failed to preview activity");
+      setAllHotspotsPreviewModal(prev => ({
+        ...prev,
+        loading: false,
+        open: false,
+      }));
+    }
+  };
+
   const handleDeleteActivity = async () => {
     if (!deleteActivityModal.planId || !deleteActivityModal.routeId || !deleteActivityModal.activityId) {
       return;
@@ -1277,14 +1927,21 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         activityName: "",
       });
 
-      // Reload itinerary data
+      // Reload itinerary — always, independently of hotel reload
       if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        try {
+          const detailsRes = await ItineraryService.getDetails(quoteId);
+          setItinerary(detailsRes as ItineraryDetailsResponse);
+        } catch (reloadErr) {
+          console.error("Failed to reload itinerary after delete", reloadErr);
+        }
+        // Hotel reload is best-effort and must not block the itinerary refresh
+        try {
+          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        } catch {
+          // Non-critical — silence hotel reload errors
+        }
       }
     } catch (e: any) {
       console.error("Failed to delete activity", e);
@@ -1485,6 +2142,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     // ⚡ Lazy-load hotel details when modal opens (not on initial page load)
     ensureHotelDetailsLoaded();
 
+    const itineraryChildCount = Number(itinerary?.children || 0);
+    setHotelSearchChildAges((prev) =>
+      Array.from({ length: itineraryChildCount }, (_, idx) => prev[idx] || '')
+    );
+
     setHotelSelectionModal({
       open: true,
       planId,
@@ -1540,7 +2202,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       }
     } catch (e: any) {
       console.error("Failed to select hotel", e);
-      toast.error(e?.message || "Failed to select hotel");
+      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
     } finally {
       setIsSelectingHotel(false);
     }
@@ -1594,8 +2256,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           hotelName: hotel.hotelName,
           checkInDate: formatDate(checkInDate),
           checkOutDate: formatDate(checkOutDate),
+          searchInitiatedAt: new Date().toISOString(),
         }
       }));
+      setPrebookData(null);
+      setHasAcceptedUpdatedPrice(false);
       
       console.log('DEBUG: Hotel selected and stored', {
         routeId: hotelSelectionModal.routeId,
@@ -1634,7 +2299,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       }
     } catch (e: any) {
       console.error("Failed to select hotel", e);
-      toast.error(e?.message || "Failed to select hotel");
+      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
       throw e; // Re-throw for modal to handle
     } finally {
       setIsSelectingHotel(false);
@@ -1656,6 +2321,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
 
     setConfirmQuotationModal(true);
+    setPrebookData(null);
+    setHasAcceptedUpdatedPrice(false);
+    setFormErrors({});
+    // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
+    setAdditionalAdults([]);
+    setAdditionalChildren([]);
+    setAdditionalInfants([]);
 
     try {
       // Fetch customer info form data
@@ -1731,49 +2403,113 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   };
 
   const handleConfirmQuotation = async () => {
-    if (!itinerary?.planId || !agentInfo?.agent_id) {
-      toast.error('Missing required information');
+    if (!itinerary?.planId) {
+      toast.error('Missing itinerary plan information');
       return;
     }
 
-    // Validate required fields - only name and contact number are mandatory
-    if (!guestDetails.name || !guestDetails.contactNo) {
-      toast.error('Please fill in guest name and contact number');
+    const nextErrors: Record<string, string> = {};
+    const requiredPrimaryFields: Array<[keyof typeof guestDetails, string]> = [
+      ['name', 'Primary guest name is required.'],
+      ['contactNo', 'Primary guest contact number is required.'],
+      ['nationality', 'Primary guest nationality is required.'],
+    ];
+
+    requiredPrimaryFields.forEach(([key, message]) => {
+      if (!String(guestDetails[key] || '').trim()) {
+        nextErrors[`primary-${String(key)}`] = message;
+      }
+    });
+
+    if (!ALLOWED_TITLES.includes(guestDetails.salutation)) {
+      nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
+    }
+
+    if (!isValidPassengerName(guestDetails.name)) {
+      nextErrors['primary-name'] = 'Primary guest name must be 2-25 characters and contain only letters, spaces, apostrophe or hyphen.';
+    }
+
+    if (!isValidIsoNationality(guestDetails.nationality)) {
+      nextErrors['primary-nationality'] = 'Primary guest nationality must be a valid ISO-2 code (example: IN).';
+    }
+
+    const primaryAge = Number(guestDetails.age);
+    if (!Number.isFinite(primaryAge) || primaryAge <= 0) {
+      nextErrors['primary-age'] = 'Primary guest age must be a valid number.';
+    }
+
+    const validateAdditionalPassengers = (
+      list: AdditionalPassenger[],
+      label: 'adult' | 'child' | 'infant',
+      expectedCount: number,
+      minAge: number,
+      maxAge: number,
+    ) => {
+      if (list.length !== expectedCount) {
+        nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? '' : 's'}, but found ${list.length}.`;
+      }
+
+      list.forEach((item, index) => {
+        if (!item.title) {
+          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is required.`;
+        } else if (!ALLOWED_TITLES.includes(item.title)) {
+          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is invalid.`;
+        }
+        if (!item.name.trim()) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
+        } else if (!isValidPassengerName(item.name)) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name must be 2-25 valid characters.`;
+        }
+        if (!item.nationality.trim()) {
+          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
+        } else if (!isValidIsoNationality(item.nationality)) {
+          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality must be ISO-2 code (example: IN).`;
+        }
+        const parsedAge = Number(item.age);
+        if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
+          nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
+        }
+      });
+    };
+
+    const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
+    const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
+    const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
+
+    validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 11);
+    validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFormErrors(nextErrors);
+      toast.error('Please fix guest details before confirming quotation.');
       return;
     }
 
+    setFormErrors({});
     setIsConfirmingQuotation(true);
 
     try {
-      // ℹ️ NOTE: Hotel selections are sent in the confirm-quotation payload
-      // No need to save them separately via hotels/select
-
-      // ✅ AUTO-SELECT: If user hasn't selected a hotel for a route, auto-select first hotel from Budget tier (groupType 1)
       let autoSelectedHotels = { ...selectedHotelBookings };
-      
+
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        // Get all routes that have hotels available
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
-        
-        // For each route with hotels, check if user has already selected
+
         routesWithHotels.forEach((routeId: number) => {
           if (!autoSelectedHotels[routeId]) {
-            // Find first hotel from this route (should be Budget/groupType 1)
             const firstHotelForRoute = hotelDetails.hotels.find(
               (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
             );
-            
+
             if (firstHotelForRoute) {
-              // Calculate check-in and check-out dates
-              const routeDay = itinerary?.days?.find(d => d.id === routeId);
+              const routeDay = itinerary?.days?.find((d) => d.id === routeId);
               const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay 
-                ? new Date(new Date(routeDay.date).getTime() + 24*60*60*1000).toISOString().split('T')[0] 
+              const checkOutDate = routeDay
+                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
                 : '';
-              
-              // Auto-select this hotel
+
               autoSelectedHotels[routeId] = {
-                provider: firstHotelForRoute.provider || 'tbo', // Get provider from hotel data
+                provider: firstHotelForRoute.provider || 'tbo',
                 hotelCode: String(firstHotelForRoute.hotelCode || firstHotelForRoute.hotelId),
                 bookingCode: firstHotelForRoute.bookingCode || String(firstHotelForRoute.hotelId),
                 roomType: firstHotelForRoute.roomType || 'Standard',
@@ -1781,106 +2517,202 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 hotelName: firstHotelForRoute.hotelName,
                 checkInDate,
                 checkOutDate,
+                searchInitiatedAt: new Date().toISOString(),
               };
-              
-              console.log(`ℹ️ Auto-selected for Route ${routeId}: ${firstHotelForRoute.hotelName} (Budget Tier)`);
             }
           }
         });
       }
-      
-      console.log('DEBUG: Auto-selected hotels (merged):', autoSelectedHotels);
 
-      // Build passengers array for hotel booking (works for all providers: TBO, ResAvenue, HOBSE)
+      const primaryName = normalizeNameParts(guestDetails.name);
       const passengers = [
         {
           title: guestDetails.salutation,
-          firstName: guestDetails.name.split(' ')[0],
-          lastName: guestDetails.name.split(' ').slice(1).join(' ') || guestDetails.name,
+          firstName: primaryName.firstName,
+          lastName: primaryName.lastName,
+          nationality: guestDetails.nationality,
           email: guestDetails.emailId || undefined,
-          paxType: 1, // 1 = Adult
-          leadPassenger: true, // ✅ IMPORTANT: Lead passenger for HOBSE/backend
-          age: parseInt(guestDetails.age) || 0,
-          passportNo: undefined,
+          paxType: 1,
+          leadPassenger: true,
+          age: Number(guestDetails.age),
+          panNo: guestDetails.panNo || undefined,
+          passportNo: guestDetails.passportNo || undefined,
           passportIssueDate: undefined,
           passportExpDate: undefined,
           phoneNo: guestDetails.contactNo,
         },
-        // Additional adults
-        ...additionalAdults.map((adult, idx) => ({
-          title: 'Mr',
-          firstName: adult.name.split(' ')[0],
-          lastName: adult.name.split(' ').slice(1).join(' ') || adult.name,
-          email: undefined,
-          paxType: 1, // 1 = Adult
-          leadPassenger: false,
-          age: parseInt(adult.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
-        // Children
-        ...additionalChildren.map((child, idx) => ({
-          title: 'Mr',
-          firstName: child.name.split(' ')[0],
-          lastName: child.name.split(' ').slice(1).join(' ') || child.name,
-          email: undefined,
-          paxType: 2, // 2 = Child
-          leadPassenger: false,
-          age: parseInt(child.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
-        // Infants
-        ...additionalInfants.map((infant, idx) => ({
-          title: 'Mr',
-          firstName: infant.name.split(' ')[0],
-          lastName: infant.name.split(' ').slice(1).join(' ') || infant.name,
-          email: undefined,
-          paxType: 3, // 3 = Infant
-          leadPassenger: false,
-          age: parseInt(infant.age) || 0,
-          passportNo: undefined,
-          phoneNo: guestDetails.contactNo,
-        })),
+        ...additionalAdults.map((adult) => {
+          const name = normalizeNameParts(adult.name);
+          return {
+            title: adult.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: adult.nationality,
+            email: undefined,
+            paxType: 1,
+            leadPassenger: false,
+            age: Number(adult.age),
+            panNo: adult.panNo || undefined,
+            passportNo: adult.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
+        ...additionalChildren.map((child) => {
+          const name = normalizeNameParts(child.name);
+          return {
+            title: child.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: child.nationality,
+            email: undefined,
+            paxType: 2,
+            leadPassenger: false,
+            age: Number(child.age),
+            panNo: child.panNo || undefined,
+            passportNo: child.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
+        ...additionalInfants.map((infant) => {
+          const name = normalizeNameParts(infant.name);
+          return {
+            title: infant.title,
+            firstName: name.firstName,
+            lastName: name.lastName,
+            nationality: infant.nationality,
+            email: undefined,
+            paxType: 3,
+            leadPassenger: false,
+            age: Number(infant.age),
+            panNo: infant.panNo || undefined,
+            passportNo: infant.passportNo || undefined,
+            passportIssueDate: undefined,
+            passportExpDate: undefined,
+            phoneNo: guestDetails.contactNo,
+          };
+        }),
       ];
 
-      // Build hotel_bookings array with provider field - using auto-selected hotels if user didn't manually select
-      // ✅ FIX: Only book hotels that were selected (manually or auto-selected)
-      console.log('DEBUG: autoSelectedHotels state:', autoSelectedHotels);
-      
+      const childAgesForBooking = [
+        ...additionalChildren.map((c) => Number(c.age)),
+      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
+
+      const occupanciesForBooking = buildTboOccupancies(
+        Number(itinerary.roomCount || 1),
+        Math.max(Number(itinerary.adults || 1), 1),
+        childAgesForBooking,
+      );
+
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
-        provider: hotelData.provider, // Provider from hotel selection (tbo, ResAvenue, etc.)
-        routeId: parseInt(routeId),
+        occupancies: occupanciesForBooking,
+        provider: hotelData.provider,
+        routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
         bookingCode: hotelData.bookingCode,
         roomType: hotelData.roomType,
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: 1,
-        guestNationality: 'IN',
-        netAmount: hotelData.netAmount,
-        passengers: passengers.filter(p => p.paxType !== 3 || passengers.length === 1),
+        numberOfRooms: Number(itinerary.roomCount || 1),
+        guestNationality: guestDetails.nationality,
+        netAmount: Number(hotelData.netAmount || 0),
+        searchInitiatedAt: hotelData.searchInitiatedAt,
+        passengers,
       }));
-      
-      console.log('DEBUG: Final hotel_bookings array (with auto-selected):', hotelBookings);
 
-      // Get client IP
+      if (hotelBookings.length === 0) {
+        toast.error('No hotels selected for booking. Please select hotels and retry.');
+        return;
+      }
+
+      const staleHotel = hotelBookings.find((booking) => {
+        if (!booking.searchInitiatedAt) {
+          return false;
+        }
+        const parsed = new Date(String(booking.searchInitiatedAt));
+        if (Number.isNaN(parsed.getTime())) {
+          return true;
+        }
+        return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+      });
+
+      if (staleHotel) {
+        setPrebookData(null);
+        setHasAcceptedUpdatedPrice(false);
+        toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
+        return;
+      }
+
       const clientIp = await fetch('https://api.ipify.org?format=json')
-        .then(res => res.json())
-        .then(data => data.ip)
+        .then((res) => res.json())
+        .then((data) => data.ip)
         .catch(() => '192.168.1.1');
 
-      // Extract hotel_group_type from selected hotels (all selections should have same groupType)
+      if (!prebookData) {
+        setIsPrebooking(true);
+        try {
+          const prebookResponse = await ItineraryService.prebookHotels({
+            itinerary_plan_ID: itinerary.planId,
+            hotel_bookings: hotelBookings,
+            endUserIp: clientIp,
+          });
+          const normalizedPrebook = prebookResponse?.data || prebookResponse;
+          setPrebookData(normalizedPrebook);
+
+          const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
+          const prebookTotal = Number(
+            normalizedPrebook?.updatedTotalPrice ||
+              normalizedPrebook?.finalPrice ||
+              normalizedPrebook?.totalAmount ||
+              0
+          );
+
+          if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+            toast.warning('Prebook returned an updated price. Please review and confirm updated price to continue.');
+            return;
+          }
+        } catch (prebookError) {
+          toast.error(getSafeErrorMessage(prebookError, 'Failed to prebook selected hotels.'));
+          return;
+        } finally {
+          setIsPrebooking(false);
+        }
+        // After first successful prebook, return and let modal display for user review
+        return;
+      }
+
+      const prebookTotal = Number(
+        prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0
+      );
+      const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
+      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+        toast.warning('Accept updated prebook price before final confirmation.');
+        return;
+      }
+
+      // TBO Certification: Require acknowledgement of prebook details before final booking
+      if (!hasAcceptedUpdatedPrice) {
+        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
+        return;
+      }
+
       const groupTypeValue = Object.values(selectedHotelBookings)[0]?.groupType ?? 1;
       const selectedGroupType = String(groupTypeValue);
 
-      // ✅ Build primaryGuest object as fallback for HOBSE/backend
       const primaryGuest = {
         salutation: guestDetails.salutation,
         name: guestDetails.name,
         phone: guestDetails.contactNo,
         email: guestDetails.emailId,
       };
+
+      if (!agentInfo?.agent_id) {
+        toast.error('Missing agent information for final confirmation. Please reopen Confirm Quotation and retry.');
+        return;
+      }
 
       await ItineraryService.confirmQuotation({
         itinerary_plan_ID: itinerary.planId,
@@ -1903,11 +2735,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         departure_date_time: guestDetails.departureDateTime,
         departure_place: guestDetails.departurePlace,
         departure_flight_details: guestDetails.departureFlightDetails,
-        price_confirmation_type: 'old',
+        price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
         hotel_group_type: selectedGroupType,
-        // ✅ Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
         hotel_bookings: hotelBookings.length > 0 ? hotelBookings : undefined,
-        // ✅ NEW: Primary guest fallback for HOBSE/backend if lead passenger missing
         primaryGuest,
         endUserIp: clientIp,
       });
@@ -1927,6 +2757,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         name: '',
         contactNo: '',
         age: '',
+        nationality: 'IN',
+        panNo: '',
+        passportNo: '',
         alternativeContactNo: '',
         emailId: '',
         arrivalDateTime: '',
@@ -1939,12 +2772,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       setAdditionalAdults([]);
       setAdditionalChildren([]);
       setAdditionalInfants([]);
+      setPrebookData(null);
+      setHasAcceptedUpdatedPrice(false);
+      setFormErrors({});
       setSelectedHotelBookings({});
     } catch (e: any) {
       console.error('Failed to confirm quotation', e);
-      toast.error(e?.message || 'Failed to confirm quotation');
+      toast.error(getSafeErrorMessage(e, 'Failed to confirm quotation'));
     } finally {
       setIsConfirmingQuotation(false);
+      setIsPrebooking(false);
     }
   };
 
@@ -1956,26 +2793,30 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     );
   }
 
-  if (error || !itinerary) {
-    return (
-      <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
-        <p className="text-sm text-red-600">
-          {error || "Itinerary details not found"}
-        </p>
-        {itinerary?.planId && (
-          <Link to={`/create-itinerary?id=${itinerary.planId}`}>
-            <Button
-              variant="outline"
-              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Route List
-            </Button>
-          </Link>
-        )}
-      </div>
-    );
-  }
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+  return null;
+}
+
+if (error || !itinerary) {
+  return (
+    <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
+      <p className="text-sm text-red-600">
+        {error || "Itinerary details not found"}
+      </p>
+      {itinerary?.planId && (
+        <Link to={`/create-itinerary?id=${itinerary.planId}`}>
+          <Button
+            variant="outline"
+            className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Route List
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
+}
 
   const backToListHref = itinerary.planId
     ? `/create-itinerary?id=${itinerary.planId}`
@@ -2095,121 +2936,135 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       </Card>
 
       {/* Daily Itinerary */}
-      {itinerary.days.map((day) => (
-        <Card key={day.id} className="border border-[#e5d9f2] bg-white">
+      {itinerary.days.map((day) => {
+  const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
+
+  return (
+    <Card key={day.id} className="border border-[#e5d9f2] bg-white">
           <CardContent className="pt-2">
             {/* Day Header */}
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-3 p-3 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2]">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-[#d546ab]" />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-[#4a4260]">
-                      DAY {day.dayNumber} - {formatHeaderDate(day.date)}
-                    </h3>
-                    {/* Show rebuild button if this route needs rebuild */}
-                    {routeNeedsRebuild === day.id && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
-                        disabled={isRebuilding}
-                        className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
-                      >
-                        {isRebuilding ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Rebuilding...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Rebuild Route
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[#6c6c6c] flex-wrap">
-                    <span className="font-medium">{day.departure}</span>
-                    {day.viaRoutes && day.viaRoutes.length > 0 && (
-                      <>
-                        <ArrowRight className="h-4 w-4 text-[#d546ab] mx-1" />
-                        <span className="text-[#4a4260]" title={day.viaRoutes.map(v => v.name).join(', ')}>
-                          {day.viaRoutes.map(v => v.name).join(', ')}
-                        </span>
-                      </>
-                    )}
-                    <MapPin className="h-3 w-3 mx-1" />
-                    <span className="font-medium">{day.arrival}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full">
-                  {day.distance}
-                </span>
-              </div>
-            </div>
+           <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
+  <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
+    <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 flex-wrap">
+        <h3 className="font-semibold text-[#4a4260]">
+          DAY {day.dayNumber} - {formatHeaderDate(day.date)}
+        </h3>
+        {routeNeedsRebuild === day.id && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
+            disabled={isRebuilding}
+            className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
+          >
+            {isRebuilding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rebuilding...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rebuild Route
+              </>
+            )}
+          </Button>
+        )}
+      </div>
 
-            {/* Time Range */}
-            <div className="flex items-center justify-between mb-4 ml-2">
-              <div className="flex items-center gap-2 bg-white border border-[#e5d9f2] rounded-lg p-1 shadow-sm">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <div className="px-3 py-1.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors border border-transparent hover:border-[#d546ab]">
-                      {day.startTime}
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <TimePickerPopover 
-                      value={day.startTime} 
-                      label="Start Time"
-                      onSave={async (newTime) => {
-                        await handleUpdateRouteTimesDirect(itinerary.planId || 0, day.id, day.dayNumber, newTime, day.endTime);
-                        // Close popover by clicking outside or using state if we had it
-                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-                
-                <ArrowRight className="h-4 w-4 text-[#d546ab]" />
-                
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <div className="px-3 py-1.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors border border-transparent hover:border-[#d546ab]">
-                      {day.endTime}
-                    </div>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <TimePickerPopover 
-                      value={day.endTime} 
-                      label="End Time"
-                      onSave={async (newTime) => {
-                        await handleUpdateRouteTimesDirect(itinerary.planId || 0, day.id, day.dayNumber, day.startTime, newTime);
-                        // Close popover
-                        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-[#d546ab] text-[#d546ab] hover:bg-[#f3e8ff] rounded-full px-4"
-                onClick={() => {
-                  // TODO: Implement Add Guide
-                  toast.info("Add Guide feature coming soon");
-                }}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Guide
-              </Button>
-            </div>
+      <div className="flex items-center gap-2 text-sm text-[#6c6c6c] flex-wrap">
+        <span className="font-medium">{day.departure}</span>
+        {day.viaRoutes && day.viaRoutes.length > 0 && (
+          <>
+            <ArrowRight className="h-4 w-4 text-[#d546ab] mx-1" />
+            <span
+              className="text-[#4a4260]"
+              title={day.viaRoutes.map((v) => v.name).join(", ")}
+            >
+              {day.viaRoutes.map((v) => v.name).join(", ")}
+            </span>
+          </>
+        )}
+        <MapPin className="h-3 w-3 mx-1" />
+        <span className="font-medium">{day.arrival}</span>
+      </div>
+    </div>
+  </div>
 
+  <div className="flex justify-center lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2">
+    <div className="flex items-center gap-2 bg-white border border-[#e5d9f2] rounded-full px-2 py-1 shadow-sm">
+      <Popover>
+        <PopoverTrigger asChild>
+          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
+            {day.startTime}
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <TimePickerPopover
+            value={day.startTime}
+            label="Start Time"
+            onSave={async (newTime) => {
+              await handleUpdateRouteTimesDirect(
+                itinerary.planId || 0,
+                day.id,
+                day.dayNumber,
+                newTime,
+                day.endTime
+              );
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+
+      <ArrowRight className="h-4 w-4 text-[#d546ab]" />
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
+            {day.endTime}
+          </div>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <TimePickerPopover
+            value={day.endTime}
+            label="End Time"
+            onSave={async (newTime) => {
+              await handleUpdateRouteTimesDirect(
+                itinerary.planId || 0,
+                day.id,
+                day.dayNumber,
+                day.startTime,
+                newTime
+              );
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  </div>
+
+  <div className="flex justify-center lg:justify-end lg:pl-[260px]">
+    <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium whitespace-nowrap">
+      Travel: {intercityDistance}
+    </span>
+  </div>
+</div>
+
+ {/* Add Guide Button */}
+              <div className="flex justify-start mt-2 ml-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Guide
+                </Button>
+              </div>
             {/* Segments */}
             <div className="space-y-4">
               {day.segments.map((segment, idx) => (
@@ -2427,6 +3282,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                         <button
                                           className="text-red-500 hover:text-red-700 p-1"
                                           title="Delete Activity"
+                                          aria-label={`Delete activity ${activity.title}`}
                                           onClick={() =>
                                             openDeleteActivityModal(
                                               itinerary.planId || 0,
@@ -2443,6 +3299,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                         {activity.description}
                                       </p>
                                       <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
+                                        {activity.startTime && activity.endTime && (
+                                          <span className="flex items-center font-semibold text-[#d546ab]">
+                                            <Clock className="h-3 w-3 mr-1" />
+                                            {activity.startTime} – {activity.endTime}
+                                          </span>
+                                        )}
                                         {activity.amount > 0 && (
                                           <span className="flex items-center">
                                             <Ticket className="h-3 w-3 mr-1" />
@@ -2455,12 +3317,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                             {activity.duration}
                                           </span>
                                         )}
-                                        {activity.startTime && activity.endTime && (
-                                          <span className="flex items-center">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            {activity.startTime} - {activity.endTime}
-                                          </span>
-                                        )}
                                       </div>
                                     </div>
                                     <div className="flex flex-col gap-2">
@@ -2469,6 +3325,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                         variant="ghost"
                                         className="h-8 w-8"
                                         title="View Activity Gallery"
+                                        aria-label={`View gallery for ${activity.title}`}
                                         onClick={() =>
                                           openGalleryModal(
                                             activity.image ? [activity.image] : [],
@@ -2710,28 +3567,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 </div>
               ))}
 
-              {/* Add Guide Button */}
-              <div className="flex justify-end mt-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Guide
-                </Button>
-              </div>
+             
             </div>
           </CardContent>
-        </Card>
-      ))}
-
+               </Card>
+      );
+    })}
       {/* Hotel List (separate component) */}
       {hotelDetails && (
         <HotelList
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
           hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
+          hotelAvailability={hotelDetails.hotelAvailability}
           quoteId={quoteId!}
           planId={itinerary.planId}
           onRefresh={refreshHotelData}
@@ -3004,6 +3853,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
                 setClipboardType('recommended');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -3013,6 +3863,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
                 setClipboardType('highlights');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -3022,6 +3873,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
               onClick={() => {
                 setClipboardType('para');
+                setSelectedHotels(buildDefaultClipboardSelection());
                 setClipboardModal(true);
               }}
             >
@@ -3145,143 +3997,240 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           setAddActivityModal({ ...addActivityModal, open })
         }
       >
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="w-[96vw] sm:max-w-5xl h-[85vh] flex flex-col overflow-hidden p-4 sm:p-6">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Add Activity to {addActivityModal.hotspotName}</DialogTitle>
             <DialogDescription>
-              Select an activity to add to this hotspot
+              Select an activity on the left to preview fit and day impact.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-4">
-            {loadingActivities && (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                Loading activities...
-              </p>
-            )}
+          <div className="flex-1 min-h-0 overflow-hidden py-2">
+            <div className="h-full flex flex-col lg:flex-row gap-4 min-h-0">
+              <div className="w-full lg:w-1/2 flex flex-col min-h-0 lg:border-r border-[#e5d9f2] lg:pr-4 pb-3 lg:pb-0 border-b lg:border-b-0">
+                <div className="text-sm font-semibold text-[#4a4260] pb-2">
+                  Available Activities
+                </div>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {loadingActivities && (
+                    <p className="text-sm text-[#6c6c6c] text-center py-8">
+                      Loading activities...
+                    </p>
+                  )}
 
-            {!loadingActivities && availableActivities.length === 0 && (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No activities available for this hotspot
-              </p>
-            )}
+                  {!loadingActivities && availableActivities.length === 0 && (
+                    <p className="text-sm text-[#6c6c6c] text-center py-8">
+                      No activities available for this hotspot
+                    </p>
+                  )}
 
-            {!loadingActivities && availableActivities.length > 0 && (
-              <div className="grid gap-3">
-                {availableActivities.map((activity) => (
-                  <Card key={activity.id} className={`border ${
-                    activityPreview?.activity?.id === activity.id && activityPreview?.hasConflicts
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-[#e5d9f2]'
-                  }`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-[#4a4260] mb-1">
+                  {!loadingActivities && availableActivities.length > 0 && (
+                    <div className="space-y-2">
+                      {availableActivities.map((activity) => (
+                        <button
+                          key={activity.id}
+                          type="button"
+                          onClick={() => handlePreviewActivity(activity.id)}
+                          className={`w-full rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab] focus-visible:ring-offset-2 ${
+                            activityPreview?.activity?.id === activity.id
+                              ? 'border-[#d546ab] bg-[#f7edf6]'
+                              : 'border-[#e5d9f2] bg-white hover:bg-[#faf7fc]'
+                          }`}
+                          disabled={isAddingActivity}
+                        >
+                          <div className="font-semibold text-[#4a4260] text-sm">
                             {activity.title}
-                          </h4>
-                          <p className="text-sm text-[#6c6c6c] mb-2">
-                            {activity.description}
-                          </p>
-                          <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                            {activity.costAdult > 0 && (
-                              <span>Adult: ₹{activity.costAdult.toFixed(2)}</span>
-                            )}
-                            {activity.costChild > 0 && (
-                              <span>Child: ₹{activity.costChild.toFixed(2)}</span>
-                            )}
-                            {activity.duration && (
-                              <span>Duration: {activity.duration}</span>
-                            )}
                           </div>
-                          
-                          {/* Show time slots */}
-                          {activity.timeSlots && activity.timeSlots.length > 0 && (
-                            <div className="mt-2 text-xs">
-                              <span className="font-semibold text-[#4a4260]">Available Times:</span>
-                              {activity.timeSlots.map((slot) => {
-                                // Safe time formatting without Date parsing
-                                const formatTime = (timeStr: string) => {
-                                  if (!timeStr) return '';
-                                  // Extract HH:MM from ISO timestamp or time string
-                                  const match = timeStr.match(/(\d{2}):(\d{2})/);
-                                  if (!match) return timeStr;
-                                  const [, hours, minutes] = match;
-                                  const hour = parseInt(hours);
-                                  const ampm = hour >= 12 ? 'PM' : 'AM';
-                                  const hour12 = hour % 12 || 12;
-                                  return `${hour12}:${minutes} ${ampm}`;
-                                };
-                                
-                                // Check if slot crosses midnight (end time < start time)
-                                const crossesMidnight = slot.startTime && slot.endTime && 
-                                  slot.startTime > slot.endTime;
-                                
-                                return (
-                                  <div key={slot.id} className="text-[#6c6c6c] ml-2">
-                                    {slot.startTime && slot.endTime && (
-                                      <span>
-                                        {formatTime(slot.startTime)}
-                                        {' - '}
-                                        {formatTime(slot.endTime)}
-                                        {crossesMidnight && <span className="text-orange-600 ml-1">(next day)</span>}
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          
-                          {/* Show conflict warning */}
-                          {activityPreview?.activity?.id === activity.id && activityPreview?.hasConflicts && (
-                            <div className="mt-2 text-xs text-red-600 font-semibold">
-                              ⚠️ {activityPreview.conflicts.length} timing conflict(s) detected
-                              {activityPreview.conflicts.map((c: any, idx: number) => (
-                                <div key={idx} className="ml-4 mt-1 text-xs">• {c.reason}</div>
-                              ))}
-                            </div>
-                          )}
+                          <div className="mt-1 text-xs text-[#6c6c6c] line-clamp-2">
+                            {activity.description}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+                            {activity.duration && <span>Duration: {formatActivityDuration(activity.duration)}</span>}
+                            {activity.costAdult > 0 && <span>Adult: ₹{activity.costAdult.toFixed(2)}</span>}
+                            {activity.costChild > 0 && <span>Child: ₹{activity.costChild.toFixed(2)}</span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-full lg:w-1/2 flex flex-col min-h-0 lg:pl-2">
+                <div className="flex items-center justify-between gap-2 pb-2">
+                  <div className="text-sm font-semibold text-[#4a4260]">
+                    Preview
+                  </div>
+                  {activityPreview?.activity?.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-[#d546ab] border-[#d546ab] hover:bg-[#d546ab] hover:text-white"
+                      onClick={() => handleOpenPreviewAllHotspots(activityPreview.activity.id)}
+                      disabled={isAddingActivity}
+                    >
+                      Preview All Hotspots
+                    </Button>
+                  )}
+                </div>
+
+                {previewingActivityId && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-[#d546ab]" />
+                  </div>
+                )}
+
+                {!previewingActivityId && !activityPreview && (
+                  <div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-[#e5d9f2] text-center text-sm text-[#6c6c6c]">
+                    Click an activity on the left to see whether it fits.
+                  </div>
+                )}
+
+                {!previewingActivityId && activityPreview && (
+                  <div className="flex-1 overflow-y-auto space-y-4" aria-live="polite">
+                    <div>
+                      <div className="font-semibold text-[#4a4260]">
+                        {activityPreview.activity?.title}
+                      </div>
+                      <div className="mt-1 text-xs text-[#6c6c6c]">
+                        Duration: {formatActivityDuration(activityPreview.activity?.duration)}
+                      </div>
+                    </div>
+
+                    {/* ① Placement */}
+                    <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-3 space-y-2">
+                      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-[#6c6c6c]">Hotspot Window</span>
+                        <span className="font-medium text-[#4a4260]">
+                          {formatPreviewTime(activityPreview.hotspotTiming?.startTime)} – {formatPreviewTime(activityPreview.hotspotTiming?.endTime)}
+                        </span>
+                      </div>
+                      {activityPreview.proposedTiming && (
+                        <>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[#6c6c6c]">Inserted At</span>
+                            <span className="font-semibold text-[#d546ab]">
+                              {formatPreviewTime(activityPreview.proposedTiming.startTime)} – {formatPreviewTime(activityPreview.proposedTiming.endTime)}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[#6c6c6c]">Position</span>
+                            <span className="font-medium text-[#4a4260]">#{activityPreview.proposedTiming.order}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* ② Hotspot Impact */}
+                    <div className={`rounded-lg border-2 p-3 ${
+                      activityPreview.hasConflicts
+                        ? 'border-red-300 bg-red-50'
+                        : activityPreview.proposedTiming?.willExtendHotspot
+                          ? 'border-amber-300 bg-amber-50'
+                          : 'border-green-300 bg-green-50'
+                    }`}>
+                      <div className="text-xs font-semibold uppercase tracking-wide mb-2">
+                        <span className={
+                          activityPreview.hasConflicts ? 'text-red-700'
+                          : activityPreview.proposedTiming?.willExtendHotspot ? 'text-amber-700'
+                          : 'text-green-700'
+                        }>
+                          ② Hotspot Impact — {
+                            activityPreview.hasConflicts ? '⛔ Conflict'
+                            : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
+                            : '✅ Fits within window'
+                          }
+                        </span>
+                      </div>
+                      {activityPreview.proposedTiming?.willExtendHotspot && !activityPreview.hasConflicts && (
+                        <div className="text-xs text-amber-800">
+                          Hotspot end time shifts from{' '}
+                          <span className="font-semibold">{formatPreviewTime(activityPreview.hotspotTiming?.endTime)}</span>
+                          {' '}→{' '}
+                          <span className="font-semibold">{formatPreviewTime(activityPreview.proposedTiming.endTime)}</span>
+                          {' '}(+{activityPreview.cascade?.shiftMinutes ?? 0} min)
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-[#d546ab] border-[#d546ab] hover:bg-[#d546ab] hover:text-white"
-                            onClick={() => handlePreviewActivity(activity.id)}
-                            disabled={previewingActivityId === activity.id || isAddingActivity}
-                          >
-                            {previewingActivityId === activity.id ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Checking...
-                              </>
-                            ) : (
-                              "Preview"
-                            )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="bg-[#d546ab] hover:bg-[#c03d9f]"
-                            onClick={() => handleAddActivity(activity.id, activity.costAdult)}
-                            disabled={isAddingActivity}
-                          >
-                            {isAddingActivity ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Adding...
-                              </>
-                            ) : (
-                              "Add"
-                            )}
-                          </Button>
+                      )}
+                      {activityPreview.hasConflicts && activityPreview.conflicts?.length > 0 && (
+                        <div className="space-y-1 text-xs text-red-700 mt-1">
+                          {activityPreview.conflicts.map((conflict: any, idx: number) => (
+                            <div key={idx}>• {conflict.reason}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ③ Day Cascade */}
+                    {activityPreview.cascade?.shiftMinutes > 0 && activityPreview.cascade?.affectedSegments?.length > 0 && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                        <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
+                          ③ Day Cascade — everything after shifts +{activityPreview.cascade.shiftMinutes} min
+                        </div>
+                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                          {activityPreview.cascade.affectedSegments.map((seg: any, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs py-1 border-b border-amber-100 last:border-0">
+                              <span className={`shrink-0 w-16 text-center rounded px-1 py-0.5 font-medium ${
+                                seg.type === 'travel' ? 'bg-blue-100 text-blue-700'
+                                : seg.type === 'break' ? 'bg-yellow-100 text-yellow-700'
+                                : seg.type === 'hotel' ? 'bg-purple-100 text-purple-700'
+                                : seg.type === 'return' ? 'bg-gray-100 text-gray-700'
+                                : 'bg-pink-100 text-pink-700'
+                              }`}>
+                                {seg.type === 'travel' ? '🚌 Travel'
+                                : seg.type === 'break' ? '⏸ Break'
+                                : seg.type === 'hotel' ? '🏨 Hotel'
+                                : seg.type === 'return' ? '🔄 Return'
+                                : '📍 Place'}
+                              </span>
+                              <span className="flex-1 font-medium text-[#4a4260] truncate">{seg.name}</span>
+                              <span className="shrink-0 text-[#6c6c6c] line-through">{formatPreviewTime(seg.oldStartTime)}</span>
+                              <span className="shrink-0 text-amber-700 font-semibold">{formatPreviewTime(seg.newStartTime)}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-between text-xs pt-1 border-t border-amber-200">
+                          <span className="text-[#6c6c6c]">Day ends</span>
+                          <span>
+                            <span className="line-through text-[#6c6c6c] mr-2">{formatPreviewTime(activityPreview.cascade.originalDayEndTime)}</span>
+                            <span className="font-semibold text-amber-800">{formatPreviewTime(activityPreview.cascade.newDayEndTime)}</span>
+                          </span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    )}
+
+                    {activityPreview.cascade?.shiftMinutes === 0 && (
+                      <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700">
+                        ③ Day Cascade — <span className="font-semibold">No downstream impact.</span> Activity fits within the existing hotspot window.
+                      </div>
+                    )}
+
+                    <Button
+                      className="w-full bg-[#d546ab] hover:bg-[#c03d9f] shrink-0"
+                      onClick={() => {
+                        const selectedActivity = availableActivities.find(
+                          (activity) => activity.id === activityPreview.activity?.id,
+                        );
+                        handleAddActivity(
+                          activityPreview.activity?.id,
+                          selectedActivity?.costAdult || 0,
+                        );
+                      }}
+                      disabled={isAddingActivity}
+                    >
+                      {isAddingActivity ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        'Add Activity'
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -3294,7 +4243,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   routeId: null,
                   routeHotspotId: null,
                   hotspotId: null,
-                  hotspotName: "",
+                  hotspotName: '',
                 })
               }
               disabled={isAddingActivity}
@@ -3328,7 +4277,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   planId: null,
                   routeId: null,
                   activityId: null,
-                  activityName: "",
+                  activityName: '',
                 })
               }
               disabled={isDeletingActivity}
@@ -3346,7 +4295,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   Deleting...
                 </>
               ) : (
-                "Delete"
+                'Delete'
               )}
             </Button>
           </DialogFooter>
@@ -3598,12 +4547,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               routeId: null,
               routeDate: "",
             });
+            setHotelSearchChildAges([]);
           }
         }}
         cityCode={hotelSelectionModal.cityCode || ""}
         cityName={hotelSelectionModal.cityName || ""}
         checkInDate={hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate}
         checkOutDate={hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate}
+        roomCount={Number(itinerary?.roomCount || 1)}
+        adultCount={Number(itinerary?.adults || 0)}
+        childCount={Number(itinerary?.children || 0)}
+        infantCount={Number(itinerary?.infants || 0)}
+        childAges={hotelSearchChildAges}
+        guestNationality={guestDetails.nationality.toUpperCase()}
+        onChildAgesChange={setHotelSearchChildAges}
         onSelectHotel={handleSelectHotelFromSearch}
         isSelectingHotel={isSelectingHotel}
       />
@@ -3713,56 +4670,43 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {clipboardType === 'recommended' && 'Copy Recommended Hotels'}
-              {clipboardType === 'highlights' && 'Copy to Highlights'}
-              {clipboardType === 'para' && 'Copy to Paragraph Format'}
+              {clipboardType === 'recommended' && 'Recommended Hotel for Recommended'}
+              {clipboardType === 'highlights' && 'Recommended Hotel for Highlights'}
+              {clipboardType === 'para' && 'Recommended Hotel for Para'}
             </DialogTitle>
             <DialogDescription>
-              {clipboardType === 'recommended' && 'Select recommended hotels to include in clipboard'}
-              {clipboardType === 'highlights' && 'Hotel information will be copied in highlight/bullet format'}
-              {clipboardType === 'para' && 'Hotel information will be copied in paragraph format'}
-            </DialogDescription>
+  Select recommended options to copy to clipboard
+</DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
-            {!hotelDetails || !hotelDetails.hotelTabs ? (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No hotel information available
-              </p>
-            ) : (
-              hotelDetails.hotelTabs.map((tab) => (
-                <div key={tab.groupType} className="border border-[#e5d9f2] rounded-lg p-3">
-                  <h4 className="font-semibold text-[#4a4260] mb-2">{tab.label}</h4>
-                  {hotelDetails.hotels
-                    .filter((h) => h.groupType === tab.groupType)
-                    .map((hotel, idx) => {
-                      const hotelKey = `${tab.groupType}-${idx}`;
-                      return (
-                        <div key={idx} className="flex items-center gap-3 py-2">
-                          <input
-                            type="checkbox"
-                            id={`hotel-${hotelKey}`}
-                            className="h-4 w-4 cursor-pointer"
-                            checked={selectedHotels[hotelKey] || false}
-                            onChange={(e) => {
-                              setSelectedHotels({
-                                ...selectedHotels,
-                                [hotelKey]: e.target.checked
-                              });
-                            }}
-                          />
-                          <label
-                            htmlFor={`hotel-${hotelKey}`}
-                            className="text-sm flex-1 cursor-pointer"
-                          >
-                            {hotel.hotelName} - {hotel.destination}
-                          </label>
-                        </div>
-                      );
-                    })}
-                </div>
-              ))
-            )}
+  {!paraRecommendations.length ? (
+    <p className="text-sm text-[#6c6c6c] text-center py-8">
+      No hotel information available
+    </p>
+  ) : (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {paraRecommendations.map((item, idx) => {
+        const key = `para-${idx}`;
+        return (
+          <div key={key} className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id={`para-${key}`}
+              className="h-6 w-6 cursor-pointer accent-[#5f259f] border-[#5f259f]"
+              checked={selectedHotels[key] || false}
+              onChange={(e) =>
+                setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
+              }
+            />
+            <label htmlFor={`para-${key}`} className="text-xl text-[#d546ab] font-medium cursor-pointer">
+              {item.label}
+            </label>
           </div>
+        );
+      })}
+    </div>
+  )}
+</div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => {
               setClipboardModal(false);
@@ -3772,41 +4716,58 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             </Button>
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-              onClick={() => {
-                // Build clipboard text based on selected hotels and type
-                let clipboardText = '';
-                const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
-                
-                if (selectedCount === 0) {
-                  toast.error('Please select at least one hotel');
-                  return;
-                }
+             onClick={async () => {
+  const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
 
-                if (!hotelDetails) return;
+  if (selectedCount === 0) {
+    toast.error(
+      clipboardType === "para"
+        ? "Please select at least one recommendation"
+        : "Please select at least one hotel"
+    );
+    return;
+  }
 
-                hotelDetails.hotelTabs.forEach((tab) => {
-                  const tabHotels = hotelDetails.hotels.filter((h) => h.groupType === tab.groupType);
-                  tabHotels.forEach((hotel, idx) => {
-                    const hotelKey = `${tab.groupType}-${idx}`;
-                    if (selectedHotels[hotelKey]) {
-                      if (clipboardType === 'highlights') {
-                        clipboardText += `• ${hotel.day} - ${hotel.hotelName}, ${hotel.destination}\n`;
-                      } else if (clipboardType === 'para') {
-                        clipboardText += `On ${hotel.day}, accommodation at ${hotel.hotelName} in ${hotel.destination}. `;
-                      } else {
-                        clipboardText += `${tab.label}: ${hotel.hotelName} - ${hotel.destination}\n`;
-                      }
-                    }
-                  });
-                });
+  if (!hotelDetails || !itinerary) return;
 
-                navigator.clipboard.writeText(clipboardText);
-                toast.success('Copied to clipboard!');
-                setClipboardModal(false);
-                setSelectedHotels({});
-              }}
+  try {
+    const selectedGroups = getSelectedClipboardGroups(clipboardType);
+    const groupTypes = selectedGroups.map((group) => group.groupType);
+
+    const { html, plainText } = await ItineraryService.getClipboardContent(
+      itinerary.quoteId,
+      clipboardType,
+      groupTypes,
+    );
+
+    if (!html || !plainText) {
+      toast.error("Failed to prepare clipboard content");
+      return;
+    }
+
+    // Keep backend structure, but use the already-rendered hotel HTML from frontend state
+    // so clipboard hotels match what user sees without relying on backend hotel section.
+    const localClipboard = buildClipboardHtml(clipboardType);
+    const renderedHotelsHtml = extractHotelSectionFromHtml(localClipboard.html);
+    const mergedHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+    const mergedPlainText = htmlToPlainText(mergedHtml);
+
+    await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+      .then(() => {
+        toast.success("Formatted clipboard content copied!");
+        setClipboardModal(false);
+        setSelectedHotels({});
+      })
+      .catch(() => {
+        toast.error("Failed to copy clipboard content");
+      });
+  } catch (error) {
+    console.error("Failed to fetch clipboard content", error);
+    toast.error("Failed to prepare clipboard content");
+  }
+}}
             >
-              Copy Selected
+              Copy Clipboard
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3877,6 +4838,161 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         </DialogContent>
       </Dialog>
 
+      {/* All Hotspots Preview Modal (Day Overview) */}
+      <Dialog
+        open={allHotspotsPreviewModal.open}
+        onOpenChange={(open) =>
+          setAllHotspotsPreviewModal(prev => ({ ...prev, open }))
+        }
+      >
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Preview Activity for All Hotspots</DialogTitle>
+            <DialogDescription>
+              {allHotspotsPreviewModal.data?.activity?.title} - Duration:{' '}
+              {formatActivityDuration(allHotspotsPreviewModal.data?.activity?.duration)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            {allHotspotsPreviewModal.loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
+              </div>
+            ) : allHotspotsPreviewModal.data?.hotspots && allHotspotsPreviewModal.data.hotspots.length > 0 ? (
+              allHotspotsPreviewModal.data.hotspots.map((hotspotPreview: any, idx: number) => (
+                <Card
+                  key={hotspotPreview.routeHotspotId}
+                  className={`border-2 ${
+                    hotspotPreview.isAlreadyAdded
+                      ? 'border-gray-300 bg-gray-50'
+                      : hotspotPreview.hasConflicts
+                      ? 'border-red-500 bg-red-50'
+                      : 'border-green-500 bg-green-50'
+                  }`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="font-semibold text-[#4a4260]">
+                            {hotspotPreview.hotspotName
+                              ? `${hotspotPreview.hotspotName}`
+                              : `Hotspot #${idx + 1}`}
+                          </h4>
+                          <span
+                            className={`text-xs font-bold px-2 py-1 rounded-full ${
+                              hotspotPreview.isAlreadyAdded
+                                ? 'bg-gray-300 text-gray-700'
+                                : hotspotPreview.hasConflicts
+                                ? 'bg-red-300 text-red-700'
+                                : 'bg-green-300 text-green-700'
+                            }`}
+                          >
+                            {hotspotPreview.isAlreadyAdded
+                              ? 'Already Added'
+                              : hotspotPreview.hasConflicts
+                              ? 'Conflict'
+                              : 'Fits'}
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-[#6c6c6c] mb-2">
+                          Hotspot Time Window:{' '}
+                          {formatPreviewTime(
+                            hotspotPreview.hotspotTiming.startTime
+                          )}{' '}
+                          -{' '}
+                          {formatPreviewTime(
+                            hotspotPreview.hotspotTiming.endTime
+                          )}
+                        </p>
+
+                        {!hotspotPreview.isAlreadyAdded &&
+                          hotspotPreview.proposedTiming && (
+                            <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-[#6c6c6c]">
+                                  Proposed Insertion:
+                                </span>
+                                <span className="font-medium text-[#4a4260]">
+                                  {formatPreviewTime(
+                                    hotspotPreview.proposedTiming
+                                      .startTime
+                                  )}{' '}
+                                  -{' '}
+                                  {formatPreviewTime(
+                                    hotspotPreview.proposedTiming.endTime
+                                  )}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#6c6c6c]">
+                                  Position:
+                                </span>
+                                <span className="font-medium text-[#4a4260]">
+                                  #{hotspotPreview.proposedTiming.order}
+                                </span>
+                              </div>
+                              {hotspotPreview.proposedTiming
+                                .willExtendHotspot && (
+                                <div className="text-amber-700 font-medium">
+                                  ⚠️ Will extend hotspot end time
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                        {hotspotPreview.hasConflicts &&
+                          hotspotPreview.conflicts?.length > 0 && (
+                            <div className="bg-red-100 rounded-lg border border-red-200 p-3 mt-2 text-sm">
+                              <div className="font-semibold text-red-700 mb-1">
+                                {hotspotPreview.conflicts.length} Conflict
+                                {hotspotPreview.conflicts.length > 1
+                                  ? 's'
+                                  : ''}
+                                :
+                              </div>
+                              {hotspotPreview.conflicts.map(
+                                (c: any, cidx: number) => (
+                                  <div
+                                    key={cidx}
+                                    className="text-red-700 ml-3 text-xs"
+                                  >
+                                    • {c.reason}
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <p className="text-sm text-[#6c6c6c] text-center py-8">
+                No hotspots found for this route
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() =>
+                setAllHotspotsPreviewModal(prev => ({
+                  ...prev,
+                  open: false,
+                }))
+              }
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirm Quotation Modal */}
       <Dialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -3925,6 +5041,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     <option value="Mr">Mr</option>
                     <option value="Ms">Ms</option>
                     <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Mx">Mx</option>
+                    <option value="Dr">Dr</option>
                   </select>
                 </div>
 
@@ -3937,8 +5056,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Name"
                     value={guestDetails.name}
-                    onChange={(e) => setGuestDetails({...guestDetails, name: e.target.value})}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, name: e.target.value});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-name'];
+                        return next;
+                      });
+                    }}
                   />
+                  {formErrors['primary-name'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-name']}</p>}
                 </div>
 
                 <div className="col-span-1">
@@ -3952,6 +5079,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     value={guestDetails.age}
                     onChange={(e) => setGuestDetails({...guestDetails, age: e.target.value})}
                   />
+                  {formErrors['primary-age'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-age']}</p>}
                 </div>
               </div>
 
@@ -3965,8 +5093,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Contact No"
                     value={guestDetails.contactNo}
-                    onChange={(e) => setGuestDetails({...guestDetails, contactNo: e.target.value})}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, contactNo: e.target.value});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-contactNo'];
+                        return next;
+                      });
+                    }}
                   />
+                  {formErrors['primary-contactNo'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-contactNo']}</p>}
                 </div>
 
                 <div>
@@ -3979,6 +5115,53 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     placeholder="Enter the Alternative Contact No"
                     value={guestDetails.alternativeContactNo}
                     onChange={(e) => setGuestDetails({...guestDetails, alternativeContactNo: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    Nationality <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="IN"
+                    value={guestDetails.nationality}
+                    onChange={(e) => {
+                      setGuestDetails({...guestDetails, nationality: e.target.value.toUpperCase()});
+                      setFormErrors((prev) => {
+                        const next = { ...prev };
+                        delete next['primary-nationality'];
+                        return next;
+                      });
+                    }}
+                  />
+                  {formErrors['primary-nationality'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-nationality']}</p>}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    PAN (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="ABCDE1234F"
+                    value={guestDetails.panNo}
+                    onChange={(e) => setGuestDetails({...guestDetails, panNo: e.target.value.toUpperCase()})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-[#4a4260] mb-1 block">
+                    Passport No (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    placeholder="Passport number"
+                    value={guestDetails.passportNo}
+                    onChange={(e) => setGuestDetails({...guestDetails, passportNo: e.target.value.toUpperCase()})}
                   />
                 </div>
               </div>
@@ -4004,56 +5187,109 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalAdults([...additionalAdults, { name: '', age: '' }])}
+                    onClick={() => setAdditionalAdults([...additionalAdults, defaultPassenger('Mr')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Adult
                   </Button>
                 </div>
+                {formErrors['count-adult'] && <p className="text-[11px] text-red-600">{formErrors['count-adult']}</p>}
                 {additionalAdults.map((adult, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Adult {index + 2} Name
-                      </label>
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={adult.title}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].title = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="Name"
+                          value={adult.name}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].name = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="Age"
+                          value={adult.age}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].age = e.target.value;
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          placeholder="IN"
+                          value={adult.nationality}
+                          onChange={(e) => {
+                            const next = [...additionalAdults];
+                            next[index].nationality = e.target.value.toUpperCase();
+                            setAdditionalAdults(next);
+                          }}
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setAdditionalAdults(additionalAdults.filter((_, i) => i !== index))}
+                          className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
                       <input
                         type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={adult.name}
+                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                        placeholder="PAN (Optional)"
+                        value={adult.panNo}
                         onChange={(e) => {
-                          const newAdults = [...additionalAdults];
-                          newAdults[index].name = e.target.value;
-                          setAdditionalAdults(newAdults);
+                          const next = [...additionalAdults];
+                          next[index].panNo = e.target.value.toUpperCase();
+                          setAdditionalAdults(next);
                         }}
                       />
-                    </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
                       <input
                         type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={adult.age}
+                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                        placeholder="Passport No (Optional)"
+                        value={adult.passportNo}
                         onChange={(e) => {
-                          const newAdults = [...additionalAdults];
-                          newAdults[index].age = e.target.value;
-                          setAdditionalAdults(newAdults);
+                          const next = [...additionalAdults];
+                          next[index].passportNo = e.target.value.toUpperCase();
+                          setAdditionalAdults(next);
                         }}
                       />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalAdults(additionalAdults.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
                 ))}
@@ -4067,56 +5303,53 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalChildren([...additionalChildren, { name: '', age: '' }])}
+                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Miss')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Child
                   </Button>
                 </div>
+                {formErrors['count-child'] && <p className="text-[11px] text-red-600">{formErrors['count-child']}</p>}
                 {additionalChildren.map((child, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Child {index + 1} Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={child.name}
-                        onChange={(e) => {
-                          const newChildren = [...additionalChildren];
-                          newChildren[index].name = e.target.value;
-                          setAdditionalChildren(newChildren);
-                        }}
-                      />
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={child.title}
+                          onChange={(e) => {
+                            const next = [...additionalChildren];
+                            next[index].title = e.target.value;
+                            setAdditionalChildren(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Child {index + 1} Name</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={child.name} onChange={(e) => { const next = [...additionalChildren]; next[index].name = e.target.value; setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                      </div>
+                      <div className="col-span-1">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={child.age}
-                        onChange={(e) => {
-                          const newChildren = [...additionalChildren];
-                          newChildren[index].age = e.target.value;
-                          setAdditionalChildren(newChildren);
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={child.panNo} onChange={(e) => { const next = [...additionalChildren]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={child.passportNo} onChange={(e) => { const next = [...additionalChildren]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                     </div>
                   </div>
                 ))}
@@ -4130,56 +5363,53 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalInfants([...additionalInfants, { name: '', age: '' }])}
+                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Miss')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Infant
                   </Button>
                 </div>
+                {formErrors['count-infant'] && <p className="text-[11px] text-red-600">{formErrors['count-infant']}</p>}
                 {additionalInfants.map((infant, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-7">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Infant {index + 1} Name
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Name"
-                        value={infant.name}
-                        onChange={(e) => {
-                          const newInfants = [...additionalInfants];
-                          newInfants[index].name = e.target.value;
-                          setAdditionalInfants(newInfants);
-                        }}
-                      />
+                  <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
+                    <div className="grid grid-cols-12 gap-2 items-end">
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
+                        <select
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          value={infant.title}
+                          onChange={(e) => {
+                            const next = [...additionalInfants];
+                            next[index].title = e.target.value;
+                            setAdditionalInfants(next);
+                          }}
+                        >
+                          {ALLOWED_TITLES.map((title) => (
+                            <option key={title} value={title}>{title}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-span-5">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Infant {index + 1} Name</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={infant.name} onChange={(e) => { const next = [...additionalInfants]; next[index].name = e.target.value; setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                      </div>
+                      <div className="col-span-1">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-3">
-                      <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">
-                        Age
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                        placeholder="Age"
-                        value={infant.age}
-                        onChange={(e) => {
-                          const newInfants = [...additionalInfants];
-                          newInfants[index].age = e.target.value;
-                          setAdditionalInfants(newInfants);
-                        }}
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))}
-                        className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={infant.panNo} onChange={(e) => { const next = [...additionalInfants]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                      <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={infant.passportNo} onChange={(e) => { const next = [...additionalInfants]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                     </div>
                   </div>
                 ))}
@@ -4277,6 +5507,98 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 />
               </div>
             </div>
+
+            {prebookData && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="font-semibold text-[#4a4260]">
+                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#6c6c6c]">Cancellation Policy</p>
+                    {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).length > 0 ? (
+                      <ul className="font-medium text-[#4a4260] whitespace-pre-wrap list-disc pl-5 space-y-1">
+                        {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).map((item, idx) => (
+                          <li key={`cancelPolicy-${idx}`}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="font-medium text-[#4a4260] whitespace-pre-wrap">No cancellation policy returned</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Room Promotion</p>
+                  {normalizePrebookItems(prebookData.roomPromotion).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1">
+                      {normalizePrebookItems(prebookData.roomPromotion).map((item, idx) => (
+                        <li key={`roomPromotion-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No room promotion returned</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Rate Conditions</p>
+                  {normalizePrebookItems(prebookData.rateConditions).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.rateConditions).map((item, idx) => (
+                        <li key={`rateCondition-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
+                  {prebookData?.normalizedSupplements && prebookData.normalizedSupplements.length > 0 ? (
+                    <SupplementDisplay supplements={prebookData.normalizedSupplements} showHeading={false} />
+                  ) : normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
+                        <li key={`supplement-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-[#6c6c6c] text-sm">Package Inclusions</p>
+                  {normalizePrebookItems(prebookData.inclusions).length > 0 ? (
+                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                      {normalizePrebookItems(prebookData.inclusions).map((item, idx) => (
+                        <li key={`inclusion-${idx}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-[#4a4260]">No inclusions returned</p>
+                  )}
+                </div>
+
+                {hasPrebookPriceChanged && (
+                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
+                  </p>
+                )}
+
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the inclusions, rate conditions, and room promotion details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2">
@@ -4289,6 +5611,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   name: '',
                   contactNo: '',
                   age: '',
+                  nationality: 'IN',
+                  panNo: '',
+                  passportNo: '',
                   alternativeContactNo: '',
                   emailId: '',
                   arrivalDateTime: '',
@@ -4301,16 +5626,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 setAdditionalAdults([]);
                 setAdditionalChildren([]);
                 setAdditionalInfants([]);
+                setPrebookData(null);
+                setHasAcceptedUpdatedPrice(false);
+                setFormErrors({});
               }}
             >
               Cancel
             </Button>
             <Button
+              type="button"
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
               onClick={handleConfirmQuotation}
-              disabled={isConfirmingQuotation}
+              disabled={isConfirmingQuotation || isPrebooking}
             >
-              {isConfirmingQuotation ? 'Submitting...' : 'Submit'}
+              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : prebookData ? 'Confirm Booking' : 'Run Prebook & Continue'}
             </Button>
           </DialogFooter>
         </DialogContent>

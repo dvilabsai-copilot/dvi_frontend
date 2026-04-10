@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  checkVehicleDuplication,
   SimpleOption,
   createVehicle,
   fetchVendorBranches,
@@ -399,6 +400,16 @@ export function AddVehicleModal({
     try {
       setSaving(true);
 
+      const dup = await checkVehicleDuplication({
+        type: "registration_number",
+        value: regFormatted,
+        vendorId: Number(vendorId),
+      });
+      if (!dup?.success) {
+        setError("Vehicle registration number already exists for this vendor.");
+        return;
+      }
+
       await createVehicle({
         vendorId: Number(vendorId),
         vehicleTypeId: Number(vehicleTypeId), // vendor_vehicle_type_ID
@@ -422,11 +433,11 @@ export function AddVehicleModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4 py-8"
+      className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-black/35 px-4 py-8"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[980px] rounded-lg bg-white shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-[980px] overflow-y-auto rounded-lg bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

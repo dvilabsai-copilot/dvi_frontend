@@ -1,8 +1,21 @@
 // FILE: src/pages/guide/GuideFormPage.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronRight, Eye, EyeOff, Star, Pencil, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Star,
+  Pencil,
+  Trash2,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  X,
+} from "lucide-react";
+import { addYears, format, isValid, parseISO } from "date-fns";
+import Flatpickr from "react-flatpickr";
+import "flatpickr/dist/flatpickr.min.css";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -69,12 +83,35 @@ const defaultPreferredFor: GuidePreferredFor = {
   itinerary: false,
 };
 
-const defaultPricebook: GuidePricebook = {
-  startDate: "",
-  endDate: "",
-  pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
-  pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
-  pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
+const makeDefaultPricebook = (): GuidePricebook => {
+  const today = new Date();
+  return {
+    startDate: format(today, "yyyy-MM-dd"),
+    endDate: format(addYears(today, 1), "yyyy-MM-dd"),
+    pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
+    pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
+    pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
+  };
+};
+
+const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePricebook => {
+  const fallback = makeDefaultPricebook();
+  const incoming = value ?? ({} as GuidePricebook);
+  return {
+    ...fallback,
+    ...incoming,
+    startDate: incoming.startDate?.trim() ? incoming.startDate : fallback.startDate,
+    endDate: incoming.endDate?.trim() ? incoming.endDate : fallback.endDate,
+    pax1to5: { ...fallback.pax1to5, ...(incoming.pax1to5 ?? {}) },
+    pax6to14: { ...fallback.pax6to14, ...(incoming.pax6to14 ?? {}) },
+    pax15to40: { ...fallback.pax15to40, ...(incoming.pax15to40 ?? {}) },
+  };
+};
+
+const toPickerDate = (value: string) => {
+  if (!value) return undefined;
+  const parsed = parseISO(value);
+  return isValid(parsed) ? parsed : undefined;
 };
 
 export default function GuideFormPage() {
@@ -85,6 +122,7 @@ export default function GuideFormPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [topSuccessMessage, setTopSuccessMessage] = useState("");
 
   // Basic Info state
   const [name, setName] = useState("");
@@ -108,14 +146,21 @@ export default function GuideFormPage() {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [bankDetails, setBankDetails] = useState<GuideBankDetails>(defaultBankDetails);
   const [preferredFor, setPreferredFor] = useState<GuidePreferredFor>(defaultPreferredFor);
+  const [hotspotPlaces, setHotspotPlaces] = useState<string[]>([]);
+  const [activityPlaces, setActivityPlaces] = useState<string[]>([]);
+  const [hotspotDropdownOpen, setHotspotDropdownOpen] = useState(false);
+  const [activityDropdownOpen, setActivityDropdownOpen] = useState(false);
+  const [activeHotspotToken, setActiveHotspotToken] = useState<string | null>(null);
+  const [activeActivityToken, setActiveActivityToken] = useState<string | null>(null);
 
   // Pricebook state
-  const [pricebook, setPricebook] = useState<GuidePricebook>(defaultPricebook);
+  const [pricebook, setPricebook] = useState<GuidePricebook>(makeDefaultPricebook);
 
   // Reviews state
   const [reviews, setReviews] = useState<GuideReview[]>([]);
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
 
   /* ------------------------------------------------------------------
      Dynamic dropdown option state
@@ -126,6 +171,64 @@ export default function GuideFormPage() {
   const [stateOptions, setStateOptions] = useState<StateOpt[]>([]);
   const [cityOptions, setCityOptions] = useState<CityOpt[]>([]);
   const [gstPercentOptions, setGstPercentOptions] = useState<Opt[]>([]);
+  const [hotspotOptions, setHotspotOptions] = useState<Opt[]>([]);
+  const [activityOptions, setActivityOptions] = useState<Opt[]>([]);
+
+  const pendingStateRef = useRef<string>("");
+  const pendingCityRef = useRef<string>("");
+  const topSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectedDob = useMemo(() => toPickerDate(dateOfBirth), [dateOfBirth]);
+
+  const showTopSuccess = (message: string) => {
+    setTopSuccessMessage(message);
+    if (topSuccessTimerRef.current) {
+      clearTimeout(topSuccessTimerRef.current);
+    }
+    topSuccessTimerRef.current = setTimeout(() => {
+      setTopSuccessMessage("");
+      topSuccessTimerRef.current = null;
+    }, 2500);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (topSuccessTimerRef.current) {
+        clearTimeout(topSuccessTimerRef.current);
+      }
+    };
+  }, []);
+
+  const removeHotspotToken = (id: string) => {
+    setHotspotPlaces((prev) => prev.filter((x) => x !== id));
+    setActiveHotspotToken((prev) => (prev === id ? null : prev));
+  };
+
+  const removeActivityToken = (id: string) => {
+    setActivityPlaces((prev) => prev.filter((x) => x !== id));
+    setActiveActivityToken((prev) => (prev === id ? null : prev));
+  };
+
+  const handleHotspotControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if ((e.key === "Backspace" || e.key === "Delete") && hotspotPlaces.length > 0) {
+      e.preventDefault();
+      if (activeHotspotToken && hotspotPlaces.includes(activeHotspotToken)) {
+        removeHotspotToken(activeHotspotToken);
+      } else {
+        removeHotspotToken(hotspotPlaces[hotspotPlaces.length - 1]);
+      }
+    }
+  };
+
+  const handleActivityControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if ((e.key === "Backspace" || e.key === "Delete") && activityPlaces.length > 0) {
+      e.preventDefault();
+      if (activeActivityToken && activityPlaces.includes(activeActivityToken)) {
+        removeActivityToken(activeActivityToken);
+      } else {
+        removeActivityToken(activityPlaces[activityPlaces.length - 1]);
+      }
+    }
+  };
 
   /* ------------------------------------------------------------------
      Bootstrap dropdowns on page load
@@ -182,11 +285,42 @@ export default function GuideFormPage() {
             })
             .filter((o: Opt) => o.id !== "" && o.name !== "")
         );
+
+        const hotspots = await api("/guides/dropdowns/hotspots", { method: "GET" }).catch(() => []);
+        setHotspotOptions(
+          (Array.isArray(hotspots) ? hotspots : [])
+            .map((h: any) => {
+              const id = String(h?.hotspot_ID ?? h?.id ?? h?.value ?? "").trim();
+              const name = String(h?.hotspot_name ?? h?.name ?? h?.label ?? "").trim();
+              return { id, name };
+            })
+            .filter((o: Opt) => o.id !== "" && o.name !== "")
+        );
+
+        const activities = await api("/guides/dropdowns/activities", { method: "GET" }).catch(() => []);
+        setActivityOptions(
+          (Array.isArray(activities) ? activities : [])
+            .map((a: any) => {
+              const id = String(a?.activity_id ?? a?.id ?? a?.value ?? "").trim();
+              const name = String(a?.activity_title ?? a?.name ?? a?.label ?? "").trim();
+              return { id, name };
+            })
+            .filter((o: Opt) => o.id !== "" && o.name !== "")
+        );
       } catch {
         // never block the page for options; user can still type/save
       }
     })();
   }, []);
+
+  // Default country for new guide = India
+  useEffect(() => {
+    if (isEdit || country || countryOptions.length === 0) return;
+    const india =
+      countryOptions.find((c) => Number(c.id) === 101) ??
+      countryOptions.find((c) => c.name.trim().toLowerCase() === "india");
+    if (india) setCountry(String(india.id));
+  }, [isEdit, country, countryOptions]);
 
   /* ------------------------------------------------------------------
      When country changes → fetch states
@@ -213,8 +347,21 @@ export default function GuideFormPage() {
               }))
             : []
         );
-        // clear stale selections
-        setState("");
+        const nextStates = Array.isArray(states)
+          ? states.map((s: any) => ({
+              id: Number(s?.state_id ?? s?.id ?? s?.STATE_ID ?? 0),
+              name: String(s?.state_name ?? s?.name ?? s?.STATE_NAME ?? ""),
+              countryId: Number(s?.country_id ?? s?.COUNTRY_ID ?? 0),
+            }))
+          : [];
+
+        if (pendingStateRef.current) {
+          const keep = nextStates.some((s) => String(s.id) === pendingStateRef.current);
+          setState(keep ? pendingStateRef.current : "");
+          pendingStateRef.current = "";
+        } else {
+          setState("");
+        }
         setCityOptions([]);
         setCity("");
       } catch {
@@ -249,7 +396,21 @@ export default function GuideFormPage() {
               }))
             : []
         );
-        setCity("");
+        const nextCities = Array.isArray(cities)
+          ? cities.map((c: any) => ({
+              id: Number(c?.city_id ?? c?.id ?? c?.CITY_ID ?? 0),
+              name: String(c?.city_name ?? c?.name ?? c?.CITY_NAME ?? ""),
+              stateId: Number(c?.state_id ?? c?.STATE_ID ?? 0),
+            }))
+          : [];
+
+        if (pendingCityRef.current) {
+          const keep = nextCities.some((c) => String(c.id) === pendingCityRef.current);
+          setCity(keep ? pendingCityRef.current : "");
+          pendingCityRef.current = "";
+        } else {
+          setCity("");
+        }
       } catch {
         setCityOptions([]);
         setCity("");
@@ -269,8 +430,22 @@ export default function GuideFormPage() {
           if (guide) {
             setName(guide.name);
             setDateOfBirth(guide.dateOfBirth);
-            setBloodGroup(guide.bloodGroup);
-            setGender(guide.gender);
+            const bloodIdx = Number(guide.bloodGroup || 0);
+            setBloodGroup(
+              bloodIdx > 0 && bloodIdx <= BLOOD_GROUPS.length
+                ? BLOOD_GROUPS[bloodIdx - 1]
+                : guide.bloodGroup
+            );
+            const g = String(guide.gender || "").toLowerCase();
+            setGender(
+              g === "1" || g === "male"
+                ? "Male"
+                : g === "2" || g === "female"
+                ? "Female"
+                : g === "3" || g === "other"
+                ? "Other"
+                : guide.gender
+            );
             setPrimaryMobile(guide.primaryMobile);
             setAlternativeMobile(guide.alternativeMobile);
             setEmail(guide.email);
@@ -280,15 +455,19 @@ export default function GuideFormPage() {
             setExperience(guide.experience);
             setAadharCardNo(guide.aadharCardNo);
             setLanguageProficiency(String(guide.languageProficiency ?? ""));
+            pendingStateRef.current = String(guide.state ?? "");
+            pendingCityRef.current = String(guide.city ?? "");
             setCountry(String(guide.country ?? ""));
-            setState(String(guide.state ?? ""));
-            setCity(String(guide.city ?? ""));
+            setState("");
+            setCity("");
             setGstType(String(guide.gstType ?? "")); // "1"/"2"
             setGstPercentage(String(guide.gstPercentage ?? ""));
             setAvailableSlots(guide.availableSlots || []);
             setBankDetails(guide.bankDetails || defaultBankDetails);
             setPreferredFor(guide.preferredFor || defaultPreferredFor);
-            setPricebook(guide.pricebook || defaultPricebook);
+            setHotspotPlaces(Array.isArray((guide as any).hotspotPlaces) ? (guide as any).hotspotPlaces : []);
+            setActivityPlaces(Array.isArray((guide as any).activityPlaces) ? (guide as any).activityPlaces : []);
+            setPricebook(withDefaultPricebookDates(guide.pricebook));
             setReviews(guide.reviews || []);
           }
         } catch {
@@ -300,9 +479,71 @@ export default function GuideFormPage() {
     }
   }, [id, isEdit]);
 
+  // Normalize GST selection value to the dropdown option text (e.g., "5%") when API returns a raw number.
+  useEffect(() => {
+    if (!gstPercentage || gstPercentOptions.length === 0) return;
+
+    const current = String(gstPercentage).trim();
+    const exact = gstPercentOptions.some((g) => String(g.id) === current || g.name === current);
+    if (exact) return;
+
+    const numeric = Number((current.match(/\d+(?:\.\d+)?/) ?? [""])[0]);
+    if (!Number.isFinite(numeric)) return;
+
+    const match = gstPercentOptions.find((g) => {
+      const n = Number((String(g.name).match(/\d+(?:\.\d+)?/) ?? [""])[0]);
+      return Number.isFinite(n) && n === numeric;
+    });
+    if (match) setGstPercentage(String(match.id));
+  }, [gstPercentage, gstPercentOptions]);
+
   const handleSaveBasicInfo = async () => {
-    if (!name || !primaryMobile || !email) {
-      toast.error("Please fill required fields");
+    if (!name.trim()) {
+      toast.error("Guide Name Required");
+      return;
+    }
+    if (!gender) {
+      toast.error("Guide Gender Required");
+      return;
+    }
+    if (!primaryMobile.trim()) {
+      toast.error("Guide Primart Mobile no Required");
+      return;
+    }
+    if (!email.trim()) {
+      toast.error("Email ID Required");
+      return;
+    }
+    if (emergencyMobile && emergencyMobile.trim() === primaryMobile.trim()) {
+      toast.error("Emeregency mobile number and primary mobile number should not be same");
+      return;
+    }
+    if (!role) {
+      toast.error("Role Required");
+      return;
+    }
+    if (!isEdit && !password.trim()) {
+      toast.error("Password Required");
+      return;
+    }
+    if (!languageProficiency) {
+      toast.error("Language Proficiency Required");
+      return;
+    }
+    if (availableSlots.length === 0) {
+      toast.error("Guide Slot Required");
+      return;
+    }
+    if (preferredFor.hotspot && hotspotPlaces.length === 0) {
+      toast.error("Hotspot Place Required");
+      return;
+    }
+    if (preferredFor.activity && activityPlaces.length === 0) {
+      toast.error("Activity Required");
+      return;
+    }
+    if (bankDetails.accountNumber && bankDetails.confirmAccountNumber && bankDetails.accountNumber !== bankDetails.confirmAccountNumber) {
+      toast.error("Account number and confirm account number should be same");
       return;
     }
 
@@ -330,6 +571,8 @@ export default function GuideFormPage() {
         availableSlots,
         bankDetails,
         preferredFor,
+        hotspotPlaces,
+        activityPlaces,
         pricebook,
         reviews,
         status: 1 as const,
@@ -337,15 +580,15 @@ export default function GuideFormPage() {
 
       if (isEdit && id) {
         await GuideAPI.update(Number(id), guideData);
-        toast.success("Guide updated successfully");
+        showTopSuccess("Guide Basic Details Updated");
       } else {
         const created = await GuideAPI.create(guideData);
         navigate(`/guide/${created.id}/edit`, { replace: true });
-        toast.success("Guide created successfully");
+        showTopSuccess("Guide Basic Details Added");
       }
       setCurrentStep(2);
     } catch {
-      toast.error("Failed to save guide");
+      toast.error(isEdit ? "Unable to Update Guide Basic Details" : "Unable to Add Guide Basic Details");
     } finally {
       setLoading(false);
     }
@@ -353,32 +596,61 @@ export default function GuideFormPage() {
 
   const handleUpdatePricebook = async () => {
     if (!id) {
-      toast.error("Please save basic info first");
+      toast.error("Guide is Required");
+      return;
+    }
+    if (!pricebook.startDate || !pricebook.endDate) {
+      toast.error("Start Date and End Date are required");
+      return;
+    }
+    if (new Date(pricebook.endDate) < new Date(pricebook.startDate)) {
+      toast.error("End Date must be on or after Start Date");
       return;
     }
     setLoading(true);
     try {
       await GuideAPI.updatePricebook(Number(id), pricebook);
-      toast.success("Pricebook updated successfully");
+      toast.success("Guide Price Book Details Updated Successfully");
       setCurrentStep(3);
     } catch {
-      toast.error("Failed to update pricebook");
+      toast.error("Unable to Update Guide Price Book Details");
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddReview = async () => {
-    if (!newRating || !newFeedback.trim()) {
-      toast.error("Please select rating and enter feedback");
+    if (!newRating) {
+      toast.error("Rating is Required");
+      return;
+    }
+    if (!newFeedback.trim()) {
+      toast.error("Description is Required");
       return;
     }
     if (!id) {
-      toast.error("Please save guide first");
+      toast.error("Guide is Required");
       return;
     }
 
     try {
+      if (editingReviewId) {
+        await GuideAPI.updateReview(Number(id), editingReviewId, {
+          rating: newRating,
+          description: newFeedback,
+        });
+        setReviews((prev) =>
+          prev.map((r) =>
+            r.id === editingReviewId ? { ...r, rating: newRating, description: newFeedback } : r
+          )
+        );
+        setEditingReviewId(null);
+        setNewRating(0);
+        setNewFeedback("");
+        toast.success("Feedback Details Updated");
+        return;
+      }
+
       const now = new Date();
       const createdOn = now.toLocaleString("en-GB", {
         day: "2-digit",
@@ -399,7 +671,7 @@ export default function GuideFormPage() {
       setNewFeedback("");
       toast.success("Feedback Details Created Successfully");
     } catch {
-      toast.error("Failed to add review");
+      toast.error(editingReviewId ? "Unable to Update Feedback Details" : "Unable to Add Feedback  Details");
     }
   };
 
@@ -408,10 +680,16 @@ export default function GuideFormPage() {
     try {
       await GuideAPI.deleteReview(Number(id), reviewId);
       setReviews((prev) => prev.filter((r) => r.id !== reviewId));
-      toast.success("Review deleted");
+      toast.success("Deleted Successfully");
     } catch {
-      toast.error("Failed to delete review");
+      toast.error("Unable to delete the Rating");
     }
+  };
+
+  const handleEditReview = (review: GuideReview) => {
+    setEditingReviewId(review.id);
+    setNewRating(Number(review.rating || 0));
+    setNewFeedback(review.description || "");
   };
 
   const handleConfirm = async () => {
@@ -459,6 +737,25 @@ export default function GuideFormPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {topSuccessMessage && (
+        <div className="fixed top-20 left-1/2 z-50 w-[92vw] max-w-[680px] -translate-x-1/2">
+          <div className="flex items-center justify-between rounded-md bg-green-600 px-4 py-3 text-white shadow-lg">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>{topSuccessMessage}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTopSuccessMessage("")}
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-white/90 transition hover:bg-white/15 hover:text-white"
+              aria-label="Close success message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">
@@ -519,10 +816,29 @@ export default function GuideFormPage() {
                 </div>
                 <div>
                   <Label>Date of Birth</Label>
-                  <Input
-                    type="date"
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
+                  <Flatpickr
+                    value={selectedDob}
+                    options={{
+                      dateFormat: "d/m/Y",
+                      allowInput: true,
+                      monthSelectorType: "dropdown",
+                    }}
+                    onChange={(dates) => {
+                      const d = dates?.[0];
+                      setDateOfBirth(d ? format(d, "yyyy-MM-dd") : "");
+                    }}
+                    render={({ ...props }, ref) => (
+                      <div className="relative">
+                        <Input
+                          {...props}
+                          ref={ref as React.Ref<HTMLInputElement>}
+                          placeholder="DD/MM/YYYY"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                          <CalendarIcon className="h-4 w-4 text-violet-600" />
+                        </span>
+                      </div>
+                    )}
                   />
                 </div>
                 <div>
@@ -576,6 +892,7 @@ export default function GuideFormPage() {
                   <Input
                     type="email"
                     value={email}
+                    readOnly={isEdit}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
@@ -750,21 +1067,25 @@ export default function GuideFormPage() {
               {/* Available Slots */}
               <div>
                 <Label className="mb-2 block">Guide Available Slots *</Label>
-                <Select
-                  value={availableSlots[0] ?? ""}
-                  onValueChange={(v) => setAvailableSlots(v ? [v] : [])}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose Slot Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GUIDE_SLOTS.map((slot) => (
-                      <SelectItem key={slot.id} value={slot.id}>
-                        {slot.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-6">
+                  {GUIDE_SLOTS.map((slot) => (
+                    <div key={slot.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`guide-slot-${slot.id}`}
+                        checked={availableSlots.includes(slot.id)}
+                        onCheckedChange={(checked) => {
+                          setAvailableSlots((prev) => {
+                            if (checked) {
+                              return prev.includes(slot.id) ? prev : [...prev, slot.id];
+                            }
+                            return prev.filter((s) => s !== slot.id);
+                          });
+                        }}
+                      />
+                      <Label htmlFor={`guide-slot-${slot.id}`}>{slot.label}</Label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Divider with star */}
@@ -844,9 +1165,10 @@ export default function GuideFormPage() {
                     <Checkbox
                       id="hotspot"
                       checked={preferredFor.hotspot}
-                      onCheckedChange={(v) =>
-                        setPreferredFor((prev) => ({ ...prev, hotspot: Boolean(v) }))
-                      }
+                      onCheckedChange={(v) => {
+                        const next = Boolean(v);
+                        setPreferredFor({ hotspot: next, activity: false, itinerary: false });
+                      }}
                     />
                     <Label htmlFor="hotspot">Hotspot</Label>
                   </div>
@@ -854,9 +1176,10 @@ export default function GuideFormPage() {
                     <Checkbox
                       id="activity"
                       checked={preferredFor.activity}
-                      onCheckedChange={(v) =>
-                        setPreferredFor((prev) => ({ ...prev, activity: Boolean(v) }))
-                      }
+                      onCheckedChange={(v) => {
+                        const next = Boolean(v);
+                        setPreferredFor({ hotspot: false, activity: next, itinerary: false });
+                      }}
                     />
                     <Label htmlFor="activity">Activity</Label>
                   </div>
@@ -864,13 +1187,196 @@ export default function GuideFormPage() {
                     <Checkbox
                       id="itinerary"
                       checked={preferredFor.itinerary}
-                      onCheckedChange={(v) =>
-                        setPreferredFor((prev) => ({ ...prev, itinerary: Boolean(v) }))
-                      }
+                      onCheckedChange={(v) => {
+                        const next = Boolean(v);
+                        setPreferredFor({ hotspot: false, activity: false, itinerary: next });
+                      }}
                     />
                     <Label htmlFor="itinerary">Itinerary</Label>
                   </div>
                 </div>
+
+                {preferredFor.hotspot && (
+                  <div className="mt-4 w-full max-w-[440px]">
+                    <Label className="mb-2 block">Hotspot Place *</Label>
+                    <Popover open={hotspotDropdownOpen} onOpenChange={setHotspotDropdownOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          onKeyDown={handleHotspotControlKeyDown}
+                          onClick={() => setActiveHotspotToken(null)}
+                        >
+                          <div className="flex flex-wrap items-center gap-1 w-full">
+                            {hotspotPlaces.length ? (
+                              hotspotPlaces.map((id) => {
+                                const name = hotspotOptions.find((h) => String(h.id) === id)?.name ?? id;
+                                return (
+                                  <span
+                                    key={id}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setActiveHotspotToken(id);
+                                    }}
+                                    className={cn(
+                                      "inline-flex items-center rounded px-2 py-0.5 text-xs",
+                                      activeHotspotToken === id
+                                        ? "bg-gradient-to-r from-primary to-pink-500 text-white"
+                                        : "bg-[#f3e8ff] text-violet-700"
+                                    )}
+                                  >
+                                    <span>{name}</span>
+                                    <span
+                                      role="button"
+                                      aria-label={`Remove ${name}`}
+                                      className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded hover:bg-black/10"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        removeHotspotToken(id);
+                                      }}
+                                    >
+                                      x
+                                    </span>
+                                  </span>
+                                );
+                              })
+                            ) : (
+                              <span className="text-muted-foreground">Select hotspot</span>
+                            )}
+                          </div>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                        avoidCollisions={false}
+                        className="w-[var(--radix-popover-trigger-width)] max-h-64 overflow-auto p-1"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                      >
+                        {hotspotOptions.map((h) => {
+                          const val = String(h.id);
+                          const checked = hotspotPlaces.includes(val);
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center rounded px-2 py-1.5 text-sm",
+                                checked
+                                  ? "bg-gradient-to-r from-primary to-pink-500 text-white"
+                                  : "hover:bg-violet-50"
+                              )}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                if (checked) {
+                                  removeHotspotToken(val);
+                                } else {
+                                  setHotspotPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                }
+                              }}
+                            >
+                              <span>{h.name}</span>
+                            </button>
+                          );
+                        })}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+
+                {preferredFor.activity && (
+                  <div className="mt-4 w-full max-w-[440px]">
+                    <Label className="mb-2 block">Activity *</Label>
+                    <Popover open={activityDropdownOpen} onOpenChange={setActivityDropdownOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          onKeyDown={handleActivityControlKeyDown}
+                          onClick={() => setActiveActivityToken(null)}
+                        >
+                          <div className="flex flex-wrap items-center gap-1 w-full">
+                            {activityPlaces.length ? (
+                              activityPlaces.map((id) => {
+                                const name = activityOptions.find((a) => String(a.id) === id)?.name ?? id;
+                                return (
+                                  <span
+                                    key={id}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setActiveActivityToken(id);
+                                    }}
+                                    className={cn(
+                                      "inline-flex items-center rounded px-2 py-0.5 text-xs",
+                                      activeActivityToken === id
+                                        ? "bg-gradient-to-r from-primary to-pink-500 text-white"
+                                        : "bg-[#f3e8ff] text-violet-700"
+                                    )}
+                                  >
+                                    <span>{name}</span>
+                                    <span
+                                      role="button"
+                                      aria-label={`Remove ${name}`}
+                                      className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded hover:bg-black/10"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        removeActivityToken(id);
+                                      }}
+                                    >
+                                      x
+                                    </span>
+                                  </span>
+                                );
+                              })
+                            ) : (
+                              <span className="text-muted-foreground">Select activity</span>
+                            )}
+                          </div>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        side="bottom"
+                        sideOffset={4}
+                        avoidCollisions={false}
+                        className="w-[var(--radix-popover-trigger-width)] max-h-64 overflow-auto p-1"
+                        onOpenAutoFocus={(e) => e.preventDefault()}
+                      >
+                        {activityOptions.map((a) => {
+                          const val = String(a.id);
+                          const checked = activityPlaces.includes(val);
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center rounded px-2 py-1.5 text-sm",
+                                checked
+                                  ? "bg-gradient-to-r from-primary to-pink-500 text-white"
+                                  : "hover:bg-violet-50"
+                              )}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                if (checked) {
+                                  removeActivityToken(val);
+                                } else {
+                                  setActivityPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                }
+                              }}
+                            >
+                              <span>{a.name}</span>
+                            </button>
+                          );
+                        })}
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
 
                 <div className="mt-4 bg-pink-50 border border-pink-200 rounded-lg p-4 text-pink-600 text-sm">
                   From the beginning to the end of each day, the itinerary and all the hotspots
@@ -888,7 +1394,7 @@ export default function GuideFormPage() {
                   disabled={loading}
                   className="bg-gradient-to-r from-primary to-pink-500"
                 >
-                  {loading ? "Saving..." : "Update & Continue"}
+                  {loading ? "Saving..." : isEdit ? "Update & Continue" : "Save & Continue"}
                 </Button>
               </div>
             </div>
@@ -1131,8 +1637,20 @@ export default function GuideFormPage() {
                   onClick={handleAddReview}
                   className="bg-gradient-to-r from-primary to-pink-500"
                 >
-                  Save
+                  {editingReviewId ? "Update" : "Save"}
                 </Button>
+                {editingReviewId && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setEditingReviewId(null);
+                      setNewRating(0);
+                      setNewFeedback("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
               </div>
 
               {/* Right: Reviews List */}
@@ -1167,7 +1685,7 @@ export default function GuideFormPage() {
                           <TableCell>{review.createdOn}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              <Button size="sm" variant="ghost">
+                              <Button size="sm" variant="ghost" onClick={() => handleEditReview(review)}>
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button

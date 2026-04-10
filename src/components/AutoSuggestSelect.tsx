@@ -28,6 +28,7 @@ type AutoSuggestSelectProps = {
   onSelectionCommit?: (reason: "click" | "enter" | "tab") => void;
   disabled?: boolean;
   readOnly?: boolean;
+  scrollToValue?: string;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -45,6 +46,7 @@ export const AutoSuggestSelect = forwardRef<
       onSelectionCommit,
       disabled = false,
       readOnly = false,
+      scrollToValue,
     },
     ref
   ) => {
@@ -81,19 +83,29 @@ export const AutoSuggestSelect = forwardRef<
     );
   }, [options, query]);
 
-  // open → focus search input
   useEffect(() => {
-    if (open) {
-      const id = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 0);
-      return () => clearTimeout(id);
-    } else {
-      setQuery("");
-      setHighlightIndex(0);
-    }
-  }, [open]);
+  if (open) {
+    const id = setTimeout(() => {
+      inputRef.current?.focus();
 
+      if (mode === "single") {
+        const targetValue = selectedValues[0] || scrollToValue || "";
+        const targetIndex = targetValue
+          ? options.findIndex((opt) => opt.value === targetValue)
+          : -1;
+
+        setHighlightIndex(targetIndex >= 0 ? targetIndex : 0);
+      } else {
+        setHighlightIndex(0);
+      }
+    }, 0);
+
+    return () => clearTimeout(id);
+  } else {
+    setQuery("");
+    setHighlightIndex(0);
+  }
+}, [open, mode, selectedValues, options, scrollToValue]);
   // Close when clicking outside
   useEffect(() => {
     if (!open) return;
@@ -111,14 +123,24 @@ export const AutoSuggestSelect = forwardRef<
   }, [open]);
 
   // Scroll highlighted option into view
-  useEffect(() => {
-    if (!open) return;
-    const el = optionRefs.current[highlightIndex];
-    if (el) {
-      el.scrollIntoView({ block: "nearest" });
-    }
-  }, [highlightIndex, open]);
+useEffect(() => {
+  if (!open) return;
 
+  const el = optionRefs.current[highlightIndex];
+  const container = el?.parentElement;
+
+  if (el && container) {
+    const topPadding = 30;
+    const safeTopGap = 20;
+
+    const scrollTop = Math.max(0, el.offsetTop - topPadding - safeTopGap);
+
+    container.scrollTo({
+      top: scrollTop,
+      behavior: "smooth",
+    });
+  }
+}, [highlightIndex, open]);
   const renderLabelForValue = (val: string) => {
     const opt = options.find((o) => o.value === val);
     return opt ? opt.label : val;

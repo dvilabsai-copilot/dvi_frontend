@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+//import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { locationsApi, LocationRow, TollRow } from "@/services/locations";
+import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
 
 export default function LocationsPreviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,11 @@ export default function LocationsPreviewPage() {
   const [location, setLocation] = useState<LocationRow | null>(null);
   const [tolls, setTolls] = useState<TollRow[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const [viaRoutes, setViaRoutes] = useState<string[]>([]);
+  const [viaRouteDraft, setViaRouteDraft] = useState("");
+  const [routeDraft, setRouteDraft] = useState("");
+  const [routeSuggestions, setRouteSuggestions] = useState<string[]>([]);
 
   // Load dropdowns and initial data
   useEffect(() => {
@@ -48,6 +54,51 @@ export default function LocationsPreviewPage() {
     init();
   }, [id]);
 
+    useEffect(() => {
+    async function loadSuggestions() {
+      if (!selectedSource.trim()) {
+        setRouteSuggestions([]);
+        return;
+      }
+
+      try {
+        const suggestions = await locationsApi.getRouteSuggestions(
+          selectedSource,
+          selectedDestination
+        );
+        setRouteSuggestions(suggestions);
+      } catch (error) {
+        console.error("Error loading route suggestions:", error);
+        setRouteSuggestions([]);
+      }
+    }
+
+    loadSuggestions();
+  }, [selectedSource, selectedDestination]);
+
+   
+   // Get Info button handler
+    const addViaRoute = () => {
+    const nextValue = viaRouteDraft.trim();
+    if (!nextValue) return;
+
+    setViaRoutes((prev) =>
+      prev.includes(nextValue) ? prev : [...prev, nextValue]
+    );
+    setViaRouteDraft("");
+  };
+
+  const removeViaRoute = (value: string) => {
+    setViaRoutes((prev) => prev.filter((item) => item !== value));
+  };
+
+  const addRoute = () => {
+    const nextValue = routeDraft.trim();
+    if (!nextValue) return;
+
+    setSelectedDestination(nextValue);
+    setRouteDraft("");
+  };
   // Get Info button handler
   const handleGetInfo = async () => {
     if (!selectedSource || !selectedDestination) {
@@ -89,7 +140,6 @@ export default function LocationsPreviewPage() {
       setLoading(false);
     }
   };
-
   // Update toll charges
   const handleUpdateTolls = async () => {
     if (!location) {
@@ -120,6 +170,10 @@ export default function LocationsPreviewPage() {
     );
   }
 
+ 
+
+  
+
   return (
     <div className="p-6 space-y-6">
       {/* Back button */}
@@ -128,43 +182,114 @@ export default function LocationsPreviewPage() {
       </Button>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-lg border p-4">
+           <div className="bg-white rounded-lg border p-4">
         <h3 className="text-lg font-semibold mb-4">Filter</h3>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm font-medium mb-2 block">Source Location *</label>
-            <Select value={selectedSource} onValueChange={setSelectedSource}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select source" />
-              </SelectTrigger>
-              <SelectContent>
-                {sources.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <LocationAutosuggestInput
+              placeholder="Type source location"
+              value={selectedSource}
+              onValueChange={(value) => {
+                setSelectedSource(value);
+                setSelectedDestination("");
+              }}
+              search={locationsApi.searchSources}
+            />
           </div>
+
           <div>
             <label className="text-sm font-medium mb-2 block">Destination Location *</label>
-            <Select value={selectedDestination} onValueChange={setSelectedDestination}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select destination" />
-              </SelectTrigger>
-              <SelectContent>
-                {destinations.map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {d}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <LocationAutosuggestInput
+              placeholder="Type destination location"
+              value={selectedDestination}
+              onValueChange={setSelectedDestination}
+              search={(phrase) =>
+                locationsApi.searchDestinations(phrase, selectedSource)
+              }
+            />
           </div>
+
           <div className="flex items-end">
             <Button onClick={handleGetInfo} className="w-full">
               Get Info
             </Button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Via Route List</h4>
+              <Button type="button" variant="outline" size="sm" onClick={addViaRoute}>
+                Add Via Route
+              </Button>
+            </div>
+
+            <LocationAutosuggestInput
+              placeholder="Type via route"
+              value={viaRouteDraft}
+              onValueChange={setViaRouteDraft}
+              search={locationsApi.searchSources}
+            />
+
+            <div className="flex flex-wrap gap-2">
+              {viaRoutes.length > 0 ? (
+                viaRoutes.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className="rounded-md border px-3 py-1 text-sm"
+                    onClick={() => removeViaRoute(item)}
+                  >
+                    {item} ×
+                  </button>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No via routes added yet.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Route Suggestions</h4>
+              <Button type="button" variant="outline" size="sm" onClick={addRoute}>
+                Add Route
+              </Button>
+            </div>
+
+            <LocationAutosuggestInput
+              placeholder="Type route destination"
+              value={routeDraft}
+              onValueChange={setRouteDraft}
+              search={(phrase) =>
+                locationsApi.searchDestinations(phrase, selectedSource)
+              }
+            />
+
+            <div className="flex flex-wrap gap-2">
+              {routeSuggestions.length > 0 ? (
+                routeSuggestions.map((route) => (
+                  <Button
+                    key={route}
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedDestination(route)}
+                  >
+                    {route}
+                  </Button>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No route suggestions available for this source.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

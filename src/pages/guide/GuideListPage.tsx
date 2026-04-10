@@ -29,6 +29,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { GuideAPI } from "@/services/guideService";
 import type { GuideListRow } from "@/types/guide";
@@ -97,13 +107,15 @@ export default function GuideListPage() {
   const [loading, setLoading] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (query?: string) => {
     try {
       setLoading(true);
-      const data = await GuideAPI.list();
+      const data = await GuideAPI.listQuery({ q: query?.trim(), size: 5000 });
       setRows(data);
       setFiltered(data);
+      setCurrentPage(1);
     } catch {
       toast.error("Failed to load guides");
     } finally {
@@ -112,21 +124,15 @@ export default function GuideListPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(search);
   }, [load]);
 
   useEffect(() => {
-    const q = search.toLowerCase().trim();
-    setFiltered(
-      rows.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.mobileNumber.toLowerCase().includes(q) ||
-          r.email.toLowerCase().includes(q)
-      )
-    );
-    setCurrentPage(1);
-  }, [search, rows]);
+    const t = setTimeout(() => {
+      void load(search);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, load]);
 
   async function toggleStatus(row: GuideListRow, nextOn: boolean) {
     const id = row.id;
@@ -152,36 +158,41 @@ export default function GuideListPage() {
     }
   }
 
-  const handleDelete = useCallback(
-    async (id: number) => {
+  const openDeleteConfirm = useCallback(
+    (id: number) => {
       if (deletingId) return;
-      const ok = window.confirm("Delete this guide? This action cannot be undone.");
-      if (!ok) return;
-
-      setDeletingId(id);
-
-      const prevRows = rows;
-      const prevFiltered = filtered;
-
-      setRows((r) => r.filter((x) => x.id !== id));
-      setFiltered((r) => r.filter((x) => x.id !== id));
-
-      try {
-        await GuideAPI.delete(id);
-        toast.success("Guide deleted");
-        const totalAfter = prevFiltered.filter((x) => x.id !== id).length;
-        const lastPage = Math.max(1, Math.ceil(totalAfter / pageSize));
-        if (currentPage > lastPage) setCurrentPage(lastPage);
-      } catch {
-        setRows(prevRows);
-        setFiltered(prevFiltered);
-        toast.error("Failed to delete guide");
-      } finally {
-        setDeletingId(null);
-      }
+      setConfirmDeleteId(id);
     },
-    [rows, filtered, pageSize, currentPage, deletingId]
+    [deletingId]
   );
+
+  const handleDeleteConfirmed = useCallback(async () => {
+    if (deletingId || !confirmDeleteId) return;
+
+    const id = confirmDeleteId;
+    setDeletingId(id);
+
+    const prevRows = rows;
+    const prevFiltered = filtered;
+
+    setRows((r) => r.filter((x) => x.id !== id));
+    setFiltered((r) => r.filter((x) => x.id !== id));
+
+    try {
+      await GuideAPI.delete(id);
+      toast.success("Guide deleted");
+      const totalAfter = prevFiltered.filter((x) => x.id !== id).length;
+      const lastPage = Math.max(1, Math.ceil(totalAfter / pageSize));
+      if (currentPage > lastPage) setCurrentPage(lastPage);
+    } catch {
+      setRows(prevRows);
+      setFiltered(prevFiltered);
+      toast.error("Failed to delete guide");
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
+  }, [rows, filtered, pageSize, currentPage, deletingId, confirmDeleteId]);
 
   const paginated = useMemo(
     () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
@@ -358,7 +369,7 @@ export default function GuideListPage() {
                           size="sm"
                           variant="ghost"
                           disabled={isDeleting}
-                          onClick={() => handleDelete(r.id)}
+                          onClick={() => openDeleteConfirm(r.id)}
                           title="Delete"
                         >
                           <Trash2
@@ -430,6 +441,52 @@ export default function GuideListPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletingId) setConfirmDeleteId(null);
+        }}
+      >
+        <AlertDialogContent className="max-w-[520px] text-center">
+          <AlertDialogHeader className="items-center text-center space-y-3">
+            <div className="h-12 w-12 rounded-full border border-violet-200 flex items-center justify-center text-violet-500">
+              <Trash2 className="h-6 w-6" />
+            </div>
+            <AlertDialogTitle className="text-2xl font-semibold">Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              Do you really want to delete this record?
+              <br />
+              This process cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="justify-center sm:justify-center">
+            <AlertDialogCancel asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                className="min-w-[92px]"
+                disabled={deletingId === confirmDeleteId}
+              >
+                Close
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                type="button"
+                className="min-w-[92px] bg-red-500 hover:bg-red-600 text-white"
+                disabled={deletingId === confirmDeleteId}
+                onClick={(e) => {
+                  e.preventDefault();
+                  void handleDeleteConfirmed();
+                }}
+              >
+                {deletingId === confirmDeleteId ? "Deleting..." : "Delete"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
