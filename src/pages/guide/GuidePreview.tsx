@@ -114,10 +114,24 @@ export default function GuidePreview() {
     ((data?.basic as any)?.guide_gst ? `${(data?.basic as any).guide_gst}%` : "");
 
   const preferredArray = Array.isArray(data?.preferredFor) ? data!.preferredFor : [];
+  const preferredValueRaw = preferredArray[0] ?? "";
+  const preferredValueNum = Number(preferredValueRaw);
+  const preferredIsHotspot = preferredValueRaw === "1" || preferredValueNum === 1 || preferredArray.includes("hotspot");
+  const preferredIsActivity = preferredValueRaw === "2" || preferredValueNum === 2 || preferredArray.includes("activity");
   const itineraryChecked =
     preferredArray.includes("itinerary") ||
     preferredArray.includes("3") ||
     (preferredArray as any).includes(3);
+
+  const preferredLabel =
+    (data as any)?.view?.preferred_for_label ??
+    (preferredIsHotspot ? "Hotspot" : preferredIsActivity ? "Activity" : itineraryChecked ? "Itinerary" : "");
+
+  const preferredValueText = preferredIsHotspot
+    ? ((data as any)?.view?.hotspot_places_label ?? "")
+    : preferredIsActivity
+    ? ((data as any)?.view?.activity_places_label ?? "")
+    : "";
 
   return (
     <div className="p-6">
@@ -192,15 +206,21 @@ export default function GuidePreview() {
             <Section title="Guide Prefered For">
               <div className="flex items-start gap-4">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="h-4 w-4 accent-fuchsia-600" readOnly checked={itineraryChecked} />
-                  <span className="text-gray-800">Itinerary</span>
+                  <input type="checkbox" className="h-4 w-4 accent-fuchsia-600" readOnly checked={Boolean(preferredLabel)} />
+                  <span className="text-gray-800">{preferredLabel || "-"}</span>
                 </label>
               </div>
 
-              <div className="mt-4 bg-fuchsia-50 text-fuchsia-700 rounded-xl p-4">
-                From the beginning to the end of each day, the itinerary and all the hotspots serve
-                as a guide for the entire journey.
-              </div>
+              {preferredValueText ? (
+                <div className="mt-4 text-gray-800">{preferredValueText}</div>
+              ) : null}
+
+              {itineraryChecked ? (
+                <div className="mt-4 bg-fuchsia-50 text-fuchsia-700 rounded-xl p-4">
+                  From the beginning to the end of each day, the itinerary and all the hotspots serve
+                  as a guide for the entire journey.
+                </div>
+              ) : null}
             </Section>
 
             {/* Feedback & Review */}
@@ -226,10 +246,10 @@ export default function GuidePreview() {
                       data.reviews.map((r, idx) => (
                         <tr key={r.guide_review_id} className="border-t">
                           <td className="px-4 py-3">{idx + 1}</td>
-                          <td className="px-4 py-3">{r.guide_rating || "-"}</td>
+                          <td className="px-4 py-3">{(r as any).guide_rating_label || r.guide_rating || "-"}</td>
                           <td className="px-4 py-3">{r.guide_description || "-"}</td>
                           <td className="px-4 py-3">
-                            {r.createdon ? fmtDateDDMMYYYY(r.createdon) : "-"}
+                            {(r as any).createdon_text || (r.createdon ? fmtDateDDMMYYYY(r.createdon) : "-")}
                           </td>
                         </tr>
                       ))
