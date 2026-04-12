@@ -479,8 +479,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     hotspotName: "",
   });
   const [isDeleting, setIsDeleting] = useState(false);
-  const [routeNeedsRebuild, setRouteNeedsRebuild] = useState<number | null>(null);
   const [isRebuilding, setIsRebuilding] = useState(false);
+  const [rebuildingRouteId, setRebuildingRouteId] = useState<number | null>(null);
   const [excludedHotspotIds, setExcludedHotspotIds] = useState<number[]>([]);
 
   // Add activity modal state
@@ -518,10 +518,104 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     hotspotName: "",
   });
   const [availableActivities, setAvailableActivities] = useState<AvailableActivity[]>([]);
+  const [availableActivitiesMap, setAvailableActivitiesMap] = useState<Record<number, AvailableActivity[]>>({});
+  const [loadingAvailableActivitiesMap, setLoadingAvailableActivitiesMap] = useState<Record<number, boolean>>({});
+  const availableActivitiesMapRef = useRef<Record<number, AvailableActivity[]>>({});
+  const loadingAvailableActivitiesMapRef = useRef<Record<number, boolean>>({});
   const [loadingActivities, setLoadingActivities] = useState(false);
   const [isAddingActivity, setIsAddingActivity] = useState(false);
-  const [activityPreview, setActivityPreview] = useState<any>(null);
+  const [selectedActivity, setSelectedActivity] = useState<AvailableActivity | null>(null);
+  const [fitPreviewMode, setFitPreviewMode] = useState<"selection" | "impact">("selection");
+  const [previewHotspots, setPreviewHotspots] = useState<any[]>([]);
+  const [fitGaps, setFitGaps] = useState<any[]>([]);
+  const [selectedFit, setSelectedFit] = useState<{
+    gapIndex: number;
+    label: string;
+    routeHotspotId?: number;
+    hotspotId?: number;
+  } | null>(null);
+  const [impactPreview, setImpactPreview] = useState<any | null>(null);
   const [previewingActivityId, setPreviewingActivityId] = useState<number | null>(null);
+
+  useEffect(() => {
+    availableActivitiesMapRef.current = availableActivitiesMap;
+  }, [availableActivitiesMap]);
+
+  useEffect(() => {
+    loadingAvailableActivitiesMapRef.current = loadingAvailableActivitiesMap;
+  }, [loadingAvailableActivitiesMap]);
+
+  const fetchAvailableActivitiesForHotspot = useCallback(
+    async (hotspotId: number, opts?: { force?: boolean; silent?: boolean }) => {
+      const id = Number(hotspotId || 0);
+      if (!id) return [] as AvailableActivity[];
+
+      const force = opts?.force === true;
+      const silent = opts?.silent === true;
+      const cached = availableActivitiesMapRef.current[id];
+
+      if (!force && Array.isArray(cached)) {
+        return cached;
+      }
+
+      if (loadingAvailableActivitiesMapRef.current[id]) {
+        return Array.isArray(cached) ? cached : [];
+      }
+
+      setLoadingAvailableActivitiesMap((prev) => ({ ...prev, [id]: true }));
+      try {
+        const activities = (await ItineraryService.getAvailableActivities(id)) as AvailableActivity[];
+        setAvailableActivitiesMap((prev) => ({ ...prev, [id]: Array.isArray(activities) ? activities : [] }));
+        return Array.isArray(activities) ? activities : [];
+      } catch (e: any) {
+        if (!silent) {
+          console.error("Failed to load activities", e);
+          toast.error(e?.message || "Failed to load activities");
+        }
+        setAvailableActivitiesMap((prev) => ({ ...prev, [id]: prev[id] ?? [] }));
+        return Array.isArray(availableActivitiesMapRef.current[id]) ? availableActivitiesMapRef.current[id] : [];
+      } finally {
+        setLoadingAvailableActivitiesMap((prev) => ({ ...prev, [id]: false }));
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!itinerary?.days?.length) return;
+
+    const hotspotIds = Array.from(
+      new Set(
+        itinerary.days
+          .flatMap((day) => day.segments || [])
+          .filter((segment) => segment.type === "attraction")
+          .map((segment: any) => Number(segment.hotspotId || 0))
+          .filter((id) => id > 0),
+      ),
+    );
+
+    const idsToLoad = hotspotIds.filter(
+      (id) =>
+        !Array.isArray(availableActivitiesMapRef.current[id]) &&
+        !loadingAvailableActivitiesMapRef.current[id],
+    );
+
+    if (!idsToLoad.length) return;
+
+    Promise.all(idsToLoad.map((id) => fetchAvailableActivitiesForHotspot(id, { silent: true }))).catch(() => {
+      // best-effort preload
+    });
+  }, [itinerary, fetchAvailableActivitiesForHotspot]);
+
+  useEffect(() => {
+    const hotspotId = Number(addActivityModal.hotspotId || 0);
+    if (!addActivityModal.open || !hotspotId) return;
+
+    const fromMap = availableActivitiesMap[hotspotId];
+    if (Array.isArray(fromMap)) {
+      setAvailableActivities(fromMap);
+    }
+  }, [addActivityModal.open, addActivityModal.hotspotId, availableActivitiesMap]);
 
   // All-hotspots preview modal state
   const [allHotspotsPreviewModal, setAllHotspotsPreviewModal] = useState<{
@@ -589,12 +683,78 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [hotspotSearchQuery, setHotspotSearchQuery] = useState("");
   const [availableHotspots, setAvailableHotspots] = useState<AvailableHotspot[]>([]);
   const [previewTimeline, setPreviewTimeline] = useState<any[] | null>(null);
+  const [previewRemovedHotspots, setPreviewRemovedHotspots] = useState<any[]>([]);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+  const hotspotPreviewRequestSeqRef = useRef(0);
 
   // Refs for scrolling
   const hotspotListRef = useRef<HTMLDivElement>(null);
+  const hotspotCardRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
+
+  // Keep selected hotspot card visible inside the left hotspot list container.
+  useEffect(() => {
+    if (!addHotspotModal.open || !selectedHotspotId) return;
+
+    const container = hotspotListRef.current;
+    const card = hotspotCardRefs.current[selectedHotspotId];
+    if (!container || !card) return;
+
+    const raf = requestAnimationFrame(() => {
+      const containerRect = container.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const currentScrollTop = container.scrollTop;
+
+      // Convert card rect into container scroll-space to avoid offsetParent inconsistencies.
+      const cardTopInContainer = currentScrollTop + (cardRect.top - containerRect.top);
+      const cardBottomInContainer = cardTopInContainer + cardRect.height;
+      const viewTop = currentScrollTop;
+      const viewBottom = currentScrollTop + container.clientHeight;
+      const isFullyVisible =
+        cardTopInContainer >= viewTop && cardBottomInContainer <= viewBottom;
+
+      const shouldDebugScroll =
+        import.meta.env.DEV &&
+        typeof window !== "undefined" &&
+        window.localStorage.getItem("debugHotspotScroll") === "1";
+
+      if (shouldDebugScroll) {
+        console.log("[HotspotScroll]", {
+          selectedHotspotId,
+          containerScrollTop: currentScrollTop,
+          containerClientHeight: container.clientHeight,
+          containerScrollHeight: container.scrollHeight,
+          cardOffsetTop: card.offsetTop,
+          cardOffsetHeight: card.offsetHeight,
+          cardTopInContainer,
+          cardBottomInContainer,
+          isFullyVisible,
+        });
+      }
+
+      if (isFullyVisible) return;
+
+      const padding = 16;
+      let targetTop = currentScrollTop;
+
+      if (cardTopInContainer < viewTop) {
+        targetTop = Math.max(0, cardTopInContainer - padding);
+      } else if (cardBottomInContainer > viewBottom) {
+        targetTop = Math.max(
+          0,
+          cardBottomInContainer - container.clientHeight + padding,
+        );
+      }
+
+      container.scrollTo({
+        top: targetTop,
+        behavior: "smooth",
+      });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [addHotspotModal.open, selectedHotspotId, availableHotspots.length, hotspotSearchQuery]);
 
   // Scroll management for Add Hotspot Modal
   // Unified scroll handler - execute after DOM is fully rendered
@@ -612,48 +772,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     raf1 = requestAnimationFrame(() => {
       raf2 = requestAnimationFrame(() => {
         raf3 = requestAnimationFrame(() => {
-          // Scroll left hotspot list
-          if (hotspotListRef.current) {
-            const card = hotspotListRef.current.querySelector(
-              `[data-hotspot-id="${selectedHotspotId}"]`
-            ) as HTMLElement | null;
-            
-            if (card && hotspotListRef.current) {
-              // Get container and card positions
-              const container = hotspotListRef.current;
-              const containerRect = container.getBoundingClientRect();
-              const cardRect = card.getBoundingClientRect();
-              
-              // Calculate relative position of card within container
-              const cardTopRelativeToContainer = card.offsetTop;
-              const cardHeightWithPadding = card.offsetHeight;
-              const containerHeight = container.clientHeight;
-              
-              // Scroll to position card more centered with larger offset
-              const scrollOffset = 150; // pixels from top - centers the card
-              const targetScrollTop = Math.max(0, cardTopRelativeToContainer - scrollOffset);
-              
-              container.scrollTo({
-                top: targetScrollTop,
-                behavior: "auto"
-              });
-              
-              // Debug logging
-              console.log('[Hotspot Scroll] Card found:', {
-                cardId: selectedHotspotId,
-                cardTop: cardTopRelativeToContainer,
-                containerHeight,
-                targetScrollTop,
-                containerScrollHeight: container.scrollHeight,
-                containerScrollTop: container.scrollTop
-              });
-            } else {
-              console.warn('[Hotspot Scroll] Card not found for ID:', selectedHotspotId);
-            }
-          } else {
-            console.warn('[Hotspot Scroll] Container ref not available');
-          }
-
           // Scroll right timeline to show selected item
           if (timelinePreviewRef.current) {
             // Find the selected timeline item
@@ -1599,9 +1717,6 @@ const htmlToPlainText = (html: string): string => {
         hotspotName: "",
       });
       
-      // Show rebuild button by setting route ID with pending rebuild
-      setRouteNeedsRebuild(deleteHotspotModal.routeId);
-      
       // Reload itinerary data
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
@@ -1621,12 +1736,10 @@ const htmlToPlainText = (html: string): string => {
 
   const handleRebuildRoute = async (planId: number, routeId: number) => {
     setIsRebuilding(true);
+    setRebuildingRouteId(routeId);
     try {
-      await ItineraryService.rebuildRoute(planId, routeId);
-      toast.success("Route rebuilt successfully");
-      
-      // Clear rebuild flag
-      setRouteNeedsRebuild(null);
+      await ItineraryService.rebuildRouteHotspots(planId, routeId);
+      toast.success("Day hotspots rebuilt successfully");
       
       // Reload itinerary data
       if (quoteId) {
@@ -1642,6 +1755,7 @@ const htmlToPlainText = (html: string): string => {
       toast.error(e?.message || "Failed to rebuild route");
     } finally {
       setIsRebuilding(false);
+      setRebuildingRouteId(null);
     }
   };
 
@@ -1714,62 +1828,68 @@ const htmlToPlainText = (html: string): string => {
     });
 
     // Reset stale preview state whenever modal opens for a hotspot.
-    setActivityPreview(null);
+    setSelectedActivity(null);
+    setFitPreviewMode("selection");
+    setPreviewHotspots([]);
+    setFitGaps([]);
+    setSelectedFit(null);
+    setImpactPreview(null);
     setPreviewingActivityId(null);
 
-    // Fetch available activities
+    // Fetch available activities (cached by hotspotId)
     setLoadingActivities(true);
     try {
-      const activities = await ItineraryService.getAvailableActivities(hotspotId);
-      setAvailableActivities(activities as AvailableActivity[]);
-    } catch (e: any) {
-      console.error("Failed to load activities", e);
-      toast.error(e?.message || "Failed to load activities");
-      setAvailableActivities([]);
+      const activities = await fetchAvailableActivitiesForHotspot(hotspotId, { silent: false });
+      setAvailableActivities(Array.isArray(activities) ? activities : []);
     } finally {
       setLoadingActivities(false);
     }
   };
 
-  const handleAddActivity = async (activityId: number, amount: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId || !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
+  const handleConfirmInsert = async () => {
+    if (!addActivityModal.planId || !addActivityModal.routeId) {
       return;
     }
 
-    // Check for conflicts in preview
-    let shouldSkipConflictCheck = false;
-    if (activityPreview?.hasConflicts && activityPreview.activity?.id === activityId) {
-      const conflictMessages = activityPreview.conflicts
-        .map((c: any) => c.reason)
-        .join('\n\n');
-      
-      const confirm = window.confirm(
-        `TIMING CONFLICTS DETECTED:\n\n${conflictMessages}\n\nDo you want to add this activity anyway?`
+    if (!selectedActivity || !selectedFit) {
+      toast.error("Select a fit option first");
+      return;
+    }
+
+    if (!impactPreview?.success) {
+      toast.error("Selected fit is not valid");
+      return;
+    }
+
+    let allowTopPriorityRemoval = false;
+    if (Array.isArray(impactPreview?.conflicts?.priorityHotspotsAffected) && impactPreview.conflicts.priorityHotspotsAffected.length > 0) {
+      const names = impactPreview.conflicts.priorityHotspotsAffected
+        .map((h: any) => `${h.name || "Hotspot"} (P${h.priority || "?"})`)
+        .join("\n");
+      const confirmRemoval = window.confirm(
+        `Warning: top-priority hotspots may be removed:\n\n${names}\n\nContinue anyway?`,
       );
-      
-      if (!confirm) return;
-      shouldSkipConflictCheck = true; // User confirmed override
+      if (!confirmRemoval) return;
+      allowTopPriorityRemoval = true;
     }
 
     setIsAddingActivity(true);
     try {
-      const payload: any = {
-        planId: addActivityModal.planId,
+      const result: any = await ItineraryService.smartInsertActivity(addActivityModal.planId, {
         routeId: addActivityModal.routeId,
-        routeHotspotId: addActivityModal.routeHotspotId,
-        hotspotId: addActivityModal.hotspotId,
-        activityId,
-        amount,
-      };
-      
-      // Only add skipConflictCheck if user confirmed conflict override
-      if (shouldSkipConflictCheck) {
-        payload.skipConflictCheck = true;
-      }
-      
-      await ItineraryService.addActivity(payload);
+        gapIndex: selectedFit.gapIndex,
+        routeHotspotId: selectedFit.routeHotspotId,
+        hotspotId: selectedFit.hotspotId,
+        activityId: selectedActivity.id,
+        allowTopPriorityRemoval,
+      });
 
-      toast.success("Activity added successfully");
+      const removedCount = Array.isArray(result?.removedHotspots) ? result.removedHotspots.length : 0;
+      if (removedCount > 0) {
+        toast.success(`Activity added. ${removedCount} hotspot(s) removed to fit timeline.`);
+      } else {
+        toast.success("Activity added successfully");
+      }
 
       // Close modal
       setAddActivityModal({
@@ -1780,7 +1900,12 @@ const htmlToPlainText = (html: string): string => {
         hotspotId: null,
         hotspotName: "",
       });
-      setActivityPreview(null);
+      setSelectedActivity(null);
+      setFitPreviewMode("selection");
+      setPreviewHotspots([]);
+      setFitGaps([]);
+      setSelectedFit(null);
+      setImpactPreview(null);
       setPreviewingActivityId(null);
 
       // Reload itinerary — always, independently of hotel reload
@@ -1847,23 +1972,215 @@ const htmlToPlainText = (html: string): string => {
     }
 
     setPreviewingActivityId(activityId);
+    const activity = availableActivities.find((a) => a.id === activityId) || null;
+    setSelectedActivity(activity);
+    setFitPreviewMode("selection");
+    setSelectedFit(null);
+    setImpactPreview(null);
     try {
-      const preview = await ItineraryService.previewActivityAddition({
+      const preview: any = await ItineraryService.previewActivityForAllHotspots({
         planId: addActivityModal.planId,
         routeId: addActivityModal.routeId,
-        routeHotspotId: addActivityModal.routeHotspotId,
-        hotspotId: addActivityModal.hotspotId,
         activityId,
       });
 
-      setActivityPreview(preview);
+      setPreviewHotspots(Array.isArray(preview?.hotspots) ? preview.hotspots : []);
+      setFitGaps(Array.isArray(preview?.gaps) ? preview.gaps : []);
     } catch (e: any) {
       console.error("Failed to preview activity", e);
       toast.error(e?.message || "Failed to preview activity");
-      setActivityPreview(null);
+      setPreviewHotspots([]);
+      setFitGaps([]);
     } finally {
       setPreviewingActivityId(null);
     }
+  };
+
+  const handleFitHere = async (gap: any) => {
+    if (!addActivityModal.planId || !addActivityModal.routeId || !selectedActivity) {
+      return;
+    }
+
+    setPreviewingActivityId(selectedActivity.id);
+    try {
+      const preview: any = await ItineraryService.smartPreviewActivity(addActivityModal.planId, {
+        routeId: addActivityModal.routeId,
+        activityId: selectedActivity.id,
+        gapIndex: Number(gap?.gapIndex || 0),
+        routeHotspotId: Number(addActivityModal.routeHotspotId || 0) || undefined,
+        hotspotId: Number(addActivityModal.hotspotId || 0) || undefined,
+        mode: "applyPreview",
+      });
+
+      setSelectedFit({
+        gapIndex: Number(gap?.gapIndex || 0),
+        label: String(gap?.label || `Gap ${Number(gap?.gapIndex || 0)}`),
+        routeHotspotId: Number(addActivityModal.routeHotspotId || 0) || undefined,
+        hotspotId: Number(addActivityModal.hotspotId || 0) || undefined,
+      });
+      setImpactPreview(preview);
+      setFitPreviewMode("impact");
+    } catch (e: any) {
+      console.error("Failed to compute fit preview", e);
+      toast.error(e?.message || "Failed to compute fit preview");
+    } finally {
+      setPreviewingActivityId(null);
+    }
+  };
+
+  const handleBackToSelection = () => {
+    setFitPreviewMode("selection");
+    setImpactPreview(null);
+    setSelectedFit(null);
+  };
+
+  const renderSelectionPreview = () => {
+    if (previewingActivityId) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-[#d546ab]" />
+        </div>
+      );
+    }
+
+    if (!selectedActivity) {
+      return (
+        <div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-[#e5d9f2] text-center text-sm text-[#6c6c6c]">
+          Click an activity on the left to see whether it fits.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {(previewHotspots || []).map((spot: any, index: number) => {
+          const gap = (fitGaps || []).find((g: any) => Number(g.gapIndex) === index + 1);
+
+          return (
+            <div key={spot.hotspotId || spot.routeHotspotId} className="flex flex-col items-center gap-2">
+              <div className="w-full border-2 border-emerald-500 bg-white rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-base font-bold text-gray-700">{spot.hotspotName}</h3>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Hotspot Time Window: {formatPreviewTime(spot.windowStart || spot.hotspotTiming?.startTime)} - {formatPreviewTime(spot.windowEnd || spot.hotspotTiming?.endTime)}
+                </p>
+              </div>
+
+              {gap && (
+                <button
+                  type="button"
+                  className="px-4 py-1.5 border border-dashed border-emerald-500 text-emerald-600 text-xs font-semibold rounded-md hover:bg-emerald-50 transition-colors"
+                  onClick={() => handleFitHere(gap)}
+                >
+                  + Fit Here
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderImpactPreview = () => {
+    if (!impactPreview) return null;
+
+    const previewDays = Array.isArray(impactPreview?.rebuiltTimelinePreview?.days)
+      ? impactPreview.rebuiltTimelinePreview.days
+      : [];
+
+    return (
+      <div className="space-y-4">
+        <div className="w-full border border-emerald-200 bg-emerald-50/40 rounded-lg p-3 text-sm text-emerald-800">
+          Previewing rebuilt itinerary with moved hotspot at selected gap.
+        </div>
+
+        {impactPreview.conflicts?.hasConflict && (
+          <div className="w-full border-2 border-red-500 bg-red-50 rounded-xl p-3 flex items-center gap-3">
+            <div className="text-red-700 text-sm font-semibold">
+              {impactPreview.conflicts.message || "This will remove Priority hotspot"}
+              {Array.isArray(impactPreview.conflicts.priorityHotspotsAffected) &&
+              impactPreview.conflicts.priorityHotspotsAffected.length > 0
+                ? `: ${impactPreview.conflicts.priorityHotspotsAffected
+                    .map((h: any) => h.name)
+                    .join(", ")}`
+                : ""}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {previewDays.map((day: any, dayIdx: number) => (
+            <div key={day.id || dayIdx} className="w-full border-2 border-emerald-500 bg-white rounded-xl p-4 shadow-sm space-y-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-700">Day {day.dayNumber || dayIdx + 1}</h3>
+                <p className="text-xs text-gray-500">
+                  {day.departure} to {day.arrival}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {(day.segments || []).map((segment: any, segIdx: number) => {
+                  if (segment.type === "travel") {
+                    return (
+                      <div key={`travel-${segIdx}`} className="rounded-md border border-[#e8e8e8] bg-[#fafafa] p-2">
+                        <p className="text-sm text-gray-700 font-medium">
+                          Travel from {segment.from} to {segment.to}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {segment.timeRange || ""}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (segment.type === "attraction") {
+                    return (
+                      <div key={`attr-${segIdx}`} className="rounded-md border border-[#e8e8e8] bg-white p-2">
+                        <p className="text-sm text-gray-800 font-semibold">{segment.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{segment.visitTime || ""}</p>
+                        {Array.isArray(segment.activities) && segment.activities.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {segment.activities.map((a: any) => (
+                              <p key={a.id || `${a.activityId}-${a.title}`} className="text-xs text-emerald-700 font-medium">
+                                + {a.title} {a.startTime && a.endTime ? `(${a.startTime} - ${a.endTime})` : ""}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return null;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-3 justify-end">
+          <button
+            type="button"
+            className="px-4 py-2 border border-gray-300 rounded-lg"
+            onClick={handleBackToSelection}
+            disabled={isAddingActivity}
+          >
+            Back
+          </button>
+
+          <button
+            type="button"
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-60"
+            onClick={handleConfirmInsert}
+            disabled={isAddingActivity}
+          >
+            {isAddingActivity ? "Applying..." : "Confirm Insert"}
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const handleOpenPreviewAllHotspots = async (activityId: number) => {
@@ -2022,7 +2339,10 @@ const htmlToPlainText = (html: string): string => {
       locationName,
     });
     setPreviewTimeline(null);
+    setPreviewRemovedHotspots([]);
     setSelectedHotspotId(null);
+    // Invalidate any in-flight preview response from a previous modal session.
+    hotspotPreviewRequestSeqRef.current += 1;
 
     // Fetch available hotspots for this location
     setLoadingHotspots(true);
@@ -2042,9 +2362,26 @@ const htmlToPlainText = (html: string): string => {
     const rId = routeId || addHotspotModal.routeId;
     if (!pId || !rId) return;
 
+    const shouldDebugPreview =
+      import.meta.env.DEV &&
+      typeof window !== "undefined" &&
+      window.localStorage.getItem("debugHotspotPreview") === "1";
+
+    const requestSeq = ++hotspotPreviewRequestSeqRef.current;
+    if (shouldDebugPreview) {
+      console.log("[HotspotPreview][click]", {
+        requestSeq,
+        hotspotId,
+        planId: pId,
+        routeId: rId,
+        previousSelectedHotspotId: selectedHotspotId,
+      });
+    }
+
     setSelectedHotspotId(hotspotId);
     setIsPreviewing(true);
     setPreviewTimeline(null);
+    setPreviewRemovedHotspots([]);
     
     // Don't force scroll list to top here, let the user stay where they clicked
     if (timelinePreviewRef.current) {
@@ -2057,13 +2394,86 @@ const htmlToPlainText = (html: string): string => {
         rId,
         hotspotId
       );
-      // The backend returns { newHotspot, otherConflicts, fullTimeline }
-      setPreviewTimeline(preview.fullTimeline || []);
+
+      const isLatestRequest = requestSeq === hotspotPreviewRequestSeqRef.current;
+      if (shouldDebugPreview) {
+        const timelineAttractions = (preview?.fullTimeline || [])
+          .filter((seg: any) => String(seg?.type || "").toLowerCase() === "attraction")
+          .map((seg: any) => ({
+            locationId: Number(seg?.locationId || 0),
+            text: String(seg?.text || "").trim(),
+          }));
+
+        console.log("[HotspotPreview][response]", {
+          requestSeq,
+          isLatestRequest,
+          requestedHotspotId: hotspotId,
+          responseNewHotspot: preview?.newHotspot || null,
+          responseAttractions: timelineAttractions,
+        });
+      }
+
+      if (!isLatestRequest) {
+        if (shouldDebugPreview) {
+          console.log("[HotspotPreview][drop-stale]", {
+            requestSeq,
+            currentRequestSeq: hotspotPreviewRequestSeqRef.current,
+            requestedHotspotId: hotspotId,
+          });
+        }
+        return;
+      }
+
+      // The backend returns { newHotspot, otherConflicts, fullTimeline }.
+      // Some hotspots can be omitted by backend scheduling; keep panel synced by showing
+      // an explicit unschedulable row for the selected hotspot when that happens.
+      const nextTimeline = Array.isArray(preview?.fullTimeline)
+        ? [...preview.fullTimeline]
+        : [];
+
+      const selectedInTimeline = nextTimeline.some(
+        (seg: any) =>
+          String(seg?.type || "").toLowerCase() === "attraction" &&
+          Number(seg?.locationId) === Number(hotspotId),
+      );
+
+      if (!selectedInTimeline) {
+        const selectedHotspot = availableHotspots.find(
+          (h) => Number(h.id) === Number(hotspotId),
+        );
+
+        const fallbackConflictReason = Array.isArray(preview?.otherConflicts)
+          ? String(preview.otherConflicts[0]?.reason || "").trim()
+          : "";
+
+        nextTimeline.push({
+          type: "attraction",
+          locationId: hotspotId,
+          text: selectedHotspot?.name || `Hotspot #${hotspotId}`,
+          timeRange: "Not schedulable",
+          isConflict: true,
+          conflictReason:
+            fallbackConflictReason ||
+            "Selected hotspot could not be placed in the current route timeline.",
+        });
+      }
+
+      setPreviewTimeline(nextTimeline);
+
+      const removedFromPreview: any[] = Array.isArray(preview?.resolution?.removedHotspots)
+        ? preview.resolution.removedHotspots
+        : Array.isArray(preview?.droppedItems)
+        ? preview.droppedItems
+        : [];
+      setPreviewRemovedHotspots(removedFromPreview);
     } catch (e: any) {
       console.error("Failed to preview hotspot", e);
       toast.error(e?.message || "Failed to preview hotspot");
     } finally {
-      setIsPreviewing(false);
+      // Do not clear loading state from an outdated request.
+      if (requestSeq === hotspotPreviewRequestSeqRef.current) {
+        setIsPreviewing(false);
+      }
     }
   };
 
@@ -2077,6 +2487,9 @@ const htmlToPlainText = (html: string): string => {
       return;
     }
 
+    const planId = addHotspotModal.planId;
+    const routeId = addHotspotModal.routeId;
+
     // Check for conflicts in preview
     const hasConflicts = previewTimeline?.some(seg => seg.isConflict);
     if (hasConflicts) {
@@ -2086,13 +2499,52 @@ const htmlToPlainText = (html: string): string => {
 
     setIsAddingHotspot(true);
     try {
-      await ItineraryService.addManualHotspot(
-        addHotspotModal.planId,
-        addHotspotModal.routeId,
+      const addResult: any = await ItineraryService.addManualHotspot(
+        planId,
+        routeId,
         hotspotId
       );
 
-      toast.success("Hotspot added successfully");
+      if (!addResult?.success) {
+        toast.error(
+          String(addResult?.message || "Hotspot could not be inserted into this day timeline."),
+        );
+        return;
+      }
+
+      const removedHotspots = Array.isArray(addResult?.resolution?.removedHotspots)
+        ? addResult.resolution.removedHotspots
+        : [];
+      const removedCount = Number(addResult?.resolution?.removedCount || removedHotspots.length || 0);
+      const removedNames = removedHotspots
+        .map((h: any) => String(h?.name || "").trim())
+        .filter((name: string) => !!name);
+
+      // Reload itinerary data
+      if (quoteId) {
+        const [detailsRes, hotelRes] = await Promise.all([
+          ItineraryService.getDetails(quoteId),
+          ItineraryService.getHotelDetails(quoteId),
+        ]);
+
+        const details = detailsRes as ItineraryDetailsResponse;
+        setItinerary(details);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      }
+
+      if (removedCount <= 0) {
+        toast.success("Hotspot added successfully.");
+      } else if (removedCount === 1) {
+        toast.success("Hotspot added successfully. Removed 1 lower-priority hotspot due to timing constraints.");
+      } else {
+        toast.success(`Hotspot added successfully. Removed ${removedCount} lower-priority hotspots due to timing constraints.`);
+      }
+
+      if (removedNames.length === 1) {
+        toast.success(`Removed ${removedNames[0]} due to timing constraints.`);
+      } else if (removedNames.length > 1) {
+        toast.success(`Removed ${removedNames.join(" and ")} due to timing constraints.`);
+      }
 
       // Close modal and inline
       setAddHotspotModal({
@@ -2105,17 +2557,8 @@ const htmlToPlainText = (html: string): string => {
       setExpandedAddHotspotDayId(null);
       setHotspotSearchQuery("");
       setPreviewTimeline(null);
+      setPreviewRemovedHotspots([]);
       setSelectedHotspotId(null);
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
     } catch (e: any) {
       console.error("Failed to add hotspot", e);
       toast.error(e?.message || "Failed to add hotspot");
@@ -2951,7 +3394,7 @@ if (error || !itinerary) {
         <h3 className="font-semibold text-[#4a4260]">
           DAY {day.dayNumber} - {formatHeaderDate(day.date)}
         </h3>
-        {routeNeedsRebuild === day.id && (
+        {!readOnly && (
           <Button
             size="sm"
             variant="outline"
@@ -2959,7 +3402,7 @@ if (error || !itinerary) {
             disabled={isRebuilding}
             className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
           >
-            {isRebuilding ? (
+            {isRebuilding && rebuildingRouteId === day.id ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Rebuilding...
@@ -2967,7 +3410,7 @@ if (error || !itinerary) {
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Rebuild Route
+                Rebuild Hotspots
               </>
             )}
           </Button>
@@ -3191,21 +3634,25 @@ if (error || !itinerary) {
                                 <Clock className="h-3 w-3 mr-1" />
                                 {segment.visitTime}
                               </span>
-                              <button 
-                                className="text-[#d546ab] hover:underline flex items-center font-medium"
-                                onClick={() =>
-                                  openAddActivityModal(
-                                    itinerary.planId || 0,
-                                    day.id,
-                                    segment.routeHotspotId || 0,
-                                    segment.hotspotId || 0,
-                                    segment.name
-                                  )
-                                }
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add Activity
-                              </button>
+                              {Number(segment.hotspotId || 0) > 0 &&
+                                Array.isArray(availableActivitiesMap[Number(segment.hotspotId)]) &&
+                                availableActivitiesMap[Number(segment.hotspotId)].length > 0 && (
+                                <button 
+                                  className="text-[#d546ab] hover:underline flex items-center font-medium"
+                                  onClick={() =>
+                                    openAddActivityModal(
+                                      itinerary.planId || 0,
+                                      day.id,
+                                      segment.routeHotspotId || 0,
+                                      segment.hotspotId || 0,
+                                      segment.name
+                                    )
+                                  }
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Activity
+                                </button>
+                                )}
                             </div>
                           </div>
                           <div className="flex flex-col gap-2 sm:ml-auto">
@@ -3993,9 +4440,18 @@ if (error || !itinerary) {
       {/* Add Activity Modal */}
       <Dialog
         open={addActivityModal.open}
-        onOpenChange={(open) =>
-          setAddActivityModal({ ...addActivityModal, open })
-        }
+        onOpenChange={(open) => {
+          setAddActivityModal({ ...addActivityModal, open });
+          if (!open) {
+            setSelectedActivity(null);
+            setFitPreviewMode("selection");
+            setPreviewHotspots([]);
+            setFitGaps([]);
+            setSelectedFit(null);
+            setImpactPreview(null);
+            setPreviewingActivityId(null);
+          }
+        }}
       >
         <DialogContent className="w-[96vw] sm:max-w-5xl h-[85vh] flex flex-col overflow-hidden p-4 sm:p-6">
           <DialogHeader className="shrink-0">
@@ -4032,7 +4488,7 @@ if (error || !itinerary) {
                           type="button"
                           onClick={() => handlePreviewActivity(activity.id)}
                           className={`w-full rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab] focus-visible:ring-offset-2 ${
-                            activityPreview?.activity?.id === activity.id
+                            selectedActivity?.id === activity.id
                               ? 'border-[#d546ab] bg-[#f7edf6]'
                               : 'border-[#e5d9f2] bg-white hover:bg-[#faf7fc]'
                           }`}
@@ -4056,179 +4512,13 @@ if (error || !itinerary) {
                 </div>
               </div>
 
-              <div className="w-full lg:w-1/2 flex flex-col min-h-0 lg:pl-2">
-                <div className="flex items-center justify-between gap-2 pb-2">
-                  <div className="text-sm font-semibold text-[#4a4260]">
-                    Preview
-                  </div>
-                  {activityPreview?.activity?.id && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-[#d546ab] border-[#d546ab] hover:bg-[#d546ab] hover:text-white"
-                      onClick={() => handleOpenPreviewAllHotspots(activityPreview.activity.id)}
-                      disabled={isAddingActivity}
-                    >
-                      Preview All Hotspots
-                    </Button>
-                  )}
-                </div>
+              <div className="w-full lg:w-1/2 bg-gray-50/50 p-4 lg:p-6 overflow-y-auto">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                  Smart Fit Preview
+                </h3>
 
-                {previewingActivityId && (
-                  <div className="flex-1 flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-[#d546ab]" />
-                  </div>
-                )}
-
-                {!previewingActivityId && !activityPreview && (
-                  <div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-[#e5d9f2] text-center text-sm text-[#6c6c6c]">
-                    Click an activity on the left to see whether it fits.
-                  </div>
-                )}
-
-                {!previewingActivityId && activityPreview && (
-                  <div className="flex-1 overflow-y-auto space-y-4" aria-live="polite">
-                    <div>
-                      <div className="font-semibold text-[#4a4260]">
-                        {activityPreview.activity?.title}
-                      </div>
-                      <div className="mt-1 text-xs text-[#6c6c6c]">
-                        Duration: {formatActivityDuration(activityPreview.activity?.duration)}
-                      </div>
-                    </div>
-
-                    {/* ① Placement */}
-                    <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-3 space-y-2">
-                      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-[#6c6c6c]">Hotspot Window</span>
-                        <span className="font-medium text-[#4a4260]">
-                          {formatPreviewTime(activityPreview.hotspotTiming?.startTime)} – {formatPreviewTime(activityPreview.hotspotTiming?.endTime)}
-                        </span>
-                      </div>
-                      {activityPreview.proposedTiming && (
-                        <>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-[#6c6c6c]">Inserted At</span>
-                            <span className="font-semibold text-[#d546ab]">
-                              {formatPreviewTime(activityPreview.proposedTiming.startTime)} – {formatPreviewTime(activityPreview.proposedTiming.endTime)}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-[#6c6c6c]">Position</span>
-                            <span className="font-medium text-[#4a4260]">#{activityPreview.proposedTiming.order}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* ② Hotspot Impact */}
-                    <div className={`rounded-lg border-2 p-3 ${
-                      activityPreview.hasConflicts
-                        ? 'border-red-300 bg-red-50'
-                        : activityPreview.proposedTiming?.willExtendHotspot
-                          ? 'border-amber-300 bg-amber-50'
-                          : 'border-green-300 bg-green-50'
-                    }`}>
-                      <div className="text-xs font-semibold uppercase tracking-wide mb-2">
-                        <span className={
-                          activityPreview.hasConflicts ? 'text-red-700'
-                          : activityPreview.proposedTiming?.willExtendHotspot ? 'text-amber-700'
-                          : 'text-green-700'
-                        }>
-                          ② Hotspot Impact — {
-                            activityPreview.hasConflicts ? '⛔ Conflict'
-                            : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
-                            : '✅ Fits within window'
-                          }
-                        </span>
-                      </div>
-                      {activityPreview.proposedTiming?.willExtendHotspot && !activityPreview.hasConflicts && (
-                        <div className="text-xs text-amber-800">
-                          Hotspot end time shifts from{' '}
-                          <span className="font-semibold">{formatPreviewTime(activityPreview.hotspotTiming?.endTime)}</span>
-                          {' '}→{' '}
-                          <span className="font-semibold">{formatPreviewTime(activityPreview.proposedTiming.endTime)}</span>
-                          {' '}(+{activityPreview.cascade?.shiftMinutes ?? 0} min)
-                        </div>
-                      )}
-                      {activityPreview.hasConflicts && activityPreview.conflicts?.length > 0 && (
-                        <div className="space-y-1 text-xs text-red-700 mt-1">
-                          {activityPreview.conflicts.map((conflict: any, idx: number) => (
-                            <div key={idx}>• {conflict.reason}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* ③ Day Cascade */}
-                    {activityPreview.cascade?.shiftMinutes > 0 && activityPreview.cascade?.affectedSegments?.length > 0 && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
-                        <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
-                          ③ Day Cascade — everything after shifts +{activityPreview.cascade.shiftMinutes} min
-                        </div>
-                        <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                          {activityPreview.cascade.affectedSegments.map((seg: any, idx: number) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs py-1 border-b border-amber-100 last:border-0">
-                              <span className={`shrink-0 w-16 text-center rounded px-1 py-0.5 font-medium ${
-                                seg.type === 'travel' ? 'bg-blue-100 text-blue-700'
-                                : seg.type === 'break' ? 'bg-yellow-100 text-yellow-700'
-                                : seg.type === 'hotel' ? 'bg-purple-100 text-purple-700'
-                                : seg.type === 'return' ? 'bg-gray-100 text-gray-700'
-                                : 'bg-pink-100 text-pink-700'
-                              }`}>
-                                {seg.type === 'travel' ? '🚌 Travel'
-                                : seg.type === 'break' ? '⏸ Break'
-                                : seg.type === 'hotel' ? '🏨 Hotel'
-                                : seg.type === 'return' ? '🔄 Return'
-                                : '📍 Place'}
-                              </span>
-                              <span className="flex-1 font-medium text-[#4a4260] truncate">{seg.name}</span>
-                              <span className="shrink-0 text-[#6c6c6c] line-through">{formatPreviewTime(seg.oldStartTime)}</span>
-                              <span className="shrink-0 text-amber-700 font-semibold">{formatPreviewTime(seg.newStartTime)}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex justify-between text-xs pt-1 border-t border-amber-200">
-                          <span className="text-[#6c6c6c]">Day ends</span>
-                          <span>
-                            <span className="line-through text-[#6c6c6c] mr-2">{formatPreviewTime(activityPreview.cascade.originalDayEndTime)}</span>
-                            <span className="font-semibold text-amber-800">{formatPreviewTime(activityPreview.cascade.newDayEndTime)}</span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {activityPreview.cascade?.shiftMinutes === 0 && (
-                      <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700">
-                        ③ Day Cascade — <span className="font-semibold">No downstream impact.</span> Activity fits within the existing hotspot window.
-                      </div>
-                    )}
-
-                    <Button
-                      className="w-full bg-[#d546ab] hover:bg-[#c03d9f] shrink-0"
-                      onClick={() => {
-                        const selectedActivity = availableActivities.find(
-                          (activity) => activity.id === activityPreview.activity?.id,
-                        );
-                        handleAddActivity(
-                          activityPreview.activity?.id,
-                          selectedActivity?.costAdult || 0,
-                        );
-                      }}
-                      disabled={isAddingActivity}
-                    >
-                      {isAddingActivity ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        'Add Activity'
-                      )}
-                    </Button>
-                  </div>
-                )}
+                {fitPreviewMode === "selection" && renderSelectionPreview()}
+                {fitPreviewMode === "impact" && renderImpactPreview()}
               </div>
             </div>
           </div>
@@ -4236,7 +4526,7 @@ if (error || !itinerary) {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() =>
+              onClick={() => {
                 setAddActivityModal({
                   open: false,
                   planId: null,
@@ -4244,8 +4534,15 @@ if (error || !itinerary) {
                   routeHotspotId: null,
                   hotspotId: null,
                   hotspotName: '',
-                })
-              }
+                });
+                setSelectedActivity(null);
+                setFitPreviewMode("selection");
+                setPreviewHotspots([]);
+                setFitGaps([]);
+                setSelectedFit(null);
+                setImpactPreview(null);
+                setPreviewingActivityId(null);
+              }}
               disabled={isAddingActivity}
             >
               Close
@@ -4344,6 +4641,9 @@ if (error || !itinerary) {
                     {filteredHotspots.map((hotspot) => (
                       <div
                         key={hotspot.id}
+                        ref={(el) => {
+                          hotspotCardRefs.current[hotspot.id] = el;
+                        }}
                         data-hotspot-id={hotspot.id}
                         className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${selectedHotspotId === hotspot.id ? 'ring-2 ring-[#d546ab]' : ''}`}
                       >
@@ -4489,6 +4789,21 @@ if (error || !itinerary) {
                             </div>
                           );
                         })}
+                        {previewRemovedHotspots.length > 0 && (
+                          <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
+                            <p className="text-xs font-bold text-amber-700 mb-1 uppercase tracking-wide">
+                              Removed lower-priority hotspots:
+                            </p>
+                            <ul className="space-y-1">
+                              {previewRemovedHotspots.map((h: any, idx: number) => (
+                                <li key={idx} className="text-xs text-amber-900 flex items-center gap-1.5">
+                                  <span className="text-amber-500 font-bold">•</span>
+                                  {String(h?.name || `Hotspot #${h?.id || h?.hotspotId || '?'}`)}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                         <div className="pt-4 sticky bottom-0 bg-white">
                           <Button 
                             className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
