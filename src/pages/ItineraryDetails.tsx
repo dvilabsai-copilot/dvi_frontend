@@ -164,6 +164,8 @@ export type ItineraryHotelRow = {
   bookingCode?: string; // HOBSE booking code
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
+  // ✅ Hotel distance from route location (calculated via Haversine on backend)
+  hotelDistance?: string | null; // Distance in "XX.XX KM" format
 };
 
 export type ItineraryHotelTab = {
