@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 //import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { locationsApi, LocationRow, TollRow } from "@/services/locations";
+import {
+  locationsApi,
+  LocationRow,
+  SuggestedRouteRow,
+  TollRow,
+  ViaRouteRow,
+} from "@/services/locations";
 import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
 
 export default function LocationsPreviewPage() {
@@ -21,10 +27,20 @@ export default function LocationsPreviewPage() {
   const [tolls, setTolls] = useState<TollRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [viaRoutes, setViaRoutes] = useState<string[]>([]);
+    const [viaRoutes, setViaRoutes] = useState<ViaRouteRow[]>([]);
   const [viaRouteDraft, setViaRouteDraft] = useState("");
   const [routeDraft, setRouteDraft] = useState("");
   const [routeSuggestions, setRouteSuggestions] = useState<string[]>([]);
+  const [suggestedRoutes, setSuggestedRoutes] = useState<SuggestedRouteRow[]>([]);
+
+  const [viaRouteDialogOpen, setViaRouteDialogOpen] = useState(false);
+  const [viaRouteForm, setViaRouteForm] = useState({
+    via_route_location: "",
+    via_route_location_city: "",
+    via_route_location_state: "",
+    via_route_location_lattitude: "",
+    via_route_location_longitude: "",
+  });
 
   // Load dropdowns and initial data
   useEffect(() => {
@@ -34,14 +50,35 @@ export default function LocationsPreviewPage() {
         setSources(dropdowns.sources || []);
         setDestinations(dropdowns.destinations || []);
 
-        if (id) {
-          const locData = await locationsApi.get(Number(id));
+                if (id) {
+          const locationId = Number(id);
+
+          const [locData, tollsData] = await Promise.all([
+            locationsApi.get(locationId),
+            locationsApi.tolls(locationId),
+          ]);
+
           setLocation(locData);
           setSelectedSource(locData.source_location);
           setSelectedDestination(locData.destination_location);
-
-          const tollsData = await locationsApi.tolls(Number(id));
           setTolls(tollsData);
+
+          try {
+            const viaRoutesData = await locationsApi.getViaRoutes(locationId);
+            setViaRoutes(viaRoutesData.data);
+          } catch (error) {
+            console.error("Error loading via routes:", error);
+            setViaRoutes([]);
+          }
+
+          try {
+            const suggestedRoutesData =
+              await locationsApi.getSuggestedRoutes(locationId);
+            setSuggestedRoutes(suggestedRoutesData.data);
+          } catch (error) {
+            console.error("Error loading suggested routes:", error);
+            setSuggestedRoutes([]);
+          }
         }
       } catch (error) {
         console.error("Error loading data:", error);
@@ -78,26 +115,106 @@ export default function LocationsPreviewPage() {
 
    
    // Get Info button handler
-    const addViaRoute = () => {
-    const nextValue = viaRouteDraft.trim();
-    if (!nextValue) return;
+        const openAddViaRouteDialog = () => {
+    if (!location) {
+      toast.warning("Please load a location first");
+      return;
+    }
 
-    setViaRoutes((prev) =>
-      prev.includes(nextValue) ? prev : [...prev, nextValue]
-    );
+    setViaRouteForm({
+      via_route_location: viaRouteDraft.trim(),
+      via_route_location_city: "",
+      via_route_location_state: "",
+      via_route_location_lattitude: "",
+      via_route_location_longitude: "",
+    });
+
+    setViaRouteDialogOpen(true);
+  };
+
+  const saveViaRoute = async () => {
+    if (!location) {
+      toast.warning("Please load a location first");
+      return;
+    }
+
+    if (!viaRouteForm.via_route_location.trim()) {
+      toast.warning("Please enter place location");
+      return;
+    }
+
+    const result = await locationsApi.addViaRoute(location.location_ID, {
+      via_route_location: viaRouteForm.via_route_location.trim(),
+      via_route_location_city: viaRouteForm.via_route_location_city.trim(),
+      via_route_location_state: viaRouteForm.via_route_location_state.trim(),
+      via_route_location_lattitude: viaRouteForm.via_route_location_lattitude.trim(),
+      via_route_location_longitude: viaRouteForm.via_route_location_longitude.trim(),
+    });
+
+    setViaRoutes(result.data);
     setViaRouteDraft("");
+    setViaRouteDialogOpen(false);
+
+    setViaRouteForm({
+      via_route_location: "",
+      via_route_location_city: "",
+      via_route_location_state: "",
+      via_route_location_lattitude: "",
+      via_route_location_longitude: "",
+    });
+
+    toast.success("Via route added");
   };
 
-  const removeViaRoute = (value: string) => {
-    setViaRoutes((prev) => prev.filter((item) => item !== value));
-  };
-
-  const addRoute = () => {
+  const addRoute = async () => {
     const nextValue = routeDraft.trim();
-    if (!nextValue) return;
+    if (!nextValue) {
+      toast.warning("Please enter a route destination");
+      return;
+    }
 
     setSelectedDestination(nextValue);
     setRouteDraft("");
+
+    const result = await locationsApi.list({
+      source: selectedSource,
+      destination: nextValue,
+      page: 1,
+      pageSize: 50,
+    });
+
+    if (result.rows.length > 0) {
+      const foundLocation = result.rows[0];
+      setLocation(foundLocation);
+      const tollsData = await locationsApi.tolls(foundLocation.location_ID);
+      setTolls(tollsData);
+      toast.success("Route loaded");
+      return;
+    }
+
+    toast.warning("No route found for this source/destination pair");
+  };
+
+  const handleSuggestedRouteClick = async (route: string) => {
+    setSelectedDestination(route);
+
+    const result = await locationsApi.list({
+      source: selectedSource,
+      destination: route,
+      page: 1,
+      pageSize: 50,
+    });
+
+    if (result.rows.length > 0) {
+      const foundLocation = result.rows[0];
+      setLocation(foundLocation);
+      const tollsData = await locationsApi.tolls(foundLocation.location_ID);
+      setTolls(tollsData);
+      toast.success("Route loaded");
+      return;
+    }
+
+    toast.warning("No route found for this source/destination pair");
   };
   // Get Info button handler
   const handleGetInfo = async () => {
@@ -220,38 +337,48 @@ export default function LocationsPreviewPage() {
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="rounded-lg border p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium">Via Route List</h4>
-              <Button type="button" variant="outline" size="sm" onClick={addViaRoute}>
-                Add Via Route
-              </Button>
-            </div>
+            <div className="flex flex-col gap-3">
+  <h4 className="font-medium">Via Route List</h4>
 
-            <LocationAutosuggestInput
-              placeholder="Type via route"
-              value={viaRouteDraft}
-              onValueChange={setViaRouteDraft}
-              search={locationsApi.searchSources}
-            />
+  <Button
+    type="button"
+    variant="outline"
+    size="sm"
+    onClick={openAddViaRouteDialog}
+    className="w-full justify-start"
+  >
+    Add Via Route
+  </Button>
+</div>
+            <div className="flex flex-col gap-2">
+  {viaRoutes.length > 0 ? (
+    viaRoutes.map((item) => (
+      <div
+        key={item.via_route_location_ID}
+        className="rounded-md border px-3 py-2 text-sm"
+      >
+        <div className="font-medium">{item.via_route_location}</div>
 
-            <div className="flex flex-wrap gap-2">
-              {viaRoutes.length > 0 ? (
-                viaRoutes.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    className="rounded-md border px-3 py-1 text-sm"
-                    onClick={() => removeViaRoute(item)}
-                  >
-                    {item} ×
-                  </button>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No via routes added yet.
-                </p>
-              )}
-            </div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {item.via_route_location_city || "—"} • {item.via_route_location_state || "—"}
+        </div>
+
+        <div className="text-xs text-muted-foreground mt-1">
+          Lat: {item.via_route_location_lattitude || "—"} | Lng: {item.via_route_location_longitude || "—"}
+        </div>
+
+        <div className="text-xs text-muted-foreground mt-1">
+          {item.distance_from_source_to_via_route || "—"} KM •{" "}
+          {item.duration_from_source_to_via_route || "—"}
+        </div>
+      </div>
+    ))
+  ) : (
+    <p className="text-sm text-muted-foreground">
+      No via routes added yet.
+    </p>
+  )}
+</div>
           </div>
 
           <div className="rounded-lg border p-4 space-y-3">
@@ -262,16 +389,14 @@ export default function LocationsPreviewPage() {
               </Button>
             </div>
 
-            <LocationAutosuggestInput
-              placeholder="Type route destination"
-              value={routeDraft}
-              onValueChange={setRouteDraft}
-              search={(phrase) =>
-                locationsApi.searchDestinations(phrase, selectedSource)
-              }
-            />
+           <LocationAutosuggestInput
+           placeholder="Type via route"
+           value={viaRouteDraft}
+           onValueChange={setViaRouteDraft}
+           search={locationsApi.searchSources}
+        />
 
-            <div className="flex flex-wrap gap-2">
+                       <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2">
               {routeSuggestions.length > 0 ? (
                 routeSuggestions.map((route) => (
                   <Button
@@ -279,7 +404,7 @@ export default function LocationsPreviewPage() {
                     type="button"
                     variant="secondary"
                     size="sm"
-                    onClick={() => setSelectedDestination(route)}
+                    onClick={() => handleSuggestedRouteClick(route)}
                   >
                     {route}
                   </Button>
@@ -289,15 +414,34 @@ export default function LocationsPreviewPage() {
                   No route suggestions available for this source.
                 </p>
               )}
+
+              {suggestedRoutes.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {suggestedRoutes.map((route) => (
+                    <div
+                      key={route.modify}
+                      className="rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="font-medium">
+                        {route.routes} • {route.no_of_nights} nights
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {route.route_details}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Location Details Section */}
+            {/* Location Details Section */}
       {location && (
         <div className="bg-white rounded-lg border p-6">
           <h3 className="text-lg font-semibold mb-6 text-pink-600">Location Details</h3>
+
           <div className="grid grid-cols-4 gap-6">
             {/* Row 1: Source info */}
             <div>
@@ -355,6 +499,161 @@ export default function LocationsPreviewPage() {
               <p className="text-sm text-gray-700">{location.location_description}</p>
             </div>
           )}
+
+          {/* Via Route Details */}
+          {viaRoutes.length > 0 && (
+            <div className="mt-6 pt-6 border-t">
+              <label className="text-xs text-gray-500 font-medium block mb-4">
+                Via Route Details
+              </label>
+
+              <div className="space-y-4">
+                {viaRoutes.map((item) => (
+                  <div
+                    key={item.via_route_location_ID}
+                    className="rounded-md border p-4"
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                          Place Location
+                        </label>
+                        <p className="text-sm text-gray-700">
+                          {item.via_route_location || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                          Place City
+                        </label>
+                        <p className="text-sm text-gray-700">
+                          {item.via_route_location_city || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                          Place State
+                        </label>
+                        <p className="text-sm text-gray-700">
+                          {item.via_route_location_state || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                          Place Latitude
+                        </label>
+                        <p className="text-sm text-gray-700">
+                          {item.via_route_location_lattitude || "—"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                          Place Longitude
+                        </label>
+                        <p className="text-sm text-gray-700">
+                          {item.via_route_location_longitude || "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+            {viaRouteDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-3xl rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold mb-4">Add Via Route Details</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Place Location *</label>
+                <Input
+                  value={viaRouteForm.via_route_location}
+                  onChange={(e) =>
+                    setViaRouteForm((prev) => ({
+                      ...prev,
+                      via_route_location: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter place location"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Place City</label>
+                <Input
+                  value={viaRouteForm.via_route_location_city}
+                  onChange={(e) =>
+                    setViaRouteForm((prev) => ({
+                      ...prev,
+                      via_route_location_city: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter place city"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Place State</label>
+                <Input
+                  value={viaRouteForm.via_route_location_state}
+                  onChange={(e) =>
+                    setViaRouteForm((prev) => ({
+                      ...prev,
+                      via_route_location_state: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter place state"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Place Latitude</label>
+                <Input
+                  value={viaRouteForm.via_route_location_lattitude}
+                  onChange={(e) =>
+                    setViaRouteForm((prev) => ({
+                      ...prev,
+                      via_route_location_lattitude: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter place latitude"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Place Longitude</label>
+                <Input
+                  value={viaRouteForm.via_route_location_longitude}
+                  onChange={(e) =>
+                    setViaRouteForm((prev) => ({
+                      ...prev,
+                      via_route_location_longitude: e.target.value,
+                    }))
+                  }
+                  placeholder="Enter place longitude"
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setViaRouteDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={saveViaRoute}>Save</Button>
+            </div>
+          </div>
         </div>
       )}
 
