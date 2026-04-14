@@ -3211,7 +3211,8 @@ if (error || !itinerary) {
                         </div>
                       </div>
                     </div>
-                  )})();}
+                  );
+                  })()}
 
                   {segment.type === "attraction" && (
                     <>
