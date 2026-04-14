@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Add Activity - Smart Fit Preview</title>
+<!-- Tailwind CSS v3 CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style data-purpose="custom-scroll">
+        /* Custom scrollbar for the modal content to match the UI aesthetic */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased overflow-hidden">
+<!-- BEGIN: Dashboard Background -->
+<div class="fixed inset-0 bg-black/60 flex items-center justify-center z-0">
+<div class="w-full h-full flex">
+<!-- Sidebar Mockup -->
+<aside class="w-64 bg-slate-900 h-full p-4 text-slate-400 space-y-4">
+<div class="text-white font-bold text-xl mb-8">DoView Holidays</div>
+<div class="space-y-2">
+<div class="p-2 hover:bg-slate-800 rounded">Dashboard</div>
+<div class="p-2 hover:bg-slate-800 rounded">Create Itinerary</div>
+<div class="p-2 hover:bg-slate-800 rounded">Vendor Management</div>
+</div>
+</aside>
+<!-- Main Content Mockup -->
+<main class="flex-1 p-8 bg-gray-200">
+<h1 class="text-2xl font-bold text-gray-400">Spot Settings</h1>
+</main>
+</div>
+</div>
+<!-- END: Dashboard Background -->
+<!-- BEGIN: Modal Overlay -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+<div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden" data-purpose="preview-modal">
+<!-- BEGIN: Modal Header -->
+<header class="px-8 py-6 flex justify-between items-start border-b border-gray-100">
+<div>
+<h2 class="text-2xl font-bold text-gray-800">Add Activity to Arignar Anna Zoological Park</h2>
+<p class="text-gray-500 mt-1">Select an activity on the left to preview fit and day impact.</p>
+</div>
+<button aria-label="Close modal" class="text-gray-400 hover:text-gray-600 transition-colors mt-1">
+<svg class="h-6 w-6" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</header>
+<!-- END: Modal Header -->
+<!-- BEGIN: Modal Split Layout -->
+<div class="flex flex-1 min-h-0">
+<!-- LEFT SIDE: Available Activities -->
+<div class="w-1/3 border-r border-gray-100 p-8 overflow-y-auto custom-scrollbar">
+<h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-6">Available Activities</h3>
+<div class="space-y-4">
+<!-- Selected Activity -->
+<div class="p-5 rounded-xl border-2 border-fuchsia-300 bg-fuchsia-50 ring-2 ring-fuchsia-100 ring-offset-0">
+<h4 class="text-lg font-bold text-gray-800 mb-1">Lion and Deer Safari Vehicle</h4>
+<p class="text-sm text-gray-600">Lion and Deer Safari Vehicle Safari</p>
+<p class="text-xs text-gray-400 mt-3 font-medium">Duration: 1 Hour 30 Min</p>
+</div>
+<!-- Other Activity -->
+<div class="p-5 rounded-xl border border-gray-200 hover:border-gray-300 transition-all cursor-pointer">
+<h4 class="text-lg font-bold text-gray-700 mb-1">Zoo Round Vehicle</h4>
+<p class="text-sm text-gray-600">Jeep / Bus / E-vehicle Safari.</p>
+<p class="text-xs text-gray-400 mt-3 font-medium">Duration: 1 Hour 30 Min</p>
+</div>
+</div>
+</div>
+<!-- RIGHT SIDE: Smart Fit Preview -->
+<div class="w-2/3 bg-gray-50/50 p-8 overflow-y-auto custom-scrollbar" data-purpose="modal-scroll-area">
+<h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-6">Smart Fit Preview</h3>
+<div class="space-y-6">
+<!-- BEGIN: Activity Section 1 (Preview Insertion) -->
+<div class="flex flex-col items-center">
+<!-- Preview Box for New Activity -->
+<div class="w-full border-2 border-emerald-500 border-dashed bg-emerald-50/30 rounded-xl p-5 mb-3 flex items-center justify-between">
+<div class="flex justify-between items-start w-full">
+<div>
+<h4 class="text-emerald-700 font-bold text-lg">Arignar Anna Zoological Park</h4>
+<p class="text-sm font-semibold text-emerald-800 mt-0.5">Lion and Deer Safari Vehicle</p>
+<p class="text-xs text-emerald-600 mt-1">9:00 AM - 3:00 PM</p>
+<p class="text-[10px] text-emerald-600 font-medium mt-2 uppercase tracking-tight">Projected Fit</p>
+</div>
+<span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">New</span>
+</div>
+</div><div class="w-full mt-3 border-2 border-red-500 bg-red-50 rounded-xl p-4 flex items-center gap-3">
+<svg class="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<p class="text-sm font-semibold text-red-700">This will remove Priority hotspot</p>
+</div>
+<!-- Activity Card: Kapaleeshwarar Temple -->
+<div class="w-full border-2 border-emerald-500 bg-white rounded-xl p-5 shadow-sm" data-purpose="activity-card">
+<div class="flex items-center gap-2 mb-2">
+<h3 class="text-lg font-bold text-gray-700">Kapaleeshwarar Temple</h3>
+<span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Fits</span>
+</div>
+<p class="text-sm text-gray-600">Hotspot Time Window: 9:34 AM - 10:34 AM</p>
+</div>
+</div>
+<!-- END: Activity Section 1 -->
+<!-- BEGIN: Activity Section 2 (Priority Hotspot Warning) -->
+<div class="flex flex-col items-center">
+<!-- Fit Here Button BETWEEN -->
+<button class="mb-3 px-4 py-1.5 border border-dashed border-emerald-500 text-emerald-600 text-xs font-semibold rounded-md hover:bg-emerald-50 transition-colors" data-purpose="action-button">
+                            + Fit Here
+                        </button>
+<!-- Activity Card: Parthasarathy Temple -->
+<div class="w-full border-2 border-emerald-500 bg-white rounded-xl p-5 shadow-sm" data-purpose="activity-card">
+<div class="flex items-center gap-2 mb-2">
+<h3 class="text-lg font-bold text-gray-700">Parthasarathy Temple</h3>
+<span class="bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Fits</span>
+</div>
+<p class="text-sm text-gray-600">Hotspot Time Window: 10:48 AM - 11:48 AM</p>
+</div>
+<!-- Warning Box below Parthasarathy Temple (Note: Screen context suggests 'Arignar Anna' is the container, and these are children spots) -->
+<!-- Fit Here Button AFTER -->
+<button class="mt-3 px-4 py-1.5 border border-dashed border-emerald-500 text-emerald-600 text-xs font-semibold rounded-md hover:bg-emerald-50 transition-colors" data-purpose="action-button">
+                            + Fit Here
+                        </button>
+</div>
+<!-- END: Activity Section 2 -->
+<!-- Placeholder for additional items -->
+<div class="p-8 w-full border border-gray-200 border-dashed rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 italic text-sm">
+                        Scroll for more hotspots...
+                    </div>
+</div>
+</div>
+</div>
+<!-- END: Modal Split Layout -->
+<!-- BEGIN: Modal Footer -->
+<footer class="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
+<button class="px-8 py-2.5 bg-white border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-100 transition-colors focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 shadow-sm" data-purpose="close-btn">
+                Close
+            </button>
+</footer>
+<!-- END: Modal Footer -->
+</div>
+</div>
+<!-- END: Modal Overlay -->
+</body></html>

@@ -166,8 +166,8 @@ export const CreateItinerary = () => {
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
   // ✅ Start/End time used to build trip_start_date and trip_end_date payload
-  const [startTime, setStartTime] = useState<string>("12:00");
-  const [endTime, setEndTime] = useState<string>("12:00");
+  const [startTime, setStartTime] = useState<string>("08:00");
+  const [endTime, setEndTime] = useState<string>("20:00");
 
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");

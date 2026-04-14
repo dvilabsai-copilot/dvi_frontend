@@ -936,11 +936,93 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 }}>({});
 
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+const [activeHotelGroupType, setActiveHotelGroupType] = useState<number>(1);
+const [selectedHotelTotalFromList, setSelectedHotelTotalFromList] = useState<number>(0);
 
 const selectedHotelTotal = useMemo(
   () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
   [selectedHotelBookings]
 );
+
+const effectiveHotelGroupType = useMemo(() => {
+  const firstSelection = Object.values(selectedHotelBookings)[0];
+  const selectedGroup = Number(firstSelection?.groupType || 0);
+  if (selectedGroup > 0) return selectedGroup;
+  if (activeHotelGroupType > 0) return activeHotelGroupType;
+  const firstTabGroup = Number(hotelDetails?.hotelTabs?.[0]?.groupType || 0);
+  return firstTabGroup > 0 ? firstTabGroup : 1;
+}, [selectedHotelBookings, activeHotelGroupType, hotelDetails]);
+
+const hotelTotalFromDetailsForActiveGroup = useMemo(() => {
+  if (!hotelDetails?.hotels?.length) return 0;
+
+  const cheapestByRoute = new Map<number, number>();
+  for (const hotel of hotelDetails.hotels) {
+    if (Number(hotel.groupType || 0) !== Number(effectiveHotelGroupType)) continue;
+    const routeId = Number(hotel.itineraryRouteId || 0);
+    if (routeId <= 0) continue;
+
+    const rowTotal = Number(hotel.totalHotelCost || 0) + Number(hotel.totalHotelTaxAmount || 0);
+    const existing = cheapestByRoute.get(routeId);
+    if (existing === undefined || rowTotal < existing) {
+      cheapestByRoute.set(routeId, rowTotal);
+    }
+  }
+
+  return Array.from(cheapestByRoute.values()).reduce((sum, value) => sum + value, 0);
+}, [hotelDetails, effectiveHotelGroupType]);
+
+const effectiveSelectedHotelTotal = useMemo(() => {
+  if (selectedHotelTotalFromList > 0) return selectedHotelTotalFromList;
+  if (selectedHotelTotal > 0) return selectedHotelTotal;
+  return hotelTotalFromDetailsForActiveGroup;
+}, [selectedHotelTotalFromList, selectedHotelTotal, hotelTotalFromDetailsForActiveGroup]);
+
+const getRouteHotelMeta = useCallback((routeId: number) => {
+  const selectedHotel = selectedHotelBookings[routeId];
+  if (selectedHotel && Number(selectedHotel.groupType || 0) === Number(effectiveHotelGroupType)) {
+    return {
+      name: String(selectedHotel.hotelName || '').trim(),
+      distance: null as string | null,
+    };
+  }
+
+  if (!hotelDetails?.hotels?.length) {
+    return { name: '', distance: null as string | null };
+  }
+
+  const forRouteAndGroup = hotelDetails.hotels.filter(
+    (h) => Number(h.itineraryRouteId || 0) === Number(routeId) && Number(h.groupType || 0) === Number(effectiveHotelGroupType),
+  );
+
+  if (!forRouteAndGroup.length) {
+    return { name: '', distance: null as string | null };
+  }
+
+  const selected = forRouteAndGroup.reduce((best, curr) => {
+    const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+    const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+    return currTotal < bestTotal ? curr : best;
+  });
+
+  const anySelected = selected as any;
+  const rawDistance =
+    anySelected.hotelDistance ??
+    anySelected.distanceToHotel ??
+    anySelected.travelDistance ??
+    null;
+
+  let distanceLabel: string | null = null;
+  if (rawDistance !== null && rawDistance !== undefined && String(rawDistance).trim() !== '') {
+    const parsed = Number(rawDistance);
+    distanceLabel = Number.isFinite(parsed) ? `${parsed.toFixed(2)} KM` : String(rawDistance);
+  }
+
+  return {
+    name: String(selected.hotelName || '').trim(),
+    distance: distanceLabel,
+  };
+}, [selectedHotelBookings, hotelDetails, effectiveHotelGroupType]);
 
 // ✅ Para should use recommendation GROUPS, not first 4 random hotels
 const paraRecommendations = useMemo(() => {
@@ -1544,6 +1626,7 @@ const htmlToPlainText = (html: string): string => {
     if (!quoteId) return;
     
     console.log("Hotel group type changed to:", groupType);
+    setActiveHotelGroupType(Number(groupType || 1));
     
     try {
       // Only refetch itinerary details with the selected group type to update costs
@@ -1586,6 +1669,11 @@ const htmlToPlainText = (html: string): string => {
   }>) => {
     // Update selectedHotelBookings when user selects hotels in HotelList
     setSelectedHotelBookings(selections);
+    const first = Object.values(selections)[0] as any;
+    const nextGroupType = Number(first?.groupType || 0);
+    if (nextGroupType > 0) {
+      setActiveHotelGroupType(nextGroupType);
+    }
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
@@ -1637,6 +1725,8 @@ const htmlToPlainText = (html: string): string => {
       console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
       setItinerary(detailsRes as ItineraryDetailsResponse);
       setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      const initialGroupType = Number((hotelRes as any)?.hotelTabs?.[0]?.groupType || 1);
+      setActiveHotelGroupType(initialGroupType);
     } catch (e: any) {
       // Only update state if component is still mounted
       if (!isMountedRef.current) return;
@@ -2123,13 +2213,21 @@ const htmlToPlainText = (html: string): string => {
               <div className="space-y-2">
                 {(day.segments || []).map((segment: any, segIdx: number) => {
                   if (segment.type === "travel") {
+                    const routeHotelMeta = getRouteHotelMeta(Number(day.id || 0));
+                    const isHotelTravelSegment = String(segment?.to || '').trim().toLowerCase() === 'hotel';
+                    const previewToLabel = isHotelTravelSegment && routeHotelMeta.name
+                      ? routeHotelMeta.name
+                      : segment.to;
+                    const previewDistanceLabel = isHotelTravelSegment && routeHotelMeta.distance
+                      ? routeHotelMeta.distance
+                      : segment.distance;
                     return (
                       <div key={`travel-${segIdx}`} className="rounded-md border border-[#e8e8e8] bg-[#fafafa] p-2">
                         <p className="text-sm text-gray-700 font-medium">
-                          Travel from {segment.from} to {segment.to}
+                          Travel from {segment.from} to {previewToLabel}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          {segment.timeRange || ""}
+                          {segment.timeRange || ""}{previewDistanceLabel ? ` | ${previewDistanceLabel}` : ""}
                         </p>
                       </div>
                     );
@@ -3358,7 +3456,7 @@ if (error || !itinerary) {
             <div className="text-right">
               <p className="text-sm text-[#6c6c6c]">Overall Trip Cost :</p>
               <p className="text-2xl font-bold text-[#d546ab]">
-                ₹ {itinerary.overallCost}
+                ₹ {(Number(itinerary.overallCost || 0) + effectiveSelectedHotelTotal).toFixed(2)}
               </p>
             </div>
           </div>
@@ -3510,7 +3608,28 @@ if (error || !itinerary) {
               </div>
             {/* Segments */}
             <div className="space-y-4">
-              {day.segments.map((segment, idx) => (
+              {(() => {
+                const routeHotelMeta = getRouteHotelMeta(day.id);
+                return day.segments.map((segment, idx) => {
+                  const isHotelTravelSegment =
+                    segment.type === "travel" &&
+                    String(segment.to || "").trim().toLowerCase() === "hotel";
+
+                  const travelToLabel =
+                    isHotelTravelSegment && routeHotelMeta.name
+                      ? routeHotelMeta.name
+                      : segment.type === "travel"
+                      ? segment.to
+                      : "";
+
+                  const travelDistanceLabel =
+                    isHotelTravelSegment && routeHotelMeta.distance
+                      ? routeHotelMeta.distance
+                      : segment.type === "travel"
+                      ? segment.distance
+                      : "";
+
+                  return (
                 <div key={idx} className="ml-8">
                   {segment.type === "start" && (
                     <div className="flex items-center gap-3 mb-4">
@@ -3544,7 +3663,7 @@ if (error || !itinerary) {
                               {segment.from}
                             </span>{" "}
                             <span className="font-medium">to</span>{" "}
-                            <span className="text-[#d546ab]">{segment.to}</span>
+                            <span className="text-[#d546ab]">{travelToLabel}</span>
                           </p>
                           <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
                             <span>
@@ -3553,7 +3672,7 @@ if (error || !itinerary) {
                             </span>
                             <span>
                               <MapPin className="inline h-3 w-3 mr-1" />
-                              {segment.distance}
+                              {travelDistanceLabel}
                             </span>
                             <span>⏱ {segment.duration}</span>
                           </div>
@@ -4012,7 +4131,9 @@ if (error || !itinerary) {
                     </div>
                   )}
                 </div>
-              ))}
+                  );
+                });
+              })()}
 
              
             </div>
@@ -4032,6 +4153,7 @@ if (error || !itinerary) {
           planId={itinerary.planId}
           onRefresh={refreshHotelData}
           onGroupTypeChange={handleHotelGroupTypeChange}
+          onTotalChange={(totalAmount) => setSelectedHotelTotalFromList(Number(totalAmount || 0))}
           onGetSaveFunction={handleGetSaveFunction}
           readOnly={readOnly}
           onCreateVoucher={handleCreateVoucher}
@@ -4175,6 +4297,12 @@ if (error || !itinerary) {
                   </span>
                 </div>
               )}
+              <div className="flex justify-between font-semibold">
+                <span className="text-[#4a4260]">Selected Hotel Cost (Hotel Details API)</span>
+                <span className="text-[#4a4260]">
+                  ₹ {effectiveSelectedHotelTotal.toFixed(2)}
+                </span>
+              </div>
               
               {/* Vehicle Costs */}
               <div className="flex justify-between">
@@ -4236,7 +4364,7 @@ if (error || !itinerary) {
               <div className="flex justify-between font-semibold">
                 <span className="text-[#4a4260]">Total Amount</span>
                 <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalAmount?.toFixed(2) ?? "0.00"}
+                  ₹ {(Number(itinerary.costBreakdown.totalAmount || 0) + effectiveSelectedHotelTotal).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-[#d546ab]">
@@ -4279,7 +4407,7 @@ if (error || !itinerary) {
                     Net Payable to {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
                   </span>
                   <span className="text-[#d546ab]">
-                    ₹ {itinerary.costBreakdown.netPayable?.toFixed(2) ?? "0.00"}
+                    ₹ {(Number(itinerary.costBreakdown.netPayable || 0) + effectiveSelectedHotelTotal).toFixed(2)}
                   </span>
                 </div>
               </div>
