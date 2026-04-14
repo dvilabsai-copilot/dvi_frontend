@@ -49,6 +49,28 @@ export const ItineraryService = {
     });
   },
 
+  async saveReusableTemplate(planId: number, templateName?: string) {
+    return api("itineraries/templates/save", {
+      method: "POST",
+      body: { planId, templateName },
+    });
+  },
+
+  async getReusableTemplateMatch(
+    sourceLocation: string,
+    destinationLocation: string,
+    dayCount: number,
+  ) {
+    const qs = new URLSearchParams();
+    qs.set("sourceLocation", sourceLocation);
+    qs.set("destinationLocation", destinationLocation);
+    qs.set("dayCount", String(dayCount));
+
+    return api(`itineraries/templates/match?${qs.toString()}`, {
+      method: "GET",
+    });
+  },
+
   // ---------------------------------------------------------------------------
   // Latest itineraries listing (SP-free Prisma API)
   // Maps React pagination -> DataTables-style query params
@@ -191,6 +213,12 @@ export const ItineraryService = {
     });
   },
 
+  async rebuildRouteHotspots(planId: number, routeId: number) {
+    return api(`itineraries/${planId}/routes/${routeId}/rebuild-hotspots`, {
+      method: "POST",
+    });
+  },
+
   async getAvailableActivities(hotspotId: number) {
     return api(`itineraries/activities/available/${hotspotId}`, {
       method: "GET",
@@ -216,6 +244,40 @@ export const ItineraryService = {
     activityId: number;
   }) {
     return api(`itineraries/activities/preview-all-hotspots`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async smartPreviewActivity(
+    planId: number,
+    data: {
+      routeId: number;
+      activityId: number;
+      gapIndex?: number;
+      hotspotId?: number;
+      routeHotspotId?: number;
+      mode?: "preview" | "applyPreview";
+    },
+  ) {
+    return api(`itineraries/${planId}/activity/smart-preview`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async smartInsertActivity(
+    planId: number,
+    data: {
+      routeId: number;
+      activityId: number;
+      gapIndex: number;
+      hotspotId?: number;
+      routeHotspotId?: number;
+      allowTopPriorityRemoval?: boolean;
+    },
+  ) {
+    return api(`itineraries/${planId}/activity/smart-insert`, {
       method: "POST",
       body: data,
     });
@@ -259,16 +321,16 @@ export const ItineraryService = {
   },
 
   async previewAddHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api("itineraries/hotspots/preview-add", {
+    return api(`itineraries/${planId}/manual-hotspot/preview`, {
       method: "POST",
-      body: { planId, routeId, hotspotId },
+      body: { routeId, hotspotId },
     });
   },
 
   async addManualHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api("itineraries/hotspots/add", {
+    return api(`itineraries/${planId}/manual-hotspot`, {
       method: "POST",
-      body: { planId, routeId, hotspotId },
+      body: { routeId, hotspotId },
     });
   },
 

@@ -166,8 +166,8 @@ export const CreateItinerary = () => {
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
   // ✅ Start/End time used to build trip_start_date and trip_end_date payload
-  const [startTime, setStartTime] = useState<string>("12:00");
-  const [endTime, setEndTime] = useState<string>("12:00");
+  const [startTime, setStartTime] = useState<string>("08:00");
+  const [endTime, setEndTime] = useState<string>("20:00");
 
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
@@ -219,6 +219,7 @@ export const CreateItinerary = () => {
     useState(false);
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
   // ----------------- effects -----------------
 
@@ -442,6 +443,130 @@ useEffect(() => {
     })();
   }, [itineraryPlanId, setRouteDetails]);
 
+  useEffect(() => {
+    if (itineraryPlanId) return;
+    if (!arrivalLocation || !departureLocation || !tripStartDate || !tripEndDate) return;
+
+    const dayCount = calculateDaysBetweenDates(tripStartDate, tripEndDate);
+    const key = `${arrivalLocation.trim().toLowerCase()}|${departureLocation
+      .trim()
+      .toLowerCase()}|${dayCount}`;
+
+    if (templateAppliedKey === key) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const match = await ItineraryService.getReusableTemplateMatch(
+          arrivalLocation,
+          departureLocation,
+          dayCount,
+        );
+
+        if (cancelled) return;
+
+        if (!match?.found || !match?.template) {
+          setTemplateAppliedKey(key);
+          return;
+        }
+
+        const template = match.template;
+        const plan = template?.plan;
+
+        if (plan) {
+          setItineraryPreference(
+            plan.itinerary_preference === 2
+              ? "vehicle"
+              : plan.itinerary_preference === 1
+              ? "hotel"
+              : "both",
+          );
+
+          setItineraryTypeSelect(
+            plan.itinerary_type != null ? String(plan.itinerary_type) : "",
+          );
+          setArrivalType(plan.arrival_type != null ? String(plan.arrival_type) : "");
+          setDepartureType(plan.departure_type != null ? String(plan.departure_type) : "");
+          setEntryTicketRequired(
+            plan.entry_ticket_required != null
+              ? String(plan.entry_ticket_required)
+              : "",
+          );
+          setGuideRequired(
+            plan.guide_for_itinerary != null ? String(plan.guide_for_itinerary) : "",
+          );
+          setNationality(plan.nationality != null ? String(plan.nationality) : "");
+          setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
+          setBudget(plan.expecting_budget ?? "");
+          setSpecialInstructions(plan.special_instructions ?? "");
+          setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
+          setSelectedHotelFacilityIds(csvToStringArray(plan.hotel_facilities));
+        }
+
+        if (Array.isArray(template?.routes) && template.routes.length) {
+          setRouteDetails(
+            template.routes.map((r: any, idx: number): RouteRow => ({
+              id: idx + 1,
+              day: r.no_of_days ?? idx + 1,
+              date: r.itinerary_route_date
+                ? toDDMMYYYY(new Date(r.itinerary_route_date))
+                : addDaysToDDMMYYYY(tripStartDate, idx),
+              source: r.location_name ?? "",
+              next: r.next_visiting_location ?? "",
+              via: r.via_route ?? "",
+              via_routes: Array.isArray(r.via_routes)
+                ? r.via_routes.map((vr: any) => ({
+                    itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+                    itinerary_via_location_name: String(vr.itinerary_via_location_name),
+                  }))
+                : [],
+              no_of_km:
+                r.no_of_km !== undefined &&
+                r.no_of_km !== null &&
+                String(r.no_of_km).trim() !== ""
+                  ? Number(r.no_of_km)
+                  : 0,
+              directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
+            })),
+          );
+        }
+
+        if (Array.isArray(template?.vehicles) && template.vehicles.length) {
+          setVehicles(
+            template.vehicles.map((v: any, idx: number): VehicleRow => ({
+              id: idx + 1,
+              type: v.vehicle_type_id ? String(v.vehicle_type_id) : "",
+              count: v.vehicle_count ?? 1,
+            })),
+          );
+        }
+
+        setTemplateAppliedKey(key);
+        toast({
+          title: "Template loaded",
+          description: "Applied saved itinerary template for this route and duration.",
+        });
+      } catch (error) {
+        console.error("Failed to load matching itinerary template", error);
+        if (!cancelled) setTemplateAppliedKey(key);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    itineraryPlanId,
+    arrivalLocation,
+    departureLocation,
+    tripStartDate,
+    tripEndDate,
+    templateAppliedKey,
+    toast,
+    setRouteDetails,
+  ]);
+
   // Auto-open route suggestions modal when itinerary type is "Default"
   useEffect(() => {
     if (itineraryTypeSelect && itineraryTypes.length > 0) {
@@ -570,7 +695,7 @@ const addDay = () => {
           via: "",
           via_routes: [],
           no_of_km: 0,
-          directVisit: "Yes" as const,
+          directVisit: "No" as const,
         },
       ];
 
@@ -599,7 +724,7 @@ const addDay = () => {
         via: "",
         via_routes: [],
         no_of_km: 0,
-        directVisit: "Yes" as const,
+        directVisit: "No" as const,
       },
     ];
 

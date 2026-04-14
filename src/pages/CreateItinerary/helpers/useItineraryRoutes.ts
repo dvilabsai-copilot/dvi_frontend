@@ -61,7 +61,7 @@ export function useItineraryRoutes({
     via: "",
     via_routes: [],
     no_of_km: 0,
-    directVisit: "Yes",
+    directVisit: "No",
   },
 ]);
 
@@ -109,7 +109,7 @@ export function useItineraryRoutes({
   next: existing?.next ?? "",
   via: existing?.via ?? "",
   no_of_km: existing?.no_of_km ?? 0,
-  directVisit: existing?.directVisit ?? "Yes",
+  directVisit: existing?.directVisit ?? "No",
 });
       }
 

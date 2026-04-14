@@ -35,7 +35,7 @@ type RouteDetailRow = {
   via: string;
   via_routes?: ViaRouteItem[];
   no_of_km?: number | string;
-  directVisit:  "Yes" | "No";
+  directVisit: "Yes" | "No";
 };
 
 type ValidationErrors = {
@@ -252,7 +252,7 @@ export const RouteDetailsBlock = ({
     via: "",
     via_routes: [],
     no_of_km: 0,
-    directVisit: "Yes",
+    directVisit: "No",
   },
 ];
       }
@@ -281,7 +281,7 @@ export const RouteDetailsBlock = ({
   via: "",
   via_routes: [],
   no_of_km: 0,
-  directVisit: "Yes",
+  directVisit: "No",
 });
 
       return updated;
@@ -513,7 +513,7 @@ const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
       i === idx
         ? {
             ...r,
-            directVisit: r.directVisit === "Yes" ? "No" : "No",
+            directVisit: r.directVisit === "Yes" ? "No" : "Yes",
           }
         : r
     )
