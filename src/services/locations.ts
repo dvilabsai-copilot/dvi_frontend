@@ -35,6 +35,27 @@ export type TollRow = {
   toll_charge: number;
 };
 
+export type ViaRouteRow = {
+  count: string;
+  via_route_location_ID: number;
+  location_id: number;
+  via_route_location: string;
+  via_route_location_lattitude: string;
+  via_route_location_longitude: string;
+  via_route_location_city: string;
+  distance_from_source_to_via_route: string;
+  duration_from_source_to_via_route: string;
+  modify: string;
+};
+
+export type SuggestedRouteRow = {
+  count: string;
+  routes: string;
+  no_of_nights: string;
+  route_details: string;
+  modify: string;
+};
+
 /* -----------------------------
    Helpers
 ------------------------------ */
@@ -73,6 +94,20 @@ function uniqueCaseInsensitive(values: string[]) {
   return result;
 }
 
+function normalizeDurationText(raw: any) {
+  const duration = asStr(raw?.duration_text ?? raw?.duration).trim();
+  if (duration) return duration;
+
+  const source = asStr(raw?.source_location).trim().toLowerCase();
+  const destination = asStr(raw?.destination_location).trim().toLowerCase();
+  const distance = asNum(raw?.distance_km ?? raw?.distance);
+
+  if (source && destination && source === destination && distance === 0) {
+    return "0 hours 0 mins";
+  }
+
+  return "";
+}
 /** Normalize one raw row from backend (PHP/Nest) into LocationRow expected by UI */
 function toLocationRow(raw: any): LocationRow {
   // Handle alternate keys + common typos ("lattitude")
@@ -90,8 +125,7 @@ function toLocationRow(raw: any): LocationRow {
     raw.destination_location_lattitude;
   const dstLng = raw.destination_longitude ?? raw.destination_location_longitude;
 
-  const distance = raw.distance_km ?? raw.distance;
-  const duration = raw.duration_text ?? raw.duration;
+   const distance = raw.distance_km ?? raw.distance;
 
   return {
     location_ID: asNum(raw.location_ID ?? raw.id),
@@ -108,7 +142,7 @@ function toLocationRow(raw: any): LocationRow {
     destination_longitude: asStr(dstLng),
 
     distance_km: asNum(distance),
-    duration_text: asStr(duration),
+    duration_text: normalizeDurationText(raw),
     location_description:
       raw.location_description === undefined ? null : raw.location_description,
   };
@@ -135,7 +169,7 @@ export const locationsApi = {
     };
   },
 
-  async dropdowns() {
+    async dropdowns() {
     const data = (await api(`/locations/dropdowns`)) as any;
     return {
       sources: Array.isArray(data?.sources) ? data.sources.map(asStr) : [],
@@ -143,6 +177,105 @@ export const locationsApi = {
     };
   },
 
+  async searchSources(phrase: string) {
+    const normalized = asStr(phrase).trim().toLowerCase();
+    const { sources } = await this.dropdowns();
+
+    if (!normalized) {
+      return uniqueCaseInsensitive(sources);
+    }
+
+    return uniqueCaseInsensitive(
+      sources.filter((item) => asStr(item).toLowerCase().includes(normalized))
+    );
+  },
+
+  async searchDestinations(phrase: string, source?: string) {
+    const normalized = asStr(phrase).trim().toLowerCase();
+    const sourceValue = asStr(source).trim();
+
+    let pool: string[] = [];
+
+    if (sourceValue) {
+      const data = await this.list({
+        source: sourceValue,
+        page: 1,
+        pageSize: 200,
+      });
+
+      pool = data.rows.map((row) => asStr(row.destination_location));
+    } else {
+      const { destinations } = await this.dropdowns();
+      pool = destinations;
+    }
+
+    const uniquePool = uniqueCaseInsensitive(pool);
+
+    if (!normalized) {
+      return uniquePool;
+    }
+
+    return uniquePool.filter((item) =>
+      asStr(item).toLowerCase().includes(normalized)
+    );
+  },
+
+   async getRouteSuggestions(source: string, currentDestination?: string) {
+    const sourceValue = asStr(source).trim();
+    const currentDestinationValue = asStr(currentDestination).trim().toLowerCase();
+
+    if (!sourceValue) return [];
+
+    const data = await this.list({
+      source: sourceValue,
+      page: 1,
+      pageSize: 200,
+    });
+
+    return uniqueCaseInsensitive(
+      data.rows
+        .map((row) => asStr(row.destination_location))
+        .filter(
+          (destination) =>
+            destination &&
+            destination.toLowerCase() !== currentDestinationValue
+        )
+    );
+  },
+
+  async getViaRoutes(id: number) {
+    const data = (await api(`/locations/${id}/via-routes`)) as any;
+    return {
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+  async addViaRoute(
+    id: number,
+    payload: {
+      via_route_location: string;
+      via_route_location_lattitude?: string;
+      via_route_location_longitude?: string;
+      via_route_location_city?: string;
+    }
+  ) {
+    const data = (await api(`/locations/${id}/via-routes`, {
+      method: "POST",
+      body: payload,
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+  async getSuggestedRoutes(id: number) {
+    const data = (await api(`/locations/${id}/suggested-routes`)) as any;
+    return {
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
   async create(payload: CreateLocationPayload) {
     const data = (await api(`/locations`, { method: "POST", body: payload })) as any;
     return toLocationRow(data);
@@ -164,8 +297,26 @@ export const locationsApi = {
     return toLocationRow(data);
   },
 
-  async remove(id: number) {
-    await api(`/locations/${id}`, { method: "DELETE" });
+   async remove(id: number) {
+    const data = (await api(`/locations/${id}`, {
+      method: "DELETE",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      row: data?.row ? toLocationRow(data.row) : null,
+    };
+  },
+
+  async restore(id: number) {
+    const data = (await api(`/locations/${id}/restore`, {
+      method: "PATCH",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      row: data?.row ? toLocationRow(data.row) : null,
+    };
   },
 
   async tolls(id: number) {

@@ -182,13 +182,18 @@ export default function LocationsPage() {
     setSelectedRow(rowForTolls);
     await openTolls(rowForTolls);
   }
-  async function handleCreate(payload: Omit<LocationRow, "location_ID">) {
-    await locationsApi.create(payload);
+    async function handleCreate(payload: Omit<LocationRow, "location_ID">) {
+    const created = await locationsApi.create(payload);
+
     toast.success("Location added");
     setAddOpen(false);
     setPage(1);
-    await Promise.all([loadList(), loadDropdowns()]);
-}
+
+    setRows((prev) => [created, ...prev]);
+    setTotal((prev) => prev + 1);
+
+    void loadList();
+  }
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
