@@ -22,7 +22,9 @@ import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
 import { ViaRouteDialog } from "./ViaRouteDialog";
 import { DefaultRoutesSuggestions } from "@/components/DefaultRoutesSuggestions";
+import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
+import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 
 import {
   toDDMMYYYY,
@@ -213,6 +215,18 @@ export const CreateItinerary = () => {
 
   const [showRouteConfirm, setShowRouteConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any | null>(null);
+  const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
+    open: boolean;
+    arrivalDate: string;
+    previousDayDate: string;
+    request: HotelArrivalPolicyRequest | null;
+  }>({
+    open: false,
+    arrivalDate: "",
+    previousDayDate: "",
+    request: null,
+  });
 
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
@@ -1006,13 +1020,98 @@ const buildPayload = () => {
   return payload;
 };
 
-  const handleSaveClick = () => {
+const toYMD = (ddmmyyyy: string): string => {
+  const dt = parseDDMMYYYY(ddmmyyyy);
+  if (!dt) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const buildArrivalPolicyRequest = (): HotelArrivalPolicyRequest | null => {
+  const routeDate = toYMD(tripStartDate);
+  if (!routeDate || !startTime) return null;
+
+  const firstRoute = routeDetails[0];
+  return {
+    routeDayNumber: 1,
+    routeDate,
+    arrivalDateTime: toISOFromDDMMYYYYAndTime(tripStartDate, startTime),
+    arrivalCityName: arrivalLocation || firstRoute?.source || "",
+    routeSourceCityName: firstRoute?.source || arrivalLocation || "",
+    nightStayCityName: firstRoute?.next || departureLocation || "",
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  };
+};
+
+const openArrivalPolicyDecisionModal = (request: HotelArrivalPolicyRequest) => {
+  const routeDate = request.routeDate || "";
+  const currentDate = routeDate ? new Date(`${routeDate}T00:00:00`) : new Date();
+  const previousDay = new Date(currentDate);
+  previousDay.setDate(previousDay.getDate() - 1);
+
+  const formatDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  setArrivalPolicyModal({
+    open: true,
+    arrivalDate: formatDate(currentDate),
+    previousDayDate: formatDate(previousDay),
+    request,
+  });
+};
+
+const runArrivalPolicyGate = async (
+  request: HotelArrivalPolicyRequest,
+): Promise<boolean> => {
+  setIsResolvingArrivalPolicy(true);
+  try {
+    const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+    if (policy.requiresPreviousDayBillingConfirmation) {
+      openArrivalPolicyDecisionModal(request);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    console.error("Failed to resolve arrival policy in create itinerary", e);
+    toast({
+      title: "Arrival policy failed",
+      description: e?.message || "Unable to evaluate arrival policy before saving.",
+      variant: "destructive",
+    });
+    return false;
+  } finally {
+    setIsResolvingArrivalPolicy(false);
+  }
+};
+
+const continueToRouteConfirmation = () => {
+  setShowRouteConfirm(true);
+};
+
+  const handleSaveClick = async () => {
     const ok = validateBeforeSave();
     if (!ok) return;
 
     const payload = buildPayload();
     setPendingPayload(payload);
-    setShowRouteConfirm(true);
+
+    const request = buildArrivalPolicyRequest();
+    if (!request) {
+      continueToRouteConfirmation();
+      return;
+    }
+
+    const canProceed = await runArrivalPolicyGate(request);
+    if (!canProceed) return;
+
+    continueToRouteConfirmation();
   };
 
   const handleConfirmClose = () => {
@@ -1232,6 +1331,57 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         onClose={handleConfirmClose}
         onSaveSameRoute={() => handleSaveWithType("itineary_basic_info")}
         onOptimizeRoute={() => handleSaveWithType("itineary_basic_info_with_optimized_route")}
+      />
+
+      <ArrivalHotelDecisionModal
+        open={arrivalPolicyModal.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setArrivalPolicyModal({
+              open: false,
+              arrivalDate: "",
+              previousDayDate: "",
+              request: null,
+            });
+          }
+        }}
+        arrivalDate={arrivalPolicyModal.arrivalDate}
+        previousDayDate={arrivalPolicyModal.previousDayDate}
+        isLoading={isResolvingArrivalPolicy}
+        onConfirmPreviousDayBilling={async () => {
+          if (!arrivalPolicyModal.request) return;
+          const canProceed = await runArrivalPolicyGate({
+            ...arrivalPolicyModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          });
+          if (!canProceed) return;
+
+          setArrivalPolicyModal({
+            open: false,
+            arrivalDate: "",
+            previousDayDate: "",
+            request: null,
+          });
+          continueToRouteConfirmation();
+        }}
+        onDeclinePreviousDayBilling={async () => {
+          if (!arrivalPolicyModal.request) return;
+          const canProceed = await runArrivalPolicyGate({
+            ...arrivalPolicyModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          });
+          if (!canProceed) return;
+
+          setArrivalPolicyModal({
+            open: false,
+            arrivalDate: "",
+            previousDayDate: "",
+            request: null,
+          });
+          continueToRouteConfirmation();
+        }}
       />
 
       <ViaRouteDialog

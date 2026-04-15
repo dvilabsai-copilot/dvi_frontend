@@ -70,6 +70,7 @@ type HotelListProps = {
     checkOutDate: string;
     groupType: number;
   }>) => void;
+  dayDestinationFallback?: Record<number, string>;
 };
 
 // Shape of each room item coming from /itineraries/hotel_room_details
@@ -128,10 +129,15 @@ export const HotelList: React.FC<HotelListProps> = ({
   onCreateVoucher, // ✅ NEW: Callback for voucher creation
   onTotalChange, // ✅ NEW: Callback for total amount changes
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
+  dayDestinationFallback = {},
 }) => {
   const toNumber = (value: unknown, fallback = 0): number => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const getStayKey = (hotel: Pick<ItineraryHotelRow, 'itineraryRouteId' | 'date' | 'day'>): string => {
+    return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
   };
 
   // ✅ Track selected hotel PER GROUP TYPE and PER ROUTE
@@ -341,31 +347,70 @@ export const HotelList: React.FC<HotelListProps> = ({
       });
     }
     
-    // For draft itineraries, show selected hotels per group type
-    // Get all unique routes for this groupType
-    const routesInGroup = new Set<number>();
-    localHotels
-      .filter(h => toNumber(h.groupType) === toNumber(activeGroupType))
-      .forEach(h => routesInGroup.add(toNumber(h.itineraryRouteId)));
-    
-    // For each route, show the selected hotel for this groupType
-    const displayHotels: ItineraryHotelRow[] = [];
-    const selectedForGroup = selectedByGroup[activeGroupType] || {};
-    
-    routesInGroup.forEach(routeId => {
-      const selectedHotel = selectedForGroup[routeId];
-      if (selectedHotel) {
-        displayHotels.push(selectedHotel);
+    const hotelsForActiveGroup = localHotels.filter(
+      (h) => toNumber(h.groupType) === toNumber(activeGroupType),
+    );
+
+    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
+    hotelsForActiveGroup.forEach((hotel) => {
+      const stayKey = getStayKey(hotel);
+      if (!groupedByStay.has(stayKey)) {
+        groupedByStay.set(stayKey, []);
       }
+      groupedByStay.get(stayKey)!.push(hotel);
     });
-    
-    // Sort by day order if available
+
+    const displayHotels = Array.from(groupedByStay.values()).map((stayHotels) => {
+      const routeId = toNumber(stayHotels[0]?.itineraryRouteId, 0);
+      const selectedForRoute = selectedByGroup[activeGroupType]?.[routeId];
+      if (selectedForRoute) {
+        const sameStaySelection = stayHotels.find(
+          (hotel) => toNumber(hotel.hotelId) === toNumber(selectedForRoute.hotelId),
+        );
+        if (sameStaySelection) {
+          return sameStaySelection;
+        }
+      }
+      return stayHotels[0];
+    });
+
     return displayHotels.sort((a, b) => {
       const dayA = parseInt(a.day?.replace(/\D/g, '') || '0');
       const dayB = parseInt(b.day?.replace(/\D/g, '') || '0');
-      return dayA - dayB;
+      if (dayA !== dayB) return dayA - dayB;
+      const dateA = String(a.date || '');
+      const dateB = String(b.date || '');
+      return dateA.localeCompare(dateB);
     });
   }, [localHotels, activeGroupType, selectedByGroup, readOnly]);
+
+  const routeDestinationFallback = useMemo(() => {
+    const map: Record<number, string> = {};
+    localHotels.forEach((hotel) => {
+      const routeId = toNumber(hotel.itineraryRouteId, 0);
+      const destination = String(hotel.destination || '').trim();
+      if (!routeId || !destination) return;
+      if (!map[routeId]) {
+        map[routeId] = destination;
+      }
+    });
+    return map;
+  }, [localHotels]);
+
+  const getResolvedDestination = (hotel: ItineraryHotelRow): string => {
+    const direct = String(hotel.destination || '').trim();
+    if (direct) return direct;
+
+    const dayMatch = String(hotel.day || '').match(/Day\s*(\d+)/i);
+    const dayNumber = dayMatch ? Number(dayMatch[1]) : 0;
+    const fromDay = dayNumber ? String(dayDestinationFallback[dayNumber] || '').trim() : '';
+    if (fromDay) return fromDay;
+
+    const fromRoute = String(routeDestinationFallback[toNumber(hotel.itineraryRouteId, 0)] || '').trim();
+    if (fromRoute) return fromRoute;
+
+    return '-';
+  };
 
   // ---------- CLICK HANDLER: OPEN HOTEL SELECTION MODAL ----------
   const handleRowClick = async (hotel: ItineraryHotelRow, idx: number) => {
@@ -389,11 +434,13 @@ export const HotelList: React.FC<HotelListProps> = ({
     }
 
     const itineraryRouteId = hotel.itineraryRouteId;
+    const itineraryStayDate = String(hotel.date || '').trim();
     setSelectedHotelId(hotel.hotelId);
     
-    // ✅ Get ALL hotels for this route across ALL groups (not just current group)
+    // Get hotels for the clicked stay window (same route + same date) across all groups.
     const hotelsForRoute = localHotels
       .filter((h: any) => h.itineraryRouteId === itineraryRouteId)
+      .filter((h: any) => String(h.date || '').trim() === itineraryStayDate)
       .map((h: any) => ({
         ...h,
         itineraryPlanId: planId,
@@ -416,7 +463,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     );
 
     // ✅ Sort to put selected hotel first, then remaining hotels
-    const selectedHotelId = selectedByGroup[activeGroupType || 1]?.[itineraryRouteId]?.hotelId;
+    const selectedHotelId = hotel.hotelId;
     if (selectedHotelId) {
       uniqueHotels.sort((a, b) => {
         // Selected hotel comes first
@@ -935,6 +982,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const rowTotal =
                   (hotel.totalHotelCost ?? 0) +
                   (hotel.totalHotelTaxAmount ?? 0);
+                const resolvedDestination = getResolvedDestination(hotel);
 
                 return (
                   <React.Fragment key={rowKey}>
@@ -955,7 +1003,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                         {hotel.day}
                       </td>
                       <td className="px-4 py-3 text-sm text-[#6c6c6c]">
-                        {hotel.destination}
+                        {resolvedDestination}
                       </td>
                       <td className="px-4 py-3 text-sm text-[#6c6c6c]">
                         {hotel.hotelName
@@ -998,7 +1046,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                   hotelId: hotel.hotelId!,
                                   hotelName: hotel.hotelName!,
                                   hotelEmail: '',
-                                  hotelStateCity: hotel.destination || '',
+                                  hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
                                   routeDates: [routeDate],
                                   dayNumbers: [parseInt(hotel.day?.replace('Day ', '') || '0')],
                                   hotelDetailsIds: [hotel.itineraryPlanHotelDetailsId || 0]

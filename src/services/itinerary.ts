@@ -8,6 +8,39 @@ export type ItinerarySaveType =
 
 export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
 
+export type HotelArrivalPolicyRequest = {
+  itineraryPlanId?: number;
+  itineraryRouteId?: number;
+  routeDayNumber?: number;
+  routeDate?: string;
+  arrivalDateTime?: string;
+  arrivalCityName?: string;
+  routeSourceCityName?: string;
+  nightStayCityName?: string;
+  arrivalCityId?: number;
+  routeSourceCityId?: number;
+  nightStayCityId?: number;
+  previousDayBillingDecisionProvided?: boolean;
+  previousDayBillingConfirmed?: boolean;
+};
+
+export type HotelArrivalPolicyResponse = {
+  resolutionStatus: string;
+  arrivalWindow: string;
+  requiresPreviousDayBillingConfirmation: boolean;
+  shouldOpenHotelSearch: boolean;
+  hotelSearchMode: "SAME_DAY" | "PREVIOUS_DAY";
+  hotelFlowAction: "DIRECT_HOTEL" | "DIRECT_SIGHTSEEING";
+  deferHotelToEndOfDay: boolean;
+  goToHotelImmediately: boolean;
+  effectiveCheckInDate: string;
+  effectiveCheckOutDate: string;
+  sameCityArrival: boolean;
+  normalizationApplied: boolean;
+  message?: string;
+  debug?: Record<string, unknown>;
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -128,6 +161,13 @@ export const ItineraryService = {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}`, {
       method: "GET",
     });
+  },
+
+  async resolveHotelArrivalPolicy(payload: HotelArrivalPolicyRequest) {
+    return api("itineraries/hotel-arrival-policy", {
+      method: "POST",
+      body: payload,
+    }) as Promise<HotelArrivalPolicyResponse>;
   },
 
   async getClipboardContent(
@@ -340,10 +380,24 @@ export const ItineraryService = {
     });
   },
 
-  async updateRouteTimes(planId: number, routeId: number, startTime: string, endTime: string) {
+  async updateRouteTimes(
+    planId: number,
+    routeId: number,
+    startTime: string,
+    endTime: string,
+    options?: {
+      previousDayBillingDecisionProvided?: boolean;
+      previousDayBillingConfirmed?: boolean;
+    },
+  ) {
     return api(`itineraries/${planId}/route/${routeId}/times`, {
       method: "PATCH",
-      body: { startTime, endTime },
+      body: {
+        startTime,
+        endTime,
+        previousDayBillingDecisionProvided: options?.previousDayBillingDecisionProvided,
+        previousDayBillingConfirmed: options?.previousDayBillingConfirmed,
+      },
     });
   },
 

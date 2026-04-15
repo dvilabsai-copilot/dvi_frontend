@@ -27,11 +27,13 @@ import { PluckCardModal } from "./PluckCardModal";
 import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
+import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
+import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
 
 // --------- Types aligned with CURRENT API RESPONSE ---------
@@ -334,6 +336,39 @@ const parseDisplayTimeToHms = (displayTime: string): string => {
   if (ampm === 'AM' && hours === 12) hours = 0;
   
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+};
+
+// Returns true for times in the 01:00–07:59 range (early morning, requires previous-day hotel)
+const isEarlyMorningTime = (hms: string): boolean => {
+  const [h = 0, m = 0] = hms.split(':').map(Number);
+  const totalMinutes = h * 60 + m;
+  return totalMinutes >= 60 && totalMinutes < 480;
+};
+
+const normalizeDateToYmd = (input?: string | null): string => {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+
+  return '';
 };
 
 const TimePickerPopover: React.FC<{
@@ -747,6 +782,26 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     routeDate: "",
   });
   const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
+  const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [latestArrivalPolicy, setLatestArrivalPolicy] = useState<HotelArrivalPolicyResponse | null>(null);
+  const [pendingRouteTimeUpdate, setPendingRouteTimeUpdate] = useState<{
+    planId: number;
+    routeId: number;
+    dayNumber: number;
+    startTimeHms: string;
+    endTimeHms: string;
+  } | null>(null);
+  const [arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal] = useState<{
+    open: boolean;
+    arrivalDate: string;
+    previousDayDate: string;
+    request: HotelArrivalPolicyRequest | null;
+  }>({
+    open: false,
+    arrivalDate: '',
+    previousDayDate: '',
+    request: null,
+  });
   
   const [roomSelectionModal, setRoomSelectionModal] = useState<{
     open: boolean;
@@ -760,6 +815,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const [availableHotels, setAvailableHotels] = useState<AvailableHotel[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
+  const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
   const [hotelSearchQuery, setHotelSearchQuery] = useState("");
   const [selectedMealPlan, setSelectedMealPlan] = useState({
@@ -1727,6 +1783,41 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
+  const applyRouteTimePatch = async (
+    planId: number,
+    routeId: number,
+    dayNumber: number,
+    startTimeHms: string,
+    endTimeHms: string,
+    options?: {
+      previousDayBillingDecisionProvided?: boolean;
+      previousDayBillingConfirmed?: boolean;
+    },
+  ) => {
+    setIsApplyingRouteTimeUpdate(true);
+    setLoading(true);
+    try {
+      await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+
+      if (quoteId) {
+        const [detailsRes, hotelRes] = await Promise.all([
+          ItineraryService.getDetails(quoteId),
+          ItineraryService.getHotelDetails(quoteId),
+        ]);
+        setItinerary(detailsRes as ItineraryDetailsResponse);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      }
+
+      toast.success(`Day ${dayNumber} times updated`);
+    } catch (e: any) {
+      console.error('Failed to update route times', e);
+      toast.error(e?.message || 'Failed to update route times');
+    } finally {
+      setIsApplyingRouteTimeUpdate(false);
+      setLoading(false);
+    }
+  };
+
   const handleUpdateRouteTimesDirect = async (
     planId: number,
     routeId: number,
@@ -1739,29 +1830,56 @@ const htmlToPlainText = (html: string): string => {
 
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
 
-    try {
-      await ItineraryService.updateRouteTimes(
-        planId,
-        routeId,
-        startTimeHms,
-        endTimeHms
-      );
+    // Day 1 early-morning gate: 01:00–07:59 requires previous-day hotel confirmation
+    if (dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
+        const routeDay =
+          itinerary?.days?.find((d) => Number(d.id) === Number(routeId)) ||
+          itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
+          itinerary?.days?.[0];
+        const routeDateYmd = normalizeDateToYmd(routeDay?.date);
+      const request: HotelArrivalPolicyRequest = {
+        itineraryPlanId: planId,
+        itineraryRouteId: routeId,
+        routeDayNumber: 1,
+          routeDate: routeDateYmd,
+          arrivalDateTime: routeDateYmd ? `${routeDateYmd}T${startTimeHms}` : undefined,
+          arrivalCityName: routeDay?.departure || '',
+          routeSourceCityName: routeDay?.departure || '',
+          nightStayCityName: routeDay?.arrival || '',
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      };
 
-      toast.success(`Day ${dayNumber} times updated`);
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      setIsResolvingArrivalPolicy(true);
+      try {
+        const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+        if (policy.requiresPreviousDayBillingConfirmation) {
+          // Store pending update and show the confirmation modal
+          setPendingRouteTimeUpdate({ planId, routeId, dayNumber, startTimeHms, endTimeHms });
+          const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
+          const routeDate = new Date(`${safeRouteDate}T00:00:00`);
+          const previousDay = new Date(routeDate);
+          previousDay.setDate(previousDay.getDate() - 1);
+          const fmt = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          setArrivalPolicyConfirmModal({
+            open: true,
+            arrivalDate: fmt(routeDate),
+            previousDayDate: fmt(previousDay),
+            request,
+          });
+          return;
+        }
+        // Policy resolved without needing confirmation – fall through to PATCH
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to resolve arrival policy');
+        return;
+      } finally {
+        setIsResolvingArrivalPolicy(false);
       }
-    } catch (e: any) {
-      console.error("Failed to update route times", e);
-      toast.error(e?.message || "Failed to update route times");
     }
+
+    await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms);
   };
 
   const openDeleteHotspotModal = (
@@ -2168,6 +2286,8 @@ const htmlToPlainText = (html: string): string => {
 
     setIsAddingHotspot(true);
     try {
+      const affectedRouteId = addHotspotModal.routeId;
+
       await ItineraryService.addManualHotspot(
         addHotspotModal.planId,
         addHotspotModal.routeId,
@@ -2175,6 +2295,11 @@ const htmlToPlainText = (html: string): string => {
       );
 
       toast.success("Hotspot added successfully");
+
+      // Show rebuild button for the day where manual hotspot was added.
+      if (affectedRouteId) {
+        setRouteNeedsRebuild(affectedRouteId);
+      }
 
       // Close modal and inline
       setAddHotspotModal({
@@ -2214,13 +2339,29 @@ const htmlToPlainText = (html: string): string => {
     });
   };
 
-  const openHotelSelectionModal = (
-    planId: number,
-    routeId: number,
-    routeDate: string,
-    cityCode: string,
-    cityName: string
+  const applyArrivalPolicyDecision = (
+    policy: HotelArrivalPolicyResponse,
+    context: {
+      planId: number;
+      routeId: number;
+      routeDate: string;
+      cityCode: string;
+      cityName: string;
+    },
   ) => {
+    if (!policy.shouldOpenHotelSearch) {
+      if (policy.message) {
+        toast.info(policy.message);
+      }
+      return;
+    }
+
+    if (policy.hotelFlowAction === 'DIRECT_SIGHTSEEING' && policy.deferHotelToEndOfDay) {
+      toast.info('Arrival policy: sightseeing first, hotel check-in later in the day.');
+    } else if (policy.hotelFlowAction === 'DIRECT_HOTEL' && policy.goToHotelImmediately) {
+      toast.info('Arrival policy: proceed to hotel first.');
+    }
+
     // ⚡ Lazy-load hotel details when modal opens (not on initial page load)
     ensureHotelDetailsLoaded();
 
@@ -2231,13 +2372,153 @@ const htmlToPlainText = (html: string): string => {
 
     setHotelSelectionModal({
       open: true,
+      planId: context.planId,
+      routeId: context.routeId,
+      routeDate: context.routeDate,
+      cityCode: context.cityCode,
+      cityName: context.cityName,
+      checkInDate: policy.effectiveCheckInDate,
+      checkOutDate: policy.effectiveCheckOutDate,
+    });
+  };
+
+  const resolveArrivalPolicyForArrivalTimeChange = async (
+    request: HotelArrivalPolicyRequest,
+  ) => {
+    setIsResolvingArrivalPolicy(true);
+    try {
+      const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+      setLatestArrivalPolicy(policy);
+
+      if (policy.requiresPreviousDayBillingConfirmation) {
+        const normalizedRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
+        const routeDate = new Date(`${normalizedRouteDate}T00:00:00`);
+        const previousDay = new Date(routeDate);
+        previousDay.setDate(previousDay.getDate() - 1);
+
+        const formatDate = (d: Date) => {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+
+        setArrivalPolicyConfirmModal({
+          open: true,
+          arrivalDate: formatDate(routeDate),
+          previousDayDate: formatDate(previousDay),
+          request,
+        });
+        return;
+      }
+
+      if (policy.message) {
+        toast.info(policy.message);
+      }
+    } catch (e: any) {
+      console.error('Failed to resolve arrival hotel policy from arrival-time change', e);
+      toast.error(e?.message || 'Failed to resolve hotel arrival policy');
+    } finally {
+      setIsResolvingArrivalPolicy(false);
+    }
+  };
+
+  const handleArrivalDateTimeChange = async (newArrivalDateTime: string) => {
+    setGuestDetails((prev) => ({
+      ...prev,
+      arrivalDateTime: newArrivalDateTime,
+    }));
+
+    if (!newArrivalDateTime || !itinerary?.planId || !itinerary?.days?.length) {
+      return;
+    }
+
+    const normalizeArrivalDateTime = (input: string): string | null => {
+      const directParsed = new Date(input);
+      if (!Number.isNaN(directParsed.getTime())) {
+        return directParsed.toISOString();
+      }
+
+      const m = input
+        .trim()
+        .match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!m) {
+        return null;
+      }
+
+      const day = Number(m[1]);
+      const month = Number(m[2]);
+      const year = Number(m[3]);
+      let hour = Number(m[4]);
+      const minute = Number(m[5]);
+      const ampm = (m[6] || '').toUpperCase();
+
+      if (ampm === 'PM' && hour < 12) hour += 12;
+      if (ampm === 'AM' && hour === 12) hour = 0;
+
+      const parsed = new Date(year, month - 1, day, hour, minute, 0);
+      if (Number.isNaN(parsed.getTime())) {
+        return null;
+      }
+      return parsed.toISOString();
+    };
+
+    const normalizedArrivalDateTime = normalizeArrivalDateTime(newArrivalDateTime);
+    if (!normalizedArrivalDateTime) {
+      return;
+    }
+
+    const firstDay = itinerary.days[0];
+    if (!firstDay?.date || !firstDay?.id) {
+      return;
+    }
+
+    const request: HotelArrivalPolicyRequest = {
+      itineraryPlanId: itinerary.planId,
+      itineraryRouteId: firstDay.id,
+      routeDayNumber: firstDay.dayNumber || 1,
+      routeDate: firstDay.date,
+      arrivalDateTime: normalizedArrivalDateTime,
+      arrivalCityName: guestDetails.arrivalPlace || firstDay.departure || '',
+      routeSourceCityName: firstDay.departure || '',
+      nightStayCityName: firstDay.arrival || '',
+      previousDayBillingDecisionProvided: false,
+      previousDayBillingConfirmed: false,
+    };
+
+    await resolveArrivalPolicyForArrivalTimeChange(request);
+  };
+
+  const openHotelSelectionModal = (
+    planId: number,
+    routeId: number,
+    routeDate: string,
+    cityCode: string,
+    cityName: string
+  ) => {
+    const policyToApply: HotelArrivalPolicyResponse =
+      latestArrivalPolicy ||
+      {
+        resolutionStatus: 'RESOLVED',
+        arrivalWindow: 'NON_ARRIVAL_DAY',
+        requiresPreviousDayBillingConfirmation: false,
+        shouldOpenHotelSearch: true,
+        hotelSearchMode: 'SAME_DAY',
+        hotelFlowAction: 'DIRECT_SIGHTSEEING',
+        deferHotelToEndOfDay: true,
+        goToHotelImmediately: false,
+        effectiveCheckInDate: routeDate,
+        effectiveCheckOutDate: routeDate,
+        sameCityArrival: true,
+        normalizationApplied: false,
+      };
+
+    applyArrivalPolicyDecision(policyToApply, {
       planId,
       routeId,
       routeDate,
       cityCode,
       cityName,
-      checkInDate: routeDate,
-      checkOutDate: routeDate, // This will be set properly by calculating next day
     });
   };
 
@@ -2870,7 +3151,10 @@ const htmlToPlainText = (html: string): string => {
   if (loading) {
     return (
       <div className="w-full max-w-full flex justify-center items-center py-16">
-        <p className="text-sm text-[#6c6c6c]">Loading itinerary details…</p>
+        <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <p>{isApplyingRouteTimeUpdate ? "Updating itinerary and hotel results..." : "Loading itinerary details..."}</p>
+        </div>
       </div>
     );
   }
@@ -3167,10 +3451,19 @@ if (error || !itinerary) {
                   )}
 
                   {segment.type === "travel" && (() => {
+                    // Check if destination is "Hotel" and get actual hotel name for current day
                     const isHotelTarget = /\bhotel\b/i.test(String(segment.to || "").trim());
                     const hotelMeta = selectedHotelMetaByRoute.get(day.id);
                     const travelToLabel = isHotelTarget && hotelMeta?.hotelName ? hotelMeta.hotelName : segment.to;
                     const travelDistanceLabel = isHotelTarget && hotelMeta?.hotelDistance ? hotelMeta.hotelDistance : segment.distance;
+
+                    // Check if source is "Hotel" - use hotel from current day (checked in earlier on same day)
+                    const isHotelSource = /\bhotel\b/i.test(String(segment.from || "").trim());
+                    let travelFromLabel = segment.from;
+                    if (isHotelSource && hotelMeta?.hotelName) {
+                      // Use hotel from current day's checkin
+                      travelFromLabel = hotelMeta.hotelName;
+                    }
 
                     return (
                     <div className={`rounded-lg p-3 mb-3 border-2 ${segment.isConflict ? 'bg-red-50 border-red-400 shadow-sm' : 'bg-[#e8f9fd] border-transparent'}`}>
@@ -3186,7 +3479,7 @@ if (error || !itinerary) {
                           <p className="text-sm text-[#4a4260]">
                             <span className="font-medium">Travelling from</span>{" "}
                             <span className="text-[#d546ab]">
-                              {segment.from}
+                              {travelFromLabel}
                             </span>{" "}
                             <span className="font-medium">to</span>{" "}
                             <span className="text-[#d546ab]">{travelToLabel}</span>
@@ -3458,7 +3751,16 @@ if (error || !itinerary) {
                     </div>
                   )}
 
-                  {segment.type === "checkin" && !readOnly && (
+                  {segment.type === "checkin" && !readOnly && (() => {
+                    // Get actual hotel name from API data instead of backend generic "Hotel"
+                    const hotelMeta = selectedHotelMetaByRoute.get(day.id);
+                    const actualHotelName = hotelMeta?.hotelName || segment.hotelName || "Hotel";
+                    const hotelForDay = hotelDetails?.hotels?.find(h => 
+                      h.itineraryRouteId === day.id
+                    );
+                    const hotelAddress = hotelForDay?.hotelAddress || segment.hotelAddress;
+
+                    return (
                     <div className="bg-[#e8f9fd] rounded-lg p-3 mb-3 border border-[#4ba3c3]">
                       <div className="flex items-center gap-3">
                         <Building2 className="h-6 w-6 text-[#4ba3c3]" />
@@ -3467,9 +3769,6 @@ if (error || !itinerary) {
                           onClick={() => {
                             // Get city code from hotel details if available, otherwise use default
                             let cityCode = "1"; // Default city code
-                            const hotelForDay = hotelDetails?.hotels?.find(h => 
-                              h.itineraryRouteId === day.id
-                            );
                             if (hotelForDay?.destination) {
                               // Try to map destination to code or use as-is
                               const cityMap: { [key: string]: string } = {
@@ -3493,11 +3792,11 @@ if (error || !itinerary) {
                           }}
                         >
                           <p className="text-sm font-semibold text-[#4a4260] mb-1">
-                            Check-in to {segment.hotelName}
+                            Check-in to {actualHotelName}
                           </p>
-                          {segment.hotelAddress && (
+                          {hotelAddress && (
                             <p className="text-xs text-[#6c6c6c] mb-2">
-                              {segment.hotelAddress}
+                              {hotelAddress}
                             </p>
                           )}
                           {segment.time && (
@@ -3546,7 +3845,8 @@ if (error || !itinerary) {
                         </Button>
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {segment.type === "hotspot" && !readOnly && (
                     <div className="flex flex-col gap-2 mb-3">
@@ -3664,6 +3964,7 @@ if (error || !itinerary) {
     })}
       {/* Hotel List (separate component) */}
       {hotelDetails && (
+        <div>
         <HotelList
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
@@ -3678,7 +3979,17 @@ if (error || !itinerary) {
           readOnly={readOnly}
           onCreateVoucher={handleCreateVoucher}
           onHotelSelectionsChange={handleHotelSelectionsChange}
+          dayDestinationFallback={
+            itinerary?.days?.reduce<Record<number, string>>((acc, day) => {
+              const fallback = String(day.arrival || day.departure || '').trim();
+              if (fallback) {
+                acc[Number(day.dayNumber)] = fallback;
+              }
+              return acc;
+            }, {}) || {}
+          }
         />
+        </div>
       )}
 
       {/* Vehicle List (grouped by vehicle type) */}
@@ -4629,6 +4940,83 @@ if (error || !itinerary) {
         </DialogContent>
       </Dialog>
 
+      <ArrivalHotelDecisionModal
+        open={arrivalPolicyConfirmModal.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setArrivalPolicyConfirmModal({
+              open: false,
+              arrivalDate: '',
+              previousDayDate: '',
+              request: null,
+            });
+          }
+        }}
+        arrivalDate={arrivalPolicyConfirmModal.arrivalDate}
+        previousDayDate={arrivalPolicyConfirmModal.previousDayDate}
+        isLoading={isResolvingArrivalPolicy || isApplyingRouteTimeUpdate}
+        onConfirmPreviousDayBilling={async () => {
+          if (!arrivalPolicyConfirmModal.request) {
+            return;
+          }
+
+          setArrivalPolicyConfirmModal({
+            open: false,
+            arrivalDate: '',
+            previousDayDate: '',
+            request: null,
+          });
+
+          if (pendingRouteTimeUpdate) {
+            // Triggered by a Day-1 route time change – proceed with the PATCH
+            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
+            setPendingRouteTimeUpdate(null);
+            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: true,
+            });
+            return;
+          }
+
+          const nextRequest: HotelArrivalPolicyRequest = {
+            ...arrivalPolicyConfirmModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          };
+          await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+        }}
+        onDeclinePreviousDayBilling={async () => {
+          if (!arrivalPolicyConfirmModal.request) {
+            return;
+          }
+
+          setArrivalPolicyConfirmModal({
+            open: false,
+            arrivalDate: '',
+            previousDayDate: '',
+            request: null,
+          });
+
+          if (pendingRouteTimeUpdate) {
+            // User declined previous-day billing – still apply the route time change
+            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
+            setPendingRouteTimeUpdate(null);
+            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: false,
+            });
+            return;
+          }
+
+          const nextRequest: HotelArrivalPolicyRequest = {
+            ...arrivalPolicyConfirmModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          };
+          await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+        }}
+      />
+
       {/* Hotel Search Modal - NEW Real-Time Search */}
       <HotelSearchModal
         open={hotelSelectionModal.open}
@@ -5523,7 +5911,9 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="12-12-2025 9:00 AM"
                     value={guestDetails.arrivalDateTime}
-                    onChange={(e) => setGuestDetails({...guestDetails, arrivalDateTime: e.target.value})}
+                    onChange={(e) => {
+                      void handleArrivalDateTimeChange(e.target.value);
+                    }}
                   />
                 </div>
 
