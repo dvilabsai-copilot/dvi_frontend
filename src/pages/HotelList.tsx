@@ -71,6 +71,14 @@ type HotelListProps = {
     groupType: number;
   }>) => void;
   dayDestinationFallback?: Record<number, string>;
+  /** Pagination metadata: Record<groupType, { hasMore, page, pageSize, total }> */
+  pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
+  /** Per-route/day metadata for day-wise load more */
+  routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
+  /** Called when user clicks Load More inside a day/route */
+  onLoadMore?: (groupType: number, routeId: number, nextPage: number) => void;
+  /** Whether Load More is currently fetching */
+  isLoadingMore?: boolean;
 };
 
 // Shape of each room item coming from /itineraries/hotel_room_details
@@ -130,6 +138,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   onTotalChange, // ✅ NEW: Callback for total amount changes
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
   dayDestinationFallback = {},
+  pagination,
+  routePagination,
+  onLoadMore,
+  isLoadingMore = false,
 }) => {
   const toNumber = (value: unknown, fallback = 0): number => {
     const parsed = Number(value);
@@ -138,6 +150,33 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const getStayKey = (hotel: Pick<ItineraryHotelRow, 'itineraryRouteId' | 'date' | 'day'>): string => {
     return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
+  };
+
+  const getHotelsForStay = (sourceHotels: ItineraryHotelRow[], routeId: number, stayDate: string) => {
+    const hotelsForRoute = sourceHotels
+      .filter((h: any) => toNumber(h.itineraryRouteId, 0) === routeId)
+      .filter((h: any) => String(h.date || '').trim() === stayDate)
+      .map((h: any) => ({
+        ...h,
+        itineraryPlanId: planId,
+        hotelCategory: h.category,
+        pricePerNight: h.totalHotelCost,
+        perNightAmount: h.totalHotelCost,
+        taxAmount: h.totalHotelTaxAmount || 0,
+        totalAmount: h.totalHotelCost + (h.totalHotelTaxAmount || 0),
+        noOfRooms: h.noOfRooms || 1,
+        roomTypeName: h.roomType,
+        availableRoomTypes: h.roomType
+          ? [
+              {
+                roomTypeId: 1,
+                roomTypeTitle: h.roomType,
+              },
+            ]
+          : [],
+      }));
+
+    return Array.from(new Map(hotelsForRoute.map((hotel) => [`${hotel.hotelId}-${hotel.hotelName}`, hotel])).values());
   };
 
   // ✅ Track selected hotel PER GROUP TYPE and PER ROUTE
@@ -267,12 +306,33 @@ export const HotelList: React.FC<HotelListProps> = ({
     setShowRates(hotelRatesVisible);
   }, [hotelRatesVisible]);
 
-  // Reset expanded row and loading state when hotels data changes (after selection)
+  // Keep expanded panel in sync when hotel rows change (e.g. load more)
   useEffect(() => {
-    setExpandedRowKey(null);
-    setRoomDetails([]);
     setLoadingRowKey(null);
-    setSelectedHotelId(null);
+    if (!expandedRowKey) {
+      setRoomDetails([]);
+      setSelectedHotelId(null);
+      return;
+    }
+
+    const [routeIdText, stayDate = ''] = expandedRowKey.split('::');
+    const routeId = toNumber(routeIdText, 0);
+    if (!routeId || !stayDate) {
+      setExpandedRowKey(null);
+      setRoomDetails([]);
+      setSelectedHotelId(null);
+      return;
+    }
+
+    const updatedHotels = getHotelsForStay(hotels, routeId, stayDate);
+    if (updatedHotels.length === 0) {
+      setExpandedRowKey(null);
+      setRoomDetails([]);
+      setSelectedHotelId(null);
+      return;
+    }
+
+    setRoomDetails(updatedHotels);
   }, [hotels]);
 
   // ✅ Get selected hotels for a specific groupType
@@ -363,15 +423,25 @@ export const HotelList: React.FC<HotelListProps> = ({
     const displayHotels = Array.from(groupedByStay.values()).map((stayHotels) => {
       const routeId = toNumber(stayHotels[0]?.itineraryRouteId, 0);
       const selectedForRoute = selectedByGroup[activeGroupType]?.[routeId];
+      const sortedStayHotels = [...stayHotels].sort((a, b) => {
+        const ratingDiff = toNumber(b.category, 0) - toNumber(a.category, 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        const priceA = toNumber(a.totalHotelCost, 0) + toNumber(a.totalHotelTaxAmount, 0);
+        const priceB = toNumber(b.totalHotelCost, 0) + toNumber(b.totalHotelTaxAmount, 0);
+        if (priceA !== priceB) return priceA - priceB;
+        return String(a.hotelName || '').localeCompare(String(b.hotelName || ''));
+      });
+
       if (selectedForRoute) {
-        const sameStaySelection = stayHotels.find(
-          (hotel) => toNumber(hotel.hotelId) === toNumber(selectedForRoute.hotelId),
+        const sameStaySelection = sortedStayHotels.find(
+          (option) => toNumber(option.hotelId, 0) === toNumber(selectedForRoute.hotelId, 0),
         );
         if (sameStaySelection) {
           return sameStaySelection;
         }
       }
-      return stayHotels[0];
+
+      return sortedStayHotels[0];
     });
 
     return displayHotels.sort((a, b) => {
@@ -413,10 +483,10 @@ export const HotelList: React.FC<HotelListProps> = ({
   };
 
   // ---------- CLICK HANDLER: OPEN HOTEL SELECTION MODAL ----------
-  const handleRowClick = async (hotel: ItineraryHotelRow, idx: number) => {
+  const handleRowClick = async (hotel: ItineraryHotelRow) => {
     if (readOnly) return; // Don't expand in read-only mode
 
-    const rowKey = `${hotel.groupType}-${idx}`;
+    const rowKey = getStayKey(hotel);
 
     // Collapse if already open
     if (expandedRowKey === rowKey) {
@@ -436,31 +506,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     const itineraryRouteId = hotel.itineraryRouteId;
     const itineraryStayDate = String(hotel.date || '').trim();
     setSelectedHotelId(hotel.hotelId);
-    
-    // Get hotels for the clicked stay window (same route + same date) across all groups.
-    const hotelsForRoute = localHotels
-      .filter((h: any) => h.itineraryRouteId === itineraryRouteId)
-      .filter((h: any) => String(h.date || '').trim() === itineraryStayDate)
-      .map((h: any) => ({
-        ...h,
-        itineraryPlanId: planId,
-        hotelCategory: h.category,
-        pricePerNight: h.totalHotelCost,
-        perNightAmount: h.totalHotelCost,
-        taxAmount: h.totalHotelTaxAmount || 0,
-        totalAmount: h.totalHotelCost + (h.totalHotelTaxAmount || 0),
-        noOfRooms: h.noOfRooms || 1,
-        roomTypeName: h.roomType,
-        availableRoomTypes: h.roomType ? [{
-          roomTypeId: 1,
-          roomTypeTitle: h.roomType
-        }] : [],
-      }));
 
-    // ✅ Deduplicate by hotelId to prevent duplicate cards
-    let uniqueHotels = Array.from(
-      new Map(hotelsForRoute.map(h => [h.hotelId, h])).values()
-    );
+    let uniqueHotels = getHotelsForStay(localHotels, Number(itineraryRouteId || 0), itineraryStayDate);
 
     // ✅ Sort to put selected hotel first, then remaining hotels
     const selectedHotelId = hotel.hotelId;
@@ -580,9 +627,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         
         // If a row is currently expanded, update its display with fresh data
         if (currentExpandedKey) {
-          const expandedHotel = currentHotelRows.find((h, idx) => 
-            `${h.groupType}-${idx}` === currentExpandedKey
-          );
+          const expandedHotel = currentHotelRows.find((h) => getStayKey(h) === currentExpandedKey);
           if (expandedHotel) {
             const hotelsForTier = uniqueRooms.filter((r: any) => r.groupType === expandedHotel.groupType);
             setRoomDetails(hotelsForTier);
@@ -977,7 +1022,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             </thead>
             <tbody>
               {currentHotelRows.map((hotel, idx) => {
-                const rowKey = `${hotel.groupType}-${idx}`;
+                const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
                 const rowTotal =
                   (hotel.totalHotelCost ?? 0) +
@@ -995,7 +1040,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                       onClick={() => {
                         // Only allow clicking if not in read-only mode and not loading
                         if (!readOnly && loadingRowKey === null) {
-                          handleRowClick(hotel, idx);
+                          handleRowClick(hotel);
                         }
                       }}
                     >
@@ -1253,6 +1298,38 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 </div>
                               );})}
                             </div>
+
+                              {!readOnly && activeGroupType !== null && (() => {
+                                const routeId = Number(hotel.itineraryRouteId || 0);
+                                const routeMeta = routePagination?.[`${activeGroupType}-${routeId}`];
+                                const hasMoreForRoute = Boolean(routeMeta?.hasMore && routeMeta?.groupType === activeGroupType);
+                                if (!hasMoreForRoute) return null;
+
+                                const remaining = Math.max(
+                                  0,
+                                  Number(routeMeta?.total || 0) - Number(routeMeta?.page || 1) * Number(routeMeta?.pageSize || 20),
+                                );
+
+                                return (
+                                  <div className="mt-4 flex justify-center">
+                                    <Button
+                                      variant="outline"
+                                      disabled={isLoadingMore}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onLoadMore?.(activeGroupType, routeId, Number(routeMeta?.page || 1) + 1);
+                                      }}
+                                      className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
+                                    >
+                                      {isLoadingMore ? (
+                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading…</>
+                                      ) : (
+                                        `Load More for this day (${remaining} remaining)`
+                                      )}
+                                    </Button>
+                                  </div>
+                                );
+                              })()}
                             </>
                           )}
                         </td>
@@ -1280,6 +1357,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             </tbody>
           </table>
         </div>
+
       </CardContent>
 
       {/* Confirmation Dialog */}

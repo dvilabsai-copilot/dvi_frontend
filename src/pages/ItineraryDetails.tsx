@@ -316,6 +316,8 @@ type ItineraryHotelDetailsResponse = {
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
+  pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
+  routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
 };
 
 // ----------------- Helper functions -----------------
@@ -397,6 +399,28 @@ const formatMinutesDuration = (minutes: number): string => {
   if (hours > 0 && remainder > 0) return `${hours} Hours ${remainder} Min`;
   if (hours > 0) return `${hours} Hours`;
   return `${remainder} Min`;
+};
+
+const parseDistanceKmValue = (distanceText?: string | null): number | null => {
+  const raw = String(distanceText ?? '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const value = Number.parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  if (raw.includes('km')) return value;
+  if (raw.includes('m')) return value / 1000;
+  return value;
+};
+
+const estimateHotelTravelMinutesFromDistance = (distanceText?: string | null): number | null => {
+  const distanceKm = parseDistanceKmValue(distanceText);
+  if (distanceKm === null) return null;
+
+  // Keep this conservative for city traffic conditions.
+  const assumedCitySpeedKmH = 25;
+  const estimated = Math.round((distanceKm / assumedCitySpeedKmH) * 60);
+  return Math.max(10, estimated);
 };
 
 const normalizeDateToYmd = (input?: string | null): string => {
@@ -1021,6 +1045,34 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
 const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
+/** page tracked per groupType for Load More */
+const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
+const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
+
+const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
+  if (!quoteId || isLoadingMoreHotels) return;
+  setIsLoadingMoreHotels(true);
+  try {
+    const data = await ItineraryService.getHotelDetails(quoteId, nextPage, 20, groupType, routeId);
+    const newRows: ItineraryHotelRow[] = data.hotels || [];
+    setHotelDetails((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        hotels: [...prev.hotels, ...newRows],
+        pagination: data.pagination ? { ...(prev.pagination || {}), ...data.pagination } : prev.pagination,
+        routePagination: data.routePagination
+          ? { ...(prev.routePagination || {}), ...data.routePagination }
+          : prev.routePagination,
+      };
+    });
+    setHotelPageByGroupRoute((prev) => ({ ...prev, [`${groupType}-${routeId}`]: nextPage }));
+  } catch (err) {
+    console.error('Load More hotels failed', err);
+  } finally {
+    setIsLoadingMoreHotels(false);
+  }
+};
 
 const selectedHotelTotal = useMemo(
   () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
@@ -1105,6 +1157,7 @@ const hotelHydratedDays = useMemo(() => {
       : null;
 
     let firstTravelSeen = false;
+    let derivedHotelArrivalMinutes: number | null = null;
 
     const segments = day.segments.map((segment) => {
       if (segment.type === 'travel') {
@@ -1134,6 +1187,36 @@ const hotelHydratedDays = useMemo(() => {
           from = currentHotelName;
         }
 
+        const isTravelToCurrentHotel =
+          !!currentHotelName &&
+          normalizeTimelineLabel(to) === normalizeTimelineLabel(currentHotelName);
+
+        if (isTravelToCurrentHotel) {
+          const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
+          const travelStartMinutes = parseDisplayMinutes(segment.timeRange, 'start');
+          const travelEndMinutes = parseDisplayMinutes(segment.timeRange, 'end');
+
+          if (
+            estimatedTravelMinutes != null &&
+            travelStartMinutes !== null &&
+            travelEndMinutes !== null
+          ) {
+            const scheduledTravelMinutes = Math.max(0, travelEndMinutes - travelStartMinutes);
+            const effectiveTravelMinutes = Math.max(scheduledTravelMinutes, estimatedTravelMinutes);
+            const adjustedTravelEndMinutes = travelStartMinutes + effectiveTravelMinutes;
+            derivedHotelArrivalMinutes = adjustedTravelEndMinutes;
+
+            return {
+              ...segment,
+              from,
+              to,
+              timeRange: `${formatMinutesToDisplay(travelStartMinutes)} - ${formatMinutesToDisplay(adjustedTravelEndMinutes)}`,
+              duration: formatMinutesDuration(effectiveTravelMinutes),
+              distance: currentHotelDistance || segment.distance,
+            };
+          }
+        }
+
         return {
           ...segment,
           from,
@@ -1142,9 +1225,16 @@ const hotelHydratedDays = useMemo(() => {
       }
 
       if (segment.type === 'checkin' && currentHotelName) {
+        const existingCheckinMinutes = parseDisplayMinutes(segment.time);
+        const adjustedCheckinMinutes =
+          derivedHotelArrivalMinutes != null && existingCheckinMinutes != null
+            ? Math.max(existingCheckinMinutes, derivedHotelArrivalMinutes)
+            : (derivedHotelArrivalMinutes ?? existingCheckinMinutes);
+
         return {
           ...segment,
           hotelName: currentHotelName,
+          time: adjustedCheckinMinutes !== null ? formatMinutesToDisplay(adjustedCheckinMinutes) : segment.time,
         };
       }
 
@@ -1220,23 +1310,39 @@ const hotelHydratedDays = useMemo(() => {
           finalCheckinMinutes !== null &&
           finalCheckinMinutes > lastEndMinutes
         ) {
+          const scheduleGapMinutes = finalCheckinMinutes - lastEndMinutes;
+          const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
+          const effectiveTravelMinutes = estimatedTravelMinutes != null
+            ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
+            : scheduleGapMinutes;
+          const travelEndMinutes = lastEndMinutes + effectiveTravelMinutes;
+
           segments.push({
             type: 'travel',
             from: lastLabel,
             to: currentHotelName,
-            timeRange: `${formatMinutesToDisplay(lastEndMinutes)} - ${formatMinutesToDisplay(finalCheckinMinutes)}`,
+            timeRange: `${formatMinutesToDisplay(lastEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
             distance: currentHotelDistance || '',
-            duration: formatMinutesDuration(finalCheckinMinutes - lastEndMinutes),
+            duration: formatMinutesDuration(effectiveTravelMinutes),
             note: 'This may vary due to traffic conditions',
           });
-        }
 
-        segments.push({
-          type: 'checkin',
-          hotelName: currentHotelName,
-          hotelAddress: '',
-          time: finalCheckinMinutes !== null ? formatMinutesToDisplay(finalCheckinMinutes) : day.endTime || null,
-        });
+          const adjustedCheckinMinutes = Math.max(finalCheckinMinutes, travelEndMinutes);
+
+          segments.push({
+            type: 'checkin',
+            hotelName: currentHotelName,
+            hotelAddress: '',
+            time: formatMinutesToDisplay(adjustedCheckinMinutes),
+          });
+        } else {
+          segments.push({
+            type: 'checkin',
+            hotelName: currentHotelName,
+            hotelAddress: '',
+            time: finalCheckinMinutes !== null ? formatMinutesToDisplay(finalCheckinMinutes) : day.endTime || null,
+          });
+        }
       }
     }
 
@@ -4339,6 +4445,10 @@ if (error || !itinerary) {
           readOnly={readOnly}
           onCreateVoucher={handleCreateVoucher}
           onHotelSelectionsChange={handleHotelSelectionsChange}
+          pagination={hotelDetails.pagination}
+          routePagination={hotelDetails.routePagination}
+          onLoadMore={handleHotelLoadMore}
+          isLoadingMore={isLoadingMoreHotels}
           dayDestinationFallback={
             itinerary?.days?.reduce<Record<number, string>>((acc, day) => {
               const fallback = String(day.arrival || day.departure || '').trim();
