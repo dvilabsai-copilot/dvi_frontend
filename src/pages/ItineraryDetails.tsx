@@ -1,6 +1,6 @@
 // FILE: src/pages/itineraries/ItineraryDetails.tsx
 
-import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,7 @@ import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
+import { getEstimatedSaveMs } from "./CreateItinerary/helpers/saveProgress.constants";
 
 // --------- Types aligned with CURRENT API RESPONSE ---------
 
@@ -99,6 +100,19 @@ type HotspotSegment = {
   type: "hotspot";
   text: string;
   locationId?: number;
+  anchorType?: "after_travel";
+  anchorIndex?: number;
+  anchorFrom?: string;
+  anchorTo?: string;
+  anchorTimeRange?: string | null;
+};
+
+type HotspotAnchor = {
+  anchorType: "after_travel";
+  anchorIndex: number;
+  anchorFrom?: string;
+  anchorTo?: string;
+  anchorTimeRange?: string | null;
 };
 
 type CheckinSegment = {
@@ -343,6 +357,45 @@ const isEarlyMorningTime = (hms: string): boolean => {
   const [h = 0, m = 0] = hms.split(':').map(Number);
   const totalMinutes = h * 60 + m;
   return totalMinutes >= 60 && totalMinutes < 480;
+};
+
+const normalizeTimelineLabel = (value: unknown): string => {
+  return String(value ?? '').trim().toLowerCase();
+};
+
+const parseDisplayMinutes = (value?: string | null, edge: 'start' | 'end' = 'start'): number | null => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  const timeText = raw.includes(' - ')
+    ? raw.split(' - ')[edge === 'start' ? 0 : 1]?.trim()
+    : raw;
+
+  if (!timeText) return null;
+
+  const hms = parseDisplayTimeToHms(timeText);
+  const [hours = 0, minutes = 0] = hms.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const formatMinutesToDisplay = (totalMinutes: number): string => {
+  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
+  const hours24 = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+};
+
+const formatMinutesDuration = (minutes: number): string => {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+
+  if (hours > 0 && remainder > 0) return `${hours} Hours ${remainder} Min`;
+  if (hours > 0) return `${hours} Hours`;
+  return `${remainder} Min`;
 };
 
 const normalizeDateToYmd = (input?: string | null): string => {
@@ -619,121 +672,187 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     locationName: "",
   });
 
-  // Inline Add Hotspot state
-  const [expandedAddHotspotDayId, setExpandedAddHotspotDayId] = useState<number | null>(null);
+  // Add Hotspot state
   const [loadingHotspots, setLoadingHotspots] = useState(false);
   const [isAddingHotspot, setIsAddingHotspot] = useState(false);
   const [hotspotSearchQuery, setHotspotSearchQuery] = useState("");
   const [availableHotspots, setAvailableHotspots] = useState<AvailableHotspot[]>([]);
-  const [previewTimeline, setPreviewTimeline] = useState<any[] | null>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+  const [previewTimelinesByHotspot, setPreviewTimelinesByHotspot] = useState<Record<number, any[]>>({});
+  const [isPreviewingHotspotId, setIsPreviewingHotspotId] = useState<number | null>(null);
+  const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
+  const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
+  const [anchorAvailabilityMap, setAnchorAvailabilityMap] = useState<Record<string, boolean>>({});
+
+  const getAnchorKey = useCallback((routeId: number, anchorIndex: number) => {
+    return `${routeId}:${anchorIndex}`;
+  }, []);
 
   // Refs for scrolling
   const hotspotListRef = useRef<HTMLDivElement>(null);
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
 
-  // Scroll management for Add Hotspot Modal
-  // Unified scroll handler - execute after DOM is fully rendered
-  useLayoutEffect(() => {
-    if (!addHotspotModal.open) return;
-    if (!selectedHotspotId) return;
-    if (!previewTimeline || previewTimeline.length === 0) return;
+  const selectedHotspotId = selectedHotspotIds.length > 0
+    ? selectedHotspotIds[selectedHotspotIds.length - 1]
+    : null;
 
-    // Declare in outer scope for cleanup function
-    let raf1: number;
-    let raf2: number;
-    let raf3: number;
+  const mapDaySegmentToPreview = useCallback((seg: ItinerarySegment): any | null => {
+    if (!seg) return null;
 
-    // Wait for next paint cycle to ensure all elements are rendered
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        raf3 = requestAnimationFrame(() => {
-          // Scroll left hotspot list
-          if (hotspotListRef.current) {
-            const card = hotspotListRef.current.querySelector(
-              `[data-hotspot-id="${selectedHotspotId}"]`
-            ) as HTMLElement | null;
-            
-            if (card && hotspotListRef.current) {
-              // Get container and card positions
-              const container = hotspotListRef.current;
-              const containerRect = container.getBoundingClientRect();
-              const cardRect = card.getBoundingClientRect();
-              
-              // Calculate relative position of card within container
-              const cardTopRelativeToContainer = card.offsetTop;
-              const cardHeightWithPadding = card.offsetHeight;
-              const containerHeight = container.clientHeight;
-              
-              // Scroll to position card more centered with larger offset
-              const scrollOffset = 150; // pixels from top - centers the card
-              const targetScrollTop = Math.max(0, cardTopRelativeToContainer - scrollOffset);
-              
-              container.scrollTo({
-                top: targetScrollTop,
-                behavior: "auto"
-              });
-              
-              // Debug logging
-              console.log('[Hotspot Scroll] Card found:', {
-                cardId: selectedHotspotId,
-                cardTop: cardTopRelativeToContainer,
-                containerHeight,
-                targetScrollTop,
-                containerScrollHeight: container.scrollHeight,
-                containerScrollTop: container.scrollTop
-              });
-            } else {
-              console.warn('[Hotspot Scroll] Card not found for ID:', selectedHotspotId);
-            }
-          } else {
-            console.warn('[Hotspot Scroll] Container ref not available');
-          }
+    if (seg.type === "hotspot") return null;
 
-          // Scroll right timeline to show selected item
-          if (timelinePreviewRef.current) {
-            // Find the selected timeline item
-            const selectedItem = timelinePreviewRef.current.querySelector(
-              '[data-selected="true"]'
-            ) as HTMLElement | null;
-            
-            if (selectedItem) {
-              // Scroll to the selected item (the newly added hotspot)
-              const selectedItemTop = selectedItem.offsetTop;
-              const scrollOffset = 200; // pixels from top - larger offset for better visibility
-              const targetScroll = Math.max(0, selectedItemTop - scrollOffset);
-              
-              timelinePreviewRef.current.scrollTo({
-                top: targetScroll,
-                behavior: "auto"
-              });
-              
-              console.log('[Timeline Scroll] Found selected item, scrolled to:', {
-                selectedItemTop,
-                targetScroll,
-                containerScrollHeight: timelinePreviewRef.current.scrollHeight
-              });
-            } else {
-              // Fallback: scroll to top if no selected item
-              timelinePreviewRef.current.scrollTo({
-                top: 0,
-                behavior: "auto"
-              });
-              
-              console.log('[Timeline Scroll] No selected item, scrolled to top');
-            }
-          }
-        });
-      });
+    if (seg.type === "attraction") {
+      return {
+        type: "attraction",
+        text: seg.name,
+        timeRange: seg.visitTime || null,
+        locationId: Number(seg.hotspotId ?? seg.locationId ?? 0) || null,
+        isConflict: seg.isConflict === true,
+        conflictReason: seg.conflictReason ?? null,
+      };
+    }
+
+    if (seg.type === "travel") {
+      return {
+        type: "travel",
+        text: `Travel to ${seg.to}`,
+        timeRange: seg.timeRange || null,
+        locationId: null,
+        isConflict: seg.isConflict === true,
+        conflictReason: seg.conflictReason ?? null,
+        from: seg.from,
+        to: seg.to,
+      };
+    }
+
+    if (seg.type === "start") {
+      return {
+        type: "start",
+        text: seg.title || "Start",
+        timeRange: seg.timeRange || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "break") {
+      return {
+        type: "break",
+        text: `Break at ${seg.location}`,
+        timeRange: seg.timeRange || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "checkin") {
+      return {
+        type: "checkin",
+        text: `Check-in at ${seg.hotelName}`,
+        timeRange: seg.time || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "return") {
+      return {
+        type: "return",
+        text: "Return",
+        timeRange: seg.time || null,
+        locationId: null,
+      };
+    }
+
+    return null;
+  }, []);
+
+  const defaultPreviewTimeline = useMemo(() => {
+    const routeId = addHotspotModal.routeId;
+    if (!routeId || !itinerary?.days?.length) return [];
+
+    const day = itinerary.days.find((d) => Number(d.id) === Number(routeId));
+    if (!day?.segments?.length) return [];
+
+    return day.segments
+      .map(mapDaySegmentToPreview)
+      .filter(Boolean);
+  }, [addHotspotModal.routeId, itinerary?.days, mapDaySegmentToPreview]);
+
+  const selectedPreviewSegments = useMemo(() => {
+    const fallbackFor = (hotspotId: number) => {
+      const hotspot = availableHotspots.find((h) => Number(h.id) === Number(hotspotId));
+      return {
+        type: "attraction",
+        text: hotspot?.name || "Selected Hotspot",
+        timeRange: null,
+        locationId: hotspotId,
+        isConflict: false,
+        conflictReason: null,
+        isUserSelectedPreview: true,
+        selectedHotspotId: hotspotId,
+      };
+    };
+
+    return selectedHotspotIds.map((hotspotId) => {
+      const timeline = previewTimelinesByHotspot[hotspotId] || [];
+      const fromTimeline = timeline.find((seg: any) => (
+        seg?.type === "attraction" && Number(seg?.locationId) === Number(hotspotId)
+      ));
+
+      if (!fromTimeline) {
+        return fallbackFor(hotspotId);
+      }
+
+      return {
+        ...fromTimeline,
+        isUserSelectedPreview: true,
+        selectedHotspotId: hotspotId,
+      };
+    });
+  }, [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds]);
+
+  const effectivePreviewTimeline = useMemo(() => {
+    const base = [...defaultPreviewTimeline];
+    if (selectedPreviewSegments.length === 0) return base;
+
+    if (!selectedHotspotAnchor) {
+      return [...base, ...selectedPreviewSegments];
+    }
+
+    const insertAfterIdx = base.findIndex((seg: any) => {
+      if (seg?.type !== "travel") return false;
+      const fromMatches = selectedHotspotAnchor.anchorFrom
+        ? String(seg?.from || "").trim().toLowerCase() === String(selectedHotspotAnchor.anchorFrom).trim().toLowerCase()
+        : true;
+      const toMatches = selectedHotspotAnchor.anchorTo
+        ? String(seg?.to || "").trim().toLowerCase() === String(selectedHotspotAnchor.anchorTo).trim().toLowerCase()
+        : true;
+      const timeMatches = selectedHotspotAnchor.anchorTimeRange
+        ? String(seg?.timeRange || "").trim() === String(selectedHotspotAnchor.anchorTimeRange).trim()
+        : true;
+      return fromMatches && toMatches && timeMatches;
     });
 
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      cancelAnimationFrame(raf3);
-    };
-  }, [addHotspotModal.open, selectedHotspotId, previewTimeline]);
+    const at = insertAfterIdx >= 0 ? insertAfterIdx + 1 : base.length;
+    base.splice(at, 0, ...selectedPreviewSegments);
+    return base;
+  }, [defaultPreviewTimeline, selectedHotspotAnchor, selectedPreviewSegments]);
+
+  // Keep left list focused near latest selected card.
+  useEffect(() => {
+    if (!addHotspotModal.open) return;
+    if (!selectedHotspotId) return;
+
+    const raf = requestAnimationFrame(() => {
+      if (!hotspotListRef.current) return;
+      const card = hotspotListRef.current.querySelector(
+        `[data-hotspot-id="${selectedHotspotId}"]`
+      ) as HTMLElement | null;
+      if (!card) return;
+
+      const targetScrollTop = Math.max(0, card.offsetTop - 150);
+      hotspotListRef.current.scrollTo({ top: targetScrollTop, behavior: "auto" });
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [addHotspotModal.open, selectedHotspotId]);
 
   // Scroll list to top when search query changes
   useEffect(() => {
@@ -754,6 +873,71 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (a.visitAgain === b.visitAgain) return 0;
       return a.visitAgain ? 1 : -1;
     });
+
+  useEffect(() => {
+    if (readOnly || !itinerary?.planId || !Array.isArray(itinerary?.days)) {
+      setAnchorAvailabilityMap({});
+      return;
+    }
+
+    const anchors: Array<{ routeId: number; anchorIndex: number }> = [];
+    for (const day of itinerary.days) {
+      for (const segment of day.segments || []) {
+        if (
+          segment?.type === "hotspot" &&
+          segment?.anchorType === "after_travel" &&
+          Number.isInteger(Number(segment?.anchorIndex))
+        ) {
+          anchors.push({
+            routeId: Number(day.id),
+            anchorIndex: Number(segment.anchorIndex),
+          });
+        }
+      }
+    }
+
+    if (anchors.length === 0) {
+      setAnchorAvailabilityMap({});
+      return;
+    }
+
+    let cancelled = false;
+    setAnchorAvailabilityMap({});
+
+    (async () => {
+      for (const anchor of anchors) {
+        if (cancelled) return;
+
+        const key = getAnchorKey(anchor.routeId, anchor.anchorIndex);
+        try {
+          const hotspots = await ItineraryService.getAvailableHotspotsForAnchor({
+            planId: Number(itinerary.planId),
+            routeId: Number(anchor.routeId),
+            anchorType: "after_travel",
+            anchorIndex: Number(anchor.anchorIndex),
+          });
+
+          if (!cancelled) {
+            setAnchorAvailabilityMap((prev) => ({
+              ...prev,
+              [key]: Array.isArray(hotspots) && hotspots.length > 0,
+            }));
+          }
+        } catch {
+          if (!cancelled) {
+            setAnchorAvailabilityMap((prev) => ({
+              ...prev,
+              [key]: false,
+            }));
+          }
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itinerary?.planId, itinerary?.days, readOnly, getAnchorKey]);
 
   // Hotel selection modal state
   type AvailableHotel = {
@@ -816,6 +1000,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [availableHotels, setAvailableHotels] = useState<AvailableHotel[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
   const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
+  const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
+  const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
+  const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
+  const routeTimeProgressTimerRef = useRef<number | null>(null);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
   const [hotelSearchQuery, setHotelSearchQuery] = useState("");
   const [selectedMealPlan, setSelectedMealPlan] = useState({
@@ -831,6 +1019,31 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       h.name.toLowerCase().includes(hotelSearchQuery.toLowerCase()) ||
       h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase())
   );
+
+  const stopRouteTimeProgress = useCallback(() => {
+    if (routeTimeProgressTimerRef.current !== null) {
+      window.clearInterval(routeTimeProgressTimerRef.current);
+      routeTimeProgressTimerRef.current = null;
+    }
+  }, []);
+
+  const startRouteTimeProgress = useCallback((estimatedMs: number) => {
+    stopRouteTimeProgress();
+    setRouteTimeProgressPercent(1);
+
+    const startedAt = Date.now();
+    routeTimeProgressTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
+      setRouteTimeProgressPercent(Math.min(95, Math.max(1, pct)));
+    }, 220);
+  }, [stopRouteTimeProgress]);
+
+  const getRouteTimeUpdateEstimateMs = useCallback((dayNumber: number) => {
+    const dayCount = Math.max(1, itinerary?.days?.length ?? dayNumber ?? 1);
+    const createEstimateMs = getEstimatedSaveMs(dayCount, "itineary_basic_info_with_optimized_route");
+    return Math.max(15000, createEstimateMs * 2);
+  }, [itinerary?.days?.length]);
 
   // Gallery modal state
   const [galleryModal, setGalleryModal] = useState<{
@@ -948,6 +1161,162 @@ const computedHotelCost = useMemo(() => {
   if (totalFromHotelApi > 0) return totalFromHotelApi;
   return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
 }, [selectedHotelTotal, selectedHotelMetaByRoute, itinerary?.costBreakdown?.totalHotelAmount]);
+
+const hotelHydratedDays = useMemo(() => {
+  if (!itinerary?.days?.length) return [];
+
+  return itinerary.days.map((day, dayIndex) => {
+    const currentHotelName = selectedHotelMetaByRoute.get(day.id)?.hotelName?.trim() || null;
+    const currentHotelDistance = selectedHotelMetaByRoute.get(day.id)?.hotelDistance?.trim() || null;
+    const previousDay = dayIndex > 0 ? itinerary.days[dayIndex - 1] : null;
+    const previousHotelName = previousDay
+      ? selectedHotelMetaByRoute.get(previousDay.id)?.hotelName?.trim() || null
+      : null;
+
+    let firstTravelSeen = false;
+
+    const segments = day.segments.map((segment) => {
+      if (segment.type === 'travel') {
+        const isFirstTravelOfDay = !firstTravelSeen;
+        firstTravelSeen = true;
+
+        let from = segment.from;
+        let to = segment.to;
+
+        if (currentHotelName && /\bhotel\b/i.test(String(segment.to || '').trim())) {
+          to = currentHotelName;
+        }
+
+        if (isFirstTravelOfDay && previousHotelName) {
+          const normalizedFrom = normalizeTimelineLabel(segment.from);
+          const normalizedDeparture = normalizeTimelineLabel(day.departure);
+          const normalizedArrival = normalizeTimelineLabel(day.arrival);
+
+          if (
+            /\bhotel\b/i.test(String(segment.from || '').trim()) ||
+            normalizedFrom === normalizedDeparture ||
+            normalizedFrom === normalizedArrival
+          ) {
+            from = previousHotelName;
+          }
+        } else if (currentHotelName && /\bhotel\b/i.test(String(segment.from || '').trim())) {
+          from = currentHotelName;
+        }
+
+        return {
+          ...segment,
+          from,
+          to,
+        };
+      }
+
+      if (segment.type === 'checkin' && currentHotelName) {
+        return {
+          ...segment,
+          hotelName: currentHotelName,
+        };
+      }
+
+      return segment;
+    });
+
+    const earlyCheckinIndex = segments.findIndex((segment) => {
+      if (segment.type !== 'checkin') return false;
+      const timeMinutes = parseDisplayMinutes(segment.time);
+      if (timeMinutes === null) return false;
+      return isEarlyMorningTime(parseDisplayTimeToHms(segment.time || ''));
+    });
+
+    const hasEarlyMorningArrival = dayIndex === 0 && earlyCheckinIndex >= 0;
+
+    const hasLateHotelTravel =
+      hasEarlyMorningArrival &&
+      currentHotelName &&
+      segments.some((segment, segmentIndex) => (
+        segmentIndex > earlyCheckinIndex &&
+        segment.type === 'travel' &&
+        normalizeTimelineLabel(segment.to) === normalizeTimelineLabel(currentHotelName)
+      ));
+
+    const hasLateCheckin =
+      hasEarlyMorningArrival &&
+      segments.some((segment, segmentIndex) => (
+        segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
+      ));
+
+    if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel && !hasLateCheckin) {
+      const lastRenderableSegment = [...segments]
+        .reverse()
+        .find((segment, reverseIndex) => {
+          const actualIndex = segments.length - 1 - reverseIndex;
+          return actualIndex > earlyCheckinIndex && segment.type !== 'hotspot';
+        });
+
+      const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined): string => {
+        if (!segment) return day.arrival || day.departure || currentHotelName;
+        if (segment.type === 'attraction') return segment.name;
+        if (segment.type === 'travel') return segment.to || segment.from || day.arrival || currentHotelName;
+        if (segment.type === 'break') return segment.location || day.arrival || currentHotelName;
+        if (segment.type === 'checkin') return segment.hotelName || currentHotelName;
+        if (segment.type === 'start') return day.arrival || day.departure || currentHotelName;
+        if (segment.type === 'return') return day.arrival || day.departure || currentHotelName;
+        return day.arrival || day.departure || currentHotelName;
+      };
+
+      const lastLabel = getSegmentAnchorLabel(lastRenderableSegment);
+      const lastEndMinutes = lastRenderableSegment
+        ? lastRenderableSegment.type === 'attraction'
+          ? parseDisplayMinutes(lastRenderableSegment.visitTime, 'end')
+          : lastRenderableSegment.type === 'travel'
+          ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+          : lastRenderableSegment.type === 'break'
+          ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+          : lastRenderableSegment.type === 'checkin'
+          ? parseDisplayMinutes(lastRenderableSegment.time)
+          : lastRenderableSegment.type === 'start'
+          ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+          : lastRenderableSegment.type === 'return'
+          ? parseDisplayMinutes(lastRenderableSegment.time)
+          : null
+        : null;
+
+      const dayEndMinutes = parseDisplayMinutes(day.endTime);
+      const finalCheckinMinutes = dayEndMinutes ?? lastEndMinutes;
+
+      if (lastLabel && normalizeTimelineLabel(lastLabel) !== normalizeTimelineLabel(currentHotelName)) {
+        if (
+          lastEndMinutes !== null &&
+          finalCheckinMinutes !== null &&
+          finalCheckinMinutes > lastEndMinutes
+        ) {
+          segments.push({
+            type: 'travel',
+            from: lastLabel,
+            to: currentHotelName,
+            timeRange: `${formatMinutesToDisplay(lastEndMinutes)} - ${formatMinutesToDisplay(finalCheckinMinutes)}`,
+            distance: currentHotelDistance || '',
+            duration: formatMinutesDuration(finalCheckinMinutes - lastEndMinutes),
+            note: 'This may vary due to traffic conditions',
+          });
+        }
+
+        segments.push({
+          type: 'checkin',
+          hotelName: currentHotelName,
+          hotelAddress: '',
+          time: finalCheckinMinutes !== null ? formatMinutesToDisplay(finalCheckinMinutes) : day.endTime || null,
+        });
+      }
+    }
+
+    return {
+      ...day,
+      segments,
+    };
+  });
+}, [itinerary?.days, selectedHotelMetaByRoute]);
+
+const displayDays = hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || [];
 
 const overallTripCostWithHotels = useMemo(() => {
   const baseOverall = Number(itinerary?.overallCost || 0);
@@ -1795,7 +2164,10 @@ const htmlToPlainText = (html: string): string => {
     },
   ) => {
     setIsApplyingRouteTimeUpdate(true);
-    setLoading(true);
+    const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
+    setRouteTimeEstimatedMs(estimatedMs);
+    startRouteTimeProgress(estimatedMs);
+
     try {
       await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
 
@@ -1808,13 +2180,16 @@ const htmlToPlainText = (html: string): string => {
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
 
+      setRouteTimeProgressPercent(100);
+      setPendingScrollDayNumber(dayNumber);
+
       toast.success(`Day ${dayNumber} times updated`);
     } catch (e: any) {
       console.error('Failed to update route times', e);
       toast.error(e?.message || 'Failed to update route times');
     } finally {
+      stopRouteTimeProgress();
       setIsApplyingRouteTimeUpdate(false);
-      setLoading(false);
     }
   };
 
@@ -2166,37 +2541,51 @@ const htmlToPlainText = (html: string): string => {
     });
   };
 
-  const toggleInlineAddHotspot = async (
-    dayId: number,
+  const openAddHotspotModal = async (
+    planId: number,
+    routeId: number,
     locationId: number,
-    locationName: string
+    locationName: string,
+    anchor?: HotspotAnchor | null,
   ) => {
-    if (readOnly) {
-      console.log('Cannot add hotspots in read-only mode');
-      return;
-    }
-
-    if (expandedAddHotspotDayId === dayId) {
-      setExpandedAddHotspotDayId(null);
-      return;
-    }
-
-    setExpandedAddHotspotDayId(dayId);
     setAddHotspotModal({
-      open: false,
-      planId: itinerary?.planId || null,
-      routeId: dayId,
+      open: true,
+      planId,
+      routeId,
       locationId,
       locationName,
     });
-    
+    setPreviewTimelinesByHotspot({});
+    setSelectedHotspotIds([]);
+    setIsPreviewingHotspotId(null);
+    setSelectedHotspotAnchor(anchor || null);
+
+    // Fetch available hotspots for this location
     setLoadingHotspots(true);
     try {
-      const hotspots = await ItineraryService.getAvailableHotspots(dayId);
+      const hotspots = anchor
+        ? await ItineraryService.getAvailableHotspotsForAnchor({
+            planId,
+            routeId,
+            anchorType: "after_travel",
+            anchorIndex: anchor.anchorIndex,
+          })
+        : await ItineraryService.getAvailableHotspots(routeId);
       setAvailableHotspots(hotspots as AvailableHotspot[]);
-      
-      // Get excluded hotspot IDs for this route
-      const currentRoute = itinerary?.days.find(d => d.id === dayId);
+
+      // Open directly in preview layout by selecting the first available hotspot.
+      if (Array.isArray(hotspots) && hotspots.length > 0) {
+        const firstHotspotId = Number((hotspots as AvailableHotspot[])[0].id);
+        if (Number.isFinite(firstHotspotId) && firstHotspotId > 0) {
+          await handlePreviewHotspot(firstHotspotId, {
+            planId,
+            routeId,
+            anchor: anchor || undefined,
+          });
+        }
+      }
+
+      const currentRoute = itinerary?.days.find((d) => d.id === routeId);
       if (currentRoute) {
         setExcludedHotspotIds((currentRoute as any).excluded_hotspot_ids || []);
       }
@@ -2208,43 +2597,21 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
-  const openAddHotspotModal = async (
-    planId: number,
-    routeId: number,
-    locationId: number,
-    locationName: string
+  const handlePreviewHotspot = async (
+    hotspotId: number,
+    options?: {
+      planId?: number;
+      routeId?: number;
+      anchor?: HotspotAnchor;
+    },
   ) => {
-    setAddHotspotModal({
-      open: true,
-      planId,
-      routeId,
-      locationId,
-      locationName,
-    });
-    setPreviewTimeline(null);
-    setSelectedHotspotId(null);
-
-    // Fetch available hotspots for this location
-    setLoadingHotspots(true);
-    try {
-      const hotspots = await ItineraryService.getAvailableHotspots(routeId);
-      setAvailableHotspots(hotspots as AvailableHotspot[]);
-    } catch (e: any) {
-      console.error("Failed to fetch available hotspots", e);
-      toast.error(e?.message || "Failed to load available hotspots");
-    } finally {
-      setLoadingHotspots(false);
-    }
-  };
-
-  const handlePreviewHotspot = async (hotspotId: number, planId?: number, routeId?: number) => {
-    const pId = planId || addHotspotModal.planId;
-    const rId = routeId || addHotspotModal.routeId;
+    const pId = options?.planId || addHotspotModal.planId;
+    const rId = options?.routeId || addHotspotModal.routeId;
+    const anchor = options?.anchor || selectedHotspotAnchor || undefined;
     if (!pId || !rId) return;
 
-    setSelectedHotspotId(hotspotId);
-    setIsPreviewing(true);
-    setPreviewTimeline(null);
+    setSelectedHotspotIds((prev) => [...prev.filter((id) => id !== hotspotId), hotspotId]);
+    setIsPreviewingHotspotId(hotspotId);
     
     // Don't force scroll list to top here, let the user stay where they clicked
     if (timelinePreviewRef.current) {
@@ -2255,19 +2622,38 @@ const htmlToPlainText = (html: string): string => {
       const preview = await ItineraryService.previewAddHotspot(
         pId,
         rId,
-        hotspotId
+        hotspotId,
+        anchor
+          ? {
+              anchorType: anchor.anchorType,
+              anchorIndex: anchor.anchorIndex,
+            }
+          : undefined,
       );
-      // The backend returns { newHotspot, otherConflicts, fullTimeline }
-      setPreviewTimeline(preview.fullTimeline || []);
+      // The backend returns { newHotspot, otherConflicts, fullTimeline }.
+      setPreviewTimelinesByHotspot((prev) => ({
+        ...prev,
+        [hotspotId]: preview.fullTimeline || [],
+      }));
     } catch (e: any) {
       console.error("Failed to preview hotspot", e);
       toast.error(e?.message || "Failed to preview hotspot");
+      setSelectedHotspotIds((prev) => prev.filter((id) => id !== hotspotId));
     } finally {
-      setIsPreviewing(false);
+      setIsPreviewingHotspotId(null);
     }
   };
 
-  const handleAddHotspot = async (hotspotId: number) => {
+  const handleRemovePreviewHotspot = (hotspotId: number) => {
+    setSelectedHotspotIds((prev) => prev.filter((id) => id !== hotspotId));
+    setPreviewTimelinesByHotspot((prev) => {
+      const clone = { ...prev };
+      delete clone[hotspotId];
+      return clone;
+    });
+  };
+
+  const handleAddHotspot = async () => {
     if (readOnly) {
       console.log('Cannot add hotspot in read-only mode');
       return;
@@ -2277,10 +2663,15 @@ const htmlToPlainText = (html: string): string => {
       return;
     }
 
+    if (selectedHotspotIds.length === 0) {
+      toast.error("Select at least one hotspot to add");
+      return;
+    }
+
     // Check for conflicts in preview
-    const hasConflicts = previewTimeline?.some(seg => seg.isConflict);
+    const hasConflicts = selectedPreviewSegments.some((seg: any) => seg?.isConflict === true);
     if (hasConflicts) {
-      const confirm = window.confirm("This addition will cause timing conflicts (some places may be closed). Do you want to continue?");
+      const confirm = window.confirm("One or more selected hotspots have timing conflicts. Do you want to continue?");
       if (!confirm) return;
     }
 
@@ -2288,13 +2679,40 @@ const htmlToPlainText = (html: string): string => {
     try {
       const affectedRouteId = addHotspotModal.routeId;
 
-      await ItineraryService.addManualHotspot(
-        addHotspotModal.planId,
-        addHotspotModal.routeId,
-        hotspotId
-      );
+      let successCount = 0;
+      const failedHotspots: number[] = [];
 
-      toast.success("Hotspot added successfully");
+      for (const hotspotId of selectedHotspotIds) {
+        const addResult: any = await ItineraryService.addManualHotspot(
+          addHotspotModal.planId,
+          addHotspotModal.routeId,
+          hotspotId,
+          selectedHotspotAnchor
+            ? {
+                anchorType: selectedHotspotAnchor.anchorType,
+                anchorIndex: selectedHotspotAnchor.anchorIndex,
+              }
+            : undefined,
+        );
+
+        if (addResult?.success === false || addResult?.inserted === false) {
+          failedHotspots.push(hotspotId);
+          continue;
+        }
+
+        successCount += 1;
+      }
+
+      if (successCount === 0) {
+        toast.error("Failed to add selected hotspots at this position");
+        return;
+      }
+
+      if (failedHotspots.length > 0) {
+        toast.warning(`Added ${successCount} hotspot(s). ${failedHotspots.length} failed.`);
+      } else {
+        toast.success(`Added ${successCount} hotspot(s) successfully`);
+      }
 
       // Show rebuild button for the day where manual hotspot was added.
       if (affectedRouteId) {
@@ -2309,10 +2727,11 @@ const htmlToPlainText = (html: string): string => {
         locationId: null,
         locationName: "",
       });
-      setExpandedAddHotspotDayId(null);
       setHotspotSearchQuery("");
-      setPreviewTimeline(null);
-      setSelectedHotspotId(null);
+      setPreviewTimelinesByHotspot({});
+      setSelectedHotspotIds([]);
+      setIsPreviewingHotspotId(null);
+      setSelectedHotspotAnchor(null);
 
       // Reload itinerary data
       if (quoteId) {
@@ -3148,12 +3567,36 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
-  if (loading) {
+  useEffect(() => {
+    if (!pendingScrollDayNumber) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const dayElement = document.getElementById(`itinerary-day-${pendingScrollDayNumber}`);
+      if (dayElement) {
+        dayElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      setPendingScrollDayNumber(null);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [itinerary, pendingScrollDayNumber]);
+
+  useEffect(() => {
+    return () => {
+      stopRouteTimeProgress();
+    };
+  }, [stopRouteTimeProgress]);
+
+  const hotelTimelineLoading = Boolean(!hotelDetails && itinerary && !error);
+
+  if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
     return (
       <div className="w-full max-w-full flex justify-center items-center py-16">
         <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <p>{isApplyingRouteTimeUpdate ? "Updating itinerary and hotel results..." : "Loading itinerary details..."}</p>
+          <p>{isApplyingRouteTimeUpdate ? "Updating itinerary and hotel results..." : "Loading itinerary details and hotel names..."}</p>
         </div>
       </div>
     );
@@ -3188,8 +3631,50 @@ if (error || !itinerary) {
     ? `/create-itinerary?id=${itinerary.planId}`
     : "#";
   const modifyItineraryHref = backToListHref;
+  const routeProgressPct = Math.max(0, Math.min(100, Math.round(routeTimeProgressPercent)));
+  const routeCircleRadius = 42;
+  const routeCircleCircumference = 2 * Math.PI * routeCircleRadius;
+  const routeDashOffset = routeCircleCircumference - (routeProgressPct / 100) * routeCircleCircumference;
+
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
+      {isApplyingRouteTimeUpdate && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
+          <div className="w-[340px] rounded-2xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffe9d6] text-2xl">
+              ⏱
+            </div>
+            <p className="text-sm text-slate-600">
+              Updating day timings and rebuilding itinerary
+            </p>
+            <div className="mt-5 flex flex-col items-center gap-3">
+              <div className="relative h-28 w-28">
+                <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100" role="img" aria-label="Route update progress">
+                  <circle cx="50" cy="50" r={routeCircleRadius} stroke="#e8edf4" strokeWidth="8" fill="none" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r={routeCircleRadius}
+                    stroke="#d546ab"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    fill="none"
+                    strokeDasharray={routeCircleCircumference}
+                    strokeDashoffset={routeDashOffset}
+                    style={{ transition: "stroke-dashoffset 250ms linear" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-slate-900">
+                  {routeProgressPct}%
+                </div>
+              </div>
+              <div className="text-sm font-semibold text-slate-800">Updating itinerary...</div>
+              <div className="text-xs text-slate-500">Estimated ~{Math.max(1, Math.round(routeTimeEstimatedMs / 1000))}s</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Card */}
       <Card className="border-none shadow-none bg-white">
         <CardContent className="pt-4 pb-0">
@@ -3302,11 +3787,16 @@ if (error || !itinerary) {
       </Card>
 
       {/* Daily Itinerary */}
-      {itinerary.days.map((day) => {
+        {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
 
   return (
-    <Card key={day.id} className="border border-[#e5d9f2] bg-white">
+    <Card
+      key={day.id}
+      id={`itinerary-day-${day.dayNumber}`}
+      data-day-number={day.dayNumber}
+      className="border border-[#e5d9f2] bg-white"
+    >
           <CardContent className="pt-2">
             {/* Day Header */}
            <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
@@ -3372,6 +3862,7 @@ if (error || !itinerary) {
             value={day.startTime}
             label="Start Time"
             onSave={async (newTime) => {
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
               await handleUpdateRouteTimesDirect(
                 itinerary.planId || 0,
                 day.id,
@@ -3379,7 +3870,6 @@ if (error || !itinerary) {
                 newTime,
                 day.endTime
               );
-              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
             }}
           />
         </PopoverContent>
@@ -3398,6 +3888,7 @@ if (error || !itinerary) {
             value={day.endTime}
             label="End Time"
             onSave={async (newTime) => {
+              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
               await handleUpdateRouteTimesDirect(
                 itinerary.planId || 0,
                 day.id,
@@ -3405,7 +3896,6 @@ if (error || !itinerary) {
                 day.startTime,
                 newTime
               );
-              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
             }}
           />
         </PopoverContent>
@@ -3451,19 +3941,11 @@ if (error || !itinerary) {
                   )}
 
                   {segment.type === "travel" && (() => {
-                    // Check if destination is "Hotel" and get actual hotel name for current day
-                    const isHotelTarget = /\bhotel\b/i.test(String(segment.to || "").trim());
-                    const hotelMeta = selectedHotelMetaByRoute.get(day.id);
-                    const travelToLabel = isHotelTarget && hotelMeta?.hotelName ? hotelMeta.hotelName : segment.to;
-                    const travelDistanceLabel = isHotelTarget && hotelMeta?.hotelDistance ? hotelMeta.hotelDistance : segment.distance;
-
-                    // Check if source is "Hotel" - use hotel from current day (checked in earlier on same day)
-                    const isHotelSource = /\bhotel\b/i.test(String(segment.from || "").trim());
-                    let travelFromLabel = segment.from;
-                    if (isHotelSource && hotelMeta?.hotelName) {
-                      // Use hotel from current day's checkin
-                      travelFromLabel = hotelMeta.hotelName;
-                    }
+                    // segment.from / segment.to are already hydrated by hotelHydratedDays useMemo
+                    // (replaces "Hotel" placeholders with real names and previous-day hotel for day-start FROM)
+                    const travelFromLabel = segment.from;
+                    const travelToLabel = segment.to;
+                    const travelDistanceLabel = segment.distance;
 
                     return (
                     <div className={`rounded-lg p-3 mb-3 border-2 ${segment.isConflict ? 'bg-red-50 border-red-400 shadow-sm' : 'bg-[#e8f9fd] border-transparent'}`}>
@@ -3751,7 +4233,7 @@ if (error || !itinerary) {
                     </div>
                   )}
 
-                  {segment.type === "checkin" && !readOnly && (() => {
+                  {segment.type === "checkin" && (() => {
                     // Get actual hotel name from API data instead of backend generic "Hotel"
                     const hotelMeta = selectedHotelMetaByRoute.get(day.id);
                     const actualHotelName = hotelMeta?.hotelName || segment.hotelName || "Hotel";
@@ -3765,8 +4247,9 @@ if (error || !itinerary) {
                       <div className="flex items-center gap-3">
                         <Building2 className="h-6 w-6 text-[#4ba3c3]" />
                         <div 
-                          className="flex-1 cursor-pointer hover:bg-white/50 rounded-lg p-2 -m-2 transition-colors"
+                          className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${readOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                           onClick={() => {
+                            if (readOnly) return;
                             // Get city code from hotel details if available, otherwise use default
                             let cityCode = "1"; // Default city code
                             if (hotelForDay?.destination) {
@@ -3805,31 +4288,34 @@ if (error || !itinerary) {
                               {segment.time}
                             </p>
                           )}
-                          <p className="text-xs text-[#d546ab] mt-2">
-                            Click to change hotel
-                          </p>
+                          {!readOnly && (
+                            <p className="text-xs text-[#d546ab] mt-2">
+                              Click to change hotel
+                            </p>
+                          )}
                         </div>
                         
                         {/* Room Category Selection Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab] shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
-                            const confirmedHotels = hotelDetails?.hotels?.filter(h => 
-                              itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
-                            );
-                            const hotelForDay = confirmedHotels?.find(h => 
-                              h.itineraryRouteId === day.id
-                            );
-                            
-                            if (hotelForDay) {
-                              setRoomSelectionModal({
-                                open: true,
-                                itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId,
-                                itinerary_plan_id: itinerary.planId || 0,
+                        {!readOnly && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab] shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
+                              const confirmedHotels = hotelDetails?.hotels?.filter(h => 
+                                itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
+                              );
+                              const hotelForDay = confirmedHotels?.find(h => 
+                                h.itineraryRouteId === day.id
+                              );
+                              
+                              if (hotelForDay) {
+                                setRoomSelectionModal({
+                                  open: true,
+                                  itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId,
+                                  itinerary_plan_id: itinerary.planId || 0,
                                 itinerary_route_id: day.id,
                                 hotel_id: hotelForDay.hotelId,
                                 group_type: hotelForDay.groupType,
@@ -3843,98 +4329,55 @@ if (error || !itinerary) {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </div>
                     );
                   })()}
 
-                  {segment.type === "hotspot" && !readOnly && (
-                    <div className="flex flex-col gap-2 mb-3">
-                      <div className="flex items-center gap-2 text-[#d546ab]">
-                        <Plus className="h-4 w-4" />
-                        <button 
-                          className="text-sm hover:underline font-medium"
+                  {segment.type === "hotspot" && !readOnly && (() => {
+                    const isAnchored =
+                      segment.anchorType === "after_travel" &&
+                      Number.isInteger(Number(segment.anchorIndex));
+
+                    if (isAnchored) {
+                      const anchorKey = getAnchorKey(day.id, Number(segment.anchorIndex));
+                      const anchorAvailability = anchorAvailabilityMap[anchorKey];
+                      // Hide only when we have an explicit negative check result.
+                      if (anchorAvailability === false) {
+                        return null;
+                      }
+                    }
+
+                    return (
+                      <div className="mb-3">
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 text-[#d546ab] hover:underline font-medium"
                           onClick={() =>
-                            toggleInlineAddHotspot(
+                            openAddHotspotModal(
+                              itinerary.planId || 0,
                               day.id,
                               segment.locationId || 0,
-                              day.arrival || "Location"
+                              day.arrival || "Location",
+                              isAnchored
+                                ? {
+                                    anchorType: "after_travel",
+                                    anchorIndex: Number(segment.anchorIndex),
+                                    anchorFrom: segment.anchorFrom,
+                                    anchorTo: segment.anchorTo,
+                                    anchorTimeRange: segment.anchorTimeRange,
+                                  }
+                                : null,
                             )
                           }
                         >
+                          <Plus className="h-4 w-4" />
                           {segment.text}
                         </button>
                       </div>
-
-                      {expandedAddHotspotDayId === day.id && !readOnly && (
-                        <div className="ml-6 mt-2 p-4 bg-white rounded-xl border-2 border-dashed border-[#e5d9f2] animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-bold text-[#4a4260]">Available Places in {day.arrival || "this location"}</h4>
-                            <div className="relative w-48">
-                              <input
-                                type="text"
-                                placeholder="Search places..."
-                                className="w-full text-xs p-2 pl-8 border rounded-md focus:outline-none focus:ring-1 focus:ring-[#d546ab]"
-                                value={hotspotSearchQuery}
-                                onChange={(e) => setHotspotSearchQuery(e.target.value)}
-                              />
-                              <MapPin className="absolute left-2 top-2 h-3 w-3 text-[#6c6c6c]" />
-                            </div>
-                          </div>
-
-                          {loadingHotspots ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-6 w-6 animate-spin text-[#d546ab]" />
-                            </div>
-                          ) : filteredHotspots.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {filteredHotspots.map((h) => (
-                                <div 
-                                  key={h.id} 
-                                  className="group flex items-start gap-3 p-3 rounded-lg border border-[#e5d9f2] hover:border-[#d546ab] hover:bg-[#fdf6ff] transition-all cursor-pointer"
-                                  onClick={() => {
-                                    const pId = itinerary.planId || 0;
-                                    const rId = day.id;
-                                    setAddHotspotModal({
-                                      open: true,
-                                      planId: pId,
-                                      routeId: rId,
-                                      locationId: 0,
-                                      locationName: day.arrival || "this location",
-                                    });
-                                    handlePreviewHotspot(h.id, pId, rId);
-                                  }}
-                                >
-                                  <div className="w-12 h-12 rounded-md bg-[#f3e8ff] flex items-center justify-center flex-shrink-0 group-hover:bg-[#d546ab] transition-colors">
-                                    <MapPin className="h-6 w-6 text-[#d546ab] group-hover:text-white" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-sm font-bold text-[#4a4260] truncate">{h.name}</p>
-                                      <span className="text-[10px] font-bold text-[#d546ab] bg-[#fdf2f8] px-1.5 py-0.5 rounded">
-                                        {h.timeSpend}h
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-[#6c6c6c] line-clamp-2 mt-0.5">{h.description}</p>
-                                    <div className="flex items-center justify-between mt-2">
-                                      <span className="text-[10px] font-bold text-[#4ba3c3]">₹ {h.amount.toFixed(0)}</span>
-                                      <span className="text-[10px] font-bold text-[#d546ab] opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                                        Add to Plan <ArrowRight className="ml-1 h-2 w-2" />
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-[#6c6c6c]">
-                              <p className="text-sm">No places found matching your search.</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {segment.type === "return" && (
                     <div className="flex items-center gap-3 text-sm text-[#6c6c6c]">
@@ -4709,9 +5152,25 @@ if (error || !itinerary) {
       {/* Add Hotspot Modal */}
       <Dialog
         open={addHotspotModal.open}
-        onOpenChange={(open) =>
-          setAddHotspotModal({ ...addHotspotModal, open })
-        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddHotspotModal({
+              open: false,
+              planId: null,
+              routeId: null,
+              locationId: null,
+              locationName: "",
+            });
+            setHotspotSearchQuery("");
+            setPreviewTimelinesByHotspot({});
+            setSelectedHotspotIds([]);
+            setIsPreviewingHotspotId(null);
+            setSelectedHotspotAnchor(null);
+            return;
+          }
+
+          setAddHotspotModal({ ...addHotspotModal, open: true });
+        }}
       >
         <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col">
           <DialogHeader>
@@ -4719,7 +5178,9 @@ if (error || !itinerary) {
               <div>
                 <DialogTitle>Hotspot List</DialogTitle>
                 <DialogDescription>
-                  Select a hotspot to add to your itinerary
+                  {selectedHotspotAnchor
+                    ? `Select a hotspot to insert after ${selectedHotspotAnchor.anchorFrom || "current"} -> ${selectedHotspotAnchor.anchorTo || "next stop"}`
+                    : "Select a hotspot to add to your itinerary"}
                 </DialogDescription>
               </div>
               <input
@@ -4734,7 +5195,7 @@ if (error || !itinerary) {
           <div className="py-4 flex-1 overflow-hidden flex min-h-0">
             <div className="flex gap-4 w-full min-h-0">
               {/* Left Column: Hotspot List */}
-              <div ref={hotspotListRef} className={`${selectedHotspotId ? 'w-1/2' : 'w-full'} overflow-y-auto min-h-0`}>
+              <div ref={hotspotListRef} className="w-1/2 overflow-y-auto min-h-0">
                 {loadingHotspots ? (
                   <p className="text-sm text-[#6c6c6c] text-center py-8">
                     Loading available hotspots...
@@ -4746,10 +5207,19 @@ if (error || !itinerary) {
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {filteredHotspots.map((hotspot) => (
+                      (() => {
+                        const isSelected = selectedHotspotIds.includes(hotspot.id);
+                        const hotspotTimeline = previewTimelinesByHotspot[hotspot.id] || [];
+                        const hasConflict = hotspotTimeline.some(
+                          (seg: any) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
+                        );
+                        const isLoadingThis = isPreviewingHotspotId === hotspot.id;
+
+                        return (
                       <div
                         key={hotspot.id}
                         data-hotspot-id={hotspot.id}
-                        className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${selectedHotspotId === hotspot.id ? 'ring-2 ring-[#d546ab]' : ''}`}
+                        className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${isSelected ? 'ring-2 ring-[#d546ab]' : ''}`}
                       >
                         <div className="p-4">
                           <div className="flex justify-between items-start mb-2">
@@ -4765,31 +5235,31 @@ if (error || !itinerary) {
                                   Deleted from timeline
                                 </span>
                               )}
-                              {selectedHotspotId === hotspot.id && (
+                              {isSelected && (
                                 <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${
-                                  previewTimeline?.some(seg => seg.isConflict && Number(seg.locationId) === hotspot.id) 
+                                  hasConflict
                                     ? 'bg-red-100 text-red-700' 
                                     : 'bg-green-100 text-green-700'
                                 }`}>
-                                  {previewTimeline?.some(seg => seg.isConflict && Number(seg.locationId) === hotspot.id) ? 'Conflict' : 'Selected'}
+                                  {hasConflict ? 'Conflict' : 'Selected'}
                                 </span>
                               )}
                             </h4>
                             <div className="flex gap-2">
                               <Button
                                 size="sm"
-                                variant={selectedHotspotId === hotspot.id ? "outline" : "default"}
-                                className={selectedHotspotId === hotspot.id ? "border-gray-300" : "bg-[#d546ab] hover:bg-[#b93a8f] text-white"}
+                                variant={isSelected ? "outline" : "default"}
+                                className={isSelected ? "border-gray-300" : "bg-[#d546ab] hover:bg-[#b93a8f] text-white"}
                                 onClick={() => handlePreviewHotspot(hotspot.id)}
-                                disabled={isPreviewing && selectedHotspotId === hotspot.id}
+                                disabled={isLoadingThis}
                               >
-                                {isPreviewing && selectedHotspotId === hotspot.id ? (
+                                {isLoadingThis ? (
                                   <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Previewing...
                                   </>
-                                ) : selectedHotspotId === hotspot.id ? (
-                                  "Refresh Preview"
+                                ) : isSelected ? (
+                                  "Refresh"
                                 ) : (
                                   "Preview"
                                 )}
@@ -4821,117 +5291,144 @@ if (error || !itinerary) {
                           </div>
                         </div>
                       </div>
+                        );
+                      })()
                     ))}
                   </div>
                 )}
               </div>
 
               {/* Right Column: Preview */}
-              {selectedHotspotId && (
-                <div className="w-1/2 border-l pl-4 flex flex-col overflow-hidden min-h-0">
-                  <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
-                    <Clock className="h-4 w-4" />
-                    Proposed Timeline
-                  </h3>
-                  <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
-                    {isPreviewing ? (
-                      <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c]">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
-                        <p className="text-sm">Calculating best slot...</p>
-                      </div>
-                    ) : previewTimeline ? (
-                      <>
-                        {previewTimeline.map((seg, idx) => {
-                          const isSelected = seg.type === 'attraction' && Number(seg.locationId) === Number(selectedHotspotId);
-                          return (
-                            <div 
-                              key={idx} 
-                              data-selected={isSelected ? "true" : "false"}
-                              className={`p-3 rounded-lg border-2 transition-all ${
-                                seg.isConflict 
-                                  ? 'bg-red-50 border-red-300 shadow-sm' 
-                                  : isSelected
-                                    ? 'bg-green-50 border-green-500 ring-2 ring-green-200 shadow-md scale-[1.02]'
-                                    : 'bg-gray-50 border-gray-200 opacity-80'
-                              }`}
-                            >
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                                    seg.type === 'travel' ? 'bg-blue-100 text-blue-700' : 
-                                    seg.type === 'hotspot' ? 'bg-purple-100 text-purple-700' : 
-                                    'bg-gray-200 text-gray-700'
-                                  }`}>
-                                    {seg.type}
-                                  </span>
-                                  <span className="text-xs font-bold text-[#4a4260]">
-                                    {seg.timeRange}
-                                  </span>
-                                </div>
-                                {seg.isConflict ? (
+              <div className="w-1/2 border-l pl-4 flex flex-col overflow-hidden min-h-0">
+                <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
+                  <Clock className="h-4 w-4" />
+                  Proposed Timeline
+                </h3>
+                <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                  {isPreviewingHotspotId ? (
+                    <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
+                      <p className="text-sm">Calculating selected slot...</p>
+                    </div>
+                  ) : null}
+
+                  {effectivePreviewTimeline.length > 0 ? (
+                    <>
+                      {effectivePreviewTimeline.map((seg: any, idx: number) => {
+                        const isUserSelected = seg?.isUserSelectedPreview === true;
+                        const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
+
+                        return (
+                          <div
+                            key={`${idx}-${seg?.type}-${seg?.text || ''}`}
+                            data-selected={isUserSelected ? "true" : "false"}
+                            className={`p-3 rounded-lg border-2 transition-all ${
+                              seg?.isConflict
+                                ? 'bg-red-50 border-red-300 shadow-sm'
+                                : isUserSelected
+                                  ? 'bg-green-50 border-green-500 ring-2 ring-green-200 shadow-md scale-[1.02]'
+                                  : 'bg-gray-50 border-gray-200 opacity-90'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start mb-1 gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                                  seg?.type === 'travel' ? 'bg-blue-100 text-blue-700'
+                                  : seg?.type === 'attraction' ? 'bg-green-100 text-green-700'
+                                  : 'bg-gray-200 text-gray-700'
+                                }`}>
+                                  {seg?.type || 'item'}
+                                </span>
+                                <span className="text-xs font-bold text-[#4a4260]">
+                                  {seg?.timeRange || '--'}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {seg?.isConflict ? (
                                   <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded">
                                     <AlertTriangle className="h-3 w-3" />
                                     Conflict
                                   </span>
-                                ) : isSelected ? (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase bg-green-100 px-2 py-0.5 rounded animate-pulse">
+                                ) : isUserSelected ? (
+                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase bg-green-100 px-2 py-0.5 rounded">
                                     <Plus className="h-3 w-3" />
                                     New
                                   </span>
                                 ) : null}
+
+                                {isUserSelected && selectedId > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleRemovePreviewHotspot(selectedId)}
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Remove
+                                  </Button>
+                                )}
                               </div>
-                              <p className={`text-sm font-bold ${isSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
-                                {seg.text}
-                              </p>
-                              {seg.isConflict && (
-                                <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
-                                  <p className="text-xs text-red-600 font-medium leading-tight">
-                                    {seg.conflictReason}
-                                  </p>
-                                </div>
-                              )}
                             </div>
-                          );
-                        })}
-                        <div className="pt-4 sticky bottom-0 bg-white">
-                          <Button 
-                            className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
-                            onClick={() => handleAddHotspot(selectedHotspotId)}
-                            disabled={isAddingHotspot}
-                          >
-                            {isAddingHotspot ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Adding...
-                              </>
-                            ) : (
-                              "Confirm Add to Itinerary"
+
+                            <p className={`text-sm font-bold ${isUserSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
+                              {seg?.text}
+                            </p>
+
+                            {seg?.isConflict && (
+                              <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
+                                <p className="text-xs text-red-600 font-medium leading-tight">
+                                  {seg?.conflictReason}
+                                </p>
+                              </div>
                             )}
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c] border-2 border-dashed rounded-lg">
-                        <p className="text-sm">Select a hotspot to see the preview</p>
+                          </div>
+                        );
+                      })}
+
+                      <div className="pt-4 sticky bottom-0 bg-white">
+                        <Button
+                          className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                          onClick={handleAddHotspot}
+                          disabled={isAddingHotspot || selectedHotspotIds.length === 0}
+                        >
+                          {isAddingHotspot ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Adding...
+                            </>
+                          ) : (
+                            `Confirm Add to Itinerary${selectedHotspotIds.length > 0 ? ` (${selectedHotspotIds.length})` : ''}`
+                          )}
+                        </Button>
                       </div>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c] border-2 border-dashed rounded-lg">
+                      <p className="text-sm">No timeline available for this route.</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() =>
+              onClick={() => {
                 setAddHotspotModal({
                   open: false,
                   planId: null,
                   routeId: null,
                   locationId: null,
                   locationName: "",
-                })
-              }
+                });
+                setHotspotSearchQuery("");
+                setPreviewTimelinesByHotspot({});
+                setSelectedHotspotIds([]);
+                setIsPreviewingHotspotId(null);
+                setSelectedHotspotAnchor(null);
+              }}
               disabled={isAddingHotspot}
             >
               Close

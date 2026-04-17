@@ -41,6 +41,11 @@ export type HotelArrivalPolicyResponse = {
   debug?: Record<string, unknown>;
 };
 
+export type HotspotAnchorPayload = {
+  anchorType?: "after_travel";
+  anchorIndex?: number;
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -154,12 +159,22 @@ export const ItineraryService = {
       : `itineraries/details/${encodeURIComponent(quoteId)}`;
     return api(url, {
       method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
   },
 
   async getHotelDetails(quoteId: string) {
     return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}`, {
       method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
   },
 
@@ -353,6 +368,18 @@ export const ItineraryService = {
     });
   },
 
+  async getAvailableHotspotsForAnchor(data: {
+    planId: number;
+    routeId: number;
+    anchorType: "after_travel";
+    anchorIndex: number;
+  }) {
+    return api("itineraries/hotspots/available-for-anchor", {
+      method: "POST",
+      body: data,
+    });
+  },
+
   async addHotspot(planId: number, routeId: number, hotspotId: number) {
     return api("itineraries/hotspots/add", {
       method: "POST",
@@ -360,17 +387,37 @@ export const ItineraryService = {
     });
   },
 
-  async previewAddHotspot(planId: number, routeId: number, hotspotId: number) {
+  async previewAddHotspot(
+    planId: number,
+    routeId: number,
+    hotspotId: number,
+    anchor?: HotspotAnchorPayload,
+  ) {
     return api(`itineraries/${planId}/manual-hotspot/preview`, {
       method: "POST",
-      body: { routeId, hotspotId },
+      body: {
+        routeId,
+        hotspotId,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+      },
     });
   },
 
-  async addManualHotspot(planId: number, routeId: number, hotspotId: number) {
+  async addManualHotspot(
+    planId: number,
+    routeId: number,
+    hotspotId: number,
+    anchor?: HotspotAnchorPayload,
+  ) {
     return api(`itineraries/${planId}/manual-hotspot`, {
       method: "POST",
-      body: { routeId, hotspotId },
+      body: {
+        routeId,
+        hotspotId,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+      },
     });
   },
 
