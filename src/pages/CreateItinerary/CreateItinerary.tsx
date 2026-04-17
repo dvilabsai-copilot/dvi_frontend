@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ItineraryService } from "@/services/itinerary";
@@ -36,6 +36,7 @@ import {
 import { SaveRouteConfirmDialog } from "./helpers/SaveRouteConfirmDialog";
 import { useRoomsAndTravellers } from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
+import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
 
 // ----------------- types -----------------
 
@@ -59,6 +60,21 @@ function safeTimeFromISO(iso?: string | null, fallback = ""): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return fallback;
   return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+}
+
+function safeDateFromISO(iso?: string | null, fallback = ""): string {
+  if (!iso) return fallback;
+
+  const raw = String(iso).trim();
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    const [, year, month, day] = ymdMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return fallback;
+  return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
 }
 
 
@@ -215,6 +231,11 @@ export const CreateItinerary = () => {
 
   const [showRouteConfirm, setShowRouteConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any | null>(null);
+  const [saveProgressPercent, setSaveProgressPercent] = useState(0);
+  const [activeSaveType, setActiveSaveType] = useState<
+    "itineary_basic_info" | "itineary_basic_info_with_optimized_route" | null
+  >(null);
+  const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
   const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
     open: boolean;
@@ -232,8 +253,29 @@ export const CreateItinerary = () => {
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
     useState(false);
 
+  const saveProgressTimerRef = useRef<number | null>(null);
+
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
+
+  const stopSaveProgress = () => {
+    if (saveProgressTimerRef.current !== null) {
+      window.clearInterval(saveProgressTimerRef.current);
+      saveProgressTimerRef.current = null;
+    }
+  };
+
+  const startSaveProgress = (estimatedMs: number) => {
+    stopSaveProgress();
+    setSaveProgressPercent(1);
+    const startedAt = Date.now();
+
+    saveProgressTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
+      setSaveProgressPercent(Math.min(95, Math.max(1, pct)));
+    }, 220);
+  };
 
   // ----------------- effects -----------------
 
@@ -306,6 +348,12 @@ useEffect(() => {
   vehicles,
 ]);
 
+useEffect(() => {
+  return () => {
+    stopSaveProgress();
+  };
+}, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -360,12 +408,12 @@ useEffect(() => {
             // ✅ DB fields are trip_start_date_and_time / trip_end_date_and_time
             setTripStartDate(
               p.trip_start_date_and_time
-                ? toDDMMYYYY(new Date(p.trip_start_date_and_time))
+                ? safeDateFromISO(p.trip_start_date_and_time)
                 : ""
             );
             setTripEndDate(
               p.trip_end_date_and_time
-                ? toDDMMYYYY(new Date(p.trip_end_date_and_time))
+                ? safeDateFromISO(p.trip_end_date_and_time)
                 : ""
             );
 
@@ -415,7 +463,7 @@ useEffect(() => {
     id: idx + 1,
     day: r.no_of_days ?? idx + 1,
     date: r.itinerary_route_date
-      ? toDDMMYYYY(new Date(r.itinerary_route_date))
+      ? safeDateFromISO(r.itinerary_route_date)
       : "",
     source: r.location_name ?? "",
     next: r.next_visiting_location ?? "",
@@ -524,7 +572,7 @@ useEffect(() => {
               id: idx + 1,
               day: r.no_of_days ?? idx + 1,
               date: r.itinerary_route_date
-                ? toDDMMYYYY(new Date(r.itinerary_route_date))
+                ? safeDateFromISO(r.itinerary_route_date)
                 : addDaysToDDMMYYYY(tripStartDate, idx),
               source: r.location_name ?? "",
               next: r.next_visiting_location ?? "",
@@ -1124,12 +1172,19 @@ const handleSaveWithType = async (
 ) => {
   try {
     setIsSaving(true);
+    setActiveSaveType(type);
 
     const basePayload = pendingPayload ?? buildPayload();
+    const dayCount = Math.max(1, Number(basePayload?.plan?.no_of_days ?? 1));
+    const estimatedMs = getEstimatedSaveMs(dayCount, type);
+    setEstimatedSaveMs(estimatedMs);
+    startSaveProgress(estimatedMs);
+
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
     const res = await ItineraryService.create(basePayload, type);
+    setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
     const rawPlanId =
@@ -1174,7 +1229,9 @@ const handleSaveWithType = async (
       variant: "destructive",
     });
   } finally {
+    stopSaveProgress();
     setIsSaving(false);
+    setActiveSaveType(null);
   }
 };
 
@@ -1328,6 +1385,10 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
       <SaveRouteConfirmDialog
         open={showRouteConfirm}
         isSaving={isSaving}
+        progressPercent={saveProgressPercent}
+        estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}
+        dayCount={Math.max(1, Number(pendingPayload?.plan?.no_of_days ?? noOfDays ?? 1))}
+        saveType={activeSaveType}
         onClose={handleConfirmClose}
         onSaveSameRoute={() => handleSaveWithType("itineary_basic_info")}
         onOptimizeRoute={() => handleSaveWithType("itineary_basic_info_with_optimized_route")}
