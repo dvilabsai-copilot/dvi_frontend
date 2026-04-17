@@ -88,6 +88,7 @@ type AttractionSegment = {
   videoUrl?: string | null;
   planOwnWay?: boolean;
   activities?: Activity[];
+  hasAvailableActivities?: boolean;
   hotspotId?: number;
   routeHotspotId?: number;
   locationId?: number | null;
@@ -681,11 +682,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [isPreviewingHotspotId, setIsPreviewingHotspotId] = useState<number | null>(null);
   const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
   const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
-  const [anchorAvailabilityMap, setAnchorAvailabilityMap] = useState<Record<string, boolean>>({});
-
-  const getAnchorKey = useCallback((routeId: number, anchorIndex: number) => {
-    return `${routeId}:${anchorIndex}`;
-  }, []);
 
   // Refs for scrolling
   const hotspotListRef = useRef<HTMLDivElement>(null);
@@ -873,71 +869,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (a.visitAgain === b.visitAgain) return 0;
       return a.visitAgain ? 1 : -1;
     });
-
-  useEffect(() => {
-    if (readOnly || !itinerary?.planId || !Array.isArray(itinerary?.days)) {
-      setAnchorAvailabilityMap({});
-      return;
-    }
-
-    const anchors: Array<{ routeId: number; anchorIndex: number }> = [];
-    for (const day of itinerary.days) {
-      for (const segment of day.segments || []) {
-        if (
-          segment?.type === "hotspot" &&
-          segment?.anchorType === "after_travel" &&
-          Number.isInteger(Number(segment?.anchorIndex))
-        ) {
-          anchors.push({
-            routeId: Number(day.id),
-            anchorIndex: Number(segment.anchorIndex),
-          });
-        }
-      }
-    }
-
-    if (anchors.length === 0) {
-      setAnchorAvailabilityMap({});
-      return;
-    }
-
-    let cancelled = false;
-    setAnchorAvailabilityMap({});
-
-    (async () => {
-      for (const anchor of anchors) {
-        if (cancelled) return;
-
-        const key = getAnchorKey(anchor.routeId, anchor.anchorIndex);
-        try {
-          const hotspots = await ItineraryService.getAvailableHotspotsForAnchor({
-            planId: Number(itinerary.planId),
-            routeId: Number(anchor.routeId),
-            anchorType: "after_travel",
-            anchorIndex: Number(anchor.anchorIndex),
-          });
-
-          if (!cancelled) {
-            setAnchorAvailabilityMap((prev) => ({
-              ...prev,
-              [key]: Array.isArray(hotspots) && hotspots.length > 0,
-            }));
-          }
-        } catch {
-          if (!cancelled) {
-            setAnchorAvailabilityMap((prev) => ({
-              ...prev,
-              [key]: false,
-            }));
-          }
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [itinerary?.planId, itinerary?.days, readOnly, getAnchorKey]);
 
   // Hotel selection modal state
   type AvailableHotel = {
@@ -2563,14 +2494,7 @@ const htmlToPlainText = (html: string): string => {
     // Fetch available hotspots for this location
     setLoadingHotspots(true);
     try {
-      const hotspots = anchor
-        ? await ItineraryService.getAvailableHotspotsForAnchor({
-            planId,
-            routeId,
-            anchorType: "after_travel",
-            anchorIndex: anchor.anchorIndex,
-          })
-        : await ItineraryService.getAvailableHotspots(routeId);
+      const hotspots = await ItineraryService.getAvailableHotspots(routeId);
       setAvailableHotspots(hotspots as AvailableHotspot[]);
 
       // Open directly in preview layout by selecting the first available hotspot.
@@ -4055,21 +3979,23 @@ if (error || !itinerary) {
                                 <Clock className="h-3 w-3 mr-1" />
                                 {segment.visitTime}
                               </span>
-                              <button 
-                                className="text-[#d546ab] hover:underline flex items-center font-medium"
-                                onClick={() =>
-                                  openAddActivityModal(
-                                    itinerary.planId || 0,
-                                    day.id,
-                                    segment.routeHotspotId || 0,
-                                    segment.hotspotId || 0,
-                                    segment.name
-                                  )
-                                }
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add Activity
-                              </button>
+                              {segment.hasAvailableActivities && (
+                                <button 
+                                  className="text-[#d546ab] hover:underline flex items-center font-medium"
+                                  onClick={() =>
+                                    openAddActivityModal(
+                                      itinerary.planId || 0,
+                                      day.id,
+                                      segment.routeHotspotId || 0,
+                                      segment.hotspotId || 0,
+                                      segment.name
+                                    )
+                                  }
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Activity
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col gap-2 sm:ml-auto">
@@ -4339,15 +4265,6 @@ if (error || !itinerary) {
                     const isAnchored =
                       segment.anchorType === "after_travel" &&
                       Number.isInteger(Number(segment.anchorIndex));
-
-                    if (isAnchored) {
-                      const anchorKey = getAnchorKey(day.id, Number(segment.anchorIndex));
-                      const anchorAvailability = anchorAvailabilityMap[anchorKey];
-                      // Hide only when we have an explicit negative check result.
-                      if (anchorAvailability === false) {
-                        return null;
-                      }
-                    }
 
                     return (
                       <div className="mb-3">
