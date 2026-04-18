@@ -74,6 +74,7 @@ type Activity = {
   endTime: string | null;
   duration: string | null;
   image: string | null;
+  galleryImages?: string[];
 };
 
 type AttractionSegment = {
@@ -85,6 +86,7 @@ type AttractionSegment = {
   amount: number | null; // Entry cost
   timings?: string;
   image: string | null;
+  galleryImages?: string[];
   videoUrl?: string | null;
   planOwnWay?: boolean;
   activities?: Activity[];
@@ -292,6 +294,8 @@ type ItineraryDetailsResponse = {
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
+  dayCount?: number;
+  nightCount?: number;
   roomCount: number;
   extraBed: number;
   childWithBed: number;
@@ -954,6 +958,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const [availableHotels, setAvailableHotels] = useState<AvailableHotel[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
+  const [isRebuildingHotels, setIsRebuildingHotels] = useState(false);
   const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
   const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
   const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
@@ -1010,6 +1015,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     images: [],
     title: "",
   });
+  const [galleryActiveIdx, setGalleryActiveIdx] = useState(0);
 
   // Video modal state
   const [videoModal, setVideoModal] = useState<{
@@ -1353,7 +1359,15 @@ const hotelHydratedDays = useMemo(() => {
   });
 }, [itinerary?.days, selectedHotelMetaByRoute]);
 
-const displayDays = hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || [];
+// Ensure "start" segment always appears before first travel segment within each day
+const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map(day => ({
+  ...day,
+  segments: [...(day.segments || [])].sort((a, b) => {
+    if (a.type === 'start' && b.type !== 'start') return -1;
+    if (b.type === 'start' && a.type !== 'start') return 1;
+    return 0;
+  }),
+}));
 
 const overallTripCostWithHotels = useMemo(() => {
   const baseOverall = Number(itinerary?.overallCost || 0);
@@ -2014,6 +2028,34 @@ const htmlToPlainText = (html: string): string => {
     setSelectedHotelBookings(selections);
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
+
+  const shouldShowRebuildHotelsButton = useMemo(() => {
+    if (!hotelDetails?.hotels?.length) return false;
+    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
+    return hotelDetails.hotels.every((h) => h.hotelName === 'No Hotels Available');
+  }, [hotelDetails]);
+
+  const handleRebuildHotels = useCallback(async () => {
+    if (!quoteId || isRebuildingHotels) return;
+
+    try {
+      setIsRebuildingHotels(true);
+      toast.info('Rebuilding hotels...');
+
+      const [detailsRes, hotelRes] = await Promise.all([
+        ItineraryService.getDetails(quoteId),
+        ItineraryService.rebuildHotelDetails(quoteId, 1, 20, activeHotelGroupType || undefined),
+      ]);
+
+      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      toast.success('Hotels rebuilt successfully');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to rebuild hotels');
+    } finally {
+      setIsRebuildingHotels(false);
+    }
+  }, [quoteId, isRebuildingHotels, activeHotelGroupType]);
 
   useEffect(() => {
   if (!quoteId) {
@@ -2780,10 +2822,22 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
+  const toImgSrc = (path: string | null | undefined): string | undefined => {
+    if (!path || !path.trim()) return undefined;
+    if (path.startsWith('http')) return path;
+    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
+    return `${apiBase}${path}`;
+  };
+
   const openGalleryModal = (images: string[], title: string) => {
+    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
+    const resolved = images
+      .filter(img => img && img.trim() !== '')
+      .map(img => img.startsWith('http') ? img : `${apiBase}${img}`);
+    setGalleryActiveIdx(0);
     setGalleryModal({
       open: true,
-      images: images.filter(img => img && img.trim() !== ''),
+      images: resolved,
       title,
     });
   };
@@ -3119,9 +3173,15 @@ const htmlToPlainText = (html: string): string => {
   };
 
   const openVideoModal = (videoUrl: string, title: string) => {
+    // Convert YouTube watch URLs to embed URLs
+    let embedUrl = videoUrl;
+    const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (ytMatch) {
+      embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
     setVideoModal({
       open: true,
-      videoUrl,
+      videoUrl: embedUrl,
       title,
     });
   };
@@ -3779,38 +3839,61 @@ if (error || !itinerary) {
             </div>
           </div>
 
-          {/* Quote Info */}
-          <div className="flex flex-col lg:flex-row justify-between gap-4 mb-1">
+          {/* Quote Info — row 1 */}
+          <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
             <div className="flex flex-wrap items-center gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-[#6c6c6c]" />
-                <span className="font-medium text-[#4a4260]">
-                  {itinerary.quoteId}
-                </span>
+                <span className="font-bold text-[#d546ab]">{itinerary.quoteId}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#6c6c6c]" />
-                <span className="text-[#6c6c6c]">{itinerary.dateRange}</span>
+                <Calendar className="h-4 w-4 text-[#6c6c6c]" />
+                <span className="font-medium text-[#4a4260]">{itinerary.dateRange}</span>
+                {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+                  <span className="text-[#4a4260] font-medium">
+                    ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+                  </span>
+                )}
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-[#6c6c6c]">Overall Trip Cost :</p>
-              <p className="text-2xl font-bold text-[#d546ab]">
-                ₹ {overallTripCostWithHotels}
-              </p>
+            <div className="text-right flex items-center gap-2 justify-end">
+              {shouldShowRebuildHotelsButton && !readOnly && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRebuildHotels}
+                  disabled={isRebuildingHotels}
+                  className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                >
+                  {isRebuildingHotels ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Rebuilding...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Rebuild Hotels
+                    </>
+                  )}
+                </Button>
+              )}
+              <div>
+                <span className="text-sm text-[#6c6c6c]">Overall Trip Cost : </span>
+                <span className="text-xl font-bold text-[#d546ab]">₹ {overallTripCostWithHotels}</span>
+              </div>
             </div>
           </div>
 
-          {/* Trip Details */}
-          <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c]">
-            <span>Room Count: {itinerary.roomCount}</span>
-            <span>Extra Bed: {itinerary.extraBed}</span>
-            <span>Child with bed: {itinerary.childWithBed}</span>
-            <span>Child without bed: {itinerary.childWithoutBed}</span>
+          {/* Trip Details — row 2 (same bg) */}
+          <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
+            <span>Room Count <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span></span>
+            <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
+            <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
+            <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
             <div className="ml-auto flex gap-4">
-              <span>Adults: {itinerary.adults}</span>
-              <span>Child: {itinerary.children}</span>
-              <span>Infants: {itinerary.infants}</span>
+              <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
+              <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
+              <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
             </div>
           </div>
         </CardContent>
@@ -3933,130 +4016,84 @@ if (error || !itinerary) {
     </div>
   </div>
 
-  <div className="flex justify-center lg:justify-end lg:pl-[260px]">
-    <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium whitespace-nowrap">
-      Travel: {intercityDistance}
+  <div className="flex justify-center lg:justify-end lg:pl-[260px] items-center gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff] h-7 px-2 text-xs"
+    >
+      <Plus className="h-3 w-3 mr-1" />
+      Add Guide
+    </Button>
+    <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium whitespace-nowrap text-sm">
+      {intercityDistance}
     </span>
   </div>
 </div>
 
- {/* Add Guide Button */}
-              <div className="flex justify-start mt-2 ml-8">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Guide
-                </Button>
-              </div>
             {/* Segments */}
-            <div className="space-y-4">
+            <div className="space-y-0">
               {day.segments.map((segment, idx) => (
-                <div key={idx} className="ml-8">
-                  {segment.type === "start" && (
-                    <div className="flex items-center gap-3 mb-4">
-                      <Car className="h-5 w-5 text-[#6c6c6c]" />
-                      <div>
-                        <p className="font-medium text-[#4a4260]">
-                          {segment.title}
-                        </p>
-                        <p className="text-sm text-[#6c6c6c]">
-                          <Clock className="inline h-3 w-3 mr-1" />
-                          {segment.timeRange}
-                        </p>
+                <div key={idx}>
+                  {/* Connector dots — only between real segments, never around hotspot CTAs */}
+                  {idx > 0 &&
+                    segment.type !== 'hotspot' &&
+                    day.segments[idx - 1]?.type !== 'hotspot' && (
+                    <div className="flex justify-start ml-5 my-0.5">
+                      <div className="flex flex-col items-center gap-[2px]">
+                        <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
+                        <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
+                        <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
                       </div>
+                    </div>
+                  )}
+                  <div className="ml-4">
+                  {segment.type === "start" && (
+                    <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
+                      <Car className="h-4 w-4 shrink-0" />
+                      <span className="font-medium text-[#4a4260]">{segment.title}</span>
+                      <Clock className="h-3 w-3 ml-1" />
+                      <span>{segment.timeRange}</span>
                     </div>
                   )}
 
                   {segment.type === "travel" && (() => {
-                    // segment.from / segment.to are already hydrated by hotelHydratedDays useMemo
-                    // (replaces "Hotel" placeholders with real names and previous-day hotel for day-start FROM)
                     const travelFromLabel = segment.from;
                     const travelToLabel = segment.to;
                     const travelDistanceLabel = segment.distance;
 
                     return (
-                    <div className={`rounded-lg p-3 mb-3 border-2 ${segment.isConflict ? 'bg-red-50 border-red-400 shadow-sm' : 'bg-[#e8f9fd] border-transparent'}`}>
+                    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
+                      <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
+                      <span className="text-[#4a4260] min-w-0 flex-1">
+                        <span className="font-medium">Travelling from </span>
+                        <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
+                        <span className="font-medium"> to </span>
+                        <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap justify-end gap-x-3">
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
+                        <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                        <span className="flex items-center gap-1">⏱ {segment.duration}</span>
+                        {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
+                      </span>
                       {segment.isConflict && (
-                        <div className="flex items-center gap-2 text-red-700 text-[11px] font-bold mb-2 bg-red-100 px-2 py-1 rounded">
-                          <AlertTriangle className="h-3 w-3" />
-                          TIMING CONFLICT: {segment.conflictReason}
-                        </div>
+                        <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
                       )}
-                      <div className="flex items-start gap-3">
-                        <Car className="h-5 w-5 text-[#4ba3c3] mt-1" />
-                        <div className="flex-1">
-                          <p className="text-sm text-[#4a4260]">
-                            <span className="font-medium">Travelling from</span>{" "}
-                            <span className="text-[#d546ab]">
-                              {travelFromLabel}
-                            </span>{" "}
-                            <span className="font-medium">to</span>{" "}
-                            <span className="text-[#d546ab]">{travelToLabel}</span>
-                          </p>
-                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
-                            <span>
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.timeRange}
-                            </span>
-                            <span>
-                              <MapPin className="inline h-3 w-3 mr-1" />
-                              {travelDistanceLabel}
-                            </span>
-                            <span>⏱ {segment.duration}</span>
-                          </div>
-                          {segment.note && (
-                            <p className="text-xs text-[#6c6c6c] mt-2">
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
                     </div>
                   );
                   })()}
 
                   {segment.type === "attraction" && (
                     <>
-                      <div className={`bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff] rounded-lg p-4 mb-3 border-2 ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
+                      <div className={`bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff] rounded-lg px-3 py-2 border ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
                         {segment.isConflict && (
-                          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-md text-xs font-bold mb-3 animate-pulse">
+                          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-xs font-bold mb-2 animate-pulse">
                             <AlertTriangle className="h-4 w-4" />
                             <span>WARNING: {segment.conflictReason}</span>
                           </div>
                         )}
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <div className="flex flex-col gap-2 w-full sm:w-32 shrink-0">
-                            <img
-                              src={
-                                segment.image ||
-                                "https://placehold.co/120x120/e9d5f7/4a4260?text=Spot"
-                              }
-                              alt={segment.name}
-                              className="w-full h-32 object-cover rounded-lg shadow-sm"
-                            />
-                            <div className="flex flex-col gap-1.5 p-2 bg-white/60 rounded-md border border-[#e5d9f2] text-[10px] font-medium text-[#4a4260]">
-                              {segment.amount && segment.amount > 0 && (
-                                <div className="flex items-center gap-1.5">
-                                  <Ticket className="h-3 w-3 text-[#d546ab]" />
-                                  <span>₹{segment.amount.toFixed(0)}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3 text-[#d546ab]" />
-                                <span>{segment.duration?.split(':').slice(0,2).join(':')} hrs</span>
-                              </div>
-                              {segment.timings && (
-                                <div className="flex items-center gap-1.5">
-                                  <Timer className="h-3 w-3 text-[#d546ab]" />
-                                  <span className="truncate" title={segment.timings}>{segment.timings}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between">
                               <h4 className="font-semibold text-[#4a4260] mb-2">
@@ -4077,14 +4114,32 @@ if (error || !itinerary) {
                                 <Trash2 className="h-5 w-5" />
                               </button>
                             </div>
-                            <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-3">
+                            <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
                               {segment.description}
                             </p>
-                            <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
+                            <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
                               <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
                                 <Clock className="h-3 w-3 mr-1" />
                                 {segment.visitTime}
                               </span>
+                              {segment.amount && segment.amount > 0 && (
+                                <span className="flex items-center">
+                                  <Ticket className="h-3 w-3 mr-1" />
+                                  ₹{segment.amount.toFixed(0)}
+                                </span>
+                              )}
+                              {segment.duration && (
+                                <span className="flex items-center">
+                                  <Clock className="h-3 w-3 mr-1" />
+                                  {segment.duration}
+                                </span>
+                              )}
+                              {segment.timings && (
+                                <span className="flex items-center">
+                                  <Timer className="h-3 w-3 mr-1" />
+                                  {segment.timings}
+                                </span>
+                              )}
                               {segment.hasAvailableActivities && (
                                 <button 
                                   className="text-[#d546ab] hover:underline flex items-center font-medium"
@@ -4104,34 +4159,45 @@ if (error || !itinerary) {
                               )}
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2 sm:ml-auto">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              title="View Gallery"
-                              onClick={() =>
-                                openGalleryModal(
-                                  segment.image ? [segment.image] : [],
-                                  segment.name
-                                )
+                          {/* Thumbnail with overlaid gallery/video icons — matches PHP layout */}
+                          <div className="relative flex-shrink-0 flex justify-end">
+                            <img
+                              src={
+                                toImgSrc(segment.image) ||
+                                "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
                               }
-                            >
-                              📷
-                            </Button>
-                            {segment.videoUrl && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                title="View Video"
+                              alt={segment.name}
+                              className="rounded-lg object-cover shadow-sm"
+                              style={{ width: 185, height: 115 }}
+                            />
+                            {/* Icons overlaid top-right of thumbnail */}
+                            <div className="absolute top-1 right-1 flex flex-col gap-1">
+                              <button
+                                title="Click to View the Images"
+                                className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
                                 onClick={() =>
-                                  openVideoModal(segment.videoUrl || "", segment.name)
+                                  openGalleryModal(
+                                    segment.galleryImages && segment.galleryImages.length > 0
+                                      ? segment.galleryImages
+                                      : segment.image ? [segment.image] : [],
+                                    segment.name
+                                  )
                                 }
                               >
-                                🎥
-                              </Button>
-                            )}
+                                🖼️
+                              </button>
+                              {segment.videoUrl && (
+                                <button
+                                  title="Click to View the Video"
+                                  className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                                  onClick={() =>
+                                    openVideoModal(segment.videoUrl || "", segment.name)
+                                  }
+                                >
+                                  ▶️
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -4162,14 +4228,6 @@ if (error || !itinerary) {
                               >
                                 <div className="bg-white rounded-lg p-4 shadow-sm border border-[#e5d9f2]">
                                   <div className="flex flex-col sm:flex-row gap-4">
-                                    <img
-                                      src={
-                                        activity.image ||
-                                        "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
-                                      }
-                                      alt={activity.title}
-                                      className="w-full sm:w-36 h-24 object-cover rounded-lg"
-                                    />
                                     <div className="flex-1">
                                       <div className="flex items-start justify-between">
                                         <h6 className="font-semibold text-[#4a4260] mb-2">
@@ -4215,22 +4273,33 @@ if (error || !itinerary) {
                                         )}
                                       </div>
                                     </div>
-                                    <div className="flex flex-col gap-2">
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="h-8 w-8"
-                                        title="View Activity Gallery"
-                                        aria-label={`View gallery for ${activity.title}`}
-                                        onClick={() =>
-                                          openGalleryModal(
-                                            activity.image ? [activity.image] : [],
-                                            activity.title
-                                          )
+                                    {/* Activity thumbnail with overlaid gallery icon */}
+                                    <div className="relative flex-shrink-0">
+                                      <img
+                                        src={
+                                          toImgSrc(activity.image) ||
+                                          "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
                                         }
-                                      >
-                                        📷
-                                      </Button>
+                                        alt={activity.title}
+                                        className="rounded-lg object-cover"
+                                        style={{ width: 140, height: 100 }}
+                                      />
+                                      <div className="absolute top-1 right-1 flex flex-col gap-1">
+                                        <button
+                                          title="Click to View the Images"
+                                          className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                                          onClick={() =>
+                                            openGalleryModal(
+                                              activity.galleryImages && activity.galleryImages.length > 0
+                                                ? activity.galleryImages
+                                                : activity.image ? [activity.image] : [],
+                                              activity.title
+                                            )
+                                          }
+                                        >
+                                          🖼️
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -4419,6 +4488,7 @@ if (error || !itinerary) {
                       </div>
                     </div>
                   )}
+                  </div>{/* end ml-4 */}
                 </div>
               ))}
 
@@ -5607,15 +5677,54 @@ if (error || !itinerary) {
                 No images available
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {galleryModal.images.map((img, idx) => (
+              <div className="flex flex-col gap-3">
+                {/* Main image */}
+                <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ height: 340 }}>
                   <img
-                    key={idx}
-                    src={img}
-                    alt={`${galleryModal.title} ${idx + 1}`}
-                    className="w-full h-auto rounded-lg object-cover"
+                    src={galleryModal.images[galleryActiveIdx]}
+                    alt={`${galleryModal.title} ${galleryActiveIdx + 1}`}
+                    className="w-full h-full object-contain"
                   />
-                ))}
+                  {galleryModal.images.length > 1 && (
+                    <>
+                      <button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
+                        onClick={() => setGalleryActiveIdx(i => (i - 1 + galleryModal.images.length) % galleryModal.images.length)}
+                      >
+                        &#8249;
+                      </button>
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
+                        onClick={() => setGalleryActiveIdx(i => (i + 1) % galleryModal.images.length)}
+                      >
+                        &#8250;
+                      </button>
+                      <span className="absolute bottom-2 right-3 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+                        {galleryActiveIdx + 1} / {galleryModal.images.length}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {/* Thumbnails */}
+                {galleryModal.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {galleryModal.images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setGalleryActiveIdx(idx)}
+                        className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${
+                          idx === galleryActiveIdx ? 'border-[#d546ab]' : 'border-transparent'
+                        }`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Thumb ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
