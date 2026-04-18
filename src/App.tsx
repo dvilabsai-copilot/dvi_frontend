@@ -60,6 +60,7 @@ import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
 import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
+import DownloadPackages from "./pages/agent/DownloadPackages";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -145,6 +146,14 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route
+                  path="/download-packages"
+                  element={
+                    <MainLayout>
+                      <DownloadPackages />
+                    </MainLayout>
+                  }
+                />
             <Route
               path="/latest-itinerary"
               element={

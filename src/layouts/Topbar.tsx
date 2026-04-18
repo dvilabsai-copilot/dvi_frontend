@@ -21,21 +21,24 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
   const authed = Boolean(getToken());
 
   // derive title from current route
-  const getPageTitle = () => {
-    const path = location.pathname.toLowerCase();
-    if (path.includes("/hotels")) return "Hotel";
-    if (path.includes("/latest-itinerary")) return "Latest Itenary";
-    if (path.includes("/accounts-ledger")) return "Accounts Ledger";
-    if (path.includes("/accounts")) return "Accounts";
-    if (path.includes("/daily-moment")) return "Daily Moment Tracker";
-    if (path.includes("/vendor")) return "Vendor";
-    if (path.includes("/drivers")) return "Drivers";
-    if (path.includes("/vehicles")) return "Vehicles";
-    if (path.includes("/guide")) return "Guide";
-    if (path.includes("/activities")) return "Activity";
-    if (path.includes("/locations")) return "Locations";
-    return "Dashboard";
-  };
+const getPageTitle = () => {
+  const path = location.pathname.toLowerCase();
+
+  if (path.includes("/download-packages")) return "Download Packages";
+  if (path.includes("/hotels")) return "Hotel";
+  if (path.includes("/latest-itinerary")) return "Latest Itenary";
+  if (path.includes("/accounts-ledger")) return "Accounts Ledger";
+  if (path.includes("/accounts")) return "Accounts";
+  if (path.includes("/daily-moment")) return "Daily Moment Tracker";
+  if (path.includes("/vendor")) return "Vendor";
+  if (path.includes("/drivers")) return "Drivers";
+  if (path.includes("/vehicles")) return "Vehicles";
+  if (path.includes("/guide")) return "Guide";
+  if (path.includes("/activities")) return "Activity";
+  if (path.includes("/locations")) return "Locations";
+
+  return "Dashboard";
+};
 
   const pageTitle = getPageTitle();
 
