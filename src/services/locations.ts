@@ -43,6 +43,7 @@ export type ViaRouteRow = {
   via_route_location_lattitude: string;
   via_route_location_longitude: string;
   via_route_location_city: string;
+  via_route_location_state: string;
   distance_from_source_to_via_route: string;
   duration_from_source_to_via_route: string;
   modify: string;
@@ -243,20 +244,41 @@ export const locationsApi = {
     );
   },
 
-  async getViaRoutes(id: number) {
+    async getViaRoutes(id: number) {
     const data = (await api(`/locations/${id}/via-routes`)) as any;
     return {
       data: Array.isArray(data?.data) ? data.data : [],
     };
   },
 
-  async addViaRoute(
+  async lookupViaRoutePlace(id: number, place: string) {
+    const data = (await api(`/locations/${id}/via-routes/place-details${qs({ place })}`)) as any;
+    return {
+      found: Boolean(data?.found),
+      data: data?.data
+        ? {
+            via_route_location: asStr(data.data.via_route_location),
+            via_route_location_city: asStr(data.data.via_route_location_city),
+            via_route_location_state: asStr(data.data.via_route_location_state),
+            via_route_location_lattitude: asStr(data.data.via_route_location_lattitude),
+            via_route_location_longitude: asStr(data.data.via_route_location_longitude),
+            distance_from_source_location: asStr(data.data.distance_from_source_location),
+            duration_from_source_location: asStr(data.data.duration_from_source_location),
+          }
+        : null,
+    };
+  },
+
+    async addViaRoute(
     id: number,
     payload: {
       via_route_location: string;
       via_route_location_lattitude?: string;
       via_route_location_longitude?: string;
       via_route_location_city?: string;
+      via_route_location_state?: string;
+      distance_from_source_location?: string;
+      duration_from_source_location?: string;
     }
   ) {
     const data = (await api(`/locations/${id}/via-routes`, {
@@ -270,12 +292,94 @@ export const locationsApi = {
     };
   },
 
+    async updateViaRoute(
+    id: number,
+    viaRouteId: number,
+    payload: {
+      via_route_location: string;
+      via_route_location_lattitude?: string;
+      via_route_location_longitude?: string;
+      via_route_location_city?: string;
+      via_route_location_state?: string;
+    }
+  ) {
+    const data = (await api(`/locations/${id}/via-routes/${viaRouteId}`, {
+      method: "PATCH",
+      body: payload,
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+  async deleteViaRoute(id: number, viaRouteId: number) {
+    const data = (await api(`/locations/${id}/via-routes/${viaRouteId}`, {
+      method: "DELETE",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
   async getSuggestedRoutes(id: number) {
     const data = (await api(`/locations/${id}/suggested-routes`)) as any;
     return {
       data: Array.isArray(data?.data) ? data.data : [],
     };
   },
+
+  async addSuggestedRoute(
+  id: number,
+  payload: {
+    routes: string;
+    no_of_nights?: string;
+    route_details?: string;
+  }
+) {
+  const data = (await api(`/locations/${id}/suggested-routes`, {
+    method: "POST",
+    body: payload,
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
+
+async updateSuggestedRoute(
+  id: number,
+  suggestedRouteId: number,
+  payload: {
+    routes?: string;
+    no_of_nights?: string;
+    route_details?: string;
+  }
+) {
+  const data = (await api(`/locations/${id}/suggested-routes/${suggestedRouteId}`, {
+    method: "PATCH",
+    body: payload,
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
+
+async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
+  const data = (await api(`/locations/${id}/suggested-routes/${suggestedRouteId}`, {
+    method: "DELETE",
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
   async create(payload: CreateLocationPayload) {
     const data = (await api(`/locations`, { method: "POST", body: payload })) as any;
     return toLocationRow(data);
