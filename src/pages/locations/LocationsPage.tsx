@@ -11,7 +11,7 @@ import { locationsApi, LocationRow, TollRow } from "@/services/locations";
 import { useNavigate } from "react-router-dom";
 import { AddLocationDialog } from "./components/AddLocationDialog";
 import { EditLocationDialog } from "./components/EditLocationDialog";
-import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
+import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
 
 const PAGE_SIZES = [10, 25, 50];
 
@@ -77,6 +77,17 @@ export default function LocationsPage() {
   const [destination, setDestination] = useState<string>("");
   const [search, setSearch] = useState("");
 
+  const sourceOptions: AutoSuggestOption[] = sources.map((item) => ({
+  value: item,
+  label: item,
+}));
+
+const destinationOptions: AutoSuggestOption[] = destinations
+  .filter((item) => !source || item !== source)
+  .map((item) => ({
+    value: item,
+    label: item,
+  }));
   // dialogs
    const [addOpen, setAddOpen] = useState(false);
   const [editRow, setEditRow] = useState<LocationRow | null>(null);
@@ -282,32 +293,35 @@ export default function LocationsPage() {
       {/* Filters */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div>
-            <div className="text-xs mb-1">Source Location *</div>
-            <LocationAutosuggestInput
-              placeholder="Type source location"
-              value={source}
-              onValueChange={(value) => {
-                setSource(value);
-                setDestination("");
-                setPage(1);
-              }}
-              search={locationsApi.searchSources}
-            />
-          </div>
+                   
+            <div>
+  <div className="text-xs mb-1">Source Location *</div>
+  <AutoSuggestSelect
+    mode="single"
+    value={source}
+    onChange={(val) => {
+      setSource((val as string) || "");
+      setDestination("");
+      setPage(1);
+    }}
+    options={sourceOptions}
+    placeholder="Choose Source Location"
+  />
+</div>
 
           <div>
-            <div className="text-xs mb-1">Destination Location *</div>
-            <LocationAutosuggestInput
-              placeholder="Type destination location"
-              value={destination}
-              onValueChange={(value) => {
-                setDestination(value);
-                setPage(1);
-              }}
-              search={(phrase) => locationsApi.searchDestinations(phrase, source)}
-            />
-          </div>
+  <div className="text-xs mb-1">Destination Location *</div>
+  <AutoSuggestSelect
+    mode="single"
+    value={destination}
+    onChange={(val) => {
+      setDestination((val as string) || "");
+      setPage(1);
+    }}
+    options={destinationOptions}
+    placeholder="Choose Destination Location"
+  />
+</div>
           <div className="flex items-end gap-2">
             <Button
               variant="outline"
@@ -356,46 +370,43 @@ export default function LocationsPage() {
               >
                 <TableCell>{(page - 1) * pageSize + idx + 1}</TableCell>
                 <TableCell>
-                                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/locations/${r.location_ID}/preview`);
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
+  <div className="flex gap-1">
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigate(`/locations/${r.location_ID}/preview`);
+      }}
+    >
+      <Eye className="h-4 w-4" />
+    </Button>
 
-                         {renameInfo.open && renameInfo.row && (
-        <SimpleRenameDialog
-          open
-          title="Update Location Name"
-          currentName={
-            renameInfo.scope === "source"
-              ? renameInfo.row.source_location
-              : renameInfo.row.destination_location
-          }
-          onClose={() =>
-            setRenameInfo({ open: false, row: null, scope: "source" })
-          }
-          onSubmit={handleRename}
-        />
-      )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRow(r);
-                        setDeleteRow(r);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-600" />
-                    </Button>
-                  </div>
-                </TableCell>
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedRow(r);
+        setEditRow(r);
+      }}
+    >
+      <Pencil className="h-4 w-4 text-blue-600" />
+    </Button>
+
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedRow(r);
+        setDeleteRow(r);
+      }}
+    >
+      <Trash2 className="h-4 w-4 text-red-600" />
+    </Button>
+  </div>
+</TableCell>
                 <TableCell>{r.source_location}</TableCell>
                 <TableCell>{r.destination_location}</TableCell>
                 <TableCell>{Number(r.distance_km ?? 0).toFixed(6)}</TableCell>
