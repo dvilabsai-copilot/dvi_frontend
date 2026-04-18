@@ -191,6 +191,28 @@ export const ItineraryService = {
     });
   },
 
+  async rebuildHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+  ) {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set('page', String(page));
+    if (pageSize && pageSize > 0) qs.set('pageSize', String(pageSize));
+    if (groupType && groupType > 0) qs.set('groupType', String(groupType));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/rebuild${suffix}`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
+  },
+
   async resolveHotelArrivalPolicy(payload: HotelArrivalPolicyRequest) {
     return api("itineraries/hotel-arrival-policy", {
       method: "POST",
