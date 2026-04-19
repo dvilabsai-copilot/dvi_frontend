@@ -1053,9 +1053,30 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
 const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
 const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
+const summaryStickyRef = useRef<HTMLDivElement | null>(null);
+const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
 /** page tracked per groupType for Load More */
 const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
 const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
+
+useEffect(() => {
+  const el = summaryStickyRef.current;
+  if (!el) return;
+
+  const updateStickyHeight = () => {
+    setSummaryStickyHeight(Math.ceil(el.getBoundingClientRect().height));
+  };
+
+  updateStickyHeight();
+  const resizeObserver = new ResizeObserver(updateStickyHeight);
+  resizeObserver.observe(el);
+  window.addEventListener("resize", updateStickyHeight);
+
+  return () => {
+    resizeObserver.disconnect();
+    window.removeEventListener("resize", updateStickyHeight);
+  };
+}, [itinerary?.quoteId]);
 
 const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
   if (!quoteId || isLoadingMoreHotels) return;
@@ -3987,6 +4008,7 @@ if (error || !itinerary) {
       )}
 
       {/* Header Card */}
+      <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
       <Card className="border-none shadow-none bg-white">
         <CardContent className="pt-4 pb-0">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
@@ -4119,6 +4141,7 @@ if (error || !itinerary) {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {/* Daily Itinerary */}
         {displayDays.map((day) => {
@@ -4133,7 +4156,10 @@ if (error || !itinerary) {
     >
           <CardContent className="pt-2">
             {/* Day Header */}
-           <div className="sticky top-2 z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
+           <div
+             className="sticky z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]"
+             style={{ top: `${Math.max(summaryStickyHeight + 8, 8)}px` }}
+           >
   <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
     <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
     <div className="min-w-0">
