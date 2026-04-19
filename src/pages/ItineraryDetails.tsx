@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, ChevronUp, ChevronDown, Loader2, RefreshCw, Edit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, ChevronUp, ChevronDown, Loader2, RefreshCw, Edit } from "lucide-react";
 import { ItineraryService } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
@@ -4144,6 +4144,7 @@ if (error || !itinerary) {
       </div>
 
       {/* Daily Itinerary */}
+      <div className="lg:pr-20">
         {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
 
@@ -4157,7 +4158,7 @@ if (error || !itinerary) {
           <CardContent className="pt-2">
             {/* Day Header */}
            <div
-             className="sticky z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]"
+             className="sticky z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 mx-0 px-5 py-3 bg-white rounded-lg border border-[#59b9ea] min-h-[74px]"
              style={{ top: `${Math.max(summaryStickyHeight + 8, 8)}px` }}
            >
   <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
@@ -4294,7 +4295,7 @@ if (error || !itinerary) {
                       </div>
                     </div>
                   )}
-                  <div className="ml-4">
+                  <div className="mx-4">
                   {segment.type === "start" && (
                     <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
                       <Car className="h-4 w-4 shrink-0" />
@@ -4333,7 +4334,7 @@ if (error || !itinerary) {
 
                   {segment.type === "attraction" && (
                     <>
-                      <div className={`bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff] rounded-lg px-3 py-2 border ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
+                      <div className={`bg-white rounded-lg px-3 py-2 border ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
                         {segment.isConflict && (
                           <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-xs font-bold mb-2 animate-pulse">
                             <AlertTriangle className="h-4 w-4" />
@@ -4735,16 +4736,17 @@ if (error || !itinerary) {
                       </div>
                     </div>
                   )}
-                  </div>{/* end ml-4 */}
+                  </div>{/* end timeline row wrapper */}
                 </div>
               ))}
 
              
             </div>
           </CardContent>
-               </Card>
+        </Card>
       );
     })}
+      </div>
       {/* Hotel List (separate component) */}
       {hotelDetails && (
         <div>
@@ -5122,6 +5124,19 @@ if (error || !itinerary) {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="buy-now">
+        <button
+          id="scrollToTopButton"
+          type="button"
+          aria-label="Back to top"
+          title="Back to top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-12 right-3 z-[1080] inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#7367f0] text-white shadow-[0_1px_20px_1px_#ea5455] transition-shadow hover:shadow-none"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Delete Hotspot Modal */}
