@@ -4133,7 +4133,7 @@ if (error || !itinerary) {
     >
           <CardContent className="pt-2">
             {/* Day Header */}
-           <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
+           <div className="sticky top-2 z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
   <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
     <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
     <div className="min-w-0">
