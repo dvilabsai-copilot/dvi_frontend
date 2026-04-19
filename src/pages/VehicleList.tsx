@@ -98,6 +98,11 @@ export type VehicleListProps = {
   vehicles: ItineraryVehicleRow[];
   itineraryPlanId?: number;
   onRefresh?: () => void;
+  onSelectedTotalChange?: (payload: {
+    vehicleTypeId: number;
+    totalAmount: number;
+    totalQty: number;
+  }) => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
   routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
 };
@@ -107,6 +112,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   vehicles,
   itineraryPlanId,
   onRefresh,
+  onSelectedTotalChange,
   dateRange,
   routes,
 }) => {
@@ -215,6 +221,30 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
   return aAmount - bAmount;
 });
+
+  useEffect(() => {
+    if (!onSelectedTotalChange || sortedVehicles.length === 0) return;
+
+    const selectedVehicle =
+      selectedVendorEligibleId != null
+        ? sortedVehicles.find((v) => v.vendorEligibleId === selectedVendorEligibleId) || sortedVehicles[0]
+        : sortedVehicles[0];
+
+    const totalAmount =
+      typeof selectedVehicle.totalAmount === "number"
+        ? selectedVehicle.totalAmount
+        : parseFloat(String(selectedVehicle.totalAmount || "0")) || 0;
+
+    const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
+    const vehicleTypeId = Number(selectedVehicle.vehicleTypeId || 0);
+
+    onSelectedTotalChange({
+      vehicleTypeId,
+      totalAmount,
+      totalQty,
+    });
+  }, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange]);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
       <div className="flex items-center justify-between mb-4">

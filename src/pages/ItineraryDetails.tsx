@@ -1056,6 +1056,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
 const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
 const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
+const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
+  Record<number, { totalAmount: number; totalQty: number }>
+>({});
 const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
 const summaryStickyRef = useRef<HTMLDivElement | null>(null);
 const hotelListRef = useRef<HTMLDivElement | null>(null);
@@ -1081,6 +1084,10 @@ useEffect(() => {
     resizeObserver.disconnect();
     window.removeEventListener("resize", updateStickyHeight);
   };
+}, [itinerary?.quoteId]);
+
+useEffect(() => {
+  setSelectedVehicleTotalsByType({});
 }, [itinerary?.quoteId]);
 
 const scrollToHotelList = () => {
@@ -1286,6 +1293,31 @@ const roomBreakdownStayCount = useMemo(() => {
   return stayKeys.size || fallbackDayCount;
 }, [hotelDetails, activeHotelGroupType, itinerary?.dayCount, itinerary?.days?.length]);
 
+const computedVehicleAmount = useMemo(() => {
+  const selectedTotal = Object.values(selectedVehicleTotalsByType).reduce(
+    (sum, row) => sum + Number(row.totalAmount || 0),
+    0,
+  );
+
+  if (selectedTotal > 0) return selectedTotal;
+
+  return Number(
+    itinerary?.costBreakdown?.totalVehicleAmount ??
+      itinerary?.costBreakdown?.totalVehicleCost ??
+      0,
+  );
+}, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleAmount, itinerary?.costBreakdown?.totalVehicleCost]);
+
+const computedVehicleQty = useMemo(() => {
+  const selectedQty = Object.values(selectedVehicleTotalsByType).reduce(
+    (sum, row) => sum + Number(row.totalQty || 0),
+    0,
+  );
+
+  if (selectedQty > 0) return selectedQty;
+  return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
+}, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty]);
+
 const financialTotals = useMemo(() => {
   const hotelAmount = Number(
     itinerary?.costBreakdown?.totalRoomCost ||
@@ -1294,11 +1326,7 @@ const financialTotals = useMemo(() => {
     0,
   );
 
-  const vehicleAmount = Number(
-    itinerary?.costBreakdown?.totalVehicleAmount ??
-    itinerary?.costBreakdown?.totalVehicleCost ??
-    0,
-  );
+  const vehicleAmount = Number(computedVehicleAmount || 0);
 
   const otherAmount =
     Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
@@ -1322,7 +1350,7 @@ const financialTotals = useMemo(() => {
     netPayable,
     totalRoundOff,
   };
-}, [itinerary, computedHotelCost]);
+}, [itinerary, computedHotelCost, computedVehicleAmount]);
 
 const hotelHydratedDays = useMemo(() => {
   if (!itinerary?.days?.length) return [];
@@ -4909,6 +4937,17 @@ if (error || !itinerary) {
                   vehicles={vehiclesForType}
                   itineraryPlanId={itinerary.planId}
                   onRefresh={refreshVehicleData}
+                  onSelectedTotalChange={({ vehicleTypeId, totalAmount, totalQty }) => {
+                    const key = Number(vehicleTypeId || typeId || 0);
+                    if (!key) return;
+                    setSelectedVehicleTotalsByType((prev) => ({
+                      ...prev,
+                      [key]: {
+                        totalAmount: Number(totalAmount || 0),
+                        totalQty: Number(totalQty || 0),
+                      },
+                    }));
+                  }}
                   dateRange={dateRange}
                   routes={routes}
                 />
@@ -5035,18 +5074,18 @@ if (error || !itinerary) {
                 </div>
               )}
               {/* ── Vehicle Cost Group ── */}
-              {(itinerary.costBreakdown.totalVehicleCost ?? 0) > 0 && (
+              {computedVehicleAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">
-                    Total Vehicle Cost{itinerary.costBreakdown.totalVehicleQty ? ` (${itinerary.costBreakdown.totalVehicleQty})` : ''}
+                    Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
                   </span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalVehicleCost!.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
                 </div>
               )}
-              {(itinerary.costBreakdown.totalVehicleAmount ?? 0) > 0 && (
+              {computedVehicleAmount > 0 && (
                 <div className="flex justify-between font-semibold">
                   <span className="text-[#4a4260]">Total Vehicle Amount</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalVehicleAmount!.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
                 </div>
               )}
 
