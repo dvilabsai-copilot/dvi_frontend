@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import styles from "./HotelList.module.css";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +59,7 @@ type HotelListProps = {
   }) => void;
   // ✅ NEW: Callback when total selected hotel amount changes
   onTotalChange?: (totalAmount: number) => void;
+  roomCount?: number;
   // ✅ NEW: Callback when hotel selections change (for confirm quotation payload)
   onHotelSelectionsChange?: (selections: Record<number, {
     provider: string;
@@ -136,6 +138,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   readOnly = false, // ✅ NEW: Default to edit mode
   onCreateVoucher, // ✅ NEW: Callback for voucher creation
   onTotalChange, // ✅ NEW: Callback for total amount changes
+  roomCount = 1,
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
@@ -152,6 +155,17 @@ export const HotelList: React.FC<HotelListProps> = ({
     return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
   };
 
+  const getEffectiveRoomCount = (hotel: Pick<ItineraryHotelRow, 'noOfRooms'>): number => {
+    const rowRooms = toNumber((hotel as any).noOfRooms, 0);
+    const itineraryRooms = toNumber(roomCount, 1);
+    return Math.max(rowRooms || itineraryRooms || 1, 1);
+  };
+
+  const getHotelAmountWithRooms = (hotel: Pick<ItineraryHotelRow, 'totalHotelCost' | 'totalHotelTaxAmount' | 'noOfRooms'>): number => {
+    const baseAmount = toNumber(hotel.totalHotelCost, 0) + toNumber(hotel.totalHotelTaxAmount, 0);
+    return baseAmount * getEffectiveRoomCount(hotel);
+  };
+
   const getHotelsForStay = (sourceHotels: ItineraryHotelRow[], routeId: number, stayDate: string) => {
     const hotelsForRoute = sourceHotels
       .filter((h: any) => toNumber(h.itineraryRouteId, 0) === routeId)
@@ -163,8 +177,8 @@ export const HotelList: React.FC<HotelListProps> = ({
         pricePerNight: h.totalHotelCost,
         perNightAmount: h.totalHotelCost,
         taxAmount: h.totalHotelTaxAmount || 0,
-        totalAmount: h.totalHotelCost + (h.totalHotelTaxAmount || 0),
-        noOfRooms: h.noOfRooms || 1,
+        totalAmount: getHotelAmountWithRooms(h),
+        noOfRooms: getEffectiveRoomCount(h),
         roomTypeName: h.roomType,
         availableRoomTypes: h.roomType
           ? [
@@ -179,10 +193,10 @@ export const HotelList: React.FC<HotelListProps> = ({
     return Array.from(new Map(hotelsForRoute.map((hotel) => [`${hotel.hotelId}-${hotel.hotelName}`, hotel])).values());
   };
 
-  // ✅ Track selected hotel PER GROUP TYPE and PER ROUTE
-  // Structure: selectedByGroup[groupType][routeId] = selected hotel row
-  // This ensures each groupType has its own independent selections
-  const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<number, ItineraryHotelRow>>>({});
+  // ✅ Track selected hotel PER GROUP TYPE and PER STAY
+  // Structure: selectedByGroup[groupType][stayKey] = selected hotel row
+  // This allows separate selections for previous-day billed stays on the same route.
+  const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
 
   // ✅ Track unsaved hotel selections (for batch save on confirm)
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
@@ -210,56 +224,48 @@ export const HotelList: React.FC<HotelListProps> = ({
   // ✅ Sync local hotels with prop changes and auto-select hotels for ALL groupTypes
   useEffect(() => {
     setLocalHotels(hotels);
-    
+
     if (hotels.length === 0) return;
-    
-    // Auto-select cheapest hotel per route for EACH groupType
+
+    // Auto-select cheapest hotel per stay for EACH groupType.
     setSelectedByGroup(prev => {
       const newSelected = { ...prev };
-      
-      // Group hotels by groupType, then by routeId
-      const hotelsByGroupAndRoute: Record<number, Record<number, ItineraryHotelRow[]>> = {};
-      
+      const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
+
       hotels.forEach(h => {
-        if (!hotelsByGroupAndRoute[h.groupType]) {
-          hotelsByGroupAndRoute[h.groupType] = {};
+        if (!hotelsByGroupAndStay[h.groupType]) {
+          hotelsByGroupAndStay[h.groupType] = {};
         }
-        if (!hotelsByGroupAndRoute[h.groupType][h.itineraryRouteId]) {
-          hotelsByGroupAndRoute[h.groupType][h.itineraryRouteId] = [];
+        const stayKey = getStayKey(h);
+        if (!hotelsByGroupAndStay[h.groupType][stayKey]) {
+          hotelsByGroupAndStay[h.groupType][stayKey] = [];
         }
-        hotelsByGroupAndRoute[h.groupType][h.itineraryRouteId].push(h);
+        hotelsByGroupAndStay[h.groupType][stayKey].push(h);
       });
-      
-      // For each groupType and each route, auto-select cheapest if not already selected
-      Object.entries(hotelsByGroupAndRoute).forEach(([groupTypeStr, routeMap]) => {
+
+      Object.entries(hotelsByGroupAndStay).forEach(([groupTypeStr, stayMap]) => {
         const groupType = Number(groupTypeStr);
-        
+
         if (!newSelected[groupType]) {
           newSelected[groupType] = {};
         }
-        
-        Object.entries(routeMap).forEach(([routeIdStr, hotelOptions]) => {
-          const routeId = Number(routeIdStr);
-          
-          // Only auto-select if not already selected for this groupType + route
-          if (!newSelected[groupType][routeId]) {
-            // Find cheapest hotel by (totalHotelCost + totalHotelTaxAmount)
+
+        Object.entries(stayMap).forEach(([stayKey, hotelOptions]) => {
+          if (!newSelected[groupType][stayKey]) {
             const sortedByPrice = [...hotelOptions].sort((a, b) => {
               const priceA = (a.totalHotelCost || 0) + (a.totalHotelTaxAmount || 0);
               const priceB = (b.totalHotelCost || 0) + (b.totalHotelTaxAmount || 0);
               return priceA - priceB;
             });
-            
+
             const cheapest = sortedByPrice[0];
             if (cheapest) {
-              newSelected[groupType][routeId] = cheapest;
-              // ✅ Do NOT mark auto-selected hotels as "unsaved"
-              // Only user-initiated changes via "Choose/Update" should be marked unsaved
+              newSelected[groupType][stayKey] = cheapest;
             }
           }
         });
       });
-      
+
       return newSelected;
     });
   }, [hotels, planId]);
@@ -344,9 +350,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   // ✅ Calculate total for a specific groupType (sum of selected hotels)
   const getGroupTotal = (groupType: number): number => {
     const selectedHotels = getSelectedHotelsForGroup(groupType);
-    return selectedHotels.reduce((sum, h) => 
-      sum + (h.totalHotelCost || 0) + (h.totalHotelTaxAmount || 0), 0
-    );
+    return selectedHotels.reduce((sum, h) => sum + getHotelAmountWithRooms(h), 0);
   };
 
   // ✅ Get active tab total
@@ -421,20 +425,20 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
 
     const displayHotels = Array.from(groupedByStay.values()).map((stayHotels) => {
-      const routeId = toNumber(stayHotels[0]?.itineraryRouteId, 0);
-      const selectedForRoute = selectedByGroup[activeGroupType]?.[routeId];
+      const stayKey = getStayKey(stayHotels[0]);
+      const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
       const sortedStayHotels = [...stayHotels].sort((a, b) => {
         const ratingDiff = toNumber(b.category, 0) - toNumber(a.category, 0);
         if (ratingDiff !== 0) return ratingDiff;
-        const priceA = toNumber(a.totalHotelCost, 0) + toNumber(a.totalHotelTaxAmount, 0);
-        const priceB = toNumber(b.totalHotelCost, 0) + toNumber(b.totalHotelTaxAmount, 0);
+        const priceA = getHotelAmountWithRooms(a);
+        const priceB = getHotelAmountWithRooms(b);
         if (priceA !== priceB) return priceA - priceB;
         return String(a.hotelName || '').localeCompare(String(b.hotelName || ''));
       });
 
-      if (selectedForRoute) {
+      if (selectedForStay) {
         const sameStaySelection = sortedStayHotels.find(
-          (option) => toNumber(option.hotelId, 0) === toNumber(selectedForRoute.hotelId, 0),
+          (option) => toNumber(option.hotelId, 0) === toNumber(selectedForStay.hotelId, 0),
         );
         if (sameStaySelection) {
           return sameStaySelection;
@@ -452,7 +456,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       const dateB = String(b.date || '');
       return dateA.localeCompare(dateB);
     });
-  }, [localHotels, activeGroupType, selectedByGroup, readOnly]);
+  }, [localHotels, activeGroupType, selectedByGroup, readOnly, roomCount]);
 
   const routeDestinationFallback = useMemo(() => {
     const map: Record<number, string> = {};
@@ -537,9 +541,11 @@ export const HotelList: React.FC<HotelListProps> = ({
     const perNightAmount = Number(r.perNightAmount ?? r.pricePerNight ?? 0);
     const nights = Number(r.numberOfNights ?? 1);
     const taxAmount = Number(r.taxAmount ?? 0);
-    const totalAmount = Number(
+    const baseAmount = Number(
       r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
     );
+    const effectiveRooms = Math.max(Number(r.noOfRooms ?? roomCount ?? 1), 1);
+    const totalAmount = baseAmount * effectiveRooms;
 
     return {
       ...r,
@@ -552,7 +558,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       perNightAmount,
       taxAmount,
       totalAmount,
-      noOfRooms: Number(r.noOfRooms ?? 1),
+      noOfRooms: effectiveRooms,
       roomTypeName: r.roomTypeName ?? r.roomType ?? "",
       availableRoomTypes: Array.isArray(r.availableRoomTypes) ? r.availableRoomTypes : [],
     };
@@ -724,13 +730,15 @@ export const HotelList: React.FC<HotelListProps> = ({
         return;
       }
       
-      // Update selectedByGroup[groupType][routeId]
+      const stayKey = getStayKey(selectedHotel);
+
+      // Update selectedByGroup[groupType][stayKey]
       setSelectedByGroup(prev => {
         const newSelected = { ...prev };
         if (!newSelected[groupType]) {
           newSelected[groupType] = {};
         }
-        newSelected[groupType][routeId] = selectedHotel;
+        newSelected[groupType][stayKey] = selectedHotel;
         return newSelected;
       });
       
@@ -832,7 +840,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       const total = getActiveTabTotal();
       onTotalChange(total);
     }
-  }, [activeGroupType, selectedByGroup, onTotalChange]);
+  }, [activeGroupType, selectedByGroup, onTotalChange, roomCount]);
 
   // ✅ Notify parent when hotel selections change (for confirm quotation)
   React.useEffect(() => {
@@ -858,14 +866,15 @@ export const HotelList: React.FC<HotelListProps> = ({
           const hotelCodeForProvider = hotel.hotelCode || String(hotel.hotelId);
           const bookingCodeForProvider = hotel.bookingCode || String(hotel.hotelId);
           
+          const existingEntry = selections[hotel.itineraryRouteId];
           selections[hotel.itineraryRouteId] = {
             provider: hotel.provider || 'tbo',
             hotelCode: hotelCodeForProvider,
             bookingCode: bookingCodeForProvider,
             roomType: hotel.roomType || 'Standard',
-            netAmount: hotel.totalHotelCost || 0,
+            netAmount: (existingEntry?.netAmount || 0) + (hotel.totalHotelCost || 0),
             hotelName: hotel.hotelName || '',
-            checkInDate,
+            checkInDate: existingEntry?.checkInDate || checkInDate,
             checkOutDate,
             groupType: toNumber(activeGroupType, 1),
           };
@@ -891,30 +900,37 @@ export const HotelList: React.FC<HotelListProps> = ({
       )}
       <CardContent className="pt-2">
         {/* Header + Display Rates toggle */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center py-2 mb-1">
           {/* ✅ Read-only mode: Show simple "Hotel Details (₹ total)" like PHP */}
           {readOnly ? (
             <h2 className="text-lg font-semibold text-[#4a4260]">
               Hotel Details ({formatCurrency(getOverallSelectedHotelTotal())})
             </h2>
           ) : (
-            <h2 className="text-lg font-semibold text-[#4a4260]">HOTEL LIST</h2>
+            <h2 className="text-sm font-bold tracking-wider text-[#5d5f65]">HOTEL LIST</h2>
           )}
 
-          {/* Simple toggle using Button (no extra component imports) */}
-          <Button
-            variant="link"
-            className="text-[#d546ab] hover:text-[#c03d9f] px-0"
-            onClick={() => {
-              const next = !showRates;
-              setShowRates(next);
-              if (onToggleHotelRates) {
-                onToggleHotelRates(next);
-              }
-            }}
-          >
-            {showRates ? "Hide Rates" : "Display Rates"}
-          </Button>
+          {/* PHP-style toggle switch */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-[#5d5f65]">Display Rates</span>
+            <label className={styles["switch-label"]}>
+              <input
+                type="checkbox"
+                checked={showRates}
+                onChange={() => {
+                  const next = !showRates;
+                  setShowRates(next);
+                  if (onToggleHotelRates) {
+                    onToggleHotelRates(next);
+                  }
+                }}
+                className={styles["switch-input"]}
+              />
+              <span className={styles["switch-toggle-slider"]}>
+                <span className={styles["switch-on"]}></span>
+              </span>
+            </label>
+          </div>
         </div>
 
         {/* ✅ Unsaved Changes Indicator */}
@@ -943,50 +959,43 @@ export const HotelList: React.FC<HotelListProps> = ({
         {/* Recommended Hotel Groups – based on real backend groups */}
         {/* ✅ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
-          <div className="mb-4">
+          <div className={styles["hotel-list-nav"]}>
             {hotelTabs && hotelTabs.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {hotelTabs.map((tab, index) => {
-                  const tabGroupType = toNumber(tab.groupType, index + 1);
-                  const isActive = tabGroupType === toNumber(activeGroupType, -1);
-                  const tabTotal = getGroupTotal(tabGroupType);
-                  const recommendationLabels = [
-                    "Recommended #1",
-                    "Recommended #2", 
-                    "Recommended #3",
-                    "Recommended #4"
-                  ];
-                  return (
-                    <button
-                      key={tabGroupType}
-                      disabled={loadingRowKey !== null}
-                      onClick={() => {
-                        setActiveGroupType(tabGroupType);
-                        setLoadingRowKey("tab-switch");
-                        setExpandedRowKey(null);
-                        setRoomDetails([]);
-                        // Small delay to show loader and simulate tab switch
-                        setTimeout(() => {
-                          setLoadingRowKey(null);
-                          // Notify parent that group type changed
-                          if (onGroupTypeChange) {
-                            onGroupTypeChange(tabGroupType);
-                          }
-                        }, 500);
-                      }}
-                      className={`px-4 py-3 rounded-lg font-medium text-center transition-all disabled:opacity-50 disabled:cursor-not-allowed border-2 ${
-                        isActive
-                          ? "bg-[#7c3aed] border-[#7c3aed] text-white"
-                          : "bg-white border-[#e5d9f2] text-[#4a4260] hover:border-[#7c3aed]"
-                      }`}
-                    >
-                      <p className={`text-sm font-bold ${isActive ? "text-white" : "text-[#4a4260]"}`}>
-                        {recommendationLabels[index] || `Option ${index + 1}`} ({formatCurrency(tabTotal)})
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
+              hotelTabs.map((tab, index) => {
+                const tabGroupType = toNumber(tab.groupType, index + 1);
+                const isActive = tabGroupType === toNumber(activeGroupType, -1);
+                const tabTotal = getGroupTotal(tabGroupType);
+                const recommendationLabels = [
+                  "Recommended #1",
+                  "Recommended #2", 
+                  "Recommended #3",
+                  "Recommended #4"
+                ];
+                return (
+                  <button
+                    key={tabGroupType}
+                    disabled={loadingRowKey !== null}
+                    onClick={() => {
+                      setActiveGroupType(tabGroupType);
+                      setLoadingRowKey("tab-switch");
+                      setExpandedRowKey(null);
+                      setRoomDetails([]);
+                      // Small delay to show loader and simulate tab switch
+                      setTimeout(() => {
+                        setLoadingRowKey(null);
+                        // Notify parent that group type changed
+                        if (onGroupTypeChange) {
+                          onGroupTypeChange(tabGroupType);
+                        }
+                      }, 500);
+                    }}
+                    className={`${styles["nav-link"]} ${isActive ? styles["active"] : ""} disabled:opacity-50 disabled:cursor-not-allowed`}
+                    role="tab"
+                  >
+                    {recommendationLabels[index] || `Option ${index + 1}`} ({formatCurrency(tabTotal)})
+                  </button>
+                );
+              })
             ) : (
               <span className="text-sm text-gray-500">No hotel groups available</span>
             )}
@@ -994,28 +1003,29 @@ export const HotelList: React.FC<HotelListProps> = ({
         )}
 
         {/* Hotel Table */}
-        <div className="overflow-x-auto border rounded-lg">
-          <table className="w-full">
-            <thead className="bg-[#f8f5fc]">
+        <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[980px]">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
                   DAY
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
                   DESTINATION
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[220px]">
                   HOTEL NAME - CATEGORY
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
                   HOTEL ROOM TYPE
                 </th>
                 {showRates && (
-                  <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                  <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
                     PRICE
                   </th>
                 )}
-                <th className="px-4 py-3 text-left text-sm font-medium text-[#4a4260]">
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
                   MEAL PLAN
                 </th>
               </tr>
@@ -1044,28 +1054,28 @@ export const HotelList: React.FC<HotelListProps> = ({
                         }
                       }}
                     >
-                      <td className="px-4 py-3 text-sm text-[#6c6c6c]">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {hotel.day}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#6c6c6c]">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] font-medium">
                         {resolvedDestination}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#6c6c6c]">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {hotel.hotelName
                           ? hotel.category
                             ? `${hotel.hotelName} -${hotel.category}*`
                             : hotel.hotelName
                           : "-"}
                       </td>
-                      <td className="px-4 py-3 text-sm text-[#6c6c6c]">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {hotel.roomType || "-"}
                       </td>
                       {showRates && (
-                        <td className="px-4 py-3 text-sm text-[#6c6c6c]">
+                        <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap font-bold text-[#303238]">
                           {formatCurrency(rowTotal)}
                         </td>
                       )}
-                      <td className="px-4 py-3 text-sm text-[#6c6c6c] flex items-center justify-between">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between">
                         <span>{hotel.mealPlan || "-"}</span>
                         {readOnly && onCreateVoucher && hotel.hotelId && hotel.hotelName && (
                           hotel.voucherCancelled ? (
@@ -1356,6 +1366,7 @@ export const HotelList: React.FC<HotelListProps> = ({
               </tr>
             </tbody>
           </table>
+        </div>
         </div>
 
       </CardContent>

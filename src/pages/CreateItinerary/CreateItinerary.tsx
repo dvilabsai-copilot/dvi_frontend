@@ -237,6 +237,7 @@ export const CreateItinerary = () => {
   >(null);
   const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
   const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
     open: boolean;
     arrivalDate: string;
@@ -1094,6 +1095,36 @@ const buildArrivalPolicyRequest = (): HotelArrivalPolicyRequest | null => {
   };
 };
 
+const getArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
+  if (!request?.routeDate || !request?.arrivalDateTime) {
+    return null;
+  }
+
+  const arrivalTimeHms = request.arrivalDateTime.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return null;
+  }
+
+  return `${request.routeDate}|${arrivalTimeHms}`;
+};
+
+const isEarlyArrivalPolicyRequest = (request: HotelArrivalPolicyRequest | null) => {
+  const arrivalTimeHms = request?.arrivalDateTime?.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return false;
+  }
+
+  const [hours, minutes, seconds] = arrivalTimeHms.split(":").map((value) => Number(value || 0));
+  const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+  return totalSeconds >= 3600 && totalSeconds < 28800;
+};
+
 const openArrivalPolicyDecisionModal = (request: HotelArrivalPolicyRequest) => {
   const routeDate = request.routeDate || "";
   const currentDate = routeDate ? new Date(`${routeDate}T00:00:00`) : new Date();
@@ -1152,6 +1183,16 @@ const continueToRouteConfirmation = () => {
 
     const request = buildArrivalPolicyRequest();
     if (!request) {
+      continueToRouteConfirmation();
+      return;
+    }
+
+    const currentDecisionKey = getArrivalPolicyDecisionKey(request);
+    if (
+      isEarlyArrivalPolicyRequest(request) &&
+      currentDecisionKey &&
+      currentDecisionKey === lastArrivalPolicyDecisionKey
+    ) {
       continueToRouteConfirmation();
       return;
     }
@@ -1411,12 +1452,17 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         isLoading={isResolvingArrivalPolicy}
         onConfirmPreviousDayBilling={async () => {
           if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
           const canProceed = await runArrivalPolicyGate({
             ...arrivalPolicyModal.request,
             previousDayBillingDecisionProvided: true,
             previousDayBillingConfirmed: true,
           });
           if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
 
           setArrivalPolicyModal({
             open: false,
@@ -1428,12 +1474,17 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         }}
         onDeclinePreviousDayBilling={async () => {
           if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
           const canProceed = await runArrivalPolicyGate({
             ...arrivalPolicyModal.request,
             previousDayBillingDecisionProvided: true,
             previousDayBillingConfirmed: false,
           });
           if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
 
           setArrivalPolicyModal({
             open: false,
