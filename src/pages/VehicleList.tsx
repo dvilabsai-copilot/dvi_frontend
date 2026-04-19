@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
@@ -76,6 +76,12 @@ const safe = (v?: string | null) => v || "";
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
+  // Respect backend-selected vendor after select-vendor API succeeds.
+  const assigned = vehicles.find((v) => v.isAssigned && v.vendorEligibleId);
+  if (assigned?.vendorEligibleId) {
+    return assigned.vendorEligibleId;
+  }
+
   const cheapest = vehicles.reduce((prev, curr) => {
     const prevAmount =
       typeof prev.totalAmount === "number"
@@ -98,6 +104,11 @@ export type VehicleListProps = {
   vehicles: ItineraryVehicleRow[];
   itineraryPlanId?: number;
   onRefresh?: () => void;
+  onSelectedTotalChange?: (payload: {
+    vehicleTypeId: number;
+    totalAmount: number;
+    totalQty: number;
+  }) => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
   routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
 };
@@ -107,6 +118,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   vehicles,
   itineraryPlanId,
   onRefresh,
+  onSelectedTotalChange,
   dateRange,
   routes,
 }) => {
@@ -137,8 +149,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
 
 
-  const handleRadioChange = (index: number) => {
-    const vendor = vehicles[index];
+  const handleRadioChange = (vendor: ItineraryVehicleRow, index: number) => {
     
     console.log(`[${vehicleTypeLabel}] Radio clicked:`, { 
       index, 
@@ -202,19 +213,45 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   };
 
 
-  const sortedVehicles = [...vehicles].sort((a, b) => {
-  const aAmount =
-    typeof a.totalAmount === "number"
-      ? a.totalAmount
-      : parseFloat(String(a.totalAmount || "0")) || 0;
+  const sortedVehicles = useMemo(() => {
+    return [...vehicles].sort((a, b) => {
+      const aAmount =
+        typeof a.totalAmount === "number"
+          ? a.totalAmount
+          : parseFloat(String(a.totalAmount || "0")) || 0;
 
-  const bAmount =
-    typeof b.totalAmount === "number"
-      ? b.totalAmount
-      : parseFloat(String(b.totalAmount || "0")) || 0;
+      const bAmount =
+        typeof b.totalAmount === "number"
+          ? b.totalAmount
+          : parseFloat(String(b.totalAmount || "0")) || 0;
 
-  return aAmount - bAmount;
-});
+      return aAmount - bAmount;
+    });
+  }, [vehicles]);
+
+  useEffect(() => {
+    if (!onSelectedTotalChange || sortedVehicles.length === 0) return;
+
+    const selectedVehicle =
+      selectedVendorEligibleId != null
+        ? sortedVehicles.find((v) => v.vendorEligibleId === selectedVendorEligibleId) || sortedVehicles[0]
+        : sortedVehicles[0];
+
+    const totalAmount =
+      typeof selectedVehicle.totalAmount === "number"
+        ? selectedVehicle.totalAmount
+        : parseFloat(String(selectedVehicle.totalAmount || "0")) || 0;
+
+    const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
+    const vehicleTypeId = Number(selectedVehicle.vehicleTypeId || 0);
+
+    onSelectedTotalChange({
+      vehicleTypeId,
+      totalAmount,
+      totalQty,
+    });
+  }, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange]);
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
       <div className="flex items-center justify-between mb-4">
@@ -290,7 +327,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                             ? selectedVendorEligibleId === v.vendorEligibleId
                             : index === 0
                         }
-                        onChange={() => handleRadioChange(index)}
+                        onChange={() => handleRadioChange(v, index)}
                         onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
                       />
