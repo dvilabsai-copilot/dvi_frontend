@@ -264,7 +264,10 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
         </SheetContent>
       </Sheet>
 
-      <aside className={cn("hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300", collapsed ? "w-20" : "w-64")}>
+      <aside
+        className="hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300"
+        style={{ width: collapsed ? "5rem" : "16rem" }}
+      >
         <SidebarContent />
       </aside>
     </>
