@@ -59,6 +59,7 @@ type HotelListProps = {
   }) => void;
   // ✅ NEW: Callback when total selected hotel amount changes
   onTotalChange?: (totalAmount: number) => void;
+  roomCount?: number;
   // ✅ NEW: Callback when hotel selections change (for confirm quotation payload)
   onHotelSelectionsChange?: (selections: Record<number, {
     provider: string;
@@ -137,6 +138,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   readOnly = false, // ✅ NEW: Default to edit mode
   onCreateVoucher, // ✅ NEW: Callback for voucher creation
   onTotalChange, // ✅ NEW: Callback for total amount changes
+  roomCount = 1,
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
@@ -153,6 +155,17 @@ export const HotelList: React.FC<HotelListProps> = ({
     return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
   };
 
+  const getEffectiveRoomCount = (hotel: Pick<ItineraryHotelRow, 'noOfRooms'>): number => {
+    const rowRooms = toNumber((hotel as any).noOfRooms, 0);
+    const itineraryRooms = toNumber(roomCount, 1);
+    return Math.max(rowRooms || itineraryRooms || 1, 1);
+  };
+
+  const getHotelAmountWithRooms = (hotel: Pick<ItineraryHotelRow, 'totalHotelCost' | 'totalHotelTaxAmount' | 'noOfRooms'>): number => {
+    const baseAmount = toNumber(hotel.totalHotelCost, 0) + toNumber(hotel.totalHotelTaxAmount, 0);
+    return baseAmount * getEffectiveRoomCount(hotel);
+  };
+
   const getHotelsForStay = (sourceHotels: ItineraryHotelRow[], routeId: number, stayDate: string) => {
     const hotelsForRoute = sourceHotels
       .filter((h: any) => toNumber(h.itineraryRouteId, 0) === routeId)
@@ -164,8 +177,8 @@ export const HotelList: React.FC<HotelListProps> = ({
         pricePerNight: h.totalHotelCost,
         perNightAmount: h.totalHotelCost,
         taxAmount: h.totalHotelTaxAmount || 0,
-        totalAmount: h.totalHotelCost + (h.totalHotelTaxAmount || 0),
-        noOfRooms: h.noOfRooms || 1,
+        totalAmount: getHotelAmountWithRooms(h),
+        noOfRooms: getEffectiveRoomCount(h),
         roomTypeName: h.roomType,
         availableRoomTypes: h.roomType
           ? [
@@ -337,9 +350,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   // ✅ Calculate total for a specific groupType (sum of selected hotels)
   const getGroupTotal = (groupType: number): number => {
     const selectedHotels = getSelectedHotelsForGroup(groupType);
-    return selectedHotels.reduce((sum, h) => 
-      sum + (h.totalHotelCost || 0) + (h.totalHotelTaxAmount || 0), 0
-    );
+    return selectedHotels.reduce((sum, h) => sum + getHotelAmountWithRooms(h), 0);
   };
 
   // ✅ Get active tab total
@@ -419,8 +430,8 @@ export const HotelList: React.FC<HotelListProps> = ({
       const sortedStayHotels = [...stayHotels].sort((a, b) => {
         const ratingDiff = toNumber(b.category, 0) - toNumber(a.category, 0);
         if (ratingDiff !== 0) return ratingDiff;
-        const priceA = toNumber(a.totalHotelCost, 0) + toNumber(a.totalHotelTaxAmount, 0);
-        const priceB = toNumber(b.totalHotelCost, 0) + toNumber(b.totalHotelTaxAmount, 0);
+        const priceA = getHotelAmountWithRooms(a);
+        const priceB = getHotelAmountWithRooms(b);
         if (priceA !== priceB) return priceA - priceB;
         return String(a.hotelName || '').localeCompare(String(b.hotelName || ''));
       });
@@ -445,7 +456,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       const dateB = String(b.date || '');
       return dateA.localeCompare(dateB);
     });
-  }, [localHotels, activeGroupType, selectedByGroup, readOnly]);
+  }, [localHotels, activeGroupType, selectedByGroup, readOnly, roomCount]);
 
   const routeDestinationFallback = useMemo(() => {
     const map: Record<number, string> = {};
@@ -530,9 +541,11 @@ export const HotelList: React.FC<HotelListProps> = ({
     const perNightAmount = Number(r.perNightAmount ?? r.pricePerNight ?? 0);
     const nights = Number(r.numberOfNights ?? 1);
     const taxAmount = Number(r.taxAmount ?? 0);
-    const totalAmount = Number(
+    const baseAmount = Number(
       r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
     );
+    const effectiveRooms = Math.max(Number(r.noOfRooms ?? roomCount ?? 1), 1);
+    const totalAmount = baseAmount * effectiveRooms;
 
     return {
       ...r,
@@ -545,7 +558,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       perNightAmount,
       taxAmount,
       totalAmount,
-      noOfRooms: Number(r.noOfRooms ?? 1),
+      noOfRooms: effectiveRooms,
       roomTypeName: r.roomTypeName ?? r.roomType ?? "",
       availableRoomTypes: Array.isArray(r.availableRoomTypes) ? r.availableRoomTypes : [],
     };
@@ -827,7 +840,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       const total = getActiveTabTotal();
       onTotalChange(total);
     }
-  }, [activeGroupType, selectedByGroup, onTotalChange]);
+  }, [activeGroupType, selectedByGroup, onTotalChange, roomCount]);
 
   // ✅ Notify parent when hotel selections change (for confirm quotation)
   React.useEffect(() => {

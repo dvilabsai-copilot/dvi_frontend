@@ -174,6 +174,7 @@ export type ItineraryHotelRow = {
   mealPlan: string;
   totalHotelCost: number;
   totalHotelTaxAmount: number;
+  noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   voucherCancelled?: boolean; // Whether voucher is cancelled
   itineraryPlanHotelDetailsId?: number;
@@ -185,6 +186,7 @@ export type ItineraryHotelRow = {
   checkOutDate?: string; // YYYY-MM-DD format
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
+  hotelAddress?: string | null;
 };
 
 export type ItineraryHotelTab = {
@@ -291,6 +293,7 @@ type CostBreakdown = {
 type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
+  confirmed_itinerary_plan_ID?: number;
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
@@ -1052,8 +1055,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
 const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
+const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
 const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
 const summaryStickyRef = useRef<HTMLDivElement | null>(null);
+const hotelListRef = useRef<HTMLDivElement | null>(null);
 const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
 /** page tracked per groupType for Load More */
 const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
@@ -1077,6 +1082,36 @@ useEffect(() => {
     window.removeEventListener("resize", updateStickyHeight);
   };
 }, [itinerary?.quoteId]);
+
+const scrollToHotelList = () => {
+  const el = hotelListRef.current;
+  if (!el) return;
+
+  let scrollParent: HTMLElement | null = el.parentElement;
+  while (scrollParent) {
+    const style = window.getComputedStyle(scrollParent);
+    const canScrollY = /(auto|scroll)/.test(style.overflowY || "");
+    if (canScrollY && scrollParent.scrollHeight > scrollParent.clientHeight) {
+      break;
+    }
+    scrollParent = scrollParent.parentElement;
+  }
+
+  const offset = summaryStickyHeight + 12;
+  if (scrollParent) {
+    const parentRect = scrollParent.getBoundingClientRect();
+    const targetTop =
+      scrollParent.scrollTop +
+      (el.getBoundingClientRect().top - parentRect.top) -
+      offset;
+
+    scrollParent.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
+    return;
+  }
+
+  const y = el.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
+};
 
 const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
   if (!quoteId || isLoadingMoreHotels) return;
@@ -1165,18 +1200,64 @@ const selectedHotelMetaByRoute = useMemo(() => {
 }, [hotelDetails, selectedHotelBookings, activeHotelGroupType]);
 
 const computedHotelCost = useMemo(() => {
+  if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
   if (selectedHotelTotal > 0) return selectedHotelTotal;
-  const totalFromHotelApi = Array.from(selectedHotelMetaByRoute.values()).reduce(
-    (sum, item) => sum + Number(item.totalAmount || 0),
-    0,
-  );
+
+  const preferredGroupType =
+    activeHotelGroupType ??
+    hotelDetails?.hotelTabs?.[0]?.groupType ??
+    1;
+
+  const getStayDate = (hotel: ItineraryHotelRow): string => {
+    if (hotel.checkInDate) return String(hotel.checkInDate);
+    if (hotel.date) return String(hotel.date);
+    const dayText = String(hotel.day || '');
+    const parts = dayText.split(' | ');
+    return (parts[1] || dayText).trim();
+  };
+
+  const groupedByStay = new Map<string, ItineraryHotelRow[]>();
+  (hotelDetails?.hotels || [])
+    .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+    .forEach((h) => {
+      const routeId = Number(h.itineraryRouteId || 0);
+      if (!routeId) return;
+      const stayKey = `${routeId}::${getStayDate(h)}`;
+      if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
+      groupedByStay.get(stayKey)!.push(h);
+    });
+
+  const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+
+  const totalFromHotelApi = Array.from(groupedByStay.values()).reduce((sum, rows) => {
+    const cheapest = rows.reduce((best, curr) => {
+      const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+      const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+      return currTotal < bestTotal ? curr : best;
+    });
+
+    const baseAmount = Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0);
+    const rowRooms = Math.max(Number(cheapest.noOfRooms || 0), 0);
+    const effectiveRooms = Math.max(rowRooms || itineraryRoomCount, 1);
+    return sum + baseAmount * effectiveRooms;
+  }, 0);
+
   if (totalFromHotelApi > 0) return totalFromHotelApi;
   return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
-}, [selectedHotelTotal, selectedHotelMetaByRoute, itinerary?.costBreakdown?.totalHotelAmount]);
+}, [
+  activeHotelListTotal,
+  selectedHotelTotal,
+  selectedHotelMetaByRoute,
+  hotelDetails,
+  activeHotelGroupType,
+  itinerary?.costBreakdown?.totalHotelAmount,
+  itinerary?.roomCount,
+]);
 
 const roomBreakdownStayCount = useMemo(() => {
+  const fallbackDayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
   if (!hotelDetails?.hotels?.length) {
-    return Number(itinerary?.costBreakdown?.hotelPaxCount || itinerary?.adults || 1);
+    return fallbackDayCount;
   }
 
   const preferredGroupType =
@@ -1202,8 +1283,8 @@ const roomBreakdownStayCount = useMemo(() => {
       stayKeys.add(`${routeId}::${stayDate}`);
     });
 
-  return stayKeys.size || Number(itinerary?.costBreakdown?.hotelPaxCount || itinerary?.adults || 1);
-}, [hotelDetails, activeHotelGroupType, itinerary?.costBreakdown?.hotelPaxCount, itinerary?.adults]);
+  return stayKeys.size || fallbackDayCount;
+}, [hotelDetails, activeHotelGroupType, itinerary?.dayCount, itinerary?.days?.length]);
 
 const financialTotals = useMemo(() => {
   const hotelAmount = Number(
@@ -4129,7 +4210,15 @@ if (error || !itinerary) {
 
           {/* Trip Details — row 2 (same bg) */}
           <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
-            <span>Room Count <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span></span>
+            <button
+              type="button"
+              onClick={scrollToHotelList}
+              className="inline-flex items-center gap-1 rounded px-1 -mx-1 text-left hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40"
+              title="Go to Hotel List"
+            >
+              <span>Room Count</span>
+              <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span>
+            </button>
             <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
             <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
             <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
@@ -4749,11 +4838,13 @@ if (error || !itinerary) {
       </div>
       {/* Hotel List (separate component) */}
       {hotelDetails && (
-        <div>
+        <div ref={hotelListRef} id="hotel-list-section">
         <HotelList
           hotels={hotelDetails.hotels}
           hotelTabs={hotelDetails.hotelTabs}
           hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          roomCount={Number(itinerary.roomCount || 1)}
+          onTotalChange={(total) => setActiveHotelListTotal(Number(total || 0))}
           onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
           hotelAvailability={hotelDetails.hotelAvailability}
           quoteId={quoteId!}
@@ -4870,6 +4961,7 @@ if (error || !itinerary) {
               {(() => {
                 const roomTotal = Number(financialTotals.hotelAmount || 0);
                 const stayCount = roomBreakdownStayCount || 1;
+                const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
 
                 return (
                   <Popover
@@ -4888,7 +4980,7 @@ if (error || !itinerary) {
                         onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
                       >
                         <div className="flex items-center">
-                          <span className="text-[#6c6c6c]">Total Hotel Cost For {stayCount} rooms</span>
+                          <span className="text-[#6c6c6c]">Total Hotel Cost For ({stayCount} days * {roomCount}) rooms</span>
                           {selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && (
                             <span className="ml-1 inline-flex h-4 w-4 items-center justify-center text-[11px] leading-none">▶️</span>
                           )}
