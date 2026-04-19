@@ -76,11 +76,6 @@ const safe = (v?: string | null) => v || "";
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
-  const assigned = vehicles.find((v) => Boolean(v.isAssigned) && Number(v.vendorEligibleId || 0) > 0);
-  if (assigned?.vendorEligibleId) {
-    return assigned.vendorEligibleId;
-  }
-
   const cheapest = vehicles.reduce((prev, curr) => {
     const prevAmount =
       typeof prev.totalAmount === "number"
@@ -290,7 +285,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                         type="radio"
                         id={radioId}
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
-                        checked={selectedVendorEligibleId === v.vendorEligibleId}
+                        checked={
+                          selectedVendorEligibleId != null
+                            ? selectedVendorEligibleId === v.vendorEligibleId
+                            : index === 0
+                        }
                         onChange={() => handleRadioChange(index)}
                         onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"

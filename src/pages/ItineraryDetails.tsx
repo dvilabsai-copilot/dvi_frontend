@@ -934,6 +934,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     startTimeHms: string;
     endTimeHms: string;
   } | null>(null);
+  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
   const [arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal] = useState<{
     open: boolean;
     arrivalDate: string;
@@ -1051,6 +1052,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
 const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
 const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
+const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
 /** page tracked per groupType for Load More */
 const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
 const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
@@ -1150,6 +1152,75 @@ const computedHotelCost = useMemo(() => {
   if (totalFromHotelApi > 0) return totalFromHotelApi;
   return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
 }, [selectedHotelTotal, selectedHotelMetaByRoute, itinerary?.costBreakdown?.totalHotelAmount]);
+
+const roomBreakdownStayCount = useMemo(() => {
+  if (!hotelDetails?.hotels?.length) {
+    return Number(itinerary?.costBreakdown?.hotelPaxCount || itinerary?.adults || 1);
+  }
+
+  const preferredGroupType =
+    activeHotelGroupType ??
+    hotelDetails.hotelTabs?.[0]?.groupType ??
+    1;
+
+  const getStayDate = (hotel: ItineraryHotelRow): string => {
+    if (hotel.checkInDate) return String(hotel.checkInDate);
+    if (hotel.date) return String(hotel.date);
+    const dayText = String(hotel.day || '');
+    const parts = dayText.split(' | ');
+    return (parts[1] || dayText).trim();
+  };
+
+  const stayKeys = new Set<string>();
+  hotelDetails.hotels
+    .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+    .forEach((h) => {
+      const routeId = Number(h.itineraryRouteId || 0);
+      if (!routeId) return;
+      const stayDate = getStayDate(h);
+      stayKeys.add(`${routeId}::${stayDate}`);
+    });
+
+  return stayKeys.size || Number(itinerary?.costBreakdown?.hotelPaxCount || itinerary?.adults || 1);
+}, [hotelDetails, activeHotelGroupType, itinerary?.costBreakdown?.hotelPaxCount, itinerary?.adults]);
+
+const financialTotals = useMemo(() => {
+  const hotelAmount = Number(
+    itinerary?.costBreakdown?.totalRoomCost ||
+    itinerary?.costBreakdown?.totalHotelAmount ||
+    computedHotelCost ||
+    0,
+  );
+
+  const vehicleAmount = Number(
+    itinerary?.costBreakdown?.totalVehicleAmount ??
+    itinerary?.costBreakdown?.totalVehicleCost ??
+    0,
+  );
+
+  const otherAmount =
+    Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
+    Number(itinerary?.costBreakdown?.extraBedCost || 0) +
+    Number(itinerary?.costBreakdown?.childWithBedCost || 0) +
+    Number(itinerary?.costBreakdown?.childWithoutBedCost || 0) +
+    Number(itinerary?.costBreakdown?.totalGuideCost || 0) +
+    Number(itinerary?.costBreakdown?.totalHotspotCost || 0) +
+    Number(itinerary?.costBreakdown?.totalActivityCost || 0) +
+    Number(itinerary?.costBreakdown?.additionalMargin || 0);
+
+  const totalAmount = hotelAmount + vehicleAmount + otherAmount;
+  const couponDiscount = Number(itinerary?.costBreakdown?.couponDiscount || 0);
+  const agentMargin = Number(itinerary?.costBreakdown?.agentMargin || 0);
+  const totalRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff || 0);
+  const netPayable = totalAmount - couponDiscount + agentMargin + totalRoundOff;
+
+  return {
+    hotelAmount,
+    totalAmount,
+    netPayable,
+    totalRoundOff,
+  };
+}, [itinerary, computedHotelCost]);
 
 const hotelHydratedDays = useMemo(() => {
   if (!itinerary?.days?.length) return [];
@@ -1428,6 +1499,35 @@ useEffect(() => {
     setActiveHotelGroupType(hotelDetails.hotelTabs[0].groupType);
   }
 }, [hotelDetails, activeHotelGroupType]);
+
+useEffect(() => {
+  const firstDay = itinerary?.days?.find((day) => Number(day.dayNumber) === 1) || itinerary?.days?.[0];
+  if (!firstDay || !hotelDetails) {
+    return;
+  }
+
+  const routeDateYmd = normalizeDateToYmd(firstDay.date);
+  const startTimeHms = parseDisplayTimeToHms(firstDay.startTime || '');
+  if (!routeDateYmd || !startTimeHms || !isEarlyMorningTime(startTimeHms)) {
+    return;
+  }
+
+  const hasPreviousDayMarkerRow = hotelDetails.hotels.some((hotel) => {
+    const hotelDateYmd = normalizeDateToYmd(hotel.date);
+    return (
+      Number(hotel.itineraryRouteId || 0) === Number(firstDay.id || 0) &&
+      Number(hotel.hotelId || 0) === 0 &&
+      Boolean(hotelDateYmd) &&
+      hotelDateYmd !== routeDateYmd
+    );
+  });
+
+  if (hasPreviousDayMarkerRow) {
+    setLastArrivalPolicyDecisionKey(
+      buildArrivalPolicyDecisionKey(firstDay.id, firstDay.date, startTimeHms),
+    );
+  }
+}, [hotelDetails, itinerary]);
 
 useEffect(() => {
   if (!clipboardModal || !paraRecommendations.length) return;
@@ -2272,6 +2372,45 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
+  const buildArrivalPolicyDecisionKey = (
+    routeId?: number,
+    routeDate?: string,
+    startTimeHms?: string,
+  ) => {
+    const normalizedRouteId = Number(routeId || 0);
+    const normalizedRouteDate = normalizeDateToYmd(routeDate);
+    const normalizedStartTime = String(startTimeHms || '').trim();
+
+    if (!normalizedRouteId || !normalizedRouteDate || !normalizedStartTime) {
+      return null;
+    }
+
+    return `${normalizedRouteId}|${normalizedRouteDate}|${normalizedStartTime}`;
+  };
+
+  const getRequestArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
+    if (!request) {
+      return null;
+    }
+
+    const arrivalTimeHms = (() => {
+      if (request.arrivalDateTime && request.arrivalDateTime.includes('T')) {
+        return request.arrivalDateTime.split('T')[1]?.slice(0, 8) || '';
+      }
+
+      const routeDay = itinerary?.days?.find(
+        (day) => Number(day.id) === Number(request.itineraryRouteId),
+      );
+      return parseDisplayTimeToHms(routeDay?.startTime || '');
+    })();
+
+    return buildArrivalPolicyDecisionKey(
+      request.itineraryRouteId,
+      request.routeDate,
+      arrivalTimeHms,
+    );
+  };
+
   const handleUpdateRouteTimesDirect = async (
     planId: number,
     routeId: number,
@@ -2281,25 +2420,37 @@ const htmlToPlainText = (html: string): string => {
   ) => {
     const startTimeHms = parseDisplayTimeToHms(startTimeDisplay);
     const endTimeHms = parseDisplayTimeToHms(endTimeDisplay);
+    const routeDay =
+      itinerary?.days?.find((d) => Number(d.id) === Number(routeId)) ||
+      itinerary?.days?.find((d) => Number(d.dayNumber) === Number(dayNumber));
+    const currentStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || '');
+    const currentEndTimeHms = parseDisplayTimeToHms(routeDay?.endTime || '');
+    const hasTimeChanged =
+      startTimeHms !== currentStartTimeHms ||
+      endTimeHms !== currentEndTimeHms;
 
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
 
+    if (!hasTimeChanged) {
+      return;
+    }
+
     // Day 1 early-morning gate: 01:00–07:59 requires previous-day hotel confirmation
     if (dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
-        const routeDay =
-          itinerary?.days?.find((d) => Number(d.id) === Number(routeId)) ||
+        const resolvedRouteDay =
+          routeDay ||
           itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
           itinerary?.days?.[0];
-        const routeDateYmd = normalizeDateToYmd(routeDay?.date);
+        const routeDateYmd = normalizeDateToYmd(resolvedRouteDay?.date);
       const request: HotelArrivalPolicyRequest = {
         itineraryPlanId: planId,
         itineraryRouteId: routeId,
         routeDayNumber: 1,
           routeDate: routeDateYmd,
           arrivalDateTime: routeDateYmd ? `${routeDateYmd}T${startTimeHms}` : undefined,
-          arrivalCityName: routeDay?.departure || '',
-          routeSourceCityName: routeDay?.departure || '',
-          nightStayCityName: routeDay?.arrival || '',
+          arrivalCityName: resolvedRouteDay?.departure || '',
+          routeSourceCityName: resolvedRouteDay?.departure || '',
+          nightStayCityName: resolvedRouteDay?.arrival || '',
         previousDayBillingDecisionProvided: false,
         previousDayBillingConfirmed: false,
       };
@@ -2334,6 +2485,41 @@ const htmlToPlainText = (html: string): string => {
     }
 
     await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms);
+  };
+
+  const persistArrivalPolicyDecision = async (
+    request: HotelArrivalPolicyRequest,
+    confirmed: boolean,
+  ): Promise<boolean> => {
+    try {
+      const routeDay =
+        itinerary?.days?.find((d) => Number(d.id) === Number(request.itineraryRouteId)) ||
+        itinerary?.days?.find((d) => Number(d.dayNumber) === Number(request.routeDayNumber || 1));
+
+      if (!routeDay?.startTime || !routeDay?.endTime) {
+        return false;
+      }
+
+      const startTimeHms = parseDisplayTimeToHms(routeDay.startTime);
+      const endTimeHms = parseDisplayTimeToHms(routeDay.endTime);
+
+      await applyRouteTimePatch(
+        request.itineraryPlanId,
+        request.itineraryRouteId,
+        routeDay.dayNumber || request.routeDayNumber || 1,
+        startTimeHms,
+        endTimeHms,
+        {
+          previousDayBillingDecisionProvided: true,
+          previousDayBillingConfirmed: confirmed,
+        },
+      );
+
+      return true;
+    } catch (e) {
+      console.error('Failed to persist arrival policy decision', e);
+      return false;
+    }
   };
 
   const openDeleteHotspotModal = (
@@ -2992,13 +3178,44 @@ const htmlToPlainText = (html: string): string => {
     await resolveArrivalPolicyForArrivalTimeChange(request);
   };
 
-  const openHotelSelectionModal = (
+  const openHotelSelectionModal = async (
     planId: number,
     routeId: number,
     routeDate: string,
     cityCode: string,
     cityName: string
   ) => {
+    const routeDay = itinerary?.days?.find((d) => Number(d.id) === Number(routeId));
+    const currentRouteStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || '');
+    const currentDecisionKey = buildArrivalPolicyDecisionKey(routeId, routeDate, currentRouteStartTimeHms);
+    const isDay1EarlyArrival =
+      Number(routeDay?.dayNumber || 0) === 1 &&
+      isEarlyMorningTime(currentRouteStartTimeHms);
+
+    if (
+      isDay1EarlyArrival &&
+      itinerary?.planId &&
+      currentDecisionKey !== lastArrivalPolicyDecisionKey
+    ) {
+      const request: HotelArrivalPolicyRequest = {
+        itineraryPlanId: itinerary.planId,
+        itineraryRouteId: routeId,
+        routeDayNumber: routeDay?.dayNumber || 1,
+        routeDate,
+        arrivalDateTime: normalizeDateToYmd(routeDate)
+          ? `${normalizeDateToYmd(routeDate)}T${currentRouteStartTimeHms}`
+          : undefined,
+        arrivalCityName: routeDay?.departure || cityName || '',
+        routeSourceCityName: routeDay?.departure || cityName || '',
+        nightStayCityName: routeDay?.arrival || cityName || '',
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      };
+
+      await resolveArrivalPolicyForArrivalTimeChange(request);
+      return;
+    }
+
     const policyToApply: HotelArrivalPolicyResponse =
       latestArrivalPolicy ||
       {
@@ -3096,9 +3313,13 @@ const htmlToPlainText = (html: string): string => {
 
       // Store hotel details for TBO confirmation (ALL hotel selections)
       // Calculate checkout date (next day after check-in)
-      const checkInDate = new Date(hotelSelectionModal.routeDate);
-      const checkOutDate = new Date(checkInDate);
-      checkOutDate.setDate(checkOutDate.getDate() + 1);
+      const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
+      const checkOutDate = new Date(
+        hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate,
+      );
+      if (!hotelSelectionModal.checkOutDate) {
+        checkOutDate.setDate(checkOutDate.getDate() + 1);
+      }
       
       // Format dates to YYYY-MM-DD
       const formatDate = (date: Date) => {
@@ -4617,167 +4838,159 @@ if (error || !itinerary) {
               OVERALL COST
             </h2>
             <div className="space-y-2 text-sm">
-              {/* Hotel Costs - Itemized */}
-              {itinerary.costBreakdown.totalRoomCost !== undefined && itinerary.costBreakdown.totalRoomCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">
-                    Total Room Cost ({itinerary.costBreakdown.hotelPaxCount || 0} pax * ₹{itinerary.costBreakdown.roomCostPerPerson?.toFixed(2) || "0.00"})
-                  </span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalRoomCost.toFixed(2)}
-                  </span>
-                </div>
-              )}
+              {/* ── Hotel Cost Group ── */}
+              {(() => {
+                const roomTotal = Number(financialTotals.hotelAmount || 0);
+                const stayCount = roomBreakdownStayCount || 1;
+
+                return (
+                  <Popover
+                    open={isRoomCostPopoverOpen && selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible}
+                    onOpenChange={(open) => {
+                      if (!open) setIsRoomCostPopoverOpen(false);
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <div
+                        className="flex justify-between cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                        }}
+                        onMouseEnter={() => selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && setIsRoomCostPopoverOpen(true)}
+                        onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
+                      >
+                        <div className="flex items-center">
+                          <span className="text-[#6c6c6c]">Total Hotel Cost For {stayCount} rooms</span>
+                          {selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && (
+                            <span className="ml-1 inline-flex h-4 w-4 items-center justify-center text-[11px] leading-none">▶️</span>
+                          )}
+                        </div>
+                        <span className="text-[#4a4260]">₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent 
+                      className="w-80 bg-white border border-[#ddd5e8] shadow-lg rounded-lg p-4" 
+                      align="end"
+                      onMouseEnter={() => setIsRoomCostPopoverOpen(true)}
+                      onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
+                    >
+                      <div className="space-y-2 text-sm">
+                        {Array.from(selectedHotelMetaByRoute.entries()).map(([routeId, meta]) => (
+                          <div key={routeId} className="flex justify-between text-[#6c6c6c]">
+                            <span>{meta.hotelName}</span>
+                            <span className="font-medium text-[#4a4260]">₹ {Number(meta.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-[#ddd5e8] pt-2 mt-2 flex justify-between font-semibold text-[#4a4260]">
+                          <span>Total Hotel Cost</span>
+                          <span>₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
               {itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Amenities Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.extraBedCost !== undefined && itinerary.costBreakdown.extraBedCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Extra Bed Cost ({itinerary.extraBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.extraBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.extraBedCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.childWithBedCost !== undefined && itinerary.costBreakdown.childWithBedCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Child With Bed Cost ({itinerary.childWithBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.childWithBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithBedCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Child Without Bed Cost ({itinerary.childWithoutBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.totalHotelAmount !== undefined && itinerary.costBreakdown.totalHotelAmount > 0 && (
-                <div className="flex justify-between font-semibold">
-                  <span className="text-[#4a4260]">Total Hotel Amount</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalHotelAmount.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between font-semibold">
-                <span className="text-[#4a4260]">Hotel Cost (from Hotel Details API)</span>
-                <span className="text-[#4a4260]">₹ {Number(computedHotelCost || 0).toFixed(2)}</span>
-              </div>
-              
-              {/* Vehicle Costs */}
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Vehicle cost (₹)</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalVehicleCost?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Vehicle Amount</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalVehicleAmount?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              {itinerary.costBreakdown.totalVehicleQty !== undefined && itinerary.costBreakdown.totalVehicleQty > 0 && (
+              {/* ── Vehicle Cost Group ── */}
+              {(itinerary.costBreakdown.totalVehicleCost ?? 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Vehicle Quantity</span>
-                  <span className="text-[#4a4260]">
-                    {itinerary.costBreakdown.totalVehicleQty}
+                  <span className="text-[#6c6c6c]">
+                    Total Vehicle Cost{itinerary.costBreakdown.totalVehicleQty ? ` (${itinerary.costBreakdown.totalVehicleQty})` : ''}
                   </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalVehicleCost!.toFixed(2)}</span>
                 </div>
               )}
-              
-              {/* Guide/Activity Costs */}
+              {(itinerary.costBreakdown.totalVehicleAmount ?? 0) > 0 && (
+                <div className="flex justify-between font-semibold">
+                  <span className="text-[#4a4260]">Total Vehicle Amount</span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalVehicleAmount!.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* ── Guide / Activity / Hotspot ── */}
               {itinerary.costBreakdown.totalGuideCost !== undefined && itinerary.costBreakdown.totalGuideCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Guide Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.totalHotspotCost !== undefined && itinerary.costBreakdown.totalHotspotCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Hotspot Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalHotspotCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalHotspotCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.totalActivityCost !== undefined && itinerary.costBreakdown.totalActivityCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Activity Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalActivityCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalActivityCost.toFixed(2)}</span>
                 </div>
               )}
-              
-              {/* Final Calculations */}
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">
-                  Total Additional Margin (10%)
-                </span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.additionalMargin?.toFixed(2) ?? "0.00"}
-                </span>
+              {itinerary.costBreakdown.additionalMargin !== undefined && itinerary.costBreakdown.additionalMargin > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[#6c6c6c]">Total Additional Margin (10%)</span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.additionalMargin.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* ── Total Amount ── */}
+              <div className="border-t border-[#e5d9f2] pt-3 mt-1">
+                <div className="flex justify-between font-semibold">
+                  <span className="text-[#4a4260]">Total Amount</span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.totalAmount.toFixed(2)}</span>
+                </div>
               </div>
-              <div className="flex justify-between font-semibold">
-                <span className="text-[#4a4260]">Total Amount</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalAmount?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="flex justify-between text-[#d546ab]">
-                <span>Coupon Discount</span>
-                <span>- ₹ {itinerary.costBreakdown.couponDiscount?.toFixed(2) ?? "0.00"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Agent Margin</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.agentMargin?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              
-              {/* Agent Profit Input (for user level 4) */}
-              <div className="flex justify-between items-center bg-[#faf5ff] p-2 rounded">
-                <label htmlFor="agentProfit" className="text-[#6c6c6c] font-medium">
-                  Agent Profit:
-                </label>
-                <input
-                  type="number"
-                  id="agentProfit"
-                  placeholder="0.00"
-                  className="w-32 px-2 py-1 text-sm border border-[#e5d9f2] rounded text-right"
-                  defaultValue={0}
-                  step="0.01"
-                  min="0"
-                />
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Round Off</span>
-                <span className="text-[#4a4260]">
-                  {itinerary.costBreakdown.totalRoundOff && itinerary.costBreakdown.totalRoundOff > 0 ? "+" : ""}
-                  ₹ {itinerary.costBreakdown.totalRoundOff?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="border-t-2 border-[#d546ab] pt-2 mt-2">
-                <div className="flex justify-between text-lg font-bold">
+
+              {/* ── Discounts / Adjustments (only when non-zero) ── */}
+              {(itinerary.costBreakdown.couponDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-[#d546ab]">
+                  <span>Coupon Discount</span>
+                  <span>- ₹ {itinerary.costBreakdown.couponDiscount!.toFixed(2)}</span>
+                </div>
+              )}
+              {(itinerary.costBreakdown.agentMargin ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[#6c6c6c]">Agent Margin</span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.agentMargin!.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* ── Net Payable ── */}
+              <div className="border-t border-[#e5d9f2] pt-2 mt-1 space-y-1">
+                <div className="flex justify-between text-[#6c6c6c]">
+                  <span>Total Round Off</span>
+                  <span>
+                    {(financialTotals.totalRoundOff ?? 0) > 0 ? "+ " : ""}₹ {financialTotals.totalRoundOff.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-base font-bold pt-1">
                   <span className="text-[#4a4260]">
-                    Net Payable to {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
+                    Net Payable To {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
                   </span>
-                  <span className="text-[#d546ab]">
-                    ₹ {itinerary.costBreakdown.netPayable?.toFixed(2) ?? "0.00"}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.netPayable.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -5554,6 +5767,9 @@ if (error || !itinerary) {
             return;
           }
 
+          const request = arrivalPolicyConfirmModal.request;
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
+
           setArrivalPolicyConfirmModal({
             open: false,
             arrivalDate: '',
@@ -5569,20 +5785,38 @@ if (error || !itinerary) {
               previousDayBillingDecisionProvided: true,
               previousDayBillingConfirmed: true,
             });
+            if (decisionKey) {
+              setLastArrivalPolicyDecisionKey(decisionKey);
+            }
             return;
           }
 
-          const nextRequest: HotelArrivalPolicyRequest = {
-            ...arrivalPolicyConfirmModal.request,
-            previousDayBillingDecisionProvided: true,
-            previousDayBillingConfirmed: true,
-          };
-          await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+          const persisted = await persistArrivalPolicyDecision(
+            request,
+            true,
+          );
+
+          if (!persisted) {
+            const nextRequest: HotelArrivalPolicyRequest = {
+              ...request,
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: true,
+            };
+            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+            return;
+          }
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
         }}
         onDeclinePreviousDayBilling={async () => {
           if (!arrivalPolicyConfirmModal.request) {
             return;
           }
+
+          const request = arrivalPolicyConfirmModal.request;
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
 
           setArrivalPolicyConfirmModal({
             open: false,
@@ -5599,15 +5833,30 @@ if (error || !itinerary) {
               previousDayBillingDecisionProvided: true,
               previousDayBillingConfirmed: false,
             });
+            if (decisionKey) {
+              setLastArrivalPolicyDecisionKey(decisionKey);
+            }
             return;
           }
 
-          const nextRequest: HotelArrivalPolicyRequest = {
-            ...arrivalPolicyConfirmModal.request,
-            previousDayBillingDecisionProvided: true,
-            previousDayBillingConfirmed: false,
-          };
-          await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+          const persisted = await persistArrivalPolicyDecision(
+            request,
+            false,
+          );
+
+          if (!persisted) {
+            const nextRequest: HotelArrivalPolicyRequest = {
+              ...request,
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: false,
+            };
+            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+            return;
+          }
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
         }}
       />
 
