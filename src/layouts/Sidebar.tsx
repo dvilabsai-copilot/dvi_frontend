@@ -129,11 +129,13 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void }
+interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
-export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
+export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
   const [openParentId, setOpenParentId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
+  const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
+  const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
 
   const token = localStorage.getItem("accessToken");

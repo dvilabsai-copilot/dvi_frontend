@@ -10,6 +10,7 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ children }: MainLayoutProps) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // kept for future use, currently driven by Sidebar internally via callback
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -24,14 +25,14 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   return (
     <div className="flex min-h-screen w-full bg-background">
       <div
-        className={cn(
-          "transition-all duration-300",
-          sidebarCollapsed ? "w-20" : "w-64"
-        )}
+        className="transition-all duration-300 shrink-0"
+        style={{ width: sidebarCollapsed ? "5rem" : "16rem" }}
       >
         <Sidebar
   mobileOpen={mobileMenuOpen}
   onMobileToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+  collapsed={sidebarCollapsed}
+  onCollapsedChange={setSidebarCollapsed}
 />
       </div>
 
