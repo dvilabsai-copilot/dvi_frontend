@@ -100,6 +100,7 @@ const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number |
 };
 
 export type VehicleListProps = {
+  vehicleTypeId?: number;
   vehicleTypeLabel: string;
   vehicles: ItineraryVehicleRow[];
   itineraryPlanId?: number;
@@ -114,6 +115,7 @@ export type VehicleListProps = {
 };
 
 export const VehicleList: React.FC<VehicleListProps> = ({
+  vehicleTypeId,
   vehicleTypeLabel,
   vehicles,
   itineraryPlanId,
@@ -243,14 +245,14 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         : parseFloat(String(selectedVehicle.totalAmount || "0")) || 0;
 
     const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
-    const vehicleTypeId = Number(selectedVehicle.vehicleTypeId || 0);
+    const resolvedVehicleTypeId = Number(selectedVehicle.vehicleTypeId || vehicleTypeId || 0);
 
     onSelectedTotalChange({
-      vehicleTypeId,
+      vehicleTypeId: resolvedVehicleTypeId,
       totalAmount,
       totalQty,
     });
-  }, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange]);
+  }, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange, vehicleTypeId]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
