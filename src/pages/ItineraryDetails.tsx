@@ -2259,6 +2259,31 @@ const htmlToPlainText = (html: string): string => {
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
+  const handleVehicleSelectedTotalChange = useCallback((payload: {
+    vehicleTypeId: number;
+    totalAmount: number;
+    totalQty: number;
+  }) => {
+    const key = Number(payload.vehicleTypeId || 0);
+    const nextAmount = Number(payload.totalAmount || 0);
+    const nextQty = Number(payload.totalQty || 0);
+
+    setSelectedVehicleTotalsByType((prev) => {
+      const existing = prev[key];
+      if (existing && existing.totalAmount === nextAmount && existing.totalQty === nextQty) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [key]: {
+          totalAmount: nextAmount,
+          totalQty: nextQty,
+        },
+      };
+    });
+  }, []);
+
   const shouldShowRebuildHotelsButton = useMemo(() => {
     if (!hotelDetails?.hotels?.length) return false;
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
@@ -4933,21 +4958,12 @@ if (error || !itinerary) {
               return (
                 <VehicleList
                   key={typeId}
+                  vehicleTypeId={typeId}
                   vehicleTypeLabel={vehicleTypeLabel}
                   vehicles={vehiclesForType}
                   itineraryPlanId={itinerary.planId}
                   onRefresh={refreshVehicleData}
-                  onSelectedTotalChange={({ vehicleTypeId, totalAmount, totalQty }) => {
-                    const key = Number(vehicleTypeId || typeId || 0);
-                    if (!key) return;
-                    setSelectedVehicleTotalsByType((prev) => ({
-                      ...prev,
-                      [key]: {
-                        totalAmount: Number(totalAmount || 0),
-                        totalQty: Number(totalQty || 0),
-                      },
-                    }));
-                  }}
+                  onSelectedTotalChange={handleVehicleSelectedTotalChange}
                   dateRange={dateRange}
                   routes={routes}
                 />
