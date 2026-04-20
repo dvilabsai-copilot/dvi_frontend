@@ -1147,6 +1147,95 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
   };
 
+  const dedupeHotelRows = useCallback((rows: ItineraryHotelRow[]): ItineraryHotelRow[] => {
+    const seen = new Set<string>();
+    const unique: ItineraryHotelRow[] = [];
+
+    rows.forEach((row) => {
+      const key = [
+        Number(row.groupType || 0),
+        Number(row.itineraryRouteId || 0),
+        String(row.date || row.checkInDate || ''),
+        String(row.hotelCode || ''),
+        String(row.bookingCode || ''),
+        String(row.roomType || ''),
+        String(row.hotelName || ''),
+      ].join('|');
+
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(row);
+    });
+
+    return unique;
+  }, []);
+
+  const fetchCompleteHotelDetails = useCallback(async (
+    currentQuoteId: string,
+    pageSize = 20,
+  ): Promise<ItineraryHotelDetailsResponse> => {
+    const base = await ItineraryService.getHotelDetails(currentQuoteId, 1, pageSize);
+
+    const merged: ItineraryHotelDetailsResponse = {
+      ...(base as ItineraryHotelDetailsResponse),
+      hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
+      pagination: { ...((base as ItineraryHotelDetailsResponse).pagination || {}) },
+      routePagination: { ...((base as ItineraryHotelDetailsResponse).routePagination || {}) },
+    };
+
+    const pending = new Map<string, { groupType: number; routeId: number; nextPage: number }>();
+
+    Object.entries(merged.routePagination || {}).forEach(([key, meta]) => {
+      const routeId = Number(String(key).split('-')[1] || 0);
+      if (!meta?.hasMore || !meta.groupType || !routeId) return;
+
+      pending.set(key, {
+        groupType: Number(meta.groupType),
+        routeId,
+        nextPage: Number(meta.page || 1) + 1,
+      });
+    });
+
+    while (pending.size > 0) {
+      const [key, req] = pending.entries().next().value as [
+        string,
+        { groupType: number; routeId: number; nextPage: number }
+      ];
+      pending.delete(key);
+
+      const next = await ItineraryService.getHotelDetails(
+        currentQuoteId,
+        req.nextPage,
+        pageSize,
+        req.groupType,
+        req.routeId,
+      );
+
+      const nextTyped = next as ItineraryHotelDetailsResponse;
+
+      merged.hotels = dedupeHotelRows([...(merged.hotels || []), ...(nextTyped.hotels || [])]);
+      merged.pagination = {
+        ...(merged.pagination || {}),
+        ...(nextTyped.pagination || {}),
+      };
+      merged.routePagination = {
+        ...(merged.routePagination || {}),
+        ...(nextTyped.routePagination || {}),
+      };
+
+      const updatedMeta = merged.routePagination?.[key];
+      if (updatedMeta?.hasMore) {
+        pending.set(key, {
+          groupType: Number(updatedMeta.groupType),
+          routeId: req.routeId,
+          nextPage: Number(updatedMeta.page || req.nextPage) + 1,
+        });
+      }
+    }
+
+    return merged;
+  }, [dedupeHotelRows]);
+
   const selectedHotelTotal = useMemo(
     () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings]
@@ -1358,6 +1447,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (!itinerary?.days?.length) return [];
 
     return itinerary.days.map((day, dayIndex) => {
+      // ALWAYS ensure we have a segments array to process
+      let segments = Array.isArray(day.segments) ? [...day.segments] : [];
+      
+      // If no segments,  just return the day with empty segments
+      // (don't try to process hotel logic if there's nothing to process)
+      if (!segments || segments.length === 0) {
+        return {
+          ...day,
+          segments: [],
+        };
+      }
+      
       const currentHotelName = selectedHotelMetaByRoute.get(day.id)?.hotelName?.trim() || null;
       const currentHotelDistance = selectedHotelMetaByRoute.get(day.id)?.hotelDistance?.trim() || null;
       const previousDay = dayIndex > 0 ? itinerary.days[dayIndex - 1] : null;
@@ -1368,7 +1469,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       let firstTravelSeen = false;
       let derivedHotelArrivalMinutes: number | null = null;
 
-      const segments = day.segments.map((segment) => {
+      segments = segments.map((segment) => {
         if (segment.type === 'travel') {
           const isFirstTravelOfDay = !firstTravelSeen;
           firstTravelSeen = true;
@@ -1563,14 +1664,53 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [itinerary?.days, selectedHotelMetaByRoute]);
 
   // Ensure "start" segment always appears before first travel segment within each day
-  const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map(day => ({
-    ...day,
-    segments: [...(day.segments || [])].sort((a, b) => {
-      if (a.type === 'start' && b.type !== 'start') return -1;
-      if (b.type === 'start' && a.type !== 'start') return 1;
-      return 0;
-    }),
-  }));
+  const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map((day, idx) => {
+    // CRITICAL SAFEGUARD: Ensure segments always exist as an array
+    const rawSegments = (() => {
+      // First try hotelHydratedDays/current day segments
+      if (day.segments && Array.isArray(day.segments) && day.segments.length > 0) {
+        return day.segments;
+      }
+      
+      // Fallback: try to get from original itinerary.days in case hotelHydratedDays lost them
+      if (itinerary?.days && itinerary.days.length > idx) {
+        const originalDay = itinerary.days[idx];
+        if (originalDay.segments && Array.isArray(originalDay.segments)) {
+          return originalDay.segments;
+        }
+      }
+      
+      // Last resort: empty array
+      return [];
+    })();
+    
+    // DEBUG: Log for first day
+    if (idx === 0 && rawSegments.length === 0) {
+      console.warn('[ItineraryDetails] DisplayDays: No segments found for day 0!', {
+        dayFromHydrated: day,
+        dayFromOriginal: itinerary?.days?.[0],
+        hotelHydratedDaysLength: hotelHydratedDays.length,
+        itineraryDaysLength: itinerary?.days?.length,
+      });
+    }
+    
+    if (idx === 0) {
+      console.log('[ItineraryDetails] DisplayDays day 0:', {
+        segmentCount: rawSegments.length,
+        hasSegments: rawSegments.length > 0,
+        types: rawSegments.map(s => s?.type),
+      });
+    }
+    
+    return {
+      ...day,
+      segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
+        if (a.type === 'start' && b.type !== 'start') return -1;
+        if (b.type === 'start' && a.type !== 'start') return 1;
+        return 0;
+      }) : [],
+    };
+  });
 
   const overallTripCostWithHotels = useMemo(() => {
     const baseOverall = Number(itinerary?.overallCost || 0);
@@ -2184,10 +2324,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (!quoteId) return;
 
     try {
+      setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
       const [detailsRes, hotelRes] = await Promise.all([
         ItineraryService.getDetails(quoteId),
-        ItineraryService.getHotelDetails(quoteId),
+        fetchCompleteHotelDetails(quoteId),
       ]);
       console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
       setItinerary(detailsRes as ItineraryDetailsResponse);
@@ -2195,8 +2336,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
     } catch (e: any) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
+    } finally {
+      setLoadingHotels(false);
     }
-  }, [quoteId]);
+  }, [quoteId, fetchCompleteHotelDetails]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -2295,22 +2438,25 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     try {
       setIsRebuildingHotels(true);
+      setLoadingHotels(true);
       toast.info('Rebuilding hotels...');
 
-      const [detailsRes, hotelRes] = await Promise.all([
+      const [detailsRes] = await Promise.all([
         ItineraryService.getDetails(quoteId),
         ItineraryService.rebuildHotelDetails(quoteId, 1, 20, activeHotelGroupType || undefined),
       ]);
 
       setItinerary(detailsRes as ItineraryDetailsResponse);
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      const completeHotelRes = await fetchCompleteHotelDetails(quoteId);
+      setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
       toast.success('Hotels rebuilt successfully');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to rebuild hotels');
     } finally {
+      setLoadingHotels(false);
       setIsRebuildingHotels(false);
     }
-  }, [quoteId, isRebuildingHotels, activeHotelGroupType]);
+  }, [quoteId, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -2343,12 +2489,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       try {
         console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
         setLoading(true);
+        setLoadingHotels(true);
         setError(null);
 
         // Fetch both details and hotel data in parallel
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          fetchCompleteHotelDetails(quoteId),
         ]);
 
         // Only update state if component is still mounted
@@ -2372,6 +2519,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         // Only update state if component is still mounted
         if (isMountedRef.current) {
           setLoading(false);
+          setLoadingHotels(false);
         }
       }
     };
@@ -2382,7 +2530,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return () => {
       isMountedRef.current = false;
     };
-  }, [quoteId, location.pathname]);
+  }, [quoteId, location.pathname, fetchCompleteHotelDetails]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -2397,6 +2545,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (!quoteId) return null;
 
     try {
+      setLoadingHotels(true);
       let hotelRes;
 
       // If confirmed itinerary is available, fetch from confirmed endpoint
@@ -2404,7 +2553,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         hotelRes = await ItineraryService.getConfirmedItinerary(itinerary.confirmed_itinerary_plan_ID);
       } else {
         // Fallback to hotel details endpoint
-        hotelRes = await ItineraryService.getHotelDetails(quoteId);
+        hotelRes = await fetchCompleteHotelDetails(quoteId);
       }
 
       setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2413,6 +2562,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       console.error("Failed to load hotel details", error);
       toast.error("Failed to load hotel details");
       return null;
+    } finally {
+      setLoadingHotels(false);
     }
   };
 
@@ -4890,7 +5041,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         })}
       </div>
       {/* Hotel List (separate component) */}
-      {hotelDetails && (
+      {loadingHotels && (
+        <div ref={hotelListRef} id="hotel-list-section">
+          <Card className="border border-[#e5d9f2] bg-white">
+            <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
+              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+              <span>Loading hotel list for all days...</span>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {!loadingHotels && hotelDetails && (
         <div ref={hotelListRef} id="hotel-list-section">
           <HotelList
             hotels={hotelDetails.hotels}
