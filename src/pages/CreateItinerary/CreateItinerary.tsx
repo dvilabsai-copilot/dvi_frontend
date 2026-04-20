@@ -238,6 +238,20 @@ export const CreateItinerary = () => {
   const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
   const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
+  const [arrivalPolicyDecision, setArrivalPolicyDecision] = useState<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
+  const arrivalPolicyDecisionRef = useRef<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
   const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
     open: boolean;
     arrivalDate: string;
@@ -255,6 +269,14 @@ export const CreateItinerary = () => {
     useState(false);
 
   const saveProgressTimerRef = useRef<number | null>(null);
+
+  const applyArrivalPolicyDecision = (decision: {
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }) => {
+    arrivalPolicyDecisionRef.current = decision;
+    setArrivalPolicyDecision(decision);
+  };
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
@@ -1064,6 +1086,10 @@ const buildPayload = () => {
           }))
         : [],
     travellers: travellerRows,
+    previousDayBillingDecisionProvided:
+      arrivalPolicyDecision.previousDayBillingDecisionProvided,
+    previousDayBillingConfirmed:
+      arrivalPolicyDecision.previousDayBillingConfirmed,
   };
 
   return payload;
@@ -1178,6 +1204,11 @@ const continueToRouteConfirmation = () => {
     const ok = validateBeforeSave();
     if (!ok) return;
 
+    applyArrivalPolicyDecision({
+      previousDayBillingDecisionProvided: false,
+      previousDayBillingConfirmed: false,
+    });
+
     const payload = buildPayload();
     setPendingPayload(payload);
 
@@ -1216,7 +1247,15 @@ const handleSaveWithType = async (
     setActiveSaveType(type);
 
     const basePayload = pendingPayload ?? buildPayload();
-    const dayCount = Math.max(1, Number(basePayload?.plan?.no_of_days ?? 1));
+    const decision = arrivalPolicyDecisionRef.current;
+    const finalPayload = {
+      ...basePayload,
+      previousDayBillingDecisionProvided:
+        decision.previousDayBillingDecisionProvided,
+      previousDayBillingConfirmed:
+        decision.previousDayBillingConfirmed,
+    };
+    const dayCount = Math.max(1, Number(finalPayload?.plan?.no_of_days ?? 1));
     const estimatedMs = getEstimatedSaveMs(dayCount, type);
     setEstimatedSaveMs(estimatedMs);
     startSaveProgress(estimatedMs);
@@ -1224,7 +1263,7 @@ const handleSaveWithType = async (
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(basePayload, type);
+    const res = await ItineraryService.create(finalPayload, type);
     setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
@@ -1464,6 +1503,17 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
             setLastArrivalPolicyDecisionKey(decisionKey);
           }
 
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          } : prev);
+
           setArrivalPolicyModal({
             open: false,
             arrivalDate: "",
@@ -1485,6 +1535,17 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
           if (decisionKey) {
             setLastArrivalPolicyDecisionKey(decisionKey);
           }
+
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          } : prev);
 
           setArrivalPolicyModal({
             open: false,
