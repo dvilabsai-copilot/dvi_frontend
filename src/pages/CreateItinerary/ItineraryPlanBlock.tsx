@@ -24,6 +24,7 @@ import {
 import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, SimpleOption } from "@/services/itineraryDropdownsMock";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type RoomRow = {
   id: number;
@@ -222,6 +223,7 @@ export const ItineraryPlanBlock = ({
   noOfNights,
   noOfDays,
 }: ItineraryPlanBlockProps) => {
+const isMobile = useIsMobile();
 const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
 const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
 const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
@@ -622,7 +624,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
   <PopoverContent
     align="start"
-    className="z-50 w-fit p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
+    className="z-50 w-[calc(100vw-2rem)] max-w-[700px] p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
   >
    <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
   <div className="space-y-2">
@@ -651,7 +653,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
     <Calendar
       mode="range"
-      numberOfMonths={2}
+      numberOfMonths={isMobile ? 1 : 2}
       showOutsideDays={false}
       selected={previewRange}
       onDayClick={(day, modifiers) => {
