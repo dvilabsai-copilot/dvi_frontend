@@ -24,17 +24,18 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
       <div
-        className="transition-all duration-300 shrink-0"
+        className="hidden md:block transition-all duration-300 shrink-0"
         style={{ width: sidebarCollapsed ? "5rem" : "16rem" }}
-      >
-        <Sidebar
-  mobileOpen={mobileMenuOpen}
-  onMobileToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-  collapsed={sidebarCollapsed}
-  onCollapsedChange={setSidebarCollapsed}
-/>
-      </div>
+      />
+
+      <Sidebar
+        mobileOpen={mobileMenuOpen}
+        onMobileToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <div className={shell}>

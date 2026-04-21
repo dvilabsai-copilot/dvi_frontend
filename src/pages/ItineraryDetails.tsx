@@ -4426,7 +4426,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
               <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
               <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
-              <div className="ml-auto flex gap-4">
+              <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap gap-4">
                 <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
                 <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
                 <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
@@ -4451,10 +4451,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               <CardContent className="pt-2">
                 {/* Day Header */}
                 <div
-                  className="sticky z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 mx-0 px-5 py-3 bg-white rounded-lg border border-[#59b9ea] min-h-[74px]"
+                  className="sticky z-20 relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3 mx-0 px-3 sm:px-5 py-3 bg-white rounded-lg border border-[#59b9ea] min-h-[74px]"
                   style={{ top: `${Math.max(summaryStickyHeight + 8, 8)}px` }}
                 >
-                  <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 lg:pr-[180px]">
                     <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -4557,7 +4557,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     </div>
                   </div>
 
-                  <div className="flex justify-center lg:justify-end lg:pl-[260px] items-center gap-2">
+                  <div className="flex w-full lg:w-auto justify-between sm:justify-center lg:justify-end items-center gap-2 lg:pl-[260px]">
                     <Button
                       variant="outline"
                       size="sm"
@@ -4604,7 +4604,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           const travelDistanceLabel = segment.distance;
 
                           return (
-                            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
+                            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
                               <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
                               <span className="text-[#4a4260] min-w-0 flex-1">
                                 <span className="font-medium">Travelling from </span>
@@ -4612,7 +4612,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                 <span className="font-medium"> to </span>
                                 <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
                               </span>
-                              <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap justify-end gap-x-3">
+                              <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
                                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
                                 <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
                                 <span className="flex items-center gap-1">⏱ {segment.duration}</span>
@@ -4708,8 +4708,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                       "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
                                     }
                                     alt={segment.name}
-                                    className="rounded-lg object-cover shadow-sm"
-                                    style={{ width: 185, height: 115 }}
+                                    className="rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"
                                   />
                                   {/* Icons overlaid top-right of thumbnail */}
                                   <div className="absolute top-1 right-1 flex flex-col gap-1">
@@ -4759,7 +4758,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
                             {/* Activities List */}
                             {segment.activities && segment.activities.length > 0 && (
-                              <div className="ml-8 mt-2 border-t border-[#e5d9f2] pt-4">
+                              <div className="ml-0 sm:ml-8 mt-2 border-t border-[#e5d9f2] pt-4">
                                 <h5 className="font-semibold text-[#4a4260] mb-3">Activity</h5>
                                 <div className="space-y-3">
                                   {segment.activities.map((activity) => (
@@ -4822,8 +4821,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                                 "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
                                               }
                                               alt={activity.title}
-                                              className="rounded-lg object-cover"
-                                              style={{ width: 140, height: 100 }}
+                                              className="rounded-lg object-cover w-[120px] h-[86px] sm:w-[140px] sm:h-[100px]"
                                             />
                                             <div className="absolute top-1 right-1 flex flex-col gap-1">
                                               <button
@@ -5339,10 +5337,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       <div className="flex flex-wrap gap-3 justify-center">
         {/* Clipboard Dropdown */}
         <div className="relative group">
-          <Button className="bg-[#8b43d1] hover:bg-[#7c37c1]">
+          <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
             Clipboard ▼
           </Button>
-          <div className="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
@@ -5401,10 +5399,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         {/* Share Dropdown */}
         <div className="relative group">
-          <Button className="bg-[#17a2b8] hover:bg-[#138496]">
+          <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">
             Share ▼
           </Button>
-          <div className="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
@@ -5829,9 +5827,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           setAddHotspotModal({ ...addHotspotModal, open: true });
         }}
       >
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col">
+        <DialogContent className="w-[96vw] sm:max-w-5xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <DialogTitle>Hotspot List</DialogTitle>
                 <DialogDescription>
@@ -5843,16 +5841,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               <input
                 type="text"
                 placeholder="Search Hotspot..."
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm w-64"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
                 value={hotspotSearchQuery}
                 onChange={(e) => setHotspotSearchQuery(e.target.value)}
               />
             </div>
           </DialogHeader>
           <div className="py-4 flex-1 overflow-hidden flex min-h-0">
-            <div className="flex gap-4 w-full min-h-0">
+            <div className="flex flex-col lg:flex-row gap-4 w-full min-h-0">
               {/* Left Column: Hotspot List */}
-              <div ref={hotspotListRef} className="w-1/2 overflow-y-auto min-h-0">
+              <div ref={hotspotListRef} className="w-full lg:w-1/2 overflow-y-auto min-h-0">
                 {loadingHotspots ? (
                   <p className="text-sm text-[#6c6c6c] text-center py-8">
                     Loading available hotspots...
@@ -5955,7 +5953,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               </div>
 
               {/* Right Column: Preview */}
-              <div className="w-1/2 border-l pl-4 flex flex-col overflow-hidden min-h-0">
+              <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-hidden min-h-0">
                 <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
                   <Clock className="h-4 w-4" />
                   Proposed Timeline
@@ -6699,7 +6697,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
       {/* Confirm Quotation Modal */}
       <Dialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Guest Details</DialogTitle>
             <DialogDescription>
@@ -6732,8 +6730,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Primary Guest Details - Adult 1</h3>
 
-              <div className="grid grid-cols-4 gap-3">
-                <div className="col-span-1">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-1">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Salutation
                   </label>
@@ -6751,7 +6749,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   </select>
                 </div>
 
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Name <span className="text-red-500">*</span>
                   </label>
@@ -6772,7 +6770,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   {formErrors['primary-name'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-name']}</p>}
                 </div>
 
-                <div className="col-span-1">
+                <div className="sm:col-span-1">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Age
                   </label>
@@ -6787,7 +6785,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Primary Contact No. <span className="text-red-500">*</span>
@@ -6823,7 +6821,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Nationality <span className="text-red-500">*</span>
@@ -6900,8 +6898,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 {formErrors['count-adult'] && <p className="text-[11px] text-red-600">{formErrors['count-adult']}</p>}
                 {additionalAdults.map((adult, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -6917,7 +6915,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name</label>
                         <input
                           type="text"
@@ -6931,7 +6929,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           }}
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
                         <input
                           type="text"
@@ -6945,7 +6943,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           }}
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input
                           type="text"
@@ -6959,7 +6957,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           }}
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button
                           type="button"
                           variant="ghost"
@@ -6971,7 +6969,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         type="text"
                         className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -7016,8 +7014,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 {formErrors['count-child'] && <p className="text-[11px] text-red-600">{formErrors['count-child']}</p>}
                 {additionalChildren.map((child, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -7033,25 +7031,25 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Child {index + 1} Name</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={child.name} onChange={(e) => { const next = [...additionalChildren]; next[index].name = e.target.value; setAdditionalChildren(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={child.panNo} onChange={(e) => { const next = [...additionalChildren]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={child.passportNo} onChange={(e) => { const next = [...additionalChildren]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                     </div>
@@ -7076,8 +7074,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 {formErrors['count-infant'] && <p className="text-[11px] text-red-600">{formErrors['count-infant']}</p>}
                 {additionalInfants.map((infant, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -7093,25 +7091,25 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Infant {index + 1} Name</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={infant.name} onChange={(e) => { const next = [...additionalInfants]; next[index].name = e.target.value; setAdditionalInfants(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={infant.panNo} onChange={(e) => { const next = [...additionalInfants]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={infant.passportNo} onChange={(e) => { const next = [...additionalInfants]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                     </div>
@@ -7124,7 +7122,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Arrival Details</h3>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Date & Time
@@ -7172,7 +7170,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Departure Details</h3>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Date & Time
