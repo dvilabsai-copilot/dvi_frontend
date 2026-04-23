@@ -293,6 +293,7 @@ type CostBreakdown = {
 type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
+  itineraryPreference?: number;
   confirmed_itinerary_plan_ID?: number;
   isConfirmed?: boolean;
   quoteId: string;
@@ -325,6 +326,25 @@ type ItineraryHotelDetailsResponse = {
   hotelAvailability?: HotelAvailabilityMeta;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
+};
+
+// Dedupe in-flight details requests per quote to prevent duplicate API calls
+// in React StrictMode/dev remount scenarios.
+const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
+
+const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
+  const existing = detailsInFlight.get(quoteId);
+  if (existing) {
+    return existing;
+  }
+
+  const req = (ItineraryService.getDetails(quoteId) as Promise<ItineraryDetailsResponse>)
+    .finally(() => {
+      detailsInFlight.delete(quoteId);
+    });
+
+  detailsInFlight.set(quoteId, req);
+  return req;
 };
 
 // ----------------- Helper functions -----------------
@@ -581,6 +601,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
   );
+  const shouldShowHotels = (() => {
+    const pref = Number(itinerary?.itineraryPreference ?? 0);
+    return pref === 1 || pref === 3;
+  })();
+  const shouldShowVehicles = (() => {
+    const pref = Number(itinerary?.itineraryPreference ?? 0);
+    return pref === 2 || pref === 3;
+  })();
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -1064,6 +1092,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
   const summaryStickyRef = useRef<HTMLDivElement | null>(null);
   const hotelListRef = useRef<HTMLDivElement | null>(null);
+  const vehicleListRef = useRef<HTMLDivElement | null>(null);
   const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
   /** page tracked per groupType for Load More */
   const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
@@ -1092,8 +1121,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     setSelectedVehicleTotalsByType({});
   }, [itinerary?.quoteId]);
 
-  const scrollToHotelList = () => {
-    const el = hotelListRef.current;
+  const scrollToSection = (el: HTMLDivElement | null) => {
     if (!el) return;
 
     let scrollParent: HTMLElement | null = el.parentElement;
@@ -1121,6 +1149,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const y = el.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
   };
+
+  const scrollToHotelList = () => scrollToSection(hotelListRef.current);
+  const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
+
+  const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
 
   const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
     if (!quoteId || isLoadingMoreHotels) return;
@@ -1385,6 +1418,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [hotelDetails, activeHotelGroupType, itinerary?.dayCount, itinerary?.days?.length]);
 
   const computedVehicleAmount = useMemo(() => {
+    if (!shouldShowVehicles) return 0;
+
     const selectedTotal = Object.values(selectedVehicleTotalsByType).reduce(
       (sum, row) => sum + Number(row.totalAmount || 0),
       0,
@@ -1397,9 +1432,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       itinerary?.costBreakdown?.totalVehicleCost ??
       0,
     );
-  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleAmount, itinerary?.costBreakdown?.totalVehicleCost]);
+  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleAmount, itinerary?.costBreakdown?.totalVehicleCost, shouldShowVehicles]);
 
   const computedVehicleQty = useMemo(() => {
+    if (!shouldShowVehicles) return 0;
+
     const selectedQty = Object.values(selectedVehicleTotalsByType).reduce(
       (sum, row) => sum + Number(row.totalQty || 0),
       0,
@@ -1407,17 +1444,19 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     if (selectedQty > 0) return selectedQty;
     return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
-  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty]);
+  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty, shouldShowVehicles]);
 
   const financialTotals = useMemo(() => {
-    const hotelAmount = Number(
-      itinerary?.costBreakdown?.totalRoomCost ||
-      itinerary?.costBreakdown?.totalHotelAmount ||
-      computedHotelCost ||
-      0,
-    );
+    const hotelAmount = shouldShowHotels
+      ? Number(
+          itinerary?.costBreakdown?.totalRoomCost ||
+          itinerary?.costBreakdown?.totalHotelAmount ||
+          computedHotelCost ||
+          0,
+        )
+      : 0;
 
-    const vehicleAmount = Number(computedVehicleAmount || 0);
+    const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
 
     const otherAmount =
       Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
@@ -1441,7 +1480,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       netPayable,
       totalRoundOff,
     };
-  }, [itinerary, computedHotelCost, computedVehicleAmount]);
+  }, [itinerary, computedHotelCost, computedVehicleAmount, shouldShowHotels, shouldShowVehicles]);
 
   const hotelHydratedDays = useMemo(() => {
     if (!itinerary?.days?.length) return [];
@@ -1988,7 +2027,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       .join("");
 
     const vehicleRowsHtml =
-      itinerary.vehicles?.length > 0
+      shouldShowVehicles && itinerary.vehicles?.length > 0
         ? itinerary.vehicles
           .map((vehicle) => {
             return `
@@ -2012,7 +2051,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         </tr>
       `;
 
-    const vehicleSectionHtml = `
+    const vehicleSectionHtml = shouldShowVehicles ? `
     <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
       <tr>
         <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
@@ -2028,7 +2067,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       </tr>
       ${vehicleRowsHtml}
     </table>
-  `;
+  ` : "";
 
     const costSectionHtml = `
     <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
@@ -2037,10 +2076,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           Overall Cost
         </td>
       </tr>
+      ${shouldShowVehicles ? `
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Amount</th>
         <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalVehicleAmount || 0))}</td>
       </tr>
+      ` : ""}
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
         <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmount || 0))}</strong></td>
@@ -2326,13 +2367,21 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     try {
       setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const [detailsRes, hotelRes] = await Promise.all([
-        ItineraryService.getDetails(quoteId),
-        fetchCompleteHotelDetails(quoteId),
-      ]);
-      console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
-      setItinerary(detailsRes as ItineraryDetailsResponse);
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      const detailsRes = await ItineraryService.getDetails(quoteId);
+      const details = detailsRes as ItineraryDetailsResponse;
+      setItinerary(details);
+
+      const pref = Number(details.itineraryPreference ?? 3);
+      const useHotels = pref === 1 || pref === 3;
+
+      if (useHotels) {
+        const hotelRes = await fetchCompleteHotelDetails(quoteId);
+        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      } else {
+        setHotelDetails(null);
+        setActiveHotelListTotal(0);
+      }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
     } catch (e: any) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
@@ -2492,11 +2541,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         setLoadingHotels(true);
         setError(null);
 
-        // Fetch both details and hotel data in parallel
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          fetchCompleteHotelDetails(quoteId),
-        ]);
+        // Fetch details first so we can skip hotel API for vehicle-only itineraries.
+        const detailsRes = await getDetailsDeduped(quoteId);
+        const details = detailsRes as ItineraryDetailsResponse;
+        const pref = Number(details.itineraryPreference ?? 3);
+        const useHotels = pref === 1 || pref === 3;
+
+        let hotelRes: ItineraryHotelDetailsResponse | null = null;
+        if (useHotels) {
+          hotelRes = await fetchCompleteHotelDetails(quoteId);
+        }
 
         // Only update state if component is still mounted
         if (!isMountedRef.current) {
@@ -2505,8 +2559,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }
 
         console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        setItinerary(details);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        if (!useHotels) {
+          setActiveHotelListTotal(0);
+        }
       } catch (e: any) {
         // Only update state if component is still mounted
         if (!isMountedRef.current) return;
@@ -2598,7 +2655,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2624,7 +2681,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2659,7 +2716,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2938,8 +2995,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           console.error("Failed to reload itinerary after add", reloadErr);
         }
         try {
-          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          if (shouldShowHotels) {
+            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          } else {
+            setHotelDetails(null);
+            setActiveHotelListTotal(0);
+          }
         } catch {
           // Non-critical
         }
@@ -3083,8 +3145,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }
         // Hotel reload is best-effort and must not block the itinerary refresh
         try {
-          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          if (shouldShowHotels) {
+            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          } else {
+            setHotelDetails(null);
+            setActiveHotelListTotal(0);
+          }
         } catch {
           // Non-critical — silence hotel reload errors
         }
@@ -3301,7 +3368,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -3584,7 +3651,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -3685,7 +3752,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -4206,14 +4273,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     };
   }, [stopRouteTimeProgress]);
 
-  const hotelTimelineLoading = Boolean(!hotelDetails && itinerary && !error);
+  const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
 
   if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
     return (
       <div className="w-full max-w-full flex justify-center items-center py-16">
         <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <p>{isApplyingRouteTimeUpdate ? "Updating itinerary and hotel results..." : "Loading itinerary details and hotel names..."}</p>
+          <p>
+            {isApplyingRouteTimeUpdate
+              ? "Updating itinerary and hotel results..."
+              : shouldShowHotels
+              ? "Loading itinerary details and hotel names..."
+              : "Loading itinerary details..."}
+          </p>
         </div>
       </div>
     );
@@ -4297,8 +4370,57 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-              <h1 className="text-xl font-semibold text-[#4a4260]">
-                Tour Itinerary Plan
+              <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
+                <span>Tour Itinerary Plan</span>
+                <span className="text-[#6c6c6c]">(</span>
+                {itineraryPreference === 2 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToVehicleList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Vehicle List"
+                    >
+                      Vehicle
+                    </button>
+                    <span className="text-[#6c6c6c]">Only</span>
+                  </>
+                )}
+                {itineraryPreference === 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                    <span className="text-[#6c6c6c]">Only</span>
+                  </>
+                )}
+                {itineraryPreference !== 1 && itineraryPreference !== 2 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToVehicleList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Vehicle List"
+                    >
+                      Vehicle
+                    </button>
+                    <span className="text-[#6c6c6c]">+</span>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                  </>
+                )}
+                <span className="text-[#6c6c6c]">)</span>
               </h1>
               <div className="flex flex-wrap gap-2">
                 <Link to={backToListHref}>
@@ -4414,15 +4536,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
             {/* Trip Details — row 2 (same bg) */}
             <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
-              <button
-                type="button"
-                onClick={scrollToHotelList}
-                className="inline-flex items-center gap-1 rounded px-1 -mx-1 text-left hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40"
-                title="Go to Hotel List"
-              >
-                <span>Room Count</span>
+              <span>
+                <span>Room Count </span>
                 <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span>
-              </button>
+              </span>
               <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
               <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
               <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
@@ -5039,7 +5156,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         })}
       </div>
       {/* Hotel List (separate component) */}
-      {loadingHotels && (
+      {shouldShowHotels && loadingHotels && (
         <div ref={hotelListRef} id="hotel-list-section">
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
@@ -5050,7 +5167,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         </div>
       )}
 
-      {!loadingHotels && hotelDetails && (
+      {shouldShowHotels && !loadingHotels && hotelDetails && (
         <div ref={hotelListRef} id="hotel-list-section">
           <HotelList
             hotels={hotelDetails.hotels}
@@ -5086,7 +5203,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       )}
 
       {/* Vehicle List (grouped by vehicle type) */}
-      {itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
+      {shouldShowVehicles && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
         // Group vehicles by vehicleTypeId
         const vehiclesByType = new Map<number, typeof itinerary.vehicles>();
         const typeOrder: number[] = [];
@@ -5109,7 +5226,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         })) || [];
 
         return (
-          <>
+          <div ref={vehicleListRef} id="vehicle-list-section">
             {typeOrder.map((typeId) => {
               const vehiclesForType = vehiclesByType.get(typeId) || [];
               const firstVehicle = vehiclesForType[0];
@@ -5129,7 +5246,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 />
               );
             })}
-          </>
+          </div>
         );
       })()}
 
@@ -5173,7 +5290,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             </h2>
             <div className="space-y-2 text-sm">
               {/* ── Hotel Cost Group ── */}
-              {(() => {
+              {shouldShowHotels && (() => {
                 const roomTotal = Number(financialTotals.hotelAmount || 0);
                 const stayCount = roomBreakdownStayCount || 1;
                 const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
@@ -5250,7 +5367,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 </div>
               )}
               {/* ── Vehicle Cost Group ── */}
-              {computedVehicleAmount > 0 && (
+              {shouldShowVehicles && computedVehicleAmount > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">
                     Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
@@ -5258,7 +5375,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
                 </div>
               )}
-              {computedVehicleAmount > 0 && (
+              {shouldShowVehicles && computedVehicleAmount > 0 && (
                 <div className="flex justify-between font-semibold">
                   <span className="text-[#4a4260]">Total Vehicle Amount</span>
                   <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>

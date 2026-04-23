@@ -59,6 +59,26 @@ export interface ItineraryVehicleRow {
   vehicleTypeName?: string;
   isAssigned?: boolean;
   dayWisePricing?: DayWisePricingItem[];
+  // PHP summary panel fields
+  totalDays?: number;
+  totalCostOfVehicle?: number;
+  totalPickupKm?: number;
+  totalPickupDuration?: string;
+  totalDropKm?: number;
+  totalDropDuration?: string;
+  totalUsedKm?: number;
+  totalAllowedKm?: number;
+  extraKms?: number;
+  extraKmRate?: number;
+  extraKmCharge?: number;
+  subtotal?: number;
+  vehicleGstPercentage?: number;
+  vehicleGstAmount?: number;
+  vendorMarginPercentage?: number;
+  vendorMarginAmount?: number;
+  vendorMarginGstPercentage?: number;
+  vendorMarginGstAmount?: number;
+  grandTotal?: number;
 }
 
 const formatCurrencyINR = (value: number | string | undefined | null) => {
@@ -73,25 +93,26 @@ const formatCurrencyINR = (value: number | string | undefined | null) => {
 
 const safe = (v?: string | null) => v || "";
 
+const toAmount = (value: number | string | undefined | null): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const cleaned = String(value || "").replace(/,/g, "").trim();
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
-  // Respect backend-selected vendor after select-vendor API succeeds.
+  // Respect explicit user selection persisted at DB level.
   const assigned = vehicles.find((v) => v.isAssigned && v.vendorEligibleId);
   if (assigned?.vendorEligibleId) {
     return assigned.vendorEligibleId;
   }
 
+  // Always pick the lowest quote as default selection.
   const cheapest = vehicles.reduce((prev, curr) => {
-    const prevAmount =
-      typeof prev.totalAmount === "number"
-        ? prev.totalAmount
-        : parseFloat(String(prev.totalAmount || "0")) || 0;
-
-    const currAmount =
-      typeof curr.totalAmount === "number"
-        ? curr.totalAmount
-        : parseFloat(String(curr.totalAmount || "0")) || 0;
+    const prevAmount = toAmount(prev.totalAmount);
+    const currAmount = toAmount(curr.totalAmount);
 
     return currAmount < prevAmount ? curr : prev;
   });
@@ -126,9 +147,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [expandedVendorIndex, setExpandedVendorIndex] = useState<number | null>(null);
- const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(() => {
-    return getPreferredVendorEligibleId(vehicles);
-});
+ const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVendorSelection, setPendingVendorSelection] = useState<{
     index: number;
@@ -139,15 +158,15 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
 
   // Sync selected vendor when assigned vendor changes (from API refresh)
-  // Only sync if the assigned vendor ID is different from current selection
+  // Always auto-select cheapest if no assignment exists
  useEffect(() => {
   const preferredId = getPreferredVendorEligibleId(vehicles);
 
-  if (preferredId && preferredId !== selectedVendorEligibleId) {
-    console.log(`[${vehicleTypeLabel}] Preferred vendor changed to:`, preferredId);
+  if (preferredId !== null && preferredId !== selectedVendorEligibleId) {
+    console.log(`[${vehicleTypeLabel}] Auto-selecting cheapest vendor:`, preferredId, 'from vehicles:', vehicles.map(v => ({ id: v.vendorEligibleId, amount: v.totalAmount })));
     setSelectedVendorEligibleId(preferredId);
   }
-}, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
+}, [vehicles, vehicleTypeLabel]);
 
 
 
@@ -388,46 +407,153 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                     </td>
                   </tr>
                   
-                  {/* Expanded Row - Day-wise Pricing (on click) */}
+                  {/* Expanded Row - PHP-style full pricing breakdown */}
                   {isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
-                    <tr className="border-b border-gray-100 bg-purple-50 transition-all duration-200">
-                      <td colSpan={6} className="py-4 px-3">
-                        <div className="ml-6">
-                          <h6 className="text-sm font-semibold text-gray-900 mb-3">Day-wise Pricing Breakdown</h6>
-                          <table className="w-full text-xs border border-gray-200">
-                            <thead>
-                              <tr className="bg-purple-100 border-b border-gray-200">
-                                <th className="text-left py-2 px-3 font-semibold text-gray-700">Date</th>
-                                <th className="text-left py-2 px-3 font-semibold text-gray-700">Route</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Travel KM</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Sightseeing KM</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Total KM</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Rental</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Toll</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Parking</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Driver</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Permit</th>
-                                <th className="text-right py-2 px-3 font-semibold text-gray-700">Total</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {v.dayWisePricing.map((dayPricing, dayIndex) => (
-                                <tr key={dayIndex} className="border-b border-gray-100 hover:bg-purple-100">
-                                  <td className="py-2 px-3 text-gray-700 font-medium">{dayPricing.dayLabel}</td>
-                                  <td className="py-2 px-3 text-gray-700">{dayPricing.route}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 font-semibold">{dayPricing.travelKms?.toFixed(2) || '0.00'} KM</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 font-semibold">{dayPricing.sightseeingKms?.toFixed(2) || '0.00'} KM</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 font-semibold">{dayPricing.totalKms?.toFixed(2) || '0.00'} KM</td>
-                                  <td className="py-2 px-3 text-right text-gray-700">{formatCurrencyINR(dayPricing.rentalCharges)}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700">{formatCurrencyINR(dayPricing.tollCharges)}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700">{formatCurrencyINR(dayPricing.parkingCharges)}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700">{formatCurrencyINR(dayPricing.driverCharges)}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700">{formatCurrencyINR(dayPricing.permitCharges)}</td>
-                                  <td className="py-2 px-3 text-right text-gray-700 font-semibold">{formatCurrencyINR(dayPricing.totalCharges)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <td colSpan={6} className="py-4 px-4">
+                        <div className="ml-6 space-y-4">
+
+                          {/* ── Day-wise per-route table ── */}
+                          <div>
+                            <h6 className="text-sm font-semibold text-gray-900 mb-2">Day-wise Pricing Breakdown</h6>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden">
+                                <thead>
+                                  <tr className="bg-purple-100 border-b border-gray-200">
+                                    <th className="text-left py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Date</th>
+                                    <th className="text-left py-2 px-3 font-semibold text-gray-700 min-w-[180px]">Route</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Sightseeing KM</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Rental</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Toll</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Parking</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Driver</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Permit</th>
+                                    <th className="text-right py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">Total</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {v.dayWisePricing.map((dp, di) => (
+                                    <tr key={di} className={`border-b border-gray-100 ${di % 2 === 0 ? 'bg-white' : 'bg-purple-50/40'} hover:bg-purple-100 transition-colors`}>
+                                      <td className="py-2 px-3 text-gray-700 font-medium whitespace-nowrap">{dp.dayLabel}</td>
+                                      <td className="py-2 px-3 text-gray-600">{dp.route}</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.tollCharges)}</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.parkingCharges)}</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
+                                      <td className="py-2 px-3 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
+                                      <td className="py-2 px-3 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* ── Summary grid (below day-wise table) ── */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 bg-white border border-gray-200 rounded-lg p-4">
+                            {[
+                              { label: 'Total Days', value: String(v.totalDays ?? v.dayWisePricing.length) },
+                              { label: 'Rental Charges', value: formatCurrencyINR(v.rentalCharges) },
+                              { label: 'Toll Charges', value: formatCurrencyINR(v.tollCharges) },
+                              { label: 'Parking Charges', value: formatCurrencyINR(v.parkingCharges) },
+                              { label: 'Driver Charges', value: formatCurrencyINR(v.driverCharges) },
+                              { label: 'Permit Charges', value: formatCurrencyINR(v.permitCharges) },
+                              { label: '6AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
+                              { label: '6AM Charges (V)', value: formatCurrencyINR(v.before6amVendor) },
+                              { label: '8PM Charges (D)', value: formatCurrencyINR(v.after8pmDriver) },
+                              { label: '8PM Charges (V)', value: formatCurrencyINR(v.after8pmVendor) },
+                            ].map(({ label, value }) => (
+                              <div key={label} className="flex flex-col gap-0.5">
+                                <span className="text-xs text-gray-500 font-medium">{label}</span>
+                                <span className="text-sm font-semibold text-gray-800">{value}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* ── Cost summary right-aligned rows (below day-wise table, matching PHP) ── */}
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 max-w-lg ml-auto space-y-1 text-sm">
+                            <div className="flex justify-between font-bold text-gray-900 border-b border-gray-200 pb-2 mb-2">
+                              <span>TOTAL COST OF VEHICLE</span>
+                              <span>{formatCurrencyINR(v.totalCostOfVehicle)}</span>
+                            </div>
+                            {(v.totalPickupKm ?? 0) > 0 && (
+                              <>
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Total Pickup KM</span>
+                                  <span>{(v.totalPickupKm ?? 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Total Pickup Duration</span>
+                                  <span>{v.totalPickupDuration}</span>
+                                </div>
+                              </>
+                            )}
+                            {(v.totalDropKm ?? 0) > 0 && (
+                              <>
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Total Drop KM</span>
+                                  <span>{(v.totalDropKm ?? 0).toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Total Drop Duration</span>
+                                  <span>{v.totalDropDuration}</span>
+                                </div>
+                              </>
+                            )}
+                            <div className="flex justify-between text-gray-700 font-semibold pt-1 border-t border-gray-100">
+                              <span>TOTAL USED KM</span>
+                              <span>{(v.totalUsedKm ?? 0).toFixed(0)}</span>
+                            </div>
+                            <div className="flex justify-between text-gray-600">
+                              <span>TOTAL ALLOWED OUTSTATION KM</span>
+                              <span>
+                                {v.totalAllowedKm != null && v.totalDays
+                                  ? `${Math.round((v.totalAllowedKm) / (v.totalDays))} * ${v.totalDays}`
+                                  : (v.totalAllowedKm ?? 0)}{' '}
+                                = {(v.totalAllowedKm ?? 0).toFixed(0)}
+                              </span>
+                            </div>
+                            {(v.extraKms ?? 0) > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>TOTAL EXTRA KM</span>
+                                <span>
+                                  {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.extraKmCharge)}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex justify-between font-semibold text-gray-800 border-t border-gray-200 pt-2 mt-1">
+                              <span>SUBTOTAL</span>
+                              <span>{formatCurrencyINR(v.subtotal)}</span>
+                            </div>
+                            {(v.vehicleGstAmount ?? 0) > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>GST ({v.vehicleGstPercentage ?? 0}%)</span>
+                                <span>{formatCurrencyINR(v.vehicleGstAmount)}</span>
+                              </div>
+                            )}
+                            {(v.vendorMarginAmount ?? 0) > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>DVI Margin ({v.vendorMarginPercentage ?? 0}%)</span>
+                                <span>{formatCurrencyINR(v.vendorMarginAmount)}</span>
+                              </div>
+                            )}
+                            {(v.vendorMarginGstAmount ?? 0) > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>DVI Margin Service Tax ({v.vendorMarginGstPercentage ?? 0}%)</span>
+                                <span>{formatCurrencyINR(v.vendorMarginGstAmount)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between font-bold text-purple-700 border-t-2 border-purple-300 pt-2 mt-1 text-base">
+                              <span>GRAND TOTAL ({v.totalQty || 1} x {formatCurrencyINR(v.grandTotal ?? v.totalAmount)})</span>
+                              <span>{formatCurrencyINR(v.grandTotal ?? v.totalAmount)}</span>
+                            </div>
+                          </div>
+
                         </div>
                       </td>
                     </tr>

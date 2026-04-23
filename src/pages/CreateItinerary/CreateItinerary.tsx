@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { getToken } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentOption, fetchAgents } from "@/services/accountsManagerApi";
 import {
@@ -11,10 +12,12 @@ import {
   fetchGuideOptions,
   fetchNationalities,
   fetchFoodPreferences,
+  fetchMealPlans,
   fetchEligibleVehicleTypes,
   fetchHotelCategories,
   fetchHotelFacilities,
   LocationOption,
+  MealPlanOption,
   SimpleOption,
 } from "@/services/itineraryDropdownsMock";
 import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
@@ -139,6 +142,32 @@ function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
   return formatDDMMYYYY(next);
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function getLoggedInUserContext(): { role: number | null; agentId: number | null } {
+  const token = getToken();
+  if (!token) return { role: null, agentId: null };
+
+  const user = parseJwt(token);
+  const role = Number(user?.role);
+  const rawAgentId = user?.agentId ?? user?.id ?? user?.agent_ID ?? null;
+  const agentId = Number(rawAgentId);
+
+  return {
+    role: Number.isFinite(role) ? role : null,
+    agentId: Number.isFinite(agentId) && agentId > 0 ? agentId : null,
+  };
+}
+
 // ----------------- main component ------------
 
 export const CreateItinerary = () => {
@@ -148,6 +177,9 @@ export const CreateItinerary = () => {
   const { toast } = useToast();
 
   const itineraryPlanId = id && !Number.isNaN(Number(id)) ? Number(id) : null;
+  const loggedInUser = getLoggedInUserContext();
+  const isAgentLogin = loggedInUser.role === 4;
+  const loggedInAgentId = loggedInUser.agentId;
 
   // agents / dropdown data
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -158,6 +190,7 @@ export const CreateItinerary = () => {
   const [guideOptions, setGuideOptions] = useState<SimpleOption[]>([]);
   const [nationalities, setNationalities] = useState<SimpleOption[]>([]);
   const [foodPreferences, setFoodPreferences] = useState<SimpleOption[]>([]);
+  const [mealPlanOptions, setMealPlanOptions] = useState<MealPlanOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [hotelCategoryOptions, setHotelCategoryOptions] = useState<SimpleOption[]>([]);
@@ -179,6 +212,7 @@ export const CreateItinerary = () => {
   const [guideRequired, setGuideRequired] = useState("");
   const [nationality, setNationality] = useState("");
   const [foodPreference, setFoodPreference] = useState(""); // ✅ store option id string
+  const [mealPlanCode, setMealPlanCode] = useState<string>("CP");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
@@ -267,6 +301,7 @@ export const CreateItinerary = () => {
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
     useState(false);
+  const defaultRouteWarningShownRef = useRef(false);
 
   const saveProgressTimerRef = useRef<number | null>(null);
 
@@ -280,6 +315,12 @@ export const CreateItinerary = () => {
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
+
+  useEffect(() => {
+    if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
+      setAgentId(loggedInAgentId);
+    }
+  }, [itineraryPlanId, isAgentLogin, loggedInAgentId]);
 
   const stopSaveProgress = () => {
     if (saveProgressTimerRef.current !== null) {
@@ -390,6 +431,7 @@ useEffect(() => {
           guideRes,
           nationalityRes,
           foodRes,
+          mealPlansRes,
           hotelCatRes,
           hotelFacilityRes,
         ] = await Promise.all([
@@ -401,11 +443,16 @@ useEffect(() => {
           fetchGuideOptions(),
           fetchNationalities(),
           fetchFoodPreferences(),
+          fetchMealPlans(),
           fetchHotelCategories(),
           fetchHotelFacilities(),
         ]);
 
-        setAgents(agentsRes);
+        setAgents(
+          isAgentLogin && loggedInAgentId
+            ? agentsRes.filter((a) => Number(a.id) === Number(loggedInAgentId))
+            : agentsRes
+        );
         setLocations(locationsRes);
         setItineraryTypes(itineraryTypesRes);
         setTravelTypes(travelTypesRes);
@@ -413,6 +460,7 @@ useEffect(() => {
         setGuideOptions(guideRes);
         setNationalities(nationalityRes);
         setFoodPreferences(foodRes);
+        setMealPlanOptions(mealPlansRes);
         setHotelCategoryOptions(hotelCatRes);
         setHotelFacilityOptions(hotelFacilityRes);
 
@@ -472,6 +520,14 @@ useEffect(() => {
 
             // ✅ foodPreference state holds option id
             setFoodPreference(p.food_type != null ? String(p.food_type) : "");
+
+            const matchedMealPlan = (mealPlansRes || []).find(
+              (mp) =>
+                Number(mp.includesBreakfast) === Number(p.meal_plan_breakfast ?? 0) &&
+                Number(mp.includesLunch) === Number(p.meal_plan_lunch ?? 0) &&
+                Number(mp.includesDinner) === Number(p.meal_plan_dinner ?? 0)
+            );
+            setMealPlanCode(matchedMealPlan?.code || "CP");
 
 
 
@@ -583,6 +639,13 @@ useEffect(() => {
           );
           setNationality(plan.nationality != null ? String(plan.nationality) : "");
           setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
+          const matchedMealPlan = (mealPlanOptions || []).find(
+            (mp) =>
+              Number(mp.includesBreakfast) === Number(plan.meal_plan_breakfast ?? 0) &&
+              Number(mp.includesLunch) === Number(plan.meal_plan_lunch ?? 0) &&
+              Number(mp.includesDinner) === Number(plan.meal_plan_dinner ?? 0)
+          );
+          setMealPlanCode(matchedMealPlan?.code || "CP");
           setBudget(plan.expecting_budget ?? "");
           setSpecialInstructions(plan.special_instructions ?? "");
           setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
@@ -594,9 +657,8 @@ useEffect(() => {
             template.routes.map((r: any, idx: number): RouteRow => ({
               id: idx + 1,
               day: r.no_of_days ?? idx + 1,
-              date: r.itinerary_route_date
-                ? safeDateFromISO(r.itinerary_route_date)
-                : addDaysToDDMMYYYY(tripStartDate, idx),
+              // Keep template route sequence, but always align dates to the user's selected trip start date.
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
               source: r.location_name ?? "",
               next: r.next_visiting_location ?? "",
               via: r.via_route ?? "",
@@ -650,6 +712,7 @@ useEffect(() => {
     templateAppliedKey,
     toast,
     setRouteDetails,
+    mealPlanOptions,
   ]);
 
   // Auto-open route suggestions modal when itinerary type is "Default"
@@ -658,18 +721,37 @@ useEffect(() => {
       const selectedType = itineraryTypes.find(
         (t) => t.id === itineraryTypeSelect
       );
+      const isDefaultType = selectedType?.label?.trim().toLowerCase() === "default";
+
+      if (!isDefaultType) {
+        defaultRouteWarningShownRef.current = false;
+        return;
+      }
 
       // Check if the selected type is "Default"
-      if (selectedType?.label === "Default") {
-        // Check if we have required fields
-        if (
-          arrivalLocation &&
-          departureLocation &&
-          tripStartDate &&
-          tripEndDate
-        ) {
-          const noOfDays = routeDetails.length || 1;
+      if (isDefaultType) {
+        const hasRequiredBasicDetails =
+          Boolean(arrivalLocation) &&
+          Boolean(departureLocation) &&
+          Boolean(tripStartDate) &&
+          Boolean(tripEndDate);
+
+        if (hasRequiredBasicDetails) {
+          defaultRouteWarningShownRef.current = false;
           setShowDefaultRouteSuggestions(true);
+        } else {
+          setShowDefaultRouteSuggestions(false);
+
+          // PHP parity: warn once until user changes type or completes required fields.
+          if (!defaultRouteWarningShownRef.current) {
+            toast({
+              title: "Warning !!!",
+              description:
+                "Please Fill the basic itinerary details to proceed with the default Route Suggestions",
+              variant: "destructive",
+            });
+            defaultRouteWarningShownRef.current = true;
+          }
         }
       }
     }
@@ -825,7 +907,9 @@ const addDay = () => {
   const validateBeforeSave = (): boolean => {
     const errors: ValidationErrors = {};
 
-    if (!agentId) errors.agentId = "Please select an Agent";
+    if (!agentId && !(isAgentLogin && loggedInAgentId)) {
+      errors.agentId = "Please select an Agent";
+    }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
     if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -976,6 +1060,11 @@ const buildPayload = () => {
       ? 2
       : 3;
 
+  const resolvedAgentId =
+    isAgentLogin && loggedInAgentId
+      ? Number(loggedInAgentId)
+      : ((agentId as number) ?? 0);
+
   const itinerary_preference =
     itineraryPreference === "vehicle"
       ? 2
@@ -1012,6 +1101,10 @@ const buildPayload = () => {
       : [];
 
   const food_type_id = resolveOptionId(foodPreference, foodPreferences);
+  const selectedMealPlan = mealPlanOptions.find((p) => p.code === mealPlanCode);
+  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 1) ? 1 : 0;
+  const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
+  const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
@@ -1028,7 +1121,7 @@ const buildPayload = () => {
 
   // ✅ base plan without id
   const planBase: any = {
-    agent_id: (agentId as number) ?? 0,
+    agent_id: resolvedAgentId,
     staff_id: 0,
     location_id: 0,
 
@@ -1059,6 +1152,9 @@ const buildPayload = () => {
     nationality: nationality ? Number(nationality) : 0,
 
     food_type: food_type_id,
+    meal_plan_breakfast,
+    meal_plan_lunch,
+    meal_plan_dinner,
 
     adult_count: totalAdults,
     child_count: totalChildren,
@@ -1332,6 +1428,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
+        isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
         locations={locations}
         arrivalLocation={arrivalLocation}
         setArrivalLocation={setArrivalLocation}
@@ -1365,6 +1462,9 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         foodPreferences={foodPreferences}
         foodPreference={foodPreference}
         setFoodPreference={setFoodPreference}
+        mealPlanOptions={mealPlanOptions}
+        mealPlanCode={mealPlanCode}
+        setMealPlanCode={setMealPlanCode}
         tripStartDate={tripStartDate}
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
