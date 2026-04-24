@@ -1275,8 +1275,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   );
 
   const selectedHotelMetaByRoute = useMemo(() => {
-    const map = new Map<number, { hotelName: string; hotelDistance: string | null; totalAmount: number }>();
+    const map = new Map<number, { hotelName: string; hotelDistance: string | null; totalAmount: number; noOfRooms: number }>();
     if (!hotelDetails?.hotels?.length) return map;
+    const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
 
     const preferredGroupType =
       activeHotelGroupType ??
@@ -1299,9 +1300,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (selected) {
         const matched = rows.find((h) => {
           const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
+          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
+          const amountMatch = Number(selected.netAmount || 0) > 0 &&
+            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
+          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
           const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
           const hotelNameMatch = selected.hotelName && h.hotelName && selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
-          return Boolean(bookingCodeMatch || hotelCodeMatch || hotelNameMatch);
+          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
         });
 
         map.set(routeId, {
@@ -1310,6 +1315,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           totalAmount:
             Number(selected.netAmount || 0) ||
             Number(matched?.totalHotelCost || 0) + Number(matched?.totalHotelTaxAmount || 0),
+          noOfRooms: Math.max(Number(matched?.noOfRooms || 0), 0) || itineraryRoomCount,
         });
         return;
       }
@@ -1324,11 +1330,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         hotelName: cheapest.hotelName || "Hotel",
         hotelDistance: cheapest.hotelDistance || null,
         totalAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+        noOfRooms: Math.max(Number(cheapest.noOfRooms || 0), 0) || itineraryRoomCount,
       });
     });
 
     return map;
-  }, [hotelDetails, selectedHotelBookings, activeHotelGroupType]);
+  }, [hotelDetails, selectedHotelBookings, activeHotelGroupType, itinerary?.roomCount]);
 
   const computedHotelCost = useMemo(() => {
     if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
@@ -1385,10 +1392,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     itinerary?.roomCount,
   ]);
 
-  const roomBreakdownStayCount = useMemo(() => {
-    const fallbackDayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
+  const roomBreakdownRoomNights = useMemo(() => {
+    const fallbackStayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
+    const fallbackRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+
     if (!hotelDetails?.hotels?.length) {
-      return fallbackDayCount;
+      return fallbackStayCount * fallbackRoomCount;
     }
 
     const preferredGroupType =
@@ -1404,18 +1413,67 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return (parts[1] || dayText).trim();
     };
 
-    const stayKeys = new Set<string>();
+    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     hotelDetails.hotels
       .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
       .forEach((h) => {
         const routeId = Number(h.itineraryRouteId || 0);
         if (!routeId) return;
         const stayDate = getStayDate(h);
-        stayKeys.add(`${routeId}::${stayDate}`);
+        const stayKey = `${routeId}::${stayDate}`;
+        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
+        groupedByStay.get(stayKey)!.push(h);
       });
 
-    return stayKeys.size || fallbackDayCount;
-  }, [hotelDetails, activeHotelGroupType, itinerary?.dayCount, itinerary?.days?.length]);
+    const matchSelectedHotelRow = (rows: ItineraryHotelRow[], routeId: number): ItineraryHotelRow | null => {
+      const selected = selectedHotelBookings[routeId];
+      if (!selected) return null;
+
+      return (
+        rows.find((h) => {
+          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
+          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
+          const amountMatch =
+            Number(selected.netAmount || 0) > 0 &&
+            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
+          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
+          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
+          const hotelNameMatch =
+            selected.hotelName &&
+            h.hotelName &&
+            selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
+
+          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
+        }) || null
+      );
+    };
+
+    let totalRoomNights = 0;
+    groupedByStay.forEach((rows, stayKey) => {
+      const routeId = Number(stayKey.split('::')[0] || 0);
+
+      const selectedMatch = routeId ? matchSelectedHotelRow(rows, routeId) : null;
+      const cheapest = rows.reduce((best, curr) => {
+        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+        return currTotal < bestTotal ? curr : best;
+      });
+
+      const chosen = selectedMatch || cheapest;
+      const rowRooms = Math.max(Number(chosen.noOfRooms || 0), 0);
+      const effectiveRooms = Math.max(rowRooms || fallbackRoomCount, 1);
+      totalRoomNights += effectiveRooms;
+    });
+
+    return totalRoomNights || fallbackStayCount * fallbackRoomCount;
+  }, [
+    hotelDetails,
+    activeHotelGroupType,
+    itinerary?.dayCount,
+    itinerary?.days?.length,
+    itinerary?.roomCount,
+    selectedHotelBookings,
+  ]);
 
   const computedVehicleAmount = useMemo(() => {
     if (!shouldShowVehicles) return 0;
@@ -1449,9 +1507,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const financialTotals = useMemo(() => {
     const hotelAmount = shouldShowHotels
       ? Number(
+          computedHotelCost ||
           itinerary?.costBreakdown?.totalRoomCost ||
           itinerary?.costBreakdown?.totalHotelAmount ||
-          computedHotelCost ||
           0,
         )
       : 0;
@@ -1752,9 +1810,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   });
 
   const overallTripCostWithHotels = useMemo(() => {
-    const baseOverall = Number(itinerary?.overallCost || 0);
-    return (baseOverall + Number(computedHotelCost || 0)).toFixed(2);
-  }, [itinerary?.overallCost, computedHotelCost]);
+    // Keep header total in lockstep with the bottom "Net Payable" calculation.
+    return Number(financialTotals.netPayable || 0).toFixed(2);
+  }, [financialTotals.netPayable]);
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {
@@ -2069,6 +2127,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     </table>
   ` : "";
 
+    const clipboardRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
+    const clipboardRoomNightsLabel = `${clipboardRoomNights} room-night${clipboardRoomNights > 1 ? 's' : ''}`;
+
     const costSectionHtml = `
     <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
       <tr>
@@ -2076,27 +2137,59 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           Overall Cost
         </td>
       </tr>
+      ${shouldShowHotels ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Hotel Cost For (${escapeHtml(clipboardRoomNightsLabel)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.hotelAmount || 0))}</strong></td>
+      </tr>
+      ` : ""}
+      ${itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amenities Cost</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmenitiesCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Extra Bed Cost (${escapeHtml(itinerary.extraBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.extraBedCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child With Bed Cost (${escapeHtml(itinerary.childWithBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithBedCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child Without Bed Cost (${escapeHtml(itinerary.childWithoutBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithoutBedCost || 0))}</td>
+      </tr>
+      ` : ""}
       ${shouldShowVehicles ? `
       <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Amount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalVehicleAmount || 0))}</td>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(computedVehicleAmount || 0))}</strong></td>
       </tr>
       ` : ""}
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmount || 0))}</strong></td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.totalAmount || 0))}</strong></td>
       </tr>
+      ${(itinerary.costBreakdown.couponDiscount ?? 0) > 0 ? `
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Coupon Discount</th>
         <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">- ${escapeHtml(formatCurrency(itinerary.costBreakdown.couponDiscount || 0))}</td>
       </tr>
+      ` : ""}
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Round Off</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalRoundOff || 0))}</td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(financialTotals.totalRoundOff || 0))}</td>
       </tr>
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Net Payable To ${escapeHtml(itinerary.costBreakdown.companyName || "DVI Holidays")}</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.netPayable || 0))}</strong></td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.netPayable || 0))}</strong></td>
       </tr>
     </table>
   `;
@@ -2125,7 +2218,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       })
       .join("\n\n");
 
-    return { html: fullHtml, plainText };
+    return { html: fullHtml, plainText, hotelSectionsHtml, costSectionHtml };
   };
 
   const extractHotelSectionFromHtml = (html: string): string => {
@@ -2160,15 +2253,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   ): string => {
     if (!backendHtml || !renderedHotelsHtml) return backendHtml;
 
-    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
-    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
-    if (backendHotelStart === -1) return backendHtml;
-
     const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
     if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
       return backendHtml;
@@ -2176,11 +2260,54 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
     const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
-    if (backendVehicleStart === -1 || backendVehicleStart <= backendHotelStart) {
+    if (backendVehicleStart === -1) {
       return backendHtml;
     }
 
+    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
+    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
+      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+    }
+
+    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
+    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
+    if (backendHotelStart === -1 || backendVehicleStart <= backendHotelStart) {
+      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+    }
+
     return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+  };
+
+  const mergeClipboardWithRenderedCost = (
+    backendHtml: string,
+    renderedCostHtml: string,
+  ): string => {
+    if (!backendHtml || !renderedCostHtml) return backendHtml;
+
+    const backendHotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
+    if (!backendHotspotHeadingMatch || backendHotspotHeadingMatch.index === undefined) {
+      return backendHtml;
+    }
+
+    const backendHotspotHeadingIndex = backendHotspotHeadingMatch.index;
+    const backendHotspotStart = backendHtml.lastIndexOf("<table", backendHotspotHeadingIndex);
+    if (backendHotspotStart === -1) return backendHtml;
+
+    const roundOffIndex = backendHtml.lastIndexOf("Total Round Off", backendHotspotStart);
+    const netPayableIndex = backendHtml.lastIndexOf("Net Payable To", backendHotspotStart);
+    const totalAmountIndex = backendHtml.lastIndexOf("Total Amount", backendHotspotStart);
+    const anchorIndex = Math.max(roundOffIndex, netPayableIndex, totalAmountIndex);
+
+    if (anchorIndex === -1) {
+      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
+    }
+
+    const backendCostStart = backendHtml.lastIndexOf("<table", anchorIndex);
+    if (backendCostStart === -1 || backendCostStart >= backendHotspotStart) {
+      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
+    }
+
+    return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
   };
 
   const htmlToPlainText = (html: string): string => {
@@ -5292,8 +5419,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               {/* ── Hotel Cost Group ── */}
               {shouldShowHotels && (() => {
                 const roomTotal = Number(financialTotals.hotelAmount || 0);
-                const stayCount = roomBreakdownStayCount || 1;
-                const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+                const hotelRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
+                const roomNightsLabel = `${hotelRoomNights} room-night${hotelRoomNights > 1 ? 's' : ''}`;
 
                 return (
                   <Popover
@@ -5312,7 +5439,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
                       >
                         <div className="flex items-center">
-                          <span className="text-[#6c6c6c]">Total Hotel Cost For ({stayCount} days * {roomCount}) rooms</span>
+                          <span className="text-[#6c6c6c]">Total Hotel Cost For ({roomNightsLabel})</span>
                           {selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && (
                             <span className="ml-1 inline-flex h-4 w-4 items-center justify-center text-[11px] leading-none">▶️</span>
                           )}
@@ -5329,7 +5456,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       <div className="space-y-2 text-sm">
                         {Array.from(selectedHotelMetaByRoute.entries()).map(([routeId, meta]) => (
                           <div key={routeId} className="flex justify-between text-[#6c6c6c]">
-                            <span>{meta.hotelName}</span>
+                            <span>{meta.hotelName}{Number(meta.noOfRooms || 1) > 1 ? ` * ${Number(meta.noOfRooms)} rooms` : ''}</span>
                             <span className="font-medium text-[#4a4260]">₹ {Number(meta.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                         ))}
@@ -5348,16 +5475,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.extraBedCost !== undefined && itinerary.costBreakdown.extraBedCost > 0 && (
+              {(Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0) && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Extra Bed Cost ({itinerary.extraBed || 0})</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.extraBedCost.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.extraBedCost || 0).toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.childWithBedCost !== undefined && itinerary.costBreakdown.childWithBedCost > 0 && (
+              {(Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0) && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Child With Bed Cost ({itinerary.childWithBed || 0})</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithBedCost.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.childWithBedCost || 0).toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 && (
@@ -6569,8 +6696,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   // Keep backend structure, but use the already-rendered hotel HTML from frontend state
                   // so clipboard hotels match what user sees without relying on backend hotel section.
                   const localClipboard = buildClipboardHtml(clipboardType);
-                  const renderedHotelsHtml = extractHotelSectionFromHtml(localClipboard.html);
-                  const mergedHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+                  const renderedHotelsHtml =
+                    localClipboard.hotelSectionsHtml ||
+                    extractHotelSectionFromHtml(localClipboard.html);
+                  const mergedWithHotelsHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+                  const mergedHtml = mergeClipboardWithRenderedCost(
+                    mergedWithHotelsHtml,
+                    localClipboard.costSectionHtml || "",
+                  );
                   const mergedPlainText = htmlToPlainText(mergedHtml);
 
                   await copyHtmlToClipboard(mergedHtml, mergedPlainText)

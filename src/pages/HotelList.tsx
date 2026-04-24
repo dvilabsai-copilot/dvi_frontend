@@ -155,6 +155,18 @@ export const HotelList: React.FC<HotelListProps> = ({
     return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
   };
 
+  const getHotelOptionKey = (hotel: any): string => {
+    return [
+      String(hotel?.provider || ''),
+      String(hotel?.bookingCode || ''),
+      String(hotel?.searchReference || ''),
+      String(hotel?.hotelId || ''),
+      String(hotel?.roomType || hotel?.roomTypeName || ''),
+      String(Number(hotel?.totalHotelCost ?? hotel?.totalAmount ?? 0)),
+      String(Number(hotel?.totalHotelTaxAmount ?? hotel?.taxAmount ?? 0)),
+    ].join('|');
+  };
+
   const getEffectiveRoomCount = (hotel: Pick<ItineraryHotelRow, 'noOfRooms'>): number => {
     const rowRooms = toNumber((hotel as any).noOfRooms, 0);
     const itineraryRooms = toNumber(roomCount, 1);
@@ -163,7 +175,8 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   const getHotelAmountWithRooms = (hotel: Pick<ItineraryHotelRow, 'totalHotelCost' | 'totalHotelTaxAmount' | 'noOfRooms'>): number => {
     const baseAmount = toNumber(hotel.totalHotelCost, 0) + toNumber(hotel.totalHotelTaxAmount, 0);
-    return baseAmount * getEffectiveRoomCount(hotel);
+    // API row totals are already for the effective rooming; do not multiply again.
+    return baseAmount;
   };
 
   const getHotelsForStay = (sourceHotels: ItineraryHotelRow[], routeId: number, stayDate: string) => {
@@ -190,7 +203,25 @@ export const HotelList: React.FC<HotelListProps> = ({
           : [],
       }));
 
-    return Array.from(new Map(hotelsForRoute.map((hotel) => [`${hotel.hotelId}-${hotel.hotelName}`, hotel])).values());
+    // Keep rate options distinct; same hotel can have multiple room/rate plans with different prices.
+    const uniqueByRateOption = new Map<string, (typeof hotelsForRoute)[number]>();
+    hotelsForRoute.forEach((hotel) => {
+      const key = [
+        String((hotel as any).provider || ''),
+        String((hotel as any).bookingCode || ''),
+        String((hotel as any).searchReference || ''),
+        String(hotel.hotelId || ''),
+        String(hotel.roomType || ''),
+        String(hotel.totalHotelCost || 0),
+        String(hotel.totalHotelTaxAmount || 0),
+      ].join('|');
+
+      if (!uniqueByRateOption.has(key)) {
+        uniqueByRateOption.set(key, hotel);
+      }
+    });
+
+    return Array.from(uniqueByRateOption.values());
   };
 
   // ✅ Track selected hotel PER GROUP TYPE and PER STAY
@@ -437,8 +468,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       });
 
       if (selectedForStay) {
+        const selectedOptionKey = getHotelOptionKey(selectedForStay);
         const sameStaySelection = sortedStayHotels.find(
-          (option) => toNumber(option.hotelId, 0) === toNumber(selectedForStay.hotelId, 0),
+          (option) => getHotelOptionKey(option) === selectedOptionKey,
         );
         if (sameStaySelection) {
           return sameStaySelection;
@@ -545,7 +577,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       r.totalAmount ?? r.totalPrice ?? (perNightAmount * nights + taxAmount)
     );
     const effectiveRooms = Math.max(Number(r.noOfRooms ?? roomCount ?? 1), 1);
-    const totalAmount = baseAmount * effectiveRooms;
+    const totalAmount = baseAmount;
 
     return {
       ...r,
@@ -718,10 +750,16 @@ export const HotelList: React.FC<HotelListProps> = ({
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       
       // Find the full hotel row from localHotels
-      const selectedHotel = localHotels.find(h => 
-        toNumber(h.hotelId) === toNumber(room.hotelId) && 
+      const selectedHotel = localHotels.find((h) =>
         toNumber(h.itineraryRouteId) === routeId &&
-        toNumber(h.groupType) === groupType
+        toNumber(h.groupType) === groupType &&
+        getHotelOptionKey(h) === getHotelOptionKey(room),
+      ) || localHotels.find((h) =>
+        toNumber(h.itineraryRouteId) === routeId &&
+        toNumber(h.groupType) === groupType &&
+        String((h as any).bookingCode || '').trim() === String((room as any).bookingCode || '').trim() &&
+        String(h.roomType || '').trim() === String((room as any).roomTypeName || (room as any).roomType || '').trim() &&
+        Number(h.totalHotelCost || 0) === Number((room as any).perNightAmount || (room as any).totalHotelCost || 0),
       );
       
       if (!selectedHotel) {
@@ -1038,6 +1076,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                   (hotel.totalHotelCost ?? 0) +
                   (hotel.totalHotelTaxAmount ?? 0);
                 const resolvedDestination = getResolvedDestination(hotel);
+                const effectiveRooms = getEffectiveRoomCount(hotel);
 
                 return (
                   <React.Fragment key={rowKey}>
@@ -1069,6 +1108,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                       </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {hotel.roomType || "-"}
+                        {effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
+                          ? ` (${effectiveRooms} Rooms)`
+                          : ""}
                       </td>
                       {showRates && (
                         <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap font-bold text-[#303238]">
@@ -1160,17 +1202,38 @@ export const HotelList: React.FC<HotelListProps> = ({
                               </div>
                               
                               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
-                              {roomDetails
-                                .filter(h => 
-                                  h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase())
-                                )
-                                .map((hotel) => {
-                                const roomKey = `hotel-${hotel.hotelId}`;
+                              {(() => {
+                                const groupType = activeGroupType || 1;
+                                const selectedForStay = selectedByGroup[groupType]?.[rowKey];
+                                const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
+                                const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
+
+                                const filtered = roomDetails.filter((h) =>
+                                  h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
+                                );
+
+                                const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
+
+                                const sorted = [...filtered].sort((a, b) => {
+                                  const aSelected = selectedOptionKey !== '' && getHotelOptionKey(a) === selectedOptionKey;
+                                  const bSelected = selectedOptionKey !== '' && getHotelOptionKey(b) === selectedOptionKey;
+
+                                  if (aSelected && !bSelected) return -1;
+                                  if (!aSelected && bSelected) return 1;
+
+                                  return Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
+                                });
+
+                                return sorted.map((hotel) => {
+                                const roomKey = `hotel-${getHotelOptionKey(hotel)}`;
+                                const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
 
                                 return (
                                 <div
                                   key={roomKey}
-                                  className="bg-white rounded-lg shadow-md border border-[#e5d9f2] overflow-hidden"
+                                  className={`bg-white rounded-lg shadow-md border overflow-hidden ${
+                                    isSelected ? 'border-[#22c55e] ring-1 ring-[#22c55e]/40' : 'border-[#e5d9f2]'
+                                  }`}
                                 >
                                   {/* Hotel Image/Header */}
                                   <div className="relative h-40 bg-gradient-to-r from-[#7c3aed] to-[#a855f7]">
@@ -1294,19 +1357,21 @@ export const HotelList: React.FC<HotelListProps> = ({
 
                                     {/* Choose/Update Button - Conditional based on selection status */}
                                     <button
-                                      className="w-full py-2 px-4 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-medium rounded-md transition-colors text-sm"
+                                      className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
+                                        isSelected
+                                          ? 'bg-[#22c55e] text-white cursor-default'
+                                          : 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
+                                      }`}
                                       onClick={() => handleChooseOrUpdateHotel(hotel)}
+                                      disabled={isSelected}
                                     >
-                                      {(() => {
-                                        const groupType = activeGroupType || 1;
-                                        const routeId = Number(hotel.itineraryRouteId);
-                                        const selected = selectedByGroup[groupType]?.[routeId];
-                                        return selected?.hotelId === hotel.hotelId ? "Update" : "Choose";
-                                      })()}
+                                      {isSelected ? 'Selected' : 'Choose'}
                                     </button>
                                   </div>
                                 </div>
-                              );})}
+                              );
+                                });
+                              })()}
                             </div>
 
                               {!readOnly && activeGroupType !== null && (() => {
