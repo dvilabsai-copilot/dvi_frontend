@@ -37,7 +37,7 @@ import {
   calculateNights,
 } from "./helpers/itineraryUtils";
 import { SaveRouteConfirmDialog } from "./helpers/SaveRouteConfirmDialog";
-import { useRoomsAndTravellers } from "./helpers/useRoomsAndTravellers";
+import { useRoomsAndTravellers, RoomRow as TravellerRoomRow } from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
 import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
 
@@ -93,6 +93,81 @@ function csvToNumberArray(v: unknown): number[] {
   return csvToStringArray(v)
     .map((s) => Number(s))
     .filter((n) => Number.isFinite(n));
+}
+
+function mapPhpBedTypeToUiValue(bedType: unknown): "Without Bed" | "With Bed" {
+  return Number(bedType) === 2 ? "With Bed" : "Without Bed";
+}
+
+function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
+  if (!Array.isArray(travellers) || travellers.length === 0) {
+    return [
+      {
+        id: 1,
+        roomCount: 1,
+        adults: 1,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      },
+    ];
+  }
+
+  const roomMap = new Map<number, TravellerRoomRow>();
+
+  const getRoom = (roomId: number) => {
+    if (!roomMap.has(roomId)) {
+      roomMap.set(roomId, {
+        id: roomId,
+        roomCount: 0,
+        adults: 0,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      });
+    }
+    return roomMap.get(roomId)!;
+  };
+
+  for (const t of travellers) {
+    const roomId = Number(t?.room_id ?? 0);
+    if (roomId <= 0) continue;
+
+    const room = getRoom(roomId);
+    const type = Number(t?.traveller_type ?? 0);
+
+    if (type === 1) {
+      room.adults += 1;
+      continue;
+    }
+
+    if (type === 2) {
+      room.children += 1;
+      room.childrenDetails.push({
+        age:
+          t?.traveller_age !== null &&
+          t?.traveller_age !== undefined &&
+          String(t.traveller_age).trim() !== "" &&
+          !Number.isNaN(Number(t.traveller_age))
+            ? Number(t.traveller_age)
+            : "",
+        bedType: mapPhpBedTypeToUiValue(t?.child_bed_type),
+      });
+      continue;
+    }
+
+    if (type === 3) {
+      room.infants += 1;
+    }
+  }
+
+  const rooms = Array.from(roomMap.values()).sort((a, b) => a.id - b.id);
+  const totalRoomCount = rooms.length || 1;
+
+  return rooms.map((room) => ({
+    ...room,
+    roomCount: totalRoomCount,
+  }));
 }
 
 
@@ -574,6 +649,10 @@ useEffect(() => {
                 }))
               );
             }
+
+            if (Array.isArray(existing.travellers) && existing.travellers.length) {
+              setRooms(buildRoomsFromTravellers(existing.travellers));
+            }
           }
         }
       } catch (err) {
@@ -582,7 +661,7 @@ useEffect(() => {
         setLoading(false);
       }
     })();
-  }, [itineraryPlanId, setRouteDetails]);
+  }, [itineraryPlanId, setRouteDetails, setRooms]);
 
   useEffect(() => {
     if (itineraryPlanId) return;
