@@ -16,10 +16,8 @@ import {
   AutoSuggestSelect,
   AutoSuggestOption,
 } from "@/components/AutoSuggestSelect";
-import {
-  LocationOption,
-  fetchLocations,
-} from "@/services/itineraryDropdownsMock";
+import { LocationOption } from "@/services/itineraryDropdownsMock";
+import { locationsApi } from "@/services/locations";
 
 type ViaRouteItem = {
   itinerary_via_location_ID: number;
@@ -63,6 +61,33 @@ type RouteDetailsBlockProps = {
   hideIntercityKm?: boolean;
 };
 
+async function fetchStoredDestinationLocations(
+  source: string,
+  options?: {
+    dayNo?: number;
+    totalNoOfDays?: number;
+    departureLocation?: string;
+  }
+): Promise<LocationOption[]> {
+  const data = await locationsApi.list({
+    itineraryMode: true,
+    type: "destination",
+    source,
+    dayNo: options?.dayNo,
+    totalNoOfDays: options?.totalNoOfDays,
+    departureLocation: options?.departureLocation,
+  });
+
+  return (data?.rows || [])
+    .map((row, index) => {
+      const name = String(row.destination_location || "").trim();
+      return {
+        id: index + 1,
+        name,
+      };
+    })
+    .filter((item) => item.name);
+}
 export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
@@ -130,11 +155,21 @@ export const RouteDetailsBlock = ({
 
       (async () => {
         try {
-          const destLocations = await fetchLocations("destination", row.source, {
-            dayNo: row.day,
-            totalNoOfDays: routeDetails.length,
-            departureLocation,
-          });
+         const data = await locationsApi.list({
+  itineraryMode: true,
+  type: "destination",
+  source: row.source,
+  dayNo: row.day,
+  totalNoOfDays: routeDetails.length,
+  departureLocation,
+});
+
+const destLocations = data.rows
+  .map((item, index) => ({
+    id: index + 1,
+    name: String(item.destination_location || "").trim(),
+  }))
+  .filter((item) => item.name);
 
           const opts: AutoSuggestOption[] = destLocations.map((loc) => ({
             value: loc.name,

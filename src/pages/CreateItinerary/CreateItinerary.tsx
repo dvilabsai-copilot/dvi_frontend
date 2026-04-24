@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentOption, fetchAgents } from "@/services/accountsManagerApi";
 import {
-  fetchLocations,
   fetchItineraryTypes,
   fetchTravelTypes,
   fetchEntryTicketOptions,
@@ -17,6 +16,8 @@ import {
   LocationOption,
   SimpleOption,
 } from "@/services/itineraryDropdownsMock";
+
+import { locationsApi } from "@/services/locations";
 import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
 import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
@@ -122,6 +123,18 @@ function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
 }
 
 // ----------------- main component ------------
+
+async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
+  const data = await locationsApi.dropdowns({
+    itineraryMode: true,
+    type: "source",
+  });
+
+  return (data?.sources || []).map((name, index) => ({
+    id: index + 1,
+    name: String(name).trim(),
+  }));
+}
 
 export const CreateItinerary = () => {
   const [searchParams] = useSearchParams();
@@ -308,7 +321,7 @@ useEffect(() => {
           hotelFacilityRes,
         ] = await Promise.all([
           fetchAgents(),
-          fetchLocations("source"),
+          fetchStoredSourceLocations(),
           fetchItineraryTypes(),
           fetchTravelTypes(),
           fetchEntryTicketOptions(),
