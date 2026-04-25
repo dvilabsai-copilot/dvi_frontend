@@ -7,6 +7,11 @@ import { walletService, type WalletPageData } from "@/api/walletService";
 import { getToken } from "@/lib/api";
 import { Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { paymentService } from "@/services/paymentService";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+import { useNavigate } from "react-router-dom";
 
 // Helper functions
 function parseJwt(token: string) {
@@ -214,18 +219,27 @@ function WalletTable({
 
 // ===== WalletHistory Page =====
 const WalletHistory = () => {
+  const navigate = useNavigate();
   const [walletData, setWalletData] = useState<WalletPageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [cashSearch, setCashSearch] = useState("");
   const [couponSearch, setCouponSearch] = useState("");
+  const [topUpOpen, setTopUpOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const { openCheckout } = useRazorpayCheckout();
+
+  const fetchHistory = async () => {
+    const agentId = getAgentId();
+    if (!agentId) throw new Error("Agent ID not found");
+    const data = await walletService.getWallet(Number(agentId));
+    setWalletData(data);
+  };
 
   useEffect(() => {
-    const fetchHistory = async () => {
+    const load = async () => {
       try {
-        const agentId = getAgentId();
-        if (!agentId) throw new Error("Agent ID not found");
-        const data = await walletService.getWallet(Number(agentId));
-        setWalletData(data);
+        await fetchHistory();
       } catch (error) {
         console.error("Wallet error:", error);
         toast.error("Failed to load wallet");
@@ -233,8 +247,49 @@ const WalletHistory = () => {
         setLoading(false);
       }
     };
-    fetchHistory();
+    load();
   }, []);
+
+  const onTopUp = async () => {
+    const amount = Number(topUpAmount);
+    if (!amount || amount <= 0) {
+      toast.error("Enter a valid top-up amount");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const order = await paymentService.createWalletTopupOrder(amount);
+
+      await openCheckout({
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        orderId: order.orderId,
+        name: "DVI Holidays",
+        description: "Cash Wallet Top Up",
+        onSuccess: async (response) => {
+          await paymentService.confirmWalletTopup(response);
+          await fetchHistory();
+          setTopUpOpen(false);
+          setTopUpAmount("");
+          navigate(`/payments/success?flow=wallet_topup&orderId=${encodeURIComponent(order.orderId)}`);
+        },
+        onFailure: (error) => {
+          console.error(error);
+          toast.error("Payment verification failed");
+        },
+        onDismiss: () => {
+          toast.error("Payment cancelled");
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to start wallet top-up");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const cashHistory = useMemo(() => normalizeRows(walletData?.cashTransactions || [], "cash"), [walletData]);
   const couponHistory = useMemo(() => normalizeRows(walletData?.couponTransactions || [], "coupon"), [walletData]);
@@ -249,7 +304,7 @@ const WalletHistory = () => {
     <div className="space-y-6 p-6">
 
       <div className="flex justify-end">
-        <Button disabled>+ Add Cash Wallet</Button>
+        <Button onClick={() => setTopUpOpen(true)}>+ Add Cash Wallet</Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -277,6 +332,31 @@ const WalletHistory = () => {
         search={couponSearch}
         onSearchChange={setCouponSearch}
       />
+
+      <Dialog open={topUpOpen} onOpenChange={setTopUpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Cash Wallet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="cash-topup-amount">Amount (INR)</Label>
+            <Input
+              id="cash-topup-amount"
+              value={topUpAmount}
+              onChange={(e) => setTopUpAmount(e.target.value)}
+              type="number"
+              min="1"
+              placeholder="Enter amount"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTopUpOpen(false)}>Cancel</Button>
+            <Button onClick={onTopUp} disabled={submitting}>
+              {submitting ? "Processing..." : "Pay Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
