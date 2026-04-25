@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
@@ -17,8 +17,19 @@ export interface DayWisePricingItem {
   date: string; // "2025-12-26"
   dayLabel: string; // "Day 1 | 26 Dec 2025"
   route: string; // "Chennai → Mahabalipuram"
+  timeLimitId?: number;
+  slabTitle?: string;
+  slabHoursLimit?: number;
+  slabKmLimit?: number;
+  pickupKms: number;
+  pickupDurationMinutes?: number;
+  dropKms: number;
+  dropDurationMinutes?: number;
   travelKms: number; // Travel KM per day
+  travelDurationMinutes?: number;
   sightseeingKms: number; // Sightseeing KM per day
+  sightseeingDurationMinutes?: number;
+  totalDurationMinutes?: number;
   totalKms: number; // Total KM per day
   rentalCharges: number;
   tollCharges: number;
@@ -114,6 +125,41 @@ const toAmount = (value: number | string | undefined | null): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const roundHoursByHalfRule = (minutes: number): number => {
+  if (!Number.isFinite(minutes) || minutes <= 0) return 0;
+  const hours = minutes / 60;
+  return Math.floor(hours + 0.5);
+};
+
+const formatTotalTime = (day: DayWisePricingItem): string => {
+  const pickupDropMinutes =
+    Number(day.pickupDurationMinutes ?? 0) + Number(day.dropDurationMinutes ?? 0);
+  const travelSightseeingMinutes =
+    Number(day.travelDurationMinutes ?? 0) + Number(day.sightseeingDurationMinutes ?? 0);
+
+  const roundedPickupDropHours = roundHoursByHalfRule(pickupDropMinutes);
+  const roundedTravelSightseeingHours = roundHoursByHalfRule(travelSightseeingMinutes);
+  const roundedTotalHours = roundedPickupDropHours + roundedTravelSightseeingHours;
+
+  if (roundedTotalHours <= 0) {
+    const slabHours = Number(day.slabHoursLimit ?? 0);
+    const extraHours = Number(day.extraHourCount ?? 0);
+    const fallbackHours = slabHours + extraHours;
+    if (fallbackHours > 0) return `${fallbackHours} HRS`;
+    return "-";
+  }
+
+  return `${roundedTotalHours} HRS`;
+};
+
+const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; datePart: string } => {
+  const [dayPartRaw, datePartRaw] = String(dayLabel || "").split("|");
+  return {
+    dayPart: (dayPartRaw || "").trim(),
+    datePart: (datePartRaw || "").trim(),
+  };
+};
+
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
@@ -170,7 +216,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     vendorName: string;
   } | null>(null);
   const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
-  const [isUpdatingSlabForEligible, setIsUpdatingSlabForEligible] = useState<number | null>(null);
+  const [isAutoSelectingSlabs, setIsAutoSelectingSlabs] = useState(false);
+  const autoSlabSyncKeysRef = useRef<Set<string>>(new Set());
   const [copiedVendorIndex, setCopiedVendorIndex] = useState<number | null>(null);
 
   const escapeHtml = (value: unknown) =>
@@ -186,28 +233,30 @@ export const VehicleList: React.FC<VehicleListProps> = ({
       const dayRows = (vehicle.dayWisePricing || [])
         .map(
           (dp) => {
-            const [dayPartRaw, datePartRaw] = String(dp.dayLabel || '').split('|');
-            const dayPart = (dayPartRaw || '').trim();
-            const datePart = (datePartRaw || '').trim();
+            const { dayPart, datePart } = getDayLabelParts(dp.dayLabel);
 
             return `
           <tr>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:500;white-space:nowrap;line-height:1.25;">
-              <div>${escapeHtml(dayPart || String(dp.dayLabel || ''))}</div>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:500;white-space:nowrap;line-height:1.25;vertical-align:top;">
+              <div style="font-weight:600;">${escapeHtml(dayPart || String(dp.dayLabel || ''))}</div>
               ${datePart ? `<div style="font-weight:500;">${escapeHtml(datePart)}</div>` : ''}
+              <div style="font-weight:600;">Time: ${escapeHtml(formatTotalTime(dp))}</div>
+              <div style="font-weight:600;">${escapeHtml(dp.slabTitle || '-')}</div>
             </td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#374151;">${escapeHtml(dp.route)}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraHourCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
-            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;">${escapeHtml(dp.route)}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.pickupKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.dropKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraHourCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
           </tr>
         `;
           },
@@ -239,8 +288,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         .map(
           ([label, value]) => `
           <tr>
-            <td style="padding:6px 14px;border-bottom:1px solid #ececf1;color:#374151;font-weight:500;">${escapeHtml(label)}</td>
-            <td style="padding:6px 14px;border-bottom:1px solid #ececf1;color:#111827;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml(value)}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;font-weight:500;">${escapeHtml(label)}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#111827;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml(value)}</td>
           </tr>
         `,
         )
@@ -275,8 +324,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         .map(
           (row) => `
           <tr>
-            <td style="padding:6px 14px;border-bottom:1px solid #ececf1;color:#374151;font-weight:500;">${escapeHtml((row as string[])[0])}</td>
-            <td style="padding:6px 14px;border-bottom:1px solid #ececf1;color:#111827;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml((row as string[])[1])}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;font-weight:500;">${escapeHtml((row as string[])[0])}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#111827;font-weight:600;text-align:right;white-space:nowrap;">${escapeHtml((row as string[])[1])}</td>
           </tr>
         `,
         )
@@ -307,32 +356,34 @@ export const VehicleList: React.FC<VehicleListProps> = ({
           const isGrand = idx === all.length - 1;
           return `
           <tr>
-            <td style="padding:${isGrand ? "8px 14px" : "6px 14px"};border-bottom:${isGrand ? "0" : "1px solid #ececf1"};color:${isGrand ? "#6d28d9" : "#374151"};font-weight:${isGrand ? "700" : "500"};font-size:${isGrand ? "16px" : "14px"};">${escapeHtml((row as string[])[0])}</td>
-            <td style="padding:${isGrand ? "8px 14px" : "6px 14px"};border-bottom:${isGrand ? "0" : "1px solid #ececf1"};color:${isGrand ? "#6d28d9" : "#111827"};font-weight:${isGrand ? "700" : "600"};font-size:${isGrand ? "16px" : "14px"};text-align:right;white-space:nowrap;">${escapeHtml((row as string[])[1])}</td>
+            <td style="padding:${isGrand ? "4px 4px" : "3px 4px"};border:1px solid #cfd4dc;color:${isGrand ? "#6d28d9" : "#374151"};font-weight:${isGrand ? "700" : "500"};font-size:${isGrand ? "15px" : "14px"};">${escapeHtml((row as string[])[0])}</td>
+            <td style="padding:${isGrand ? "4px 4px" : "3px 4px"};border:1px solid #cfd4dc;color:${isGrand ? "#6d28d9" : "#111827"};font-weight:${isGrand ? "700" : "600"};font-size:${isGrand ? "15px" : "14px"};text-align:right;white-space:nowrap;">${escapeHtml((row as string[])[1])}</td>
           </tr>
         `;
         })
         .join("");
 
       const html = `
-        <div style="font-family:Calibri, Arial, sans-serif;font-size:14px;color:#1f2937; width:1120px; max-width:1120px;">
+        <div style="font-family:Calibri, Arial, sans-serif;font-size:14px;color:#1f2937; width:100%; max-width:100%;">
           <div style="font-size:28px;font-weight:700;color:#111827;margin-bottom:8px;">Day-wise Pricing Breakdown</div>
-          <table cellpadding="0" cellspacing="0" border="0" style="width:1120px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;border-collapse:separate;background:#fff;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #cfd4dc;border-collapse:collapse;background:#fff;">
             <thead>
               <tr style="background:#e9dff5;color:#334155;">
-                <th style="padding:6px 10px;text-align:left;font-weight:700;white-space:nowrap;">Date</th>
-                <th style="padding:6px 10px;text-align:left;font-weight:700;">Route</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Travel KM</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Sightseeing KM</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Rental</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Toll</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Parking</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Driver</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Permit</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Extra Hour</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
-                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Total</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-weight:700;white-space:nowrap;">Date</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-weight:700;">Route</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Pickup KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Travel KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;">Sightseeing<br/>KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Drop KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Rental</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Toll</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Parking</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Driver</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Permit</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra Hour</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total</th>
               </tr>
             </thead>
             <tbody>${dayRows}</tbody>
@@ -340,27 +391,27 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
           <div style="height:12px;"></div>
 
-          <table cellpadding="0" cellspacing="0" border="0" style="width:1120px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;border-collapse:separate;background:#fff;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #cfd4dc;border-collapse:collapse;background:#fff;">
             <thead>
-              <tr style="background:#e9dff5;"><th colspan="2" style="padding:8px 14px;text-align:left;font-size:28px;font-weight:700;color:#334155;">Charge Summary</th></tr>
+              <tr style="background:#e9dff5;"><th colspan="2" style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-size:20px;font-weight:700;color:#334155;">Charge Summary</th></tr>
             </thead>
             <tbody>${chargeRows}</tbody>
           </table>
 
           <div style="height:12px;"></div>
 
-          <table cellpadding="0" cellspacing="0" border="0" style="width:1120px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;border-collapse:separate;background:#fff;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #cfd4dc;border-collapse:collapse;background:#fff;">
             <thead>
-              <tr style="background:#e9dff5;"><th colspan="2" style="padding:8px 14px;text-align:left;font-size:28px;font-weight:700;color:#334155;">Distance Summary</th></tr>
+              <tr style="background:#e9dff5;"><th colspan="2" style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-size:20px;font-weight:700;color:#334155;">Distance Summary</th></tr>
             </thead>
             <tbody>${distanceRows}</tbody>
           </table>
 
           <div style="height:12px;"></div>
 
-          <table cellpadding="0" cellspacing="0" border="0" style="width:1120px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;border-collapse:separate;background:#fff;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width:100%;border:1px solid #cfd4dc;border-collapse:collapse;background:#fff;">
             <thead>
-              <tr style="background:#6d28d9;"><th colspan="2" style="padding:8px 14px;text-align:left;font-size:28px;font-weight:700;color:#fff;">Consolidated Totals</th></tr>
+              <tr style="background:#6d28d9;"><th colspan="2" style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-size:20px;font-weight:700;color:#fff;">Consolidated Totals</th></tr>
             </thead>
             <tbody>${totalRows}</tbody>
           </table>
@@ -464,29 +515,40 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     setCarouselIndex((prev) => (prev === vehicles.length - 1 ? 0 : prev + 1));
   };
 
-  const handleSlabChange = async (vendor: ItineraryVehicleRow, nextTimeLimitId: number) => {
-    if (!itineraryPlanId || !vendor.vendorEligibleId || !vendor.vehicleTypeId || !nextTimeLimitId) {
-      toast.error("Missing required slab selection fields");
-      return;
-    }
+  useEffect(() => {
+    if (!itineraryPlanId || !vehicleTypeId || vehicles.length === 0) return;
 
-    try {
-      setIsUpdatingSlabForEligible(vendor.vendorEligibleId);
-      await ItineraryService.selectVehicleSlab(
-        itineraryPlanId,
-        vendor.vehicleTypeId,
-        vendor.vendorEligibleId,
-        nextTimeLimitId,
-      );
-      toast.success("Slab updated and pricing recalculated");
-      if (onRefresh) onRefresh();
-    } catch (error) {
-      console.error(`[${vehicleTypeLabel}] Failed to select slab:`, error);
-      toast.error("Failed to update slab");
-    } finally {
-      setIsUpdatingSlabForEligible(null);
-    }
-  };
+    const syncKey = `${itineraryPlanId}_${vehicleTypeId}`;
+    if (autoSlabSyncKeysRef.current.has(syncKey)) return;
+
+    autoSlabSyncKeysRef.current.add(syncKey);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setIsAutoSelectingSlabs(true);
+        const result = await ItineraryService.autoSelectVehicleSlabs(itineraryPlanId, vehicleTypeId);
+        const updatedCount = Number((result as any)?.updatedCount || 0);
+        if (!cancelled && updatedCount > 0) {
+          toast.success(`Auto-selected slab for ${updatedCount} vendor option(s)`);
+          onRefresh?.();
+        }
+      } catch (error) {
+        console.error(`[${vehicleTypeLabel}] Failed to auto-select slabs:`, error);
+        if (!cancelled) {
+          toast.error("Failed to auto-select slabs");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAutoSelectingSlabs(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itineraryPlanId, vehicleTypeId, vehicles.length, onRefresh, vehicleTypeLabel]);
 
 
   const sortedVehicles = useMemo(() => {
@@ -675,25 +737,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <h6 className="text-sm font-semibold text-gray-900">Day-wise Pricing Breakdown</h6>
                               <div className="flex items-center gap-2">
-                                {v.availableSlabs && v.availableSlabs.length > 0 && (
-                                  <>
-                                    <label className="text-xs font-semibold text-gray-600 uppercase">Slab</label>
-                                    <select
-                                      className="h-8 min-w-[180px] rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                                      value={Number(v.selectedTimeLimitId || 0)}
-                                      disabled={isUpdatingSlabForEligible === v.vendorEligibleId}
-                                      onChange={(e) => handleSlabChange(v, Number(e.target.value || 0))}
-                                    >
-                                      {v.availableSlabs.map((slab) => (
-                                        <option key={slab.timeLimitId} value={slab.timeLimitId}>
-                                          {slab.title}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {isUpdatingSlabForEligible === v.vendorEligibleId && (
-                                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                                    )}
-                                  </>
+                                {isAutoSelectingSlabs && (
+                                  <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-700">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Auto selecting slab...
+                                  </span>
                                 )}
                                 <Button
                                   type="button"
@@ -727,42 +775,53 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                               </div>
                             </div>
                             <div className="overflow-x-auto">
-                              <table className="w-full text-xs border border-gray-200 rounded-lg overflow-hidden bg-white">
+                              <table className="w-full text-xs border border-gray-300 bg-white border-collapse">
                                 <thead>
-                                  <tr className="bg-purple-100 border-b border-gray-200">
-                                    <th className="text-left py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Date</th>
-                                    <th className="text-left py-1.5 px-2.5 font-semibold text-gray-700">Route</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Sightseeing KM</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Rental</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Toll</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Parking</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Driver</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Permit</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Extra Hour</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
-                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Total</th>
+                                  <tr className="bg-purple-100">
+                                    <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Date</th>
+                                    <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700">Route</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Pickup KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Sightseeing<br />KM</span></th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Drop KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Rental</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Toll</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Parking</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Driver</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Permit</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra Hour</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {v.dayWisePricing.map((dp, di) => (
-                                    <tr key={di} className={`border-b border-gray-100 ${di % 2 === 0 ? 'bg-white' : 'bg-purple-50/40'} hover:bg-purple-100 transition-colors`}>
-                                      <td className="py-1.5 px-2.5 text-gray-700 font-medium whitespace-nowrap">{dp.dayLabel}</td>
-                                      <td className="py-1.5 px-2.5 text-gray-600 leading-5 break-words">{dp.route}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.tollCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.parkingCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraHourCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
-                                      <td className="py-1.5 px-2.5 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
+                                  {v.dayWisePricing.map((dp, di) => {
+                                    const { dayPart, datePart } = getDayLabelParts(dp.dayLabel);
+                                    return (
+                                    <tr key={di} className="bg-white hover:bg-purple-50 transition-colors">
+                                      <td className="border border-gray-300 py-1 px-1 text-gray-700 font-medium whitespace-nowrap align-top">
+                                        <div>{dayPart || dp.dayLabel}</div>
+                                        {datePart ? <div>{datePart}</div> : null}
+                                        <div className="font-semibold">Time: {formatTotalTime(dp)}</div>
+                                        <div className="font-semibold">SLAB: {dp.slabTitle || "-"}</div>
+                                      </td>
+                                      <td className="border border-gray-300 py-1 px-1 text-gray-600 leading-5 break-words">{dp.route}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.pickupKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.dropKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.tollCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.parkingCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraHourCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
                                     </tr>
-                                  ))}
+                                  );})}
                                 </tbody>
                               </table>
                             </div>
@@ -772,11 +831,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                           <div className="space-y-3">
                             <div className="overflow-x-auto">
                               <table
-                                className="w-full border border-gray-200 rounded-lg overflow-hidden bg-white text-sm table-fixed"
+                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
                               >
                                 <thead>
-                                  <tr className="bg-purple-100 border-b border-gray-200">
-                                    <th colSpan={2} className="px-3 py-2 text-left font-semibold text-gray-700">
+                                  <tr className="bg-purple-100">
+                                    <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
                                       Charge Summary
                                     </th>
                                   </tr>
@@ -803,9 +862,9 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                     { label: '8PM Charges (D)', value: formatCurrencyINR(v.after8pmDriver) },
                                     { label: '8PM Charges (V)', value: formatCurrencyINR(v.after8pmVendor) },
                                   ].map(({ label, value }) => (
-                                    <tr key={label} className="border-b border-gray-100 last:border-b-0">
-                                      <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">{label}</td>
-                                      <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{value}</td>
+                                    <tr key={label}>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{label}</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{value}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -814,11 +873,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
                             <div className="overflow-x-auto">
                               <table
-                                className="w-full border border-gray-200 rounded-lg overflow-hidden bg-white text-sm table-fixed"
+                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
                               >
                                 <thead>
-                                  <tr className="bg-purple-100 border-b border-gray-200">
-                                    <th colSpan={2} className="px-3 py-2 text-left font-semibold text-gray-700">
+                                  <tr className="bg-purple-100">
+                                    <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
                                       Distance Summary
                                     </th>
                                   </tr>
@@ -826,35 +885,35 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                 <tbody>
                                   {(v.totalPickupKm ?? 0) > 0 && (
                                     <>
-                                      <tr className="border-b border-gray-100">
-                                        <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">Total Pickup KM</td>
-                                        <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{(v.totalPickupKm ?? 0).toFixed(2)}</td>
+                                      <tr>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">Total Pickup KM</td>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalPickupKm ?? 0).toFixed(2)}</td>
                                       </tr>
-                                      <tr className="border-b border-gray-100">
-                                        <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">Total Pickup Duration</td>
-                                        <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{v.totalPickupDuration}</td>
+                                      <tr>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">Total Pickup Duration</td>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{v.totalPickupDuration}</td>
                                       </tr>
                                     </>
                                   )}
                                   {(v.totalDropKm ?? 0) > 0 && (
                                     <>
-                                      <tr className="border-b border-gray-100">
-                                        <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">Total Drop KM</td>
-                                        <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{(v.totalDropKm ?? 0).toFixed(2)}</td>
+                                      <tr>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">Total Drop KM</td>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalDropKm ?? 0).toFixed(2)}</td>
                                       </tr>
-                                      <tr className="border-b border-gray-100">
-                                        <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">Total Drop Duration</td>
-                                        <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{v.totalDropDuration}</td>
+                                      <tr>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">Total Drop Duration</td>
+                                        <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{v.totalDropDuration}</td>
                                       </tr>
                                     </>
                                   )}
-                                  <tr className="border-b border-gray-100">
-                                    <td className="w-1/2 px-3 py-1.5 text-gray-700 font-semibold">TOTAL USED KM</td>
-                                    <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
+                                  <tr>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL USED KM</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
                                   </tr>
-                                  <tr className="border-b border-gray-100">
-                                    <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">TOTAL ALLOWED OUTSTATION KM</td>
-                                    <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">
+                                  <tr>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL ALLOWED OUTSTATION KM</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
                                       {v.totalAllowedKm != null && v.totalDays
                                         ? `${Math.round((v.totalAllowedKm) / (v.totalDays))} * ${v.totalDays}`
                                         : (v.totalAllowedKm ?? 0)}{' '}
@@ -863,8 +922,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                   </tr>
                                   {(v.extraKms ?? 0) > 0 && (
                                     <tr>
-                                      <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">TOTAL EXTRA KM</td>
-                                      <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL EXTRA KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
                                         {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.extraKmCharge)}
                                       </td>
                                     </tr>
@@ -875,45 +934,45 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
                             <div className="overflow-x-auto">
                               <table
-                                className="w-full border border-gray-200 rounded-lg overflow-hidden bg-white text-sm table-fixed"
+                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
                               >
                                 <thead>
-                                  <tr className="bg-purple-600 border-b border-purple-300">
-                                    <th colSpan={2} className="px-3 py-2 text-left font-semibold text-white">
+                                  <tr className="bg-purple-600">
+                                    <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-white">
                                       Consolidated Totals
                                     </th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  <tr className="border-b border-gray-100">
-                                    <td className="w-1/2 px-3 py-1.5 text-gray-700 font-semibold">TOTAL COST OF VEHICLE</td>
-                                    <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.totalCostOfVehicle)}</td>
+                                  <tr>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL COST OF VEHICLE</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.totalCostOfVehicle)}</td>
                                   </tr>
-                                  <tr className="border-b border-gray-100">
-                                    <td className="w-1/2 px-3 py-1.5 text-gray-700 font-semibold">SUBTOTAL</td>
-                                    <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.subtotal)}</td>
+                                  <tr>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">SUBTOTAL</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.subtotal)}</td>
                                   </tr>
                                   {(v.vehicleGstAmount ?? 0) > 0 && (
-                                    <tr className="border-b border-gray-100">
-                                      <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">GST ({v.vehicleGstPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vehicleGstAmount)}</td>
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">GST ({v.vehicleGstPercentage ?? 0}%)</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vehicleGstAmount)}</td>
                                     </tr>
                                   )}
                                   {(v.vendorMarginAmount ?? 0) > 0 && (
-                                    <tr className="border-b border-gray-100">
-                                      <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">DVI Margin ({v.vendorMarginPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginAmount)}</td>
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">DVI Margin ({v.vendorMarginPercentage ?? 0}%)</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginAmount)}</td>
                                     </tr>
                                   )}
                                   {(v.vendorMarginGstAmount ?? 0) > 0 && (
-                                    <tr className="border-b border-gray-100">
-                                      <td className="w-1/2 px-3 py-1.5 text-gray-600 font-medium">DVI Margin Service Tax ({v.vendorMarginGstPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 px-3 py-1.5 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginGstAmount)}</td>
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">DVI Margin Service Tax ({v.vendorMarginGstPercentage ?? 0}%)</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginGstAmount)}</td>
                                     </tr>
                                   )}
                                   <tr>
-                                    <td className="w-1/2 px-3 py-2 text-purple-700 font-bold text-base">GRAND TOTAL ({v.totalQty || 1} x {formatCurrencyINR(v.grandTotal ?? v.totalAmount)})</td>
-                                    <td className="w-1/2 px-3 py-2 text-right text-purple-700 font-bold text-base">{formatCurrencyINR(v.grandTotal ?? v.totalAmount)}</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-purple-700 font-bold text-base">GRAND TOTAL ({v.totalQty || 1} x {formatCurrencyINR(v.grandTotal ?? v.totalAmount)})</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-purple-700 font-bold text-base">{formatCurrencyINR(v.grandTotal ?? v.totalAmount)}</td>
                                   </tr>
                                 </tbody>
                               </table>

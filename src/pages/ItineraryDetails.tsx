@@ -2538,7 +2538,26 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       // Only refetch itinerary details with the selected group type to update costs
       // Hotel data (hotels, hotelTabs) does NOT change by group type, only cost breakdown
       const detailsRes = await ItineraryService.getDetails(quoteId, groupType);
-      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setItinerary((prev) => {
+        const next = detailsRes as ItineraryDetailsResponse;
+        const pref = Number(next.itineraryPreference ?? 0);
+        const shouldKeepVehicleState =
+          (pref === 2 || pref === 3) &&
+          (!Array.isArray(next.vehicles) || next.vehicles.length === 0) &&
+          Array.isArray(prev?.vehicles) &&
+          prev.vehicles.length > 0;
+
+        if (!shouldKeepVehicleState) {
+          return next;
+        }
+
+        // Some groupType responses return hotel-cost updates without vehicle rows.
+        // Keep the last known vehicle list so vehicle UI does not disappear.
+        return {
+          ...next,
+          vehicles: prev!.vehicles,
+        };
+      });
     } catch (e: any) {
       console.error("Failed to update data for group type change", e);
     }

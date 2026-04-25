@@ -526,6 +526,16 @@ export const ItineraryService = {
     });
   },
 
+  async autoSelectVehicleSlabs(
+    planId: number,
+    vehicleTypeId?: number,
+  ) {
+    return api("itineraries/vehicles/auto-select-slabs", {
+      method: "POST",
+      body: { planId, vehicleTypeId },
+    });
+  },
+
   async getCustomerInfoForm(planId: number) {
     return api(`itineraries/customer-info/${planId}`, {
       method: "GET",
