@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2, Copy, FileSpreadsheet, FileText } from "lucide-react";
@@ -13,6 +13,7 @@ import {
   ViaRouteRow,
 } from "@/services/locations";
 import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
+import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
 
 export default function LocationsPreviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -74,6 +75,25 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
     duration_from_source_location: "",
   });
 
+  const sourceOptions: AutoSuggestOption[] = useMemo(
+  () =>
+    (sources || []).map((item) => ({
+      value: item,
+      label: item,
+    })),
+  [sources]
+);
+
+const destinationOptions: AutoSuggestOption[] = useMemo(
+  () =>
+    (destinations || [])
+      .filter((item) => !selectedSource || item !== selectedSource)
+      .map((item) => ({
+        value: item,
+        label: item,
+      })),
+  [destinations, selectedSource]
+);
   // Load dropdowns and initial data
   useEffect(() => {
     async function init() {
@@ -149,6 +169,23 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
   viaRouteForm.via_route_location,
   location?.location_ID,
 ]);
+
+useEffect(() => {
+  async function reloadDestinationDropdown() {
+    try {
+      const dropdowns = await locationsApi.dropdowns({
+        source: selectedSource,
+      });
+
+      setSources(dropdowns.sources || []);
+      setDestinations(dropdowns.destinations || []);
+    } catch (error) {
+      console.error("Error loading filter dropdowns:", error);
+    }
+  }
+
+  reloadDestinationDropdown();
+}, [selectedSource]);
     async function loadPreviewCollections(locationId: number) {
   try {
     setViaRoutesLoading(true);
@@ -850,37 +887,38 @@ const confirmDeleteSelectedSuggestion = async () => {
         <h3 className="text-lg font-semibold mb-4">Filter</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Source Location *</label>
-            <LocationAutosuggestInput
-              placeholder="Type source location"
-              value={selectedSource}
-              onValueChange={(value) => {
-                setSelectedSource(value);
-                setSelectedDestination("");
-              }}
-              search={locationsApi.searchSources}
-            />
-          </div>
+  <div>
+    <label className="text-sm font-medium mb-2 block">Source Location *</label>
+    <AutoSuggestSelect
+      mode="single"
+      value={selectedSource}
+      onChange={(value) => {
+        const nextValue = String(value || "");
+        setSelectedSource(nextValue);
+        setSelectedDestination("");
+      }}
+      options={sourceOptions}
+      placeholder="Choose Source Location"
+    />
+  </div>
 
-          <div>
-            <label className="text-sm font-medium mb-2 block">Destination Location *</label>
-            <LocationAutosuggestInput
-              placeholder="Type destination location"
-              value={selectedDestination}
-              onValueChange={setSelectedDestination}
-              search={(phrase) =>
-                locationsApi.searchDestinations(phrase, selectedSource)
-              }
-            />
-          </div>
+  <div>
+    <label className="text-sm font-medium mb-2 block">Destination Location *</label>
+    <AutoSuggestSelect
+      mode="single"
+      value={selectedDestination}
+      onChange={(value) => setSelectedDestination(String(value || ""))}
+      options={destinationOptions}
+      placeholder="Choose Destination Location"
+    />
+  </div>
 
-          <div className="flex items-end">
-            <Button onClick={handleGetInfo} className="w-full">
-              Get Info
-            </Button>
-          </div>
-        </div>
+  <div className="flex items-end">
+    <Button onClick={handleGetInfo} className="w-full">
+      Get Info
+    </Button>
+  </div>
+</div>
       </div>
 
       {/* Location Details Section */}
