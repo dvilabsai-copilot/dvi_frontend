@@ -381,6 +381,82 @@ const ActivityForm = () => {
     toast.success("Pricing dates updated");
   };
 
+  const getValidPriceDate = (value: Date | string | null | undefined) => {
+    if (!value) return null;
+
+    const date = value instanceof Date ? value : new Date(value);
+
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date;
+  };
+
+  const getPriceBookDates = () => {
+    const start = getValidPriceDate(priceStartDate);
+    const end = getValidPriceDate(priceEndDate);
+
+    if (!start || !end) return [];
+    if (start > end) return [];
+
+    const dates: Date[] = [];
+    const current = new Date(start);
+
+    while (current <= end) {
+      dates.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+
+    return dates;
+  };
+
+  const priceBookDates = getPriceBookDates();
+
+  const priceBookRows = [
+    {
+      nationality: "Indian",
+      priceType: "Adult",
+      amount: formData.pricing.adult,
+    },
+    {
+      nationality: "Indian",
+      priceType: "Children",
+      amount: formData.pricing.children,
+    },
+    {
+      nationality: "Indian",
+      priceType: "Infant",
+      amount: formData.pricing.infant,
+    },
+    {
+      nationality: "Non-Indian",
+      priceType: "Foreign Adult",
+      amount: formData.pricing.foreignAdult,
+    },
+    {
+      nationality: "Non-Indian",
+      priceType: "Foreign Children",
+      amount: formData.pricing.foreignChildren,
+    },
+    {
+      nationality: "Non-Indian",
+      priceType: "Foreign Infant",
+      amount: formData.pricing.foreignInfant,
+    },
+  ];
+
+  useEffect(() => {
+    if (!priceStartDate || !priceEndDate) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        startDate: format(priceStartDate, "yyyy-MM-dd"),
+        endDate: format(priceEndDate, "yyyy-MM-dd"),
+      },
+    }));
+  }, [priceStartDate, priceEndDate]);
+
   /** Upload selected files to Multer endpoint, then persist filenames into gallery table.
    * Expects backend route: POST /activities/:id/images/upload (Multer, files field = 'files')
    * Returns server JSON: { files: Array<{ filename: string }> }
@@ -980,6 +1056,56 @@ const persistPendingReviews = async (activityId: number) => {
                   />
                 </div>
               </div>
+
+              {priceBookDates.length > 0 && (
+                <div className="pt-6 border-t">
+                  <div className="overflow-x-auto rounded-xl border bg-white">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="font-semibold text-gray-700">
+                            Activity
+                          </TableHead>
+                          <TableHead className="font-semibold text-gray-700">
+                            Nationality
+                          </TableHead>
+                          <TableHead className="font-semibold text-gray-700">
+                            Price Type
+                          </TableHead>
+
+                          {priceBookDates.map((date) => (
+                            <TableHead
+                              key={date.toISOString()}
+                              className="text-center font-semibold text-gray-700"
+                            >
+                              {format(date, "dd MMM yyyy")}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+
+                      <TableBody>
+                        {priceBookRows.map((row) => (
+                          <TableRow key={`${row.nationality}-${row.priceType}`}>
+                            <TableCell>{formData.title || "Activity"}</TableCell>
+                            <TableCell>{row.nationality}</TableCell>
+                            <TableCell>{row.priceType}</TableCell>
+
+                            {priceBookDates.map((date) => (
+                              <TableCell
+                                key={`${row.nationality}-${row.priceType}-${date.toISOString()}`}
+                                className="text-center"
+                              >
+                                ₹ {Number(row.amount || 0).toFixed(2)}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex items-center justify-between pt-6 border-t">
