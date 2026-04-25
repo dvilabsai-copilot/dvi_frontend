@@ -40,19 +40,51 @@ export function LocationAutosuggestInput({
 
     debounceRef.current = window.setTimeout(async () => {
       try {
-        const result = await search(phrase);
-        if (requestId !== requestSeqRef.current) return;
 
-        setItems(Array.isArray(result) ? result : []);
-        setOpen(true);
-        setHighlightIndex(result.length > 0 ? 0 : -1);
+          const result = await search(phrase);
+            if (requestId !== requestSeqRef.current) return;
+
+            const normalizedPhrase = phrase.trim().toLowerCase();
+
+            let finalItems = Array.isArray(result) ? [...result] : [];
+
+            // ✅ ALWAYS include typed value (IMPORTANT FIX)
+            if (normalizedPhrase) {
+              const alreadyExists = finalItems.some(
+                (item) => item.toLowerCase() === normalizedPhrase
+              );
+
+              if (!alreadyExists) {
+                finalItems.unshift(phrase); // 👈 this fixes Chennai missing
+              }
+            }
+
+            // ✅ sort properly
+            finalItems.sort((a, b) => {
+              const aText = a.toLowerCase();
+              const bText = b.toLowerCase();
+
+              if (aText === normalizedPhrase) return -1;
+              if (bText === normalizedPhrase) return 1;
+
+              if (aText.startsWith(normalizedPhrase)) return -1;
+              if (bText.startsWith(normalizedPhrase)) return 1;
+
+              return aText.localeCompare(bText);
+            });
+
+            setItems(finalItems);
+            setOpen(true);
+            setHighlightIndex(finalItems.length > 0 ? 0 : -1);
+
+
       } catch {
         if (requestId !== requestSeqRef.current) return;
         setItems([]);
         setOpen(false);
         setHighlightIndex(-1);
       }
-    }, 300);
+    },0);
 
     return () => {
       if (debounceRef.current) {
@@ -85,9 +117,21 @@ export function LocationAutosuggestInput({
         placeholder={placeholder}
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
-        onFocus={() => {
-          if (items.length > 0) setOpen(true);
-        }}
+       onFocus={async () => {
+            if (!value) {
+              try {
+                const result = await search("");
+                setItems(Array.isArray(result) ? result : []);
+                setOpen(true);
+                setHighlightIndex(result.length > 0 ? 0 : -1);
+              } catch {
+                setItems([]);
+              }
+            } else if (items.length > 0) {
+              setOpen(true);
+            }
+          }}
+
         onBlur={() => {
           if (closeTimerRef.current) {
             window.clearTimeout(closeTimerRef.current);
