@@ -72,6 +72,20 @@ function formatDate(value?: string) {
   });
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function TypeBadge({ value }: { value: "Credit" | "Debit" }) {
   return (
     <span
@@ -259,7 +273,11 @@ const WalletHistory = () => {
 
     try {
       setSubmitting(true);
-      const order = await paymentService.createWalletTopupOrder(amount);
+      const order = await withTimeout(
+        paymentService.createWalletTopupOrder(amount),
+        20000,
+        "Create order request timed out. Please try again.",
+      );
 
       await openCheckout({
         key: order.key,
@@ -269,7 +287,11 @@ const WalletHistory = () => {
         name: "DVI Holidays",
         description: "Cash Wallet Top Up",
         onSuccess: async (response) => {
-          await paymentService.confirmWalletTopup(response);
+          await withTimeout(
+            paymentService.confirmWalletTopup(response),
+            20000,
+            "Payment confirmation timed out. Please refresh and check wallet history.",
+          );
           await fetchHistory();
           setTopUpOpen(false);
           setTopUpAmount("");
