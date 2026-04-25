@@ -60,6 +60,7 @@ import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
 import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
@@ -579,6 +580,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <SubscriptionHistory />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/payments/success"
+              element={
+                <MainLayout>
+                  <PaymentSuccess />
                 </MainLayout>
               }
             />
