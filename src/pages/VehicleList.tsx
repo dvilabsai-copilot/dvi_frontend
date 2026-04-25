@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
@@ -17,6 +17,7 @@ export interface DayWisePricingItem {
   date: string; // "2025-12-26"
   dayLabel: string; // "Day 1 | 26 Dec 2025"
   route: string; // "Chennai → Mahabalipuram"
+  pickupKms: number;
   travelKms: number; // Travel KM per day
   sightseeingKms: number; // Sightseeing KM per day
   totalKms: number; // Total KM per day
@@ -29,6 +30,7 @@ export interface DayWisePricingItem {
   extraHourRate: number;
   extraHourCharges: number;
   extraKmCharges: number;
+  dropKms: number;
   totalCharges: number;
 }
 
@@ -170,7 +172,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     vendorName: string;
   } | null>(null);
   const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
-  const [isUpdatingSlabForEligible, setIsUpdatingSlabForEligible] = useState<number | null>(null);
+  const [isAutoSelectingSlabs, setIsAutoSelectingSlabs] = useState(false);
+  const autoSlabSyncKeysRef = useRef<Set<string>>(new Set());
   const [copiedVendorIndex, setCopiedVendorIndex] = useState<number | null>(null);
 
   const escapeHtml = (value: unknown) =>
@@ -197,6 +200,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               ${datePart ? `<div style="font-weight:500;">${escapeHtml(datePart)}</div>` : ''}
             </td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#374151;">${escapeHtml(dp.route)}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.pickupKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
@@ -207,6 +211,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraHourCharges))}</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.dropKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:6px 10px;border-bottom:1px solid #ececf1;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
           </tr>
         `;
@@ -322,6 +327,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               <tr style="background:#e9dff5;color:#334155;">
                 <th style="padding:6px 10px;text-align:left;font-weight:700;white-space:nowrap;">Date</th>
                 <th style="padding:6px 10px;text-align:left;font-weight:700;">Route</th>
+                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Pickup KM</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Travel KM</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Sightseeing KM</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
@@ -332,6 +338,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Permit</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Extra Hour</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
+                <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Drop KM</th>
                 <th style="padding:6px 10px;text-align:right;font-weight:700;white-space:nowrap;">Total</th>
               </tr>
             </thead>
@@ -464,29 +471,40 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     setCarouselIndex((prev) => (prev === vehicles.length - 1 ? 0 : prev + 1));
   };
 
-  const handleSlabChange = async (vendor: ItineraryVehicleRow, nextTimeLimitId: number) => {
-    if (!itineraryPlanId || !vendor.vendorEligibleId || !vendor.vehicleTypeId || !nextTimeLimitId) {
-      toast.error("Missing required slab selection fields");
-      return;
-    }
+  useEffect(() => {
+    if (!itineraryPlanId || !vehicleTypeId || vehicles.length === 0) return;
 
-    try {
-      setIsUpdatingSlabForEligible(vendor.vendorEligibleId);
-      await ItineraryService.selectVehicleSlab(
-        itineraryPlanId,
-        vendor.vehicleTypeId,
-        vendor.vendorEligibleId,
-        nextTimeLimitId,
-      );
-      toast.success("Slab updated and pricing recalculated");
-      if (onRefresh) onRefresh();
-    } catch (error) {
-      console.error(`[${vehicleTypeLabel}] Failed to select slab:`, error);
-      toast.error("Failed to update slab");
-    } finally {
-      setIsUpdatingSlabForEligible(null);
-    }
-  };
+    const syncKey = `${itineraryPlanId}_${vehicleTypeId}`;
+    if (autoSlabSyncKeysRef.current.has(syncKey)) return;
+
+    autoSlabSyncKeysRef.current.add(syncKey);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setIsAutoSelectingSlabs(true);
+        const result = await ItineraryService.autoSelectVehicleSlabs(itineraryPlanId, vehicleTypeId);
+        const updatedCount = Number((result as any)?.updatedCount || 0);
+        if (!cancelled && updatedCount > 0) {
+          toast.success(`Auto-selected slab for ${updatedCount} vendor option(s)`);
+          onRefresh?.();
+        }
+      } catch (error) {
+        console.error(`[${vehicleTypeLabel}] Failed to auto-select slabs:`, error);
+        if (!cancelled) {
+          toast.error("Failed to auto-select slabs");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAutoSelectingSlabs(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [itineraryPlanId, vehicleTypeId, vehicles.length, onRefresh, vehicleTypeLabel]);
 
 
   const sortedVehicles = useMemo(() => {
@@ -675,25 +693,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <h6 className="text-sm font-semibold text-gray-900">Day-wise Pricing Breakdown</h6>
                               <div className="flex items-center gap-2">
-                                {v.availableSlabs && v.availableSlabs.length > 0 && (
-                                  <>
-                                    <label className="text-xs font-semibold text-gray-600 uppercase">Slab</label>
-                                    <select
-                                      className="h-8 min-w-[180px] rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                                      value={Number(v.selectedTimeLimitId || 0)}
-                                      disabled={isUpdatingSlabForEligible === v.vendorEligibleId}
-                                      onChange={(e) => handleSlabChange(v, Number(e.target.value || 0))}
-                                    >
-                                      {v.availableSlabs.map((slab) => (
-                                        <option key={slab.timeLimitId} value={slab.timeLimitId}>
-                                          {slab.title}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {isUpdatingSlabForEligible === v.vendorEligibleId && (
-                                      <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
-                                    )}
-                                  </>
+                                {isAutoSelectingSlabs && (
+                                  <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-700">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Auto selecting slab...
+                                  </span>
                                 )}
                                 <Button
                                   type="button"
@@ -732,6 +736,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                   <tr className="bg-purple-100 border-b border-gray-200">
                                     <th className="text-left py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Date</th>
                                     <th className="text-left py-1.5 px-2.5 font-semibold text-gray-700">Route</th>
+                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Pickup KM</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Sightseeing KM</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
@@ -742,6 +747,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Permit</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Extra Hour</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
+                                    <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Drop KM</th>
                                     <th className="text-right py-1.5 px-2.5 font-semibold text-gray-700 whitespace-nowrap">Total</th>
                                   </tr>
                                 </thead>
@@ -750,6 +756,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                     <tr key={di} className={`border-b border-gray-100 ${di % 2 === 0 ? 'bg-white' : 'bg-purple-50/40'} hover:bg-purple-100 transition-colors`}>
                                       <td className="py-1.5 px-2.5 text-gray-700 font-medium whitespace-nowrap">{dp.dayLabel}</td>
                                       <td className="py-1.5 px-2.5 text-gray-600 leading-5 break-words">{dp.route}</td>
+                                      <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.pickupKms ?? 0).toFixed(2)} KM</td>
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
@@ -760,6 +767,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraHourCharges)}</td>
                                       <td className="py-1.5 px-2.5 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
+                                      <td className="py-1.5 px-2.5 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.dropKms ?? 0).toFixed(2)} KM</td>
                                       <td className="py-1.5 px-2.5 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
                                     </tr>
                                   ))}
