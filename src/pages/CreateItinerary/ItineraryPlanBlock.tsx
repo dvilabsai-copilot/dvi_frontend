@@ -16,7 +16,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Clock3 } from "lucide-react";
+import {
+  TimePickerPopover,
+  formatTime24As12,
+  time12To24,
+  time24To12,
+} from "@/components/itinerary/TimePickerPopover";
 import {
   AutoSuggestSelect,
   AutoSuggestOption,
@@ -236,6 +242,8 @@ const isMobile = useIsMobile();
 const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
 const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
 const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
+const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
+const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
 
 const tripStartDateObj = parseDDMMYYYY(tripStartDate);
 const tripEndDateObj = parseDDMMYYYY(tripEndDate);
@@ -706,25 +714,56 @@ const handleHotelFacilityChange = (vals: string[]) => {
  <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
   <div className="md:col-span-3">
     <Label className="text-sm block mb-1">Start Time *</Label>
-    <Input
-      type="time"
-      className="h-9 border-[#e5d7f6]"
-      value={startTime}
-      onChange={(e) => {
-        const newTime = e.target.value;
-        setStartTime(newTime);
-      }}
-    />
+      <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+          >
+            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+            {formatTime24As12(startTime)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
+          <TimePickerPopover
+            value={formatTime24As12(startTime)}
+            onSave={(newValue12) => {
+              const { time, period } = time24To12(startTime);
+              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
+              setStartTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
+              setIsStartTimeOpen(false);
+            }}
+            label="Start Time"
+          />
+        </PopoverContent>
+      </Popover>
   </div>
 
   <div className="md:col-span-3">
     <Label className="text-sm block mb-1">End Time *</Label>
-    <Input
-      type="time"
-      className="h-9 border-[#e5d7f6]"
-      value={endTime}
-      onChange={(e) => setEndTime(e.target.value)}
-    />
+      <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+          >
+            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+            {formatTime24As12(endTime)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
+          <TimePickerPopover
+            value={formatTime24As12(endTime)}
+            onSave={(newValue12) => {
+              const { time, period } = time24To12(endTime);
+              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
+              setEndTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
+              setIsEndTimeOpen(false);
+            }}
+            label="End Time"
+          />
+        </PopoverContent>
+      </Popover>
   </div>
 
   <div
