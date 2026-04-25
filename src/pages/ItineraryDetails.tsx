@@ -17,7 +17,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, ChevronUp, ChevronDown, Loader2, RefreshCw, Edit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, Loader2, RefreshCw, Edit } from "lucide-react";
+import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
@@ -474,115 +475,6 @@ const normalizeDateToYmd = (input?: string | null): string => {
   }
 
   return '';
-};
-
-const TimePickerPopover: React.FC<{
-  value: string;
-  onSave: (newValue: string) => Promise<void>;
-  label: string;
-}> = ({ value, onSave, label }) => {
-  const parts = value.split(' ');
-  const [localTime, setLocalTime] = useState(parts[0] || "09:00");
-  const [localAmPm, setLocalAmPm] = useState(parts[1] || "AM");
-  const [isSaving, setIsSaving] = useState(false);
-
-  const timeParts = localTime.split(':');
-  const hours = Number(timeParts[0] || 9);
-  const minutes = Number(timeParts[1] || 0);
-
-  const handleHourChange = (delta: number) => {
-    let newHour = hours + delta;
-
-    // Toggle AM/PM when crossing 11 <-> 12 boundary
-    if (hours === 11 && delta === 1) {
-      toggleAmPm();
-    } else if (hours === 12 && delta === -1) {
-      toggleAmPm();
-    }
-
-    if (newHour > 12) newHour = 1;
-    if (newHour < 1) newHour = 12;
-    setLocalTime(`${String(newHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
-  };
-
-  const handleMinuteChange = (delta: number) => {
-    let newMinute = minutes + delta;
-    if (newMinute >= 60) newMinute = 0;
-    if (newMinute < 0) newMinute = 55;
-    setLocalTime(`${String(hours).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`);
-  };
-
-  const toggleAmPm = () => {
-    setLocalAmPm(prev => prev === 'AM' ? 'PM' : 'AM');
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onSave(`${localTime} ${localAmPm}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center p-4 bg-white rounded-lg shadow-xl border border-[#e5d9f2] min-w-[220px]">
-      <span className="text-[10px] font-bold text-[#6c6c6c] uppercase mb-3 tracking-wider">{label}</span>
-      <div className="flex items-center gap-4">
-        <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(1)} disabled={isSaving}>
-            <ChevronUp className="h-5 w-5" />
-          </Button>
-          <div className="bg-[#f8f5fc] border border-[#e5d9f2] rounded-md w-12 h-12 flex items-center justify-center text-xl font-bold text-[#4a4260]">
-            {String(hours).padStart(2, '0')}
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(-1)} disabled={isSaving}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <span className="text-2xl font-bold text-[#4a4260] mt-2">:</span>
-
-        <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(5)} disabled={isSaving}>
-            <ChevronUp className="h-5 w-5" />
-          </Button>
-          <div className="bg-[#f8f5fc] border border-[#e5d9f2] rounded-md w-12 h-12 flex items-center justify-center text-xl font-bold text-[#4a4260]">
-            {String(minutes).padStart(2, '0')}
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(-5)} disabled={isSaving}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <div className="flex flex-col items-center justify-center h-full pt-8">
-          <Button
-            variant="outline"
-            className={`h-12 w-12 font-bold border-2 ${localAmPm === 'AM' ? 'border-[#d546ab] text-[#d546ab] bg-[#fdf2f8]' : 'border-[#4a4260] text-[#4a4260]'}`}
-            onClick={toggleAmPm}
-            disabled={isSaving}
-          >
-            {localAmPm}
-          </Button>
-        </div>
-      </div>
-
-      <Button
-        className="w-full mt-4 bg-[#d546ab] hover:bg-[#c4359a] text-white shadow-md"
-        onClick={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Updating...
-          </>
-        ) : (
-          "Update Time"
-        )}
-      </Button>
-    </div>
-  );
 };
 
 // ----------------- Main Component -----------------
