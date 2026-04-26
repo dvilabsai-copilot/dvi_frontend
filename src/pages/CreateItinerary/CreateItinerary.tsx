@@ -1,22 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { getToken } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentOption, fetchAgents } from "@/services/accountsManagerApi";
 import {
-  fetchLocations,
   fetchItineraryTypes,
   fetchTravelTypes,
   fetchEntryTicketOptions,
   fetchGuideOptions,
   fetchNationalities,
   fetchFoodPreferences,
+  fetchMealPlans,
   fetchEligibleVehicleTypes,
   fetchHotelCategories,
   fetchHotelFacilities,
   LocationOption,
+  MealPlanOption,
   SimpleOption,
 } from "@/services/itineraryDropdownsMock";
+
+import { locationsApi } from "@/services/locations";
 import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
 import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
@@ -34,7 +38,7 @@ import {
   calculateNights,
 } from "./helpers/itineraryUtils";
 import { SaveRouteConfirmDialog } from "./helpers/SaveRouteConfirmDialog";
-import { useRoomsAndTravellers } from "./helpers/useRoomsAndTravellers";
+import { useRoomsAndTravellers, RoomRow as TravellerRoomRow } from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
 import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
 
@@ -92,6 +96,81 @@ function csvToNumberArray(v: unknown): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+function mapPhpBedTypeToUiValue(bedType: unknown): "Without Bed" | "With Bed" {
+  return Number(bedType) === 2 ? "With Bed" : "Without Bed";
+}
+
+function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
+  if (!Array.isArray(travellers) || travellers.length === 0) {
+    return [
+      {
+        id: 1,
+        roomCount: 1,
+        adults: 1,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      },
+    ];
+  }
+
+  const roomMap = new Map<number, TravellerRoomRow>();
+
+  const getRoom = (roomId: number) => {
+    if (!roomMap.has(roomId)) {
+      roomMap.set(roomId, {
+        id: roomId,
+        roomCount: 0,
+        adults: 0,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      });
+    }
+    return roomMap.get(roomId)!;
+  };
+
+  for (const t of travellers) {
+    const roomId = Number(t?.room_id ?? 0);
+    if (roomId <= 0) continue;
+
+    const room = getRoom(roomId);
+    const type = Number(t?.traveller_type ?? 0);
+
+    if (type === 1) {
+      room.adults += 1;
+      continue;
+    }
+
+    if (type === 2) {
+      room.children += 1;
+      room.childrenDetails.push({
+        age:
+          t?.traveller_age !== null &&
+          t?.traveller_age !== undefined &&
+          String(t.traveller_age).trim() !== "" &&
+          !Number.isNaN(Number(t.traveller_age))
+            ? Number(t.traveller_age)
+            : "",
+        bedType: mapPhpBedTypeToUiValue(t?.child_bed_type),
+      });
+      continue;
+    }
+
+    if (type === 3) {
+      room.infants += 1;
+    }
+  }
+
+  const rooms = Array.from(roomMap.values()).sort((a, b) => a.id - b.id);
+  const totalRoomCount = rooms.length || 1;
+
+  return rooms.map((room) => ({
+    ...room,
+    roomCount: totalRoomCount,
+  }));
+}
+
 
 // Helper function to calculate number of days between two DD/MM/YYYY date strings
 function calculateDaysBetweenDates(startDate: string, endDate: string): number {
@@ -139,7 +218,45 @@ function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
   return formatDDMMYYYY(next);
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function getLoggedInUserContext(): { role: number | null; agentId: number | null } {
+  const token = getToken();
+  if (!token) return { role: null, agentId: null };
+
+  const user = parseJwt(token);
+  const role = Number(user?.role);
+  const rawAgentId = user?.agentId ?? user?.id ?? user?.agent_ID ?? null;
+  const agentId = Number(rawAgentId);
+
+  return {
+    role: Number.isFinite(role) ? role : null,
+    agentId: Number.isFinite(agentId) && agentId > 0 ? agentId : null,
+  };
+}
+
 // ----------------- main component ------------
+
+async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
+  const data = await locationsApi.dropdowns({
+    itineraryMode: true,
+    type: "source",
+  });
+
+  return (data?.sources || []).map((name, index) => ({
+    id: index + 1,
+    name: String(name).trim(),
+  }));
+}
 
 export const CreateItinerary = () => {
   const [searchParams] = useSearchParams();
@@ -148,6 +265,9 @@ export const CreateItinerary = () => {
   const { toast } = useToast();
 
   const itineraryPlanId = id && !Number.isNaN(Number(id)) ? Number(id) : null;
+  const loggedInUser = getLoggedInUserContext();
+  const isAgentLogin = loggedInUser.role === 4;
+  const loggedInAgentId = loggedInUser.agentId;
 
   // agents / dropdown data
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -158,6 +278,7 @@ export const CreateItinerary = () => {
   const [guideOptions, setGuideOptions] = useState<SimpleOption[]>([]);
   const [nationalities, setNationalities] = useState<SimpleOption[]>([]);
   const [foodPreferences, setFoodPreferences] = useState<SimpleOption[]>([]);
+  const [mealPlanOptions, setMealPlanOptions] = useState<MealPlanOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [hotelCategoryOptions, setHotelCategoryOptions] = useState<SimpleOption[]>([]);
@@ -179,6 +300,7 @@ export const CreateItinerary = () => {
   const [guideRequired, setGuideRequired] = useState("");
   const [nationality, setNationality] = useState("");
   const [foodPreference, setFoodPreference] = useState(""); // ✅ store option id string
+  const [mealPlanCode, setMealPlanCode] = useState<string>("CP");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
@@ -237,6 +359,21 @@ export const CreateItinerary = () => {
   >(null);
   const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
+  const [arrivalPolicyDecision, setArrivalPolicyDecision] = useState<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
+  const arrivalPolicyDecisionRef = useRef<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
   const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
     open: boolean;
     arrivalDate: string;
@@ -252,11 +389,26 @@ export const CreateItinerary = () => {
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
     useState(false);
+  const defaultRouteWarningShownRef = useRef(false);
 
   const saveProgressTimerRef = useRef<number | null>(null);
 
+  const applyArrivalPolicyDecision = (decision: {
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }) => {
+    arrivalPolicyDecisionRef.current = decision;
+    setArrivalPolicyDecision(decision);
+  };
+
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
+
+  useEffect(() => {
+    if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
+      setAgentId(loggedInAgentId);
+    }
+  }, [itineraryPlanId, isAgentLogin, loggedInAgentId]);
 
   const stopSaveProgress = () => {
     if (saveProgressTimerRef.current !== null) {
@@ -367,22 +519,28 @@ useEffect(() => {
           guideRes,
           nationalityRes,
           foodRes,
+          mealPlansRes,
           hotelCatRes,
           hotelFacilityRes,
         ] = await Promise.all([
           fetchAgents(),
-          fetchLocations("source"),
+          fetchStoredSourceLocations(),
           fetchItineraryTypes(),
           fetchTravelTypes(),
           fetchEntryTicketOptions(),
           fetchGuideOptions(),
           fetchNationalities(),
           fetchFoodPreferences(),
+          fetchMealPlans(),
           fetchHotelCategories(),
           fetchHotelFacilities(),
         ]);
 
-        setAgents(agentsRes);
+        setAgents(
+          isAgentLogin && loggedInAgentId
+            ? agentsRes.filter((a) => Number(a.id) === Number(loggedInAgentId))
+            : agentsRes
+        );
         setLocations(locationsRes);
         setItineraryTypes(itineraryTypesRes);
         setTravelTypes(travelTypesRes);
@@ -390,6 +548,7 @@ useEffect(() => {
         setGuideOptions(guideRes);
         setNationalities(nationalityRes);
         setFoodPreferences(foodRes);
+        setMealPlanOptions(mealPlansRes);
         setHotelCategoryOptions(hotelCatRes);
         setHotelFacilityOptions(hotelFacilityRes);
 
@@ -450,6 +609,14 @@ useEffect(() => {
             // ✅ foodPreference state holds option id
             setFoodPreference(p.food_type != null ? String(p.food_type) : "");
 
+            const matchedMealPlan = (mealPlansRes || []).find(
+              (mp) =>
+                Number(mp.includesBreakfast) === Number(p.meal_plan_breakfast ?? 0) &&
+                Number(mp.includesLunch) === Number(p.meal_plan_lunch ?? 0) &&
+                Number(mp.includesDinner) === Number(p.meal_plan_dinner ?? 0)
+            );
+            setMealPlanCode(matchedMealPlan?.code || "CP");
+
 
 
             setSpecialInstructions(p.special_instructions ?? "");
@@ -495,6 +662,10 @@ useEffect(() => {
                 }))
               );
             }
+
+            if (Array.isArray(existing.travellers) && existing.travellers.length) {
+              setRooms(buildRoomsFromTravellers(existing.travellers));
+            }
           }
         }
       } catch (err) {
@@ -503,7 +674,7 @@ useEffect(() => {
         setLoading(false);
       }
     })();
-  }, [itineraryPlanId, setRouteDetails]);
+  }, [itineraryPlanId, setRouteDetails, setRooms]);
 
   useEffect(() => {
     if (itineraryPlanId) return;
@@ -560,6 +731,13 @@ useEffect(() => {
           );
           setNationality(plan.nationality != null ? String(plan.nationality) : "");
           setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
+          const matchedMealPlan = (mealPlanOptions || []).find(
+            (mp) =>
+              Number(mp.includesBreakfast) === Number(plan.meal_plan_breakfast ?? 0) &&
+              Number(mp.includesLunch) === Number(plan.meal_plan_lunch ?? 0) &&
+              Number(mp.includesDinner) === Number(plan.meal_plan_dinner ?? 0)
+          );
+          setMealPlanCode(matchedMealPlan?.code || "CP");
           setBudget(plan.expecting_budget ?? "");
           setSpecialInstructions(plan.special_instructions ?? "");
           setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
@@ -571,9 +749,8 @@ useEffect(() => {
             template.routes.map((r: any, idx: number): RouteRow => ({
               id: idx + 1,
               day: r.no_of_days ?? idx + 1,
-              date: r.itinerary_route_date
-                ? safeDateFromISO(r.itinerary_route_date)
-                : addDaysToDDMMYYYY(tripStartDate, idx),
+              // Keep template route sequence, but always align dates to the user's selected trip start date.
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
               source: r.location_name ?? "",
               next: r.next_visiting_location ?? "",
               via: r.via_route ?? "",
@@ -627,6 +804,7 @@ useEffect(() => {
     templateAppliedKey,
     toast,
     setRouteDetails,
+    mealPlanOptions,
   ]);
 
   // Auto-open route suggestions modal when itinerary type is "Default"
@@ -635,18 +813,37 @@ useEffect(() => {
       const selectedType = itineraryTypes.find(
         (t) => t.id === itineraryTypeSelect
       );
+      const isDefaultType = selectedType?.label?.trim().toLowerCase() === "default";
+
+      if (!isDefaultType) {
+        defaultRouteWarningShownRef.current = false;
+        return;
+      }
 
       // Check if the selected type is "Default"
-      if (selectedType?.label === "Default") {
-        // Check if we have required fields
-        if (
-          arrivalLocation &&
-          departureLocation &&
-          tripStartDate &&
-          tripEndDate
-        ) {
-          const noOfDays = routeDetails.length || 1;
+      if (isDefaultType) {
+        const hasRequiredBasicDetails =
+          Boolean(arrivalLocation) &&
+          Boolean(departureLocation) &&
+          Boolean(tripStartDate) &&
+          Boolean(tripEndDate);
+
+        if (hasRequiredBasicDetails) {
+          defaultRouteWarningShownRef.current = false;
           setShowDefaultRouteSuggestions(true);
+        } else {
+          setShowDefaultRouteSuggestions(false);
+
+          // PHP parity: warn once until user changes type or completes required fields.
+          if (!defaultRouteWarningShownRef.current) {
+            toast({
+              title: "Warning !!!",
+              description:
+                "Please Fill the basic itinerary details to proceed with the default Route Suggestions",
+              variant: "destructive",
+            });
+            defaultRouteWarningShownRef.current = true;
+          }
         }
       }
     }
@@ -802,7 +999,9 @@ const addDay = () => {
   const validateBeforeSave = (): boolean => {
     const errors: ValidationErrors = {};
 
-    if (!agentId) errors.agentId = "Please select an Agent";
+    if (!agentId && !(isAgentLogin && loggedInAgentId)) {
+      errors.agentId = "Please select an Agent";
+    }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
     if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -953,6 +1152,11 @@ const buildPayload = () => {
       ? 2
       : 3;
 
+  const resolvedAgentId =
+    isAgentLogin && loggedInAgentId
+      ? Number(loggedInAgentId)
+      : ((agentId as number) ?? 0);
+
   const itinerary_preference =
     itineraryPreference === "vehicle"
       ? 2
@@ -989,6 +1193,10 @@ const buildPayload = () => {
       : [];
 
   const food_type_id = resolveOptionId(foodPreference, foodPreferences);
+  const selectedMealPlan = mealPlanOptions.find((p) => p.code === mealPlanCode);
+  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 1) ? 1 : 0;
+  const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
+  const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
@@ -1005,7 +1213,7 @@ const buildPayload = () => {
 
   // ✅ base plan without id
   const planBase: any = {
-    agent_id: (agentId as number) ?? 0,
+    agent_id: resolvedAgentId,
     staff_id: 0,
     location_id: 0,
 
@@ -1036,6 +1244,9 @@ const buildPayload = () => {
     nationality: nationality ? Number(nationality) : 0,
 
     food_type: food_type_id,
+    meal_plan_breakfast,
+    meal_plan_lunch,
+    meal_plan_dinner,
 
     adult_count: totalAdults,
     child_count: totalChildren,
@@ -1063,6 +1274,10 @@ const buildPayload = () => {
           }))
         : [],
     travellers: travellerRows,
+    previousDayBillingDecisionProvided:
+      arrivalPolicyDecision.previousDayBillingDecisionProvided,
+    previousDayBillingConfirmed:
+      arrivalPolicyDecision.previousDayBillingConfirmed,
   };
 
   return payload;
@@ -1092,6 +1307,36 @@ const buildArrivalPolicyRequest = (): HotelArrivalPolicyRequest | null => {
     previousDayBillingDecisionProvided: false,
     previousDayBillingConfirmed: false,
   };
+};
+
+const getArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
+  if (!request?.routeDate || !request?.arrivalDateTime) {
+    return null;
+  }
+
+  const arrivalTimeHms = request.arrivalDateTime.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return null;
+  }
+
+  return `${request.routeDate}|${arrivalTimeHms}`;
+};
+
+const isEarlyArrivalPolicyRequest = (request: HotelArrivalPolicyRequest | null) => {
+  const arrivalTimeHms = request?.arrivalDateTime?.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return false;
+  }
+
+  const [hours, minutes, seconds] = arrivalTimeHms.split(":").map((value) => Number(value || 0));
+  const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+  return totalSeconds >= 3600 && totalSeconds < 28800;
 };
 
 const openArrivalPolicyDecisionModal = (request: HotelArrivalPolicyRequest) => {
@@ -1147,11 +1392,26 @@ const continueToRouteConfirmation = () => {
     const ok = validateBeforeSave();
     if (!ok) return;
 
+    applyArrivalPolicyDecision({
+      previousDayBillingDecisionProvided: false,
+      previousDayBillingConfirmed: false,
+    });
+
     const payload = buildPayload();
     setPendingPayload(payload);
 
     const request = buildArrivalPolicyRequest();
     if (!request) {
+      continueToRouteConfirmation();
+      return;
+    }
+
+    const currentDecisionKey = getArrivalPolicyDecisionKey(request);
+    if (
+      isEarlyArrivalPolicyRequest(request) &&
+      currentDecisionKey &&
+      currentDecisionKey === lastArrivalPolicyDecisionKey
+    ) {
       continueToRouteConfirmation();
       return;
     }
@@ -1175,7 +1435,15 @@ const handleSaveWithType = async (
     setActiveSaveType(type);
 
     const basePayload = pendingPayload ?? buildPayload();
-    const dayCount = Math.max(1, Number(basePayload?.plan?.no_of_days ?? 1));
+    const decision = arrivalPolicyDecisionRef.current;
+    const finalPayload = {
+      ...basePayload,
+      previousDayBillingDecisionProvided:
+        decision.previousDayBillingDecisionProvided,
+      previousDayBillingConfirmed:
+        decision.previousDayBillingConfirmed,
+    };
+    const dayCount = Math.max(1, Number(finalPayload?.plan?.no_of_days ?? 1));
     const estimatedMs = getEstimatedSaveMs(dayCount, type);
     setEstimatedSaveMs(estimatedMs);
     startSaveProgress(estimatedMs);
@@ -1183,7 +1451,7 @@ const handleSaveWithType = async (
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(basePayload, type);
+    const res = await ItineraryService.create(finalPayload, type);
     setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
@@ -1252,6 +1520,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
+        isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
         locations={locations}
         arrivalLocation={arrivalLocation}
         setArrivalLocation={setArrivalLocation}
@@ -1285,6 +1554,9 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         foodPreferences={foodPreferences}
         foodPreference={foodPreference}
         setFoodPreference={setFoodPreference}
+        mealPlanOptions={mealPlanOptions}
+        mealPlanCode={mealPlanCode}
+        setMealPlanCode={setMealPlanCode}
         tripStartDate={tripStartDate}
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
@@ -1411,12 +1683,28 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         isLoading={isResolvingArrivalPolicy}
         onConfirmPreviousDayBilling={async () => {
           if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
           const canProceed = await runArrivalPolicyGate({
             ...arrivalPolicyModal.request,
             previousDayBillingDecisionProvided: true,
             previousDayBillingConfirmed: true,
           });
           if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          } : prev);
 
           setArrivalPolicyModal({
             open: false,
@@ -1428,12 +1716,28 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         }}
         onDeclinePreviousDayBilling={async () => {
           if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
           const canProceed = await runArrivalPolicyGate({
             ...arrivalPolicyModal.request,
             previousDayBillingDecisionProvided: true,
             previousDayBillingConfirmed: false,
           });
           if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          } : prev);
 
           setArrivalPolicyModal({
             open: false,

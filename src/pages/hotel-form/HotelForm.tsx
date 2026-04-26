@@ -152,7 +152,7 @@ export default function HotelFormOrchestrator() {
     { n: 6, label: "Preview" },
   ];
 
-  const isClickable = (tab: string) => isEdit && tab !== "basic";
+  const isClickable = (tab: string) => isEdit && Boolean(tab);
 
   return (
     <div className="p-4">

@@ -2,7 +2,7 @@
 import { Users, Car, UserSquare2, TrendingDown, Calendar, Truck, Hotel, Building2, Wallet, FileText, UserCheck, Plus, CheckCircle, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselApi } from "@/components/ui/carousel";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Autoplay from "embla-carousel-autoplay";
 import { useState, useEffect } from "react";
 import { DashboardService, DashboardStats, AgentDashboardStats, AccountsDashboardStats, VendorDashboardStats } from "@/services/dashboard";
@@ -12,12 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { paymentService } from "@/services/paymentService";
 import { toast } from "sonner";
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 
 function parseJwt(token: string) {
   try {
@@ -28,6 +23,7 @@ function parseJwt(token: string) {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [dashboardData, setDashboardData] = useState<DashboardStats | AgentDashboardStats | null>(null);
@@ -37,6 +33,7 @@ export default function Dashboard() {
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const { openCheckout } = useRazorpayCheckout();
 
   const token = localStorage.getItem("accessToken");
   const user = token ? parseJwt(token) : null;
@@ -46,18 +43,6 @@ export default function Dashboard() {
   const isTravelExpert = (user?.role === 3 || user?.role === 8 || (user?.staffId && user.staffId > 0)) && !isAgent && !isAccounts;
   const isGuide = user?.role === 5 || (user?.guideId && user.guideId > 0);
 
-  useEffect(() => {
-    // Load Razorpay script
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
-
   const handleTopUp = async () => {
     if (!topUpAmount || isNaN(Number(topUpAmount)) || Number(topUpAmount) <= 0) {
       toast.error("Please enter a valid amount");
@@ -66,44 +51,35 @@ export default function Dashboard() {
 
     try {
       setIsProcessingPayment(true);
-      const order = await paymentService.createOrder(Number(topUpAmount));
+      const order = await paymentService.createWalletTopupOrder(Number(topUpAmount));
 
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      await openCheckout({
+        key: order.key,
         amount: order.amount,
         currency: order.currency,
-        name: "DVI Fullstack",
+        orderId: order.orderId,
+        name: "DVI Holidays",
         description: "Wallet Top Up",
-        order_id: order.id,
-        handler: async function (response: any) {
-          try {
-            await paymentService.verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            toast.success("Payment successful! Wallet updated.");
-            setIsTopUpModalOpen(false);
-            setTopUpAmount("");
-            // Refresh dashboard data
-            const data = await DashboardService.getStats();
-            setDashboardData(data);
-          } catch (error) {
-            console.error("Payment verification failed:", error);
-            toast.error("Payment verification failed. Please contact support.");
-          }
-        },
         prefill: {
           name: user?.name || "",
           email: user?.email || "",
         },
-        theme: {
-          color: "#ec4899",
+        onSuccess: async (response) => {
+          await paymentService.confirmWalletTopup(response);
+          setIsTopUpModalOpen(false);
+          setTopUpAmount("");
+          const data = await DashboardService.getStats();
+          setDashboardData(data);
+          navigate(`/payments/success?flow=wallet_topup&orderId=${encodeURIComponent(order.orderId)}`);
         },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+        onFailure: (error) => {
+          console.error("Payment confirmation failed:", error);
+          toast.error("Payment verification failed. Please contact support.");
+        },
+        onDismiss: () => {
+          toast.error("Payment cancelled");
+        },
+      });
     } catch (error) {
       console.error("Failed to initiate payment:", error);
       toast.error("Failed to initiate payment. Please try again.");
@@ -112,45 +88,36 @@ export default function Dashboard() {
     }
   };
 
-  const handleRenew = async (planId: number, staffCount: number) => {
+  const handleRenew = async (planId: number) => {
     try {
       setIsProcessingPayment(true);
-      const order = await paymentService.createSubscriptionOrder(planId, staffCount);
+      const order = await paymentService.createSubscriptionRenewalOrder(planId);
 
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+      await openCheckout({
+        key: order.key,
         amount: order.amount,
         currency: order.currency,
-        name: "DVI Fullstack",
+        orderId: order.orderId,
+        name: "DVI Holidays",
         description: "Subscription Renewal",
-        order_id: order.id,
-        handler: async function (response: any) {
-          try {
-            await paymentService.verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            toast.success("Subscription renewed successfully!");
-            // Refresh dashboard data
-            const data = await DashboardService.getStats();
-            setDashboardData(data);
-          } catch (error) {
-            console.error("Payment verification failed:", error);
-            toast.error("Payment verification failed. Please contact support.");
-          }
-        },
         prefill: {
           name: user?.name || "",
           email: user?.email || "",
         },
-        theme: {
-          color: "#ec4899",
+        onSuccess: async (response) => {
+          await paymentService.confirmSubscriptionRenewal(response);
+          const data = await DashboardService.getStats();
+          setDashboardData(data);
+          navigate(`/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(order.orderId)}`);
         },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
+        onFailure: (error) => {
+          console.error("Payment verification failed:", error);
+          toast.error("Payment verification failed. Please contact support.");
+        },
+        onDismiss: () => {
+          toast.error("Payment cancelled");
+        },
+      });
     } catch (error) {
       console.error("Failed to initiate renewal:", error);
       toast.error("Failed to initiate renewal. Please try again.");
@@ -254,7 +221,7 @@ export default function Dashboard() {
                     <Button 
                       variant="link" 
                       className="text-xs text-blue-600 p-0 h-auto"
-                      onClick={() => agentData.planId && handleRenew(agentData.planId, agentData.staffCount)}
+                      onClick={() => agentData.planId && handleRenew(agentData.planId)}
                       disabled={isProcessingPayment}
                     >
                       {isProcessingPayment ? "Processing..." : "Renew"}

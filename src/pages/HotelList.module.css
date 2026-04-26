@@ -1,0 +1,129 @@
+/* HotelList.module.css - PHP-style switch toggle and nav-link tabs */
+
+/* PHP-style switch toggle */
+.switch-label {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+  margin: 0;
+}
+
+.switch-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #d1d1d1;
+  transition: all 0.3s ease-in-out;
+  border: none;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+}
+
+.switch-input:checked + .switch-toggle-slider {
+  background-color: #8e59cf !important;
+}
+
+.switch-on {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: all 0.3s ease-in-out;
+  border-radius: 50%;
+}
+
+.switch-input:checked + .switch-toggle-slider .switch-on {
+  left: 22px;
+}
+
+.hotel-list-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.8rem;
+  overflow-x: auto;
+  overflow-y: visible;
+  white-space: nowrap;
+  padding: 0 0.25rem 0.55rem;
+  border-bottom: 1px solid rgba(121, 122, 129, 0.15);
+  scrollbar-width: thin;
+  scrollbar-color: #bfc0c9 transparent;
+}
+
+.hotel-list-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.hotel-list-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hotel-list-nav::-webkit-scrollbar-thumb {
+  background: #e2e2ea;
+  border-radius: 10px;
+}
+
+/* Nav-link tabs (matching PHP style with active gradient + bottom pointer) */
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  color: rgba(93, 95, 101, 0.72);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+  transition: all 0.2s ease-in-out;
+  border-radius: 0.5rem;
+  white-space: nowrap;
+}
+
+.nav-link:hover:not(.active) {
+  color: #303238;
+}
+
+.nav-link.active {
+  color: #fff;
+  background: linear-gradient(to right, #8e59cf 0%, #e464c4 100%) !important;
+  border: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+  z-index: 1;
+}
+
+.nav-link.active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #8e59cf;
+  pointer-events: none;
+}
+
+@media (max-width: 1280px) {
+  .nav-link {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+}

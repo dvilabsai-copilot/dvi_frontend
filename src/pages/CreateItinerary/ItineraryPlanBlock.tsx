@@ -16,14 +16,21 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Clock3 } from "lucide-react";
+import {
+  TimePickerPopover,
+  formatTime24As12,
+  time12To24,
+  time24To12,
+} from "@/components/itinerary/TimePickerPopover";
 import {
   AutoSuggestSelect,
   AutoSuggestOption,
 } from "@/components/AutoSuggestSelect";
 import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
-import { LocationOption, SimpleOption } from "@/services/itineraryDropdownsMock";
+import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type RoomRow = {
   id: number;
@@ -40,6 +47,7 @@ type ItineraryPlanBlockProps = {
   agents: AgentOption[];
   agentId: number | null;
   setAgentId: (id: number | null) => void;
+  isAgentLocked?: boolean;
 
   locations: LocationOption[];
   arrivalLocation: string;
@@ -94,6 +102,10 @@ type ItineraryPlanBlockProps = {
   foodPreferences: SimpleOption[];
   foodPreference: string; // ✅ stores option id (e.g. "1","2","3")
   setFoodPreference: (val: string) => void;
+
+  mealPlanOptions: MealPlanOption[];
+  mealPlanCode: string;
+  setMealPlanCode: (val: string) => void;
 
   selectedHotelCategoryIds: number[];
   setSelectedHotelCategoryIds: Dispatch<SetStateAction<number[]>>;
@@ -170,6 +182,7 @@ export const ItineraryPlanBlock = ({
   agents,
   agentId,
   setAgentId,
+  isAgentLocked = false,
   locations,
   arrivalLocation,
   setArrivalLocation,
@@ -211,6 +224,9 @@ export const ItineraryPlanBlock = ({
   foodPreferences,
   foodPreference,
   setFoodPreference,
+  mealPlanOptions,
+  mealPlanCode,
+  setMealPlanCode,
   selectedHotelCategoryIds,
   setSelectedHotelCategoryIds,
   selectedHotelFacilityIds,
@@ -222,9 +238,12 @@ export const ItineraryPlanBlock = ({
   noOfNights,
   noOfDays,
 }: ItineraryPlanBlockProps) => {
+const isMobile = useIsMobile();
 const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
 const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
 const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
+const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
+const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
 
 const tripStartDateObj = parseDDMMYYYY(tripStartDate);
 const tripEndDateObj = parseDDMMYYYY(tripEndDate);
@@ -475,6 +494,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
               onChange={(val) => setAgentId(val ? Number(val as string) : null)}
               options={agentOptions}
               placeholder="Select Agent"
+              disabled={isAgentLocked}
             />
             {validationErrors?.agentId && (
               <p className="mt-1 text-xs text-red-500">{validationErrors.agentId}</p>
@@ -532,6 +552,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
         </div>
 
         {/* ROW 3 */}
+        {itineraryPreference !== "vehicle" && (
         <div className="flex flex-col md:flex-row gap-4">
           <div
             className={`flex-1 ${
@@ -566,6 +587,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
             />
           </div>
         </div>
+        )}
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
   <div className="md:col-span-5" data-field="tripStartDate">
@@ -622,7 +644,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
   <PopoverContent
     align="start"
-    className="z-50 w-fit p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
+    className="z-50 w-[calc(100vw-2rem)] max-w-[700px] p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
   >
    <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
   <div className="space-y-2">
@@ -651,7 +673,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
     <Calendar
       mode="range"
-      numberOfMonths={2}
+      numberOfMonths={isMobile ? 1 : 2}
       showOutsideDays={false}
       selected={previewRange}
       onDayClick={(day, modifiers) => {
@@ -689,62 +711,93 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </div>
   </div>
 
- <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-3">
-  <div>
+ <div className="md:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-3">
+  <div className="md:col-span-3">
     <Label className="text-sm block mb-1">Start Time *</Label>
-    <Input
-      type="time"
-      className="h-9 border-[#e5d7f6]"
-      value={startTime}
-      onChange={(e) => {
-        const newTime = e.target.value;
-        setStartTime(newTime);
-      }}
-    />
+      <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+          >
+            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+            {formatTime24As12(startTime)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
+          <TimePickerPopover
+            value={formatTime24As12(startTime)}
+            onSave={(newValue12) => {
+              const { time, period } = time24To12(startTime);
+              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
+              setStartTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
+              setIsStartTimeOpen(false);
+            }}
+            label="Start Time"
+          />
+        </PopoverContent>
+      </Popover>
   </div>
 
-  <div>
+  <div className="md:col-span-3">
     <Label className="text-sm block mb-1">End Time *</Label>
-    <Input
-      type="time"
-      className="h-9 border-[#e5d7f6]"
-      value={endTime}
-      onChange={(e) => setEndTime(e.target.value)}
-    />
+      <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start border-[#e5d7f6] bg-white font-normal text-left"
+          >
+            <Clock3 className="mr-2 h-4 w-4 text-[#6b6680]" />
+            {formatTime24As12(endTime)}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 border-0 bg-transparent shadow-none" align="start">
+          <TimePickerPopover
+            value={formatTime24As12(endTime)}
+            onSave={(newValue12) => {
+              const { time, period } = time24To12(endTime);
+              const [nextTime = time, nextPeriod = period] = newValue12.split(" ");
+              setEndTime(time12To24(nextTime, (nextPeriod as "AM" | "PM") || period));
+              setIsEndTimeOpen(false);
+            }}
+            label="End Time"
+          />
+        </PopoverContent>
+      </Popover>
   </div>
-</div>
 
-<div
-  className={`md:col-span-12 ${
-    validationErrors?.itineraryTypeSelect
-      ? "border border-red-500 rounded-md p-2"
-      : ""
-  }`}
-  data-field="itineraryTypeSelect"
->
-  <Label className="text-sm block mb-1">Itinerary Type *</Label>
-  <Select value={itineraryTypeSelect} onValueChange={setItineraryTypeSelect}>
-    <SelectTrigger className="h-9 border-[#e5d7f6]">
-      <SelectValue placeholder="Customize" />
-    </SelectTrigger>
-    <SelectContent
-      position="popper"
-      side="bottom"
-      align="start"
-      className="max-h-56 overflow-y-auto"
-    >
-      {itineraryTypes.map((item) => (
-        <SelectItem key={item.id} value={String(item.id)}>
-          {item.label}
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-  {validationErrors?.itineraryTypeSelect && (
-    <p className="mt-1 text-xs text-red-500">
-      {validationErrors.itineraryTypeSelect}
-    </p>
-  )}
+  <div
+    className={`md:col-span-6 ${
+      validationErrors?.itineraryTypeSelect
+        ? "border border-red-500 rounded-md p-2"
+        : ""
+    }`}
+    data-field="itineraryTypeSelect"
+  >
+    <Label className="text-sm block mb-1">Itinerary Type *</Label>
+    <Select value={itineraryTypeSelect} onValueChange={setItineraryTypeSelect}>
+      <SelectTrigger className="h-9 border-[#e5d7f6]">
+        <SelectValue placeholder="Customize" />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        side="bottom"
+        align="start"
+        className="max-h-56 overflow-y-auto"
+      >
+        {itineraryTypes.map((item) => (
+          <SelectItem key={item.id} value={String(item.id)}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+    {validationErrors?.itineraryTypeSelect && (
+      <p className="mt-1 text-xs text-red-500">
+        {validationErrors.itineraryTypeSelect}
+      </p>
+    )}
+  </div>
 </div>
 </div>
 
@@ -923,20 +976,25 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
           <div>
             <Label className="text-sm block mb-1">Meal Plan</Label>
-            <div className="flex items-center gap-3 mt-1">
-              <label className="flex items-center gap-1 text-sm">
-                <input type="checkbox" defaultChecked className="accent-[#5c2db1]" />
-                Breakfast
-              </label>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="checkbox" className="accent-[#5c2db1]" />
-                Lunch
-              </label>
-              <label className="flex items-center gap-1 text-sm">
-                <input type="checkbox" className="accent-[#5c2db1]" />
-                Dinner
-              </label>
-            </div>
+            <Select value={mealPlanCode} onValueChange={setMealPlanCode}>
+              <SelectTrigger className="h-9 border-[#e5d7f6]">
+                <SelectValue placeholder="Select Meal Plan" />
+              </SelectTrigger>
+              <SelectContent
+                position="popper"
+                side="bottom"
+                align="start"
+                className="max-h-56 overflow-y-auto"
+              >
+                {mealPlanOptions.map((item) => (
+                  <SelectItem key={item.code} value={item.code}>
+                    {item.description
+                      ? `${item.label} (${item.description})`
+                      : item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

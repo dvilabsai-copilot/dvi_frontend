@@ -102,12 +102,13 @@ export default function LocationsPage() {
     row: LocationRow | null;
     scope: "source" | "destination";
   }>({ open: false, row: null, scope: "source" });
-  const [deleteRow, setDeleteRow] = useState<LocationRow | null>(null);
+  const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
+  const [deleteLocationName, setDeleteLocationName] = useState("");
   const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
 
   useEffect(() => {
     loadDropdowns();
-  }, []);
+  }, [source]);
 
   // fetch on page/pageSize/source/destination change
   useEffect(() => {
@@ -126,10 +127,13 @@ export default function LocationsPage() {
   }, [search]);
 
   async function loadDropdowns() {
-    const d = await locationsApi.dropdowns();
-    setSources(d?.sources || []);
-    setDestinations(d?.destinations || []);
-  }
+  const d = await locationsApi.dropdowns({
+    source,
+  });
+
+  setSources(d?.sources || []);
+  setDestinations(d?.destinations || []);
+}
 
   async function loadList() {
     const data = await locationsApi.list({ page, pageSize, source, destination, search });
@@ -176,16 +180,9 @@ export default function LocationsPage() {
   }
 
   function openDeleteLocationName() {
-    const rowToDelete = selectedRow ?? rows[0] ?? null;
-
-    if (!rowToDelete) {
-      toast.error("No location available to delete");
-      return;
-    }
-
-    setSelectedRow(rowToDelete);
-    setDeleteRow(rowToDelete);
-  }
+  setDeleteLocationName("");
+  setDeleteLocationOpen(true);
+}
 
   async function openSelectedTolls() {
     const rowForTolls = selectedRow ?? rows[0] ?? null;
@@ -228,29 +225,27 @@ export default function LocationsPage() {
     await loadList();
   }
 
-    async function handleDelete() {
-    if (!deleteRow) return;
+   async function handleDeleteLocationName() {
+  const locationName = deleteLocationName.trim();
 
-    const rowToDelete = deleteRow;
-    const deletedLabel = `${rowToDelete.source_location} → ${rowToDelete.destination_location}`;
-
-    await locationsApi.remove(rowToDelete.location_ID);
-
-    setDeleteRow(null);
-    setSelectedRow(null);
-    await loadList();
-
-    toast.success(`Deleted location: ${deletedLabel}`, {
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          await locationsApi.restore(rowToDelete.location_ID);
-          toast.success(`Restored location: ${deletedLabel}`);
-          await loadList();
-        },
-      },
-    });
+  if (!locationName) {
+    toast.error("Please select a location to delete");
+    return;
   }
+
+  const result = await locationsApi.deleteLocationName(locationName);
+
+  setDeleteLocationOpen(false);
+  setDeleteLocationName("");
+  setSelectedRow(null);
+
+  await loadDropdowns();
+  await loadList();
+
+  toast.success(
+    `Deleted location: ${result.deletedLocation || locationName} (${result.deletedCount || 0} record${Number(result.deletedCount || 0) === 1 ? "" : "s"})`
+  );
+}
 
   async function openTolls(row: LocationRow) {
     const items = await locationsApi.tolls(row.location_ID);
@@ -326,6 +321,7 @@ export default function LocationsPage() {
     placeholder="Choose Destination Location"
   />
 </div>
+
           <div className="flex items-end gap-2">
             <Button
               variant="outline"
@@ -398,17 +394,17 @@ export default function LocationsPage() {
       <Pencil className="h-4 w-4 text-blue-600" />
     </Button>
 
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={(e) => {
-        e.stopPropagation();
-        setSelectedRow(r);
-        setDeleteRow(r);
-      }}
-    >
-      <Trash2 className="h-4 w-4 text-red-600" />
-    </Button>
+   <Button
+  size="sm"
+  variant="ghost"
+  onClick={(e) => {
+    e.stopPropagation();
+    setDeleteLocationName(r.source_location || r.destination_location || "");
+    setDeleteLocationOpen(true);
+  }}
+>
+  <Trash2 className="h-4 w-4 text-red-600" />
+</Button>
   </div>
 </TableCell>
                 <TableCell>{r.source_location}</TableCell>
@@ -458,17 +454,17 @@ export default function LocationsPage() {
       )}
 
       {/* Delete confirm */}
-            {deleteRow && (
-        <SimpleConfirmDialog
-          open
-          title="Delete Location"
-          locationLabel={`${deleteRow.source_location} → ${deleteRow.destination_location}`}
-          message="Do you really want to delete this location record?"
-          warning="You can undo this immediately after deletion."
-          onClose={() => setDeleteRow(null)}
-          onConfirm={handleDelete}
-        />
-      )}
+      <DeleteLocationNameDialog
+        open={deleteLocationOpen}
+        value={deleteLocationName}
+        options={deleteLocationOptions}
+        onChange={setDeleteLocationName}
+        onClose={() => {
+          setDeleteLocationOpen(false);
+          setDeleteLocationName("");
+        }}
+        onConfirm={handleDeleteLocationName}
+      />
 
       {/* Toll charges */}
       {tollInfo.open && tollInfo.row && (
@@ -516,6 +512,57 @@ function SimpleConfirmDialog(props: {
               {warning}
             </div>
           ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLocationNameDialog(props: {
+  open: boolean;
+  value: string;
+  options: AutoSuggestOption[];
+  onChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { open, value, options, onChange, onConfirm, onClose } = props;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Location</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Select the location you want to delete from the database.
+          </div>
+
+          <div>
+            <div className="text-xs mb-1">Location *</div>
+            <AutoSuggestSelect
+              mode="single"
+              value={value}
+              onChange={(val) => onChange((val as string) || "")}
+              options={options}
+              placeholder="Choose Location"
+            />
+          </div>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This will delete the selected location from stored locations.
+          </div>
         </div>
 
         <DialogFooter>

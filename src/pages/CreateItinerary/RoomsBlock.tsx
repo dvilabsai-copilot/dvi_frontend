@@ -5,14 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-
-export type RoomRow = {
-  id: number;
-  adults: number;
-  children: number; // count
-  infants: number;
-  roomCount: number;
-};
+import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 
 type RoomsBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
@@ -55,14 +48,6 @@ const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }
 
 const MAX_ADULTS_PER_ROOM = 3;
 
-type ChildDetail = {
-  id: number;
-  age: string;
-  bedType: "Without Bed" | "With Bed";
-};
-
-type ChildrenDetailsMap = Record<string, ChildDetail[]>;
-
 export const RoomsBlock = ({
   itineraryPreference,
   rooms,
@@ -74,9 +59,6 @@ export const RoomsBlock = ({
     return null;
   }
   const [targetRoomCount, setTargetRoomCount] = useState<number>(rooms.length || 1);
-
-  const [childrenDetailsMap, setChildrenDetailsMap] =
-    useState<ChildrenDetailsMap>({});
 
     const totalRooms = rooms.length || 1;
 
@@ -137,46 +119,42 @@ export const RoomsBlock = ({
     });
   };
 
-   // sync childrenDetailsMap with children count
+   // sync childrenDetails with children count
   useEffect(() => {
-    setChildrenDetailsMap((prev) => {
-      const next: ChildrenDetailsMap = { ...prev };
+    setRooms((prev) => {
+      let changed = false;
 
-      rooms.forEach((room) => {
-        const key = String(room.id);
-        const existing = next[key] || [];
+      const next = prev.map((room) => {
+        const existing = Array.isArray(room.childrenDetails)
+          ? room.childrenDetails
+          : [];
         const desired = room.children;
+
+        if (existing.length === desired) return room;
 
         if (existing.length < desired) {
           const arr = [...existing];
-          let lastId = arr.length ? arr[arr.length - 1].id : 0;
           const toAdd = desired - existing.length;
           for (let i = 0; i < toAdd; i++) {
-            lastId += 1;
             arr.push({
-              id: lastId,
               age: "",
               bedType: "Without Bed",
             });
           }
-          next[key] = arr;
-        } else if (existing.length > desired) {
-          next[key] = existing.slice(0, desired);
-        } else {
-          next[key] = existing;
+          changed = true;
+          return { ...room, childrenDetails: arr };
         }
+
+        changed = true;
+        return {
+          ...room,
+          childrenDetails: existing.slice(0, desired),
+        };
       });
 
-      Object.keys(next).forEach((key) => {
-        const roomId = Number(key);
-        if (!rooms.some((r) => r.id === roomId)) {
-          delete next[key];
-        }
-      });
-
-      return next;
+      return changed ? next : prev;
     });
-  }, [rooms]);
+  }, [rooms, setRooms]);
 
   // sync roomCount automatically for every room
   useEffect(() => {
@@ -227,41 +205,46 @@ export const RoomsBlock = ({
 
   const handleChildAgeChange = (
     roomId: number,
-    childId: number,
+    childIndex: number,
     value: string
   ) => {
-    const key = String(roomId);
-    setChildrenDetailsMap((prev) => {
-      const roomChildren = prev[key] ? [...prev[key]] : [];
-      const idx = roomChildren.findIndex((c) => c.id === childId);
-      if (idx !== -1) {
-        roomChildren[idx] = { ...roomChildren[idx], age: value };
-      }
-      return { ...prev, [key]: roomChildren };
-    });
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          age: value === "" ? "" : Number(value),
+        };
+        return { ...room, childrenDetails: nextChildren };
+      })
+    );
   };
 
   const handleChildBedTypeChange = (
     roomId: number,
-    childId: number,
+    childIndex: number,
     bedType: "Without Bed" | "With Bed"
   ) => {
-    const key = String(roomId);
-    setChildrenDetailsMap((prev) => {
-      const roomChildren = prev[key] ? [...prev[key]] : [];
-      const idx = roomChildren.findIndex((c) => c.id === childId);
-      if (idx !== -1) {
-        roomChildren[idx] = { ...roomChildren[idx], bedType };
-      }
-      return { ...prev, [key]: roomChildren };
-    });
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          bedType,
+        };
+        return { ...room, childrenDetails: nextChildren };
+      })
+    );
   };
 
   return (
     <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
       {rooms.map((room, idx) => {
-        const key = String(room.id);
-        const childDetails = childrenDetailsMap[key] || [];
+        const childDetails = room.childrenDetails || [];
 
         return (
           <div
@@ -467,7 +450,7 @@ export const RoomsBlock = ({
   {/* Child age + bed type */}
   {childDetails.length > 0 && childDetails.map((child, cIdx) => (
     <div
-      key={child.id}
+      key={`${room.id}-${cIdx}`}
       className="flex items-center gap-2"
     >
       <span className="text-[11px] text-[#4a4260] whitespace-nowrap">
@@ -483,7 +466,7 @@ export const RoomsBlock = ({
         onChange={(e) =>
           handleChildAgeChange(
             room.id,
-            child.id,
+            cIdx,
             e.target.value
           )
         }
@@ -496,7 +479,7 @@ export const RoomsBlock = ({
         onChange={(e) =>
           handleChildBedTypeChange(
             room.id,
-            child.id,
+            cIdx,
             e.target.value as "Without Bed" | "With Bed"
           )
         }

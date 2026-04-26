@@ -1,6 +1,6 @@
 // FILE: src/services/locations.ts
 import { api } from "@/lib/api";
-
+import { fetchLocations as fetchItineraryLocations } from "@/services/itineraryDropdownsMock";
 export type LocationRow = {
   location_ID: number;
   source_location: string;
@@ -55,6 +55,15 @@ export type SuggestedRouteRow = {
   no_of_nights: string;
   route_details: string;
   modify: string;
+};
+
+export type ItineraryLocationQuery = {
+  itineraryMode?: boolean;
+  type?: "source" | "destination";
+  source?: string;
+  dayNo?: number;
+  totalNoOfDays?: number;
+  departureLocation?: string;
 };
 
 /* -----------------------------
@@ -152,74 +161,184 @@ function toLocationRow(raw: any): LocationRow {
 /* -----------------------------
    Public API
 ------------------------------ */
+
+async function fetchItineraryOrderedLocations(args: ItineraryLocationQuery) {
+  const params = new URLSearchParams();
+
+  params.set("type", args.type || "source");
+
+  if (args.type === "destination" && args.source) {
+    params.set("source", args.source);
+
+    if (args.dayNo != null) {
+      params.set("day_no", String(args.dayNo));
+    }
+
+    if (args.totalNoOfDays != null) {
+      params.set("total_no_of_days", String(args.totalNoOfDays));
+    }
+
+    if (args.departureLocation) {
+      params.set("departure_location", args.departureLocation);
+    }
+  }
+
+  const data = await api(`/itinerary-dropdowns/locations?${params.toString()}`) as any;
+
+  const rawList = Array.isArray(data) ? data : [];
+
+  return rawList
+    .map((item: any, index: number) => {
+      const name =
+        asStr(item?.name) ||
+        asStr(item?.location_name) ||
+        asStr(item?.source_location) ||
+        asStr(item?.destination_location);
+
+      return {
+        id: Number(item?.id ?? item?.location_id ?? index + 1),
+        name: name.trim(),
+      };
+    })
+    .filter((item) => item.name);
+}
+
 export const locationsApi = {
   async list(params: {
-    source?: string;
-    destination?: string;
-    search?: string;
-    page?: number;
-    pageSize?: number;
-  }) {
-    const data = (await api(`/locations${qs(params)}`)) as any;
-    const rows = Array.isArray(data?.rows) ? data.rows.map(toLocationRow) : [];
+  source?: string;
+  destination?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  itineraryMode?: boolean;
+  type?: "source" | "destination";
+  dayNo?: number;
+  totalNoOfDays?: number;
+  departureLocation?: string;
+}) {
+  if (params?.itineraryMode) {
+    const items = await fetchItineraryOrderedLocations({
+      itineraryMode: true,
+      type: params.type || "source",
+      source: params.source,
+      dayNo: params.dayNo,
+      totalNoOfDays: params.totalNoOfDays,
+      departureLocation: params.departureLocation,
+    });
+
+    const rows = items.map((item, index) => ({
+      location_ID: index + 1,
+      source_location: params.type === "source" ? item.name : asStr(params.source),
+      source_city: "",
+      source_state: "",
+      source_latitude: "",
+      source_longitude: "",
+      destination_location: params.type === "destination" ? item.name : "",
+      destination_city: "",
+      destination_state: "",
+      destination_latitude: "",
+      destination_longitude: "",
+      distance_km: 0,
+      duration_text: "",
+      location_description: null,
+    }));
+
     return {
       rows,
-      total: Number(data?.total ?? rows.length),
-      page: Number(data?.page ?? params?.page ?? 1),
-      pageSize: Number(data?.pageSize ?? params?.pageSize ?? 10),
+      total: rows.length,
+      page: 1,
+      pageSize: rows.length || 10,
     };
-  },
+  }
 
-    async dropdowns() {
-    const data = (await api(`/locations/dropdowns`)) as any;
-    return {
-      sources: Array.isArray(data?.sources) ? data.sources.map(asStr) : [],
-      destinations: Array.isArray(data?.destinations) ? data.destinations.map(asStr) : [],
-    };
-  },
+  const data = (await api(`/locations${qs(params)}`)) as any;
+  const rows = Array.isArray(data?.rows) ? data.rows.map(toLocationRow) : [];
+  return {
+    rows,
+    total: Number(data?.total ?? rows.length),
+    page: Number(data?.page ?? params?.page ?? 1),
+    pageSize: Number(data?.pageSize ?? params?.pageSize ?? 10),
+  };
+},
+
+    async dropdowns(params?: ItineraryLocationQuery) {
+  const sourceItems = await fetchItineraryOrderedLocations({
+    itineraryMode: true,
+    type: "source",
+  });
+
+  const destinationItems =
+    params?.source?.trim()
+      ? await fetchItineraryOrderedLocations({
+          itineraryMode: true,
+          type: "destination",
+          source: params.source.trim(),
+          dayNo: params.dayNo,
+          totalNoOfDays: params.totalNoOfDays,
+          departureLocation: params.departureLocation,
+        })
+      : [];
+
+  return {
+    sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
+    destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
+  };
+},
 
   async searchSources(phrase: string) {
-    const normalized = asStr(phrase).trim().toLowerCase();
-    const { sources } = await this.dropdowns();
+  const normalized = asStr(phrase).trim().toLowerCase();
 
-    if (!normalized) {
-      return uniqueCaseInsensitive(sources);
-    }
+  const { sources } = await this.dropdowns({
+    itineraryMode: true,
+    type: "source",
+  });
 
-    return uniqueCaseInsensitive(
-      sources.filter((item) => asStr(item).toLowerCase().includes(normalized))
-    );
-  },
+  if (!normalized) {
+    return uniqueCaseInsensitive(sources);
+  }
 
-  async searchDestinations(phrase: string, source?: string) {
-    const normalized = asStr(phrase).trim().toLowerCase();
-    const sourceValue = asStr(source).trim();
+  return uniqueCaseInsensitive(
+    sources.filter((item) => asStr(item).toLowerCase().includes(normalized))
+  );
+},
 
-    let pool: string[] = [];
+  async searchDestinations(
+  phrase: string,
+  source?: string,
+  options?: {
+    dayNo?: number;
+    totalNoOfDays?: number;
+    departureLocation?: string;
+  }
+) {
+  const normalized = asStr(phrase).trim().toLowerCase();
+  const sourceValue = asStr(source).trim();
 
-    if (sourceValue) {
-      const data = await this.list({
-        source: sourceValue,
-        page: 1,
-        pageSize: 200,
-      });
+  if (!sourceValue) return [];
 
-      pool = data.rows.map((row) => asStr(row.destination_location));
-    } else {
-      const { destinations } = await this.dropdowns();
-      pool = destinations;
-    }
+  const data = await this.list({
+    itineraryMode: true,
+    type: "destination",
+    source: sourceValue,
+    dayNo: options?.dayNo,
+    totalNoOfDays: options?.totalNoOfDays,
+    departureLocation: options?.departureLocation,
+  });
 
-    const uniquePool = uniqueCaseInsensitive(pool);
+  const pool = data.rows
+    .map((row) => asStr(row.destination_location))
+    .filter(Boolean);
 
-    if (!normalized) {
-      return uniquePool;
-    }
+  const uniquePool = uniqueCaseInsensitive(pool);
 
-    return uniquePool.filter((item) =>
-      asStr(item).toLowerCase().includes(normalized)
-    );
-  },
+  if (!normalized) {
+    return uniquePool;
+  }
+
+  return uniquePool.filter((item) =>
+    asStr(item).toLowerCase().includes(normalized)
+  );
+},
 
    async getRouteSuggestions(source: string, currentDestination?: string) {
     const sourceValue = asStr(source).trim();
@@ -401,6 +520,18 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     return toLocationRow(data);
   },
 
+  async deleteLocationName(location: string) {
+  const data = (await api(`/locations/location-name${qs({ location })}`, {
+    method: "DELETE",
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    deletedLocation: asStr(data?.deletedLocation),
+    deletedCount: asNum(data?.deletedCount),
+  };
+},
+
    async remove(id: number) {
     const data = (await api(`/locations/${id}`, {
       method: "DELETE",
@@ -411,6 +542,8 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
       row: data?.row ? toLocationRow(data.row) : null,
     };
   },
+
+ 
 
   async restore(id: number) {
     const data = (await api(`/locations/${id}/restore`, {

@@ -129,11 +129,13 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void }
+interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
-export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
+export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
   const [openParentId, setOpenParentId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
+  const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
+  const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
 
   const token = localStorage.getItem("accessToken");
@@ -262,7 +264,10 @@ export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
         </SheetContent>
       </Sheet>
 
-      <aside className={cn("hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300", collapsed ? "w-20" : "w-64")}>
+      <aside
+        className="hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300"
+        style={{ width: collapsed ? "5rem" : "16rem" }}
+      >
         <SidebarContent />
       </aside>
     </>

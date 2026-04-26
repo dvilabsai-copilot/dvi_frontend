@@ -7,7 +7,8 @@
  * VITE_API_DVI_BASE_URL=https://dvi.travel
  */
 const RAW_FROM_ENV = (import.meta.env.VITE_API_DVI_BASE_URL ?? "").trim(); console.log(RAW_FROM_ENV)
-export const RAW_API_BASE = RAW_FROM_ENV || "https://dvi.travel";
+const IS_LOCAL_BROWSER = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+export const RAW_API_BASE = RAW_FROM_ENV || (IS_LOCAL_BROWSER ? "http://localhost:4006" : "https://dvi.travel");
 console.log('[API_BASE_URL]', RAW_API_BASE);
 
 /** Normalize base URL (append /api/v1 if missing). */
