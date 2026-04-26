@@ -161,6 +161,8 @@ export default function GuideFormPage() {
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [emailDuplicateError, setEmailDuplicateError] = useState(false);
+  const [pricebookSaved, setPricebookSaved] = useState(false);
 
   /* ------------------------------------------------------------------
      Dynamic dropdown option state
@@ -177,6 +179,7 @@ export default function GuideFormPage() {
   const pendingStateRef = useRef<string>("");
   const pendingCityRef = useRef<string>("");
   const topSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const originalEmailRef = useRef<string>("");
   const selectedDob = useMemo(() => toPickerDate(dateOfBirth), [dateOfBirth]);
 
   const showTopSuccess = (message: string) => {
@@ -449,6 +452,7 @@ export default function GuideFormPage() {
             setPrimaryMobile(guide.primaryMobile);
             setAlternativeMobile(guide.alternativeMobile);
             setEmail(guide.email);
+            originalEmailRef.current = guide.email || "";
             setEmergencyMobile(guide.emergencyMobile);
             setPassword(guide.password);
             setRole(String(guide.role ?? "")); // keep as string id
@@ -497,6 +501,28 @@ export default function GuideFormPage() {
     if (match) setGstPercentage(String(match.id));
   }, [gstPercentage, gstPercentOptions]);
 
+  const handleEmailBlur = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || isEdit) return;
+    try {
+      const result = await api("/guides/ajax/check-guide-email", {
+        method: "POST",
+        body: JSON.stringify({
+          guide_email_id: trimmedEmail,
+          old_guide_email_id: originalEmailRef.current,
+        }),
+      });
+      if (!result?.success) {
+        setEmailDuplicateError(true);
+        toast.error("Email Address already Exists");
+      } else {
+        setEmailDuplicateError(false);
+      }
+    } catch {
+      // ignore network errors during blur check
+    }
+  };
+
   const handleSaveBasicInfo = async () => {
     if (!name.trim()) {
       toast.error("Guide Name Required");
@@ -510,12 +536,32 @@ export default function GuideFormPage() {
       toast.error("Guide Primart Mobile no Required");
       return;
     }
+    if (!/^\d{10}$/.test(primaryMobile.trim())) {
+      toast.error("Please enter a valid 10-digit primary mobile number.");
+      return;
+    }
+    if (alternativeMobile && !/^\d{10}$/.test(alternativeMobile.trim())) {
+      toast.error("Please enter a valid 10-digit alternative mobile number.");
+      return;
+    }
+    if (aadharCardNo && !/^\d{12}$/.test(aadharCardNo.trim())) {
+      toast.error("Please enter a Valid Aadhar Number.");
+      return;
+    }
     if (!email.trim()) {
       toast.error("Email ID Required");
       return;
     }
+    if (emailDuplicateError) {
+      toast.error("Email Address already Exists");
+      return;
+    }
     if (emergencyMobile && emergencyMobile.trim() === primaryMobile.trim()) {
       toast.error("Emeregency mobile number and primary mobile number should not be same");
+      return;
+    }
+    if (emergencyMobile && !/^\d{10}$/.test(emergencyMobile.trim())) {
+      toast.error("Please enter a valid 10-digit emergency mobile number.");
       return;
     }
     if (!role) {
@@ -528,6 +574,14 @@ export default function GuideFormPage() {
     }
     if (!languageProficiency) {
       toast.error("Language Proficiency Required");
+      return;
+    }
+    if (!gstType) {
+      toast.error("GST Type Required");
+      return;
+    }
+    if (!gstPercentage) {
+      toast.error("GST% Required");
       return;
     }
     if (availableSlots.length === 0) {
@@ -610,8 +664,8 @@ export default function GuideFormPage() {
     setLoading(true);
     try {
       await GuideAPI.updatePricebook(Number(id), pricebook);
+      setPricebookSaved(true);
       toast.success("Guide Price Book Details Updated Successfully");
-      setCurrentStep(3);
     } catch {
       toast.error("Unable to Update Guide Price Book Details");
     } finally {
@@ -876,6 +930,7 @@ export default function GuideFormPage() {
                   <Label>Primary Mobile Number *</Label>
                   <Input
                     value={primaryMobile}
+                    maxLength={10}
                     onChange={(e) => setPrimaryMobile(e.target.value)}
                   />
                 </div>
@@ -883,6 +938,7 @@ export default function GuideFormPage() {
                   <Label>Alternative Mobile Number</Label>
                   <Input
                     value={alternativeMobile}
+                    maxLength={10}
                     onChange={(e) => setAlternativeMobile(e.target.value)}
                   />
                 </div>
@@ -893,13 +949,21 @@ export default function GuideFormPage() {
                     type="email"
                     value={email}
                     readOnly={isEdit}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailDuplicateError) setEmailDuplicateError(false);
+                    }}
+                    onBlur={handleEmailBlur}
                   />
+                  {emailDuplicateError && (
+                    <p className="mt-1 text-xs text-red-500">Email Address already Exists</p>
+                  )}
                 </div>
                 <div>
                   <Label>Emergency Mobile Number</Label>
                   <Input
                     value={emergencyMobile}
+                    maxLength={10}
                     onChange={(e) => setEmergencyMobile(e.target.value)}
                   />
                 </div>
@@ -944,6 +1008,7 @@ export default function GuideFormPage() {
                   <Label>Aadhar Card No</Label>
                   <Input
                     value={aadharCardNo}
+                    maxLength={12}
                     onChange={(e) => setAadharCardNo(e.target.value)}
                   />
                 </div>
@@ -1587,17 +1652,60 @@ export default function GuideFormPage() {
                 </div>
               </div>
 
+              {/* Pricebook Summary Table - shown after save */}
+              {pricebookSaved && (
+                <div className="mt-4 rounded-lg border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-purple-700 via-pink-600 to-fuchsia-500 text-white">
+                        <th className="p-2 text-left font-semibold">Pax Count</th>
+                        <th className="p-2 text-center font-semibold">Slot 1: 9 AM – 1 PM</th>
+                        <th className="p-2 text-center font-semibold">Slot 2: 9 AM – 4 PM</th>
+                        <th className="p-2 text-center font-semibold">Slot 3: 6 PM – 9 PM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {([
+                        { label: "1–5 Pax", key: "pax1to5" },
+                        { label: "6–14 Pax", key: "pax6to14" },
+                        { label: "15–40 Pax", key: "pax15to40" },
+                      ] as { label: string; key: keyof Pick<GuidePricebook, "pax1to5" | "pax6to14" | "pax15to40"> }[]).map((row) => (
+                        <tr key={row.key} className="border-t bg-gray-50">
+                          <td className="p-2 font-medium text-purple-700">{row.label}</td>
+                          <td className="p-2 text-center">₹{pricebook[row.key].slot1 || 0}</td>
+                          <td className="p-2 text-center">₹{pricebook[row.key].slot2 || 0}</td>
+                          <td className="p-2 text-center">₹{pricebook[row.key].slot3 || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-xs text-gray-500 px-3 py-1">
+                    Period: {pricebook.startDate} to {pricebook.endDate}
+                  </p>
+                </div>
+              )}
+
               <div className="flex justify-between pt-4">
                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
-                <Button
-                  onClick={handleUpdatePricebook}
-                  disabled={loading}
-                  className="bg-gradient-to-r from-primary to-pink-500"
-                >
-                  {loading ? "Saving..." : "Update & Continue"}
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleUpdatePricebook}
+                    disabled={loading}
+                    className="bg-gradient-to-r from-primary to-pink-500"
+                  >
+                    {loading ? "Saving..." : "Update"}
+                  </Button>
+                  {pricebookSaved && (
+                    <Button
+                      onClick={() => setCurrentStep(3)}
+                      className="bg-gradient-to-r from-primary to-pink-500"
+                    >
+                      Continue →
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           )}
