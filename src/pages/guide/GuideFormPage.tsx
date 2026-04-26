@@ -164,6 +164,18 @@ export default function GuideFormPage() {
   const [emailDuplicateError, setEmailDuplicateError] = useState(false);
   const [pricebookSaved, setPricebookSaved] = useState(false);
 
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  // Refs for focusing errored fields
+  const nameRef = useRef<HTMLInputElement>(null);
+  const primaryMobileRef = useRef<HTMLInputElement>(null);
+  const alternativeMobileRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const emergencyMobileRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const aadharRef = useRef<HTMLInputElement>(null);
+
   /* ------------------------------------------------------------------
      Dynamic dropdown option state
   -------------------------------------------------------------------*/
@@ -514,92 +526,104 @@ export default function GuideFormPage() {
       });
       if (!result?.success) {
         setEmailDuplicateError(true);
-        toast.error("Email Address already Exists");
+        setFieldErrors((prev) => ({ ...prev, email: "Email Address already Exists" }));
       } else {
         setEmailDuplicateError(false);
+        setFieldErrors((prev) => { const next = { ...prev }; delete next.email; return next; });
       }
     } catch {
       // ignore network errors during blur check
     }
   };
 
+  const setFieldError = (field: string, msg: string, ref?: React.RefObject<HTMLInputElement | null>) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+    ref?.current?.focus();
+    ref?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const clearFieldError = (field: string) =>
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+
   const handleSaveBasicInfo = async () => {
+    // Run all validations, collect first error to focus
+    const errors: Record<string, string> = {};
+    let firstRef: React.RefObject<HTMLInputElement | null> | null = null;
+
     if (!name.trim()) {
-      toast.error("Guide Name Required");
-      return;
+      errors.name = "Guide Name is required";
+      if (!firstRef) firstRef = nameRef;
     }
     if (!gender) {
-      toast.error("Guide Gender Required");
-      return;
+      errors.gender = "Gender is required";
     }
     if (!primaryMobile.trim()) {
-      toast.error("Guide Primart Mobile no Required");
-      return;
-    }
-    if (!/^\d{10}$/.test(primaryMobile.trim())) {
-      toast.error("Please enter a valid 10-digit primary mobile number.");
-      return;
+      errors.primaryMobile = "Primary Mobile Number is required";
+      if (!firstRef) firstRef = primaryMobileRef;
+    } else if (!/^\d{10}$/.test(primaryMobile.trim())) {
+      errors.primaryMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = primaryMobileRef;
     }
     if (alternativeMobile && !/^\d{10}$/.test(alternativeMobile.trim())) {
-      toast.error("Please enter a valid 10-digit alternative mobile number.");
-      return;
-    }
-    if (aadharCardNo && !/^\d{12}$/.test(aadharCardNo.trim())) {
-      toast.error("Please enter a Valid Aadhar Number.");
-      return;
+      errors.alternativeMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = alternativeMobileRef;
     }
     if (!email.trim()) {
-      toast.error("Email ID Required");
-      return;
-    }
-    if (emailDuplicateError) {
-      toast.error("Email Address already Exists");
-      return;
+      errors.email = "Email ID is required";
+      if (!firstRef) firstRef = emailRef;
+    } else if (emailDuplicateError) {
+      errors.email = "Email Address already Exists";
+      if (!firstRef) firstRef = emailRef;
     }
     if (emergencyMobile && emergencyMobile.trim() === primaryMobile.trim()) {
-      toast.error("Emeregency mobile number and primary mobile number should not be same");
-      return;
-    }
-    if (emergencyMobile && !/^\d{10}$/.test(emergencyMobile.trim())) {
-      toast.error("Please enter a valid 10-digit emergency mobile number.");
-      return;
-    }
-    if (!role) {
-      toast.error("Role Required");
-      return;
+      errors.emergencyMobile = "Emergency mobile number and primary mobile number should not be same";
+      if (!firstRef) firstRef = emergencyMobileRef;
+    } else if (emergencyMobile && !/^\d{10}$/.test(emergencyMobile.trim())) {
+      errors.emergencyMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = emergencyMobileRef;
     }
     if (!isEdit && !password.trim()) {
-      toast.error("Password Required");
-      return;
+      errors.password = "Password is required";
+      if (!firstRef) firstRef = passwordRef;
+    }
+    if (!role) {
+      errors.role = "Role is required";
     }
     if (!languageProficiency) {
-      toast.error("Language Proficiency Required");
-      return;
+      errors.languageProficiency = "Language Proficiency is required";
+    }
+    if (aadharCardNo && !/^\d{12}$/.test(aadharCardNo.trim())) {
+      errors.aadharCardNo = "Please enter a valid 12-digit Aadhar number";
+      if (!firstRef) firstRef = aadharRef;
     }
     if (!gstType) {
-      toast.error("GST Type Required");
-      return;
+      errors.gstType = "GST Type is required";
     }
     if (!gstPercentage) {
-      toast.error("GST% Required");
-      return;
+      errors.gstPercentage = "GST% is required";
     }
     if (availableSlots.length === 0) {
-      toast.error("Guide Slot Required");
-      return;
+      errors.availableSlots = "At least one slot is required";
     }
     if (preferredFor.hotspot && hotspotPlaces.length === 0) {
-      toast.error("Hotspot Place Required");
-      return;
+      errors.hotspotPlaces = "Hotspot Place is required";
     }
     if (preferredFor.activity && activityPlaces.length === 0) {
-      toast.error("Activity Required");
+      errors.activityPlaces = "Activity is required";
+    }
+    if (bankDetails.accountNumber && bankDetails.confirmAccountNumber &&
+        bankDetails.accountNumber !== bankDetails.confirmAccountNumber) {
+      errors.confirmAccountNumber = "Account number and confirm account number should be same";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      firstRef?.current?.focus();
+      firstRef?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    if (bankDetails.accountNumber && bankDetails.confirmAccountNumber && bankDetails.accountNumber !== bankDetails.confirmAccountNumber) {
-      toast.error("Account number and confirm account number should be same");
-      return;
-    }
+
+    setFieldErrors({});
 
     setLoading(true);
     try {
@@ -866,7 +890,13 @@ export default function GuideFormPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label>Guide Name *</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input
+                    ref={nameRef}
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); clearFieldError("name"); }}
+                    className={fieldErrors.name ? "border-red-500 focus-visible:ring-red-400" : ""}
+                  />
+                  {fieldErrors.name && <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>}
                 </div>
                 <div>
                   <Label>Date of Birth</Label>
@@ -913,8 +943,8 @@ export default function GuideFormPage() {
 
                 <div>
                   <Label>Gender *</Label>
-                  <Select value={gender} onValueChange={setGender}>
-                    <SelectTrigger>
+                  <Select value={gender} onValueChange={(v) => { setGender(v); clearFieldError("gender"); }}>
+                    <SelectTrigger className={fieldErrors.gender ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Gender" />
                     </SelectTrigger>
                     <SelectContent>
@@ -925,55 +955,68 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gender && <p className="mt-1 text-xs text-red-500">{fieldErrors.gender}</p>}
                 </div>
                 <div>
                   <Label>Primary Mobile Number *</Label>
                   <Input
+                    ref={primaryMobileRef}
                     value={primaryMobile}
                     maxLength={10}
-                    onChange={(e) => setPrimaryMobile(e.target.value)}
+                    onChange={(e) => { setPrimaryMobile(e.target.value); clearFieldError("primaryMobile"); }}
+                    className={fieldErrors.primaryMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.primaryMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.primaryMobile}</p>}
                 </div>
                 <div>
                   <Label>Alternative Mobile Number</Label>
                   <Input
+                    ref={alternativeMobileRef}
                     value={alternativeMobile}
                     maxLength={10}
-                    onChange={(e) => setAlternativeMobile(e.target.value)}
+                    onChange={(e) => { setAlternativeMobile(e.target.value); clearFieldError("alternativeMobile"); }}
+                    className={fieldErrors.alternativeMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.alternativeMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.alternativeMobile}</p>}
                 </div>
 
                 <div>
                   <Label>Email ID *</Label>
                   <Input
+                    ref={emailRef}
                     type="email"
                     value={email}
                     readOnly={isEdit}
                     onChange={(e) => {
                       setEmail(e.target.value);
                       if (emailDuplicateError) setEmailDuplicateError(false);
+                      clearFieldError("email");
                     }}
                     onBlur={handleEmailBlur}
+                    className={fieldErrors.email ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
-                  {emailDuplicateError && (
-                    <p className="mt-1 text-xs text-red-500">Email Address already Exists</p>
-                  )}
+                  {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <Label>Emergency Mobile Number</Label>
                   <Input
+                    ref={emergencyMobileRef}
                     value={emergencyMobile}
                     maxLength={10}
-                    onChange={(e) => setEmergencyMobile(e.target.value)}
+                    onChange={(e) => { setEmergencyMobile(e.target.value); clearFieldError("emergencyMobile"); }}
+                    className={fieldErrors.emergencyMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.emergencyMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyMobile}</p>}
                 </div>
                 <div>
                   <Label>Password *</Label>
                   <div className="relative">
                     <Input
+                      ref={passwordRef}
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+                      className={fieldErrors.password ? "border-red-500 focus-visible:ring-red-400" : ""}
                     />
                     <button
                       type="button"
@@ -987,12 +1030,13 @@ export default function GuideFormPage() {
                       )}
                     </button>
                   </div>
+                  {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
                 </div>
 
                 <div>
                   <Label>Role *</Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger>
+                  <Select value={role} onValueChange={(v) => { setRole(v); clearFieldError("role"); }}>
+                    <SelectTrigger className={fieldErrors.role ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1003,22 +1047,26 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.role && <p className="mt-1 text-xs text-red-500">{fieldErrors.role}</p>}
                 </div>
                 <div>
                   <Label>Aadhar Card No</Label>
                   <Input
+                    ref={aadharRef}
                     value={aadharCardNo}
                     maxLength={12}
-                    onChange={(e) => setAadharCardNo(e.target.value)}
+                    onChange={(e) => { setAadharCardNo(e.target.value); clearFieldError("aadharCardNo"); }}
+                    className={fieldErrors.aadharCardNo ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.aadharCardNo && <p className="mt-1 text-xs text-red-500">{fieldErrors.aadharCardNo}</p>}
                 </div>
                 <div>
                   <Label>Language Proficiency *</Label>
                   <Select
                     value={languageProficiency}
-                    onValueChange={setLanguageProficiency}
+                    onValueChange={(v) => { setLanguageProficiency(v); clearFieldError("languageProficiency"); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={fieldErrors.languageProficiency ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1029,6 +1077,7 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.languageProficiency && <p className="mt-1 text-xs text-red-500">{fieldErrors.languageProficiency}</p>}
                 </div>
 
                 <div>
@@ -1099,8 +1148,8 @@ export default function GuideFormPage() {
                 </div>
                 <div>
                   <Label>GST Type *</Label>
-                  <Select value={gstType} onValueChange={setGstType}>
-                    <SelectTrigger>
+                  <Select value={gstType} onValueChange={(v) => { setGstType(v); clearFieldError("gstType"); }}>
+                    <SelectTrigger className={fieldErrors.gstType ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select GST Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1111,11 +1160,12 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gstType && <p className="mt-1 text-xs text-red-500">{fieldErrors.gstType}</p>}
                 </div>
                 <div>
                   <Label>GST% *</Label>
-                  <Select value={gstPercentage} onValueChange={setGstPercentage}>
-                    <SelectTrigger>
+                  <Select value={gstPercentage} onValueChange={(v) => { setGstPercentage(v); clearFieldError("gstPercentage"); }}>
+                    <SelectTrigger className={fieldErrors.gstPercentage ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select GST%" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1126,13 +1176,14 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gstPercentage && <p className="mt-1 text-xs text-red-500">{fieldErrors.gstPercentage}</p>}
                 </div>
               </div>
 
               {/* Available Slots */}
               <div>
                 <Label className="mb-2 block">Guide Available Slots *</Label>
-                <div className="flex flex-wrap gap-6">
+                <div className={cn("flex flex-wrap gap-6 rounded-md p-2", fieldErrors.availableSlots ? "border border-red-500" : "")}>
                   {GUIDE_SLOTS.map((slot) => (
                     <div key={slot.id} className="flex items-center gap-2">
                       <Checkbox
@@ -1140,10 +1191,11 @@ export default function GuideFormPage() {
                         checked={availableSlots.includes(slot.id)}
                         onCheckedChange={(checked) => {
                           setAvailableSlots((prev) => {
-                            if (checked) {
-                              return prev.includes(slot.id) ? prev : [...prev, slot.id];
-                            }
-                            return prev.filter((s) => s !== slot.id);
+                            const next = checked
+                              ? prev.includes(slot.id) ? prev : [...prev, slot.id]
+                              : prev.filter((s) => s !== slot.id);
+                            if (next.length > 0) clearFieldError("availableSlots");
+                            return next;
                           });
                         }}
                       />
@@ -1151,6 +1203,7 @@ export default function GuideFormPage() {
                     </div>
                   ))}
                 </div>
+                {fieldErrors.availableSlots && <p className="mt-1 text-xs text-red-500">{fieldErrors.availableSlots}</p>}
               </div>
 
               {/* Divider with star */}
@@ -1204,13 +1257,13 @@ export default function GuideFormPage() {
                     <Label>Confirm Account Number</Label>
                     <Input
                       value={bankDetails.confirmAccountNumber}
-                      onChange={(e) =>
-                        setBankDetails((prev) => ({
-                          ...prev,
-                          confirmAccountNumber: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => {
+                        setBankDetails((prev) => ({ ...prev, confirmAccountNumber: e.target.value }));
+                        clearFieldError("confirmAccountNumber");
+                      }}
+                      className={fieldErrors.confirmAccountNumber ? "border-red-500 focus-visible:ring-red-400" : ""}
                     />
+                    {fieldErrors.confirmAccountNumber && <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmAccountNumber}</p>}
                   </div>
                 </div>
               </div>
@@ -1268,7 +1321,9 @@ export default function GuideFormPage() {
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          className={cn("min-h-10 h-auto w-full rounded-md border px-3 py-2 text-left",
+                            fieldErrors.hotspotPlaces ? "border-red-500" : "border-input"
+                          )}
                           onKeyDown={handleHotspotControlKeyDown}
                           onClick={() => setActiveHotspotToken(null)}
                         >
@@ -1340,6 +1395,7 @@ export default function GuideFormPage() {
                                   removeHotspotToken(val);
                                 } else {
                                   setHotspotPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                  clearFieldError("hotspotPlaces");
                                 }
                               }}
                             >
@@ -1349,6 +1405,7 @@ export default function GuideFormPage() {
                         })}
                       </PopoverContent>
                     </Popover>
+                    {fieldErrors.hotspotPlaces && <p className="mt-1 text-xs text-red-500">{fieldErrors.hotspotPlaces}</p>}
                   </div>
                 )}
 
@@ -1359,7 +1416,9 @@ export default function GuideFormPage() {
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          className={cn("min-h-10 h-auto w-full rounded-md border px-3 py-2 text-left",
+                            fieldErrors.activityPlaces ? "border-red-500" : "border-input"
+                          )}
                           onKeyDown={handleActivityControlKeyDown}
                           onClick={() => setActiveActivityToken(null)}
                         >
@@ -1431,6 +1490,7 @@ export default function GuideFormPage() {
                                   removeActivityToken(val);
                                 } else {
                                   setActivityPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                  clearFieldError("activityPlaces");
                                 }
                               }}
                             >
@@ -1440,6 +1500,7 @@ export default function GuideFormPage() {
                         })}
                       </PopoverContent>
                     </Popover>
+                    {fieldErrors.activityPlaces && <p className="mt-1 text-xs text-red-500">{fieldErrors.activityPlaces}</p>}
                   </div>
                 )}
 
