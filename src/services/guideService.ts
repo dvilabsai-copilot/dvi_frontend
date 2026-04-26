@@ -165,20 +165,35 @@ export const GuideAPI = {
     await api(`/guides/${id}`, { method: "PUT", body: mapGuideBasicPayload(body) });
   },
 
+  /** Fetch pricebook rows for a date range (for the day-by-day display table) */
+  async getPricebook(
+    id: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<any[]> {
+    const res = await api(
+      `/guides/${id}/pricebook?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`,
+      { method: "GET" }
+    );
+    return Array.isArray(res?.rows) ? res.rows : [];
+  },
+
   /** Update pricebook only */
   async updatePricebook(
     id: number,
-    pricebook: {
+    data: {
       startDate: string;
       endDate: string;
-      pax1to5: { slot1: number; slot2: number; slot3: number };
-      pax6to14: { slot1: number; slot2: number; slot3: number };
-      pax15to40: { slot1: number; slot2: number; slot3: number };
+      priceInputs: {
+        pax1_slot1: string; pax1_slot2: string; pax1_slot3: string;
+        pax2_slot1: string; pax2_slot2: string; pax2_slot3: string;
+        pax3_slot1: string; pax3_slot2: string; pax3_slot3: string;
+      };
     }
   ): Promise<void> {
     await api(`/guides/${id}/pricebook`, {
       method: "PATCH",
-      body: mapGuidePricebookPayload(pricebook),
+      body: mapGuidePricebookPayload(data),
     });
   },
 
@@ -214,26 +229,28 @@ export const GuideAPI = {
   },
 };
 
-function mapGuidePricebookPayload(pricebook: {
+function mapGuidePricebookPayload(data: {
   startDate: string;
   endDate: string;
-  pax1to5: { slot1: number; slot2: number; slot3: number };
-  pax6to14: { slot1: number; slot2: number; slot3: number };
-  pax15to40: { slot1: number; slot2: number; slot3: number };
+  priceInputs: {
+    pax1_slot1: string; pax1_slot2: string; pax1_slot3: string;
+    pax2_slot1: string; pax2_slot2: string; pax2_slot3: string;
+    pax3_slot1: string; pax3_slot2: string; pax3_slot3: string;
+  };
 }) {
   return {
-    start_date: pricebook.startDate,
-    end_date: pricebook.endDate,
+    start_date: data.startDate,
+    end_date: data.endDate,
     pax_prices: [
-      { pax_id: 1, slot_id: 1, price: Number(pricebook.pax1to5.slot1 || 0) },
-      { pax_id: 1, slot_id: 2, price: Number(pricebook.pax1to5.slot2 || 0) },
-      { pax_id: 1, slot_id: 3, price: Number(pricebook.pax1to5.slot3 || 0) },
-      { pax_id: 2, slot_id: 1, price: Number(pricebook.pax6to14.slot1 || 0) },
-      { pax_id: 2, slot_id: 2, price: Number(pricebook.pax6to14.slot2 || 0) },
-      { pax_id: 2, slot_id: 3, price: Number(pricebook.pax6to14.slot3 || 0) },
-      { pax_id: 3, slot_id: 1, price: Number(pricebook.pax15to40.slot1 || 0) },
-      { pax_id: 3, slot_id: 2, price: Number(pricebook.pax15to40.slot2 || 0) },
-      { pax_id: 3, slot_id: 3, price: Number(pricebook.pax15to40.slot3 || 0) },
+      { pax_id: 1, slot_id: 1, price: data.priceInputs.pax1_slot1 },
+      { pax_id: 1, slot_id: 2, price: data.priceInputs.pax1_slot2 },
+      { pax_id: 1, slot_id: 3, price: data.priceInputs.pax1_slot3 },
+      { pax_id: 2, slot_id: 1, price: data.priceInputs.pax2_slot1 },
+      { pax_id: 2, slot_id: 2, price: data.priceInputs.pax2_slot2 },
+      { pax_id: 2, slot_id: 3, price: data.priceInputs.pax2_slot3 },
+      { pax_id: 3, slot_id: 1, price: data.priceInputs.pax3_slot1 },
+      { pax_id: 3, slot_id: 2, price: data.priceInputs.pax3_slot2 },
+      { pax_id: 3, slot_id: 3, price: data.priceInputs.pax3_slot3 },
     ],
   };
 }
