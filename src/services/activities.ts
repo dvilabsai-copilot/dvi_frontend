@@ -1,5 +1,13 @@
 // FILE: src/services/activities.ts
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
+
+/** Strip `/api/v1` suffix to get the file-serving root (same as hotspotService) */
+function computeFileBase(apiBase: string): string {
+  let s = (apiBase || "").replace(/\/+$/, "");
+  s = s.replace(/\/api(?:\/v\d+)?$/i, "");
+  return s;
+}
+const FILE_BASE = computeFileBase(API_BASE_URL);
 
 /** Build query string without external deps (arrays -> repeated keys) */
 function toQuery(params?: Record<string, any>) {
@@ -219,6 +227,10 @@ export const ActivitiesAPI = {
     request<any>(`/activities/${id}/time-slots`, { method: "POST", body }),
 
   /** ============ PRICEBOOK ============ */
+  /** Fetch existing pricebook for an activity (returns null if none saved) */
+  getPriceBook: async (id: number) =>
+    request<any>(`/activities/${id}/pricebook`, { method: "GET" }).catch(() => null),
+
   /**
    * Accepts either backend DTO shape or UI ActivityForm shape.
    * We normalize to backend DTO automatically.
@@ -256,4 +268,7 @@ export const ActivitiesAPI = {
 
   preview: async (id: number) =>
     request<PreviewPayload>(`/activities/${id}/preview`, { method: "GET" }),
+
+  /** Image file base URL for rendering uploaded activity images */
+  imageBase: () => `${FILE_BASE}/uploads/activity_gallery`,
 };
