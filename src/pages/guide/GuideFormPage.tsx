@@ -1,9 +1,10 @@
 // FILE: src/pages/guide/GuideFormPage.tsx
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ChevronRight,
+  ChevronDown,
   Eye,
   EyeOff,
   Star,
@@ -69,6 +70,221 @@ const STEPS = [
   { id: 4, label: "Guide Preview" },
 ];
 
+/* ------------------------------------------------------------------
+   SlotMultiSelect — Select2-style multi-select for Guide Available Slots
+   Keyboard: ↓/↑ navigate, Enter/Space toggle, Backspace remove last chip,
+             Escape close, Tab close (blur)
+-------------------------------------------------------------------*/
+interface SlotMultiSelectProps {
+  options: { id: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  hasError?: boolean;
+  placeholder?: string;
+}
+
+function SlotMultiSelect({
+  options,
+  selected,
+  onChange,
+  hasError,
+  placeholder = "Choose Slot Type",
+}: SlotMultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Close on outside click / focus-out
+  useEffect(() => {
+    function handlePointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocusedIndex(-1);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (!open || focusedIndex < 0 || !listRef.current) return;
+    const item = listRef.current.querySelectorAll<HTMLLIElement>("li")[focusedIndex];
+    item?.scrollIntoView({ block: "nearest" });
+  }, [focusedIndex, open]);
+
+  // Reset focus highlight when dropdown opens
+  useEffect(() => {
+    if (open) setFocusedIndex(-1);
+  }, [open]);
+
+  // When a selection changes while open, clamp focusedIndex to remaining list size
+  useEffect(() => {
+    if (!open) return;
+    const unselectedCount = options.filter((o) => !selected.includes(o.id)).length;
+    setFocusedIndex((i) => (i >= unselectedCount ? Math.max(0, unselectedCount - 1) : i));
+  }, [selected, open, options]);
+
+  function toggleOption(id: string) {
+    if (selected.includes(id)) {
+      onChange(selected.filter((s) => s !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  }
+
+  function removeChip(id: string) {
+    onChange(selected.filter((s) => s !== id));
+    setOpen(true);   // reopen dropdown immediately so removed option reappears
+    setFocusedIndex(-1);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const unselected = options.filter((o) => !selected.includes(o.id));
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else {
+          setFocusedIndex((i) => Math.min(i + 1, unselected.length - 1));
+        }
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        if (open) {
+          setFocusedIndex((i) => Math.max(i - 1, 0));
+        }
+        break;
+
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else if (focusedIndex >= 0 && focusedIndex < unselected.length) {
+          toggleOption(unselected[focusedIndex].id);
+        }
+        break;
+
+      case "Backspace":
+      case "Delete":
+        if (selected.length > 0) {
+          onChange(selected.slice(0, -1));
+          setOpen(true);   // show dropdown with the now-removed option
+          setFocusedIndex(-1);
+        }
+        break;
+
+      case "Tab":
+      case "Escape":
+        setOpen(false);
+        setFocusedIndex(-1);
+        break;
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger box */}
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-activedescendant={focusedIndex >= 0 ? `slot-opt-${options.filter((o) => !selected.includes(o.id))[focusedIndex]?.id}` : undefined}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) setFocusedIndex(-1);
+        }}
+        className={cn(
+          "flex min-h-[38px] w-full cursor-pointer flex-wrap items-center gap-1 rounded-md border bg-white px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary",
+          hasError ? "border-red-500" : "border-input",
+          open && "ring-1 ring-primary border-primary",
+        )}
+      >
+        {selected.length === 0 && (
+          <span className="text-muted-foreground">{placeholder}</span>
+        )}
+        {selected.map((id) => {
+          const opt = options.find((o) => o.id === id);
+          return (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs font-medium text-white"
+            >
+              {opt?.label ?? id}
+              <button
+                type="button"
+                aria-label={`Remove ${opt?.label}`}
+                tabIndex={-1}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  removeChip(id);
+                }}
+                className="ml-0.5 rounded-full hover:bg-white/20 focus:outline-none"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        })}
+        <ChevronDown
+          className={cn(
+            "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150",
+            open && "rotate-180",
+          )}
+        />
+      </div>
+
+      {/* Dropdown — only shows unselected options */}
+      {open && (() => {
+        const unselected = options.filter((o) => !selected.includes(o.id));
+        if (unselected.length === 0) return null;
+        return (
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-multiselectable="true"
+            className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-white shadow-md"
+          >
+            {unselected.map((opt, idx) => {
+              const isFocused = focusedIndex === idx;
+              return (
+                <li
+                  key={opt.id}
+                  id={`slot-opt-${opt.id}`}
+                  role="option"
+                  aria-selected={false}
+                  onPointerDown={(e) => {
+                    e.preventDefault(); // prevent blur on trigger
+                    e.stopPropagation(); // prevent click bubbling to trigger's onClick
+                    setFocusedIndex(idx);
+                    toggleOption(opt.id);
+                    setOpen(true); // keep dropdown open — remaining options stay visible
+                  }}
+                  onPointerEnter={() => setFocusedIndex(idx)}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center px-3 py-2 text-sm transition-colors",
+                    isFocused ? "bg-primary text-white" : "text-gray-800 hover:bg-primary/10",
+                  )}
+                >
+                  {opt.label}
+                </li>
+              );
+            })}
+          </ul>
+        );
+      })()}
+    </div>
+  );
+}
+
 const defaultBankDetails: GuideBankDetails = {
   bankName: "",
   branchName: "",
@@ -83,16 +299,13 @@ const defaultPreferredFor: GuidePreferredFor = {
   itinerary: false,
 };
 
-const makeDefaultPricebook = (): GuidePricebook => {
-  const today = new Date();
-  return {
-    startDate: format(today, "yyyy-MM-dd"),
-    endDate: format(addYears(today, 1), "yyyy-MM-dd"),
-    pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
-    pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
-    pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
-  };
-};
+const makeDefaultPricebook = (): GuidePricebook => ({
+  startDate: "",
+  endDate: "",
+  pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
+  pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
+  pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
+});
 
 const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePricebook => {
   const fallback = makeDefaultPricebook();
@@ -100,8 +313,8 @@ const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePriceboo
   return {
     ...fallback,
     ...incoming,
-    startDate: incoming.startDate?.trim() ? incoming.startDate : fallback.startDate,
-    endDate: incoming.endDate?.trim() ? incoming.endDate : fallback.endDate,
+    startDate: incoming.startDate?.trim() ? incoming.startDate : "",
+    endDate: incoming.endDate?.trim() ? incoming.endDate : "",
     pax1to5: { ...fallback.pax1to5, ...(incoming.pax1to5 ?? {}) },
     pax6to14: { ...fallback.pax6to14, ...(incoming.pax6to14 ?? {}) },
     pax15to40: { ...fallback.pax15to40, ...(incoming.pax15to40 ?? {}) },
@@ -156,13 +369,22 @@ export default function GuideFormPage() {
   // Pricebook state
   const [pricebook, setPricebook] = useState<GuidePricebook>(makeDefaultPricebook);
 
+  // Pricebook price inputs — always empty (no pre-fill from DB, matching PHP)
+  const [priceInputs, setPriceInputs] = useState({
+    pax1_slot1: "", pax1_slot2: "", pax1_slot3: "",
+    pax2_slot1: "", pax2_slot2: "", pax2_slot3: "",
+    pax3_slot1: "", pax3_slot2: "", pax3_slot3: "",
+  });
+
+  // Pricebook display rows (fetched from backend for the per-day table)
+  const [pricebookDisplayRows, setPricebookDisplayRows] = useState<any[]>([]);
+
   // Reviews state
   const [reviews, setReviews] = useState<GuideReview[]>([]);
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
   const [emailDuplicateError, setEmailDuplicateError] = useState(false);
-  const [pricebookSaved, setPricebookSaved] = useState(false);
 
   // Field-level validation errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -222,6 +444,24 @@ export default function GuideFormPage() {
     setActivityPlaces((prev) => prev.filter((x) => x !== id));
     setActiveActivityToken((prev) => (prev === id ? null : prev));
   };
+
+  // Fetch pricebook display rows whenever guide id + dates are set
+  const fetchPricebookDisplay = useCallback(async () => {
+    if (!id || !pricebook.startDate || !pricebook.endDate) {
+      setPricebookDisplayRows([]);
+      return;
+    }
+    try {
+      const rows = await GuideAPI.getPricebook(Number(id), pricebook.startDate, pricebook.endDate);
+      setPricebookDisplayRows(rows);
+    } catch {
+      // silently ignore — display table stays empty
+    }
+  }, [id, pricebook.startDate, pricebook.endDate]);
+
+  useEffect(() => {
+    fetchPricebookDisplay();
+  }, [fetchPricebookDisplay]);
 
   const handleHotspotControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if ((e.key === "Backspace" || e.key === "Delete") && hotspotPlaces.length > 0) {
@@ -687,8 +927,19 @@ export default function GuideFormPage() {
     }
     setLoading(true);
     try {
-      await GuideAPI.updatePricebook(Number(id), pricebook);
-      setPricebookSaved(true);
+      await GuideAPI.updatePricebook(Number(id), {
+        startDate: pricebook.startDate,
+        endDate: pricebook.endDate,
+        priceInputs,
+      });
+      // Clear inputs (PHP behavior: clears all .amount fields after submit)
+      setPriceInputs({
+        pax1_slot1: "", pax1_slot2: "", pax1_slot3: "",
+        pax2_slot1: "", pax2_slot2: "", pax2_slot3: "",
+        pax3_slot1: "", pax3_slot2: "", pax3_slot3: "",
+      });
+      // Refresh the per-day display table
+      await fetchPricebookDisplay();
       toast.success("Guide Price Book Details Updated Successfully");
     } catch {
       toast.error("Unable to Update Guide Price Book Details");
@@ -1183,26 +1434,15 @@ export default function GuideFormPage() {
               {/* Available Slots */}
               <div>
                 <Label className="mb-2 block">Guide Available Slots *</Label>
-                <div className={cn("flex flex-wrap gap-6 rounded-md p-2", fieldErrors.availableSlots ? "border border-red-500" : "")}>
-                  {GUIDE_SLOTS.map((slot) => (
-                    <div key={slot.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`guide-slot-${slot.id}`}
-                        checked={availableSlots.includes(slot.id)}
-                        onCheckedChange={(checked) => {
-                          setAvailableSlots((prev) => {
-                            const next = checked
-                              ? prev.includes(slot.id) ? prev : [...prev, slot.id]
-                              : prev.filter((s) => s !== slot.id);
-                            if (next.length > 0) clearFieldError("availableSlots");
-                            return next;
-                          });
-                        }}
-                      />
-                      <Label htmlFor={`guide-slot-${slot.id}`}>{slot.label}</Label>
-                    </div>
-                  ))}
-                </div>
+                <SlotMultiSelect
+                  options={GUIDE_SLOTS}
+                  selected={availableSlots}
+                  hasError={!!fieldErrors.availableSlots}
+                  onChange={(next) => {
+                    setAvailableSlots(next);
+                    if (next.length > 0) clearFieldError("availableSlots");
+                  }}
+                />
                 {fieldErrors.availableSlots && <p className="mt-1 text-xs text-red-500">{fieldErrors.availableSlots}</p>}
               </div>
 
@@ -1536,15 +1776,22 @@ export default function GuideFormPage() {
                     type="date"
                     placeholder="Start Date"
                     value={pricebook.startDate}
-                    onChange={(e) =>
-                      setPricebook((prev) => ({ ...prev, startDate: e.target.value }))
-                    }
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setPricebook((prev) => ({
+                        ...prev,
+                        startDate: newStart,
+                        // clear end date if it's now before the new start date
+                        endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+                      }));
+                    }}
                     className="w-36"
                   />
                   <Input
                     type="date"
                     placeholder="End date"
                     value={pricebook.endDate}
+                    min={pricebook.startDate || undefined}
                     onChange={(e) =>
                       setPricebook((prev) => ({ ...prev, endDate: e.target.value }))
                     }
@@ -1560,8 +1807,8 @@ export default function GuideFormPage() {
                 </div>
               </div>
 
-              {/* Price Grid */}
-              <div className="space-y-6">
+              {/* Price Input Grid — always empty, no pre-fill (PHP parity) */}
+              <div className="space-y-4">
                 {/* 1-5 Pax */}
                 <div className="grid grid-cols-4 gap-4 items-end">
                   <div>
@@ -1573,13 +1820,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1587,13 +1829,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1601,16 +1838,12 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot3: e.target.value }))}
                     />
                   </div>
                 </div>
+                <hr className="my-1" />
 
                 {/* 6-14 Pax */}
                 <div className="grid grid-cols-4 gap-4 items-end">
@@ -1623,13 +1856,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1637,13 +1865,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1651,16 +1874,12 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot3: e.target.value }))}
                     />
                   </div>
                 </div>
+                <hr className="my-1" />
 
                 {/* 15-40 Pax */}
                 <div className="grid grid-cols-4 gap-4 items-end">
@@ -1673,13 +1892,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1687,13 +1901,8 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -1701,50 +1910,90 @@ export default function GuideFormPage() {
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot3: e.target.value }))}
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Pricebook Summary Table - shown after save */}
-              {pricebookSaved && (
-                <div className="mt-4 rounded-lg border overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gradient-to-r from-purple-700 via-pink-600 to-fuchsia-500 text-white">
-                        <th className="p-2 text-left font-semibold">Pax Count</th>
-                        <th className="p-2 text-center font-semibold">Slot 1: 9 AM – 1 PM</th>
-                        <th className="p-2 text-center font-semibold">Slot 2: 9 AM – 4 PM</th>
-                        <th className="p-2 text-center font-semibold">Slot 3: 6 PM – 9 PM</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {([
-                        { label: "1–5 Pax", key: "pax1to5" },
-                        { label: "6–14 Pax", key: "pax6to14" },
-                        { label: "15–40 Pax", key: "pax15to40" },
-                      ] as { label: string; key: keyof Pick<GuidePricebook, "pax1to5" | "pax6to14" | "pax15to40"> }[]).map((row) => (
-                        <tr key={row.key} className="border-t bg-gray-50">
-                          <td className="p-2 font-medium text-purple-700">{row.label}</td>
-                          <td className="p-2 text-center">₹{pricebook[row.key].slot1 || 0}</td>
-                          <td className="p-2 text-center">₹{pricebook[row.key].slot2 || 0}</td>
-                          <td className="p-2 text-center">₹{pricebook[row.key].slot3 || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <p className="text-xs text-gray-500 px-3 py-1">
-                    Period: {pricebook.startDate} to {pricebook.endDate}
-                  </p>
-                </div>
-              )}
+              {/* Per-day pricebook display table (auto-loaded when dates are selected) */}
+              {pricebook.startDate && pricebook.endDate && (() => {
+                // Build list of dates in range
+                const dayList: { label: string; year: string; month: string; dayNum: number }[] = [];
+                const sd = new Date(pricebook.startDate + "T00:00:00Z");
+                const ed = new Date(pricebook.endDate + "T00:00:00Z");
+                for (let cur = new Date(sd); cur <= ed; cur.setUTCDate(cur.getUTCDate() + 1)) {
+                  const dt = new Date(cur);
+                  dayList.push({
+                    label: dt.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }),
+                    year: String(dt.getUTCFullYear()),
+                    month: dt.toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
+                    dayNum: dt.getUTCDate(),
+                  });
+                }
+
+                const PAX_LABELS = ["1-5 Pax", "6-14 Pax", "15-40 Pax"];
+                const SLOT_LABELS = ["9AM-1PM", "9AM-4PM", "6PM-9PM"];
+
+                const getPrice = (paxIdx: number, slotIdx: number, year: string, month: string, dayNum: number) => {
+                  const row = pricebookDisplayRows.find(
+                    (r: any) =>
+                      Number(r.pax_count) === paxIdx &&
+                      Number(r.slot_type) === slotIdx &&
+                      String(r.year) === year &&
+                      String(r.month) === month
+                  );
+                  if (!row) return null;
+                  const val = row[`day_${dayNum}`];
+                  return val !== null && val !== undefined && String(val).trim() !== "" ? Number(val) : null;
+                };
+
+                return (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Current Price Schedule</h4>
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="border-collapse text-xs w-auto">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-purple-700 via-pink-600 to-fuchsia-500 text-white uppercase tracking-wide">
+                            <th className="p-2 border border-purple-500/40 whitespace-nowrap bg-gray-700 text-white">Pax Count</th>
+                            <th className="p-2 border border-purple-500/40 whitespace-nowrap bg-gray-700 text-white">Slot Type</th>
+                            {dayList.map((d) => (
+                              <th key={d.label} className="p-2 border border-purple-500/40 whitespace-nowrap">
+                                {d.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {([1, 2, 3] as const).flatMap((pax) =>
+                            ([1, 2, 3] as const).map((slot) => (
+                              <tr key={`${pax}-${slot}`} className="even:bg-white odd:bg-gray-50">
+                                <td className="p-2 border border-gray-200 font-medium text-purple-700 whitespace-nowrap bg-gray-100">
+                                  {PAX_LABELS[pax - 1]}
+                                </td>
+                                <td className="p-2 border border-gray-200 whitespace-nowrap bg-gray-100">
+                                  {SLOT_LABELS[slot - 1]}
+                                </td>
+                                {dayList.map((d) => {
+                                  const price = getPrice(pax, slot, d.year, d.month, d.dayNum);
+                                  return (
+                                    <td key={d.label} className="p-2 border border-gray-200 text-center whitespace-nowrap">
+                                      {price !== null
+                                        ? <span className="text-gray-800">₹ {price.toFixed(2)}</span>
+                                        : <span className="text-gray-400">No Price</span>}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex justify-between pt-4">
                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>
@@ -1758,14 +2007,12 @@ export default function GuideFormPage() {
                   >
                     {loading ? "Saving..." : "Update"}
                   </Button>
-                  {pricebookSaved && (
-                    <Button
-                      onClick={() => setCurrentStep(3)}
-                      className="bg-gradient-to-r from-primary to-pink-500"
-                    >
-                      Continue →
-                    </Button>
-                  )}
+                  <Button
+                    onClick={() => setCurrentStep(3)}
+                    className="bg-gradient-to-r from-primary to-pink-500"
+                  >
+                    Continue →
+                  </Button>
                 </div>
               </div>
             </div>
