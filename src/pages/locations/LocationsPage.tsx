@@ -93,6 +93,8 @@ export default function LocationsPage() {
   const sourceOptions: AutoSuggestOption[] = locationOptions;
 
   const destinationOptions: AutoSuggestOption[] = locationOptions;
+  const deleteLocationOptions: AutoSuggestOption[] = locationOptions;
+
   // dialogs
    const [addOpen, setAddOpen] = useState(false);
   const [editRow, setEditRow] = useState<LocationRow | null>(null);
