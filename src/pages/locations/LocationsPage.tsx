@@ -77,38 +77,22 @@ export default function LocationsPage() {
   const [destination, setDestination] = useState<string>("");
   const [search, setSearch] = useState("");
 
-  const sourceOptions: AutoSuggestOption[] = sources.map((item) => ({
-  value: item,
-  label: item,
-}));
+  const locationOptions: AutoSuggestOption[] = Array.from(
+    new Set(
+      [...sources, ...destinations]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    )
+  )
+    .sort((a, b) => a.localeCompare(b))
+    .map((item) => ({
+      value: item,
+      label: item,
+    }));
 
-const destinationOptions: AutoSuggestOption[] = destinations
-  .filter((item) => !source || item !== source)
-  .map((item) => ({
-    value: item,
-    label: item,
-  }));
+  const sourceOptions: AutoSuggestOption[] = locationOptions;
 
-  const deleteLocationOptions: AutoSuggestOption[] = useMemo(() => {
-  const seen = new Set<string>();
-  const options: AutoSuggestOption[] = [];
-
-  for (const item of [...sources, ...destinations]) {
-    const name = String(item || "").trim();
-    if (!name) continue;
-
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-
-    seen.add(key);
-    options.push({
-      value: name,
-      label: name,
-    });
-  }
-
-  return options;
-}, [sources, destinations]);
+  const destinationOptions: AutoSuggestOption[] = locationOptions;
   // dialogs
    const [addOpen, setAddOpen] = useState(false);
   const [editRow, setEditRow] = useState<LocationRow | null>(null);
@@ -315,9 +299,8 @@ const destinationOptions: AutoSuggestOption[] = destinations
   <AutoSuggestSelect
     mode="single"
     value={source}
-    onChange={(val) => {
+      onChange={(val) => {
       setSource((val as string) || "");
-      setDestination("");
       setPage(1);
     }}
     options={sourceOptions}
