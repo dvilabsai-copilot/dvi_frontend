@@ -2,9 +2,12 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import {
   Calendar as CalendarIcon,
+  Copy,
   Download,
+  FileSpreadsheet,
   CarIcon,
 } from "lucide-react";
 
@@ -261,6 +264,84 @@ export const DailyMomentTracker: React.FC = () => {
 
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
 
+  // ================== EXPORT HELPERS ==================
+
+  const EXPORT_HEADERS = [
+    "Guest Name", "Quote ID", "Route Date", "Type(A/D/O)",
+    "From Location", "To Location", "Arrival Flight/Train Details",
+    "Departure Flight/Train Details", "Hotel", "Meal Plan", "Vendor",
+    "Vehicle", "Vehicle No", "Driver Name", "Driver Mobile",
+    "Special Remark", "Travel Expert", "Agent",
+  ];
+
+  function rowToArray(row: DailyMomentRow): string[] {
+    return [
+      row.guestName || "--",
+      row.quoteId || "--",
+      formatDateDisplay(row.routeDate),
+      row.type || "--",
+      row.fromLocation || "--",
+      row.toLocation || "--",
+      row.arrivalDetails || "--",
+      row.departureDetails || "--",
+      row.hotel || "--",
+      row.mealPlan || "--",
+      row.vendor || "--",
+      row.vehicle || "--",
+      row.vehicleNo || "--",
+      row.driverName || "--",
+      row.driverMobile || "--",
+      row.specialRemark || "--",
+      row.travelExpert || "--",
+      row.agent || "--",
+    ];
+  }
+
+  const [copyFeedback, setCopyFeedback] = useState(false);
+
+  const handleCopy = () => {
+    const lines = [
+      EXPORT_HEADERS.join("\t"),
+      ...filteredRows.map((r) => rowToArray(r).join("\t")),
+    ];
+    navigator.clipboard.writeText(lines.join("\n")).then(() => {
+      setCopyFeedback(true);
+      setTimeout(() => setCopyFeedback(false), 1800);
+    });
+  };
+
+  const handleCSV = () => {
+    const lines = [
+      EXPORT_HEADERS.map((h) => `"${h}"`).join(","),
+      ...filteredRows.map((r) =>
+        rowToArray(r).map((v) => `"${v.replace(/"/g, '""')}"`).join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `daily_moment_${formatDateDisplay(fromDateObj)}_${formatDateDisplay(toDateObj)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExcel = () => {
+    const data = [EXPORT_HEADERS, ...filteredRows.map(rowToArray)];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    // Auto column width
+    ws["!cols"] = EXPORT_HEADERS.map((h, i) => {
+      const maxLen = Math.max(
+        h.length,
+        ...filteredRows.map((r) => rowToArray(r)[i]?.length ?? 0)
+      );
+      return { wch: Math.min(maxLen + 2, 50) };
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Daily Moment");
+    XLSX.writeFile(wb, `daily_moment_${formatDateDisplay(fromDateObj)}_${formatDateDisplay(toDateObj)}.xlsx`);
+  };
+
   // ================== CAR ICON – NAVIGATE TO DAY VIEW ==================
 
   const handleOpenDayView = (row: DailyMomentRow) => {
@@ -356,9 +437,26 @@ export const DailyMomentTracker: React.FC = () => {
                   placeholder="Search…"
                 />
               </div>
-              <Button className="h-9 px-4 gap-2 rounded-md bg-[#e5fff1] border border-[#b7f7d9] text-[#0f9c34] text-sm flex items-center">
+              <Button className="h-9 px-4 gap-2 rounded-md bg-[#eef3ff] border border-[#c9d8ff] text-[#3b5bdb] text-sm flex items-center hover:bg-[#dce8ff]"
+                onClick={handleCopy}
+                disabled={filteredRows.length === 0}
+              >
+                <Copy className="h-4 w-4" />
+                {copyFeedback ? "Copied!" : "Copy"}
+              </Button>
+              <Button className="h-9 px-4 gap-2 rounded-md bg-[#e5fff1] border border-[#b7f7d9] text-[#0f9c34] text-sm flex items-center hover:bg-[#d0ffe4]"
+                onClick={handleExcel}
+                disabled={filteredRows.length === 0}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </Button>
+              <Button className="h-9 px-4 gap-2 rounded-md bg-[#fff8e5] border border-[#ffe9a0] text-[#9e6f00] text-sm flex items-center hover:bg-[#fff3cc]"
+                onClick={handleCSV}
+                disabled={filteredRows.length === 0}
+              >
                 <Download className="h-4 w-4" />
-                Export
+                CSV
               </Button>
             </div>
           </div>
