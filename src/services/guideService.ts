@@ -141,9 +141,9 @@ export const GuideAPI = {
     pricebook: {
       startDate: string;
       endDate: string;
-      pax1to5: { slot1: number; slot2: number; slot3: number };
-      pax6to14: { slot1: number; slot2: number; slot3: number };
-      pax15to40: { slot1: number; slot2: number; slot3: number };
+      pax1to5: { slot1: number; slot2: number; slot3: number; slot4: number };
+      pax6to14: { slot1: number; slot2: number; slot3: number; slot4: number };
+      pax15to40: { slot1: number; slot2: number; slot3: number; slot4: number };
     };
     reviews: Array<{ id: string; rating: number; description: string; createdOn: string }>;
   }> {
@@ -185,9 +185,9 @@ export const GuideAPI = {
       startDate: string;
       endDate: string;
       priceInputs: {
-        pax1_slot1: string; pax1_slot2: string; pax1_slot3: string;
-        pax2_slot1: string; pax2_slot2: string; pax2_slot3: string;
-        pax3_slot1: string; pax3_slot2: string; pax3_slot3: string;
+        pax1_slot1: string; pax1_slot2: string; pax1_slot3: string; pax1_slot4: string;
+        pax2_slot1: string; pax2_slot2: string; pax2_slot3: string; pax2_slot4: string;
+        pax3_slot1: string; pax3_slot2: string; pax3_slot3: string; pax3_slot4: string;
       };
     }
   ): Promise<void> {
@@ -233,9 +233,9 @@ function mapGuidePricebookPayload(data: {
   startDate: string;
   endDate: string;
   priceInputs: {
-    pax1_slot1: string; pax1_slot2: string; pax1_slot3: string;
-    pax2_slot1: string; pax2_slot2: string; pax2_slot3: string;
-    pax3_slot1: string; pax3_slot2: string; pax3_slot3: string;
+    pax1_slot1: string; pax1_slot2: string; pax1_slot3: string; pax1_slot4: string;
+    pax2_slot1: string; pax2_slot2: string; pax2_slot3: string; pax2_slot4: string;
+    pax3_slot1: string; pax3_slot2: string; pax3_slot3: string; pax3_slot4: string;
   };
 }) {
   return {
@@ -245,12 +245,15 @@ function mapGuidePricebookPayload(data: {
       { pax_id: 1, slot_id: 1, price: data.priceInputs.pax1_slot1 },
       { pax_id: 1, slot_id: 2, price: data.priceInputs.pax1_slot2 },
       { pax_id: 1, slot_id: 3, price: data.priceInputs.pax1_slot3 },
+      { pax_id: 1, slot_id: 4, price: data.priceInputs.pax1_slot4 },
       { pax_id: 2, slot_id: 1, price: data.priceInputs.pax2_slot1 },
       { pax_id: 2, slot_id: 2, price: data.priceInputs.pax2_slot2 },
       { pax_id: 2, slot_id: 3, price: data.priceInputs.pax2_slot3 },
+      { pax_id: 2, slot_id: 4, price: data.priceInputs.pax2_slot4 },
       { pax_id: 3, slot_id: 1, price: data.priceInputs.pax3_slot1 },
       { pax_id: 3, slot_id: 2, price: data.priceInputs.pax3_slot2 },
       { pax_id: 3, slot_id: 3, price: data.priceInputs.pax3_slot3 },
+      { pax_id: 3, slot_id: 4, price: data.priceInputs.pax3_slot4 },
     ],
   };
 }
@@ -265,6 +268,7 @@ function mapGuideBasicPayload(body: any) {
           if (s === "slot1") return 1;
           if (s === "slot2") return 2;
           if (s === "slot3") return 3;
+          if (s === "slot4") return 4;
           const n = Number(s);
           return Number.isFinite(n) ? n : 0;
         })
@@ -396,9 +400,9 @@ function normalizePricebook(input: any) {
   const base = {
     startDate: "",
     endDate: "",
-    pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
-    pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
-    pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
+    pax1to5: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+    pax6to14: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+    pax15to40: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
   };
 
   if (!input) return base;
@@ -412,13 +416,13 @@ function normalizePricebook(input: any) {
       const slot = Number(row?.slot_type ?? row?.slot_id ?? 0);
       const rowPrice = firstDayPrice(row);
 
-      if (pax === 1 && slot >= 1 && slot <= 3) {
+      if (pax === 1 && slot >= 1 && slot <= 4) {
         (base.pax1to5 as any)[`slot${slot}`] = rowPrice;
       }
-      if (pax === 2 && slot >= 1 && slot <= 3) {
+      if (pax === 2 && slot >= 1 && slot <= 4) {
         (base.pax6to14 as any)[`slot${slot}`] = rowPrice;
       }
-      if (pax === 3 && slot >= 1 && slot <= 3) {
+      if (pax === 3 && slot >= 1 && slot <= 4) {
         (base.pax15to40 as any)[`slot${slot}`] = rowPrice;
       }
 
@@ -448,25 +452,28 @@ function normalizePricebook(input: any) {
       const pax = Number(row?.pax_id ?? 0);
       const slot = Number(row?.slot_id ?? 0);
       const price = Number(row?.price ?? 0);
-      if (pax === 1 && slot >= 1 && slot <= 3) (base.pax1to5 as any)[`slot${slot}`] = price;
-      if (pax === 2 && slot >= 1 && slot <= 3) (base.pax6to14 as any)[`slot${slot}`] = price;
-      if (pax === 3 && slot >= 1 && slot <= 3) (base.pax15to40 as any)[`slot${slot}`] = price;
+      if (pax === 1 && slot >= 1 && slot <= 4) (base.pax1to5 as any)[`slot${slot}`] = price;
+      if (pax === 2 && slot >= 1 && slot <= 4) (base.pax6to14 as any)[`slot${slot}`] = price;
+      if (pax === 3 && slot >= 1 && slot <= 4) (base.pax15to40 as any)[`slot${slot}`] = price;
     }
   } else {
     base.pax1to5 = {
       slot1: Number(obj?.pax1to5?.slot1 ?? 0),
       slot2: Number(obj?.pax1to5?.slot2 ?? 0),
       slot3: Number(obj?.pax1to5?.slot3 ?? 0),
+      slot4: Number(obj?.pax1to5?.slot4 ?? 0),
     };
     base.pax6to14 = {
       slot1: Number(obj?.pax6to14?.slot1 ?? 0),
       slot2: Number(obj?.pax6to14?.slot2 ?? 0),
       slot3: Number(obj?.pax6to14?.slot3 ?? 0),
+      slot4: Number(obj?.pax6to14?.slot4 ?? 0),
     };
     base.pax15to40 = {
       slot1: Number(obj?.pax15to40?.slot1 ?? 0),
       slot2: Number(obj?.pax15to40?.slot2 ?? 0),
       slot3: Number(obj?.pax15to40?.slot3 ?? 0),
+      slot4: Number(obj?.pax15to40?.slot4 ?? 0),
     };
   }
 
