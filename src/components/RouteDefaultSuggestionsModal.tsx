@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { api } from '@/lib/api';
 
 interface RouteLocation {
   stored_route_location_ID: number;
@@ -86,23 +87,16 @@ export const RouteDefaultSuggestionsModal = ({
   const fetchRoutes = async () => {
     setLoading(true);
     try {
-      const apiUrl = `${import.meta.env.VITE_API_DVI_BASE_URL || "http://localhost:4006"}/api/v1/itineraries/default-route-suggestions`;
-
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          _no_of_route_days: noOfDays,
-          _arrival_location: arrivalLocation,
-          _departure_location: departureLocation,
-          _formattedStartDate: startDate,
-          _formattedEndDate: endDate,
-        }),
-      });
-
-      const data = (await response.json()) as RouteResponse;
+      const data = await api('/itineraries/default-route-suggestions', {
+  method: 'POST',
+  body: {
+    _no_of_route_days: noOfDays,
+    _arrival_location: arrivalLocation,
+    _departure_location: departureLocation,
+    _formattedStartDate: startDate,
+    _formattedEndDate: endDate,
+  },
+}) as RouteResponse;
       setResponse(data);
 
       if (data.no_routes_found) {

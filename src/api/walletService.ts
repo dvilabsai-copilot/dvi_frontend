@@ -1,5 +1,5 @@
 import axios from "axios";
-import { getToken } from "@/lib/api";
+import { API_BASE_URL, getToken } from "@/lib/api";
 
 export type WalletTransactionType = "Credit" | "Debit";
 
@@ -24,7 +24,7 @@ export interface WalletPageData {
   couponTransactions: WalletTransaction[];
 }
 
-const API_BASE_URL = "http://localhost:4006";
+
 
 function getAuthHeaders() {
   const token = getToken();
@@ -50,7 +50,7 @@ export const walletService = {
     const headers = getAuthHeaders();
 
     const balanceRes = await axios.get(
-      `${API_BASE_URL}/api/v1/itineraries/wallet-balance/${agentId}`,
+      `${API_BASE_URL}/itineraries/wallet-balance/${agentId}`,
       { headers }
     );
 
