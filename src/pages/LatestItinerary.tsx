@@ -36,6 +36,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 
 import { ItineraryService } from "@/services/itinerary";
+import { API_BASE_URL } from "@/lib/api";
 
 // ------------------------------------------------------------------
 // small local util (no date-fns)
@@ -661,7 +662,7 @@ export const LatestItinerary = () => {
                           onClick={() => {
                             // Download Excel export from NestJS backend
                             const planId = itinerary.id;
-                            const exportUrl = `http://localhost:3000/api/v1/itineraries/export/${planId}`;
+                            const exportUrl = `${API_BASE_URL}/itineraries/export/${planId}`;
                             window.open(exportUrl, '_blank');
                           }}
                           title="Download Excel"
