@@ -302,9 +302,9 @@ const defaultPreferredFor: GuidePreferredFor = {
 const makeDefaultPricebook = (): GuidePricebook => ({
   startDate: "",
   endDate: "",
-  pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
-  pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
-  pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
+  pax1to5: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+  pax6to14: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+  pax15to40: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
 });
 
 const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePricebook => {
@@ -371,9 +371,9 @@ export default function GuideFormPage() {
 
   // Pricebook price inputs — always empty (no pre-fill from DB, matching PHP)
   const [priceInputs, setPriceInputs] = useState({
-    pax1_slot1: "", pax1_slot2: "", pax1_slot3: "",
-    pax2_slot1: "", pax2_slot2: "", pax2_slot3: "",
-    pax3_slot1: "", pax3_slot2: "", pax3_slot3: "",
+    pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
+    pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
+    pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
   });
 
   // Pricebook display rows (fetched from backend for the per-day table)
@@ -934,9 +934,9 @@ export default function GuideFormPage() {
       });
       // Clear inputs (PHP behavior: clears all .amount fields after submit)
       setPriceInputs({
-        pax1_slot1: "", pax1_slot2: "", pax1_slot3: "",
-        pax2_slot1: "", pax2_slot2: "", pax2_slot3: "",
-        pax3_slot1: "", pax3_slot2: "", pax3_slot3: "",
+        pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
+        pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
+        pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
       });
       // Refresh the per-day display table
       await fetchPricebookDisplay();
@@ -1810,13 +1810,13 @@ export default function GuideFormPage() {
               {/* Price Input Grid — always empty, no pre-fill (PHP parity) */}
               <div className="space-y-4">
                 {/* 1-5 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">1-5 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1825,7 +1825,7 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1834,7 +1834,7 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1842,17 +1842,26 @@ export default function GuideFormPage() {
                       onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot3: e.target.value }))}
                     />
                   </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax1_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot4: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <hr className="my-1" />
 
                 {/* 6-14 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">6-14 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1861,7 +1870,7 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1870,7 +1879,7 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1878,17 +1887,26 @@ export default function GuideFormPage() {
                       onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot3: e.target.value }))}
                     />
                   </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax2_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot4: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 <hr className="my-1" />
 
                 {/* 15-40 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">15-40 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1897,7 +1915,7 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
@@ -1906,12 +1924,21 @@ export default function GuideFormPage() {
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
                       value={priceInputs.pax3_slot3}
                       onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot3: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax3_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot4: e.target.value }))}
                     />
                   </div>
                 </div>
@@ -1934,7 +1961,7 @@ export default function GuideFormPage() {
                 }
 
                 const PAX_LABELS = ["1-5 Pax", "6-14 Pax", "15-40 Pax"];
-                const SLOT_LABELS = ["9AM-1PM", "9AM-4PM", "6PM-9PM"];
+                const SLOT_LABELS = ["8AM-1PM", "1PM-6PM", "8AM-6PM", "6PM-9PM"];
 
                 const getPrice = (paxIdx: number, slotIdx: number, year: string, month: string, dayNum: number) => {
                   const row = pricebookDisplayRows.find(
@@ -1967,7 +1994,7 @@ export default function GuideFormPage() {
                         </thead>
                         <tbody>
                           {([1, 2, 3] as const).flatMap((pax) =>
-                            ([1, 2, 3] as const).map((slot) => (
+                            ([1, 2, 3, 4] as const).map((slot) => (
                               <tr key={`${pax}-${slot}`} className="even:bg-white odd:bg-gray-50">
                                 <td className="p-2 border border-gray-200 font-medium text-purple-700 whitespace-nowrap bg-gray-100">
                                   {PAX_LABELS[pax - 1]}
