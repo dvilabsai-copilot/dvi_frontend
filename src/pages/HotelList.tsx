@@ -81,6 +81,8 @@ type HotelListProps = {
   onLoadMore?: (groupType: number, routeId: number, nextPage: number) => void;
   /** Whether Load More is currently fetching */
   isLoadingMore?: boolean;
+  /** The itinerary-level meal plan code (CP/EP/MAP/AP) used when fetching hotels */
+  mealPlanCode?: string | null;
 };
 
 // Shape of each room item coming from /itineraries/hotel_room_details
@@ -112,6 +114,73 @@ type HotelRoomDetail = {
   [key: string]: any; // keep flexible – we only use a few fields
 };
 
+// Normalizes supplier/raw meal text into display labels.
+const normalizeMealPlanLabel = (value?: string | null): string => {
+  const mealPlanLabelByCode: Record<string, string> = {
+    CP: 'CP - Continental Plan (Breakfast only)',
+    EP: 'EP - European Plan (Room only)',
+    MAP: 'MAP - Modified American Plan (Breakfast + Lunch or Dinner)',
+    AP: 'AP - American Plan (Breakfast + Lunch + Dinner)',
+  };
+
+  const raw = String(value || '').trim();
+  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
+
+  const upper = raw.toUpperCase();
+  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
+  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
+  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
+  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
+
+  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
+  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
+
+  const hasBreakfast = upper.includes('BREAKFAST');
+  const hasLunch = upper.includes('LUNCH');
+  const hasDinner = upper.includes('DINNER');
+
+  if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
+  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
+  if (hasBreakfast) return mealPlanLabelByCode.CP;
+
+  return mealPlanLabelByCode.EP;
+};
+
+const normalizedLabelToCode = (label: string): string | null => {
+  const normalized = String(label || '').trim().toUpperCase();
+  if (normalized.startsWith('CP')) return 'CP';
+  if (normalized.startsWith('EP')) return 'EP';
+  if (normalized.startsWith('MAP')) return 'MAP';
+  if (normalized.startsWith('AP')) return 'AP';
+  return null;
+};
+
+const MEAL_CODE_LABEL: Record<string, string> = { CP: 'CP', EP: 'EP', MAP: 'MAP', AP: 'AP' };
+
+const MealPlanCell: React.FC<{ mealPlanText: string; selectedCode?: string | null }> = ({
+  mealPlanText,
+  selectedCode,
+}) => {
+  const text = normalizeMealPlanLabel(mealPlanText);
+  if (!selectedCode || selectedCode === '__ALL__') return <span>{text}</span>;
+  const roomCode = normalizedLabelToCode(text);
+  const matches = roomCode === selectedCode;
+  return (
+    <span className="flex items-center gap-1.5">
+      <span>{text}</span>
+      {matches ? (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300" title={`Matches selected plan: ${MEAL_CODE_LABEL[selectedCode]}`}>
+          ✓ {MEAL_CODE_LABEL[selectedCode]}
+        </span>
+      ) : (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-300" title={`Selected: ${MEAL_CODE_LABEL[selectedCode] ?? selectedCode}`}>
+          ⚠ {MEAL_CODE_LABEL[selectedCode] ?? selectedCode}
+        </span>
+      )}
+    </span>
+  );
+};
+
 const formatCurrency = (value: number | undefined | null): string => {
   const num = Number(value ?? 0);
   if (Number.isNaN(num)) return "₹ 0.00";
@@ -122,6 +191,30 @@ const formatCurrency = (value: number | undefined | null): string => {
       maximumFractionDigits: 2,
     })
   );
+};
+
+const normalizeHotelStarCategory = (value: unknown): number | null => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  // Handles labels like "3*", "4-Star", "5 star".
+  const starLabelMatch = raw.match(/([1-5])\s*(?:\*|STAR)?/i);
+  if (starLabelMatch) {
+    const parsed = Number(starLabelMatch[1]);
+    if (parsed >= 1 && parsed <= 5) return parsed;
+  }
+
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return null;
+  if (numeric >= 1 && numeric <= 5) return numeric;
+
+  // Some environments leak category IDs (e.g. 13, 14) for 3*/4*.
+  const lastDigit = Math.floor(numeric) % 10;
+  if (numeric >= 10 && numeric < 100 && lastDigit >= 1 && lastDigit <= 5) {
+    return lastDigit;
+  }
+
+  return null;
 };
 
 export const HotelList: React.FC<HotelListProps> = ({
@@ -145,6 +238,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   routePagination,
   onLoadMore,
   isLoadingMore = false,
+  mealPlanCode,
 }) => {
   const toNumber = (value: unknown, fallback = 0): number => {
     const parsed = Number(value);
@@ -1101,9 +1195,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                       </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {hotel.hotelName
-                          ? hotel.category
-                            ? `${hotel.hotelName} -${hotel.category}*`
-                            : hotel.hotelName
+                          ? (() => {
+                              const starCategory = normalizeHotelStarCategory(hotel.category);
+                              return starCategory
+                                ? `${hotel.hotelName} -${starCategory}*`
+                                : hotel.hotelName;
+                            })()
                           : "-"}
                       </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
@@ -1118,7 +1215,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                         </td>
                       )}
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between">
-                        <span>{hotel.mealPlan || "-"}</span>
+                        <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
                         {readOnly && onCreateVoucher && hotel.hotelId && hotel.hotelName && (
                           hotel.voucherCancelled ? (
                             <Button
@@ -1260,7 +1357,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         {hotel.hotelName}
                                       </h3>
                                       <p className="text-white/90 text-xs">
-                                        Category: {hotel.hotelCategory}*
+                                        Category: {normalizeHotelStarCategory(hotel.hotelCategory) ?? "-"}*
                                       </p>
                                     </div>
                                   </div>
@@ -1330,6 +1427,15 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         {hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0 
                                           ? hotel.availableRoomTypes[0].roomTypeTitle 
                                           : "Not Available"}
+                                      </p>
+                                    </div>
+
+                                    <div className="mb-3">
+                                      <label className="block text-xs font-medium text-[#4a4260] mb-1">
+                                        Meal Type
+                                      </label>
+                                      <p className="text-sm text-[#4a4260] font-medium">
+                                        {normalizeMealPlanLabel(hotel.mealPlan)}
                                       </p>
                                     </div>
 
