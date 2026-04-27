@@ -300,7 +300,7 @@ export const CreateItinerary = () => {
   const [guideRequired, setGuideRequired] = useState("");
   const [nationality, setNationality] = useState("");
   const [foodPreference, setFoodPreference] = useState(""); // ✅ store option id string
-  const [mealPlanCode, setMealPlanCode] = useState<string>("CP");
+  const [mealPlanCode, setMealPlanCode] = useState<string>("__ALL__");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
@@ -609,13 +609,16 @@ useEffect(() => {
             // ✅ foodPreference state holds option id
             setFoodPreference(p.food_type != null ? String(p.food_type) : "");
 
-            const matchedMealPlan = (mealPlansRes || []).find(
-              (mp) =>
-                Number(mp.includesBreakfast) === Number(p.meal_plan_breakfast ?? 0) &&
-                Number(mp.includesLunch) === Number(p.meal_plan_lunch ?? 0) &&
-                Number(mp.includesDinner) === Number(p.meal_plan_dinner ?? 0)
-            );
-            setMealPlanCode(matchedMealPlan?.code || "CP");
+            const mealPlanCodeFromPlan = typeof p.meal_plan_code === "string" ? p.meal_plan_code : "";
+            const matchedMealPlan = mealPlanCodeFromPlan
+              ? (mealPlansRes || []).find((mp) => mp.code === mealPlanCodeFromPlan)
+              : (mealPlansRes || []).find(
+                  (mp) =>
+                    Number(mp.includesBreakfast) === Number(p.meal_plan_breakfast ?? 0) &&
+                    Number(mp.includesLunch) === Number(p.meal_plan_lunch ?? 0) &&
+                    Number(mp.includesDinner) === Number(p.meal_plan_dinner ?? 0)
+                );
+            setMealPlanCode(matchedMealPlan?.code || mealPlanCodeFromPlan || "__ALL__");
 
 
 
@@ -731,13 +734,16 @@ useEffect(() => {
           );
           setNationality(plan.nationality != null ? String(plan.nationality) : "");
           setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
-          const matchedMealPlan = (mealPlanOptions || []).find(
-            (mp) =>
-              Number(mp.includesBreakfast) === Number(plan.meal_plan_breakfast ?? 0) &&
-              Number(mp.includesLunch) === Number(plan.meal_plan_lunch ?? 0) &&
-              Number(mp.includesDinner) === Number(plan.meal_plan_dinner ?? 0)
-          );
-          setMealPlanCode(matchedMealPlan?.code || "CP");
+          const mealPlanCodeFromPlan = typeof plan.meal_plan_code === "string" ? plan.meal_plan_code : "";
+          const matchedMealPlan = mealPlanCodeFromPlan
+            ? (mealPlanOptions || []).find((mp) => mp.code === mealPlanCodeFromPlan)
+            : (mealPlanOptions || []).find(
+                (mp) =>
+                  Number(mp.includesBreakfast) === Number(plan.meal_plan_breakfast ?? 0) &&
+                  Number(mp.includesLunch) === Number(plan.meal_plan_lunch ?? 0) &&
+                  Number(mp.includesDinner) === Number(plan.meal_plan_dinner ?? 0)
+              );
+          setMealPlanCode(matchedMealPlan?.code || mealPlanCodeFromPlan || "__ALL__");
           setBudget(plan.expecting_budget ?? "");
           setSpecialInstructions(plan.special_instructions ?? "");
           setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
@@ -1193,10 +1199,12 @@ const buildPayload = () => {
       : [];
 
   const food_type_id = resolveOptionId(foodPreference, foodPreferences);
-  const selectedMealPlan = mealPlanOptions.find((p) => p.code === mealPlanCode);
-  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 1) ? 1 : 0;
+  const normalizedMealPlanCode = mealPlanCode === "__ALL__" ? "" : mealPlanCode;
+  const selectedMealPlan = mealPlanOptions.find((p) => p.code === normalizedMealPlanCode);
+  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 0) ? 1 : 0;
   const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
   const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
+  const meal_plan_code = normalizedMealPlanCode || selectedMealPlan?.code || undefined;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
@@ -1244,6 +1252,7 @@ const buildPayload = () => {
     nationality: nationality ? Number(nationality) : 0,
 
     food_type: food_type_id,
+    meal_plan_code,
     meal_plan_breakfast,
     meal_plan_lunch,
     meal_plan_dinner,

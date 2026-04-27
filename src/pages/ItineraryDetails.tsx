@@ -206,6 +206,37 @@ type HotelAvailabilityMeta = {
   message: string;
 };
 
+const normalizeMealPlanLabel = (value?: string | null): string => {
+  const mealPlanLabelByCode: Record<string, string> = {
+    CP: 'CP - Continental Plan (Breakfast only)',
+    EP: 'EP - European Plan (Room only)',
+    MAP: 'MAP - Modified American Plan (Breakfast + Lunch or Dinner)',
+    AP: 'AP - American Plan (Breakfast + Lunch + Dinner)',
+  };
+
+  const raw = String(value || '').trim();
+  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
+
+  const upper = raw.toUpperCase();
+  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
+  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
+  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
+  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
+
+  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
+  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
+
+  const hasBreakfast = upper.includes('BREAKFAST');
+  const hasLunch = upper.includes('LUNCH');
+  const hasDinner = upper.includes('DINNER');
+
+  if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
+  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
+  if (hasBreakfast) return mealPlanLabelByCode.CP;
+
+  return mealPlanLabelByCode.EP;
+};
+
 // --------- VEHICLES ---------
 
 type VehicleCostBreakdownItem = {
@@ -309,6 +340,7 @@ type ItineraryDetailsResponse = {
   children: number;
   infants: number;
   overallCost: string | number; // API is giving "15000.00"
+  meal_plan_code?: string | null;
 
   days: ItineraryDay[];
 
@@ -1935,7 +1967,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     : ""
                   }
                     <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.mealPlan)}
+                      ${escapeHtml(normalizeMealPlanLabel(hotel.mealPlan))}
                     </td>
                   </tr>
                 `;
@@ -2102,7 +2134,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         const hotelLines = group.hotels
           .map(
             (hotel, index) =>
-              `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan}`
+              `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${normalizeMealPlanLabel(hotel.mealPlan)}`
           )
           .join("\n");
 
@@ -5227,6 +5259,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             routePagination={hotelDetails.routePagination}
             onLoadMore={handleHotelLoadMore}
             isLoadingMore={isLoadingMoreHotels}
+            mealPlanCode={itinerary?.meal_plan_code}
             dayDestinationFallback={
               itinerary?.days?.reduce<Record<number, string>>((acc, day) => {
                 const fallback = String(day.arrival || day.departure || '').trim();
