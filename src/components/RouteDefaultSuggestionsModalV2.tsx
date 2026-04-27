@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { api } from '@/lib/api';
 
 interface DayDetail {
   dayNo: number;
@@ -77,28 +78,16 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
     setRoutes([]);
 
     try {
-      const response = await fetch(
-        'http://127.0.0.1:4006/api/v1/itineraries/default-route-suggestions/v2',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            _no_of_route_days: noOfDays,
-            _arrival_location: arrivalLocation,
-            _departure_location: departureLocation,
-            _formattedStartDate: startDate,
-            _formattedEndDate: endDate,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch routes: ${response.statusText}`);
-      }
-
-      const data: RouteResponse = await response.json();
+      const data = await api('/itineraries/default-route-suggestions/v2', {
+  method: 'POST',
+  body: {
+    _no_of_route_days: noOfDays,
+    _arrival_location: arrivalLocation,
+    _departure_location: departureLocation,
+    _formattedStartDate: startDate,
+    _formattedEndDate: endDate,
+  },
+}) as RouteResponse;
 
       if (data.success && data.routes && data.routes.length > 0) {
         setRoutes(data.routes);
