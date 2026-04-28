@@ -785,14 +785,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
         align="start"
         className="max-h-56 overflow-y-auto"
       >
-{itineraryTypes.map((item) => (
+       {itineraryTypes.map((item) => (
   <SelectItem key={item.id} value={String(item.id)}>
     {item.label?.trim().toLowerCase() === "default"
       ? "Suggested Routes"
       : item.label}
   </SelectItem>
 ))}
-            
+
       </SelectContent>
     </Select>
     {validationErrors?.itineraryTypeSelect && (
@@ -989,6 +989,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
                 align="start"
                 className="max-h-56 overflow-y-auto"
               >
+                <SelectItem value="__ALL__">All Meal Plans</SelectItem>
                 {mealPlanOptions.map((item) => (
                   <SelectItem key={item.code} value={item.code}>
                     {item.description
