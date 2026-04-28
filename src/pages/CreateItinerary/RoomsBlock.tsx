@@ -47,6 +47,7 @@ const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }
 ];
 
 const MAX_ADULTS_PER_ROOM = 3;
+const MAX_ROOMS = 6;
 
 export const RoomsBlock = ({
   itineraryPreference,
@@ -172,6 +173,13 @@ export const RoomsBlock = ({
 
   const handleTotalRoomsChange = (value: number) => {
     if (!Number.isFinite(value) || value < 1) value = 1;
+    if (value > MAX_ROOMS) {
+      toast({
+        title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
+        variant: "destructive",
+      });
+      value = MAX_ROOMS;
+    }
 
     setRooms((prev) => {
       const current = [...prev];
@@ -498,11 +506,13 @@ export const RoomsBlock = ({
     <Input
       type="number"
       min={1}
+      max={MAX_ROOMS}
       className="w-16 h-8 bg-white"
       value={targetRoomCount}
       onChange={(e) => {
         const value = Number(e.target.value);
-        setTargetRoomCount(Number.isFinite(value) && value > 0 ? value : 1);
+        const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
+        setTargetRoomCount(Math.min(safeValue, MAX_ROOMS));
       }}
     />
 
