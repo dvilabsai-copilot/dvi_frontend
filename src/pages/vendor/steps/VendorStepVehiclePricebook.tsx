@@ -1,7 +1,7 @@
 // FILE: src/pages/vendor/steps/VendorStepVehiclePricebook.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Calendar as CalendarIcon } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
 import { format, isValid, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { Option } from "../vendorFormTypes";
 
 type Props = {
@@ -84,6 +86,209 @@ const PricebookDatePicker = ({
   );
 };
 
+const VehicleTypeMultiSelect = ({
+  options,
+  selected,
+  onChange,
+  placeholder = "Choose Vehicle Type",
+}: {
+  options: Option[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    function handlePointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocusedIndex(-1);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    if (!open || focusedIndex < 0 || !listRef.current) return;
+    const item = listRef.current.querySelectorAll<HTMLLIElement>("li")[focusedIndex];
+    item?.scrollIntoView({ block: "nearest" });
+  }, [focusedIndex, open]);
+
+  useEffect(() => {
+    if (open) setFocusedIndex(-1);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const unselectedCount = options.filter((o) => !selected.includes(o.id)).length;
+    setFocusedIndex((index) =>
+      index >= unselectedCount ? Math.max(0, unselectedCount - 1) : index,
+    );
+  }, [selected, open, options]);
+
+  const toggleOption = (id: string) => {
+    if (selected.includes(id)) {
+      onChange(selected.filter((value) => value !== id));
+      return;
+    }
+    onChange([...selected, id]);
+  };
+
+  const removeChip = (id: string) => {
+    onChange(selected.filter((value) => value !== id));
+    setOpen(true);
+    setFocusedIndex(-1);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const unselected = options.filter((o) => !selected.includes(o.id));
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else {
+          setFocusedIndex((index) => Math.min(index + 1, unselected.length - 1));
+        }
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        if (open) {
+          setFocusedIndex((index) => Math.max(index - 1, 0));
+        }
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else if (focusedIndex >= 0 && focusedIndex < unselected.length) {
+          toggleOption(unselected[focusedIndex].id);
+        }
+        break;
+      case "Backspace":
+      case "Delete":
+        if (selected.length > 0) {
+          onChange(selected.slice(0, -1));
+          setOpen(true);
+          setFocusedIndex(-1);
+        }
+        break;
+      case "Tab":
+      case "Escape":
+        setOpen(false);
+        setFocusedIndex(-1);
+        break;
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-activedescendant={
+          focusedIndex >= 0
+            ? `vehicle-type-opt-${options.filter((o) => !selected.includes(o.id))[focusedIndex]?.id}`
+            : undefined
+        }
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onClick={() => {
+          setOpen((value) => !value);
+          if (!open) setFocusedIndex(-1);
+        }}
+        className={cn(
+          "flex min-h-[38px] w-full cursor-pointer flex-wrap items-center gap-1 rounded-md border bg-white px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary",
+          "border-input",
+          open && "border-primary ring-1 ring-primary",
+        )}
+      >
+        {selected.length === 0 && (
+          <span className="text-muted-foreground">{placeholder}</span>
+        )}
+        {selected.map((id) => {
+          const opt = options.find((o) => o.id === id);
+          return (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs font-medium text-white"
+            >
+              {opt?.label ?? id}
+              <button
+                type="button"
+                aria-label={`Remove ${opt?.label ?? id}`}
+                tabIndex={-1}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  removeChip(id);
+                }}
+                className="ml-0.5 rounded-full hover:bg-white/20 focus:outline-none"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        })}
+        <ChevronDown
+          className={cn(
+            "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150",
+            open && "rotate-180",
+          )}
+        />
+      </div>
+
+      {open && (() => {
+        const unselected = options.filter((o) => !selected.includes(o.id));
+        if (unselected.length === 0) return null;
+
+        return (
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-multiselectable="true"
+            className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border bg-white shadow-md"
+          >
+            {unselected.map((opt, index) => {
+              const isFocused = focusedIndex === index;
+              return (
+                <li
+                  key={opt.id}
+                  id={`vehicle-type-opt-${opt.id}`}
+                  role="option"
+                  aria-selected={false}
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setFocusedIndex(index);
+                    toggleOption(opt.id);
+                    setOpen(true);
+                  }}
+                  onPointerEnter={() => setFocusedIndex(index)}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center px-3 py-2 text-sm transition-colors",
+                    isFocused ? "bg-primary text-white" : "text-gray-800 hover:bg-primary/10",
+                  )}
+                >
+                  {opt.label}
+                </li>
+              );
+            })}
+          </ul>
+        );
+      })()}
+    </div>
+  );
+};
+
 export const VendorStepVehiclePricebook: React.FC<Props> = ({
   vendorId,
   onBack,
@@ -117,12 +322,15 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   const [localEndDate, setLocalEndDate] = useState("");
   const [outstationStartDate, setOutstationStartDate] = useState("");
   const [outstationEndDate, setOutstationEndDate] = useState("");
+  const [localVehicleFilter, setLocalVehicleFilter] = useState("all");
+  const [outstationVehicleFilter, setOutstationVehicleFilter] = useState("all");
   const [localPreview, setLocalPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_title: string; time_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
+  const [outstationPreview, setOutstationPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_title: string; kms_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
 
   // ----- Local KM Limit modal -----
   const [localKmOpen, setLocalKmOpen] = useState(false);
   const [localKmForm, setLocalKmForm] = useState({
-    vehicleType: "",
+    vehicleTypes: [] as string[],
     title: "",
     hours: "",
     kmLimit: "",
@@ -131,10 +339,18 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   // ----- Outstation KM Limit modal -----
   const [outKmOpen, setOutKmOpen] = useState(false);
   const [outKmForm, setOutKmForm] = useState({
-    vehicleType: "",
+    vehicleTypes: [] as string[],
     title: "",
     kmLimit: "",
   });
+
+  // ----- Delete confirm -----
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    open: boolean;
+    type: "local" | "outstation" | null;
+    id: number | null;
+    label: string;
+  }>({ open: false, type: null, id: null, label: "" });
 
   useEffect(() => {
     if (vendorId) {
@@ -164,6 +380,28 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
 
     loadPreview();
   }, [vendorId, localStartDate, localEndDate]);
+
+  useEffect(() => {
+    if (!vendorId) return;
+
+    const loadPreview = async () => {
+      if (!outstationStartDate || !outstationEndDate) {
+        setOutstationPreview({ days: [], rows: [] });
+        return;
+      }
+
+      try {
+        const preview = (await api(
+          `/vendors/${vendorId}/pricebook/outstation/preview?startDate=${encodeURIComponent(outstationStartDate)}&endDate=${encodeURIComponent(outstationEndDate)}`,
+        )) as any;
+        setOutstationPreview(preview ?? { days: [], rows: [] });
+      } catch (e) {
+        console.error("Failed to load outstation pricebook preview", e);
+      }
+    };
+
+    loadPreview();
+  }, [vendorId, outstationStartDate, outstationEndDate]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -198,6 +436,22 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         driver_evening_charges: String(dc.driver_evening_charges ?? dc.evening_charges ?? 0),
       }));
 
+      const vendorTypeMap = new Map<string, Option>();
+      (dcRes as any[]).forEach((r: any) => {
+        const id = String(r.vehicle_type_id ?? "");
+        if (!id) return;
+        if (!vendorTypeMap.has(id)) {
+          vendorTypeMap.set(id, {
+            id,
+            label: String(r.vehicle_type_title ?? r.vehicle_type_name ?? id),
+          });
+        }
+      });
+      const vendorTypeOptions = Array.from(vendorTypeMap.values());
+      if (vendorTypeOptions.length > 0) {
+        setVehicleTypeOptions(vendorTypeOptions);
+      }
+
       setDriverCosts(dcRes as any[]);
       setEditableDriverRows(normalizedDriverRows);
       setVehicleExtraRows(
@@ -230,20 +484,8 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
 
   const fetchDropdowns = async () => {
     try {
-      const [vtRes, gpRes] = await Promise.all([
-        api("/dropdowns/vehicle-types"),
-        api("/dropdowns/gst-percentages"),
-      ]);
-
-      const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+      const gpRes = await api("/dropdowns/gst-percentages");
       const gstItems = ((gpRes as any)?.items ?? gpRes ?? []) as any[];
-
-      setVehicleTypeOptions(
-        vehicleItems.map((v: any) => ({
-          id: String(v.id ?? v.vehicle_type_id ?? ""),
-          label: String(v.label ?? v.name ?? v.vehicle_type_title ?? ""),
-        }))
-      );
 
       setGstPercentOptions(
         gstItems.map((g: any) => ({
@@ -365,32 +607,34 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   }, [vehicleExtraRows]);
 
   const handleLocalKmChange = (
-    field: keyof typeof localKmForm,
+    field: keyof Omit<typeof localKmForm, "vehicleTypes">,
     value: string
   ) => {
     setLocalKmForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleOutKmChange = (field: keyof typeof outKmForm, value: string) => {
+  const handleOutKmChange = (field: keyof Omit<typeof outKmForm, "vehicleTypes">, value: string) => {
     setOutKmForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleLocalKmSave = async () => {
-    if (!vendorId || !localKmForm.vehicleType) return;
+    if (!vendorId || localKmForm.vehicleTypes.length === 0) return;
     setSaving(true);
     try {
-      await api(`/vendors/${vendorId}/local-km-limits`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(localKmForm.vehicleType),
-          loc_km_title: localKmForm.title,
-          loc_km_hour: Number(localKmForm.hours || 0),
-          loc_km_limit: Number(localKmForm.kmLimit || 0),
-          status: 1,
-        }),
-      });
+      for (const vtId of localKmForm.vehicleTypes) {
+        await api(`/vendors/${vendorId}/local-km-limits`, {
+          method: "POST",
+          body: JSON.stringify({
+            vehicle_type_id: Number(vtId),
+            loc_km_title: localKmForm.title,
+            loc_km_hour: Number(localKmForm.hours || 0),
+            loc_km_limit: Number(localKmForm.kmLimit || 0),
+            status: 1,
+          }),
+        });
+      }
       setLocalKmOpen(false);
-      setLocalKmForm({ vehicleType: "", title: "", hours: "", kmLimit: "" });
+      setLocalKmForm({ vehicleTypes: [], title: "", hours: "", kmLimit: "" });
       await fetchData();
     } catch (e) {
       console.error("Failed to save local KM limit", e);
@@ -400,20 +644,22 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   };
 
   const handleOutKmSave = async () => {
-    if (!vendorId || !outKmForm.vehicleType) return;
+    if (!vendorId || outKmForm.vehicleTypes.length === 0) return;
     setSaving(true);
     try {
-      await api(`/vendors/${vendorId}/outstation-km-limits`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(outKmForm.vehicleType),
-          out_km_title: outKmForm.title,
-          out_km_limit: Number(outKmForm.kmLimit || 0),
-          status: 1,
-        }),
-      });
+      for (const vtId of outKmForm.vehicleTypes) {
+        await api(`/vendors/${vendorId}/outstation-km-limits`, {
+          method: "POST",
+          body: JSON.stringify({
+            vehicle_type_id: Number(vtId),
+            out_km_title: outKmForm.title,
+            out_km_limit: Number(outKmForm.kmLimit || 0),
+            status: 1,
+          }),
+        });
+      }
       setOutKmOpen(false);
-      setOutKmForm({ vehicleType: "", title: "", kmLimit: "" });
+      setOutKmForm({ vehicleTypes: [], title: "", kmLimit: "" });
       await fetchData();
     } catch (e) {
       console.error("Failed to save outstation KM limit", e);
@@ -422,22 +668,77 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
     }
   };
 
+  const handleDeleteKmLimit = async () => {
+    if (!vendorId || !deleteConfirm.type || !deleteConfirm.id) return;
+    const pendingDelete = { ...deleteConfirm };
+    setSaving(true);
+    try {
+      const endpoint = pendingDelete.type === "local"
+        ? `/vendors/${vendorId}/local-km-limits`
+        : `/vendors/${vendorId}/outstation-km-limits`;
+      const body = pendingDelete.type === "local"
+        ? {
+            loc_km_id: pendingDelete.id,
+            deleted: 1,
+            status: 0,
+          }
+        : {
+            out_km_id: pendingDelete.id,
+            deleted: 1,
+            status: 0,
+          };
+      await api(endpoint, { method: "POST", body: JSON.stringify(body) });
+      setDeleteConfirm({ open: false, type: null, id: null, label: "" });
+      toast.success("KM limit deleted successfully");
+      await fetchData();
+    } catch (e) {
+      console.error("Failed to delete KM limit", e);
+      toast.error("Failed to delete KM limit. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const groupedLocalRows = useMemo(() => {
-    return localFormRows.reduce((acc: Record<string, any[]>, row: any) => {
+    const filtered = localVehicleFilter === "all"
+      ? localFormRows
+      : localFormRows.filter((r: any) => String(r.vehicle_type_id) === localVehicleFilter);
+    return filtered.reduce((acc: Record<string, any[]>, row: any) => {
       const k = `${row.vendor_branch_id}:${row.vendor_branch_name || ""}`;
       if (!acc[k]) acc[k] = [];
       acc[k].push(row);
       return acc;
     }, {});
-  }, [localFormRows]);
+  }, [localFormRows, localVehicleFilter]);
 
   const groupedOutstationRows = useMemo(() => {
-    return outstationFormRows.reduce((acc: Record<string, any[]>, row: any) => {
+    const filtered = outstationVehicleFilter === "all"
+      ? outstationFormRows
+      : outstationFormRows.filter((r: any) => String(r.vehicle_type_id) === outstationVehicleFilter);
+    return filtered.reduce((acc: Record<string, any[]>, row: any) => {
       const k = `${row.vendor_branch_id}:${row.vendor_branch_name || ""}`;
       if (!acc[k]) acc[k] = [];
       acc[k].push(row);
       return acc;
     }, {});
+  }, [outstationFormRows, outstationVehicleFilter]);
+
+  const localVehicleTypeOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    localFormRows.forEach((r: any) => {
+      const id = String(r.vehicle_type_id ?? "");
+      if (id && !seen.has(id)) seen.set(id, String(r.vehicle_type_title ?? id));
+    });
+    return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
+  }, [localFormRows]);
+
+  const outstationVehicleTypeOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    outstationFormRows.forEach((r: any) => {
+      const id = String(r.vehicle_type_id ?? "");
+      if (id && !seen.has(id)) seen.set(id, String(r.vehicle_type_title ?? id));
+    });
+    return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
   }, [outstationFormRows]);
 
   const rowKey = (r: any, type: "local" | "out") =>
@@ -748,6 +1049,43 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                 );
               })
             )}
+
+            {outstationStartDate && outstationEndDate && (
+              <div className="mt-5 overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Vehicle Type</th>
+                      <th className="px-3 py-2 text-left">KM Limit</th>
+                      {outstationPreview.days.map((d) => (
+                        <th key={d.key} className="px-3 py-2 text-center whitespace-nowrap">{d.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {outstationPreview.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={Math.max(3, outstationPreview.days.length + 2)} className="px-4 py-4 text-center text-gray-500">
+                          No data found
+                        </td>
+                      </tr>
+                    ) : (
+                      outstationPreview.rows.map((r, i) => (
+                        <tr key={`${r.vehicle_type_title}-${r.kms_limit_title}-${i}`}>
+                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.vehicle_type_title}</td>
+                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.kms_limit_title}</td>
+                          {r.prices.map((p, pi) => (
+                            <td key={`${i}-${pi}`} className="px-3 py-2 border-b border-gray-100 text-center">
+                              {p == null ? "No Price" : `INR ${p.toFixed(2)}`}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {/* ========== Local Pricebook (PHP parity) ========== */}
@@ -757,6 +1095,17 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                 Vehicle Rental Cost Details | Local Pricebook
               </h2>
               <div className="flex items-center gap-3">
+                <Select value={localVehicleFilter} onValueChange={setLocalVehicleFilter}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="All Vehicle Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Vehicle Types</SelectItem>
+                    {localVehicleTypeOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   className="bg-purple-100 px-6 text-sm font-semibold text-purple-700 hover:bg-purple-200"
@@ -800,7 +1149,15 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                       {rows.map((r: any) => {
                         const k = rowKey(r, "local");
                         return (
-                          <div key={k} className="grid grid-cols-3 gap-3 rounded-md border border-gray-100 p-3">
+                          <div key={k} className="relative grid grid-cols-3 gap-3 rounded-md border border-gray-100 p-3">
+                            <button
+                              type="button"
+                              className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200"
+                              title="Delete this KM limit"
+                              onClick={() => setDeleteConfirm({ open: true, type: "local", id: r.time_limit_id, label: `${r.vehicle_type_title} — ${r.time_limit_title}` })}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                             <div>
                               <Label className="text-xs">Vehicle Type</Label>
                               <p className="text-sm text-purple-600">{r.vehicle_type_title}</p>
@@ -873,6 +1230,17 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                 Vehicle Rental Cost Details | Outstation Pricebook
               </h2>
               <div className="flex items-center gap-3">
+                <Select value={outstationVehicleFilter} onValueChange={setOutstationVehicleFilter}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="All Vehicle Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Vehicle Types</SelectItem>
+                    {outstationVehicleTypeOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   className="bg-purple-100 px-6 text-sm font-semibold text-purple-700 hover:bg-purple-200"
@@ -916,7 +1284,15 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                       {rows.map((r: any) => {
                         const k = rowKey(r, "out");
                         return (
-                          <div key={k} className="grid grid-cols-3 gap-3 rounded-md border border-gray-100 p-3">
+                          <div key={k} className="relative grid grid-cols-3 gap-3 rounded-md border border-gray-100 p-3">
+                            <button
+                              type="button"
+                              className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200"
+                              title="Delete this KM limit"
+                              onClick={() => setDeleteConfirm({ open: true, type: "outstation", id: r.kms_limit_id, label: `${r.vehicle_type_title} — ${r.kms_limit_title ?? r.kms_limit + " KM"}` })}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                             <div>
                               <Label className="text-xs">Vehicle Type</Label>
                               <p className="text-sm text-purple-600">{r.vehicle_type_title}</p>
@@ -962,6 +1338,26 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         </CardContent>
       </Card>
 
+      {/* ========== Delete Confirm Dialog ========== */}
+      <Dialog open={deleteConfirm.open} onOpenChange={(open) => !open && setDeleteConfirm({ open: false, type: null, id: null, label: "" })}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Delete KM Limit</DialogTitle>
+          </DialogHeader>
+          <p className="mt-2 text-sm text-gray-700">
+            Are you sure you want to delete <strong>{deleteConfirm.label}</strong>? This action cannot be undone.
+          </p>
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setDeleteConfirm({ open: false, type: null, id: null, label: "" })}>
+              Cancel
+            </Button>
+            <Button type="button" className="bg-red-500 text-white hover:bg-red-600" onClick={handleDeleteKmLimit} disabled={saving}>
+              {saving ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ========== Local KM Limit Modal ========== */}
       <Dialog open={localKmOpen} onOpenChange={setLocalKmOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -974,21 +1370,12 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
               <Label>
                 Vehicle type <span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={localKmForm.vehicleType}
-                onValueChange={(v) => handleLocalKmChange("vehicleType", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose Vehicle Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicleTypeOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <VehicleTypeMultiSelect
+                options={vehicleTypeOptions}
+                selected={localKmForm.vehicleTypes}
+                onChange={(vehicleTypes) => setLocalKmForm((prev) => ({ ...prev, vehicleTypes }))}
+                placeholder="Choose Vehicle Type"
+              />
             </div>
 
             <div className="space-y-1">
@@ -1055,7 +1442,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       <Dialog open={outKmOpen} onOpenChange={setOutKmOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Update Outstation KM Limit</DialogTitle>
+            <DialogTitle>Add Outstation KM Limit</DialogTitle>
           </DialogHeader>
 
           <div className="mt-2 space-y-4">
@@ -1063,21 +1450,12 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
               <Label>
                 Vehicle type <span className="text-red-500">*</span>
               </Label>
-              <Select
-                value={outKmForm.vehicleType}
-                onValueChange={(v) => handleOutKmChange("vehicleType", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose Vehicle Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicleTypeOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <VehicleTypeMultiSelect
+                options={vehicleTypeOptions}
+                selected={outKmForm.vehicleTypes}
+                onChange={(vehicleTypes) => setOutKmForm((prev) => ({ ...prev, vehicleTypes }))}
+                placeholder="Choose Vehicle Type"
+              />
             </div>
 
             <div className="space-y-1">
