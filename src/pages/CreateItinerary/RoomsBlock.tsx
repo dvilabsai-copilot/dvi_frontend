@@ -189,7 +189,8 @@ export const RoomsBlock = ({
             children: 0,
             infants: 0,
             roomCount: 1,
-          });
+           childrenDetails: [],
+        });
         }
         return current;
       }

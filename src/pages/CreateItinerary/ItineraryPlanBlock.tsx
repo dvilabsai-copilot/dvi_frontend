@@ -31,14 +31,14 @@ import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-type RoomRow = {
-  id: number;
-  adults: number;
-  children: number;
-  infants: number;
-  roomCount: number;
-};
+import type { RoomRow } from "./helpers/useRoomsAndTravellers";
+// type RoomRow = {
+//   id: number;
+//   adults: number;
+//   children: number;
+//   infants: number;
+//   roomCount: number;
+// };
 
 type ItineraryPlanBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
@@ -785,11 +785,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
         align="start"
         className="max-h-56 overflow-y-auto"
       >
-        {itineraryTypes.map((item) => (
-          <SelectItem key={item.id} value={String(item.id)}>
-            {item.label}
-          </SelectItem>
-        ))}
+{itineraryTypes.map((item) => (
+  <SelectItem key={item.id} value={String(item.id)}>
+    {item.label?.trim().toLowerCase() === "default"
+      ? "Suggested Routes"
+      : item.label}
+  </SelectItem>
+))}
+            
       </SelectContent>
     </Select>
     {validationErrors?.itineraryTypeSelect && (
