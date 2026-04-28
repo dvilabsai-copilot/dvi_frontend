@@ -183,12 +183,13 @@ export const RoomsBlock = ({
         const toAdd = value - current.length;
         for (let i = 0; i < toAdd; i++) {
           lastId += 1;
-          current.push({
+        current.push({
             id: lastId,
             adults: 1,
             children: 0,
             infants: 0,
             roomCount: 1,
+            childrenDetails: [],
           });
         }
         return current;
