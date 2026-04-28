@@ -76,11 +76,18 @@ export const AutoSuggestSelect = forwardRef<
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(
-      (opt) =>
-        opt.label.toLowerCase().includes(q) ||
-        opt.value.toLowerCase().includes(q)
-    );
+    
+    // Support searching by individual words (e.g., "arab" in "United Arab Emirates")
+    const searchTerms = q.split(/\s+/).filter(Boolean);
+    
+    return options.filter((opt) => {
+      const label = opt.label.toLowerCase();
+      const value = opt.value.toLowerCase();
+      const combined = `${label} ${value}`.toLowerCase();
+      
+      // Check if all search terms are found in label, value, or combined
+      return searchTerms.every(term => combined.includes(term));
+    });
   }, [options, query]);
 
   useEffect(() => {
