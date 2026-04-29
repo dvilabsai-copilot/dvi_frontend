@@ -29,6 +29,7 @@ type AutoSuggestSelectProps = {
   disabled?: boolean;
   readOnly?: boolean;
   scrollToValue?: string;
+  openOnFocus?: boolean;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -47,6 +48,7 @@ export const AutoSuggestSelect = forwardRef<
       disabled = false,
       readOnly = false,
       scrollToValue,
+      openOnFocus = true,
     },
     ref
   ) => {
@@ -262,8 +264,8 @@ useEffect(() => {
         onClick={openDropdown}
         onKeyDown={handleTriggerKeyDown}
         onFocus={() => {
-          // When tabbing into the field, open suggestions (unless disabled)
-          if (!open && !disabled && !readOnly) openDropdown();
+          // Allow consumers to control whether focus should auto-open options.
+          if (openOnFocus && !open && !disabled && !readOnly) openDropdown();
         }}
       >
         <span className={triggerText ? "" : "text-muted-foreground"}>

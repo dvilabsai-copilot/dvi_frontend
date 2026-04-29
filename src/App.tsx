@@ -50,6 +50,7 @@ import GuideFormPage from "./pages/guide/GuideFormPage";
 import GuidePreview from "./pages/guide/GuidePreview";
 import ActivityPreviewPage from "./pages/activity/ActivityPreviewPage";
 import LocationsPage from "./pages/locations/LocationsPage";
+import TollChargePage from "./pages/locations/TollChargePage";
 import LocationsPreviewPage from "./pages/locations/LocationsPreviewPage";
 import StaffListPage from "./pages/staff/StaffListPage";
 import StaffFormPage from "./pages/staff/StaffFormPage";
@@ -642,6 +643,15 @@ const App = () => (
               element={
                 <MainLayout>
                   <LocationsPage />
+                </MainLayout>
+              }
+            />
+
+            <Route
+              path="/toll-charge"
+              element={
+                <MainLayout>
+                  <TollChargePage />
                 </MainLayout>
               }
             />
