@@ -7,7 +7,9 @@ function computeFileBase(apiBase: string): string {
   s = s.replace(/\/api(?:\/v\d+)?$/i, "");
   return s;
 }
-const FILE_BASE = computeFileBase(API_BASE_URL);
+const FILE_BASE = computeFileBase(
+  import.meta.env.VITE_FILE_BASE_URL || API_BASE_URL
+);
 
 /** Build query string without external deps (arrays -> repeated keys) */
 function toQuery(params?: Record<string, any>) {
