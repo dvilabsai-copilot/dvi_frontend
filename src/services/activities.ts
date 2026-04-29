@@ -7,7 +7,14 @@ function computeFileBase(apiBase: string): string {
   s = s.replace(/\/api(?:\/v\d+)?$/i, "");
   return s;
 }
-const FILE_BASE = computeFileBase(API_BASE_URL);
+// const FILE_BASE = computeFileBase(API_BASE_URL);
+const FILE_BASE =
+  (import.meta.env.VITE_FILE_BASE_URL ||
+    import.meta.env.VITE_API_DVI_BASE_URL ||
+    "")
+    .replace(/\/api\/v1\/?$/, "")
+    .replace(/\/$/, "");
+
 
 /** Build query string without external deps (arrays -> repeated keys) */
 function toQuery(params?: Record<string, any>) {
@@ -270,6 +277,6 @@ export const ActivitiesAPI = {
     request<PreviewPayload>(`/activities/${id}/preview`, { method: "GET" }),
 
   /** Image file base URL for rendering uploaded activity images */
-  // imageBase: () => `${FILE_BASE}/uploads/activity_gallery`,
-  imageBase: () => `https://dvi.travel/uploads/activity_gallery`,
+  imageBase: () => `${FILE_BASE}/uploads/activity_gallery`,
+  // imageBase: () => `https://dvi.travel/uploads/activity_gallery`,
 };
