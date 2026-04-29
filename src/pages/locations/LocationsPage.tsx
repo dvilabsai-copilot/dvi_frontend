@@ -14,6 +14,7 @@ import { EditLocationDialog } from "./components/EditLocationDialog";
 import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
 
 const PAGE_SIZES = [10, 25, 50];
+const MIN_SAME_LOCATION_DISTANCE_KM = 10;
 
 // safe lowercase helper
 const lo = (v: unknown) => (v === null || v === undefined ? "" : String(v)).toLowerCase();
@@ -105,8 +106,12 @@ export default function LocationsPage() {
     scope: "source" | "destination";
   }>({ open: false, row: null, scope: "source" });
   const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
-  const [deleteLocationName, setDeleteLocationName] = useState("");
-  const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
+const [deleteLocationName, setDeleteLocationName] = useState("");
+const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
+const [deleteSelectedSource, setDeleteSelectedSource] = useState("");
+const [deleteSelectedDestination, setDeleteSelectedDestination] = useState("");
+const [deletePopupSelectedIds, setDeletePopupSelectedIds] = useState<number[]>([]);
+const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
 
   useEffect(() => {
     loadDropdowns();
@@ -138,10 +143,39 @@ export default function LocationsPage() {
 }
 
   async function loadList() {
-    const data = await locationsApi.list({ page, pageSize, source, destination, search });
+    const sameLocationSelected =
+      source.trim() &&
+      destination.trim() &&
+      source.trim().toLowerCase() === destination.trim().toLowerCase();
+
+    const requestDestination = sameLocationSelected ? "" : destination;
+
+    const data = await locationsApi.list({
+      page,
+      pageSize,
+      source,
+      destination: requestDestination,
+      search,
+    });
+
     const normalized = Array.isArray(data?.rows) ? data.rows.map(normalizeRow) : [];
-    setRows(normalized);
-    setTotal(Number(data?.total ?? normalized.length));
+
+    if (!sameLocationSelected) {
+      setRows(normalized);
+      setTotal(Number(data?.total ?? normalized.length));
+      return;
+    }
+
+    const sameLocationRows = normalized.filter((row) => {
+      const sourceValue = source.trim().toLowerCase();
+      const isSameLocationRoute =
+        row.source_location.trim().toLowerCase() === sourceValue ||
+        row.destination_location.trim().toLowerCase() === sourceValue;
+      return isSameLocationRoute && Number(row.distance_km || 0) >= MIN_SAME_LOCATION_DISTANCE_KM;
+    });
+
+    setRows(sameLocationRows);
+    setTotal(sameLocationRows.length);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -155,6 +189,37 @@ export default function LocationsPage() {
         .some((v) => lo(v).includes(s))
     );
   }, [rows, search]);
+
+  const currentPageRows = useMemo(() => rows, [rows]);
+
+const deleteSelectedFilteredRows = useMemo(
+  () =>
+    currentPageRows.filter((row) => {
+      const sourceMatch =
+        !deleteSelectedSource || row.source_location === deleteSelectedSource;
+      const destinationMatch =
+        !deleteSelectedDestination || row.destination_location === deleteSelectedDestination;
+      return sourceMatch && destinationMatch;
+    }),
+  [currentPageRows, deleteSelectedSource, deleteSelectedDestination]
+);
+
+const deleteSelectedFilteredIds = useMemo(
+  () => deleteSelectedFilteredRows.map((row) => row.location_ID),
+  [deleteSelectedFilteredRows]
+);
+
+const allDeletePopupRowsSelected =
+  deleteSelectedFilteredIds.length > 0 &&
+  deleteSelectedFilteredIds.every((id) => deletePopupSelectedIds.includes(id));
+
+useEffect(() => {
+  if (!deleteSelectedOpen) return;
+
+  setDeletePopupSelectedIds((prev) =>
+    prev.filter((id) => deleteSelectedFilteredIds.includes(id))
+  );
+}, [deleteSelectedOpen, deleteSelectedFilteredIds]);
 
   // ---------- handlers ----------
              function openModifyLocation() {
@@ -184,6 +249,33 @@ export default function LocationsPage() {
   function openDeleteLocationName() {
   setDeleteLocationName("");
   setDeleteLocationOpen(true);
+}
+
+function openDeleteSelectedRecords() {
+  setDeleteSelectedSource("");
+  setDeleteSelectedDestination("");
+  setDeletePopupSelectedIds(currentPageRows.map((row) => row.location_ID));
+  setDeleteSelectedOpen(true);
+}
+
+function toggleDeletePopupRecord(id: number, checked: boolean) {
+  setDeletePopupSelectedIds((prev) => {
+    if (checked) {
+      return prev.includes(id) ? prev : [...prev, id];
+    }
+
+    return prev.filter((item) => item !== id);
+  });
+}
+
+function toggleAllDeletePopupRecords(checked: boolean) {
+  setDeletePopupSelectedIds((prev) => {
+    if (!checked) {
+      return prev.filter((id) => !deleteSelectedFilteredIds.includes(id));
+    }
+
+    return Array.from(new Set([...prev, ...deleteSelectedFilteredIds]));
+  });
 }
 
   async function openSelectedTolls() {
@@ -249,6 +341,39 @@ export default function LocationsPage() {
   );
 }
 
+async function handleDeleteSelectedRecords(ids?: number[]) {
+  const idsToDelete = [...(ids && ids.length ? ids : deletePopupSelectedIds)];
+
+  if (!idsToDelete.length) {
+    toast.error("Please select at least one record to delete");
+    return;
+  }
+
+  await Promise.all(idsToDelete.map((id) => locationsApi.remove(id)));
+
+  setDeleteSelectedOpen(false);
+  setDeleteSelectedSource("");
+  setDeleteSelectedDestination("");
+  setDeletePopupSelectedIds([]);
+  setSelectedRow(null);
+  await loadList();
+
+  toast.success(
+    `Deleted ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
+    {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          await Promise.all(idsToDelete.map((id) => locationsApi.restore(id)));
+          toast.success(`Restored ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`);
+          await loadList();
+        },
+      },
+    }
+  );
+}
+
   async function openTolls(row: LocationRow) {
     const items = await locationsApi.tolls(row.location_ID);
     setTollInfo({ open: true, row, items });
@@ -265,9 +390,8 @@ export default function LocationsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-primary">List of Locations</h1>
-                      <div className="flex gap-2">
+      <div className="space-y-4">
+  <div className="flex flex-wrap gap-2">
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Locations
@@ -282,13 +406,18 @@ export default function LocationsPage() {
           </Button>
 
           <Button variant="outline" onClick={openDeleteLocationName}>
-            Delete Location Name
-          </Button>
+  Delete Location
+</Button>
 
-          <Button variant="outline" onClick={openSelectedTolls}>
+<Button variant="outline" onClick={openDeleteSelectedRecords}>
+  Delete Selected Records
+</Button>
+
+<Button variant="outline" onClick={openSelectedTolls}>
             <IndianRupee className="mr-2 h-4 w-4" />
             Toll Charges
           </Button>
+          <h1 className="text-2xl font-bold text-primary">List of Locations</h1>
         </div>
       </div>
 
@@ -364,7 +493,7 @@ export default function LocationsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-                        {filtered.map((r, idx) => (
+            {filtered.map((r, idx) => (
               <TableRow
                 key={r.location_ID}
                 onClick={() => setSelectedRow(r)}
@@ -372,43 +501,45 @@ export default function LocationsPage() {
               >
                 <TableCell>{(page - 1) * pageSize + idx + 1}</TableCell>
                 <TableCell>
-  <div className="flex gap-1">
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={(e) => {
-        e.stopPropagation();
-        navigate(`/locations/${r.location_ID}/preview`);
-      }}
-    >
-      <Eye className="h-4 w-4" />
-    </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/locations/${r.location_ID}/preview`);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
 
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={(e) => {
-        e.stopPropagation();
-        setSelectedRow(r);
-        setEditRow(r);
-      }}
-    >
-      <Pencil className="h-4 w-4 text-blue-600" />
-    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRow(r);
+                        setEditRow(r);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 text-blue-600" />
+                    </Button>
 
-   <Button
-  size="sm"
-  variant="ghost"
-  onClick={(e) => {
-    e.stopPropagation();
-    setDeleteLocationName(r.source_location || r.destination_location || "");
-    setDeleteLocationOpen(true);
-  }}
->
-  <Trash2 className="h-4 w-4 text-red-600" />
-</Button>
-  </div>
-</TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteSelectedSource("");
+                        setDeleteSelectedDestination("");
+                        setDeletePopupSelectedIds([r.location_ID]);
+                        setDeleteSelectedOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                    </Button>
+                  </div>
+                </TableCell>
                 <TableCell>{r.source_location}</TableCell>
                 <TableCell>{r.destination_location}</TableCell>
                 <TableCell>{Number(r.distance_km ?? 0).toFixed(6)}</TableCell>
@@ -468,6 +599,38 @@ export default function LocationsPage() {
         onConfirm={handleDeleteLocationName}
       />
 
+      {deleteSelectedOpen && (
+        <DeleteSelectedRecordsDialog
+          open
+          title="Delete Selected Records"
+          selectedLabel={`${currentPageRows.length} record${currentPageRows.length === 1 ? "" : "s"} on page ${page}`}
+          message="Do you really want to delete the selected location records?"
+          warning="You can undo this immediately after deletion."
+          source={deleteSelectedSource}
+          destination={deleteSelectedDestination}
+          sourceOptions={sourceOptions}
+          destinationOptions={destinationOptions}
+          rows={deleteSelectedFilteredRows}
+          selectedIds={deletePopupSelectedIds}
+          allSelected={allDeletePopupRowsSelected}
+          onSourceChange={setDeleteSelectedSource}
+          onDestinationChange={setDeleteSelectedDestination}
+          onToggleRecord={toggleDeletePopupRecord}
+          onToggleAll={toggleAllDeletePopupRecords}
+          onClose={() => {
+            setDeleteSelectedOpen(false);
+            setDeleteSelectedSource("");
+            setDeleteSelectedDestination("");
+            setDeletePopupSelectedIds([]);
+          }}
+          onConfirm={() =>
+            handleDeleteSelectedRecords(
+              deletePopupSelectedIds.filter((id) => deleteSelectedFilteredIds.includes(id))
+            )
+          }
+        />
+      )}
+
       {/* Toll charges */}
       {tollInfo.open && tollInfo.row && (
         <TollDialog
@@ -484,20 +647,52 @@ export default function LocationsPage() {
 }
 
 // ---------- Dialogs ----------
-function SimpleConfirmDialog(props: {
+function DeleteSelectedRecordsDialog(props: {
   open: boolean;
   title: string;
-  locationLabel: string;
+  selectedLabel: string;
   message: string;
   warning?: string;
+  source: string;
+  destination: string;
+  sourceOptions: AutoSuggestOption[];
+  destinationOptions: AutoSuggestOption[];
+  rows: LocationRow[];
+  selectedIds: number[];
+  allSelected: boolean;
+  onSourceChange: (value: string) => void;
+  onDestinationChange: (value: string) => void;
+  onToggleRecord: (id: number, checked: boolean) => void;
+  onToggleAll: (checked: boolean) => void;
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const { open, title, locationLabel, message, warning, onConfirm, onClose } = props;
+  const {
+    open,
+    title,
+    selectedLabel,
+    message,
+    warning,
+    source,
+    destination,
+    sourceOptions,
+    destinationOptions,
+    rows,
+    selectedIds,
+    allSelected,
+    onSourceChange,
+    onDestinationChange,
+    onToggleRecord,
+    onToggleAll,
+    onConfirm,
+    onClose,
+  } = props;
+
+  const selectedCount = rows.filter((row) => selectedIds.includes(row.location_ID)).length;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -506,7 +701,80 @@ function SimpleConfirmDialog(props: {
           <div className="text-sm">{message}</div>
 
           <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
-            {locationLabel}
+            {selectedLabel}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-xs">Source Location</div>
+              <AutoSuggestSelect
+                mode="single"
+                value={source}
+                onChange={(val) => onSourceChange((val as string) || "")}
+                options={sourceOptions}
+                placeholder="Choose Source Location"
+                openOnFocus={false}
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-xs">Destination Location</div>
+              <AutoSuggestSelect
+                mode="single"
+                value={destination}
+                onChange={(val) => onDestinationChange((val as string) || "")}
+                options={destinationOptions}
+                placeholder="Choose Destination Location"
+                openOnFocus={false}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-md border">
+            <div className="border-b bg-muted/40 px-3 py-2 text-sm font-medium">
+              Matching records: {rows.length} | Selected in popup: {selectedCount}
+            </div>
+            <div className="max-h-56 overflow-auto">
+              {rows.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={(e) => onToggleAll(e.target.checked)}
+                          aria-label="Select all matching records in popup"
+                        />
+                      </TableHead>
+                      <TableHead>S.NO</TableHead>
+                      <TableHead>SOURCE LOCATION</TableHead>
+                      <TableHead>DESTINATION LOCATION</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, index) => (
+                      <TableRow key={row.location_ID}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(row.location_ID)}
+                            onChange={(e) => onToggleRecord(row.location_ID, e.target.checked)}
+                            aria-label={`Select popup record ${row.location_ID}`}
+                          />
+                        </TableCell>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{row.source_location}</TableCell>
+                        <TableCell>{row.destination_location}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                  No selected records found for the chosen source/destination.
+                </div>
+              )}
+            </div>
           </div>
 
           {warning ? (
@@ -520,7 +788,7 @@ function SimpleConfirmDialog(props: {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={onConfirm}>
+          <Button variant="destructive" onClick={onConfirm} disabled={!selectedCount}>
             Delete
           </Button>
         </DialogFooter>
@@ -559,6 +827,7 @@ function DeleteLocationNameDialog(props: {
               onChange={(val) => onChange((val as string) || "")}
               options={options}
               placeholder="Choose Location"
+              openOnFocus={false}
             />
           </div>
 
@@ -603,7 +872,7 @@ function TollDialog(props: { open: boolean; title: string; rows: TollRow[]; onCl
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="border rounded-md">
+        <div className="max-h-[60vh] overflow-y-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
