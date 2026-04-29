@@ -112,6 +112,32 @@ const TABS = [
   { id: 3, name: "FeedBack & Review" },
   { id: 4, name: "Preview" },
 ];
+const durationHours = Array.from({ length: 24 }, (_, i) =>
+  String(i).padStart(2, "0")
+);
+
+const durationMinutes = Array.from({ length: 60 }, (_, i) =>
+  String(i).padStart(2, "0")
+);
+
+const durationSeconds = Array.from({ length: 60 }, (_, i) =>
+  String(i).padStart(2, "0")
+);
+
+function splitDuration(value?: string) {
+  const [hh = "00", mm = "30", ss = "00"] = String(value || "00:30:00").split(":");
+
+  return {
+    hh: hh.padStart(2, "0").slice(0, 2),
+    mm: mm.padStart(2, "0").slice(0, 2),
+    ss: ss.padStart(2, "0").slice(0, 2),
+  };
+}
+
+function buildDuration(hh: string, mm: string, ss: string) {
+  return `${hh}:${mm}:${ss}`;
+}
+
 
 const getEmptyActivity = (): ActivityFormState => ({
   title: "",
@@ -294,6 +320,21 @@ function buildApiUrl(path: string) {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function buildActivityImageUrl(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (/^https?:\/\//i.test(raw) || raw.startsWith("data:")) {
+    return raw;
+  }
+
+  const base = ActivitiesAPI.imageBase().replace(/\/$/, "");
+  const fileName = raw.split("/").pop() || raw;
+
+  return `${base}/${fileName}`;
+}
+
+
 const ActivityForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -321,6 +362,7 @@ const ActivityForm = () => {
   const [serverImages, setServerImages] = useState<{ id: number; url: string }[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
 
   // Review form state
   const [reviewRating, setReviewRating] = useState("");
@@ -408,15 +450,30 @@ const ActivityForm = () => {
       }
 
       // Load server images
-      if (preview?.images?.length) {
-        const base64 = ActivitiesAPI.imageBase();
-        setServerImages(
-          preview.images.map((img: any) => ({
-            id: img.activity_image_gallery_details_id,
-            url: `${base64}/${img.activity_image_gallery_name}`,
-          }))
-        );
-      }
+    if (preview?.images?.length) {
+  const mappedImages = preview.images.map((img: any, index: number) => {
+    const imageName =
+      img.activity_image_gallery_name ||
+      img.image ||
+      img.image_url ||
+      img.url ||
+      "";
+
+    return {
+      id: Number(
+        img.activity_image_gallery_details_id ||
+          img.id ||
+          Date.now() + index
+      ),
+      url: buildActivityImageUrl(imageName),
+    };
+  });
+
+  setServerImages(mappedImages);
+} else {
+  setServerImages([]);
+}
+
 
       // Load pricebook
       try {
@@ -474,11 +531,17 @@ const ActivityForm = () => {
       // Upload immediately and add to serverImages
       ActivitiesAPI.uploadImages(Number(id), newFiles)
         .then((res) => {
-          const base64 = ActivitiesAPI.imageBase();
-          const uploaded = (res?.files ?? []).map((name: string, i: number) => ({
-            id: res?.ids?.[i] ?? Date.now() + i,
-            url: `${base64}/${name}`,
-          }));
+          const uploaded = (res?.files ?? []).map((file: any, i: number) => {
+  const fileName =
+    typeof file === "string"
+      ? file
+      : file?.filename || file?.name || file?.url || "";
+
+  return {
+    id: res?.ids?.[i] ?? Date.now() + i,
+    url: buildActivityImageUrl(fileName),
+  };
+});
           setServerImages((prev) => [...prev, ...uploaded]);
           toast.success("Images uploaded");
         })
@@ -501,14 +564,28 @@ const ActivityForm = () => {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+
   const removeServerImage = async (index: number) => {
-    const img = serverImages[index];
-    if (!img) return;
-    try {
-      await ActivitiesAPI.deleteImage(Number(id), img.id);
-    } catch { /* non-blocking */ }
-    setServerImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  const img = serverImages[index];
+
+  if (!img || !id) {
+    toast.error("Image delete failed");
+    return;
+  }
+
+  try {
+    await ActivitiesAPI.deleteImage(Number(id), img.id);
+
+    // remove from UI by image id, not index
+    setServerImages((prev) => prev.filter((item) => item.id !== img.id));
+
+    setDeleteImageIndex(null);
+    toast.success("Deleted Successfully");
+  } catch (error) {
+    console.error("Image delete failed:", error);
+    toast.error("Failed to delete image");
+  }
+};
 
   const addDefaultTime = () => {
     setFormData((prev) => ({
@@ -946,17 +1023,29 @@ const persistPendingReviews = async (activityId: number) => {
   await refreshReviewsFromServer(activityId);
 };
 
+
   const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      // ----------------- BASIC -----------------
-      const basicPayload = {
-        activity_title: formData.title,
-        hotspot_id: formData.hotspotId ?? 0,
-        max_allowed_person_count: formData.maxAllowedPersonCount,
-        activity_duration: formData.duration,
-        activity_description: formData.description,
-      };
+  try {
+    setLoading(true);
+
+    // ✅ ADD THIS BLOCK
+    const isValidDuration = /^\d{2}:\d{2}:\d{2}$/.test(formData.duration || "");
+
+    if (!isValidDuration) {
+      toast.error("Duration must be in HH:mm:ss format (e.g. 00:15:00)");
+      setLoading(false);
+      return;
+    }
+
+    // existing code continues
+    const basicPayload = {
+      activity_title: formData.title,
+      hotspot_id: formData.hotspotId ?? 0,
+      max_allowed_person_count: formData.maxAllowedPersonCount,
+      activity_duration: formData.duration,
+      activity_description: formData.description,
+    };
+
 
       let activityIdNum: number;
 
@@ -1189,19 +1278,25 @@ const persistPendingReviews = async (activityId: number) => {
                   </Label>
                   <Popover open={isHotspotOpen} onOpenChange={setIsHotspotOpen}>
                     <PopoverTrigger asChild>
-                      <Button
+
+
+                     <Button
                         type="button"
                         variant="outline"
                         role="combobox"
                         aria-expanded={isHotspotOpen}
-                        className="w-full justify-between"
+                        className="w-full justify-between overflow-hidden"
                         disabled={isReadonly}
                       >
-                        {formData.hotspotId
-                          ? hotspotOptions.find((opt) => opt.id === formData.hotspotId)?.label || "Select hotspot"
-                          : "Select hotspot"}
+                        <span className="truncate">
+                          {formData.hotspotId
+                            ? hotspotOptions.find((opt) => opt.id === formData.hotspotId)?.label || "Select hotspot"
+                            : "Select hotspot"}
+                        </span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
+
+
                     </PopoverTrigger>
                     <PopoverContent className="w-[420px] p-0" align="start">
                       <Command>
@@ -1262,12 +1357,78 @@ const persistPendingReviews = async (activityId: number) => {
                   <Label>
                     Duration <span className="text-red-500">*</span>
                   </Label>
-                  <ActivityTimePickerField
-                    label="Duration"
-                    value={formData.duration}
-                    onChange={(value24) => handleInputChange("duration", `${value24}:00`)}
-                    disabled={isReadonly}
-                  />
+
+
+                {(() => {
+  const duration = splitDuration(formData.duration);
+
+  return (
+    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center rounded-md border border-[#e5d7f6] bg-white">
+      <Select
+        value={duration.hh}
+        onValueChange={(hh) =>
+          handleInputChange("duration", buildDuration(hh, duration.mm, duration.ss))
+        }
+        disabled={isReadonly}
+      >
+        <SelectTrigger className="border-0 shadow-none focus:ring-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-60">
+          {durationHours.map((hh) => (
+            <SelectItem key={hh} value={hh}>
+              {hh}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <span className="text-center text-lg">:</span>
+
+      <Select
+        value={duration.mm}
+        onValueChange={(mm) =>
+          handleInputChange("duration", buildDuration(duration.hh, mm, duration.ss))
+        }
+        disabled={isReadonly}
+      >
+        <SelectTrigger className="border-0 shadow-none focus:ring-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-60">
+          {durationMinutes.map((mm) => (
+            <SelectItem key={mm} value={mm}>
+              {mm}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <span className="text-center text-lg">:</span>
+
+      <Select
+        value={duration.ss}
+        onValueChange={(ss) =>
+          handleInputChange("duration", buildDuration(duration.hh, duration.mm, ss))
+        }
+        disabled={isReadonly}
+      >
+        <SelectTrigger className="border-0 shadow-none focus:ring-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className="max-h-60">
+          {durationSeconds.map((ss) => (
+            <SelectItem key={ss} value={ss}>
+              {ss}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+})()}
+
+
                 </div>
                 <div>
                   <Label>
@@ -1289,14 +1450,20 @@ const persistPendingReviews = async (activityId: number) => {
                 <div className="flex flex-wrap gap-2">
                   {serverImages.map((img, index) => (
                     <div key={img.id} className="relative">
-                      <img
-                        src={img.url}
-                        alt={`Image ${index + 1}`}
-                        className="w-20 h-20 object-cover rounded"
-                      />
+
+                     <img
+  src={img.url}
+  alt={`Image ${index + 1}`}
+  className="w-20 h-20 object-cover rounded border bg-white"
+  onError={(e) => {
+    console.log("Broken activity image URL:", img.url);
+    e.currentTarget.style.display = "none";
+  }}
+/>
+
                       {!isReadonly && (
                         <button
-                          onClick={() => removeServerImage(index)}
+                          onClick={() => setDeleteImageIndex(index)}
                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         >
                           <X className="w-3 h-3" />
@@ -2096,7 +2263,51 @@ const persistPendingReviews = async (activityId: number) => {
             </div>
           )}
         </CardContent>
-      </Card>
+
+
+
+
+            </Card>
+
+      {/* ✅ DELETE CONFIRM POPUP */}
+      {deleteImageIndex !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-lg bg-white p-8 text-center shadow-xl">
+
+            <Trash2 className="mx-auto mb-4 h-12 w-12 text-gray-500" />
+
+            <h2 className="mb-3 text-xl font-semibold">Are you sure?</h2>
+
+            <p className="mb-6 text-gray-500">
+              Do you really want to delete this Image?
+              <br />
+              This process cannot be undone.
+            </p>
+
+            <div className="flex justify-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDeleteImageIndex(null)}
+              >
+                Close
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-red-500 text-white hover:bg-red-600"
+               onClick={async () => {
+  if (deleteImageIndex === null) return;
+  await removeServerImage(deleteImageIndex);
+}}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

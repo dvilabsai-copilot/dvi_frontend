@@ -270,5 +270,6 @@ export const ActivitiesAPI = {
     request<PreviewPayload>(`/activities/${id}/preview`, { method: "GET" }),
 
   /** Image file base URL for rendering uploaded activity images */
-  imageBase: () => `${FILE_BASE}/uploads/activity_gallery`,
+  // imageBase: () => `${FILE_BASE}/uploads/activity_gallery`,
+  imageBase: () => `https://dvi.travel/uploads/activity_gallery`,
 };
