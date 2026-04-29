@@ -52,6 +52,22 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const [error, setError] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const normalizeStringList = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [String(value).trim()].filter(Boolean);
+  };
+
   const search = useCallback(
     async (
       searchQuery: string,
@@ -158,6 +174,16 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
           const mapBookingCode = (hotel: any): HotelSearchResult => ({
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
+            inclusions: normalizeStringList(
+              hotel.inclusions ?? hotel.Inclusions ?? hotel.inclusion ?? hotel.Inclusion,
+            ),
+            amenities: normalizeStringList(
+              hotel.amenities ?? hotel.Amenities ?? hotel.amenity ?? hotel.Amenity,
+            ),
+            rateConditions: normalizeStringList(
+              hotel.rateConditions ?? hotel.RateConditions ?? hotel.rateCondition ?? hotel.RateCondition,
+            ),
+            mealPlan: hotel.mealPlan || hotel.mealType || hotel.MealType || hotel.meal_type,
             // Provider field comes from backend (tbo, ResAvenue, etc.)
           });
 
