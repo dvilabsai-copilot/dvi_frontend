@@ -2305,9 +2305,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [prebookData, setPrebookData] = useState<any | null>(null);
   const [isPrebooking, setIsPrebooking] = useState(false);
+  const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
   const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
+  const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
@@ -2395,6 +2397,77 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return item?.name || item?.text || item?.description || JSON.stringify(item);
       })
       .map((text) => String(text || '').trim())
+      .filter(Boolean);
+  };
+
+  const normalizeCancellationPolicyItems = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+
+    const chargeLabel = (chargeType: string, amount: any) => {
+      const normalizedType = String(chargeType || '').toLowerCase();
+      const num = Number(amount);
+      const safeAmount = Number.isFinite(num) ? num : amount;
+      if (normalizedType === 'percentage' || normalizedType === '2') {
+        return `${safeAmount}%`;
+      }
+      if (normalizedType === 'fixed' || normalizedType === '1') {
+        return `INR ${safeAmount}`;
+      }
+      return String(safeAmount);
+    };
+
+    const formatEntry = (item: any) => {
+      if (!item) return '';
+
+      if (typeof item === 'string') {
+        const trimmed = item.trim();
+        if (!trimmed) return '';
+
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+              return parsed
+                .map((p) => formatEntry(p))
+                .filter(Boolean)
+                .join('\n');
+            }
+            return formatEntry(parsed);
+          } catch {
+            return trimmed;
+          }
+        }
+
+        // Handle legacy TBO concatenated strings
+        if (trimmed.includes('#^#') || trimmed.includes('#!#')) {
+          return trimmed
+            .replace(/#\^#|#!#/g, '')
+            .split('|')
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join('\n');
+        }
+
+        return trimmed;
+      }
+
+      const fromDate = item.FromDate || item.fromDate || item.startDate || '-';
+      const chargeType = item.ChargeType || item.chargeType || '-';
+      const cancellationCharge =
+        item.CancellationCharge ?? item.cancellationCharge ?? item.Charge ?? item.charge ?? '-';
+
+      return `From ${fromDate} | ${chargeType} | Charge: ${chargeLabel(chargeType, cancellationCharge)}`;
+    };
+
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .flatMap((item) => {
+        const formatted = formatEntry(item);
+        return formatted ? formatted.split('\n') : [];
+      })
+      .map((item) => item.trim())
       .filter(Boolean);
   };
 
@@ -3782,7 +3855,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           // Only fallback to hotelCode if bookingCode is not available
           bookingCode: hotel.bookingCode || hotel.hotelCode,
           roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
-          netAmount: hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
+          netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
           hotelName: hotel.hotelName,
           checkInDate: formatDate(checkInDate),
           checkOutDate: formatDate(checkOutDate),
@@ -3851,11 +3924,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   };
 
   const openConfirmQuotationModal = async () => {
+    if (isOpeningConfirmQuotation) {
+      return;
+    }
+
     if (!itinerary?.planId) {
       toast.error('Plan ID not found');
       return;
     }
 
+    setIsOpeningConfirmQuotation(true);
     setConfirmQuotationModal(true);
     setPrebookData(null);
     setHasAcceptedUpdatedPrice(false);
@@ -3932,9 +4010,99 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           departurePlace: plan.departure_location || '',
         }));
       }
+
+      // ── Prebook immediately so amenities/rate-conditions/inclusions show in the modal ──
+      let autoSelectedForPrebook = { ...selectedHotelBookings };
+      if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
+        const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
+        routesWithHotels.forEach((routeId: number) => {
+          if (!autoSelectedForPrebook[routeId]) {
+            const firstHotel = hotelDetails.hotels.find(
+              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
+            );
+            if (firstHotel) {
+              const routeDay = itinerary?.days?.find((d: any) => d.id === routeId);
+              const checkInDate = routeDay?.date || '';
+              const checkOutDate = routeDay
+                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                : '';
+              autoSelectedForPrebook[routeId] = {
+                provider: firstHotel.provider || 'tbo',
+                hotelCode: String(firstHotel.hotelCode || firstHotel.hotelId),
+                bookingCode: firstHotel.bookingCode || String(firstHotel.hotelId),
+                roomType: firstHotel.roomType || 'Standard',
+                netAmount: firstHotel.totalHotelCost || 0,
+                hotelName: firstHotel.hotelName,
+                checkInDate,
+                checkOutDate,
+                searchInitiatedAt: new Date().toISOString(),
+              };
+            }
+          }
+        });
+      }
+
+      const prebookOccupancies = buildTboOccupancies(
+        Number(itinerary?.roomCount || 1),
+        Math.max(Number(itinerary?.adults || 1), 1),
+        [],
+      );
+
+      const prebookHotelBookings: any[] = Object.entries(autoSelectedForPrebook).map(([routeId, hotelData]) => ({
+        occupancies: prebookOccupancies,
+        provider: hotelData.provider,
+        routeId: parseInt(routeId, 10),
+        hotelCode: hotelData.hotelCode,
+        hotelName: hotelData.hotelName,
+        bookingCode: hotelData.bookingCode,
+        roomType: hotelData.roomType,
+        checkInDate: hotelData.checkInDate,
+        checkOutDate: hotelData.checkOutDate,
+        numberOfRooms: Number(itinerary?.roomCount || 1),
+        guestNationality: 'IN',
+        netAmount: Number(hotelData.netAmount || 0),
+        searchInitiatedAt: hotelData.searchInitiatedAt,
+        passengers: [],
+      }));
+
+      if (prebookHotelBookings.length > 0) {
+        const staleHotel = prebookHotelBookings.find((booking) => {
+          if (!booking.searchInitiatedAt) return false;
+          const parsed = new Date(String(booking.searchInitiatedAt));
+          if (Number.isNaN(parsed.getTime())) return true;
+          return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+        });
+
+        if (staleHotel) {
+          toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
+          setConfirmQuotationModal(false);
+          return;
+        }
+
+        const clientIp = await fetch('https://api.ipify.org?format=json')
+          .then((res) => res.json())
+          .then((data) => data.ip)
+          .catch(() => '192.168.1.1');
+
+        setIsPrebooking(true);
+        try {
+          const prebookResp = await ItineraryService.prebookHotels({
+            itinerary_plan_ID: itinerary.planId,
+            hotel_bookings: prebookHotelBookings,
+            endUserIp: clientIp,
+          });
+          setPrebookData(prebookResp?.data || prebookResp);
+        } catch (prebookErr) {
+          toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
+        } finally {
+          setIsPrebooking(false);
+        }
+      }
     } catch (e: any) {
       console.error('Failed to load customer info', e);
       toast.error(e?.message || 'Failed to load customer information');
+    } finally {
+      setIsOpeningConfirmQuotation(false);
     }
   };
 
@@ -4148,6 +4316,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         provider: hotelData.provider,
         routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
+        hotelName: hotelData.hotelName,
         bookingCode: hotelData.bookingCode,
         roomType: hotelData.roomType,
         checkInDate: hotelData.checkInDate,
@@ -4216,8 +4385,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         } finally {
           setIsPrebooking(false);
         }
-        // After first successful prebook, return and let modal display for user review
-        return;
       }
 
       const prebookTotal = Number(
@@ -4250,6 +4417,19 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return;
       }
 
+      const hotelBookingsWithPrebookContext = hotelBookings.map((booking) => {
+        const matchingPrebook = prebookHotelEntries.find(
+          (item: any) =>
+            Number(item?.routeId) === Number(booking.routeId) &&
+            String(item?.hotelCode || '') === String(booking.hotelCode || ''),
+        );
+
+        return {
+          ...booking,
+          prebookContext: matchingPrebook?.prebookContext,
+        };
+      });
+
       await ItineraryService.confirmQuotation({
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
@@ -4273,7 +4453,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         departure_flight_details: guestDetails.departureFlightDetails,
         price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
         hotel_group_type: selectedGroupType,
-        hotel_bookings: hotelBookings.length > 0 ? hotelBookings : undefined,
+        hotel_bookings: hotelBookingsWithPrebookContext.length > 0 ? hotelBookingsWithPrebookContext : undefined,
         primaryGuest,
         endUserIp: clientIp,
       });
@@ -5580,9 +5760,19 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
           onClick={openConfirmQuotationModal}
+          disabled={isOpeningConfirmQuotation}
         >
-          <Bell className="mr-2 h-4 w-4" />
-          Confirm Quotation
+          {isOpeningConfirmQuotation ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading Prebook...
+            </>
+          ) : (
+            <>
+              <Bell className="mr-2 h-4 w-4" />
+              Confirm Quotation
+            </>
+          )}
         </Button>
 
         {/* Share Dropdown */}
@@ -6920,6 +7110,175 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               </div>
             )}
 
+            {(isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
+              <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+                <div>
+                  <p className="text-sm font-medium text-[#4a4260]">Fetching latest prebook details...</p>
+                  <p className="text-xs text-[#6c6c6c]">Loading updated price, amenities, rate conditions, and inclusions.</p>
+                </div>
+              </div>
+            )}
+
+            {prebookData && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="font-semibold text-[#4a4260]">
+                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#6c6c6c]">Hotels Prebooked</p>
+                    <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
+                  </div>
+                </div>
+
+                {prebookHotelEntries.map((hotel: any, index: number) => {
+                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
+                  const hotelAmenities = normalizePrebookItems(hotel?.amenities);
+                  const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
+                  const hotelInclusions = normalizePrebookItems(hotel?.inclusions);
+                  const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
+                  const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
+                  const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
+                  const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+
+                  return (
+                    <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                          </div>
+                          <div className="text-sm text-left md:text-right">
+                            <p className="text-[#6c6c6c]">Updated Final Price</p>
+                            <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                        <div>
+                          <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || '-'}</p>
+                          {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                        </div>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                        <div className="mt-2">
+                          {hotelCancellation.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelCancellation.map((item, idx) => (
+                                <li key={`hotel-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No cancellation policy returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Room Promotion ({hotelPromotions.length})</summary>
+                        <div className="mt-2">
+                          {hotelPromotions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelPromotions.map((item, idx) => (
+                                <li key={`hotel-promo-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No room promotion returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                        <div className="mt-2">
+                          {hotelRateConditions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelRateConditions.map((item, idx) => (
+                                <li key={`hotel-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                        <div className="mt-2">
+                          {hotelAmenities.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelAmenities.map((item, idx) => (
+                                <li key={`hotel-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No amenities returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                        <div className="mt-2">
+                          {hotelInclusions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelInclusions.map((item, idx) => (
+                                <li key={`hotel-inclusion-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No inclusions returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <div>
+                        <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
+                        {hotelSupplements.length > 0 ? (
+                          <SupplementDisplay supplements={hotelSupplements} showHeading={false} />
+                        ) : hotelMandatorySupplements.length > 0 ? (
+                          <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                            {hotelMandatorySupplements.map((item, idx) => (
+                              <li key={`hotel-supplement-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
+                        )}
+                      </div>
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {hasPrebookPriceChanged && (
+                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
+                  </p>
+                )}
+
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the inclusions, amenities, rate conditions, cancellation policy, room promotion, and additional charge details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
+
             {/* Primary Guest Details */}
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Primary Guest Details - Adult 1</h3>
@@ -7405,98 +7764,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 />
               </div>
             </div>
-
-            {prebookData && (
-              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
-                    <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[#6c6c6c]">Cancellation Policy</p>
-                    {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).length > 0 ? (
-                      <ul className="font-medium text-[#4a4260] whitespace-pre-wrap list-disc pl-5 space-y-1">
-                        {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).map((item, idx) => (
-                          <li key={`cancelPolicy-${idx}`}>{item}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="font-medium text-[#4a4260] whitespace-pre-wrap">No cancellation policy returned</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Room Promotion</p>
-                  {normalizePrebookItems(prebookData.roomPromotion).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1">
-                      {normalizePrebookItems(prebookData.roomPromotion).map((item, idx) => (
-                        <li key={`roomPromotion-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No room promotion returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Rate Conditions</p>
-                  {normalizePrebookItems(prebookData.rateConditions).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.rateConditions).map((item, idx) => (
-                        <li key={`rateCondition-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
-                  {prebookData?.normalizedSupplements && prebookData.normalizedSupplements.length > 0 ? (
-                    <SupplementDisplay supplements={prebookData.normalizedSupplements} showHeading={false} />
-                  ) : normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
-                        <li key={`supplement-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Package Inclusions</p>
-                  {normalizePrebookItems(prebookData.inclusions).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.inclusions).map((item, idx) => (
-                        <li key={`inclusion-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No inclusions returned</p>
-                  )}
-                </div>
-
-                {hasPrebookPriceChanged && (
-                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
-                  </p>
-                )}
-
-                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={hasAcceptedUpdatedPrice}
-                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                  />
-                  <span>I have reviewed the inclusions, rate conditions, and room promotion details before final booking confirmation.</span>
-                </label>
-              </div>
-            )}
           </div>
 
           <DialogFooter className="gap-2">
@@ -7537,7 +7804,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               onClick={handleConfirmQuotation}
               disabled={isConfirmingQuotation || isPrebooking}
             >
-              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : prebookData ? 'Confirm Booking' : 'Run Prebook & Continue'}
+              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
             </Button>
           </DialogFooter>
         </DialogContent>

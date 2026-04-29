@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
-  onSelect: (hotelCode: string, hotelName: string) => void;
+  onSelect: (hotelCode: string, hotelName: string, bookingCode?: string) => void;
   isLoading?: boolean;
   checkInDate: string;
   checkOutDate: string;
@@ -19,8 +19,14 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   checkOutDate,
 }) => {
   const handleSelect = () => {
-    onSelect(hotel.hotelCode, hotel.hotelName);
+    onSelect(hotel.hotelCode, hotel.hotelName, hotel.bookingCode);
   };
+  const displayInclusions = (hotel.inclusions || []).slice(0, 3);
+  const displayAmenities = (hotel.amenities || []).slice(0, 3);
+  const displayRateConditions = (hotel.rateConditions || [])
+    .map((item) => String(item || '').replace(/<[^>]*>/g, '').trim())
+    .filter(Boolean)
+    .slice(0, 2);
 
   // Calculate number of nights
   const checkIn = new Date(checkInDate);
@@ -111,11 +117,17 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         {/* Pricing Section */}
         <div className="bg-gray-50 rounded-lg p-3 mb-3">
           <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-gray-600">Per Night</span>
+            <span className="text-xs text-gray-600">Net Amount</span>
             <span className="text-lg font-bold text-[#4ba3c3]">
               ₹ {hotel.price.toLocaleString()}
             </span>
           </div>
+          {hotel.totalFare && Number(hotel.totalFare) !== Number(hotel.price) && (
+            <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
+              <span>Total Fare</span>
+              <span>₹ {Number(hotel.totalFare).toLocaleString()}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center pt-2 border-t border-gray-200">
             <span className="text-xs text-gray-600">
               {nights} night{nights !== 1 ? 's' : ''}
@@ -136,8 +148,75 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
                   key={room.roomCode}
                   className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded"
                 >
-                  {room.roomTypeName}
+                  {room.roomTypeName || room.roomName || 'Room'}
                 </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {hotel.mealPlan && (
+          <div className="mb-3">
+            <p className="text-xs font-medium text-[#4a4260] mb-2">Meal Plan:</p>
+            <span className="inline-block bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded">
+              {hotel.mealPlan}
+            </span>
+          </div>
+        )}
+
+        {hotel.supplementSummary?.hasSupplements && (
+          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
+            <p className="text-xs font-medium text-amber-800">Supplements</p>
+            <p className="text-xs text-amber-700 mt-1">
+              {hotel.supplementSummary.supplementCount} charge(s)
+              {hotel.supplementSummary.atPropertyChargeCount > 0
+                ? `, ${hotel.supplementSummary.atPropertyChargeCount} at property`
+                : ''}
+              {hotel.supplementSummary.requiresReview ? ' (review required)' : ''}
+            </p>
+          </div>
+        )}
+
+        {displayInclusions.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs font-medium text-[#4a4260] mb-2">Inclusions:</p>
+            <div className="flex flex-wrap gap-1">
+              {displayInclusions.map((item, idx) => (
+                <span
+                  key={`inc-${idx}`}
+                  className="inline-block bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {displayAmenities.length > 0 && (
+          <div className="mb-3">
+            <p className="text-xs font-medium text-[#4a4260] mb-2">Amenities:</p>
+            <div className="flex flex-wrap gap-1">
+              {displayAmenities.map((item, idx) => (
+                <span
+                  key={`amen-${idx}`}
+                  className="inline-block bg-sky-50 text-sky-700 text-xs px-2 py-1 rounded"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {displayRateConditions.length > 0 && (
+          <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+            <p className="text-xs font-medium text-[#4a4260] mb-1">Rate Conditions:</p>
+            <div className="space-y-1">
+              {displayRateConditions.map((item, idx) => (
+                <p key={`rc-${idx}`} className="text-xs text-gray-700 line-clamp-2">
+                  {item}
+                </p>
               ))}
             </div>
           </div>

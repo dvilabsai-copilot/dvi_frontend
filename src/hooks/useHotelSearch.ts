@@ -11,18 +11,31 @@ export type HotelSearchResult = {
   price: number;
   currency?: string;
   roomTypes?: Array<{
-    roomTypeName: string;
+    roomTypeName?: string;
     roomCode: string;
-    maxOccupancy: number;
+    maxOccupancy?: number;
     roomName?: string;
   }>;
   facilities?: string[];
+  amenities?: string[];
+  inclusions?: string[];
+  rateConditions?: any[];
+  mealPlan?: string;
   images?: string[];
   availableRooms?: number;
   // API-specific fields
   bookingCode?: string;
+  searchReference?: string;
   totalCost?: number;
   totalRoomCost?: number;
+  netAmount?: number;
+  totalFare?: number;
+  supplementSummary?: {
+    hasSupplements: boolean;
+    supplementCount: number;
+    atPropertyChargeCount: number;
+    requiresReview: boolean;
+  };
 };
 
 interface UseHotelSearchOptions {

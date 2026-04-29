@@ -193,6 +193,66 @@ const formatCurrency = (value: number | undefined | null): string => {
   );
 };
 
+const stripHtml = (value: string): string =>
+  String(value || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const normalizeTextList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => {
+        if (typeof item === "string") return [stripHtml(item)];
+        if (typeof item === "number") return [String(item)];
+        if (item && typeof item === "object") {
+          const candidate =
+            (item as any).description ??
+            (item as any).text ??
+            (item as any).title ??
+            (item as any).name ??
+            (item as any).type;
+          return candidate ? [stripHtml(String(candidate))] : [];
+        }
+        return [];
+      })
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return [];
+
+    if ((text.startsWith("[") && text.endsWith("]")) || (text.startsWith("{") && text.endsWith("}"))) {
+      try {
+        return normalizeTextList(JSON.parse(text));
+      } catch {
+        // Continue with plain string fallback below.
+      }
+    }
+
+    return text
+      .split(/\r?\n|\||;/)
+      .map((part) => stripHtml(part))
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "number") return [String(value)];
+  return [];
+};
+
+const pickListFromKeys = (source: Record<string, unknown>, keys: string[]): string[] => {
+  for (const key of keys) {
+    const values = normalizeTextList(source[key]);
+    if (values.length > 0) {
+      return Array.from(new Set(values));
+    }
+  }
+  return [];
+};
+
 const normalizeHotelStarCategory = (value: unknown): number | null => {
   const raw = String(value ?? '').trim();
   if (!raw) return null;
@@ -1324,6 +1384,37 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 return sorted.map((hotel) => {
                                 const roomKey = `hotel-${getHotelOptionKey(hotel)}`;
                                 const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                const hotelData = hotel as Record<string, unknown>;
+                                const displayInclusions = pickListFromKeys(hotelData, [
+                                  'inclusions',
+                                  'Inclusions',
+                                  'facilities',
+                                  'Facilities',
+                                ]).slice(0, 4);
+                                const displayAmenities = pickListFromKeys(hotelData, [
+                                  'amenities',
+                                  'Amenities',
+                                ]).slice(0, 4);
+                                const displayRateConditions = pickListFromKeys(hotelData, [
+                                  'rateConditions',
+                                  'RateConditions',
+                                ]).slice(0, 3);
+                                const supplementLines = pickListFromKeys(hotelData, [
+                                  'mandatorySupplements',
+                                  'MandatorySupplements',
+                                  'normalizedSupplements',
+                                  'supplements',
+                                ]);
+                                const supplementSummary = (hotel as any).supplementSummary as
+                                  | {
+                                      hasSupplements?: boolean;
+                                      supplementCount?: number;
+                                      atPropertyChargeCount?: number;
+                                      requiresReview?: boolean;
+                                    }
+                                  | undefined;
+                                const hasSupplementData =
+                                  (supplementSummary?.hasSupplements ?? false) || supplementLines.length > 0;
 
                                 return (
                                 <div
@@ -1461,6 +1552,48 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       </div>
                                     </div>
 
+                                    {hasSupplementData && (
+                                      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
+                                        <p className="text-xs font-medium text-amber-800">Supplements</p>
+                                        <p className="text-xs text-amber-700 mt-1">
+                                          {supplementSummary?.supplementCount || supplementLines.length} charge(s)
+                                          {supplementSummary?.atPropertyChargeCount
+                                            ? `, ${supplementSummary.atPropertyChargeCount} at property`
+                                            : ''}
+                                          {supplementSummary?.requiresReview ? ' (review required)' : ''}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {displayRateConditions.length > 0 && (
+                                      <div className="mb-3 rounded-md border border-gray-200 bg-gray-50 p-2">
+                                        <p className="text-xs font-medium text-[#4a4260] mb-1">Rate Conditions</p>
+                                        <div className="space-y-1">
+                                          {displayRateConditions.map((item, idx) => (
+                                            <p key={`rc-${roomKey}-${idx}`} className="text-xs text-gray-700 line-clamp-2">
+                                              {item}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {displayAmenities.length > 0 && (
+                                      <div className="mb-3">
+                                        <p className="text-xs font-medium text-[#4a4260] mb-2">Amenities</p>
+                                        <div className="flex flex-wrap gap-1">
+                                          {displayAmenities.map((item, idx) => (
+                                            <span
+                                              key={`amen-${roomKey}-${idx}`}
+                                              className="inline-block bg-sky-50 text-sky-700 text-xs px-2 py-1 rounded"
+                                            >
+                                              {item}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {/* Choose/Update Button - Conditional based on selection status */}
                                     <button
                                       className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
@@ -1473,6 +1606,22 @@ export const HotelList: React.FC<HotelListProps> = ({
                                     >
                                       {isSelected ? 'Selected' : 'Choose'}
                                     </button>
+
+                                    {displayInclusions.length > 0 && (
+                                      <div className="mt-3 pt-3 border-t border-[#e9dcfb]">
+                                        <p className="text-xs font-medium text-[#4a4260] mb-2">Inclusions</p>
+                                        <div className="flex flex-wrap gap-1">
+                                          {displayInclusions.map((item, idx) => (
+                                            <span
+                                              key={`inc-${roomKey}-${idx}`}
+                                              className="inline-block bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded"
+                                            >
+                                              {item}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
