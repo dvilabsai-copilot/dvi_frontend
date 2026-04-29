@@ -7141,6 +7141,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   const hotelAmenities = normalizePrebookItems(hotel?.amenities);
                   const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
                   const hotelInclusions = normalizePrebookItems(hotel?.inclusions);
+                  const hotelMealType = String(hotel?.mealType || hotel?.mealPlan || '').trim();
                   const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
                   const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
                   const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
@@ -7165,6 +7166,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         <div>
                           <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || '-'}</p>
                           {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                          {hotelMealType ? (
+                            <p className="text-xs text-[#6c6c6c]">
+                              Meal Type: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                            </p>
+                          ) : null}
                         </div>
 
                       <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
