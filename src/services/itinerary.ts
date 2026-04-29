@@ -603,6 +603,7 @@ export const ItineraryService = {
       routeId: number;
       provider: string; // "TBO" | "ResAvenue" | "HOBSE"
       hotelCode: string;
+      hotelName?: string;
       bookingCode: string;
       roomType: string;
       checkInDate: string;
@@ -626,6 +627,7 @@ export const ItineraryService = {
         passportExpDate?: string;
         phoneNo?: string;
       }>;
+      prebookContext?: any;
     }>;
     // ✅ NEW: Primary guest fallback (used by backend if lead passenger missing)
     primaryGuest?: {
@@ -648,6 +650,7 @@ export const ItineraryService = {
       routeId: number;
       provider: string;
       hotelCode: string;
+      hotelName?: string;
       bookingCode: string;
       roomType: string;
       checkInDate: string;

@@ -177,8 +177,13 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   // Handle hotel selection
-  const handleSelectHotel = async (hotelCode: string, hotelName: string) => {
-    const hotel = searchResults.find((h) => h.hotelCode === hotelCode);
+  const handleSelectHotel = async (hotelCode: string, hotelName: string, bookingCode?: string) => {
+    const hotel = searchResults.find((h) => {
+      if (bookingCode) {
+        return h.hotelCode === hotelCode && h.bookingCode === bookingCode;
+      }
+      return h.hotelCode === hotelCode;
+    });
     if (!hotel) return;
 
     setSelectedHotel(hotel);
@@ -352,10 +357,14 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {searchResults.map((hotel) => (
                   <HotelSearchResultCard
-                    key={hotel.hotelCode}
+                    key={`${hotel.hotelCode}-${hotel.bookingCode || hotel.searchReference || 'na'}`}
                     hotel={hotel}
                     onSelect={handleSelectHotel}
-                    isLoading={isSelectingHotel && selectedHotel?.hotelCode === hotel.hotelCode}
+                    isLoading={
+                      isSelectingHotel &&
+                      selectedHotel?.hotelCode === hotel.hotelCode &&
+                      (selectedHotel?.bookingCode || '') === (hotel.bookingCode || '')
+                    }
                     checkInDate={checkInDate}
                     checkOutDate={checkOutDate}
                   />
