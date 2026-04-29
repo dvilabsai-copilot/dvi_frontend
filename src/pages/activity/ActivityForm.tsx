@@ -171,7 +171,8 @@ function toReviewRowsCSV(rows: FormReview[]) {
     String(idx + 1),
     String(r.rating ?? ""),
     r.description ?? "",
-    r.createdOn ?? "",
+    // r.createdOn ?? "",
+      formatReviewDateTime(r.createdOn),
   ]);
 
   const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
@@ -192,6 +193,7 @@ function toReviewRowsHTML(rows: FormReview[]) {
   return `<!doctype html><html><head><meta charset=\"utf-8\" /><title>Activity Reviews</title></head><body><table border=\"1\">${head}${body}</table></body></html>`;
 }
 
+
 function downloadFile(name: string, mime: string, content: string) {
   const blob = new Blob([content], { type: mime });
   const href = URL.createObjectURL(blob);
@@ -203,6 +205,28 @@ function downloadFile(name: string, mime: string, content: string) {
   a.remove();
   URL.revokeObjectURL(href);
 }
+
+function formatReviewDateTime(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yyyy = date.getFullYear();
+
+  let hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const period = hours >= 12 ? "PM" : "AM";
+
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+
+  return `${dd}-${mm}-${yyyy} ${String(hours).padStart(2, "0")}:${minutes} ${period}`;
+}
+
 
 function normalizeTime24(value?: string): string {
   const raw = String(value || "").trim();
@@ -772,25 +796,26 @@ if (preview?.images?.length) {
     setReviewFeedback("");
   };
 
-  const handleReviewCopy = async () => {
-    if (!filteredReviews.length) return;
-    try {
-      await navigator.clipboard.writeText(toReviewRowsCSV(filteredReviews));
-      toast.success("Copied reviews as CSV");
-    } catch {
-      toast.error("Copy failed");
-    }
-  };
 
-  const handleReviewCSV = () => {
-    if (!filteredReviews.length) return;
-    downloadFile("activity-reviews.csv", "text/csv;charset=utf-8;", toReviewRowsCSV(filteredReviews));
-  };
 
-  const handleReviewExcel = () => {
-    if (!filteredReviews.length) return;
-    downloadFile("activity-reviews.xls", "application/vnd.ms-excel", toReviewRowsHTML(filteredReviews));
-  };
+const handleReviewCopy = async () => {
+  try {
+    await navigator.clipboard.writeText(toReviewRowsCSV(filteredReviews));
+    toast.success("Copied reviews as CSV");
+  } catch {
+    toast.error("Copy failed");
+  }
+};
+
+const handleReviewCSV = () => {
+  downloadFile("activity-reviews.csv", "text/csv;charset=utf-8;", toReviewRowsCSV(filteredReviews));
+};
+
+const handleReviewExcel = () => {
+  downloadFile("activity-reviews.xls", "application/vnd.ms-excel", toReviewRowsHTML(filteredReviews));
+};
+
+
 
   const deleteReview = async (reviewId: string) => {
     if (isEdit && id) {
@@ -1925,47 +1950,69 @@ const persistPendingReviews = async (activityId: number) => {
               <Card>
                 <CardContent className="p-6">
                   <h3 className="text-lg font-medium mb-4">List of Reviews</h3>
-                  <div className="flex items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">Show</span>
-                      <Select
-                        value={String(reviewPageSize)}
-                        onValueChange={(v) => setReviewPageSize(Number(v))}
-                      >
-                        <SelectTrigger className="w-20">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10</SelectItem>
-                          <SelectItem value="25">25</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <span className="text-sm">entries</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">Search:</span>
-                      <Input
-                        value={reviewSearch}
-                        onChange={(e) => setReviewSearch(e.target.value)}
-                        className="w-32"
-                      />
-                      <Button variant="outline" size="sm" onClick={handleReviewCopy} disabled={!filteredReviews.length}>
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-green-600"
-                        onClick={handleReviewExcel}
-                        disabled={!filteredReviews.length}
-                      >
-                        <FileSpreadsheet className="w-4 h-4" />
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleReviewCSV} disabled={!filteredReviews.length}>
-                        <FileText className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+
+
+                  <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+  <div className="flex flex-wrap items-center gap-2">
+    <span className="text-sm">Show</span>
+    <Select
+      value={String(reviewPageSize)}
+      onValueChange={(v) => setReviewPageSize(Number(v))}
+    >
+      <SelectTrigger className="h-10 w-20">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="10">10</SelectItem>
+        <SelectItem value="25">25</SelectItem>
+      </SelectContent>
+    </Select>
+    <span className="text-sm">entries</span>
+  </div>
+
+  <div className="flex flex-wrap items-center gap-3">
+    <div className="flex items-center gap-2">
+      <span className="text-sm">Search:</span>
+      <Input
+        value={reviewSearch}
+        onChange={(e) => setReviewSearch(e.target.value)}
+        className="h-10 w-[220px]"
+      />
+    </div>
+
+    <Button
+      type="button"
+      variant="outline"
+      className="h-10 min-w-[96px] border-[#7c5cff] text-[#7c5cff] hover:bg-[#f3efff]"
+      onClick={handleReviewCopy}
+    >
+      <Copy className="mr-2 h-4 w-4" />
+      Copy
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      className="h-10 min-w-[96px] border-green-500 text-green-600 hover:bg-green-50"
+      onClick={handleReviewExcel}
+    >
+      <FileSpreadsheet className="mr-2 h-4 w-4" />
+      Excel
+    </Button>
+
+    <Button
+      type="button"
+      variant="outline"
+      className="h-10 min-w-[96px] border-gray-300 text-gray-500 hover:bg-gray-50"
+      onClick={handleReviewCSV}
+    >
+      <FileText className="mr-2 h-4 w-4" />
+      CSV
+    </Button>
+  </div>
+</div>
+
+
 
                   <div className="overflow-x-auto">
                     <Table className="w-full">
@@ -2000,7 +2047,11 @@ const persistPendingReviews = async (activityId: number) => {
                               </div>
                             </TableCell>
                             <TableCell className="break-words">{review.description}</TableCell>
-                            <TableCell className="whitespace-nowrap">{review.createdOn}</TableCell>
+        
+                            <TableCell className="whitespace-nowrap">
+                                {formatReviewDateTime(review.createdOn)}
+                              </TableCell>
+
                             <TableCell>
                               <div className="flex gap-1 justify-center">
                                 <Button
@@ -2230,7 +2281,7 @@ const persistPendingReviews = async (activityId: number) => {
                           <TableCell>{index + 1}</TableCell>
                           <TableCell>{review.rating} STARS</TableCell>
                           <TableCell>{review.description}</TableCell>
-                          <TableCell>{review.createdOn}</TableCell>
+                          <TableCell>{formatReviewDateTime(review.createdOn)}</TableCell>
                         </TableRow>
                       ))
                     )}
