@@ -175,7 +175,14 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
             inclusions: normalizeStringList(
-              hotel.inclusions ?? hotel.Inclusions ?? hotel.inclusion ?? hotel.Inclusion,
+              hotel.inclusions ??
+              hotel.Inclusions ??
+              hotel.inclusion ??
+              hotel.Inclusion ??
+              hotel?.rooms?.[0]?.inclusion ??
+              hotel?.rooms?.[0]?.Inclusion ??
+              hotel?.Rooms?.[0]?.Inclusion ??
+              hotel?.Rooms?.[0]?.inclusion,
             ),
             amenities: normalizeStringList(
               hotel.amenities ?? hotel.Amenities ?? hotel.amenity ?? hotel.Amenity,
@@ -183,7 +190,16 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             rateConditions: normalizeStringList(
               hotel.rateConditions ?? hotel.RateConditions ?? hotel.rateCondition ?? hotel.RateCondition,
             ),
-            mealPlan: hotel.mealPlan || hotel.mealType || hotel.MealType || hotel.meal_type,
+            mealPlan:
+              hotel.mealPlan ||
+              hotel.MealPlan ||
+              hotel.mealType ||
+              hotel.MealType ||
+              hotel.meal_type ||
+              hotel?.rooms?.[0]?.mealType ||
+              hotel?.rooms?.[0]?.MealType ||
+              hotel?.Rooms?.[0]?.MealType ||
+              hotel?.Rooms?.[0]?.mealType,
             // Provider field comes from backend (tbo, ResAvenue, etc.)
           });
 

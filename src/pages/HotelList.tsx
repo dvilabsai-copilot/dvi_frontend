@@ -1385,12 +1385,23 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 const roomKey = `hotel-${getHotelOptionKey(hotel)}`;
                                 const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
                                 const hotelData = hotel as Record<string, unknown>;
-                                const displayInclusions = pickListFromKeys(hotelData, [
+                                const baseInclusions = pickListFromKeys(hotelData, [
                                   'inclusions',
                                   'Inclusions',
+                                  'inclusion',
+                                  'Inclusion',
                                   'facilities',
                                   'Facilities',
-                                ]).slice(0, 4);
+                                ]);
+                                const roomLevelInclusions = normalizeTextList(
+                                  (hotel as any)?.rooms?.[0]?.inclusion ||
+                                  (hotel as any)?.rooms?.[0]?.Inclusion ||
+                                  (hotel as any)?.Rooms?.[0]?.Inclusion ||
+                                  (hotel as any)?.Rooms?.[0]?.inclusion,
+                                );
+                                const displayInclusions = Array.from(
+                                  new Set([...baseInclusions, ...roomLevelInclusions]),
+                                ).slice(0, 4);
                                 const displayAmenities = pickListFromKeys(hotelData, [
                                   'amenities',
                                   'Amenities',
@@ -1419,7 +1430,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 return (
                                 <div
                                   key={roomKey}
-                                  className={`bg-white rounded-lg shadow-md border overflow-hidden ${
+                                  className={`bg-white rounded-lg shadow-md border overflow-hidden h-full flex flex-col ${
                                     isSelected ? 'border-[#22c55e] ring-1 ring-[#22c55e]/40' : 'border-[#e5d9f2]'
                                   }`}
                                 >
@@ -1453,7 +1464,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                     </div>
                                   </div>
 
-                                  <div className="p-4">{/* Check-in/Check-out times */}
+                                  <div className="p-4 flex-1 flex flex-col">{/* Check-in/Check-out times */}
                                     <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b">
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
@@ -1595,33 +1606,37 @@ export const HotelList: React.FC<HotelListProps> = ({
                                     )}
 
                                     {/* Choose/Update Button - Conditional based on selection status */}
-                                    <button
-                                      className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
-                                        isSelected
-                                          ? 'bg-[#22c55e] text-white cursor-default'
-                                          : 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
-                                      }`}
-                                      onClick={() => handleChooseOrUpdateHotel(hotel)}
-                                      disabled={isSelected}
-                                    >
-                                      {isSelected ? 'Selected' : 'Choose'}
-                                    </button>
+                                    <div className="mt-auto pt-2">
+                                      <button
+                                        className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
+                                          isSelected
+                                            ? 'bg-[#22c55e] text-white cursor-default'
+                                            : 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
+                                        }`}
+                                        onClick={() => handleChooseOrUpdateHotel(hotel)}
+                                        disabled={isSelected}
+                                      >
+                                        {isSelected ? 'Selected' : 'Choose'}
+                                      </button>
 
-                                    {displayInclusions.length > 0 && (
-                                      <div className="mt-3 pt-3 border-t border-[#e9dcfb]">
-                                        <p className="text-xs font-medium text-[#4a4260] mb-2">Inclusions</p>
-                                        <div className="flex flex-wrap gap-1">
-                                          {displayInclusions.map((item, idx) => (
-                                            <span
-                                              key={`inc-${roomKey}-${idx}`}
-                                              className="inline-block bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded"
-                                            >
-                                              {item}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
+                                      {displayInclusions.length > 0 && (
+                                        <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
+                                          <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">
+                                            Inclusions ({displayInclusions.length})
+                                          </summary>
+                                          <div className="mt-2 flex flex-wrap gap-1">
+                                            {displayInclusions.map((item, idx) => (
+                                              <span
+                                                key={`inc-${roomKey}-${idx}`}
+                                                className="inline-block bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded"
+                                              >
+                                                {item}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
