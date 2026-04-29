@@ -2400,6 +2400,35 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       .filter(Boolean);
   };
 
+  const resolvePrebookMealPlan = (hotel: any): string => {
+    const direct = [
+      hotel?.mealPlan,
+      hotel?.MealPlan,
+      hotel?.mealType,
+      hotel?.MealType,
+      hotel?.meal_type,
+      hotel?.boardType,
+      hotel?.BoardType,
+      hotel?.room?.mealType,
+      hotel?.room?.MealType,
+      hotel?.Room?.mealType,
+      hotel?.Room?.MealType,
+      hotel?.rooms?.[0]?.mealType,
+      hotel?.rooms?.[0]?.MealType,
+      hotel?.Rooms?.[0]?.mealType,
+      hotel?.Rooms?.[0]?.MealType,
+    ];
+
+    for (const value of direct) {
+      const text = String(value || '').trim();
+      if (text) {
+        return text;
+      }
+    }
+
+    return '';
+  };
+
   const normalizeCancellationPolicyItems = (value: any): string[] => {
     if (!value) {
       return [];
@@ -7141,7 +7170,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   const hotelAmenities = normalizePrebookItems(hotel?.amenities);
                   const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
                   const hotelInclusions = normalizePrebookItems(hotel?.inclusions);
-                  const hotelMealType = String(hotel?.mealType || hotel?.mealPlan || '').trim();
+                  const hotelMealType = resolvePrebookMealPlan(hotel);
                   const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
                   const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
                   const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
@@ -7168,7 +7197,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
                           {hotelMealType ? (
                             <p className="text-xs text-[#6c6c6c]">
-                              Meal Type: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                              Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
                             </p>
                           ) : null}
                         </div>
