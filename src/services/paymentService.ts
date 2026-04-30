@@ -1,15 +1,5 @@
 import { api } from '../lib/api';
 
-export const WALLET_TOPUP_UI_SURCHARGE_INR = 0.02;
-
-export function roundToTwo(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-export function calculateWalletTopupPayableInInr(baseAmountInInr: number) {
-  return roundToTwo(Number(baseAmountInInr || 0) + WALLET_TOPUP_UI_SURCHARGE_INR);
-}
-
 export interface CreateOrderResponse {
   id?: string;
   orderId: string;
@@ -28,7 +18,7 @@ export const paymentService = {
   createWalletTopupOrder: async (amountInInr: number): Promise<CreateOrderResponse> => {
     return api('/payments/razorpay/wallet-topup/create-order', {
       method: 'POST',
-      body: { amountInInr: roundToTwo(amountInInr) },
+      body: { amountInInr },
     });
   },
 

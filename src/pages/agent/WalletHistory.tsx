@@ -9,11 +9,7 @@ import { Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import {
-  calculateWalletTopupPayableInInr,
-  paymentService,
-  WALLET_TOPUP_UI_SURCHARGE_INR,
-} from "@/services/paymentService";
+import { paymentService } from "@/services/paymentService";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useNavigate } from "react-router-dom";
 
@@ -247,9 +243,6 @@ const WalletHistory = () => {
   const [submitting, setSubmitting] = useState(false);
   const { openCheckout } = useRazorpayCheckout();
 
-  const enteredTopUpAmount = Number(topUpAmount || 0);
-  const payableTopUpAmount = calculateWalletTopupPayableInInr(enteredTopUpAmount);
-
   const fetchHistory = async () => {
     const agentId = getAgentId();
     if (!agentId) throw new Error("Agent ID not found");
@@ -281,7 +274,7 @@ const WalletHistory = () => {
     try {
       setSubmitting(true);
       const order = await withTimeout(
-        paymentService.createWalletTopupOrder(payableTopUpAmount),
+        paymentService.createWalletTopupOrder(amount),
         20000,
         "Create order request timed out. Please try again.",
       );
@@ -379,10 +372,7 @@ const WalletHistory = () => {
               placeholder="Enter amount"
             />
             <p className="text-sm text-muted-foreground">
-              Gateway adjustment: {formatCurrency(WALLET_TOPUP_UI_SURCHARGE_INR)}
-            </p>
-            <p className="text-sm font-medium">
-              Total payable: {formatCurrency(payableTopUpAmount)}
+              Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
             </p>
           </div>
           <DialogFooter>

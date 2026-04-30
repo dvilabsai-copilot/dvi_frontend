@@ -10,11 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  calculateWalletTopupPayableInInr,
-  paymentService,
-  WALLET_TOPUP_UI_SURCHARGE_INR,
-} from "@/services/paymentService";
+import { paymentService } from "@/services/paymentService";
 import { toast } from "sonner";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 
@@ -38,8 +34,6 @@ export default function Dashboard() {
   const [topUpAmount, setTopUpAmount] = useState("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const { openCheckout } = useRazorpayCheckout();
-  const enteredTopUpAmount = Number(topUpAmount || 0);
-  const payableTopUpAmount = calculateWalletTopupPayableInInr(enteredTopUpAmount);
 
   const token = localStorage.getItem("accessToken");
   const user = token ? parseJwt(token) : null;
@@ -57,7 +51,7 @@ export default function Dashboard() {
 
     try {
       setIsProcessingPayment(true);
-      const order = await paymentService.createWalletTopupOrder(payableTopUpAmount);
+      const order = await paymentService.createWalletTopupOrder(Number(topUpAmount));
 
       await openCheckout({
         key: order.key,
@@ -305,10 +299,7 @@ export default function Dashboard() {
                   step="0.01"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Gateway adjustment: ₹{WALLET_TOPUP_UI_SURCHARGE_INR.toFixed(2)}
-                </p>
-                <p className="text-sm font-medium">
-                  Total payable: ₹{payableTopUpAmount.toFixed(2)}
+                  Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
                 </p>
               </div>
             </div>
