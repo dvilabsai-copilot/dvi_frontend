@@ -55,7 +55,7 @@ export const walletService = {
     );
 
     const txRes = await axios.get(
-      `${API_BASE_URL}/api/v1/payments/wallet-history`,
+      `${API_BASE_URL}/payments/wallet-history`,
       { headers }
     );
 
