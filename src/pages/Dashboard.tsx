@@ -44,7 +44,7 @@ export default function Dashboard() {
   const isGuide = user?.role === 5 || (user?.guideId && user.guideId > 0);
 
   const handleTopUp = async () => {
-    if (!topUpAmount || isNaN(Number(topUpAmount)) || Number(topUpAmount) <= 0) {
+    if (!topUpAmount || isNaN(Number(topUpAmount)) || Number(topUpAmount) < 1) {
       toast.error("Please enter a valid amount");
       return;
     }
@@ -295,7 +295,12 @@ export default function Dashboard() {
                   type="number"
                   value={topUpAmount}
                   onChange={(e) => setTopUpAmount(e.target.value)}
+                  min="1"
+                  step="0.01"
                 />
+                <p className="text-sm text-muted-foreground">
+                  Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
+                </p>
               </div>
             </div>
             <DialogFooter>
