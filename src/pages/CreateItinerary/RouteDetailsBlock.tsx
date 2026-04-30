@@ -219,6 +219,22 @@ const destLocations = data.rows
   void onRefreshRouteDistance?.(updatedRow);
 }, [routeDetails.length, departureLocationObj?.name]);
 
+  useEffect(() => {
+    const hasInvalidDirectVisit = routeDetails.some((row) => {
+      const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+      return hasViaRoutes && row.directVisit === "Yes";
+    });
+
+    if (!hasInvalidDirectVisit) return;
+
+    setRouteDetails((prev) =>
+      prev.map((row) => {
+        const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+        return hasViaRoutes ? { ...row, directVisit: "No" } : row;
+      })
+    );
+  }, [routeDetails, setRouteDetails]);
+
   const parseDDMMYYYY = (value: string): Date | null => {
     if (!value) return null;
     const [d, m, y] = value.split("/").map(Number);
@@ -366,6 +382,7 @@ const destLocations = data.rows
              const isFirstRow = idx === 0;
 const isLastRow = idx === routeDetails.length - 1;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
+const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
 
               // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
@@ -537,26 +554,34 @@ const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 )}
 
 <TableCell className="text-center">
-  <button
-    type="button"
-    aria-pressed={row.directVisit === "Yes"}
-    className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""}`}
-    title={row.directVisit === "Yes" ? "Active" : "Inactive"}
-   onClick={() =>
-  setRouteDetails((prev) =>
-    prev.map((r, i) =>
-      i === idx
-        ? {
-            ...r,
-            directVisit: r.directVisit === "Yes" ? "No" : "Yes",
-          }
-        : r
-    )
-  )
-}
+  <span
+    className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
+    title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
   >
-    <span className="hotel-toggle-knob"></span>
-  </button>
+    <button
+      type="button"
+      aria-pressed={row.directVisit === "Yes"}
+      aria-disabled={hasViaRoutes}
+      disabled={hasViaRoutes}
+      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""} ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
+      title={!hasViaRoutes ? (row.directVisit === "Yes" ? "Active" : "Inactive") : undefined}
+      onClick={() => {
+        if (hasViaRoutes) return;
+        setRouteDetails((prev) =>
+          prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  directVisit: r.directVisit === "Yes" ? "No" : "Yes",
+                }
+              : r
+          )
+        );
+      }}
+    >
+      <span className="hotel-toggle-knob"></span>
+    </button>
+  </span>
 </TableCell>
 </TableRow>
               );
