@@ -2400,6 +2400,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       .filter(Boolean);
   };
 
+  const resolvePrebookInclusions = (hotel: any): string[] => {
+    const candidateLists = [
+      hotel?.inclusions,
+      hotel?.Inclusions,
+      hotel?.inclusion,
+      hotel?.Inclusion,
+      hotel?.facilities,
+      hotel?.Facilities,
+      hotel?.rooms?.[0]?.inclusion,
+      hotel?.rooms?.[0]?.Inclusion,
+      hotel?.Rooms?.[0]?.inclusion,
+      hotel?.Rooms?.[0]?.Inclusion,
+    ];
+
+    const merged = candidateLists.flatMap((value) => normalizePrebookItems(value));
+    return Array.from(new Set(merged.map((item) => String(item || '').trim()).filter(Boolean)));
+  };
+
   const resolvePrebookMealPlan = (hotel: any): string => {
     const direct = [
       hotel?.mealPlan,
@@ -2407,16 +2425,22 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       hotel?.mealType,
       hotel?.MealType,
       hotel?.meal_type,
+      hotel?.mealTypeName,
+      hotel?.MealTypeName,
       hotel?.boardType,
       hotel?.BoardType,
+      hotel?.boardBasis,
+      hotel?.BoardBasis,
       hotel?.room?.mealType,
       hotel?.room?.MealType,
       hotel?.Room?.mealType,
       hotel?.Room?.MealType,
       hotel?.rooms?.[0]?.mealType,
       hotel?.rooms?.[0]?.MealType,
+      hotel?.rooms?.[0]?.boardBasis,
       hotel?.Rooms?.[0]?.mealType,
       hotel?.Rooms?.[0]?.MealType,
+      hotel?.Rooms?.[0]?.boardBasis,
     ];
 
     for (const value of direct) {
@@ -2425,6 +2449,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return text;
       }
     }
+
+    const inclusionText = resolvePrebookInclusions(hotel).join(' ').toLowerCase();
+    if (inclusionText.includes('full board')) return 'Full Board';
+    if (inclusionText.includes('half board')) return 'Half Board';
+    if (inclusionText.includes('room only') || inclusionText.includes('no meals')) return 'Room Only';
+    if (inclusionText.includes('breakfast')) return 'Breakfast Included';
 
     return '';
   };
@@ -7169,7 +7199,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
                   const hotelAmenities = normalizePrebookItems(hotel?.amenities);
                   const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
-                  const hotelInclusions = normalizePrebookItems(hotel?.inclusions);
+                  const hotelInclusions = resolvePrebookInclusions(hotel);
                   const hotelMealType = resolvePrebookMealPlan(hotel);
                   const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
                   const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
