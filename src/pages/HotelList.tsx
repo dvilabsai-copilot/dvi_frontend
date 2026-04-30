@@ -1619,11 +1619,11 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         {isSelected ? 'Selected' : 'Choose'}
                                       </button>
 
-                                      {displayInclusions.length > 0 && (
-                                        <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
-                                          <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">
-                                            Inclusions ({displayInclusions.length})
-                                          </summary>
+                                      <details className="mt-3 pt-3 border-t border-[#e9dcfb]">
+                                        <summary className="cursor-pointer text-xs font-medium text-[#4a4260] select-none">
+                                          Inclusions ({displayInclusions.length})
+                                        </summary>
+                                        {displayInclusions.length > 0 ? (
                                           <div className="mt-2 flex flex-wrap gap-1">
                                             {displayInclusions.map((item, idx) => (
                                               <span
@@ -1634,8 +1634,10 @@ export const HotelList: React.FC<HotelListProps> = ({
                                               </span>
                                             ))}
                                           </div>
-                                        </details>
-                                      )}
+                                        ) : (
+                                          <p className="mt-2 text-xs text-gray-500">No inclusions returned</p>
+                                        )}
+                                      </details>
                                     </div>
                                   </div>
                                 </div>
