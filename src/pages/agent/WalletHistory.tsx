@@ -9,7 +9,11 @@ import { Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { paymentService } from "@/services/paymentService";
+import {
+  calculateWalletTopupPayableInInr,
+  paymentService,
+  WALLET_TOPUP_UI_SURCHARGE_INR,
+} from "@/services/paymentService";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useNavigate } from "react-router-dom";
 
@@ -243,6 +247,9 @@ const WalletHistory = () => {
   const [submitting, setSubmitting] = useState(false);
   const { openCheckout } = useRazorpayCheckout();
 
+  const enteredTopUpAmount = Number(topUpAmount || 0);
+  const payableTopUpAmount = calculateWalletTopupPayableInInr(enteredTopUpAmount);
+
   const fetchHistory = async () => {
     const agentId = getAgentId();
     if (!agentId) throw new Error("Agent ID not found");
@@ -266,7 +273,7 @@ const WalletHistory = () => {
 
   const onTopUp = async () => {
     const amount = Number(topUpAmount);
-    if (!amount || amount <= 0) {
+    if (!amount || amount < 1) {
       toast.error("Enter a valid top-up amount");
       return;
     }
@@ -274,7 +281,7 @@ const WalletHistory = () => {
     try {
       setSubmitting(true);
       const order = await withTimeout(
-        paymentService.createWalletTopupOrder(amount),
+        paymentService.createWalletTopupOrder(payableTopUpAmount),
         20000,
         "Create order request timed out. Please try again.",
       );
@@ -368,8 +375,15 @@ const WalletHistory = () => {
               onChange={(e) => setTopUpAmount(e.target.value)}
               type="number"
               min="1"
+              step="0.01"
               placeholder="Enter amount"
             />
+            <p className="text-sm text-muted-foreground">
+              Gateway adjustment: {formatCurrency(WALLET_TOPUP_UI_SURCHARGE_INR)}
+            </p>
+            <p className="text-sm font-medium">
+              Total payable: {formatCurrency(payableTopUpAmount)}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTopUpOpen(false)}>Cancel</Button>
