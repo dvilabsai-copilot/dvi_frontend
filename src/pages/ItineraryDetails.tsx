@@ -84,6 +84,7 @@ type AttractionSegment = {
   description: string;
   visitTime: string; // "06:45 AM - 08:45 AM"
   duration: string; // "2 Hours"
+  priority?: number;
   amount: number | null; // Entry cost
   timings?: string;
   image: string | null;
@@ -640,6 +641,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     locationMap: string | null;
     timings?: string;
     visitAgain?: boolean;
+    priority?: number;
+    hotspotPriority?: number;
+    hotspot_priority?: number;
   };
 
   const [addHotspotModal, setAddHotspotModal] = useState<{
@@ -662,6 +666,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [hotspotSearchQuery, setHotspotSearchQuery] = useState("");
   const [availableHotspots, setAvailableHotspots] = useState<AvailableHotspot[]>([]);
   const [previewTimelinesByHotspot, setPreviewTimelinesByHotspot] = useState<Record<number, any[]>>({});
+  const [previewResolutionsByHotspot, setPreviewResolutionsByHotspot] = useState<Record<number, any>>({});
+  const [tempModalTimeline, setTempModalTimeline] = useState<any[]>([]);
+  const [forceReplacementApprovedByHotspot, setForceReplacementApprovedByHotspot] = useState<Record<number, boolean>>({});
   const [isPreviewingHotspotId, setIsPreviewingHotspotId] = useState<number | null>(null);
   const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
   const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
@@ -684,6 +691,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         type: "attraction",
         text: seg.name,
         timeRange: seg.visitTime || null,
+        visitTime: seg.visitTime || null,
+        duration: seg.duration || null,
+        timings: seg.timings || null,
+        priority: seg.priority ?? null,
         locationId: Number(seg.hotspotId ?? seg.locationId ?? 0) || null,
         isConflict: seg.isConflict === true,
         conflictReason: seg.conflictReason ?? null,
@@ -771,9 +782,31 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     return selectedHotspotIds.map((hotspotId) => {
       const timeline = previewTimelinesByHotspot[hotspotId] || [];
-      const fromTimeline = timeline.find((seg: any) => (
+      const candidates = timeline.filter((seg: any) => (
         seg?.type === "attraction" && Number(seg?.locationId) === Number(hotspotId)
       ));
+
+      const hasConflictCandidate = candidates.some((seg: any) => seg?.isConflict === true);
+      const fromTimeline = candidates.sort((a: any, b: any) => {
+        const aConflict = a?.isConflict === true ? 1 : 0;
+        const bConflict = b?.isConflict === true ? 1 : 0;
+        if (aConflict !== bConflict) {
+          return hasConflictCandidate ? (bConflict - aConflict) : (aConflict - bConflict);
+        }
+        const toStartMinutes = (timeRange: string): number => {
+          const raw = String(timeRange || '').trim();
+          const startPart = raw.split('-')[0]?.trim() || raw;
+          const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          if (!match) return Number.MAX_SAFE_INTEGER;
+          let h = Number(match[1]);
+          const m = Number(match[2]);
+          const ampm = match[3].toUpperCase();
+          if (ampm === 'AM' && h === 12) h = 0;
+          if (ampm === 'PM' && h !== 12) h += 12;
+          return (h * 60) + m;
+        };
+        return toStartMinutes(String(a?.timeRange || '')) - toStartMinutes(String(b?.timeRange || ''));
+      })[0];
 
       if (!fromTimeline) {
         return fallbackFor(hotspotId);
@@ -787,32 +820,136 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     });
   }, [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds]);
 
-  const effectivePreviewTimeline = useMemo(() => {
-    const base = [...defaultPreviewTimeline];
-    if (selectedPreviewSegments.length === 0) return base;
+  const activePreviewTimeline = useMemo(() => {
+    if (!selectedHotspotId) return [];
+    const routeScopedRows = (tempModalTimeline.length > 0
+      ? tempModalTimeline
+      : (previewTimelinesByHotspot[selectedHotspotId] || []))
+      .filter((row: any) => {
+        const rowRouteId = Number(
+          row?.itinerary_route_ID ??
+          row?.itineraryRouteId ??
+          row?.itinerary_route_id ??
+          row?.route_id ??
+          row?.routeId ??
+          row?.dayId ??
+          row?.routeID ??
+          row?.route,
+        );
+        if (!Number.isFinite(rowRouteId) || rowRouteId <= 0) return true;
+        return rowRouteId === Number(addHotspotModal.routeId);
+      });
+    const rows = [...routeScopedRows];
 
-    if (!selectedHotspotAnchor) {
-      return [...base, ...selectedPreviewSegments];
+    const parseStartMinutes = (value: any): number => {
+      const raw = String(value || '').trim();
+      if (!raw || raw === '--' || raw === 'Not schedulable') return Number.POSITIVE_INFINITY;
+
+      const startPart = raw.split('-')[0]?.trim() || raw;
+      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return Number.POSITIVE_INFINITY;
+
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      const ampm = match[3].toUpperCase();
+
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      if (ampm === 'PM' && hour !== 12) hour += 12;
+
+      return hour * 60 + minute;
+    };
+
+    const typePriority = (segment: any): number => {
+      const rawType = String(segment?.type || segment?.itemType || '').toLowerCase();
+      if (rawType === 'refreshment' || Number(segment?.item_type) === 1) return 0;
+      if (rawType === 'travel' || Number(segment?.item_type) === 3) return 1;
+      if (rawType === 'attraction' || Number(segment?.item_type) === 4) return 2;
+      if (rawType === 'hotel' || Number(segment?.item_type) === 6) return 4;
+      return 3;
+    };
+
+    return rows.sort((a: any, b: any) => {
+      const startDiff = parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange);
+      if (startDiff !== 0) return startDiff;
+      return typePriority(a) - typePriority(b);
+    });
+  }, [addHotspotModal.routeId, previewTimelinesByHotspot, selectedHotspotId, tempModalTimeline]);
+
+  const activePreviewResolution = useMemo(() => {
+    if (!selectedHotspotId) return null;
+    return previewResolutionsByHotspot[selectedHotspotId] || null;
+  }, [previewResolutionsByHotspot, selectedHotspotId]);
+
+  const effectivePreviewTimeline = useMemo(() => {
+    if (activePreviewTimeline.length > 0) {
+      return activePreviewTimeline;
     }
 
-    const insertAfterIdx = base.findIndex((seg: any) => {
-      if (seg?.type !== "travel") return false;
-      const fromMatches = selectedHotspotAnchor.anchorFrom
-        ? String(seg?.from || "").trim().toLowerCase() === String(selectedHotspotAnchor.anchorFrom).trim().toLowerCase()
-        : true;
-      const toMatches = selectedHotspotAnchor.anchorTo
-        ? String(seg?.to || "").trim().toLowerCase() === String(selectedHotspotAnchor.anchorTo).trim().toLowerCase()
-        : true;
-      const timeMatches = selectedHotspotAnchor.anchorTimeRange
-        ? String(seg?.timeRange || "").trim() === String(selectedHotspotAnchor.anchorTimeRange).trim()
-        : true;
-      return fromMatches && toMatches && timeMatches;
-    });
+    const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
 
-    const at = insertAfterIdx >= 0 ? insertAfterIdx + 1 : base.length;
-    base.splice(at, 0, ...selectedPreviewSegments);
-    return base;
-  }, [defaultPreviewTimeline, selectedHotspotAnchor, selectedPreviewSegments]);
+    const parseStartMinutes = (value: any): number => {
+      const raw = String(value || '').trim();
+      if (!raw || raw === '--') return Number.POSITIVE_INFINITY;
+
+      const startPart = raw.split('-')[0]?.trim() || raw;
+      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return Number.POSITIVE_INFINITY;
+
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      const ampm = match[3].toUpperCase();
+
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      if (ampm === 'PM' && hour !== 12) hour += 12;
+
+      return hour * 60 + minute;
+    };
+
+    return merged.sort((a: any, b: any) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
+  }, [activePreviewTimeline, defaultPreviewTimeline, selectedPreviewSegments]);
+
+  const previewHotspotMetaById = useMemo(() => {
+    const routeId = Number(addHotspotModal.routeId || 0);
+    const day = itinerary?.days?.find((d) => Number(d.id) === routeId);
+    const map = new Map<number, { visitTime?: string | null; duration?: string | null; timings?: string | null; priority?: number | null }>();
+
+    const daySegments = Array.isArray(day?.segments) ? day!.segments : [];
+    for (const seg of daySegments as any[]) {
+      if (String(seg?.type || '').toLowerCase() !== 'attraction') continue;
+      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
+
+      map.set(hotspotId, {
+        visitTime: seg?.visitTime || null,
+        duration: seg?.duration || null,
+        timings: seg?.timings || null,
+        priority: Number.isFinite(Number(seg?.priority)) ? Number(seg.priority) : null,
+      });
+    }
+
+    for (const hotspot of availableHotspots) {
+      const hotspotId = Number(hotspot?.id || 0);
+      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
+
+      const existing = map.get(hotspotId) || {};
+      const durationFromHours = Number(hotspot?.timeSpend || 0) > 0
+        ? formatMinutesDuration(Math.round(Number(hotspot.timeSpend) * 60))
+        : null;
+
+      map.set(hotspotId, {
+        visitTime: existing.visitTime || null,
+        duration: existing.duration || durationFromHours,
+        timings: existing.timings || hotspot?.timings || null,
+        priority:
+          existing.priority ??
+          (Number.isFinite(Number((hotspot as any)?.priority)) ? Number((hotspot as any).priority) : null) ??
+          (Number.isFinite(Number((hotspot as any)?.hotspotPriority)) ? Number((hotspot as any).hotspotPriority) : null) ??
+          (Number.isFinite(Number((hotspot as any)?.hotspot_priority)) ? Number((hotspot as any).hotspot_priority) : null),
+      });
+    }
+
+    return map;
+  }, [addHotspotModal.routeId, availableHotspots, itinerary?.days]);
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
@@ -3396,6 +3533,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       locationName,
     });
     setPreviewTimelinesByHotspot({});
+    setPreviewResolutionsByHotspot({});
+    setTempModalTimeline([]);
+    setForceReplacementApprovedByHotspot({});
     setSelectedHotspotIds([]);
     setIsPreviewingHotspotId(null);
     setSelectedHotspotAnchor(anchor || null);
@@ -3436,6 +3576,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       planId?: number;
       routeId?: number;
       anchor?: HotspotAnchor;
+      allowTopPriorityRemoval?: boolean;
+      selectedHotspotIds?: number[];
     },
   ) => {
     const pId = options?.planId || addHotspotModal.planId;
@@ -3443,7 +3585,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const anchor = options?.anchor || selectedHotspotAnchor || undefined;
     if (!pId || !rId) return;
 
-    setSelectedHotspotIds((prev) => [...prev.filter((id) => id !== hotspotId), hotspotId]);
+    const resolvedSelectedHotspotIds = Array.from(
+      new Set([
+        ...((options?.selectedHotspotIds || selectedHotspotIds)
+          .filter((id) => Number.isFinite(Number(id)) && Number(id) > 0)),
+        hotspotId,
+      ]),
+    );
+
+    setSelectedHotspotIds(resolvedSelectedHotspotIds);
     setIsPreviewingHotspotId(hotspotId);
 
     // Don't force scroll list to top here, let the user stay where they clicked
@@ -3462,12 +3612,47 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             anchorIndex: anchor.anchorIndex,
           }
           : undefined,
+        {
+          allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+          selectedHotspotIds: resolvedSelectedHotspotIds,
+        },
       );
+      const fullTimeline = Array.isArray(preview?.fullTimeline) ? [...preview.fullTimeline] : [];
+      const hasSelectedAttraction = fullTimeline.some((seg: any) => {
+        const type = String(seg?.type || '').toLowerCase();
+        const locId = Number(seg?.locationId || seg?.hotspot_ID || 0);
+        return type === 'attraction' && locId === Number(hotspotId);
+      });
+
+      if (!hasSelectedAttraction && preview?.newHotspot) {
+        fullTimeline.push(preview.newHotspot);
+      }
+
       // The backend returns { newHotspot, otherConflicts, fullTimeline }.
       setPreviewTimelinesByHotspot((prev) => ({
         ...prev,
-        [hotspotId]: preview.fullTimeline || [],
+        [hotspotId]: fullTimeline,
       }));
+      setPreviewResolutionsByHotspot((prev) => ({
+        ...prev,
+        [hotspotId]: preview?.resolution || null,
+      }));
+      setTempModalTimeline(fullTimeline);
+      if (options?.allowTopPriorityRemoval === true) {
+        setForceReplacementApprovedByHotspot((prev) => ({
+          ...prev,
+          [hotspotId]: true,
+        }));
+      }
+
+      if (preview?.anchorPreference?.honored === false) {
+        const requestedIndex = preview?.anchorPreference?.requested?.anchorIndex;
+        const resolvedIndex = preview?.anchorPreference?.resolved?.anchorIndex;
+        const resolvedTimeRange = preview?.anchorPreference?.resolved?.timeRange;
+        toast.info(
+          `Preferred anchor ${requestedIndex} moved to ${resolvedIndex}${resolvedTimeRange ? ` (${resolvedTimeRange})` : ''} due to timing constraints.`
+        );
+      }
     } catch (e: any) {
       console.error("Failed to preview hotspot", e);
       toast.error(e?.message || "Failed to preview hotspot");
@@ -3477,12 +3662,47 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
   };
 
-  const handleRemovePreviewHotspot = (hotspotId: number) => {
-    setSelectedHotspotIds((prev) => prev.filter((id) => id !== hotspotId));
+  const handleRemovePreviewHotspot = async (hotspotId: number) => {
+    const nextSelectedIds = selectedHotspotIds.filter((id) => id !== hotspotId);
+    setSelectedHotspotIds(nextSelectedIds);
+    setForceReplacementApprovedByHotspot((prev) => {
+      const clone = { ...prev };
+      delete clone[hotspotId];
+      return clone;
+    });
+    setPreviewResolutionsByHotspot((prev) => {
+      const clone = { ...prev };
+      delete clone[hotspotId];
+      return clone;
+    });
     setPreviewTimelinesByHotspot((prev) => {
       const clone = { ...prev };
       delete clone[hotspotId];
       return clone;
+    });
+    const fallbackHotspotId = nextSelectedIds.length > 0
+      ? nextSelectedIds[nextSelectedIds.length - 1]
+      : null;
+
+    if (!fallbackHotspotId) {
+      setTempModalTimeline([]);
+      return;
+    }
+
+    try {
+      await handlePreviewHotspot(fallbackHotspotId, {
+        selectedHotspotIds: nextSelectedIds,
+      });
+    } catch {
+      const fallbackTimeline = previewTimelinesByHotspot[fallbackHotspotId] || [];
+      setTempModalTimeline(Array.isArray(fallbackTimeline) ? [...fallbackTimeline] : []);
+    }
+  };
+
+  const handleConfirmPriorityReplacement = async () => {
+    if (!selectedHotspotId) return;
+    await handlePreviewHotspot(selectedHotspotId, {
+      allowTopPriorityRemoval: true,
     });
   };
 
@@ -3498,6 +3718,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     if (selectedHotspotIds.length === 0) {
       toast.error("Select at least one hotspot to add");
+      return;
+    }
+
+    const unresolvedPriorityReplacement = selectedHotspotIds.find((hotspotId) => {
+      const resolution = previewResolutionsByHotspot[hotspotId];
+      return resolution?.requiresConfirmation === true && forceReplacementApprovedByHotspot[hotspotId] !== true;
+    });
+
+    if (unresolvedPriorityReplacement) {
+      toast.error("Confirm the priority replacement in the temp timeline before adding this hotspot.");
       return;
     }
 
@@ -3526,6 +3756,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               anchorIndex: selectedHotspotAnchor.anchorIndex,
             }
             : undefined,
+          {
+            allowTopPriorityRemoval: forceReplacementApprovedByHotspot[hotspotId] === true,
+          },
         );
 
         if (addResult?.success === false || addResult?.inserted === false) {
@@ -3562,6 +3795,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       });
       setHotspotSearchQuery("");
       setPreviewTimelinesByHotspot({});
+      setPreviewResolutionsByHotspot({});
+      setTempModalTimeline([]);
+      setForceReplacementApprovedByHotspot({});
       setSelectedHotspotIds([]);
       setIsPreviewingHotspotId(null);
       setSelectedHotspotAnchor(null);
@@ -4988,6 +5224,38 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       variant="outline"
                       size="sm"
                       className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff] h-7 px-2 text-xs"
+                      onClick={() => {
+                        const anchorSegment: any = day.segments.find((seg: any) => (
+                          seg?.type === "hotspot" &&
+                          seg?.anchorType === "after_travel" &&
+                          Number.isInteger(Number(seg?.anchorIndex))
+                        ));
+
+                        openAddHotspotModal(
+                          itinerary.planId || 0,
+                          day.id,
+                          0,
+                          day.arrival || "Location",
+                          anchorSegment
+                            ? {
+                              anchorType: "after_travel",
+                              anchorIndex: Number(anchorSegment.anchorIndex),
+                              anchorFrom: anchorSegment.anchorFrom,
+                              anchorTo: anchorSegment.anchorTo,
+                              anchorTimeRange: anchorSegment.anchorTimeRange,
+                            }
+                            : null,
+                        );
+                      }}
+                      disabled={readOnly}
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Hotspot
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff] h-7 px-2 text-xs"
                     >
                       <Plus className="h-3 w-3 mr-1" />
                       Add Guide
@@ -5397,41 +5665,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                   </Button>
                                 )}
                               </div>
-                            </div>
-                          );
-                        })()}
-
-                        {segment.type === "hotspot" && !readOnly && (() => {
-                          const isAnchored =
-                            segment.anchorType === "after_travel" &&
-                            Number.isInteger(Number(segment.anchorIndex));
-
-                          return (
-                            <div className="mb-3">
-                              <button
-                                type="button"
-                                className="flex items-center gap-2 text-[#d546ab] hover:underline font-medium"
-                                onClick={() =>
-                                  openAddHotspotModal(
-                                    itinerary.planId || 0,
-                                    day.id,
-                                    segment.locationId || 0,
-                                    day.arrival || "Location",
-                                    isAnchored
-                                      ? {
-                                        anchorType: "after_travel",
-                                        anchorIndex: Number(segment.anchorIndex),
-                                        anchorFrom: segment.anchorFrom,
-                                        anchorTo: segment.anchorTo,
-                                        anchorTimeRange: segment.anchorTimeRange,
-                                      }
-                                      : null,
-                                  )
-                                }
-                              >
-                                <Plus className="h-4 w-4" />
-                                {segment.text}
-                              </button>
                             </div>
                           );
                         })()}
@@ -6255,6 +6488,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             });
             setHotspotSearchQuery("");
             setPreviewTimelinesByHotspot({});
+            setPreviewResolutionsByHotspot({});
+            setTempModalTimeline([]);
+            setForceReplacementApprovedByHotspot({});
             setSelectedHotspotIds([]);
             setIsPreviewingHotspotId(null);
             setSelectedHotspotAnchor(null);
@@ -6355,6 +6591,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                                       "Preview"
                                     )}
                                   </Button>
+                                  {isSelected && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => handleRemovePreviewHotspot(hotspot.id)}
+                                      disabled={isLoadingThis}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Remove
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                               <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-2">
@@ -6408,6 +6656,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       {effectivePreviewTimeline.map((seg: any, idx: number) => {
                         const isUserSelected = seg?.isUserSelectedPreview === true;
                         const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
+                        const hotspotId = Number(seg?.locationId || seg?.hotspot_ID || seg?.hotspotId || selectedId || 0);
+                        const hotspotMeta = previewHotspotMetaById.get(hotspotId) || null;
+                        const activityVisitTime = seg?.visitTime || seg?.timeRange || hotspotMeta?.visitTime || null;
+                        const activityDuration = seg?.duration || hotspotMeta?.duration || null;
+                        const activityTimings = seg?.timings || hotspotMeta?.timings || null;
+                        const activityPriority = Number.isFinite(Number(seg?.priority))
+                          ? Number(seg.priority)
+                          : (Number.isFinite(Number(hotspotMeta?.priority)) ? Number(hotspotMeta?.priority) : null);
 
                         return (
                           <div
@@ -6464,6 +6720,34 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                               {seg?.text}
                             </p>
 
+                            {String(seg?.type || '').toLowerCase() === 'attraction' && (
+                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+                                {activityPriority !== null && (
+                                  <span className="flex items-center font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                                    Priority: P{activityPriority}
+                                  </span>
+                                )}
+                                {activityVisitTime && (
+                                  <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {activityVisitTime}
+                                  </span>
+                                )}
+                                {activityDuration && (
+                                  <span className="flex items-center">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {activityDuration}
+                                  </span>
+                                )}
+                                {activityTimings && (
+                                  <span className="flex items-center">
+                                    <Timer className="h-3 w-3 mr-1" />
+                                    {activityTimings}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
                             {seg?.isConflict && (
                               <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
                                 <p className="text-xs text-red-600 font-medium leading-tight">
@@ -6474,6 +6758,30 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                           </div>
                         );
                       })}
+
+                      {activePreviewResolution?.requiresConfirmation && Array.isArray(activePreviewResolution?.topPriorityAffected) && activePreviewResolution.topPriorityAffected.length > 0 && (
+                        <div className="p-3 rounded-lg border-2 border-amber-300 bg-amber-50 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-amber-800">Priority Replacement Required</p>
+                              <p className="text-xs text-amber-700 mt-1">
+                                This hotspot can fit only by replacing protected priority 1-3 hotspots.
+                              </p>
+                              <p className="text-xs text-amber-700 mt-2">
+                                {activePreviewResolution.topPriorityAffected.map((row: any) => `${row?.name} (P${row?.priority})`).join(', ')}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              className="bg-amber-600 hover:bg-amber-700 text-white"
+                              onClick={handleConfirmPriorityReplacement}
+                              disabled={isPreviewingHotspotId === selectedHotspotId}
+                            >
+                              Replace In Temp Timeline
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="pt-4 sticky bottom-0 bg-white">
                         <Button
