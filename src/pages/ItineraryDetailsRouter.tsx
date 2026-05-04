@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ItineraryService } from '@/services/itinerary';
-import { ItineraryDetails } from './ItineraryDetails';
+import ItineraryDetails from './ItineraryDetails';
 import { ConfirmedItineraryDetails } from './ConfirmedItineraryDetails';
 import { Loader2 } from 'lucide-react';
 

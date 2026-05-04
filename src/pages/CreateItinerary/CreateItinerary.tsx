@@ -171,6 +171,45 @@ function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
   }));
 }
 
+function buildRoomsFromPlanSummary(plan: any): TravellerRoomRow[] {
+  const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
+  const totalAdults = Math.max(Number(plan?.total_adult ?? 1) || 1, 1);
+  const totalChildren = Math.max(Number(plan?.total_children ?? 0) || 0, 0);
+  const totalInfants = Math.max(Number(plan?.total_infants ?? 0) || 0, 0);
+  const childrenWithBed = Math.max(Number(plan?.total_child_with_bed ?? 0) || 0, 0);
+  const childrenWithoutBed = Math.max(Number(plan?.total_child_without_bed ?? 0) || 0, 0);
+
+  const rooms: TravellerRoomRow[] = Array.from({ length: roomCount }, (_, idx) => ({
+    id: idx + 1,
+    roomCount,
+    adults: 0,
+    children: 0,
+    infants: 0,
+    childrenDetails: [],
+  }));
+
+  for (let i = 0; i < totalAdults; i++) {
+    rooms[i % roomCount].adults += 1;
+  }
+
+  for (let i = 0; i < totalChildren; i++) {
+    const room = rooms[i % roomCount];
+    room.children += 1;
+    const isWithoutBed = i < childrenWithoutBed;
+    const isWithBed = i >= childrenWithoutBed && i < childrenWithoutBed + childrenWithBed;
+    room.childrenDetails.push({
+      age: "",
+      bedType: isWithoutBed ? "Without Bed" : isWithBed ? "With Bed" : "Without Bed",
+    });
+  }
+
+  for (let i = 0; i < totalInfants; i++) {
+    rooms[i % roomCount].infants += 1;
+  }
+
+  return rooms;
+}
+
 
 // Helper function to calculate number of days between two DD/MM/YYYY date strings
 function calculateDaysBetweenDates(startDate: string, endDate: string): number {
@@ -668,6 +707,9 @@ useEffect(() => {
 
             if (Array.isArray(existing.travellers) && existing.travellers.length) {
               setRooms(buildRoomsFromTravellers(existing.travellers));
+            } else {
+              // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
+              setRooms(buildRoomsFromPlanSummary(p));
             }
           }
         }
