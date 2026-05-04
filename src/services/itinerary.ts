@@ -468,6 +468,29 @@ export const ItineraryService = {
     });
   },
 
+  async applyManualHotspots(
+    planId: number,
+    routeId: number,
+    hotspotIds: number[],
+    anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+      forceConflictInsertion?: boolean;
+    },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspots/apply`, {
+      method: "POST",
+      body: {
+        routeId,
+        hotspotIds,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+        forceConflictInsertion: options?.forceConflictInsertion === true,
+      },
+    });
+  },
+
   async removeManualHotspot(planId: number, hotspotId: number) {
     return api(`itineraries/${planId}/manual-hotspot/${hotspotId}`, {
       method: "DELETE",

@@ -667,8 +667,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [availableHotspots, setAvailableHotspots] = useState<AvailableHotspot[]>([]);
   const [previewTimelinesByHotspot, setPreviewTimelinesByHotspot] = useState<Record<number, any[]>>({});
   const [previewResolutionsByHotspot, setPreviewResolutionsByHotspot] = useState<Record<number, any>>({});
+  const [groupPreviewTimeline, setGroupPreviewTimeline] = useState<any[]>([]);
+  const [groupPreviewResolution, setGroupPreviewResolution] = useState<any | null>(null);
   const [tempModalTimeline, setTempModalTimeline] = useState<any[]>([]);
   const [forceReplacementApprovedByHotspot, setForceReplacementApprovedByHotspot] = useState<Record<number, boolean>>({});
+  const [topPriorityReplacementApproved, setTopPriorityReplacementApproved] = useState(false);
   const [isPreviewingHotspotId, setIsPreviewingHotspotId] = useState<number | null>(null);
   const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
   const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
@@ -821,10 +824,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds]);
 
   const activePreviewTimeline = useMemo(() => {
-    if (!selectedHotspotId) return [];
-    const routeScopedRows = (tempModalTimeline.length > 0
+    const sourceTimeline = tempModalTimeline.length > 0
       ? tempModalTimeline
-      : (previewTimelinesByHotspot[selectedHotspotId] || []))
+      : (groupPreviewTimeline.length > 0
+          ? groupPreviewTimeline
+          : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : []));
+    if (!selectedHotspotId && sourceTimeline.length === 0) return [];
+
+    const routeScopedRows = sourceTimeline
       .filter((row: any) => {
         const rowRouteId = Number(
           row?.itinerary_route_ID ??
@@ -873,12 +880,43 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (startDiff !== 0) return startDiff;
       return typePriority(a) - typePriority(b);
     });
-  }, [addHotspotModal.routeId, previewTimelinesByHotspot, selectedHotspotId, tempModalTimeline]);
+  }, [addHotspotModal.routeId, groupPreviewTimeline, previewTimelinesByHotspot, selectedHotspotId, tempModalTimeline]);
 
   const activePreviewResolution = useMemo(() => {
+    if (groupPreviewResolution) return groupPreviewResolution;
     if (!selectedHotspotId) return null;
     return previewResolutionsByHotspot[selectedHotspotId] || null;
-  }, [previewResolutionsByHotspot, selectedHotspotId]);
+  }, [groupPreviewResolution, previewResolutionsByHotspot, selectedHotspotId]);
+
+  const activePreviewValidation = useMemo(() => {
+    return activePreviewResolution?.validation || null;
+  }, [activePreviewResolution]);
+
+  const pendingPriorityReplacementHotspotId = useMemo(() => {
+    const needsReplacementApproval = (resolution: any): boolean => {
+      if (!resolution) return false;
+      const topPriorityAffectedCount = Array.isArray(resolution?.topPriorityAffected)
+        ? resolution.topPriorityAffected.length
+        : 0;
+      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
+        ? resolution.removedTopPriorityHotspots.length
+        : 0;
+      return resolution?.requiresConfirmation === true || topPriorityAffectedCount > 0 || removedTopPriorityCount > 0;
+    };
+
+    const resolution = groupPreviewResolution || activePreviewResolution;
+    if (!needsReplacementApproval(resolution)) return null;
+    if (topPriorityReplacementApproved) return null;
+    const fallbackHotspotId = selectedHotspotIds.length > 0
+      ? selectedHotspotIds[selectedHotspotIds.length - 1]
+      : null;
+    return Number.isFinite(Number(fallbackHotspotId)) ? Number(fallbackHotspotId) : null;
+  }, [activePreviewResolution, groupPreviewResolution, selectedHotspotIds, topPriorityReplacementApproved]);
+
+  const pendingPriorityResolution = useMemo(() => {
+    if (!pendingPriorityReplacementHotspotId) return null;
+    return groupPreviewResolution || previewResolutionsByHotspot[pendingPriorityReplacementHotspotId] || null;
+  }, [groupPreviewResolution, pendingPriorityReplacementHotspotId, previewResolutionsByHotspot]);
 
   const effectivePreviewTimeline = useMemo(() => {
     if (activePreviewTimeline.length > 0) {
@@ -985,9 +1023,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         h.description.toLowerCase().includes(hotspotSearchQuery.toLowerCase())
     )
     .sort((a, b) => {
-      // Sort by visitAgain: false first, true at bottom
-      if (a.visitAgain === b.visitAgain) return 0;
-      return a.visitAgain ? 1 : -1;
+      // visitAgain (already visited) goes to the bottom
+      if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
+      // Within same visitAgain group: lower priority number = more important = shown first
+      // Treat 0 as unset (worst) so it never floats above real P1-P18
+      const normP = (p: any) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
+      const pa = normP((a as any).priority);
+      const pb = normP((b as any).priority);
+      if (pa !== pb) return pa - pb;
+      return 0;
     });
 
   // Hotel selection modal state
@@ -3534,8 +3578,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     });
     setPreviewTimelinesByHotspot({});
     setPreviewResolutionsByHotspot({});
+    setGroupPreviewTimeline([]);
+    setGroupPreviewResolution(null);
     setTempModalTimeline([]);
     setForceReplacementApprovedByHotspot({});
+    setTopPriorityReplacementApproved(false);
     setSelectedHotspotIds([]);
     setIsPreviewingHotspotId(null);
     setSelectedHotspotAnchor(anchor || null);
@@ -3545,18 +3592,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     try {
       const hotspots = await ItineraryService.getAvailableHotspots(routeId);
       setAvailableHotspots(hotspots as AvailableHotspot[]);
-
-      // Open directly in preview layout by selecting the first available hotspot.
-      if (Array.isArray(hotspots) && hotspots.length > 0) {
-        const firstHotspotId = Number((hotspots as AvailableHotspot[])[0].id);
-        if (Number.isFinite(firstHotspotId) && firstHotspotId > 0) {
-          await handlePreviewHotspot(firstHotspotId, {
-            planId,
-            routeId,
-            anchor: anchor || undefined,
-          });
-        }
-      }
 
       const currentRoute = itinerary?.days.find((d) => d.id === routeId);
       if (currentRoute) {
@@ -3594,6 +3629,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     );
 
     setSelectedHotspotIds(resolvedSelectedHotspotIds);
+    setTopPriorityReplacementApproved(false);
     setIsPreviewingHotspotId(hotspotId);
 
     // Don't force scroll list to top here, let the user stay where they clicked
@@ -3629,20 +3665,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       }
 
       // The backend returns { newHotspot, otherConflicts, fullTimeline }.
+      const previewResolution = preview?.resolution || null;
       setPreviewTimelinesByHotspot((prev) => ({
         ...prev,
         [hotspotId]: fullTimeline,
       }));
       setPreviewResolutionsByHotspot((prev) => ({
         ...prev,
-        [hotspotId]: preview?.resolution || null,
+        [hotspotId]: previewResolution,
       }));
+      setGroupPreviewTimeline(fullTimeline);
+      setGroupPreviewResolution(previewResolution);
       setTempModalTimeline(fullTimeline);
       if (options?.allowTopPriorityRemoval === true) {
         setForceReplacementApprovedByHotspot((prev) => ({
           ...prev,
           [hotspotId]: true,
         }));
+        setTopPriorityReplacementApproved(true);
       }
 
       if (preview?.anchorPreference?.honored === false) {
@@ -3685,7 +3725,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       : null;
 
     if (!fallbackHotspotId) {
+      setGroupPreviewTimeline([]);
+      setGroupPreviewResolution(null);
       setTempModalTimeline([]);
+      setTopPriorityReplacementApproved(false);
       return;
     }
 
@@ -3700,10 +3743,39 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   };
 
   const handleConfirmPriorityReplacement = async () => {
-    if (!selectedHotspotId) return;
-    await handlePreviewHotspot(selectedHotspotId, {
-      allowTopPriorityRemoval: true,
-    });
+    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
+    if (!targetHotspotId) return;
+
+    const resolution = previewResolutionsByHotspot[targetHotspotId];
+    const needsReplacementApproval = resolution?.requiresConfirmation === true ||
+      (Array.isArray(groupPreviewResolution?.topPriorityAffected) && groupPreviewResolution.topPriorityAffected.length > 0) ||
+      (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0);
+
+    if (needsReplacementApproval) {
+      await handlePreviewHotspot(targetHotspotId, {
+        allowTopPriorityRemoval: true,
+        selectedHotspotIds,
+      });
+
+      setForceReplacementApprovedByHotspot((prev) => ({
+        ...prev,
+        [targetHotspotId]: true,
+      }));
+      setTopPriorityReplacementApproved(true);
+      return;
+    }
+
+    setForceReplacementApprovedByHotspot((prev) => ({
+      ...prev,
+      [targetHotspotId]: true,
+    }));
+    setTopPriorityReplacementApproved(true);
+  };
+
+  const handleCancelPriorityReplacement = async () => {
+    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
+    if (!targetHotspotId) return;
+    await handleRemovePreviewHotspot(targetHotspotId);
   };
 
   const handleAddHotspot = async () => {
@@ -3722,8 +3794,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
 
     const unresolvedPriorityReplacement = selectedHotspotIds.find((hotspotId) => {
-      const resolution = previewResolutionsByHotspot[hotspotId];
-      return resolution?.requiresConfirmation === true && forceReplacementApprovedByHotspot[hotspotId] !== true;
+      const resolution = groupPreviewResolution || previewResolutionsByHotspot[hotspotId];
+      const topPriorityAffectedCount = Array.isArray(resolution?.topPriorityAffected)
+        ? resolution.topPriorityAffected.length
+        : 0;
+      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
+        ? resolution.removedTopPriorityHotspots.length
+        : 0;
+      const needsReplacementApproval =
+        resolution?.requiresConfirmation === true ||
+        topPriorityAffectedCount > 0 ||
+        removedTopPriorityCount > 0;
+      return needsReplacementApproval && topPriorityReplacementApproved !== true;
     });
 
     if (unresolvedPriorityReplacement) {
@@ -3731,53 +3813,46 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return;
     }
 
-    // Check for conflicts in preview
+    const previewValidation = (groupPreviewResolution || activePreviewResolution)?.validation || null;
+    const forceConflictInsertion =
+      previewValidation?.readyToApply === false
+      && previewValidation?.requiresPriorityConfirmation !== true;
+
     const hasConflicts = selectedPreviewSegments.some((seg: any) => seg?.isConflict === true);
-    if (hasConflicts) {
-      const confirm = window.confirm("One or more selected hotspots have timing conflicts. Do you want to continue?");
-      if (!confirm) return;
+    if (!forceConflictInsertion && hasConflicts) {
+      toast.error("Selected hotspot still has timing conflicts in the proposed timeline.");
+      return;
     }
 
     setIsAddingHotspot(true);
     try {
       const affectedRouteId = addHotspotModal.routeId;
 
-      let successCount = 0;
-      const failedHotspots: number[] = [];
-
-      for (const hotspotId of selectedHotspotIds) {
-        const addResult: any = await ItineraryService.addManualHotspot(
-          addHotspotModal.planId,
-          addHotspotModal.routeId,
-          hotspotId,
-          selectedHotspotAnchor
-            ? {
+      const addResult: any = await ItineraryService.applyManualHotspots(
+        addHotspotModal.planId,
+        addHotspotModal.routeId,
+        selectedHotspotIds,
+        selectedHotspotAnchor
+          ? {
               anchorType: selectedHotspotAnchor.anchorType,
               anchorIndex: selectedHotspotAnchor.anchorIndex,
             }
-            : undefined,
-          {
-            allowTopPriorityRemoval: forceReplacementApprovedByHotspot[hotspotId] === true,
-          },
-        );
+          : undefined,
+        {
+          allowTopPriorityRemoval: topPriorityReplacementApproved === true,
+          forceConflictInsertion,
+        },
+      );
 
-        if (addResult?.success === false || addResult?.inserted === false) {
-          failedHotspots.push(hotspotId);
-          continue;
-        }
-
-        successCount += 1;
-      }
-
-      if (successCount === 0) {
+      if (addResult?.success === false || addResult?.inserted === false) {
         toast.error("Failed to add selected hotspots at this position");
         return;
       }
 
-      if (failedHotspots.length > 0) {
-        toast.warning(`Added ${successCount} hotspot(s). ${failedHotspots.length} failed.`);
+      if (addResult?.resolution?.forceConflictInsertionApplied === true) {
+        toast.success(`Inserted ${selectedHotspotIds.length} hotspot(s) as conflict(s) after confirmation`);
       } else {
-        toast.success(`Added ${successCount} hotspot(s) successfully`);
+        toast.success(`Added ${selectedHotspotIds.length} hotspot(s) successfully`);
       }
 
       // Show rebuild button for the day where manual hotspot was added.
@@ -3796,8 +3871,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       setHotspotSearchQuery("");
       setPreviewTimelinesByHotspot({});
       setPreviewResolutionsByHotspot({});
+      setGroupPreviewTimeline([]);
+      setGroupPreviewResolution(null);
       setTempModalTimeline([]);
       setForceReplacementApprovedByHotspot({});
+      setTopPriorityReplacementApproved(false);
       setSelectedHotspotIds([]);
       setIsPreviewingHotspotId(null);
       setSelectedHotspotAnchor(null);
@@ -6643,6 +6721,72 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   <Clock className="h-4 w-4" />
                   Proposed Timeline
                 </h3>
+                {pendingPriorityReplacementHotspotId ? (
+                  <div className="mb-3 p-4 rounded-xl border border-red-200 bg-red-50 shadow-sm flex-shrink-0">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertTriangle className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-bold text-red-700">Replace Priority Hotspot?</p>
+                        <p className="text-xs text-red-700 mt-1 leading-5">
+                          Adding this hotspot will replace current priority hotspot:
+                          <span className="font-semibold"> {(Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
+                            ? pendingPriorityResolution.removedTopPriorityHotspots
+                            : Array.isArray(pendingPriorityResolution?.topPriorityAffected)
+                              ? pendingPriorityResolution.topPriorityAffected
+                              : [])
+                            .map((row: any) => row?.name)
+                            .filter(Boolean)
+                            .join(', ')}</span>.
+                          {' '}This action will reschedule following items in your itinerary.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <Button
+                        size="sm"
+                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                        onClick={handleConfirmPriorityReplacement}
+                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                      >
+                        Confirm Replace
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                        onClick={handleCancelPriorityReplacement}
+                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                {!pendingPriorityReplacementHotspotId && activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
+                  <div className="mb-3 p-4 rounded-xl border border-red-200 bg-red-50 shadow-sm flex-shrink-0">
+                    <p className="text-sm font-bold text-red-800">Selected hotspot does not fit the rebuilt slot</p>
+                    <p className="text-xs text-red-700 mt-1 leading-5">
+                      {activePreviewValidation?.reason || "The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot."}
+                    </p>
+                    <p className="text-xs text-red-700 mt-2 font-medium leading-5">
+                      Use the confirm button below to insert anyway. It will be marked as conflict in the timeline.
+                    </p>
+                  </div>
+                ) : null}
+                {!pendingPriorityReplacementHotspotId && Array.isArray(activePreviewResolution?.removedOptionalHotspots) && activePreviewResolution.removedOptionalHotspots.length > 0 ? (
+                  <div className="mb-3 p-4 rounded-xl border border-amber-200 bg-amber-50 shadow-sm flex-shrink-0">
+                    <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
+                    <p className="text-xs text-amber-700 mt-1 leading-5">
+                      To fit your selected hotspot(s), these optional hotspots will be removed:
+                      <span className="font-semibold"> {activePreviewResolution.removedOptionalHotspots
+                        .map((row: any) => row?.name)
+                        .filter(Boolean)
+                        .join(', ')}</span>.
+                    </p>
+                  </div>
+                ) : null}
                 <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
                   {isPreviewingHotspotId ? (
                     <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
@@ -6664,6 +6808,62 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         const activityPriority = Number.isFinite(Number(seg?.priority))
                           ? Number(seg.priority)
                           : (Number.isFinite(Number(hotspotMeta?.priority)) ? Number(hotspotMeta?.priority) : null);
+                        
+                        // ✅ FIX: Manual hotspots should display as "Manual / P4", never P0
+                        const computedPriorityLabel = (): string | null => {
+                          const isManual = seg?.planOwnWay === true || seg?.isManual === true;
+                          const priority = activityPriority;
+                          
+                          if (isManual) {
+                            return "Manual / P4";
+                          }
+                          
+                          if (priority !== null && priority > 0) {
+                            return `P${priority}`;
+                          }
+                          
+                          return null;
+                        };
+                        
+                        const priorityLabel = computedPriorityLabel();
+
+                        // ✅ FIX: Handle waiting/break synthetic segments
+                        const isWaitingSegment = seg?.type === 'waiting' || seg?.isSyntheticWaiting === true;
+                        
+                        // ✅ FIX: Handle hotel check-in zero-duration segments
+                        const isZeroDurationHotel = seg?.isZeroDurationHotel === true || 
+                          (seg?.type === 'hotel' && seg?.timeRange && seg.timeRange.split(' - ').length === 2 && 
+                           seg.timeRange.split(' - ')[0].trim() === seg.timeRange.split(' - ')[1].trim());
+                        
+                        // If waiting segment, render a distinct waiting block
+                        if (isWaitingSegment) {
+                          return (
+                            <div
+                              key={`${idx}-waiting`}
+                              className="p-3 rounded-lg border-2 border-orange-200 bg-orange-50 transition-all"
+                            >
+                              <div className="flex justify-between items-start mb-1 gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-orange-200 text-orange-800">
+                                    ⏳ waiting
+                                  </span>
+                                  <span className="text-xs font-bold text-[#4a4260]">
+                                    {seg?.timeRange || '--'}
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="text-sm font-bold text-orange-700">{seg?.text || 'Waiting'}</p>
+                              {seg?.reason && (
+                                <p className="text-xs text-orange-600 mt-1">{seg.reason}</p>
+                              )}
+                              {seg?.gapMinutes > 0 && (
+                                <p className="text-xs text-orange-500 mt-1">
+                                  Gap: {Math.floor(seg.gapMinutes / 60) > 0 ? `${Math.floor(seg.gapMinutes / 60)}h ` : ''}{seg.gapMinutes % 60}min
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
 
                         return (
                           <div
@@ -6717,14 +6917,19 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                             </div>
 
                             <p className={`text-sm font-bold ${isUserSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
-                              {seg?.text}
+                              {/* ✅ FIX: Hotel zero-duration shows check-in label, not "Hotel Stay 8:00 PM - 8:00 PM" */}
+                              {isZeroDurationHotel ? (
+                                <>Check-in at Hotel <span className="text-purple-600">{seg?.timeRange?.split(' - ')[0]}</span></>
+                              ) : (
+                                seg?.text
+                              )}
                             </p>
 
                             {String(seg?.type || '').toLowerCase() === 'attraction' && (
                               <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                                {activityPriority !== null && (
+                                {priorityLabel !== null && (
                                   <span className="flex items-center font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
-                                    Priority: P{activityPriority}
+                                    Priority: {priorityLabel}
                                   </span>
                                 )}
                                 {activityVisitTime && (
@@ -6759,33 +6964,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         );
                       })}
 
-                      {activePreviewResolution?.requiresConfirmation && Array.isArray(activePreviewResolution?.topPriorityAffected) && activePreviewResolution.topPriorityAffected.length > 0 && (
-                        <div className="p-3 rounded-lg border-2 border-amber-300 bg-amber-50 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-bold text-amber-800">Priority Replacement Required</p>
-                              <p className="text-xs text-amber-700 mt-1">
-                                This hotspot can fit only by replacing protected priority 1-3 hotspots.
-                              </p>
-                              <p className="text-xs text-amber-700 mt-2">
-                                {activePreviewResolution.topPriorityAffected.map((row: any) => `${row?.name} (P${row?.priority})`).join(', ')}
-                              </p>
-                            </div>
-                            <Button
-                              size="sm"
-                              className="bg-amber-600 hover:bg-amber-700 text-white"
-                              onClick={handleConfirmPriorityReplacement}
-                              disabled={isPreviewingHotspotId === selectedHotspotId}
-                            >
-                              Replace In Temp Timeline
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
                       <div className="pt-4 sticky bottom-0 bg-white">
+                        {(() => {
+                          const forceConflictMode =
+                            activePreviewValidation?.readyToApply === false
+                            && activePreviewValidation?.requiresPriorityConfirmation !== true;
+                          return (
                         <Button
-                          className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                          className={`w-full text-white shadow-lg ${forceConflictMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                           onClick={handleAddHotspot}
                           disabled={isAddingHotspot || selectedHotspotIds.length === 0}
                         >
@@ -6795,9 +6981,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                               Adding...
                             </>
                           ) : (
-                            `Confirm Add to Itinerary${selectedHotspotIds.length > 0 ? ` (${selectedHotspotIds.length})` : ''}`
+                            forceConflictMode
+                              ? `Confirm Force Add (Conflict)${selectedHotspotIds.length > 0 ? ` (${selectedHotspotIds.length})` : ''}`
+                              : `Confirm Add to Itinerary${selectedHotspotIds.length > 0 ? ` (${selectedHotspotIds.length})` : ''}`
                           )}
                         </Button>
+                          );
+                        })()}
                       </div>
                     </>
                   ) : (
@@ -6822,8 +7012,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 });
                 setHotspotSearchQuery("");
                 setPreviewTimelinesByHotspot({});
+                setPreviewResolutionsByHotspot({});
+                setGroupPreviewTimeline([]);
+                setGroupPreviewResolution(null);
                 setSelectedHotspotIds([]);
                 setIsPreviewingHotspotId(null);
+                setTopPriorityReplacementApproved(false);
                 setSelectedHotspotAnchor(null);
               }}
               disabled={isAddingHotspot}
@@ -8239,3 +8433,5 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     </div>
   );
 };
+
+export default ItineraryDetails;
