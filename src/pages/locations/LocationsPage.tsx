@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { locationsApi, LocationRow, TollRow } from "@/services/locations";
+import { locationsApi, LocationRow, TollRow, CreateLocationPayload } from "@/services/locations";
 import { useNavigate } from "react-router-dom";
 import { AddLocationDialog } from "./components/AddLocationDialog";
 import { EditLocationDialog } from "./components/EditLocationDialog";
@@ -77,24 +77,28 @@ export default function LocationsPage() {
   const [source, setSource] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const locationOptions: AutoSuggestOption[] = Array.from(
-    new Set(
-      [...sources, ...destinations]
-        .map((item) => String(item || "").trim())
-        .filter(Boolean)
-    )
-  )
-    .sort((a, b) => a.localeCompare(b))
-    .map((item) => ({
-      value: item,
-      label: item,
-    }));
+  const locationOptions: AutoSuggestOption[] = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...sources, ...destinations]
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+        )
+      )
+        .sort((a, b) => a.localeCompare(b))
+        .map((item) => ({
+          value: item,
+          label: item,
+        })),
+    [sources, destinations]
+  );
 
   const sourceOptions: AutoSuggestOption[] = locationOptions;
 
   const destinationOptions: AutoSuggestOption[] = locationOptions;
-  const deleteLocationOptions: AutoSuggestOption[] = locationOptions;
 
   // dialogs
    const [addOpen, setAddOpen] = useState(false);
@@ -107,74 +111,112 @@ export default function LocationsPage() {
   }>({ open: false, row: null, scope: "source" });
   const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
 const [deleteLocationName, setDeleteLocationName] = useState("");
+const [deleteDialogOptions, setDeleteDialogOptions] = useState<AutoSuggestOption[]>([]);
 const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
 const [deleteSelectedSource, setDeleteSelectedSource] = useState("");
 const [deleteSelectedDestination, setDeleteSelectedDestination] = useState("");
 const [deletePopupSelectedIds, setDeletePopupSelectedIds] = useState<number[]>([]);
+const [deletePopupRows, setDeletePopupRows] = useState<LocationRow[]>([]);
+const [deletePopupPage, setDeletePopupPage] = useState(1);
+const [deletePopupPageSize, setDeletePopupPageSize] = useState(10);
+const [deletePopupTotal, setDeletePopupTotal] = useState(0);
 const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
 
   useEffect(() => {
-    loadDropdowns();
-  }, [source]);
+    void loadDropdowns();
+  }, []);
 
   // fetch on page/pageSize/source/destination change
   useEffect(() => {
-    loadList();
+    void loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, source, destination]);
+  }, [page, pageSize, source, destination, debouncedSearch]);
 
   // debounced fetch on search change
   useEffect(() => {
     const t = setTimeout(() => {
+      setDebouncedSearch(search);
       setPage(1);
-      loadList();
     }, 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   async function loadDropdowns() {
-  const d = await locationsApi.dropdowns({
-    source,
-  });
+  const d = await locationsApi.dropdowns();
 
   setSources(d?.sources || []);
   setDestinations(d?.destinations || []);
 }
 
   async function loadList() {
+    const sourceValue = source.trim();
+    const destinationValue = destination.trim();
+    const sourceLower = sourceValue.toLowerCase();
     const sameLocationSelected =
-      source.trim() &&
-      destination.trim() &&
-      source.trim().toLowerCase() === destination.trim().toLowerCase();
-
-    const requestDestination = sameLocationSelected ? "" : destination;
-
-    const data = await locationsApi.list({
-      page,
-      pageSize,
-      source,
-      destination: requestDestination,
-      search,
-    });
-
-    const normalized = Array.isArray(data?.rows) ? data.rows.map(normalizeRow) : [];
+      Boolean(sourceValue) &&
+      Boolean(destinationValue) &&
+      sourceLower === destinationValue.toLowerCase();
 
     if (!sameLocationSelected) {
+      const data = await locationsApi.list({
+        page,
+        pageSize,
+        source,
+        destination,
+        search: debouncedSearch,
+      });
+
+      const normalized = Array.isArray(data?.rows) ? data.rows : [];
       setRows(normalized);
       setTotal(Number(data?.total ?? normalized.length));
       return;
     }
 
-    const sameLocationRows = normalized.filter((row) => {
-      const sourceValue = source.trim().toLowerCase();
-      const isSameLocationRoute =
-        row.source_location.trim().toLowerCase() === sourceValue ||
-        row.destination_location.trim().toLowerCase() === sourceValue;
-      return isSameLocationRoute && Number(row.distance_km || 0) >= MIN_SAME_LOCATION_DISTANCE_KM;
+    const sourceOnlyPageSize = 200;
+    const firstPage = await locationsApi.list({
+      page: 1,
+      pageSize: sourceOnlyPageSize,
+      source: sourceValue,
+      destination: "",
+      search: debouncedSearch,
     });
 
-    setRows(sameLocationRows);
+    const firstRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
+    const backendTotal = Number(firstPage?.total ?? firstRows.length);
+    const backendTotalPages = Math.max(1, Math.ceil(backendTotal / sourceOnlyPageSize));
+
+    let allRows = [...firstRows];
+
+    for (let nextPage = 2; nextPage <= backendTotalPages; nextPage += 1) {
+      const nextData = await locationsApi.list({
+        page: nextPage,
+        pageSize: sourceOnlyPageSize,
+        source: sourceValue,
+        destination: "",
+        search: debouncedSearch,
+      });
+
+      const nextRows = Array.isArray(nextData?.rows) ? nextData.rows : [];
+      if (!nextRows.length) break;
+      allRows = allRows.concat(nextRows);
+    }
+
+    const sameLocationRows = allRows.filter((row) => {
+      const rowSource = row.source_location.trim().toLowerCase();
+      const rowDestination = row.destination_location.trim().toLowerCase();
+      const distance = Number(row.distance_km || 0);
+
+      return (
+        rowSource === sourceLower &&
+        rowDestination === sourceLower &&
+        distance >= MIN_SAME_LOCATION_DISTANCE_KM
+      );
+    });
+
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+
+    setRows(sameLocationRows.slice(startIndex, endIndex));
     setTotal(sameLocationRows.length);
   }
 
@@ -192,17 +234,15 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
 
   const currentPageRows = useMemo(() => rows, [rows]);
 
-const deleteSelectedFilteredRows = useMemo(
-  () =>
-    currentPageRows.filter((row) => {
-      const sourceMatch =
-        !deleteSelectedSource || row.source_location === deleteSelectedSource;
-      const destinationMatch =
-        !deleteSelectedDestination || row.destination_location === deleteSelectedDestination;
-      return sourceMatch && destinationMatch;
-    }),
-  [currentPageRows, deleteSelectedSource, deleteSelectedDestination]
-);
+const deleteSelectedFilteredRows = useMemo(() => {
+  if (!deleteSelectedOpen) return [];
+
+  if (!deleteSelectedSource && !deleteSelectedDestination) {
+    return currentPageRows;
+  }
+
+  return deletePopupRows;
+}, [currentPageRows, deletePopupRows, deleteSelectedDestination, deleteSelectedOpen, deleteSelectedSource]);
 
 const deleteSelectedFilteredIds = useMemo(
   () => deleteSelectedFilteredRows.map((row) => row.location_ID),
@@ -220,6 +260,60 @@ useEffect(() => {
     prev.filter((id) => deleteSelectedFilteredIds.includes(id))
   );
 }, [deleteSelectedOpen, deleteSelectedFilteredIds]);
+
+useEffect(() => {
+  if (!deleteSelectedOpen) return;
+
+  const sourceValue = deleteSelectedSource.trim();
+  const destinationValue = deleteSelectedDestination.trim();
+
+  if (!sourceValue && !destinationValue) {
+    setDeletePopupRows([]);
+    return;
+  }
+
+  let cancelled = false;
+
+  const loadDeletePopupRows = async () => {
+    try {
+      const result = await locationsApi.list({
+        page: deletePopupPage,
+        pageSize: deletePopupPageSize,
+        source: sourceValue,
+        destination: destinationValue,
+      });
+
+      if (cancelled) return;
+      setDeletePopupRows(result.rows || []);
+      setDeletePopupTotal(Number(result.total ?? result.rows?.length ?? 0));
+    } catch (error) {
+      if (cancelled) return;
+      console.error("Error loading records for delete popup:", error);
+      setDeletePopupRows([]);
+      setDeletePopupTotal(0);
+      toast.error("Failed to load matching records");
+    }
+  };
+
+  void loadDeletePopupRows();
+
+  return () => {
+    cancelled = true;
+  };
+}, [deletePopupPage, deletePopupPageSize, deleteSelectedDestination, deleteSelectedOpen, deleteSelectedSource]);
+
+useEffect(() => {
+  if (!deleteLocationOpen) {
+    setDeleteDialogOptions([]);
+    return;
+  }
+
+  const frameId = window.requestAnimationFrame(() => {
+    setDeleteDialogOptions(locationOptions);
+  });
+
+  return () => window.cancelAnimationFrame(frameId);
+}, [deleteLocationOpen, locationOptions]);
 
   // ---------- handlers ----------
              function openModifyLocation() {
@@ -254,6 +348,9 @@ useEffect(() => {
 function openDeleteSelectedRecords() {
   setDeleteSelectedSource("");
   setDeleteSelectedDestination("");
+  setDeletePopupRows([]);
+  setDeletePopupPage(1);
+  setDeletePopupTotal(0);
   setDeletePopupSelectedIds(currentPageRows.map((row) => row.location_ID));
   setDeleteSelectedOpen(true);
 }
@@ -289,7 +386,7 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     setSelectedRow(rowForTolls);
     await openTolls(rowForTolls);
   }
-    async function handleCreate(payload: Omit<LocationRow, "location_ID">) {
+    async function handleCreate(payload: CreateLocationPayload) {
     const created = await locationsApi.create(payload);
 
     toast.success("Location added");
@@ -299,15 +396,30 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     setRows((prev) => [created, ...prev]);
     setTotal((prev) => prev + 1);
 
-    void loadList();
+    await Promise.all([loadDropdowns(), loadList()]);
   }
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
+
+    const nextSource = String(payload.source_location ?? editRow.source_location ?? "").trim();
+    const nextDestination = String(payload.destination_location ?? editRow.destination_location ?? "").trim();
+    const nextDistance = Number(payload.distance_km ?? editRow.distance_km ?? 0);
+
+    if (
+      nextSource &&
+      nextDestination &&
+      nextSource.toLowerCase() === nextDestination.toLowerCase() &&
+      nextDistance < MIN_SAME_LOCATION_DISTANCE_KM
+    ) {
+      toast.error(`When source and destination are the same, distance must be at least ${MIN_SAME_LOCATION_DISTANCE_KM} km.`);
+      return;
+    }
+
     await locationsApi.update(editRow.location_ID, payload);
     toast.success("Location updated");
     setEditRow(null);
-    await loadList();
+    await Promise.all([loadDropdowns(), loadList()]);
   }
 
   async function handleRename(new_name: string) {
@@ -316,7 +428,7 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     await locationsApi.modifyName(row.location_ID, scope, new_name);
     toast.success("Location name updated");
     setRenameInfo({ open: false, row: null, scope: "source" });
-    await loadList();
+    await Promise.all([loadDropdowns(), loadList()]);
   }
 
    async function handleDeleteLocationName() {
@@ -327,18 +439,25 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     return;
   }
 
-  const result = await locationsApi.deleteLocationName(locationName);
+  const deletingToastId = toast.loading("Deleting location...");
 
-  setDeleteLocationOpen(false);
-  setDeleteLocationName("");
-  setSelectedRow(null);
+  try {
+    const result = await locationsApi.deleteLocationName(locationName);
 
-  await loadDropdowns();
-  await loadList();
+    setDeleteLocationOpen(false);
+    setDeleteLocationName("");
+    setSelectedRow(null);
 
-  toast.success(
-    `Deleted location: ${result.deletedLocation || locationName} (${result.deletedCount || 0} record${Number(result.deletedCount || 0) === 1 ? "" : "s"})`
-  );
+    toast.success(
+      `Deleted location: ${result.deletedLocation || locationName} (${result.deletedCount || 0} record${Number(result.deletedCount || 0) === 1 ? "" : "s"})`,
+      { id: deletingToastId }
+    );
+
+    void Promise.all([loadDropdowns(), loadList()]);
+  } catch (error) {
+    console.error("Error deleting location name:", error);
+    toast.error("Failed to delete location", { id: deletingToastId });
+  }
 }
 
 async function handleDeleteSelectedRecords(ids?: number[]) {
@@ -349,29 +468,55 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
     return;
   }
 
-  await Promise.all(idsToDelete.map((id) => locationsApi.remove(id)));
-
-  setDeleteSelectedOpen(false);
-  setDeleteSelectedSource("");
-  setDeleteSelectedDestination("");
-  setDeletePopupSelectedIds([]);
-  setSelectedRow(null);
-  await loadList();
-
-  toast.success(
-    `Deleted ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
-    {
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          await Promise.all(idsToDelete.map((id) => locationsApi.restore(id)));
-          toast.success(`Restored ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`);
-          await loadList();
-        },
-      },
-    }
+  const deletingToastId = toast.loading(
+    `Deleting ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}...`
   );
+
+  try {
+    await Promise.all(idsToDelete.map((id) => locationsApi.remove(id)));
+
+    setDeleteSelectedOpen(false);
+    setDeleteSelectedSource("");
+    setDeleteSelectedDestination("");
+    setDeletePopupRows([]);
+    setDeletePopupPage(1);
+    setDeletePopupTotal(0);
+    setDeletePopupSelectedIds([]);
+    setSelectedRow(null);
+
+    toast.success(
+      `Deleted ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
+      {
+        id: deletingToastId,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const restoreToastId = toast.loading(
+              `Restoring ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}...`
+            );
+
+            try {
+              await Promise.all(idsToDelete.map((id) => locationsApi.restore(id)));
+              toast.success(
+                `Restored ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
+                { id: restoreToastId }
+              );
+              void Promise.all([loadDropdowns(), loadList()]);
+            } catch (error) {
+              console.error("Error restoring selected records:", error);
+              toast.error("Failed to restore selected records", { id: restoreToastId });
+            }
+          },
+        },
+      }
+    );
+
+    void Promise.all([loadDropdowns(), loadList()]);
+  } catch (error) {
+    console.error("Error deleting selected records:", error);
+    toast.error("Failed to delete selected records", { id: deletingToastId });
+  }
 }
 
   async function openTolls(row: LocationRow) {
@@ -590,7 +735,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
       <DeleteLocationNameDialog
         open={deleteLocationOpen}
         value={deleteLocationName}
-        options={deleteLocationOptions}
+        options={deleteDialogOptions}
         onChange={setDeleteLocationName}
         onClose={() => {
           setDeleteLocationOpen(false);
@@ -621,6 +766,9 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
             setDeleteSelectedOpen(false);
             setDeleteSelectedSource("");
             setDeleteSelectedDestination("");
+            setDeletePopupRows([]);
+            setDeletePopupPage(1);
+            setDeletePopupTotal(0);
             setDeletePopupSelectedIds([]);
           }}
           onConfirm={() =>
@@ -628,6 +776,15 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
               deletePopupSelectedIds.filter((id) => deleteSelectedFilteredIds.includes(id))
             )
           }
+          deletePopupPage={deletePopupPage}
+          deletePopupPageSize={deletePopupPageSize}
+          deletePopupTotal={deletePopupTotal}
+          onDeletePopupPageChange={setDeletePopupPage}
+          onDeletePopupPageSizeChange={(size) => {
+            setDeletePopupPageSize(size);
+            setDeletePopupPage(1);
+          }}
+          hasBackendFilter={Boolean(deleteSelectedSource || deleteSelectedDestination)}
         />
       )}
 
@@ -666,6 +823,12 @@ function DeleteSelectedRecordsDialog(props: {
   onToggleAll: (checked: boolean) => void;
   onConfirm: () => void;
   onClose: () => void;
+  deletePopupPage?: number;
+  deletePopupPageSize?: number;
+  deletePopupTotal?: number;
+  onDeletePopupPageChange?: (page: number) => void;
+  onDeletePopupPageSizeChange?: (size: number) => void;
+  hasBackendFilter?: boolean;
 }) {
   const {
     open,
@@ -687,6 +850,14 @@ function DeleteSelectedRecordsDialog(props: {
     onConfirm,
     onClose,
   } = props;
+
+  const deletePopupPage = (props as any).deletePopupPage ?? 1;
+  const deletePopupPageSize = (props as any).deletePopupPageSize ?? 10;
+  const deletePopupTotal = (props as any).deletePopupTotal ?? 0;
+  const onDeletePopupPageChange = (props as any).onDeletePopupPageChange ?? (() => {});
+  const onDeletePopupPageSizeChange = (props as any).onDeletePopupPageSizeChange ?? (() => {});
+  const hasBackendFilter = (props as any).hasBackendFilter ?? false;
+  const deletePopupTotalPages = Math.max(1, Math.ceil(deletePopupTotal / deletePopupPageSize));
 
   const selectedCount = rows.filter((row) => selectedIds.includes(row.location_ID)).length;
 
@@ -731,7 +902,7 @@ function DeleteSelectedRecordsDialog(props: {
 
           <div className="rounded-md border">
             <div className="border-b bg-muted/40 px-3 py-2 text-sm font-medium">
-              Matching records: {rows.length} | Selected in popup: {selectedCount}
+              Matching records: {hasBackendFilter ? deletePopupTotal : rows.length} | Selected in popup: {selectedCount}
             </div>
             <div className="max-h-56 overflow-auto">
               {rows.length ? (
@@ -762,7 +933,7 @@ function DeleteSelectedRecordsDialog(props: {
                             aria-label={`Select popup record ${row.location_ID}`}
                           />
                         </TableCell>
-                        <TableCell>{index + 1}</TableCell>
+                        <TableCell>{(deletePopupPage - 1) * deletePopupPageSize + index + 1}</TableCell>
                         <TableCell>{row.source_location}</TableCell>
                         <TableCell>{row.destination_location}</TableCell>
                       </TableRow>
@@ -776,6 +947,42 @@ function DeleteSelectedRecordsDialog(props: {
               )}
             </div>
           </div>
+
+          {hasBackendFilter && deletePopupTotal > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <Select value={String(deletePopupPageSize)} onValueChange={(v) => onDeletePopupPageSizeChange(Number(v))}>
+                  <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[5, 10, 25].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>per page</span>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={deletePopupPage === 1}
+                  onClick={() => onDeletePopupPageChange(deletePopupPage - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="px-2 py-1 text-xs">Page {deletePopupPage} of {deletePopupTotalPages}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={deletePopupPage >= deletePopupTotalPages}
+                  onClick={() => onDeletePopupPageChange(deletePopupPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
 
           {warning ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

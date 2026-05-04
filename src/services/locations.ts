@@ -262,26 +262,37 @@ export const locationsApi = {
 },
 
     async dropdowns(params?: ItineraryLocationQuery) {
-  const sourceItems = await fetchItineraryOrderedLocations({
-    itineraryMode: true,
-    type: "source",
-  });
+  if (params?.itineraryMode) {
+    const sourceItems = await fetchItineraryOrderedLocations({
+      itineraryMode: true,
+      type: "source",
+    });
 
-  const destinationItems =
-    params?.source?.trim()
-      ? await fetchItineraryOrderedLocations({
-          itineraryMode: true,
-          type: "destination",
-          source: params.source.trim(),
-          dayNo: params.dayNo,
-          totalNoOfDays: params.totalNoOfDays,
-          departureLocation: params.departureLocation,
-        })
-      : [];
+    const destinationItems =
+      params?.source?.trim()
+        ? await fetchItineraryOrderedLocations({
+            itineraryMode: true,
+            type: "destination",
+            source: params.source.trim(),
+            dayNo: params.dayNo,
+            totalNoOfDays: params.totalNoOfDays,
+            departureLocation: params.departureLocation,
+          })
+        : [];
+
+    return {
+      sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
+      destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
+    };
+  }
+
+  const data = (await api(`/locations/dropdowns${qs({ source: params?.source })}`)) as any;
 
   return {
-    sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
-    destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
+    sources: uniqueCaseInsensitive(Array.isArray(data?.sources) ? data.sources.map((item: any) => asStr(item)) : []),
+    destinations: uniqueCaseInsensitive(
+      Array.isArray(data?.destinations) ? data.destinations.map((item: any) => asStr(item)) : []
+    ),
   };
 },
 
