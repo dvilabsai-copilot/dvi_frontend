@@ -266,7 +266,7 @@ const WalletHistory = () => {
 
   const onTopUp = async () => {
     const amount = Number(topUpAmount);
-    if (!amount || amount <= 0) {
+    if (!amount || amount < 1) {
       toast.error("Enter a valid top-up amount");
       return;
     }
@@ -368,8 +368,12 @@ const WalletHistory = () => {
               onChange={(e) => setTopUpAmount(e.target.value)}
               type="number"
               min="1"
+              step="0.01"
               placeholder="Enter amount"
             />
+            <p className="text-sm text-muted-foreground">
+              Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTopUpOpen(false)}>Cancel</Button>

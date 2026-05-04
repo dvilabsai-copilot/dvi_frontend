@@ -427,6 +427,10 @@ export const ItineraryService = {
     routeId: number,
     hotspotId: number,
     anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+      selectedHotspotIds?: number[];
+    },
   ) {
     return api(`itineraries/${planId}/manual-hotspot/preview`, {
       method: "POST",
@@ -435,6 +439,10 @@ export const ItineraryService = {
         hotspotId,
         anchorType: anchor?.anchorType,
         anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+        selectedHotspotIds: Array.isArray(options?.selectedHotspotIds)
+          ? options?.selectedHotspotIds
+          : undefined,
       },
     });
   },
@@ -444,6 +452,9 @@ export const ItineraryService = {
     routeId: number,
     hotspotId: number,
     anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+    },
   ) {
     return api(`itineraries/${planId}/manual-hotspot`, {
       method: "POST",
@@ -452,6 +463,30 @@ export const ItineraryService = {
         hotspotId,
         anchorType: anchor?.anchorType,
         anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+      },
+    });
+  },
+
+  async applyManualHotspots(
+    planId: number,
+    routeId: number,
+    hotspotIds: number[],
+    anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+      forceConflictInsertion?: boolean;
+    },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspots/apply`, {
+      method: "POST",
+      body: {
+        routeId,
+        hotspotIds,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+        forceConflictInsertion: options?.forceConflictInsertion === true,
       },
     });
   },

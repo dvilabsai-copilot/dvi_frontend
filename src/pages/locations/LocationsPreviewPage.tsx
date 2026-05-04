@@ -38,6 +38,7 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
   const [viaRouteDraft, setViaRouteDraft] = useState("");
   const [routeDraft, setRouteDraft] = useState("");
   const [routeSuggestions, setRouteSuggestions] = useState<string[]>([]);
+  const [routeSuggestionSearch, setRouteSuggestionSearch] = useState("");
   const [suggestedRoutes, setSuggestedRoutes] = useState<SuggestedRouteRow[]>([]);
   //const [selectedSuggestions, setSelectedSuggestions] = useState<SuggestedRouteRow[]>([]);
     const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
@@ -94,6 +95,96 @@ const destinationOptions: AutoSuggestOption[] = useMemo(
       })),
   [destinations, selectedSource]
 );
+
+const viaRoutePlaceOptions = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        [...(sources || []), ...(destinations || [])]
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b)),
+  [sources, destinations]
+);
+
+const filteredRouteSuggestions = useMemo(() => {
+  const query = routeSuggestionSearch.trim().toLowerCase();
+  if (!query) return routeSuggestions;
+
+  return routeSuggestions.filter((route) =>
+    route.toLowerCase().includes(query)
+  );
+}, [routeSuggestions, routeSuggestionSearch]);
+
+const viaRouteTotalPages = Math.max(
+  1,
+  Math.ceil(viaRoutes.length / viaRoutePageSize)
+);
+
+const suggestedRouteTotalPages = Math.max(
+  1,
+  Math.ceil(suggestedRoutes.length / suggestedRoutePageSize)
+);
+
+type PaginationItem = number | "ellipsis";
+
+const getCompactPaginationItems = (
+  totalPages: number,
+  currentPage: number
+): PaginationItem[] => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 3) {
+    return [1, 2, 3, "ellipsis", totalPages];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return [1, "ellipsis", totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [
+    1,
+    "ellipsis",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "ellipsis",
+    totalPages,
+  ];
+};
+
+const renderHighlightedRouteSuggestion = (route: string) => {
+  const query = routeSuggestionSearch.trim();
+  if (!query) return route;
+
+  const normalizedQuery = query.toLowerCase();
+  const tokens = route.split(/(\s+|[,()\/-]+)/g);
+
+  return (
+    <>
+      {tokens.map((token, index) => {
+        const isMatch =
+          /[a-z0-9]/i.test(token) && token.toLowerCase().includes(normalizedQuery);
+
+        if (!isMatch) {
+          return <span key={`${token}-${index}`}>{token}</span>;
+        }
+
+        return (
+          <span
+            key={`${token}-${index}`}
+            className="rounded bg-purple-100 px-0.5 font-medium text-purple-800"
+          >
+            {token}
+          </span>
+        );
+      })}
+    </>
+  );
+};
   // Load dropdowns and initial data
   useEffect(() => {
     async function init() {
@@ -186,6 +277,15 @@ useEffect(() => {
 
   reloadDestinationDropdown();
 }, [selectedSource]);
+
+useEffect(() => {
+  setViaRouteCurrentPage((prev) => Math.min(prev, viaRouteTotalPages));
+}, [viaRouteTotalPages]);
+
+useEffect(() => {
+  setSuggestedRouteCurrentPage((prev) => Math.min(prev, suggestedRouteTotalPages));
+}, [suggestedRouteTotalPages]);
+
     async function loadPreviewCollections(locationId: number) {
   try {
     setViaRoutesLoading(true);
@@ -209,6 +309,7 @@ useEffect(() => {
 }
       const resetAddSuggestionState = () => {
     setIsAddSuggestionDetailsStep(false);
+    setRouteSuggestionSearch("");
     setAddingSuggestionForm({
       routes: "",
       no_of_nights: "",
@@ -251,6 +352,48 @@ useEffect(() => {
       if (!total) return [];
       return Array.from({ length: total }, (_, index) => prev[index] || "");
     });
+  };
+
+  const validateSuggestionDayLocations = async (days: string[]) => {
+    const values = days
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    if (values.length === 0) return true;
+
+    const sourceValue = selectedSource.trim();
+    if (!sourceValue) {
+      toast.warning("Please select a source location first");
+      return false;
+    }
+
+    try {
+      const backendLocations = await locationsApi.searchDestinations("", sourceValue);
+      const backendSet = new Set(
+        backendLocations.map((item) => item.trim().toLowerCase())
+      );
+
+      const invalidLocations = Array.from(
+        new Set(
+          values.filter(
+            (item) => !backendSet.has(item.trim().toLowerCase())
+          )
+        )
+      );
+
+      if (invalidLocations.length > 0) {
+        toast.error(
+          `Not found in backend locations: ${invalidLocations.join(", ")}`
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error validating route locations:", error);
+      toast.error("Could not validate locations with backend");
+      return false;
+    }
   };
 
   const resetViaRouteForm = () => {
@@ -660,6 +803,13 @@ const handleSaveNewSuggestedRoute = async () => {
     return;
   }
 
+  const areDayLocationsValid = await validateSuggestionDayLocations(
+    addingSuggestionDays
+  );
+  if (!areDayLocationsValid) {
+    return;
+  }
+
   try {
     const result = await locationsApi.addSuggestedRoute(location.location_ID, {
       routes: routeName,
@@ -741,6 +891,13 @@ const confirmDeleteSelectedSuggestion = async () => {
 
   if (editingSuggestionDays.some((item) => !item.trim())) {
     toast.warning("Please fill all day-wise route locations");
+    return;
+  }
+
+  const areDayLocationsValid = await validateSuggestionDayLocations(
+    editingSuggestionDays
+  );
+  if (!areDayLocationsValid) {
     return;
   }
 
@@ -1235,24 +1392,37 @@ const confirmDeleteSelectedSuggestion = async () => {
             >
               1
             </Button>
-            {Math.ceil(viaRoutes.length / viaRoutePageSize) > 1 && (
-              <Button
-                size="sm"
-                onClick={() => setViaRouteCurrentPage(2)}
-                className={viaRouteCurrentPage === 2 ? "bg-purple-600 text-white" : ""}
-              >
-                2
-              </Button>
-            )}
+            {getCompactPaginationItems(viaRouteTotalPages, viaRouteCurrentPage)
+              .filter((item, index) => !(index === 0 && item === 1))
+              .map((item, index) => {
+                if (item === "ellipsis") {
+                  return (
+                    <span key={`via-ellipsis-${index}`} className="px-2 py-1 text-gray-500">
+                      ...
+                    </span>
+                  );
+                }
+
+                return (
+                  <Button
+                    key={item}
+                    size="sm"
+                    onClick={() => setViaRouteCurrentPage(item)}
+                    className={viaRouteCurrentPage === item ? "bg-purple-600 text-white" : ""}
+                  >
+                    {item}
+                  </Button>
+                );
+              })}
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
                 setViaRouteCurrentPage(
-                  Math.min(Math.ceil(viaRoutes.length / viaRoutePageSize), viaRouteCurrentPage + 1)
+                  Math.min(viaRouteTotalPages, viaRouteCurrentPage + 1)
                 )
               }
-              disabled={viaRouteCurrentPage === Math.ceil(viaRoutes.length / viaRoutePageSize)}
+              disabled={viaRouteCurrentPage === viaRouteTotalPages}
             >
               Next
             </Button>
@@ -1269,6 +1439,7 @@ const confirmDeleteSelectedSuggestion = async () => {
             size="sm"
             onClick={() => {
   setAddRouteModalOpen(true);
+  setRouteSuggestionSearch("");
   setIsAddSuggestionDetailsStep(false);
   setAddingSuggestionForm({
     routes: "",
@@ -1417,24 +1588,37 @@ const confirmDeleteSelectedSuggestion = async () => {
             >
               1
             </Button>
-            {Math.ceil(suggestedRoutes.length / suggestedRoutePageSize) > 1 && (
-              <Button
-                size="sm"
-                onClick={() => setSuggestedRouteCurrentPage(2)}
-                className={suggestedRouteCurrentPage === 2 ? "bg-purple-600 text-white" : ""}
-              >
-                2
-              </Button>
-            )}
+            {getCompactPaginationItems(suggestedRouteTotalPages, suggestedRouteCurrentPage)
+              .filter((item, index) => !(index === 0 && item === 1))
+              .map((item, index) => {
+                if (item === "ellipsis") {
+                  return (
+                    <span key={`suggested-ellipsis-${index}`} className="px-2 py-1 text-gray-500">
+                      ...
+                    </span>
+                  );
+                }
+
+                return (
+                  <Button
+                    key={item}
+                    size="sm"
+                    onClick={() => setSuggestedRouteCurrentPage(item)}
+                    className={suggestedRouteCurrentPage === item ? "bg-purple-600 text-white" : ""}
+                  >
+                    {item}
+                  </Button>
+                );
+              })}
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
                 setSuggestedRouteCurrentPage(
-                  Math.min(Math.ceil(suggestedRoutes.length / suggestedRoutePageSize), suggestedRouteCurrentPage + 1)
+                  Math.min(suggestedRouteTotalPages, suggestedRouteCurrentPage + 1)
                 )
               }
-              disabled={suggestedRouteCurrentPage === Math.ceil(suggestedRoutes.length / suggestedRoutePageSize)}
+              disabled={suggestedRouteCurrentPage === suggestedRouteTotalPages}
             >
               Next
             </Button>
@@ -1455,19 +1639,37 @@ const confirmDeleteSelectedSuggestion = async () => {
   <LocationAutosuggestInput
       placeholder="Search location..."
      value={viaRouteForm.via_route_location}
-  onValueChange={(value) =>
-    setViaRouteForm((prev) => ({
-      ...prev,
-      via_route_location: value,
-      via_route_location_city: "",
-      via_route_location_state: "",
-      via_route_location_lattitude: "",
-      via_route_location_longitude: "",
-      distance_from_source_location: "",
-      duration_from_source_location: "",
-    }))
-  }
+  onValueChange={(value) => {
+    const normalizedNext = value.trim().toLowerCase();
+
+    setViaRouteForm((prev) => {
+      const normalizedPrev = prev.via_route_location.trim().toLowerCase();
+
+      // Keep existing autofilled values when the selected place is unchanged.
+      if (normalizedPrev === normalizedNext) {
+        return {
+          ...prev,
+          via_route_location: value,
+        };
+      }
+
+      return {
+        ...prev,
+        via_route_location: value,
+        via_route_location_city: "",
+        via_route_location_state: "",
+        via_route_location_lattitude: "",
+        via_route_location_longitude: "",
+        distance_from_source_location: "",
+        duration_from_source_location: "",
+      };
+    });
+
+    // Ensure a new lookup runs when user picks/enters a different place.
+    setLastViaRouteLookupValue("");
+  }}
   search={(phrase) => locationsApi.searchDestinations(phrase)}
+  defaultItems={viaRoutePlaceOptions}
 />
 <p className="mt-1 text-xs text-gray-500">
   If this place already exists in the database, city, state, latitude, longitude, distance and duration will autofill automatically.
@@ -1676,7 +1878,9 @@ const confirmDeleteSelectedSuggestion = async () => {
                       )
                     )
                   }
-                  search={(phrase) => locationsApi.searchDestinations(phrase)}
+                  search={(phrase) =>
+                    locationsApi.searchDestinations(phrase, selectedSource)
+                  }
                 />
               </div>
             ))}
@@ -1714,9 +1918,39 @@ const confirmDeleteSelectedSuggestion = async () => {
 
 {!isAddSuggestionDetailsStep ? (
   <>
-        {routeSuggestions.length > 0 ? (
+    <div className="mb-4 space-y-3">
+      <Input
+        value={routeSuggestionSearch}
+        onChange={(e) => setRouteSuggestionSearch(e.target.value)}
+        placeholder="Search location in suggestions..."
+      />
+
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="outline"
+          onClick={() => {
+            resetAddSuggestionState();
+            setIsAddSuggestionDetailsStep(true);
+          }}
+        >
+          Add Manually
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            resetAddSuggestionState();
+            setAddRouteModalOpen(false);
+          }}
+        >
+          Close
+        </Button>
+      </div>
+    </div>
+
+    {routeSuggestions.length > 0 ? (
+      filteredRouteSuggestions.length > 0 ? (
       <div className="space-y-2">
-        {routeSuggestions.map((route) => (
+        {filteredRouteSuggestions.map((route) => (
           <Button
             key={route}
             type="button"
@@ -1724,36 +1958,20 @@ const confirmDeleteSelectedSuggestion = async () => {
             className="w-full justify-start text-left text-gray-700 border-gray-300 hover:bg-gray-50"
             onClick={() => handleAddToSuggestedRoutes(route)}
           >
-            {route}
+            {renderHighlightedRouteSuggestion(route)}
           </Button>
         ))}
       </div>
+      ) : (
+        <p className="text-sm text-gray-500 text-center py-4">
+          No location matches your search.
+        </p>
+      )
     ) : (
       <p className="text-sm text-gray-500 text-center py-4">
         No route suggestions available. You can still add a route manually.
       </p>
     )}
-
-    <div className="mt-6 flex justify-end gap-2">
-      <Button
-        variant="outline"
-        onClick={() => {
-          resetAddSuggestionState();
-          setIsAddSuggestionDetailsStep(true);
-        }}
-      >
-        Add Manually
-      </Button>
-      <Button
-        variant="outline"
-        onClick={() => {
-          resetAddSuggestionState();
-          setAddRouteModalOpen(false);
-        }}
-      >
-        Close
-      </Button>
-    </div>
   </>
 ) : (
   <>
@@ -1802,7 +2020,9 @@ const confirmDeleteSelectedSuggestion = async () => {
                     )
                   )
                 }
-                search={(phrase) => locationsApi.searchDestinations(phrase)}
+                search={(phrase) =>
+                  locationsApi.searchDestinations(phrase, selectedSource)
+                }
               />
             </div>
           ))}

@@ -13,6 +13,7 @@ import {
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { api } from '@/lib/api';
+import { AutoSuggestSelect, AutoSuggestOption } from '@/components/AutoSuggestSelect';
 
 interface DayDetail {
   dayNo: number;
@@ -64,12 +65,22 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [noRoutesMessage, setNoRoutesMessage] = useState<string | null>(null);
+  const [selectedRouteValue, setSelectedRouteValue] = useState('route-0');
+  const routeOptions: AutoSuggestOption[] = routes.map((route, idx) => ({
+    value: `route-${idx}`,
+    label: route.routeName,
+  }));
 
   React.useEffect(() => {
     if (isOpen && arrivalLocation && departureLocation) {
       fetchRoutes();
     }
   }, [isOpen, arrivalLocation, departureLocation, noOfDays, startDate, endDate]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setSelectedRouteValue('route-0');
+  }, [isOpen, routes.length]);
 
   const fetchRoutes = async () => {
     setLoading(true);
@@ -150,7 +161,18 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
           )}
 
           {routes.length > 0 && (
-            <Tabs defaultValue={`route-0`} className="w-full">
+            <Tabs value={selectedRouteValue} onValueChange={setSelectedRouteValue} className="w-full">
+              <div className="mb-4 w-full max-w-sm">
+                <label className="mb-2 block text-sm font-medium text-gray-700">Choose Route</label>
+                <AutoSuggestSelect
+                  mode="single"
+                  value={selectedRouteValue}
+                  onChange={(value) => setSelectedRouteValue(String(value || 'route-0'))}
+                  options={routeOptions}
+                  placeholder="Select a route"
+                />
+              </div>
+
               {/* Tabs List */}
               <TabsList className="grid w-full gap-2 mb-6 bg-gray-100 p-2 rounded-lg overflow-x-auto flex-wrap">
                 {routes.map((route, idx) => (
