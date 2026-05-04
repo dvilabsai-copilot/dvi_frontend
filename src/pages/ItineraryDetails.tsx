@@ -1310,9 +1310,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const fetchCompleteHotelDetails = useCallback(async (
     currentQuoteId: string,
-    pageSize = 20,
   ): Promise<ItineraryHotelDetailsResponse> => {
-    const base = await ItineraryService.getHotelDetails(currentQuoteId, 1, pageSize);
+    const base = await ItineraryService.getHotelDetails(currentQuoteId);
 
     const merged: ItineraryHotelDetailsResponse = {
       ...(base as ItineraryHotelDetailsResponse),
@@ -1344,7 +1343,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       const next = await ItineraryService.getHotelDetails(
         currentQuoteId,
         req.nextPage,
-        pageSize,
+        20,
         req.groupType,
         req.routeId,
       );
@@ -2485,17 +2484,42 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [prebookData, setPrebookData] = useState<any | null>(null);
+  const prebookDataRef = useRef<any | null>(null);
   const [isPrebooking, setIsPrebooking] = useState(false);
   const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
+  const [confirmOccupanciesTemplate, setConfirmOccupanciesTemplate] = useState<Array<{ adults: number; children: number; childrenAges: number[] }> | null>(null);
   const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+  const confirmPassengerMix = [
+    Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
+    Number(itinerary?.children || 0) > 0 ? `${Number(itinerary?.children || 0)} Child${Number(itinerary?.children || 0) === 1 ? '' : 'ren'}` : null,
+    Number(itinerary?.infants || 0) > 0 ? `${Number(itinerary?.infants || 0)} Infant${Number(itinerary?.infants || 0) === 1 ? '' : 's'}` : null,
+  ].filter(Boolean).join(', ');
+  const confirmOccupancyPreview = (confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+    ? confirmOccupanciesTemplate
+    : buildOccupancyPreview(
+        confirmRoomCount,
+        Number(itinerary?.adults || 0),
+        Number(itinerary?.children || 0),
+      )
+  ).map((room) => ({ adults: room.adults, children: room.children }));
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
   const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
+  const getPassengerFieldError = (
+    label: 'adult' | 'child' | 'infant',
+    index: number,
+    field: 'title' | 'name' | 'age' | 'nationality',
+  ) => formErrors[`${label}-${index}-${field}`];
+
+  useEffect(() => {
+    prebookDataRef.current = prebookData;
+  }, [prebookData]);
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -2533,10 +2557,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     for (const age of childAges) {
       let assigned = false;
-      for (let idx = 0; idx < rooms; idx++) {
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (roomIndex + offset) % rooms;
         if (occupancies[idx].children < 4) {
           occupancies[idx].children += 1;
           occupancies[idx].childrenAges.push(age);
+          roomIndex = (idx + 1) % rooms;
           assigned = true;
           break;
         }
@@ -2548,6 +2574,108 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     return occupancies;
   };
+
+  const buildOccupanciesFromTravellers = (
+    travellers: any[],
+    fallbackRooms: number,
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const rooms = Math.max(Number(fallbackRooms) || 1, 1);
+    const byRoom = new Map<number, { adults: number; children: number; childrenAges: number[] }>();
+
+    for (const t of Array.isArray(travellers) ? travellers : []) {
+      const roomIdRaw = Number((t as any)?.room_id ?? (t as any)?.roomId ?? 1);
+      const roomId = Number.isFinite(roomIdRaw) && roomIdRaw > 0 ? roomIdRaw : 1;
+      const paxType = Number((t as any)?.traveller_type ?? (t as any)?.travellerType ?? 0);
+      const age = Number((t as any)?.traveller_age ?? (t as any)?.travellerAge);
+
+      if (!byRoom.has(roomId)) {
+        byRoom.set(roomId, { adults: 0, children: 0, childrenAges: [] });
+      }
+
+      const occ = byRoom.get(roomId)!;
+      if (paxType === 1) {
+        occ.adults += 1;
+      } else if (paxType === 2) {
+        occ.children += 1;
+        if (Number.isFinite(age) && age >= 0 && age <= 11) {
+          occ.childrenAges.push(Math.trunc(age));
+        }
+      }
+    }
+
+    const maxRoomId = Math.max(rooms, ...Array.from(byRoom.keys()), 1);
+    return Array.from({ length: maxRoomId }, (_, idx) => {
+      const roomNo = idx + 1;
+      const occ = byRoom.get(roomNo) || { adults: 0, children: 0, childrenAges: [] };
+      return {
+        adults: Math.max(occ.adults, 1),
+        children: Math.max(occ.children, 0),
+        childrenAges: occ.childrenAges.slice(0, occ.children),
+      };
+    });
+  };
+
+  const applyChildAgesToTemplate = (
+    template: Array<{ adults: number; children: number; childrenAges: number[] }>,
+    childAges: number[],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const agesPool = [...childAges];
+    return template.map((occ) => {
+      const ages: number[] = [];
+      for (let i = 0; i < Math.max(occ.children, 0); i++) {
+        const nextAge = agesPool.length > 0 ? Number(agesPool.shift()) : Number(occ.childrenAges?.[i]);
+        ages.push(Number.isFinite(nextAge) && nextAge >= 0 && nextAge <= 11 ? Math.trunc(nextAge) : 7);
+      }
+      return {
+        adults: Math.max(Number(occ.adults || 1), 1),
+        children: Math.max(Number(occ.children || 0), 0),
+        childrenAges: ages,
+      };
+    });
+  };
+
+  function buildOccupancyPreview(
+    roomCount: number,
+    totalAdults: number,
+    totalChildren: number,
+  ): Array<{ adults: number; children: number }> {
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    let childrenLeft = Math.max(totalChildren, 0);
+    let nextChildRoom = 0;
+    while (childrenLeft > 0) {
+      let assigned = false;
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (nextChildRoom + offset) % rooms;
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          childrenLeft -= 1;
+          nextChildRoom = (idx + 1) % rooms;
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  }
 
   const normalizeNameParts = (name: string) => {
     const trimmed = name.trim();
@@ -4236,6 +4364,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }
       }));
       setPrebookData(null);
+      prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
 
       console.log('DEBUG: Hotel selected and stored', {
@@ -4309,7 +4438,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     setIsOpeningConfirmQuotation(true);
     setConfirmQuotationModal(true);
     setPrebookData(null);
+    prebookDataRef.current = null;
     setHasAcceptedUpdatedPrice(false);
+    setConfirmOccupanciesTemplate(null);
     setFormErrors({});
     // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
     setAdditionalAdults([]);
@@ -4384,6 +4515,41 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }));
       }
 
+      let occupanciesTemplateFromPlan: Array<{ adults: number; children: number; childrenAges: number[] }> | null = null;
+      const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
+      if (travellersFromPlan.length > 0) {
+        const sortedTravellers = [...travellersFromPlan].sort(
+          (a: any, b: any) => Number(a?.traveller_details_ID || 0) - Number(b?.traveller_details_ID || 0),
+        );
+        const adults = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 1);
+        const children = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 2);
+        const infants = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 3);
+
+        const toPrefillPassenger = (title: string, traveller: any): AdditionalPassenger => {
+          const ageNum = Number(traveller?.traveller_age);
+          return {
+            title,
+            name: '',
+            age: Number.isFinite(ageNum) ? String(Math.trunc(ageNum)) : '',
+            nationality: 'IN',
+            panNo: '',
+            passportNo: '',
+          };
+        };
+
+        // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
+        setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
+        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Miss', t)));
+        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Miss', t)));
+
+        const template = buildOccupanciesFromTravellers(
+          travellersFromPlan,
+          Number(itinerary?.roomCount || 1),
+        );
+        occupanciesTemplateFromPlan = template;
+        setConfirmOccupanciesTemplate(template);
+      }
+
       // ── Prebook immediately so amenities/rate-conditions/inclusions show in the modal ──
       let autoSelectedForPrebook = { ...selectedHotelBookings };
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
@@ -4415,11 +4581,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         });
       }
 
-      const prebookOccupancies = buildTboOccupancies(
-        Number(itinerary?.roomCount || 1),
-        Math.max(Number(itinerary?.adults || 1), 1),
-        [],
-      );
+      const prebookOccupancies =
+        occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
+          ? occupanciesTemplateFromPlan
+          : confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? confirmOccupanciesTemplate
+          : buildTboOccupancies(
+              Number(itinerary?.roomCount || 1),
+              Math.max(Number(itinerary?.adults || 1), 1),
+              [],
+            );
 
       const prebookHotelBookings: any[] = Object.entries(autoSelectedForPrebook).map(([routeId, hotelData]) => ({
         occupancies: prebookOccupancies,
@@ -4432,7 +4603,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary?.roomCount || 1),
-        guestNationality: 'IN',
+        guestNationality: (guestDetails.nationality || '').toUpperCase(),
         netAmount: Number(hotelData.netAmount || 0),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers: [],
@@ -4464,7 +4635,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             hotel_bookings: prebookHotelBookings,
             endUserIp: clientIp,
           });
-          setPrebookData(prebookResp?.data || prebookResp);
+          const normalizedPrebook = prebookResp?.data || prebookResp;
+          prebookDataRef.current = normalizedPrebook;
+          setPrebookData(normalizedPrebook);
         } catch (prebookErr) {
           toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
         } finally {
@@ -4515,6 +4688,23 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       nextErrors['primary-age'] = 'Primary guest age must be a valid number.';
     }
 
+    const sanitizeAdditionalPassengers = (list: AdditionalPassenger[]) =>
+      list
+        .map((item) => ({
+          ...item,
+          title: String(item.title || '').trim(),
+          name: String(item.name || '').trim(),
+          age: String(item.age || '').trim(),
+          nationality: String(item.nationality || '').trim().toUpperCase(),
+          panNo: String(item.panNo || '').trim().toUpperCase(),
+          passportNo: String(item.passportNo || '').trim().toUpperCase(),
+        }))
+        .filter((item) => item.title || item.name || item.age || item.nationality || item.panNo || item.passportNo);
+
+    const normalizedAdditionalAdults = sanitizeAdditionalPassengers(additionalAdults);
+    const normalizedAdditionalChildren = sanitizeAdditionalPassengers(additionalChildren);
+    const normalizedAdditionalInfants = sanitizeAdditionalPassengers(additionalInfants);
+
     const validateAdditionalPassengers = (
       list: AdditionalPassenger[],
       label: 'adult' | 'child' | 'infant',
@@ -4553,13 +4743,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
     const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
-    validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 11);
-    validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
+    validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+    validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
+    validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
 
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors);
-      toast.error('Please fix guest details before confirming quotation.');
+      const firstError = Object.values(nextErrors)[0];
+      toast.error(firstError || 'Please fix guest details before confirming quotation.');
       return;
     }
 
@@ -4612,13 +4803,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           paxType: 1,
           leadPassenger: true,
           age: Number(guestDetails.age),
-          panNo: guestDetails.panNo || undefined,
+          panNo: undefined,
           passportNo: guestDetails.passportNo || undefined,
           passportIssueDate: undefined,
           passportExpDate: undefined,
           phoneNo: guestDetails.contactNo,
         },
-        ...additionalAdults.map((adult) => {
+        ...normalizedAdditionalAdults.map((adult) => {
           const name = normalizeNameParts(adult.name);
           return {
             title: adult.title,
@@ -4636,7 +4827,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             phoneNo: guestDetails.contactNo,
           };
         }),
-        ...additionalChildren.map((child) => {
+        ...normalizedAdditionalChildren.map((child) => {
           const name = normalizeNameParts(child.name);
           return {
             title: child.title,
@@ -4647,14 +4838,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             paxType: 2,
             leadPassenger: false,
             age: Number(child.age),
-            panNo: child.panNo || undefined,
+            panNo: undefined,
             passportNo: child.passportNo || undefined,
             passportIssueDate: undefined,
             passportExpDate: undefined,
             phoneNo: guestDetails.contactNo,
           };
         }),
-        ...additionalInfants.map((infant) => {
+        ...normalizedAdditionalInfants.map((infant) => {
           const name = normalizeNameParts(infant.name);
           return {
             title: infant.title,
@@ -4665,7 +4856,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             paxType: 3,
             leadPassenger: false,
             age: Number(infant.age),
-            panNo: infant.panNo || undefined,
+            panNo: undefined,
             passportNo: infant.passportNo || undefined,
             passportIssueDate: undefined,
             passportExpDate: undefined,
@@ -4675,14 +4866,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       ];
 
       const childAgesForBooking = [
-        ...additionalChildren.map((c) => Number(c.age)),
+        ...normalizedAdditionalChildren.map((c) => Number(c.age)),
       ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
 
-      const occupanciesForBooking = buildTboOccupancies(
-        Number(itinerary.roomCount || 1),
-        Math.max(Number(itinerary.adults || 1), 1),
-        childAgesForBooking,
-      );
+      const occupanciesForBooking =
+        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
+          : buildTboOccupancies(
+              Number(itinerary.roomCount || 1),
+              Math.max(Number(itinerary.adults || 1), 1),
+              childAgesForBooking,
+            );
 
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
         occupancies: occupanciesForBooking,
@@ -4729,39 +4923,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         .then((data) => data.ip)
         .catch(() => '192.168.1.1');
 
-      if (!prebookData) {
-        setIsPrebooking(true);
-        try {
-          const prebookResponse = await ItineraryService.prebookHotels({
-            itinerary_plan_ID: itinerary.planId,
-            hotel_bookings: hotelBookings,
-            endUserIp: clientIp,
-          });
-          const normalizedPrebook = prebookResponse?.data || prebookResponse;
-          setPrebookData(normalizedPrebook);
-
-          const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-          const prebookTotal = Number(
-            normalizedPrebook?.updatedTotalPrice ||
-            normalizedPrebook?.finalPrice ||
-            normalizedPrebook?.totalAmount ||
-            0
-          );
-
-          if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
-            toast.warning('Prebook returned an updated price. Please review and confirm updated price to continue.');
-            return;
-          }
-        } catch (prebookError) {
-          toast.error(getSafeErrorMessage(prebookError, 'Failed to prebook selected hotels.'));
-          return;
-        } finally {
-          setIsPrebooking(false);
-        }
+      const effectivePrebookData = prebookDataRef.current || prebookData;
+      if (!effectivePrebookData) {
+        toast.error('Prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
+        return;
       }
 
       const prebookTotal = Number(
-        prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0
+        effectivePrebookData?.updatedTotalPrice ||
+        effectivePrebookData?.finalPrice ||
+        effectivePrebookData?.totalAmount ||
+        0,
       );
       const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
       if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
@@ -4803,7 +4975,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         };
       });
 
-      await ItineraryService.confirmQuotation({
+      const confirmPayload = {
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
         primary_guest_salutation: guestDetails.salutation,
@@ -4812,12 +4984,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         primary_guest_age: guestDetails.age,
         primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
         primary_guest_email_id: guestDetails.emailId,
-        adult_name: additionalAdults.map(a => a.name),
-        adult_age: additionalAdults.map(a => a.age),
-        child_name: additionalChildren.map(c => c.name),
-        child_age: additionalChildren.map(c => c.age),
-        infant_name: additionalInfants.map(i => i.name),
-        infant_age: additionalInfants.map(i => i.age),
+        adult_name: normalizedAdditionalAdults.map(a => a.name),
+        adult_age: normalizedAdditionalAdults.map(a => a.age),
+        child_name: normalizedAdditionalChildren.map(c => c.name),
+        child_age: normalizedAdditionalChildren.map(c => c.age),
+        infant_name: normalizedAdditionalInfants.map(i => i.name),
+        infant_age: normalizedAdditionalInfants.map(i => i.age),
         arrival_date_time: guestDetails.arrivalDateTime,
         arrival_place: guestDetails.arrivalPlace,
         arrival_flight_details: guestDetails.arrivalFlightDetails,
@@ -4829,7 +5001,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         hotel_bookings: hotelBookingsWithPrebookContext.length > 0 ? hotelBookingsWithPrebookContext : undefined,
         primaryGuest,
         endUserIp: clientIp,
-      });
+      };
+
+      console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
+      await ItineraryService.confirmQuotation(confirmPayload);
 
       toast.success('Quotation confirmed successfully!');
       setConfirmQuotationModal(false);
@@ -4862,6 +5037,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       setAdditionalChildren([]);
       setAdditionalInfants([]);
       setPrebookData(null);
+      prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
       setFormErrors({});
       setSelectedHotelBookings({});
@@ -7671,6 +7847,44 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               </div>
             )}
 
+            <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
+                <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
+              </div>
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-[#6c6c6c]">Passenger Mix:</span>
+                <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
+              </div>
+              <div className="pt-2 border-t border-[#e6e6e6]">
+                <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
+                <div className="space-y-1">
+                  {confirmOccupancyPreview.map((room, index) => {
+                    const roomMix = [
+                      room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
+                      room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
+                    ].filter(Boolean).join(', ');
+
+                    return (
+                      <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
+                        <span className="text-[#6c6c6c]">Room {index + 1}:</span>
+                        <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {(Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Child and infant details entered below are sent in the final booking API payload. Review names, ages, and nationality before confirming.
+                </p>
+              </div>
+            )}
+
             {(isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
               <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
@@ -8113,6 +8327,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         }}
                       />
                     </div>
+                    {(getPassengerFieldError('adult', index, 'title') ||
+                      getPassengerFieldError('adult', index, 'name') ||
+                      getPassengerFieldError('adult', index, 'age') ||
+                      getPassengerFieldError('adult', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('adult', index, 'title') ||
+                          getPassengerFieldError('adult', index, 'name') ||
+                          getPassengerFieldError('adult', index, 'age') ||
+                          getPassengerFieldError('adult', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -8173,6 +8398,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={child.panNo} onChange={(e) => { const next = [...additionalChildren]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={child.passportNo} onChange={(e) => { const next = [...additionalChildren]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                     </div>
+                    {(getPassengerFieldError('child', index, 'title') ||
+                      getPassengerFieldError('child', index, 'name') ||
+                      getPassengerFieldError('child', index, 'age') ||
+                      getPassengerFieldError('child', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('child', index, 'title') ||
+                          getPassengerFieldError('child', index, 'name') ||
+                          getPassengerFieldError('child', index, 'age') ||
+                          getPassengerFieldError('child', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -8233,6 +8469,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={infant.panNo} onChange={(e) => { const next = [...additionalInfants]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={infant.passportNo} onChange={(e) => { const next = [...additionalInfants]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                     </div>
+                    {(getPassengerFieldError('infant', index, 'title') ||
+                      getPassengerFieldError('infant', index, 'name') ||
+                      getPassengerFieldError('infant', index, 'age') ||
+                      getPassengerFieldError('infant', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('infant', index, 'title') ||
+                          getPassengerFieldError('infant', index, 'name') ||
+                          getPassengerFieldError('infant', index, 'age') ||
+                          getPassengerFieldError('infant', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
