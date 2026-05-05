@@ -8,6 +8,7 @@ import { hotelFormApi, getHotelBackendRow } from "@/services/hotels";
 export type HotelForm = {
   hotel_name: string;
   hotel_place: string;
+  axisrooms_property_id?: string;
   hotel_status: number | string;
   hotel_mobile_no: string;
   hotel_email_id: string;
