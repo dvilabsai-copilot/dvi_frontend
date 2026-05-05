@@ -7,6 +7,21 @@ import { paymentService } from "@/services/paymentService";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { getToken } from "@/lib/api";
 import { DashboardService } from "@/services/dashboard";
+import { SubscriptionRenewalModal } from "@/components/SubscriptionRenewalModal";
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 type PaymentStatus = "Free" | "Paid" | "Pending" | "Failed";
 
@@ -61,6 +76,8 @@ export default function SubscriptionHistory() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isPaying, setIsPaying] = useState(false);
   const [activePlanId, setActivePlanId] = useState<number | null>(null);
+  const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+  const [activeAgentSubscribedPlanId, setActiveAgentSubscribedPlanId] = useState<number | undefined>();
 
   const loadSubscriptions = async () => {
     const agentId = getAgentId();
@@ -84,9 +101,12 @@ export default function SubscriptionHistory() {
     try {
       const stats = await DashboardService.getStats();
       const planId = Number((stats as any)?.planId || 0);
+      const subscribedPlanId = Number((stats as any)?.subscribedPlanId || 0);
       setActivePlanId(planId > 0 ? planId : null);
+      setActiveAgentSubscribedPlanId(subscribedPlanId > 0 ? subscribedPlanId : undefined);
     } catch {
       setActivePlanId(null);
+      setActiveAgentSubscribedPlanId(undefined);
     }
   };
 
@@ -137,15 +157,25 @@ export default function SubscriptionHistory() {
     filteredSubscriptions.length
   );
 
-  const onRenewLatest = async () => {
+  const onRenewLatest = () => {
     if (!activePlanId) {
       toast.error("No subscription found for renewal");
       return;
     }
+    setRenewalModalOpen(true);
+  };
 
+  const onPlanSelected = async (plan: any, agentSubscribedPlanId?: number) => {
     try {
       setIsPaying(true);
-      const order = await paymentService.createSubscriptionRenewalOrder(activePlanId);
+      const order = await withTimeout(
+        paymentService.createSubscriptionRenewalOrder(
+          plan.agent_subscription_plan_ID,
+          agentSubscribedPlanId
+        ),
+        20000,
+        "Create order request timed out. Please try again.",
+      );
 
       await openCheckout({
         key: order.key,
@@ -155,7 +185,11 @@ export default function SubscriptionHistory() {
         name: "DVI Holidays",
         description: "Subscription Renewal",
         onSuccess: async (response) => {
-          await paymentService.confirmSubscriptionRenewal(response);
+          await withTimeout(
+            paymentService.confirmSubscriptionRenewal(response),
+            20000,
+            "Subscription confirmation timed out. Please refresh and check subscription history.",
+          );
           await loadSubscriptions();
           navigate(`/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(order.orderId)}`);
         },
@@ -344,6 +378,15 @@ export default function SubscriptionHistory() {
           </div>
         </div>
       </div>
+
+      <SubscriptionRenewalModal
+        open={renewalModalOpen}
+        onOpenChange={setRenewalModalOpen}
+        currentPlanId={activePlanId ?? undefined}
+        agentSubscribedPlanId={activeAgentSubscribedPlanId}
+        onSelectPlan={onPlanSelected}
+        isLoading={isPaying}
+      />
     </div>
   );
 }

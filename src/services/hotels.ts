@@ -5,6 +5,7 @@ export type Hotel = {
   id?: string;
   name: string;
   code?: string;
+  axisrooms_property_id?: string | null;
   starRating?: number | null;
   description?: string | null;
   addressLine1?: string | null;
@@ -67,6 +68,7 @@ function fromBackend(h: any): Hotel {
     id: String(h.hotel_id ?? h.id ?? ""),
     name: h.hotel_name ?? h.name ?? "",
     code: h.hotel_code ?? h.code ?? null,
+    axisrooms_property_id: h.axisrooms_property_id ?? null,
 
     // numbers / misc
     starRating: h.hotel_rating ?? h.starRating ?? null,
