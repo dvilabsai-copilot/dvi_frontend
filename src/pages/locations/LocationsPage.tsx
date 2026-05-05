@@ -1,6 +1,6 @@
 // FILE: src/pages/locations/LocationsPage.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Trash2, Plus, IndianRupee } from "lucide-react";
+import { Eye, Pencil, Trash2, Plus, IndianRupee, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -74,6 +74,7 @@ export default function LocationsPage() {
 
   const [sources, setSources] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
+  const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [source, setSource] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [search, setSearch] = useState("");
@@ -142,11 +143,20 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
   }, [search]);
 
   async function loadDropdowns() {
-  const d = await locationsApi.dropdowns();
-
-  setSources(d?.sources || []);
-  setDestinations(d?.destinations || []);
-}
+    setDropdownsLoading(true);
+    try {
+      const d = await locationsApi.dropdowns();
+      setSources(d?.sources || []);
+      setDestinations(d?.destinations || []);
+    } catch (error) {
+      console.error("Error loading location dropdowns:", error);
+      toast.error("Failed to load location filters");
+      setSources([]);
+      setDestinations([]);
+    } finally {
+      setDropdownsLoading(false);
+    }
+  }
 
   async function loadList() {
     const sourceValue = source.trim();
@@ -572,30 +582,46 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
                    
             <div>
   <div className="text-xs mb-1">Source Location *</div>
-  <AutoSuggestSelect
-    mode="single"
-    value={source}
-      onChange={(val) => {
-      setSource((val as string) || "");
-      setPage(1);
-    }}
-    options={sourceOptions}
-    placeholder="Choose Source Location"
-  />
+    {dropdownsLoading ? (
+      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading source locations...
+      </div>
+    ) : (
+      <AutoSuggestSelect
+        mode="single"
+        value={source}
+        onChange={(val) => {
+          setSource((val as string) || "");
+          setPage(1);
+        }}
+        options={sourceOptions}
+        placeholder="Choose Source Location"
+        disabled={dropdownsLoading}
+      />
+    )}
 </div>
 
           <div>
   <div className="text-xs mb-1">Destination Location *</div>
-  <AutoSuggestSelect
-    mode="single"
-    value={destination}
-    onChange={(val) => {
-      setDestination((val as string) || "");
-      setPage(1);
-    }}
-    options={destinationOptions}
-    placeholder="Choose Destination Location"
-  />
+    {dropdownsLoading ? (
+      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading destination locations...
+      </div>
+    ) : (
+      <AutoSuggestSelect
+        mode="single"
+        value={destination}
+        onChange={(val) => {
+          setDestination((val as string) || "");
+          setPage(1);
+        }}
+        options={destinationOptions}
+        placeholder="Choose Destination Location"
+        disabled={dropdownsLoading}
+      />
+    )}
 </div>
 
           <div className="flex items-end gap-2">
