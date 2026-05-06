@@ -2479,6 +2479,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     departurePlace: '',
     departureFlightDetails: '',
   });
+  const [confirmDefaultNationality, setConfirmDefaultNationality] = useState('IN');
   const [additionalAdults, setAdditionalAdults] = useState<AdditionalPassenger[]>([]);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalPassenger[]>([]);
   const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
@@ -2509,8 +2510,52 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-  const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
+  const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+  const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
+  const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
+  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' => {
+    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
+    if (bookingCode.includes('!TB!')) return 'tbo';
+
+    const provider = String(entry?.provider || '')
+      .trim()
+      .toLowerCase();
+    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse') {
+      return provider;
+    }
+
+    return 'tbo';
+  };
+  const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
+    const explicitIso2 = String(
+      plan?.nationality_iso2 ||
+      plan?.nationality_shortname ||
+      plan?.guestNationality ||
+      '',
+    )
+      .trim()
+      .toUpperCase();
+    if (/^[A-Z]{2}$/.test(explicitIso2)) {
+      return explicitIso2;
+    }
+
+    const rawNationality = plan?.nationality;
+    if (typeof rawNationality === 'string' && /^[A-Z]{2}$/i.test(rawNationality.trim())) {
+      return rawNationality.trim().toUpperCase();
+    }
+
+    const legacyMap: Record<number, string> = {
+      284: 'AE',
+      229: 'NO',
+      101: 'IN',
+      177: 'IN',
+    };
+    const mapped = legacyMap[Number(rawNationality || 0)];
+    const fallback = String(fallbackNationality || 'IN').trim().toUpperCase();
+    return mapped || (/^[A-Z]{2}$/.test(fallback) ? fallback : 'IN');
+  };
   const getPassengerFieldError = (
     label: 'adult' | 'child' | 'infant',
     index: number,
@@ -2683,6 +2728,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const firstName = parts[0] || trimmed;
     const lastName = parts.slice(1).join(' ') || firstName;
     return { firstName, lastName };
+  };
+
+  const validateNameParts = (name: string) => {
+    const parts = normalizeNameParts(name);
+    if (!isValidPassengerName(parts.firstName) || !isValidPassengerName(parts.lastName)) {
+      return false;
+    }
+    return true;
   };
 
   const getSafeErrorMessage = (error: unknown, fallback: string) => {
@@ -4490,9 +4543,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return;
       }
 
+      let modalNationalityForSession = confirmDefaultNationality;
+
       // Prefill arrival and departure details from plan
       if (planDetails?.plan) {
         const plan = planDetails.plan;
+        const modalNationality = resolveConfirmNationality(
+          plan,
+          guestDetails.nationality || confirmDefaultNationality || 'IN',
+        );
+        modalNationalityForSession = modalNationality;
+        setConfirmDefaultNationality(modalNationality);
         const formatDateTime = (dateTime: string) => {
           if (!dateTime) return '';
           const date = new Date(dateTime);
@@ -4508,6 +4569,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         setGuestDetails(prev => ({
           ...prev,
+          nationality: modalNationality,
           arrivalDateTime: plan.trip_start_date_and_time ? formatDateTime(plan.trip_start_date_and_time) : '',
           arrivalPlace: plan.arrival_location || '',
           departureDateTime: plan.trip_end_date_and_time ? formatDateTime(plan.trip_end_date_and_time) : '',
@@ -4531,7 +4593,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             title,
             name: '',
             age: Number.isFinite(ageNum) ? String(Math.trunc(ageNum)) : '',
-            nationality: 'IN',
+            nationality: modalNationalityForSession,
             panNo: '',
             passportNo: '',
           };
@@ -4552,13 +4614,35 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
       // ── Prebook immediately so amenities/rate-conditions/inclusions show in the modal ──
       let autoSelectedForPrebook = { ...selectedHotelBookings };
+      const selectedProvidersForPrebook = Array.from(
+        new Set(
+          Object.values(autoSelectedForPrebook)
+            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const preferredProviderForPrebook =
+        selectedProvidersForPrebook.length === 1 ? selectedProvidersForPrebook[0] : '';
+      const skippedRouteIdsForPrebook: number[] = [];
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
         routesWithHotels.forEach((routeId: number) => {
           if (!autoSelectedForPrebook[routeId]) {
-            const firstHotel = hotelDetails.hotels.find(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
+            const routeHotels = hotelDetails.hotels.filter(
+              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
             );
+            const firstHotel = preferredProviderForPrebook
+              ? routeHotels.find(
+                  (h: any) =>
+                    String(h?.provider || '')
+                      .trim()
+                      .toLowerCase() === preferredProviderForPrebook,
+                )
+              : routeHotels[0];
+
+            if (!firstHotel && preferredProviderForPrebook && routeHotels.length > 0) {
+              skippedRouteIdsForPrebook.push(routeId);
+            }
             if (firstHotel) {
               const routeDay = itinerary?.days?.find((d: any) => d.id === routeId);
               const checkInDate = routeDay?.date || '';
@@ -4579,6 +4663,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             }
           }
         });
+
+        if (skippedRouteIdsForPrebook.length > 0) {
+          toast.error(
+            `Please select ${preferredProviderForPrebook.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForPrebook.join(', ')}.`,
+          );
+          setConfirmQuotationModal(false);
+          return;
+        }
       }
 
       const prebookOccupancies =
@@ -4603,7 +4695,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary?.roomCount || 1),
-        guestNationality: (guestDetails.nationality || '').toUpperCase(),
+        guestNationality: modalNationalityForSession,
         netAmount: Number(hotelData.netAmount || 0),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers: [],
@@ -4675,8 +4767,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
     }
 
-    if (!isValidPassengerName(guestDetails.name)) {
-      nextErrors['primary-name'] = 'Primary guest name must be 2-25 characters and contain only letters, spaces, apostrophe or hyphen.';
+    if (!validateNameParts(guestDetails.name)) {
+      nextErrors['primary-name'] = 'Primary guest first name/last name must each be 2-25 valid characters.';
     }
 
     if (!isValidIsoNationality(guestDetails.nationality)) {
@@ -4724,8 +4816,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }
         if (!item.name.trim()) {
           nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
-        } else if (!isValidPassengerName(item.name)) {
-          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name must be 2-25 valid characters.`;
+        } else if (!validateNameParts(item.name)) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} first/last name must each be 2-25 valid characters.`;
         }
         if (!item.nationality.trim()) {
           nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
@@ -4735,6 +4827,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         const parsedAge = Number(item.age);
         if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
           nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
+        }
+        if (item.panNo && !isValidPan(item.panNo)) {
+          nextErrors[`${label}-${index}-panNo`] = `${label} ${index + 1} PAN must be valid format (example: ABCDE1234F).`;
         }
       });
     };
@@ -4759,15 +4854,37 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     try {
       let autoSelectedHotels = { ...selectedHotelBookings };
+      const selectedProvidersForConfirm = Array.from(
+        new Set(
+          Object.values(autoSelectedHotels)
+            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const preferredProviderForConfirm =
+        selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
+      const skippedRouteIdsForConfirm: number[] = [];
 
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
         routesWithHotels.forEach((routeId: number) => {
           if (!autoSelectedHotels[routeId]) {
-            const firstHotelForRoute = hotelDetails.hotels.find(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
+            const routeHotels = hotelDetails.hotels.filter(
+              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
             );
+            const firstHotelForRoute = preferredProviderForConfirm
+              ? routeHotels.find(
+                  (h: any) =>
+                    String(h?.provider || '')
+                      .trim()
+                      .toLowerCase() === preferredProviderForConfirm,
+                )
+              : routeHotels[0];
+
+            if (!firstHotelForRoute && preferredProviderForConfirm && routeHotels.length > 0) {
+              skippedRouteIdsForConfirm.push(routeId);
+            }
 
             if (firstHotelForRoute) {
               const routeDay = itinerary?.days?.find((d) => d.id === routeId);
@@ -4790,6 +4907,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             }
           }
         });
+
+        if (skippedRouteIdsForConfirm.length > 0) {
+          toast.error(
+            `Please select ${preferredProviderForConfirm.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForConfirm.join(', ')}.`,
+          );
+          return;
+        }
       }
 
       const primaryName = normalizeNameParts(guestDetails.name);
@@ -4878,9 +5002,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               childAgesForBooking,
             );
 
+      const bookingGuestNationality = (
+        guestDetails.nationality ||
+        confirmDefaultNationality ||
+        'IN'
+      )
+        .trim()
+        .toUpperCase();
+
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
         occupancies: occupanciesForBooking,
-        provider: hotelData.provider,
+        provider: inferHotelProvider(hotelData),
         routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
         hotelName: hotelData.hotelName,
@@ -4889,11 +5021,31 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary.roomCount || 1),
-        guestNationality: guestDetails.nationality,
+        guestNationality: bookingGuestNationality,
         netAmount: Number(hotelData.netAmount || 0),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers,
       }));
+
+      const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
+      const nonTboRouteIds = hotelBookings
+        .filter((booking) => booking.provider !== 'tbo')
+        .map((booking) => Number(booking.routeId))
+        .filter((id) => Number.isFinite(id));
+
+      if (tboCount > 0 && nonTboRouteIds.length > 0) {
+        const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
+        const shouldContinueWithMixedProviders = window.confirm(
+          `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
+        );
+        if (!shouldContinueWithMixedProviders) {
+          toast.error(
+            `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`,
+          );
+          return;
+        }
+        toast.warning('Proceeding with mixed-provider booking as confirmed.');
+      }
 
       if (hotelBookings.length === 0) {
         toast.error('No hotels selected for booking. Please select hotels and retry.');
@@ -5021,7 +5173,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         name: '',
         contactNo: '',
         age: '',
-        nationality: 'IN',
+        nationality: confirmDefaultNationality,
         panNo: '',
         passportNo: '',
         alternativeContactNo: '',
@@ -8407,7 +8559,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]"
+                          placeholder="Age"
+                          value={child.age}
+                          readOnly
+                          title="Child age is locked from itinerary/search and cannot be changed at booking time"
+                        />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
@@ -8615,7 +8774,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   name: '',
                   contactNo: '',
                   age: '',
-                  nationality: 'IN',
+                  nationality: confirmDefaultNationality,
                   panNo: '',
                   passportNo: '',
                   alternativeContactNo: '',

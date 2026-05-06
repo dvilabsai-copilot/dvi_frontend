@@ -904,6 +904,9 @@ export const HotelList: React.FC<HotelListProps> = ({
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       
       // Find the full hotel row from localHotels
+      const selectedProvider = String((room as any).provider || '').trim().toLowerCase();
+      const selectedBookingCode = String((room as any).bookingCode || '').trim();
+      const selectedHotelCode = String((room as any).hotelCode || (room as any).hotelId || '').trim();
       const selectedHotel = localHotels.find((h) =>
         toNumber(h.itineraryRouteId) === routeId &&
         toNumber(h.groupType) === groupType &&
@@ -911,7 +914,11 @@ export const HotelList: React.FC<HotelListProps> = ({
       ) || localHotels.find((h) =>
         toNumber(h.itineraryRouteId) === routeId &&
         toNumber(h.groupType) === groupType &&
-        String((h as any).bookingCode || '').trim() === String((room as any).bookingCode || '').trim() &&
+        String((h as any).provider || '').trim().toLowerCase() === selectedProvider &&
+        (
+          String((h as any).bookingCode || '').trim() === selectedBookingCode ||
+          String((h as any).hotelCode || h.hotelId || '').trim() === selectedHotelCode
+        ) &&
         String(h.roomType || '').trim() === String((room as any).roomTypeName || (room as any).roomType || '').trim() &&
         Number(h.totalHotelCost || 0) === Number((room as any).perNightAmount || (room as any).totalHotelCost || 0),
       );
