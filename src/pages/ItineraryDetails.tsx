@@ -6188,21 +6188,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}</span>
                 </div>
               )}
+
+
               {/* ── Vehicle Cost Group ── */}
-              {shouldShowVehicles && computedVehicleAmount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">
-                    Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
-                  </span>
-                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
-                </div>
-              )}
-              {shouldShowVehicles && computedVehicleAmount > 0 && (
-                <div className="flex justify-between font-semibold">
-                  <span className="text-[#4a4260]">Total Vehicle Amount</span>
-                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
-                </div>
-              )}
+{shouldShowVehicles && computedVehicleAmount > 0 && (
+  <div className="flex justify-between">
+    <span className="text-[#6c6c6c]">
+      Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
+    </span>
+    <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
+  </div>
+)}
 
               {/* ── Guide / Activity / Hotspot ── */}
               {itinerary.costBreakdown.totalGuideCost !== undefined && itinerary.costBreakdown.totalGuideCost > 0 && (
