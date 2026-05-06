@@ -21,12 +21,21 @@ import { toast } from "sonner";
 /*                             Time-picker helpers                             */
 /* -------------------------------------------------------------------------- */
 
+
 type OpeningSlot = { start: string; end: string }; // "hh:mm AM" (12-hr)
 type OpeningDay = {
   is24Hours?: boolean;
   closed24Hours?: boolean;
   timeSlots: OpeningSlot[];
 };
+
+type ClosingDate = {
+  id: number;
+  date: string;
+  reason: string;
+};
+
+
 
 const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
@@ -233,12 +242,46 @@ export default function HotspotForm() {
   const [hotspotTypeInput, setHotspotTypeInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [locationOpen, setLocationOpen] = useState(false);
-  const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
+const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    loadOptions();
-  }, []);
+
+const [closingDates, setClosingDates] = useState<ClosingDate[]>([]);
+const [showClosingDateForm, setShowClosingDateForm] = useState(false);
+const [closingDateForm, setClosingDateForm] = useState({
+  date: "",
+  reason: "",
+});
+
+const closingDatesStorageKey = `hotspot_closing_dates_${id || "new"}`;
+
+useEffect(() => {
+  const savedClosingDates = localStorage.getItem(closingDatesStorageKey);
+
+  if (!savedClosingDates) {
+    return;
+  }
+
+  try {
+    const parsedClosingDates = JSON.parse(savedClosingDates);
+
+    if (Array.isArray(parsedClosingDates)) {
+      setClosingDates(parsedClosingDates);
+    }
+  } catch {
+    setClosingDates([]);
+  }
+}, [closingDatesStorageKey]);
+
+useEffect(() => {
+  localStorage.setItem(closingDatesStorageKey, JSON.stringify(closingDates));
+}, [closingDates, closingDatesStorageKey]);
+
+useEffect(() => {
+  loadOptions();
+}, []);
+
+
   useEffect(() => {
     if (isEdit && id) loadEdit(id);
   }, [id, isEdit]);
@@ -418,12 +461,72 @@ export default function HotspotForm() {
     setLocationOpen(false);
   }
 
-  function removeLocation(v: string) {
-    setForm((prev) => ({
-      ...prev,
-      locations: (prev.locations || []).filter((x) => x !== v),
-    }));
+
+ function removeLocation(v: string) {
+  setForm((prev) => ({
+    ...prev,
+    locations: (prev.locations || []).filter((x) => x !== v),
+  }));
+}
+
+function formatClosingDateForDisplay(value: string) {
+  if (!value) return "";
+
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function handleSaveClosingDate() {
+  if (!closingDateForm.date.trim()) {
+    toast.error("Please select closing date");
+    return;
   }
+
+  if (!closingDateForm.reason.trim()) {
+    toast.error("Please enter reason for closing");
+    return;
+  }
+
+  setClosingDates((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      date: closingDateForm.date,
+      reason: closingDateForm.reason.trim(),
+    },
+  ]);
+
+  setClosingDateForm({
+    date: "",
+    reason: "",
+  });
+
+  setShowClosingDateForm(false);
+  toast.success("Closing date added successfully");
+}
+
+function handleCancelClosingDate() {
+  setClosingDateForm({
+    date: "",
+    reason: "",
+  });
+
+  setShowClosingDateForm(false);
+}
+
+function handleDeleteClosingDate(id: number) {
+  setClosingDates((prev) => prev.filter((item) => item.id !== id));
+  toast.success("Closing date removed successfully");
+}
+
 
   return (
     <div className="p-6">
@@ -961,7 +1064,144 @@ export default function HotspotForm() {
                 </div>
               );
             })}
+
+
+                  </div>
+        </div>
+
+        {/* ----------------------------- Closing Dates ------------------------------ */}
+        <div className="bg-white rounded-lg border p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-primary">Closing Dates</h2>
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 px-4 py-3 text-sm">
+              <div className="col-span-4">DATE</div>
+              <div className="col-span-7">REASON</div>
+              <div className="col-span-1 text-center">ACTIONS</div>
+            </div>
+
+            <div className="divide-y">
+              {closingDates.length > 0 ? (
+                closingDates.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-4 items-center"
+                  >
+                    <div className="md:col-span-4 flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+                        📅
+                      </div>
+                      <span className="font-semibold text-sm">
+                        {formatClosingDateForDisplay(item.date)}
+                      </span>
+                    </div>
+
+                    <div className="md:col-span-7 text-sm text-muted-foreground">
+                      {item.reason}
+                    </div>
+
+                    <div className="md:col-span-1 flex md:justify-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteClosingDate(item.id)}
+                        className="text-muted-foreground hover:text-red-500"
+                        title="Delete closing date"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No closing dates added yet.
+                </div>
+              )}
+            </div>
           </div>
+
+          {!showClosingDateForm && (
+            <Button
+              type="button"
+              onClick={() => setShowClosingDateForm(true)}
+              className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
+            >
+              + Add New
+            </Button>
+          )}
+
+          {showClosingDateForm && (
+            <div className="rounded-lg border bg-white p-5 space-y-4">
+              {closingDateForm.date && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="font-semibold">
+                    {formatClosingDateForDisplay(closingDateForm.date)}
+                  </span>
+                  <span className="rounded bg-muted px-2 py-1 text-[10px] font-semibold uppercase">
+                    Upcoming
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-base font-semibold">Add New Closing Date</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The parking facility will be marked as 'Closed' for the entire selected day.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label htmlFor="closingDate">Select Date</Label>
+                  <Input
+                    id="closingDate"
+                    type="date"
+                    value={closingDateForm.date}
+                    onChange={(e) =>
+                      setClosingDateForm((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="closingReason">Reason for Closing</Label>
+                  <Textarea
+                    id="closingReason"
+                    value={closingDateForm.reason}
+                    onChange={(e) =>
+                      setClosingDateForm((prev) => ({
+                        ...prev,
+                        reason: e.target.value,
+                      }))
+                    }
+                    placeholder="Describe the reason for closure to display to users..."
+                    rows={4}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={handleSaveClosingDate}
+                  className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
+                >
+                  Save
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCancelClosingDate}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between">
@@ -972,6 +1212,8 @@ export default function HotspotForm() {
             {isEdit ? "Update" : "Save"}
           </Button>
         </div>
+
+
       </form>
     </div>
   );
