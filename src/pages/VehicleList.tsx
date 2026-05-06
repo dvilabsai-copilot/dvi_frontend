@@ -118,11 +118,82 @@ const formatCurrencyINR = (value: number | string | undefined | null) => {
 
 const safe = (v?: string | null) => v || "";
 
+
 const toAmount = (value: number | string | undefined | null): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const cleaned = String(value || "").replace(/,/g, "").trim();
   const parsed = parseFloat(cleaned);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getVehicleSubtotal = (vehicle: ItineraryVehicleRow): number => {
+  const subtotal = toAmount(vehicle.subtotal);
+
+  if (subtotal > 0) {
+    return subtotal;
+  }
+
+  return toAmount(vehicle.totalAmount);
+};
+
+const getVehicleGstPercentage = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.vehicleGstPercentage) || 5;
+
+const getVehicleVendorMarginPercentage = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.vendorMarginPercentage) || 10;
+
+const getVehicleMarginServiceTaxPercentage = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.vendorMarginGstPercentage) || 5;
+
+const getVehicleGstAmount = (vehicle: ItineraryVehicleRow): number => {
+  const backendAmount = toAmount(vehicle.vehicleGstAmount);
+
+  if (backendAmount > 0) {
+    return backendAmount;
+  }
+
+  return (getVehicleSubtotal(vehicle) * getVehicleGstPercentage(vehicle)) / 100;
+};
+
+const getVehicleVendorMarginAmount = (vehicle: ItineraryVehicleRow): number => {
+  const backendAmount = toAmount(vehicle.vendorMarginAmount);
+
+  if (backendAmount > 0) {
+    return backendAmount;
+  }
+
+  return (
+    getVehicleSubtotal(vehicle) *
+    getVehicleVendorMarginPercentage(vehicle)
+  ) / 100;
+};
+
+const getVehicleMarginServiceTaxAmount = (vehicle: ItineraryVehicleRow): number => {
+  const backendAmount = toAmount(vehicle.vendorMarginGstAmount);
+
+  if (backendAmount > 0) {
+    return backendAmount;
+  }
+
+  return (
+    getVehicleVendorMarginAmount(vehicle) *
+    getVehicleMarginServiceTaxPercentage(vehicle)
+  ) / 100;
+};
+
+const getVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number => {
+  const subtotal = getVehicleSubtotal(vehicle);
+
+  if (subtotal <= 0) {
+    return 0;
+  }
+
+  return (
+    subtotal +
+    getVehicleGstAmount(vehicle) +
+    getVehicleVendorMarginAmount(vehicle) +
+    getVehicleMarginServiceTaxAmount(vehicle)
+  );
 };
 
 const roundHoursByHalfRule = (minutes: number): number => {
@@ -170,12 +241,12 @@ const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number |
   }
 
   // Always pick the lowest quote as default selection.
-  const cheapest = vehicles.reduce((prev, curr) => {
-    const prevAmount = toAmount(prev.totalAmount);
-    const currAmount = toAmount(curr.totalAmount);
+const cheapest = vehicles.reduce((prev, curr) => {
+  const prevAmount = getVehicleGrandTotal(prev);
+  const currAmount = getVehicleGrandTotal(curr);
 
-    return currAmount < prevAmount ? curr : prev;
-  });
+  return currAmount < prevAmount ? curr : prev;
+});
 
   return cheapest.vendorEligibleId ?? null;
 };
@@ -207,7 +278,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [expandedVendorIndex, setExpandedVendorIndex] = useState<number | null>(null);
- const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
+  const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVendorSelection, setPendingVendorSelection] = useState<{
     index: number;
@@ -346,10 +418,10 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               formatCurrencyINR(vehicle.vendorMarginGstAmount),
             ]
           : null,
-        [
-          `GRAND TOTAL (${vehicle.totalQty || 1} x ${formatCurrencyINR(vehicle.grandTotal ?? vehicle.totalAmount)})`,
-          formatCurrencyINR(vehicle.grandTotal ?? vehicle.totalAmount),
-        ],
+       [
+  `GRAND TOTAL (${vehicle.totalQty || 1} x ${formatCurrencyINR(getVehicleGrandTotal(vehicle))})`,
+  formatCurrencyINR(getVehicleGrandTotal(vehicle)),
+],
       ]
         .filter(Boolean)
         .map((row, idx, all) => {
@@ -552,43 +624,43 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
 
   const sortedVehicles = useMemo(() => {
-    return [...vehicles].sort((a, b) => {
-      const aAmount =
-        typeof a.totalAmount === "number"
-          ? a.totalAmount
-          : parseFloat(String(a.totalAmount || "0")) || 0;
+  return [...vehicles].sort((a, b) => {
+    const aAmount = getVehicleGrandTotal(a);
+    const bAmount = getVehicleGrandTotal(b);
 
-      const bAmount =
-        typeof b.totalAmount === "number"
-          ? b.totalAmount
-          : parseFloat(String(b.totalAmount || "0")) || 0;
+    return aAmount - bAmount;
+  });
+}, [vehicles]);
 
-      return aAmount - bAmount;
-    });
-  }, [vehicles]);
 
   useEffect(() => {
-    if (!onSelectedTotalChange || sortedVehicles.length === 0) return;
+  if (!onSelectedTotalChange || sortedVehicles.length === 0) return;
 
-    const selectedVehicle =
-      selectedVendorEligibleId != null
-        ? sortedVehicles.find((v) => v.vendorEligibleId === selectedVendorEligibleId) || sortedVehicles[0]
-        : sortedVehicles[0];
+  const selectedVehicle =
+    selectedVendorEligibleId != null
+      ? sortedVehicles.find(
+          (v) =>
+            Number(v.vendorEligibleId || 0) ===
+            Number(selectedVendorEligibleId || 0)
+        ) || sortedVehicles[0]
+      : sortedVehicles[0];
 
-    const totalAmount =
-      typeof selectedVehicle.totalAmount === "number"
-        ? selectedVehicle.totalAmount
-        : parseFloat(String(selectedVehicle.totalAmount || "0")) || 0;
+  if (!selectedVehicle) return;
 
-    const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
-    const resolvedVehicleTypeId = Number(selectedVehicle.vehicleTypeId || vehicleTypeId || 0);
+  const totalAmount = getVehicleGrandTotal(selectedVehicle);
+  const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
 
-    onSelectedTotalChange({
-      vehicleTypeId: resolvedVehicleTypeId,
-      totalAmount,
-      totalQty,
-    });
-  }, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange, vehicleTypeId]);
+  const resolvedVehicleTypeId =
+    Number(selectedVehicle.vehicleTypeId || 0) || Number(vehicleTypeId || 0);
+
+  if (!resolvedVehicleTypeId) return;
+
+  onSelectedTotalChange({
+    vehicleTypeId: resolvedVehicleTypeId,
+    totalAmount,
+    totalQty,
+  });
+}, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange, vehicleTypeId]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
@@ -617,38 +689,22 @@ export const VehicleList: React.FC<VehicleListProps> = ({
           </thead>
           <tbody>
             {sortedVehicles.map((v, index) => {
-              const radioId = `vehicle_${index}`;
-              const qty = parseInt(v.totalQty || "0", 10) || 0;
-              const totalAmtNum =
-                typeof v.totalAmount === "number"
-                  ? v.totalAmount
-                  : parseFloat(v.totalAmount || "0") || 0;
 
-              const parseN = (val: number | string | undefined | null) =>
-                typeof val === "number"
-                  ? val
-                  : parseFloat((val as string) || "0") || 0;
+             const radioId = `vehicle_${index}`;
+const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
 
-              const rental = parseN(v.rentalCharges ?? totalAmtNum);
-              const toll = parseN(v.tollCharges);
-              const parking = parseN(v.parkingCharges);
-              const driver = parseN(v.driverCharges);
-              const permit = parseN(v.permitCharges);
-              const b6d = parseN(v.before6amDriver);
-              const a8d = parseN(v.after8pmDriver);
-              const b6v = parseN(v.before6amVendor);
-              const a8v = parseN(v.after8pmVendor);
-              const grandTotal = rental + toll + parking + driver + permit + b6d + a8d + b6v + a8v;
-              const isExpanded = expandedVendorIndex === index;
-              const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
-              
-              // Calculate price breakdown for tooltip
-              const subtotalVehicle = totalAmtNum;
-              const gstAmount = subtotalVehicle * 0.05; // 5% GST
-              const vendorMargin = subtotalVehicle * 0.10; // 10% Vendor Margin
-              const marginServiceTax = (subtotalVehicle + vendorMargin) * 0.05; // 5% on subtotal + margin
-              const calculatedGrandTotal = subtotalVehicle + gstAmount + vendorMargin + marginServiceTax;
+const subtotalVehicle = getVehicleSubtotal(v);
+const gstPercentage = getVehicleGstPercentage(v);
+const gstAmount = getVehicleGstAmount(v);
+const vendorMarginPercentage = getVehicleVendorMarginPercentage(v);
+const vendorMargin = getVehicleVendorMarginAmount(v);
+const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(v);
+const marginServiceTax = getVehicleMarginServiceTaxAmount(v);
+const calculatedGrandTotal = getVehicleGrandTotal(v);
+const displayTotalAmount = calculatedGrandTotal;
 
+const isExpanded = expandedVendorIndex === index;
+const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
               return (
                 <React.Fragment key={index}>
                   <tr
@@ -679,7 +735,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                       onMouseEnter={() => setHoveredTotalAmountIndex(index)}
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
-                      {formatCurrencyINR(totalAmtNum)}
+{formatCurrencyINR(displayTotalAmount)}
                       <span className="ml-2 text-xs text-gray-500">{isExpanded ? "▼" : "▶"}</span>
                       
                       {/* Hover Tooltip - Price Breakdown */}
@@ -699,26 +755,32 @@ export const VehicleList: React.FC<VehicleListProps> = ({
                           </div>
                           <div className="mb-1">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">GST 5%</span>
+                              <span className="text-gray-600">GST {gstPercentage}%</span>
                               <span className="text-gray-900">{formatCurrencyINR(gstAmount)}</span>
                             </div>
                           </div>
                           <div className="mb-1">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Vendor Margin (10%)</span>
+                              <span className="text-gray-600">Vendor Margin ({vendorMarginPercentage}%)</span>
                               <span className="text-gray-900">{formatCurrencyINR(vendorMargin)}</span>
                             </div>
                           </div>
                           <div className="mb-2 border-b border-gray-200 pb-2">
                             <div className="flex justify-between">
-                              <span className="text-gray-600">Margin Service Tax 5%</span>
+                              <span className="text-gray-600">Margin Service Tax {marginServiceTaxPercentage}%</span>
                               <span className="text-gray-900">{formatCurrencyINR(marginServiceTax)}</span>
                             </div>
                           </div>
-                          <div className="flex justify-between font-bold pt-2 border-t border-gray-300">
-                            <span className="text-purple-900">Grand Total</span>
-                            <span className="text-purple-900">{formatCurrencyINR(calculatedGrandTotal)}</span>
-                          </div>
+
+                          <div className="flex justify-between gap-4 font-bold pt-2 border-t border-gray-300">
+  <span className="text-purple-900">
+    Grand Total ({qty} x {formatCurrencyINR(calculatedGrandTotal)})
+  </span>
+  <span className="text-purple-900 whitespace-nowrap">
+    {formatCurrencyINR(displayTotalAmount)}
+  </span>
+</div>
+
                         </div>
                       )}
                     </td>
