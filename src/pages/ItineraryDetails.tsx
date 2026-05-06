@@ -2508,7 +2508,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       )
   ).map((room) => ({ adults: room.adults, children: room.children }));
 
-  const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const ALLOWED_TITLES = ['Mr', 'Ms', 'Mrs'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
   const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
   const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -4601,8 +4601,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
         setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
-        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Miss', t)));
-        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Miss', t)));
+        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
+        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
 
         const template = buildOccupanciesFromTravellers(
           travellersFromPlan,
@@ -4989,9 +4989,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }),
       ];
 
-      const childAgesForBooking = [
-        ...normalizedAdditionalChildren.map((c) => Number(c.age)),
-      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
+      // Child ages must be locked from plan/search template to avoid mismatch with TBO
+      const childAgesForBooking = (
+        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+              Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
+            )
+          : normalizedAdditionalChildren.map((c) => Number(c.age))
+      ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11);
 
       const occupanciesForBooking =
         confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
@@ -8336,20 +8341,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Nationality <span className="text-red-500">*</span>
+                    <span className="ml-1 text-[10px] text-[#8b43d1] font-normal">(locked from search)</span>
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                     placeholder="IN"
                     value={guestDetails.nationality}
-                    onChange={(e) => {
-                      setGuestDetails({ ...guestDetails, nationality: e.target.value.toUpperCase() });
-                      setFormErrors((prev) => {
-                        const next = { ...prev };
-                        delete next['primary-nationality'];
-                        return next;
-                      });
-                    }}
+                    readOnly
+                    title="Nationality is locked from itinerary search and cannot be changed at booking time"
                   />
                   {formErrors['primary-nationality'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-nationality']}</p>}
                 </div>
@@ -8458,14 +8458,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input
                           type="text"
-                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                           placeholder="IN"
                           value={adult.nationality}
-                          onChange={(e) => {
-                            const next = [...additionalAdults];
-                            next[index].nationality = e.target.value.toUpperCase();
-                            setAdditionalAdults(next);
-                          }}
+                          readOnly
+                          title="Nationality is locked from itinerary search"
                         />
                       </div>
                       <div className="sm:col-span-1">
@@ -8527,7 +8524,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Child
@@ -8570,7 +8567,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={child.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
                       <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -8605,7 +8602,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Infant
@@ -8637,11 +8634,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]" placeholder="Age" value={infant.age} readOnly title="Infant age is locked from itinerary/search and cannot be changed at booking time" />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={infant.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
                       <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
