@@ -29,10 +29,13 @@ type OpeningDay = {
   timeSlots: OpeningSlot[];
 };
 
-type ClosingDate = {
+type SpecialOpeningDate = {
   id: number;
   date: string;
-  reason: string;
+  isClosed: boolean;
+  start: string;
+  end: string;
+  note: string;
 };
 
 
@@ -245,37 +248,39 @@ export default function HotspotForm() {
 const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
 const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
-
-const [closingDates, setClosingDates] = useState<ClosingDate[]>([]);
-const [showClosingDateForm, setShowClosingDateForm] = useState(false);
-const [closingDateForm, setClosingDateForm] = useState({
+const [specialOpeningDates, setSpecialOpeningDates] = useState<SpecialOpeningDate[]>([]);
+const [showSpecialDateForm, setShowSpecialDateForm] = useState(false);
+const [specialDateForm, setSpecialDateForm] = useState({
   date: "",
-  reason: "",
+  isClosed: false,
+  start: "",
+  end: "",
+  note: "",
 });
 
-const closingDatesStorageKey = `hotspot_closing_dates_${id || "new"}`;
+const specialOpeningDatesStorageKey = `hotspot_special_opening_dates_${id || "new"}`;
 
 useEffect(() => {
-  const savedClosingDates = localStorage.getItem(closingDatesStorageKey);
+  const savedSpecialDates = localStorage.getItem(specialOpeningDatesStorageKey);
 
-  if (!savedClosingDates) {
+  if (!savedSpecialDates) {
     return;
   }
 
   try {
-    const parsedClosingDates = JSON.parse(savedClosingDates);
+    const parsedSpecialDates = JSON.parse(savedSpecialDates);
 
-    if (Array.isArray(parsedClosingDates)) {
-      setClosingDates(parsedClosingDates);
+    if (Array.isArray(parsedSpecialDates)) {
+      setSpecialOpeningDates(parsedSpecialDates);
     }
   } catch {
-    setClosingDates([]);
+    setSpecialOpeningDates([]);
   }
-}, [closingDatesStorageKey]);
+}, [specialOpeningDatesStorageKey]);
 
 useEffect(() => {
-  localStorage.setItem(closingDatesStorageKey, JSON.stringify(closingDates));
-}, [closingDates, closingDatesStorageKey]);
+  localStorage.setItem(specialOpeningDatesStorageKey, JSON.stringify(specialOpeningDates));
+}, [specialOpeningDates, specialOpeningDatesStorageKey]);
 
 useEffect(() => {
   loadOptions();
@@ -469,7 +474,7 @@ useEffect(() => {
   }));
 }
 
-function formatClosingDateForDisplay(value: string) {
+function formatSpecialDateForDisplay(value: string) {
   if (!value) return "";
 
   const [year, month, day] = value.split("-");
@@ -484,47 +489,65 @@ function formatClosingDateForDisplay(value: string) {
   });
 }
 
-function handleSaveClosingDate() {
-  if (!closingDateForm.date.trim()) {
-    toast.error("Please select closing date");
+function handleSaveSpecialDate() {
+  if (!specialDateForm.date.trim()) {
+    toast.error("Please select special date");
     return;
   }
 
-  if (!closingDateForm.reason.trim()) {
-    toast.error("Please enter reason for closing");
+  if (!specialDateForm.isClosed && (!specialDateForm.start || !specialDateForm.end)) {
+    toast.error("Please select start and end time");
     return;
   }
 
-  setClosingDates((prev) => [
+  const alreadyExists = specialOpeningDates.some(
+    (item) => item.date === specialDateForm.date
+  );
+
+  if (alreadyExists) {
+    toast.error("Special timing already added for this date");
+    return;
+  }
+
+  setSpecialOpeningDates((prev) => [
     ...prev,
     {
       id: Date.now(),
-      date: closingDateForm.date,
-      reason: closingDateForm.reason.trim(),
+      date: specialDateForm.date,
+      isClosed: specialDateForm.isClosed,
+      start: specialDateForm.isClosed ? "" : specialDateForm.start,
+      end: specialDateForm.isClosed ? "" : specialDateForm.end,
+      note: specialDateForm.note.trim(),
     },
   ]);
 
-  setClosingDateForm({
+  setSpecialDateForm({
     date: "",
-    reason: "",
+    isClosed: false,
+    start: "",
+    end: "",
+    note: "",
   });
 
-  setShowClosingDateForm(false);
-  toast.success("Closing date added successfully");
+  setShowSpecialDateForm(false);
+  toast.success("Special date timing added successfully");
 }
 
-function handleCancelClosingDate() {
-  setClosingDateForm({
+function handleCancelSpecialDate() {
+  setSpecialDateForm({
     date: "",
-    reason: "",
+    isClosed: false,
+    start: "",
+    end: "",
+    note: "",
   });
 
-  setShowClosingDateForm(false);
+  setShowSpecialDateForm(false);
 }
 
-function handleDeleteClosingDate(id: number) {
-  setClosingDates((prev) => prev.filter((item) => item.id !== id));
-  toast.success("Closing date removed successfully");
+function handleDeleteSpecialDate(id: number) {
+  setSpecialOpeningDates((prev) => prev.filter((item) => item.id !== id));
+  toast.success("Special date timing removed successfully");
 }
 
 
@@ -1069,43 +1092,68 @@ function handleDeleteClosingDate(id: number) {
                   </div>
         </div>
 
-        {/* ----------------------------- Closing Dates ------------------------------ */}
+        {/* ---------------------- Monthly Calendar / Special Date Timings ---------------------- */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-primary">Closing Dates</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-primary">
+              Monthly Calendar / Special Date Timings
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Select a particular date and set custom opening timing or mark it closed for that date.
+            </p>
+          </div>
 
           <div className="overflow-hidden rounded-lg border">
             <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 px-4 py-3 text-sm">
-              <div className="col-span-4">DATE</div>
-              <div className="col-span-7">REASON</div>
-              <div className="col-span-1 text-center">ACTIONS</div>
+              <div className="col-span-3">DATE</div>
+              <div className="col-span-2">STATUS</div>
+              <div className="col-span-3">TIMING</div>
+              <div className="col-span-3">NOTE</div>
+              <div className="col-span-1 text-center">ACTION</div>
             </div>
 
             <div className="divide-y">
-              {closingDates.length > 0 ? (
-                closingDates.map((item) => (
+              {specialOpeningDates.length > 0 ? (
+                specialOpeningDates.map((item) => (
                   <div
                     key={item.id}
                     className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-4 items-center"
                   >
-                    <div className="md:col-span-4 flex items-center gap-3">
+                    <div className="md:col-span-3 flex items-center gap-3">
                       <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
                         📅
                       </div>
                       <span className="font-semibold text-sm">
-                        {formatClosingDateForDisplay(item.date)}
+                        {formatSpecialDateForDisplay(item.date)}
                       </span>
                     </div>
 
-                    <div className="md:col-span-7 text-sm text-muted-foreground">
-                      {item.reason}
+                    <div className="md:col-span-2">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          item.isClosed
+                            ? "bg-red-50 text-red-600"
+                            : "bg-green-50 text-green-600"
+                        }`}
+                      >
+                        {item.isClosed ? "Closed" : "Open"}
+                      </span>
+                    </div>
+
+                    <div className="md:col-span-3 text-sm text-muted-foreground">
+                      {item.isClosed ? "Full day closed" : `${item.start} TO ${item.end}`}
+                    </div>
+
+                    <div className="md:col-span-3 text-sm text-muted-foreground">
+                      {item.note || "-"}
                     </div>
 
                     <div className="md:col-span-1 flex md:justify-center">
                       <button
                         type="button"
-                        onClick={() => handleDeleteClosingDate(item.id)}
+                        onClick={() => handleDeleteSpecialDate(item.id)}
                         className="text-muted-foreground hover:text-red-500"
-                        title="Delete closing date"
+                        title="Delete special date"
                       >
                         🗑
                       </button>
@@ -1114,51 +1162,51 @@ function handleDeleteClosingDate(id: number) {
                 ))
               ) : (
                 <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  No closing dates added yet.
+                  No special date timings added yet.
                 </div>
               )}
             </div>
           </div>
 
-          {!showClosingDateForm && (
+          {!showSpecialDateForm && (
             <Button
               type="button"
-              onClick={() => setShowClosingDateForm(true)}
+              onClick={() => setShowSpecialDateForm(true)}
               className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
             >
-              + Add New
+              + Add Special Date
             </Button>
           )}
 
-          {showClosingDateForm && (
+          {showSpecialDateForm && (
             <div className="rounded-lg border bg-white p-5 space-y-4">
-              {closingDateForm.date && (
+              {specialDateForm.date && (
                 <div className="flex items-center gap-3 text-sm">
                   <span className="font-semibold">
-                    {formatClosingDateForDisplay(closingDateForm.date)}
+                    {formatSpecialDateForDisplay(specialDateForm.date)}
                   </span>
                   <span className="rounded bg-muted px-2 py-1 text-[10px] font-semibold uppercase">
-                    Upcoming
+                    Date Override
                   </span>
                 </div>
               )}
 
               <div>
-                <h3 className="text-base font-semibold">Add New Closing Date</h3>
+                <h3 className="text-base font-semibold">Add Special Date Timing</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  The parking facility will be marked as 'Closed' for the entire selected day.
+                  This date-wise timing will override normal weekly opening hours.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <Label htmlFor="closingDate">Select Date</Label>
+                  <Label htmlFor="special-date">Select Date</Label>
                   <Input
-                    id="closingDate"
+                    id="special-date"
                     type="date"
-                    value={closingDateForm.date}
+                    value={specialDateForm.date}
                     onChange={(e) =>
-                      setClosingDateForm((prev) => ({
+                      setSpecialDateForm((prev) => ({
                         ...prev,
                         date: e.target.value,
                       }))
@@ -1166,27 +1214,70 @@ function handleDeleteClosingDate(id: number) {
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="closingReason">Reason for Closing</Label>
-                  <Textarea
-                    id="closingReason"
-                    value={closingDateForm.reason}
-                    onChange={(e) =>
-                      setClosingDateForm((prev) => ({
+                <div className="flex items-end gap-3">
+                  <Switch
+                    checked={specialDateForm.isClosed}
+                    onCheckedChange={(checked) =>
+                      setSpecialDateForm((prev) => ({
                         ...prev,
-                        reason: e.target.value,
+                        isClosed: checked,
+                        start: checked ? "" : prev.start,
+                        end: checked ? "" : prev.end,
                       }))
                     }
-                    placeholder="Describe the reason for closure to display to users..."
-                    rows={4}
+                  />
+                  <span className="pb-2 text-sm font-medium">Closed Full Day</span>
+                </div>
+
+                <div>
+                  <Label>Start Time</Label>
+                  <TimePickerField
+                    value={specialDateForm.start}
+                    onChange={(value) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        start: value,
+                      }))
+                    }
+                    disabled={specialDateForm.isClosed}
                   />
                 </div>
+
+                <div>
+                  <Label>End Time</Label>
+                  <TimePickerField
+                    value={specialDateForm.end}
+                    onChange={(value) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        end: value,
+                      }))
+                    }
+                    disabled={specialDateForm.isClosed}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="special-date-note">Reason / Note</Label>
+                <Textarea
+                  id="special-date-note"
+                  value={specialDateForm.note}
+                  onChange={(e) =>
+                    setSpecialDateForm((prev) => ({
+                      ...prev,
+                      note: e.target.value,
+                    }))
+                  }
+                  placeholder="Example: Special temple timing, festival closure, maintenance..."
+                  rows={3}
+                />
               </div>
 
               <div className="flex gap-3">
                 <Button
                   type="button"
-                  onClick={handleSaveClosingDate}
+                  onClick={handleSaveSpecialDate}
                   className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
                 >
                   Save
@@ -1195,7 +1286,7 @@ function handleDeleteClosingDate(id: number) {
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={handleCancelClosingDate}
+                  onClick={handleCancelSpecialDate}
                 >
                   Cancel
                 </Button>
