@@ -4699,8 +4699,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           });
 
         if (Object.keys(persistedSelections).length > 0) {
-          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...persistedSelections };
-          setSelectedHotelBookings(prev => ({ ...prev, ...persistedSelections }));
+          // ✅ User's in-session selection wins over persisted DB value — only fill routes
+          // that the user has NOT explicitly selected in this session.
+          const mergedPersisted: typeof persistedSelections = {};
+          Object.entries(persistedSelections).forEach(([routeId, val]) => {
+            if (!selectedHotelBookings[Number(routeId)]) {
+              mergedPersisted[Number(routeId)] = val;
+            }
+          });
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
+          setSelectedHotelBookings(prev => ({ ...prev, ...mergedPersisted }));
         }
 
         const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
@@ -4715,7 +4723,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         const autoSelections: typeof selectedHotelBookings = {};
         routeBuckets.forEach((rows, routeId) => {
-          if (selectedHotelBookings[routeId]) return; // already explicitly chosen
+          if (selectedHotelsForPrebook[routeId]) return; // already explicitly chosen (session or persisted)
 
           const cheapest = rows.reduce((best, curr) => {
             const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
