@@ -189,6 +189,7 @@ export type ItineraryHotelRow = {
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
+  cancellationPolicy?: string[];
 };
 
 export type ItineraryHotelTab = {
@@ -2493,6 +2494,42 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
+  const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
+    .filter(([, h]) => String((h as any)?.provider || '').trim().toLowerCase() !== 'tbo')
+    .map(([routeId, h]: [string, any]) => {
+      const routeIdNum = parseInt(routeId, 10);
+      const selectedProvider = String((h as any)?.provider || '').trim().toLowerCase();
+      const selectedBookingCode = String((h as any)?.bookingCode || '').trim();
+      const selectedHotelCode = String((h as any)?.hotelCode || '').trim();
+      const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
+      const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
+      const selectedAmount = Number((h as any)?.netAmount || 0);
+
+      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
+        Number(row?.itineraryRouteId || 0) === routeIdNum &&
+        String(row?.provider || '').trim().toLowerCase() === selectedProvider,
+      );
+
+      const matchedHotelRow =
+        routeRows.find((row: any) => {
+          const rowBookingCode = String(row?.bookingCode || '').trim();
+          const rowHotelCode = String(row?.hotelCode || '').trim();
+          const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
+          const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
+          const rowAmount = Number(row?.totalHotelCost || 0) + Number(row?.totalHotelTaxAmount || 0);
+
+          const bookingCodeMatch = selectedBookingCode !== '' && rowBookingCode !== '' && selectedBookingCode === rowBookingCode;
+          const hotelCodeMatch = selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode;
+          const hotelNameMatch = selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName;
+          const roomTypeMatch = selectedRoomType !== '' && rowRoomType !== '' && selectedRoomType === rowRoomType;
+          const amountMatch = selectedAmount > 0 && Math.abs(selectedAmount - rowAmount) <= 0.01;
+
+          return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
+        }) || routeRows[0] || null;
+
+      return { routeId: routeIdNum, ...h, matchedHotelRow };
+    });
   const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
   const confirmPassengerMix = [
     Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
@@ -2515,16 +2552,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
   const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
-  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' => {
-    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
-    if (bookingCode.includes('!TB!')) return 'tbo';
-
+  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' => {
     const provider = String(entry?.provider || '')
       .trim()
       .toLowerCase();
-    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse') {
+    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms') {
       return provider;
     }
+
+    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
+    if (bookingCode.includes('!TB!')) return 'tbo';
 
     return 'tbo';
   };
@@ -3010,8 +3047,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     checkOutDate: string;
     groupType: number;
   }>) => {
-    // Update selectedHotelBookings when user selects hotels in HotelList
-    setSelectedHotelBookings(selections);
+    // Merge route-wise selection updates so changing one day never resets other days.
+    setSelectedHotelBookings((prev) => {
+      const next: Record<number, any> = { ...prev };
+
+      Object.entries(selections).forEach(([routeIdRaw, value]) => {
+        const routeIdNum = Number(routeIdRaw);
+        next[routeIdNum] = {
+          ...(next[routeIdNum] || {}),
+          ...value,
+        };
+      });
+
+      return next;
+    });
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
@@ -4612,66 +4661,105 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         setConfirmOccupanciesTemplate(template);
       }
 
-      // ── Prebook immediately so amenities/rate-conditions/inclusions show in the modal ──
-      let autoSelectedForPrebook = { ...selectedHotelBookings };
-      const selectedProvidersForPrebook = Array.from(
-        new Set(
-          Object.values(autoSelectedForPrebook)
-            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
-            .filter(Boolean),
-        ),
-      );
-      const preferredProviderForPrebook =
-        selectedProvidersForPrebook.length === 1 ? selectedProvidersForPrebook[0] : '';
-      const skippedRouteIdsForPrebook: number[] = [];
-      if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
-        routesWithHotels.forEach((routeId: number) => {
-          if (!autoSelectedForPrebook[routeId]) {
-            const routeHotels = hotelDetails.hotels.filter(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
-            );
-            const firstHotel = preferredProviderForPrebook
-              ? routeHotels.find(
-                  (h: any) =>
-                    String(h?.provider || '')
-                      .trim()
-                      .toLowerCase() === preferredProviderForPrebook,
-                )
-              : routeHotels[0];
+      // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
+      // The recommended tab shows a cheapest-per-route hotel for each day. If the user
+      // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
+      // so the confirm modal and prebook reflect exactly what the user sees.
+      let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      if (hotelDetails?.hotels?.length) {
+        const preferredGroupType =
+          activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
 
-            if (!firstHotel && preferredProviderForPrebook && routeHotels.length > 0) {
-              skippedRouteIdsForPrebook.push(routeId);
-            }
-            if (firstHotel) {
-              const routeDay = itinerary?.days?.find((d: any) => d.id === routeId);
-              const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay
-                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : '';
-              autoSelectedForPrebook[routeId] = {
-                provider: firstHotel.provider || 'tbo',
-                hotelCode: String(firstHotel.hotelCode || firstHotel.hotelId),
-                bookingCode: firstHotel.bookingCode || String(firstHotel.hotelId),
-                roomType: firstHotel.roomType || 'Standard',
-                netAmount: firstHotel.totalHotelCost || 0,
-                hotelName: firstHotel.hotelName,
-                checkInDate,
-                checkOutDate,
-                searchInitiatedAt: new Date().toISOString(),
-              };
-            }
-          }
+        const persistedSelections: typeof selectedHotelBookings = {};
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType))
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (Number(h?.itineraryPlanHotelDetailsId || 0) <= 0) return;
+
+            const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+            const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+            const checkOutDate = routeDay
+              ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+              : '';
+
+            persistedSelections[routeId] = {
+              provider: String(h.provider || 'tbo').toLowerCase(),
+              hotelCode: String(h.hotelCode || h.hotelId || h.bookingCode || ''),
+              bookingCode: String(h.bookingCode || h.hotelCode || h.hotelId || ''),
+              roomType: h.roomType || 'Standard',
+              netAmount: Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0),
+              hotelName: h.hotelName,
+              checkInDate,
+              checkOutDate,
+              searchInitiatedAt: new Date().toISOString(),
+              groupType: preferredGroupType,
+            };
+          });
+
+        if (Object.keys(persistedSelections).length > 0) {
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...persistedSelections };
+          setSelectedHotelBookings(prev => ({ ...prev, ...persistedSelections }));
+        }
+
+        const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
+            routeBuckets.get(routeId)!.push(h);
+          });
+
+        const autoSelections: typeof selectedHotelBookings = {};
+        routeBuckets.forEach((rows, routeId) => {
+          if (selectedHotelBookings[routeId]) return; // already explicitly chosen
+
+          const cheapest = rows.reduce((best, curr) => {
+            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+            return currTotal < bestTotal ? curr : best;
+          });
+
+          const hasHotelIdentity = Boolean(
+            String(cheapest.hotelCode || '').trim() ||
+            Number(cheapest.hotelId || 0) > 0 ||
+            String(cheapest.bookingCode || '').trim() ||
+            String((cheapest as any).searchReference || '').trim() ||
+            String(cheapest.hotelName || '').trim(),
+          );
+          if (!hasHotelIdentity) return;
+
+          const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+          const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+            : '';
+
+          autoSelections[routeId] = {
+            provider: String(cheapest.provider || 'tbo').toLowerCase(),
+            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || cheapest.bookingCode || ''),
+            bookingCode: String(cheapest.bookingCode || cheapest.hotelCode || cheapest.hotelId || ''),
+            roomType: cheapest.roomType || 'Standard',
+            netAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+            hotelName: cheapest.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+            groupType: preferredGroupType,
+          };
         });
 
-        if (skippedRouteIdsForPrebook.length > 0) {
-          toast.error(
-            `Please select ${preferredProviderForPrebook.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForPrebook.join(', ')}.`,
-          );
-          setConfirmQuotationModal(false);
-          return;
+        if (Object.keys(autoSelections).length > 0) {
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...autoSelections };
+          setSelectedHotelBookings(prev => ({ ...prev, ...autoSelections }));
         }
       }
+
+      // ── Prebook only user-explicitly-selected TBO hotels ──
+      // Non-TBO hotels are shown in the review modal but are not sent to the TBO prebook API.
 
       const prebookOccupancies =
         occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
@@ -4684,22 +4772,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               [],
             );
 
-      const prebookHotelBookings: any[] = Object.entries(autoSelectedForPrebook).map(([routeId, hotelData]) => ({
-        occupancies: prebookOccupancies,
-        provider: hotelData.provider,
-        routeId: parseInt(routeId, 10),
-        hotelCode: hotelData.hotelCode,
-        hotelName: hotelData.hotelName,
-        bookingCode: hotelData.bookingCode,
-        roomType: hotelData.roomType,
-        checkInDate: hotelData.checkInDate,
-        checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: Number(itinerary?.roomCount || 1),
-        guestNationality: modalNationalityForSession,
-        netAmount: Number(hotelData.netAmount || 0),
-        searchInitiatedAt: hotelData.searchInitiatedAt,
-        passengers: [],
-      }));
+      const prebookHotelBookings: any[] = Object.entries(selectedHotelsForPrebook)
+        .filter(([, hotelData]) => String((hotelData as any)?.provider || '').trim().toLowerCase() === 'tbo')
+        .map(([routeId, hotelData]) => ({
+          occupancies: prebookOccupancies,
+          provider: hotelData.provider,
+          routeId: parseInt(routeId, 10),
+          hotelCode: hotelData.hotelCode,
+          hotelName: hotelData.hotelName,
+          bookingCode: hotelData.bookingCode,
+          roomType: hotelData.roomType,
+          checkInDate: hotelData.checkInDate,
+          checkOutDate: hotelData.checkOutDate,
+          numberOfRooms: Number(itinerary?.roomCount || 1),
+          guestNationality: modalNationalityForSession,
+          netAmount: Number(hotelData.netAmount || 0),
+          searchInitiatedAt: hotelData.searchInitiatedAt,
+          passengers: [],
+        }));
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -4868,11 +4958,41 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
+        const toAutoSelection = (hotelRow: any, routeId: number) => {
+          const routeDay = itinerary?.days?.find((d) => d.id === routeId);
+          const checkInDate = routeDay?.date || '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            : '';
+
+          return {
+            provider: String(hotelRow?.provider || 'tbo').trim().toLowerCase(),
+            hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            bookingCode: String(hotelRow?.bookingCode || hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            roomType: hotelRow?.roomType || 'Standard',
+            netAmount: Number(hotelRow?.totalHotelCost || 0) + Number(hotelRow?.totalHotelTaxAmount || 0),
+            hotelName: hotelRow?.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+          };
+        };
+
         routesWithHotels.forEach((routeId: number) => {
+          const routeHotels = hotelDetails.hotels.filter(
+            (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
+          );
+          const persistedRouteSelection = routeHotels.find(
+            (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
+          );
+
+          // Persisted backend selection is treated as source of truth for provider/day mapping.
+          if (persistedRouteSelection) {
+            autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
+            return;
+          }
+
           if (!autoSelectedHotels[routeId]) {
-            const routeHotels = hotelDetails.hotels.filter(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
-            );
             const firstHotelForRoute = preferredProviderForConfirm
               ? routeHotels.find(
                   (h: any) =>
@@ -4887,23 +5007,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             }
 
             if (firstHotelForRoute) {
-              const routeDay = itinerary?.days?.find((d) => d.id === routeId);
-              const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay
-                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : '';
-
-              autoSelectedHotels[routeId] = {
-                provider: firstHotelForRoute.provider || 'tbo',
-                hotelCode: String(firstHotelForRoute.hotelCode || firstHotelForRoute.hotelId),
-                bookingCode: firstHotelForRoute.bookingCode || String(firstHotelForRoute.hotelId),
-                roomType: firstHotelForRoute.roomType || 'Standard',
-                netAmount: firstHotelForRoute.totalHotelCost || 0,
-                hotelName: firstHotelForRoute.hotelName,
-                checkInDate,
-                checkOutDate,
-                searchInitiatedAt: new Date().toISOString(),
-              };
+              autoSelectedHotels[routeId] = toAutoSelection(firstHotelForRoute, routeId);
             }
           }
         });
@@ -5081,8 +5185,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         .catch(() => '192.168.1.1');
 
       const effectivePrebookData = prebookDataRef.current || prebookData;
-      if (!effectivePrebookData) {
-        toast.error('Prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
+      const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      if (hasTboBookings && !effectivePrebookData) {
+        toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
       }
 
@@ -5098,9 +5203,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return;
       }
 
-      // TBO Certification: Require acknowledgement of prebook details before final booking
+      // Require acknowledgement of review details before final booking
       if (!hasAcceptedUpdatedPrice) {
-        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
+        toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
         return;
       }
 
@@ -8077,6 +8182,125 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               </div>
             )}
 
+            {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
+                <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
+                {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                  const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                  const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                  const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                  const hotelInclusions = resolvePrebookInclusions(detailRow);
+                  const hotelMealType = resolvePrebookMealPlan(detailRow);
+                  const hotelCancellation = normalizeCancellationPolicyItems(
+                    detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                  );
+
+                  return (
+                    <details key={`ntbo-only-${hotel?.routeId ?? index}`} className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                            <p className="text-xs text-[#6c6c6c]">
+                              Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                              {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                            </p>
+                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                          </div>
+                          <div className="text-sm text-left md:text-right">
+                            <p className="text-[#6c6c6c]">Selected Price</p>
+                            <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                        {hotelMealType ? (
+                          <p className="text-xs text-[#6c6c6c]">
+                            Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                          </p>
+                        ) : null}
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                          <div className="mt-2">
+                            {hotelCancellation.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelCancellation.map((item, idx) => (
+                                  <li key={`ntbo-only-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                          <div className="mt-2">
+                            {hotelRateConditions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelRateConditions.map((item, idx) => (
+                                  <li key={`ntbo-only-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                          <div className="mt-2">
+                            {hotelAmenities.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelAmenities.map((item, idx) => (
+                                  <li key={`ntbo-only-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No amenities available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                          <div className="mt-2">
+                            {hotelInclusions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelInclusions.map((item, idx) => (
+                                  <li key={`ntbo-only-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                          Policies and rate conditions are managed by the provider. TBO prebook is not applicable.
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })}
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the selected hotel details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
+
             {prebookData && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
@@ -8088,7 +8312,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     </p>
                   </div>
                   <div>
-                    <p className="text-[#6c6c6c]">Hotels Prebooked</p>
+                    <p className="text-[#6c6c6c]">Hotels Prebooked (TBO)</p>
                     <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
                   </div>
                 </div>
@@ -8223,6 +8447,122 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     </details>
                   );
                 })}
+
+                {nonTboSelectedHotelEntries.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
+                    {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                      const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                      const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                      const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                      const hotelInclusions = resolvePrebookInclusions(detailRow);
+                      const hotelMealType = resolvePrebookMealPlan(detailRow);
+                      const hotelCancellation = normalizeCancellationPolicyItems(
+                        detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                      );
+
+                      return (
+                        <details
+                          key={`non-tbo-hotel-${hotel?.routeId ?? index}`}
+                          className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3"
+                        >
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                                  {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                                </p>
+                                <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                              </div>
+                              <div className="text-sm text-left md:text-right">
+                                <p className="text-[#6c6c6c]">Selected Price</p>
+                                <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                              </div>
+                            </div>
+                          </summary>
+
+                          <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                            <div>
+                              <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || detailRow?.hotelCode || '-'}</p>
+                              {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                              {hotelMealType ? (
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                              <div className="mt-2">
+                                {hotelCancellation.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelCancellation.map((item, idx) => (
+                                      <li key={`non-tbo-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                              <div className="mt-2">
+                                {hotelRateConditions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelRateConditions.map((item, idx) => (
+                                      <li key={`non-tbo-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                              <div className="mt-2">
+                                {hotelAmenities.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelAmenities.map((item, idx) => (
+                                      <li key={`non-tbo-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No amenities available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                              <div className="mt-2">
+                                {hotelInclusions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelInclusions.map((item, idx) => (
+                                      <li key={`non-tbo-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                              This hotel is managed outside TBO. Details shown here come from the selected provider record.
+                            </p>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {hasPrebookPriceChanged && (
                   <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
