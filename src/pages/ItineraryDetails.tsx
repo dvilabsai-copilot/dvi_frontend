@@ -1,7 +1,7 @@
 // FILE: src/pages/ItineraryDetails.tsx
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -520,6 +520,7 @@ interface ItineraryDetailsProps {
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
   const location = useLocation();
+    const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -3792,6 +3793,27 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     });
   };
 
+
+  const handleAddGuideClick = (day: ItineraryDay) => {
+  if (readOnly) {
+    toast.error("Guide cannot be added in read-only mode");
+    return;
+  }
+
+  navigate("/guide", {
+    state: {
+      fromItinerary: true,
+      quoteId,
+      planId: itinerary?.planId || 0,
+      routeId: day.id,
+      dayNumber: day.dayNumber,
+      date: day.date,
+      departure: day.departure,
+      arrival: day.arrival,
+    },
+  });
+};
+
   const openAddHotspotModal = async (
     planId: number,
     routeId: number,
@@ -5798,14 +5820,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       )}
 
       <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-      >
-        <Plus className="mr-1 h-4 w-4" />
-        Add Guide
-      </Button>
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+          onClick={() => handleAddGuideClick(day)}
+          disabled={readOnly}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          Add Guide
+          </Button>
 
       <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
         {intercityDistance}
