@@ -499,6 +499,12 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
   }, [hotels]);
 
+  // ✅ Track selected room-type option key per hotel inside expanded panel
+  // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
+  const [selectedRoomTypeByHotel, setSelectedRoomTypeByHotel] = useState<Record<string, string>>({});
+  // ✅ Track which hotel's room type dropdown is open
+  const [roomTypeDropdownOpen, setRoomTypeDropdownOpen] = useState<string | null>(null);
+
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingHotelAction, setPendingHotelAction] = useState<{
@@ -817,6 +823,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       setRoomDetails([]);
       setSelectedHotelId(null);
       setHotelSearchQuery("");
+      setRoomTypeDropdownOpen(null);
       return;
     }
 
@@ -824,6 +831,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     if (expandedRowKey !== null) {
       setExpandedRowKey(null);
       setRoomDetails([]);
+      setRoomTypeDropdownOpen(null);
     }
 
     const itineraryRouteId = hotel.itineraryRouteId;
@@ -1597,9 +1605,31 @@ export const HotelList: React.FC<HotelListProps> = ({
                                   return Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
                                 });
 
-                                return sorted.map((hotel) => {
-                                const roomKey = `hotel-${getHotelOptionKey(hotel)}`;
-                                const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                // ✅ Group by hotel identity (name + provider) to avoid duplicate cards
+                                const getHotelIdentityKey = (h: any) =>
+                                  `${String(h.hotelName || '').trim().toLowerCase()}|${String(h.provider || '').trim().toLowerCase()}`;
+
+                                const hotelGroups = new Map<string, HotelRoomDetail[]>();
+                                sorted.forEach((h) => {
+                                  const identKey = getHotelIdentityKey(h);
+                                  if (!hotelGroups.has(identKey)) hotelGroups.set(identKey, []);
+                                  hotelGroups.get(identKey)!.push(h);
+                                });
+
+                                // One card per hotel; the active rate option is tracked in selectedRoomTypeByHotel
+                                const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
+                                  // Prefer the currently manually-selected room type for this hotel; else the globally selected one; else first option
+                                  const manualKey = selectedRoomTypeByHotel[identKey];
+                                  const active =
+                                    options.find((o) => getHotelOptionKey(o) === manualKey) ||
+                                    options.find((o) => selectedOptionKey !== '' && getHotelOptionKey(o) === selectedOptionKey) ||
+                                    options[0];
+                                  return { identKey, active, options };
+                                });
+
+                                return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
+                                const roomKey = `hotel-${identKey}`;
+                                const isSelected = selectedOptionKey !== '' && roomTypeOptions.some((o) => getHotelOptionKey(o) === selectedOptionKey);
                                 const hotelData = hotel as Record<string, unknown>;
                                 const baseInclusions = pickListFromKeys(hotelData, [
                                   'inclusions',
@@ -1732,37 +1762,55 @@ export const HotelList: React.FC<HotelListProps> = ({
                                             className="h-6 w-6 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab]"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              
-                                              // Ensure group_type is valid (1-4)
-                                              const groupType = hotel.groupType || activeGroupType || 1;
-                                              
-                                              console.log('Opening room selection modal:', {
-                                                hotel_id: hotel.hotelId,
-                                                group_type: groupType,
-                                                hotel_name: hotel.hotelName,
-                                              });
-                                              
-                                              setRoomSelectionModal({
-                                                open: true,
-                                                itinerary_plan_hotel_details_ID: hotel.itineraryPlanHotelDetailsId || 0,
-                                                itinerary_plan_id: planId,
-                                                itinerary_route_id: hotel.itineraryRouteId || 0,
-                                                hotel_id: hotel.hotelId || 0,
-                                                group_type: groupType,
-                                                hotel_name: hotel.hotelName || '',
-                                              });
+                                              // ✅ Toggle room type dropdown for this hotel
+                                              setRoomTypeDropdownOpen(prev => prev === identKey ? null : identKey);
                                             }}
-                                            title="Select room categories"
+                                            title="Select room type"
                                           >
                                             <Edit className="h-3 w-3" />
                                           </Button>
                                         )}
                                       </div>
-                                      <p className="text-sm text-[#4a4260] font-medium">
-                                        {hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0 
-                                          ? hotel.availableRoomTypes[0].roomTypeTitle 
-                                          : "Not Available"}
-                                      </p>
+
+                                      {/* ✅ Room type dropdown – shown when Edit is clicked */}
+                                      {roomTypeDropdownOpen === identKey && roomTypeOptions.length > 1 ? (
+                                        <div className="border border-[#e5d9f2] rounded-lg overflow-hidden mt-1">
+                                          {roomTypeOptions.map((opt) => {
+                                            const optKey = getHotelOptionKey(opt);
+                                            const isActiveOpt = getHotelOptionKey(hotel) === optKey;
+                                            return (
+                                              <button
+                                                key={optKey}
+                                                className={`w-full text-left px-3 py-2 text-xs border-b last:border-b-0 transition-colors ${
+                                                  isActiveOpt
+                                                    ? 'bg-[#f3e8ff] text-[#7c3aed] font-semibold'
+                                                    : 'bg-white hover:bg-[#fdf6ff] text-[#4a4260]'
+                                                }`}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: optKey }));
+                                                  setRoomTypeDropdownOpen(null);
+                                                  // ✅ Auto-select this hotel+room-type and close the carousel
+                                                  handleChooseOrUpdateHotel(opt);
+                                                }}
+                                              >
+                                                <span className="block font-medium">{opt.roomTypeName || opt.roomType || 'Standard'}</span>
+                                                <span className="block text-[11px] text-gray-500">{formatCurrency(opt.totalAmount)}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <p className="text-sm text-[#4a4260] font-medium">
+                                          {hotel.roomTypeName || hotel.roomType ||
+                                            (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
+                                              ? hotel.availableRoomTypes[0].roomTypeTitle
+                                              : 'Not Available')}
+                                          {roomTypeOptions.length > 1 && (
+                                            <span className="ml-1 text-[11px] text-[#7c3aed]">({roomTypeOptions.length} options)</span>
+                                          )}
+                                        </p>
+                                      )}
                                     </div>
 
                                     <div className="mb-3">
