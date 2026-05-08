@@ -26,6 +26,7 @@ import "./App.css";
 import NotFound from "./pages/NotFound";
 import { AccountsLedger } from "./pages/accounts/AccountsLedger";
 import Hotels from "./pages/Hotels";
+import AxisroomsHotelsPage from "./pages/AxisroomsHotels";
 import Login from "./pages/Login";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
@@ -246,6 +247,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <Hotels />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotels/axisrooms"
+              element={
+                <MainLayout>
+                  <AxisroomsHotelsPage />
                 </MainLayout>
               }
             />

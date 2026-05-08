@@ -67,6 +67,7 @@ const menuItems: MenuItem[] = [
     ],
   },
   { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
+  { id: "axisrooms-hotels", title: "AxisRooms Hotels", icon: FileText, path: "/hotels/axisrooms" },
   { id: "daily-moment", title: "Daily Moment Tracker", icon: Clock, path: "/daily-moment" },
   {
     id: "vendor-management",
@@ -162,7 +163,7 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
       return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","staff","wallet","subscription-history"].includes(item.id);
     }
     if (role === 1) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","accounts","hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
+      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","accounts","hotels","axisrooms-hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
     }
     return false;
   });
@@ -210,7 +211,16 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
 
             return (
               <li key={item.id}>
-                <NavLink to={item.path} className={({ isActive }) => cn("flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]", isActive && "bg-gradient-to-r from-primary to-pink-500 text-white")}>
+                <NavLink
+                  to={item.path}
+                  end={item.id === "hotels" || item.id === "axisrooms-hotels"}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]",
+                      isActive && "bg-gradient-to-r from-primary to-pink-500 text-white",
+                    )
+                  }
+                >
                   <Icon className="h-5 w-5" />
                   {!collapsed && <span className="text-sm">{item.title}</span>}
                 </NavLink>
