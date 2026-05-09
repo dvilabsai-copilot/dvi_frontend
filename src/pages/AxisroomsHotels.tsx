@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Eye, Search } from "lucide-react";
 import {
   getAxisroomsHotelPreview,
+  listAxisroomsAttemptedNoUpdates,
   listAxisroomsHotels,
+  type AxisroomsAttemptedRow,
   type AxisroomsHotelRow,
   type AxisroomsPreviewResponse,
 } from "@/services/axisroomsHotels";
@@ -37,6 +39,10 @@ const AxisroomsHotelsPage: React.FC = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<AxisroomsPreviewResponse | null>(null);
+  const [attemptedOpen, setAttemptedOpen] = useState(false);
+  const [attemptedLoading, setAttemptedLoading] = useState(false);
+  const [attemptedRows, setAttemptedRows] = useState<AxisroomsAttemptedRow[]>([]);
+  const [attemptedTotal, setAttemptedTotal] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +79,18 @@ const AxisroomsHotelsPage: React.FC = () => {
     }
   };
 
+  const openAttempted = async () => {
+    setAttemptedOpen(true);
+    setAttemptedLoading(true);
+    try {
+      const res = await listAxisroomsAttemptedNoUpdates({ search, page: 1, limit: 200 });
+      setAttemptedRows(res.rows || []);
+      setAttemptedTotal(Number(res.total || 0));
+    } finally {
+      setAttemptedLoading(false);
+    }
+  };
+
   const rateRows = useMemo(() => previewData?.rates || [], [previewData]);
   const restrictionRows = useMemo(() => previewData?.restrictions || [], [previewData]);
   const inventoryRows = useMemo(() => previewData?.inventory || [], [previewData]);
@@ -99,6 +117,20 @@ const AxisroomsHotelsPage: React.FC = () => {
             </div>
 
             <div className="hotel-show-entries">
+              <button
+                type="button"
+                onClick={openAttempted}
+                style={{
+                  marginRight: 10,
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  fontSize: 13,
+                  background: "#f8fafc",
+                }}
+              >
+                Show API Attempted (No Updates)
+              </button>
               <span>Show</span>
               <select
                 value={limit}
@@ -319,6 +351,56 @@ const AxisroomsHotelsPage: React.FC = () => {
                   </table>
                 </div>
               </section>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={attemptedOpen} onOpenChange={setAttemptedOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Hotels Attempted by API (No Rate/Inventory/Restriction Updates)</DialogTitle>
+          </DialogHeader>
+
+          {attemptedLoading ? (
+            <div>Loading attempted hotels...</div>
+          ) : attemptedRows.length === 0 ? (
+            <div>No attempted-only hotels found.</div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ fontSize: 13, color: "#475569" }}>
+                Found <strong>{attemptedTotal}</strong> hotels with API attempts but no actionable updates.
+              </div>
+              <div className="hotel-table-wrap">
+                <table className="hotel-table" style={{ minWidth: 900 }}>
+                  <thead>
+                    <tr>
+                      <th>S.NO</th>
+                      <th>Hotel Name</th>
+                      <th>Hotel Code</th>
+                      <th>AxisRooms Property</th>
+                      <th>Last API Attempt</th>
+                      <th>Product Info</th>
+                      <th>RatePlan Info</th>
+                      <th>Total Attempts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attemptedRows.map((row, idx) => (
+                      <tr key={`${row.hotel_id}-${row.axisrooms_property_id}`}>
+                        <td>{idx + 1}</td>
+                        <td>{row.hotel_name}</td>
+                        <td>{row.hotel_code || "-"}</td>
+                        <td>{row.axisrooms_property_id}</td>
+                        <td>{fmtDate(row.last_sync_at)}</td>
+                        <td>{row.product_info_updates}</td>
+                        <td>{row.rate_plan_info_updates}</td>
+                        <td>{row.attempted_updates}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </DialogContent>

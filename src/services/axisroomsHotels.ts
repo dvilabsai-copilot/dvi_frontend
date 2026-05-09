@@ -20,6 +20,25 @@ export type AxisroomsHotelsListResponse = {
   rows: AxisroomsHotelRow[];
 };
 
+export type AxisroomsAttemptedRow = {
+  hotel_id: number;
+  hotel_name: string;
+  hotel_code: string;
+  axisrooms_property_id: string;
+  axisrooms_enabled: boolean;
+  last_sync_at: string | null;
+  attempted_updates: number;
+  product_info_updates: number;
+  rate_plan_info_updates: number;
+};
+
+export type AxisroomsAttemptedListResponse = {
+  page: number;
+  limit: number;
+  total: number;
+  rows: AxisroomsAttemptedRow[];
+};
+
 export type AxisroomsPreviewResponse = {
   hotel_id: number;
   hotel_name: string;
@@ -80,4 +99,16 @@ export async function listAxisroomsHotels(params: {
 
 export async function getAxisroomsHotelPreview(hotelId: number): Promise<AxisroomsPreviewResponse> {
   return api(`/hotels/axisrooms/${hotelId}/preview`) as Promise<AxisroomsPreviewResponse>;
+}
+
+export async function listAxisroomsAttemptedNoUpdates(params: {
+  search?: string;
+  page?: number;
+  limit?: number;
+} = {}): Promise<AxisroomsAttemptedListResponse> {
+  const q = new URLSearchParams();
+  if (params.search) q.set("search", params.search);
+  q.set("page", String(params.page ?? 1));
+  q.set("limit", String(params.limit ?? 50));
+  return api(`/hotels/axisrooms/attempted?${q.toString()}`) as Promise<AxisroomsAttemptedListResponse>;
 }
