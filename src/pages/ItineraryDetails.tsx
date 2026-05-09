@@ -2084,7 +2084,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           : "Recommended Hotel";
 
     const summaryHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <td colspan="4" align="center" style="font-size:22px;line-height:40px;font-weight:600;">
           Tour Itinerary Plan
@@ -2092,7 +2092,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       </tr>
     </table>
 
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
       <tr>
         <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
           <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
@@ -2116,79 +2116,64 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     </table>
   `;
 
-    const hotelSectionsHtml = selectedGroups
-      .map((group) => {
-        const rowsHtml =
-          group.hotels.length > 0
-            ? group.hotels
-              .map((hotel, index) => {
-                const totalPrice =
-                  Number(hotel.totalHotelCost || 0) +
-                  Number(hotel.totalHotelTaxAmount || 0);
+    const totalCols = clipboardRatesVisible ? 6 : 5;
+    const hotelSectionsHtml = `
+      <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+        ${selectedGroups.map((group) => {
+          const rowsHtml =
+            group.hotels.length > 0
+              ? group.hotels
+                .map((hotel, index) => {
+                  const totalPrice =
+                    Number(hotel.totalHotelCost || 0) +
+                    Number(hotel.totalHotelTaxAmount || 0);
 
-                return `
-                  <tr>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.destination)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
-                    </td>
-                    ${clipboardRatesVisible
-                    ? `
+                  return `
+                    <tr>
                       <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                        <b>${escapeHtml(formatCurrency(totalPrice))}</b>
+                        Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
                       </td>
-                    `
-                    : ""
-                  }
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(normalizeMealPlanLabel(hotel.mealPlan))}
-                    </td>
-                  </tr>
-                `;
-              })
-              .join("")
-            : `
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.destination)}
+                      </td>
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
+                      </td>
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
+                      </td>
+                      ${clipboardRatesVisible
+                        ? `<td style="text-align:left;border:1px solid #b1b1b1;padding:3px;"><b>${escapeHtml(formatCurrency(totalPrice))}</b></td>`
+                        : ""
+                      }
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(normalizeMealPlanLabel(hotel.mealPlan))}
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join("")
+              : `<tr><td colspan="${totalCols}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">No hotel available</td></tr>`;
+
+          return `
             <tr>
-              <td colspan="${clipboardRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
-                No hotel available
+              <td colspan="${totalCols}" align="center" style="font-size:18px;line-height:36px;font-weight:600;border:1px solid #b1b1b1;padding:4px;">
+                ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
               </td>
             </tr>
+            <tr>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
+              ${clipboardRatesVisible ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>` : ""}
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
+            </tr>
+            ${rowsHtml}
           `;
-
-        return `
-        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
-          <tr>
-            <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
-              ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
-            </td>
-          </tr>
-        </table>
-
-        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
-          <tr>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
-            ${clipboardRatesVisible
-            ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>`
-            : ""
-          }
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
-          </tr>
-          ${rowsHtml}
-        </table>
-      `;
-      })
-      .join("");
+        }).join("")}
+      </table>
+    `;
 
     const vehicleRowsHtml =
       shouldShowVehicles && itinerary.vehicles?.length > 0
@@ -2216,15 +2201,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       `;
 
     const vehicleSectionHtml = shouldShowVehicles ? `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
-        <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Vehicle Details
         </td>
       </tr>
-    </table>
-
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
@@ -2237,7 +2219,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const clipboardRoomNightsLabel = `${clipboardRoomNights} room-night${clipboardRoomNights > 1 ? 's' : ''}`;
 
     const costSectionHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
       <tr>
         <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Overall Cost
@@ -2303,10 +2285,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const fullHtml = `
     <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
       <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
-        ${summaryHtml}
-        ${hotelSectionsHtml}
-        ${vehicleSectionHtml}
-        ${costSectionHtml}
+        <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+          <tr><td style="padding-bottom:8px;">${summaryHtml}</td></tr>
+          <tr><td style="padding-bottom:8px;">${hotelSectionsHtml}</td></tr>
+          ${vehicleSectionHtml ? `<tr><td style="padding-bottom:8px;">${vehicleSectionHtml}</td></tr>` : ""}
+          <tr><td style="padding-bottom:8px;">${costSectionHtml}</td></tr>
+        </table>
       </div>
     </div>
   `;
