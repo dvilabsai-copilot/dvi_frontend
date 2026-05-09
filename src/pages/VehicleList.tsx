@@ -196,6 +196,15 @@ const getVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number => {
   );
 };
 
+const getVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
+  const apiTotal = toAmount(vehicle.totalAmount);
+  if (apiTotal > 0) {
+    return apiTotal;
+  }
+
+  return getVehicleGrandTotal(vehicle);
+};
+
 const roundHoursByHalfRule = (minutes: number): number => {
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;
   const hours = minutes / 60;
@@ -242,8 +251,8 @@ const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number |
 
   // Always pick the lowest quote as default selection.
 const cheapest = vehicles.reduce((prev, curr) => {
-  const prevAmount = getVehicleGrandTotal(prev);
-  const currAmount = getVehicleGrandTotal(curr);
+  const prevAmount = getVehicleDisplayAmount(prev);
+  const currAmount = getVehicleDisplayAmount(curr);
 
   return currAmount < prevAmount ? curr : prev;
 });
@@ -635,8 +644,8 @@ const totalRows = [
 
   const sortedVehicles = useMemo(() => {
   return [...vehicles].sort((a, b) => {
-    const aAmount = getVehicleGrandTotal(a);
-    const bAmount = getVehicleGrandTotal(b);
+    const aAmount = getVehicleDisplayAmount(a);
+    const bAmount = getVehicleDisplayAmount(b);
 
     return aAmount - bAmount;
   });
@@ -657,7 +666,7 @@ const totalRows = [
 
   if (!selectedVehicle) return;
 
-  const totalAmount = getVehicleGrandTotal(selectedVehicle);
+  const totalAmount = getVehicleDisplayAmount(selectedVehicle);
   const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
 
   const resolvedVehicleTypeId =
@@ -711,7 +720,7 @@ const vendorMargin = getVehicleVendorMarginAmount(v);
 const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(v);
 const marginServiceTax = getVehicleMarginServiceTaxAmount(v);
 const calculatedGrandTotal = getVehicleGrandTotal(v);
-const displayTotalAmount = calculatedGrandTotal;
+const displayTotalAmount = getVehicleDisplayAmount(v);
 
 const isExpanded = expandedVendorIndex === index;
 const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
