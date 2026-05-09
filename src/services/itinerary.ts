@@ -72,12 +72,18 @@ export const ItineraryService = {
 
   async update(id: number, data: any, type?: ItinerarySaveType) {
     const url = type
-      ? `itineraries/${id}?type=${encodeURIComponent(type)}`
-      : `itineraries/${id}`;
+      ? `itineraries?type=${encodeURIComponent(type)}`
+      : `itineraries`;
+
+    // Backend expects plan.itinerary_plan_id to differentiate update from create
+    const updatePayload = {
+      ...data,
+      plan: { ...data.plan, itinerary_plan_id: id }
+    };
 
     return api(url, {
-      method: "PUT",
-      body: data,
+      method: "POST",
+      body: updatePayload,
     });
   },
 
