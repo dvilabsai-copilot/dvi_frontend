@@ -1057,6 +1057,7 @@ const addDay = () => {
 
     if (!itineraryTypeSelect) errors.itineraryTypeSelect = "Please select Itinerary Type";
     if (!arrivalType) errors.arrivalType = "Please select Arrival Type";
+    if (!departureType) errors.departureType = "Please select Departure Type";
 
     if (budget === "" || Number(budget) <= 0) errors.budget = "Please enter a valid Budget";
 
@@ -1112,6 +1113,9 @@ const addDay = () => {
         break;
       case "arrivalType":
         selector = "[data-field='arrivalType']";
+        break;
+      case "departureType":
+        selector = "[data-field='departureType']";
         break;
       case "budget":
         selector = "[data-field='budget']";
@@ -1280,7 +1284,7 @@ const buildPayload = () => {
     pick_up_date_and_time,
 
     arrival_type: arrivalType ? Number(arrivalType) : 0,
-    departure_type: arrivalType ? Number(arrivalType) : 0,  // ✅ Auto-default to arrivalType
+    departure_type: departureType ? Number(departureType) : 0,
 
     no_of_nights: noOfNights,
     no_of_days: noOfDays,
@@ -1501,8 +1505,9 @@ const handleSaveWithType = async (
 
     const isUpdate = !!itineraryPlanId;
 
-    // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(finalPayload, type);
+    const res = itineraryPlanId
+      ? await ItineraryService.update(itineraryPlanId, finalPayload, type)
+      : await ItineraryService.create(finalPayload, type);
     setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details

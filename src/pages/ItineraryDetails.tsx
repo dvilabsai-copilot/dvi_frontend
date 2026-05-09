@@ -7518,20 +7518,37 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       {/* Clipboard Modal */}
       <Dialog open={clipboardModal} onOpenChange={setClipboardModal}>
         <DialogContent className="sm:max-w-2xl">
+          {(() => {
+            const hasClipboardHotelOptions = shouldShowHotels && paraRecommendations.length > 0;
+            return (
           <DialogHeader>
             <DialogTitle>
-              {clipboardType === 'recommended' && 'Recommended Hotel for Recommended'}
-              {clipboardType === 'highlights' && 'Recommended Hotel for Highlights'}
-              {clipboardType === 'para' && 'Recommended Hotel for Para'}
+              {hasClipboardHotelOptions
+                ? clipboardType === 'recommended'
+                  ? 'Recommended Hotel for Recommended'
+                  : clipboardType === 'highlights'
+                    ? 'Recommended Hotel for Highlights'
+                    : 'Recommended Hotel for Para'
+                : clipboardType === 'recommended'
+                  ? 'Clipboard for Recommended'
+                  : clipboardType === 'highlights'
+                    ? 'Clipboard for Highlights'
+                    : 'Clipboard for Para'}
             </DialogTitle>
             <DialogDescription>
-              Select recommended options to copy to clipboard
+              {hasClipboardHotelOptions
+                ? 'Select recommended options to copy to clipboard'
+                : 'Vehicle itinerary detected. Copy without hotel selection.'}
             </DialogDescription>
           </DialogHeader>
+          );
+          })()}
           <div className="py-4 space-y-3">
             {!paraRecommendations.length ? (
               <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No hotel information available
+                {shouldShowHotels
+                  ? 'No hotel recommendation available. Clipboard will be copied without hotel selection.'
+                  : 'No hotel selection required for vehicle itinerary'}
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -7567,9 +7584,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
               onClick={async () => {
+                const hasClipboardHotelOptions = shouldShowHotels && paraRecommendations.length > 0;
+                const requiresHotelSelection = hasClipboardHotelOptions;
                 const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
 
-                if (selectedCount === 0) {
+                if (requiresHotelSelection && selectedCount === 0) {
                   toast.error(
                     clipboardType === "para"
                       ? "Please select at least one recommendation"
@@ -7578,10 +7597,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   return;
                 }
 
-                if (!hotelDetails || !itinerary) return;
+                if (!itinerary) return;
+
+                if (requiresHotelSelection && !hotelDetails) {
+                  toast.error("Hotel data is required for this clipboard mode");
+                  return;
+                }
 
                 try {
-                  const selectedGroups = getSelectedClipboardGroups(clipboardType);
+                  const selectedGroups = requiresHotelSelection
+                    ? getSelectedClipboardGroups(clipboardType)
+                    : [];
                   const groupTypes = selectedGroups.map((group) => group.groupType);
 
                   const { html, plainText } = await ItineraryService.getClipboardContent(
@@ -7595,20 +7621,25 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     return;
                   }
 
-                  // Keep backend structure, but use the already-rendered hotel HTML from frontend state
-                  // so clipboard hotels match what user sees without relying on backend hotel section.
-                  const localClipboard = buildClipboardHtml(clipboardType);
-                  const renderedHotelsHtml =
-                    localClipboard.hotelSectionsHtml ||
-                    extractHotelSectionFromHtml(localClipboard.html);
-                  const mergedWithHotelsHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
-                  const mergedHtml = mergeClipboardWithRenderedCost(
-                    mergedWithHotelsHtml,
-                    localClipboard.costSectionHtml || "",
-                  );
-                  const mergedPlainText = htmlToPlainText(mergedHtml);
+                  let finalHtml = html;
+                  let finalPlainText = plainText;
 
-                  await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+                  if (requiresHotelSelection) {
+                    // Keep backend structure, but use the already-rendered hotel HTML from frontend state
+                    // so clipboard hotels match what user sees without relying on backend hotel section.
+                    const localClipboard = buildClipboardHtml(clipboardType);
+                    const renderedHotelsHtml =
+                      localClipboard.hotelSectionsHtml ||
+                      extractHotelSectionFromHtml(localClipboard.html);
+                    const mergedWithHotelsHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+                    finalHtml = mergeClipboardWithRenderedCost(
+                      mergedWithHotelsHtml,
+                      localClipboard.costSectionHtml || "",
+                    );
+                    finalPlainText = htmlToPlainText(finalHtml);
+                  }
+
+                  await copyHtmlToClipboard(finalHtml, finalPlainText)
                     .then(() => {
                       toast.success("Formatted clipboard content copied!");
                       setClipboardModal(false);
