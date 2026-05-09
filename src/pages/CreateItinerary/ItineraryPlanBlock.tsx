@@ -345,7 +345,7 @@ const handleTripDayClick = (day: Date, disabled?: boolean) => {
     setSelectedHotelCategoryIds(ids);
   };
 
-  // Keep selected facility IDs; CreateItinerary includes them in save payload.
+  // hotel facilities still local (no backend field yet)
   const hotelFacility: string[] = selectedHotelFacilityIds;
 
 const handleHotelFacilityChange = (vals: string[]) => {
