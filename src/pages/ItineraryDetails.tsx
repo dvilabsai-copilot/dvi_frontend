@@ -1,7 +1,7 @@
 // FILE: src/pages/ItineraryDetails.tsx
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -189,6 +189,7 @@ export type ItineraryHotelRow = {
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
+  cancellationPolicy?: string[];
 };
 
 export type ItineraryHotelTab = {
@@ -519,6 +520,7 @@ interface ItineraryDetailsProps {
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
   const location = useLocation();
+    const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -2082,7 +2084,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           : "Recommended Hotel";
 
     const summaryHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <td colspan="4" align="center" style="font-size:22px;line-height:40px;font-weight:600;">
           Tour Itinerary Plan
@@ -2090,7 +2092,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       </tr>
     </table>
 
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
       <tr>
         <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
           <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
@@ -2164,6 +2166,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 No hotel available
               </td>
             </tr>
+            <tr>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
+              ${clipboardRatesVisible ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>` : ""}
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
+            </tr>
+            ${rowsHtml}
           `;
 
         return groupLabelRow + dataRows;
@@ -2220,15 +2231,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       `;
 
     const vehicleSectionHtml = shouldShowVehicles ? `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
-        <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Vehicle Details
         </td>
       </tr>
-    </table>
-
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
@@ -2241,7 +2249,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const clipboardRoomNightsLabel = `${clipboardRoomNights} room-night${clipboardRoomNights > 1 ? 's' : ''}`;
 
     const costSectionHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
       <tr>
         <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Overall Cost
@@ -2307,10 +2315,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const fullHtml = `
     <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
       <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
-        ${summaryHtml}
-        ${hotelSectionsHtml}
-        ${vehicleSectionHtml}
-        ${costSectionHtml}
+        <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+          <tr><td style="padding-bottom:8px;">${summaryHtml}</td></tr>
+          <tr><td style="padding-bottom:8px;">${hotelSectionsHtml}</td></tr>
+          ${vehicleSectionHtml ? `<tr><td style="padding-bottom:8px;">${vehicleSectionHtml}</td></tr>` : ""}
+          <tr><td style="padding-bottom:8px;">${costSectionHtml}</td></tr>
+        </table>
       </div>
     </div>
   `;
@@ -2485,6 +2495,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     departurePlace: '',
     departureFlightDetails: '',
   });
+  const [confirmDefaultNationality, setConfirmDefaultNationality] = useState('IN');
   const [additionalAdults, setAdditionalAdults] = useState<AdditionalPassenger[]>([]);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalPassenger[]>([]);
   const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
@@ -2498,6 +2509,42 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
+  const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
+    .filter(([, h]) => String((h as any)?.provider || '').trim().toLowerCase() !== 'tbo')
+    .map(([routeId, h]: [string, any]) => {
+      const routeIdNum = parseInt(routeId, 10);
+      const selectedProvider = String((h as any)?.provider || '').trim().toLowerCase();
+      const selectedBookingCode = String((h as any)?.bookingCode || '').trim();
+      const selectedHotelCode = String((h as any)?.hotelCode || '').trim();
+      const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
+      const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
+      const selectedAmount = Number((h as any)?.netAmount || 0);
+
+      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
+        Number(row?.itineraryRouteId || 0) === routeIdNum &&
+        String(row?.provider || '').trim().toLowerCase() === selectedProvider,
+      );
+
+      const matchedHotelRow =
+        routeRows.find((row: any) => {
+          const rowBookingCode = String(row?.bookingCode || '').trim();
+          const rowHotelCode = String(row?.hotelCode || '').trim();
+          const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
+          const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
+          const rowAmount = Number(row?.totalHotelCost || 0) + Number(row?.totalHotelTaxAmount || 0);
+
+          const bookingCodeMatch = selectedBookingCode !== '' && rowBookingCode !== '' && selectedBookingCode === rowBookingCode;
+          const hotelCodeMatch = selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode;
+          const hotelNameMatch = selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName;
+          const roomTypeMatch = selectedRoomType !== '' && rowRoomType !== '' && selectedRoomType === rowRoomType;
+          const amountMatch = selectedAmount > 0 && Math.abs(selectedAmount - rowAmount) <= 0.01;
+
+          return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
+        }) || routeRows[0] || null;
+
+      return { routeId: routeIdNum, ...h, matchedHotelRow };
+    });
   const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
   const confirmPassengerMix = [
     Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
@@ -2513,10 +2560,54 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       )
   ).map((room) => ({ adults: room.adults, children: room.children }));
 
-  const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+  const ALLOWED_TITLES = ['Mr', 'Ms', 'Mrs'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-  const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
+  const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+  const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
+  const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
+  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' => {
+    const provider = String(entry?.provider || '')
+      .trim()
+      .toLowerCase();
+    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms') {
+      return provider;
+    }
+
+    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
+    if (bookingCode.includes('!TB!')) return 'tbo';
+
+    return 'tbo';
+  };
+  const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
+    const explicitIso2 = String(
+      plan?.nationality_iso2 ||
+      plan?.nationality_shortname ||
+      plan?.guestNationality ||
+      '',
+    )
+      .trim()
+      .toUpperCase();
+    if (/^[A-Z]{2}$/.test(explicitIso2)) {
+      return explicitIso2;
+    }
+
+    const rawNationality = plan?.nationality;
+    if (typeof rawNationality === 'string' && /^[A-Z]{2}$/i.test(rawNationality.trim())) {
+      return rawNationality.trim().toUpperCase();
+    }
+
+    const legacyMap: Record<number, string> = {
+      284: 'AE',
+      229: 'NO',
+      101: 'IN',
+      177: 'IN',
+    };
+    const mapped = legacyMap[Number(rawNationality || 0)];
+    const fallback = String(fallbackNationality || 'IN').trim().toUpperCase();
+    return mapped || (/^[A-Z]{2}$/.test(fallback) ? fallback : 'IN');
+  };
   const getPassengerFieldError = (
     label: 'adult' | 'child' | 'infant',
     index: number,
@@ -2689,6 +2780,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const firstName = parts[0] || trimmed;
     const lastName = parts.slice(1).join(' ') || firstName;
     return { firstName, lastName };
+  };
+
+  const validateNameParts = (name: string) => {
+    const parts = normalizeNameParts(name);
+    if (!isValidPassengerName(parts.firstName) || !isValidPassengerName(parts.lastName)) {
+      return false;
+    }
+    return true;
   };
 
   const getSafeErrorMessage = (error: unknown, fallback: string) => {
@@ -2963,8 +3062,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     checkOutDate: string;
     groupType: number;
   }>) => {
-    // Update selectedHotelBookings when user selects hotels in HotelList
-    setSelectedHotelBookings(selections);
+    // Merge route-wise selection updates so changing one day never resets other days.
+    setSelectedHotelBookings((prev) => {
+      const next: Record<number, any> = { ...prev };
+
+      Object.entries(selections).forEach(([routeIdRaw, value]) => {
+        const routeIdNum = Number(routeIdRaw);
+        next[routeIdNum] = {
+          ...(next[routeIdNum] || {}),
+          ...value,
+        };
+      });
+
+      return next;
+    });
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
@@ -3695,6 +3806,27 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       activityName,
     });
   };
+
+
+  const handleAddGuideClick = (day: ItineraryDay) => {
+  if (readOnly) {
+    toast.error("Guide cannot be added in read-only mode");
+    return;
+  }
+
+  navigate("/guide", {
+    state: {
+      fromItinerary: true,
+      quoteId,
+      planId: itinerary?.planId || 0,
+      routeId: day.id,
+      dayNumber: day.dayNumber,
+      date: day.date,
+      departure: day.departure,
+      arrival: day.arrival,
+    },
+  });
+};
 
   const openAddHotspotModal = async (
     planId: number,
@@ -4496,9 +4628,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return;
       }
 
+      let modalNationalityForSession = confirmDefaultNationality;
+
       // Prefill arrival and departure details from plan
       if (planDetails?.plan) {
         const plan = planDetails.plan;
+        const modalNationality = resolveConfirmNationality(
+          plan,
+          guestDetails.nationality || confirmDefaultNationality || 'IN',
+        );
+        modalNationalityForSession = modalNationality;
+        setConfirmDefaultNationality(modalNationality);
         const formatDateTime = (dateTime: string) => {
           if (!dateTime) return '';
           const date = new Date(dateTime);
@@ -4514,6 +4654,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         setGuestDetails(prev => ({
           ...prev,
+          nationality: modalNationality,
           arrivalDateTime: plan.trip_start_date_and_time ? formatDateTime(plan.trip_start_date_and_time) : '',
           arrivalPlace: plan.arrival_location || '',
           departureDateTime: plan.trip_end_date_and_time ? formatDateTime(plan.trip_end_date_and_time) : '',
@@ -4537,7 +4678,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
             title,
             name: '',
             age: Number.isFinite(ageNum) ? String(Math.trunc(ageNum)) : '',
-            nationality: 'IN',
+            nationality: modalNationalityForSession,
             panNo: '',
             passportNo: '',
           };
@@ -4545,8 +4686,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
         setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
-        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Miss', t)));
-        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Miss', t)));
+        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
+        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
 
         const template = buildOccupanciesFromTravellers(
           travellersFromPlan,
@@ -4556,36 +4697,113 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         setConfirmOccupanciesTemplate(template);
       }
 
-      // ── Prebook immediately so amenities/rate-conditions/inclusions show in the modal ──
-      let autoSelectedForPrebook = { ...selectedHotelBookings };
-      if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
-        routesWithHotels.forEach((routeId: number) => {
-          if (!autoSelectedForPrebook[routeId]) {
-            const firstHotel = hotelDetails.hotels.find(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
-            );
-            if (firstHotel) {
-              const routeDay = itinerary?.days?.find((d: any) => d.id === routeId);
-              const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay
-                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : '';
-              autoSelectedForPrebook[routeId] = {
-                provider: firstHotel.provider || 'tbo',
-                hotelCode: String(firstHotel.hotelCode || firstHotel.hotelId),
-                bookingCode: firstHotel.bookingCode || String(firstHotel.hotelId),
-                roomType: firstHotel.roomType || 'Standard',
-                netAmount: firstHotel.totalHotelCost || 0,
-                hotelName: firstHotel.hotelName,
-                checkInDate,
-                checkOutDate,
-                searchInitiatedAt: new Date().toISOString(),
-              };
+      // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
+      // The recommended tab shows a cheapest-per-route hotel for each day. If the user
+      // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
+      // so the confirm modal and prebook reflect exactly what the user sees.
+      let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      if (hotelDetails?.hotels?.length) {
+        const preferredGroupType =
+          activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
+
+        const persistedSelections: typeof selectedHotelBookings = {};
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType))
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (Number(h?.itineraryPlanHotelDetailsId || 0) <= 0) return;
+
+            const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+            const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+            const checkOutDate = routeDay
+              ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+              : '';
+
+            persistedSelections[routeId] = {
+              provider: String(h.provider || 'tbo').toLowerCase(),
+              hotelCode: String(h.hotelCode || h.hotelId || h.bookingCode || ''),
+              bookingCode: String(h.bookingCode || h.hotelCode || h.hotelId || ''),
+              roomType: h.roomType || 'Standard',
+              netAmount: Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0),
+              hotelName: h.hotelName,
+              checkInDate,
+              checkOutDate,
+              searchInitiatedAt: new Date().toISOString(),
+              groupType: preferredGroupType,
+            };
+          });
+
+        if (Object.keys(persistedSelections).length > 0) {
+          // ✅ User's in-session selection wins over persisted DB value — only fill routes
+          // that the user has NOT explicitly selected in this session.
+          const mergedPersisted: typeof persistedSelections = {};
+          Object.entries(persistedSelections).forEach(([routeId, val]) => {
+            if (!selectedHotelBookings[Number(routeId)]) {
+              mergedPersisted[Number(routeId)] = val;
             }
-          }
+          });
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
+          setSelectedHotelBookings(prev => ({ ...prev, ...mergedPersisted }));
+        }
+
+        const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
+            routeBuckets.get(routeId)!.push(h);
+          });
+
+        const autoSelections: typeof selectedHotelBookings = {};
+        routeBuckets.forEach((rows, routeId) => {
+          if (selectedHotelsForPrebook[routeId]) return; // already explicitly chosen (session or persisted)
+
+          const cheapest = rows.reduce((best, curr) => {
+            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+            return currTotal < bestTotal ? curr : best;
+          });
+
+          const hasHotelIdentity = Boolean(
+            String(cheapest.hotelCode || '').trim() ||
+            Number(cheapest.hotelId || 0) > 0 ||
+            String(cheapest.bookingCode || '').trim() ||
+            String((cheapest as any).searchReference || '').trim() ||
+            String(cheapest.hotelName || '').trim(),
+          );
+          if (!hasHotelIdentity) return;
+
+          const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+          const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+            : '';
+
+          autoSelections[routeId] = {
+            provider: String(cheapest.provider || 'tbo').toLowerCase(),
+            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || cheapest.bookingCode || ''),
+            bookingCode: String(cheapest.bookingCode || cheapest.hotelCode || cheapest.hotelId || ''),
+            roomType: cheapest.roomType || 'Standard',
+            netAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+            hotelName: cheapest.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+            groupType: preferredGroupType,
+          };
         });
+
+        if (Object.keys(autoSelections).length > 0) {
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...autoSelections };
+          setSelectedHotelBookings(prev => ({ ...prev, ...autoSelections }));
+        }
       }
+
+      // ── Prebook only user-explicitly-selected TBO hotels ──
+      // Non-TBO hotels are shown in the review modal but are not sent to the TBO prebook API.
 
       const prebookOccupancies =
         occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
@@ -4598,22 +4816,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               [],
             );
 
-      const prebookHotelBookings: any[] = Object.entries(autoSelectedForPrebook).map(([routeId, hotelData]) => ({
-        occupancies: prebookOccupancies,
-        provider: hotelData.provider,
-        routeId: parseInt(routeId, 10),
-        hotelCode: hotelData.hotelCode,
-        hotelName: hotelData.hotelName,
-        bookingCode: hotelData.bookingCode,
-        roomType: hotelData.roomType,
-        checkInDate: hotelData.checkInDate,
-        checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: Number(itinerary?.roomCount || 1),
-        guestNationality: (guestDetails.nationality || '').toUpperCase(),
-        netAmount: Number(hotelData.netAmount || 0),
-        searchInitiatedAt: hotelData.searchInitiatedAt,
-        passengers: [],
-      }));
+      const prebookHotelBookings: any[] = Object.entries(selectedHotelsForPrebook)
+        .filter(([, hotelData]) => String((hotelData as any)?.provider || '').trim().toLowerCase() === 'tbo')
+        .map(([routeId, hotelData]) => ({
+          occupancies: prebookOccupancies,
+          provider: hotelData.provider,
+          routeId: parseInt(routeId, 10),
+          hotelCode: hotelData.hotelCode,
+          hotelName: hotelData.hotelName,
+          bookingCode: hotelData.bookingCode,
+          roomType: hotelData.roomType,
+          checkInDate: hotelData.checkInDate,
+          checkOutDate: hotelData.checkOutDate,
+          numberOfRooms: Number(itinerary?.roomCount || 1),
+          guestNationality: modalNationalityForSession,
+          netAmount: Number(hotelData.netAmount || 0),
+          searchInitiatedAt: hotelData.searchInitiatedAt,
+          passengers: [],
+        }));
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -4681,8 +4901,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
     }
 
-    if (!isValidPassengerName(guestDetails.name)) {
-      nextErrors['primary-name'] = 'Primary guest name must be 2-25 characters and contain only letters, spaces, apostrophe or hyphen.';
+    if (!validateNameParts(guestDetails.name)) {
+      nextErrors['primary-name'] = 'Primary guest first name/last name must each be 2-25 valid characters.';
     }
 
     if (!isValidIsoNationality(guestDetails.nationality)) {
@@ -4730,8 +4950,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }
         if (!item.name.trim()) {
           nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
-        } else if (!isValidPassengerName(item.name)) {
-          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name must be 2-25 valid characters.`;
+        } else if (!validateNameParts(item.name)) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} first/last name must each be 2-25 valid characters.`;
         }
         if (!item.nationality.trim()) {
           nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
@@ -4741,6 +4961,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         const parsedAge = Number(item.age);
         if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
           nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
+        }
+        if (item.panNo && !isValidPan(item.panNo)) {
+          nextErrors[`${label}-${index}-panNo`] = `${label} ${index + 1} PAN must be valid format (example: ABCDE1234F).`;
         }
       });
     };
@@ -4765,37 +4988,80 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     try {
       let autoSelectedHotels = { ...selectedHotelBookings };
+      const selectedProvidersForConfirm = Array.from(
+        new Set(
+          Object.values(autoSelectedHotels)
+            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const preferredProviderForConfirm =
+        selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
+      const skippedRouteIdsForConfirm: number[] = [];
 
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
+        const toAutoSelection = (hotelRow: any, routeId: number) => {
+          const routeDay = itinerary?.days?.find((d) => d.id === routeId);
+          const checkInDate = routeDay?.date || '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            : '';
+
+          return {
+            provider: String(hotelRow?.provider || 'tbo').trim().toLowerCase(),
+            hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            bookingCode: String(hotelRow?.bookingCode || hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            roomType: hotelRow?.roomType || 'Standard',
+            netAmount: Number(hotelRow?.totalHotelCost || 0) + Number(hotelRow?.totalHotelTaxAmount || 0),
+            hotelName: hotelRow?.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+          };
+        };
+
         routesWithHotels.forEach((routeId: number) => {
+          const routeHotels = hotelDetails.hotels.filter(
+            (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
+          );
+          const persistedRouteSelection = routeHotels.find(
+            (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
+          );
+
+          // Persisted backend selection is treated as source of truth for provider/day mapping.
+          if (persistedRouteSelection) {
+            autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
+            return;
+          }
+
           if (!autoSelectedHotels[routeId]) {
-            const firstHotelForRoute = hotelDetails.hotels.find(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
-            );
+            const firstHotelForRoute = preferredProviderForConfirm
+              ? routeHotels.find(
+                  (h: any) =>
+                    String(h?.provider || '')
+                      .trim()
+                      .toLowerCase() === preferredProviderForConfirm,
+                )
+              : routeHotels[0];
+
+            if (!firstHotelForRoute && preferredProviderForConfirm && routeHotels.length > 0) {
+              skippedRouteIdsForConfirm.push(routeId);
+            }
 
             if (firstHotelForRoute) {
-              const routeDay = itinerary?.days?.find((d) => d.id === routeId);
-              const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay
-                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : '';
-
-              autoSelectedHotels[routeId] = {
-                provider: firstHotelForRoute.provider || 'tbo',
-                hotelCode: String(firstHotelForRoute.hotelCode || firstHotelForRoute.hotelId),
-                bookingCode: firstHotelForRoute.bookingCode || String(firstHotelForRoute.hotelId),
-                roomType: firstHotelForRoute.roomType || 'Standard',
-                netAmount: firstHotelForRoute.totalHotelCost || 0,
-                hotelName: firstHotelForRoute.hotelName,
-                checkInDate,
-                checkOutDate,
-                searchInitiatedAt: new Date().toISOString(),
-              };
+              autoSelectedHotels[routeId] = toAutoSelection(firstHotelForRoute, routeId);
             }
           }
         });
+
+        if (skippedRouteIdsForConfirm.length > 0) {
+          toast.error(
+            `Please select ${preferredProviderForConfirm.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForConfirm.join(', ')}.`,
+          );
+          return;
+        }
       }
 
       const primaryName = normalizeNameParts(guestDetails.name);
@@ -4871,9 +5137,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         }),
       ];
 
-      const childAgesForBooking = [
-        ...normalizedAdditionalChildren.map((c) => Number(c.age)),
-      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
+      // Child ages must be locked from plan/search template to avoid mismatch with TBO
+      const childAgesForBooking = (
+        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+              Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
+            )
+          : normalizedAdditionalChildren.map((c) => Number(c.age))
+      ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11);
 
       const occupanciesForBooking =
         confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
@@ -4884,9 +5155,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               childAgesForBooking,
             );
 
+      const bookingGuestNationality = (
+        guestDetails.nationality ||
+        confirmDefaultNationality ||
+        'IN'
+      )
+        .trim()
+        .toUpperCase();
+
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
         occupancies: occupanciesForBooking,
-        provider: hotelData.provider,
+        provider: inferHotelProvider(hotelData),
         routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
         hotelName: hotelData.hotelName,
@@ -4895,11 +5174,31 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary.roomCount || 1),
-        guestNationality: guestDetails.nationality,
+        guestNationality: bookingGuestNationality,
         netAmount: Number(hotelData.netAmount || 0),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers,
       }));
+
+      const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
+      const nonTboRouteIds = hotelBookings
+        .filter((booking) => booking.provider !== 'tbo')
+        .map((booking) => Number(booking.routeId))
+        .filter((id) => Number.isFinite(id));
+
+      if (tboCount > 0 && nonTboRouteIds.length > 0) {
+        const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
+        const shouldContinueWithMixedProviders = window.confirm(
+          `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
+        );
+        if (!shouldContinueWithMixedProviders) {
+          toast.error(
+            `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`,
+          );
+          return;
+        }
+        toast.warning('Proceeding with mixed-provider booking as confirmed.');
+      }
 
       if (hotelBookings.length === 0) {
         toast.error('No hotels selected for booking. Please select hotels and retry.');
@@ -4930,8 +5229,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         .catch(() => '192.168.1.1');
 
       const effectivePrebookData = prebookDataRef.current || prebookData;
-      if (!effectivePrebookData) {
-        toast.error('Prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
+      const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      if (hasTboBookings && !effectivePrebookData) {
+        toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
       }
 
@@ -4947,9 +5247,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return;
       }
 
-      // TBO Certification: Require acknowledgement of prebook details before final booking
+      // Require acknowledgement of review details before final booking
       if (!hasAcceptedUpdatedPrice) {
-        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
+        toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
         return;
       }
 
@@ -5027,7 +5327,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         name: '',
         contactNo: '',
         age: '',
-        nationality: 'IN',
+        nationality: confirmDefaultNationality,
         panNo: '',
         passportNo: '',
         alternativeContactNo: '',
@@ -5534,14 +5834,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       )}
 
       <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-      >
-        <Plus className="mr-1 h-4 w-4" />
-        Add Guide
-      </Button>
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+          onClick={() => handleAddGuideClick(day)}
+          disabled={readOnly}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          Add Guide
+          </Button>
 
       <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
         {intercityDistance}
@@ -6194,21 +6496,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}</span>
                 </div>
               )}
+
+
               {/* ── Vehicle Cost Group ── */}
-              {shouldShowVehicles && computedVehicleAmount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">
-                    Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
-                  </span>
-                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
-                </div>
-              )}
-              {shouldShowVehicles && computedVehicleAmount > 0 && (
-                <div className="flex justify-between font-semibold">
-                  <span className="text-[#4a4260]">Total Vehicle Amount</span>
-                  <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
-                </div>
-              )}
+{shouldShowVehicles && computedVehicleAmount > 0 && (
+  <div className="flex justify-between">
+    <span className="text-[#6c6c6c]">
+      Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
+    </span>
+    <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
+  </div>
+)}
 
               {/* ── Guide / Activity / Hotspot ── */}
               {itinerary.costBreakdown.totalGuideCost !== undefined && itinerary.costBreakdown.totalGuideCost > 0 && (
@@ -7957,6 +8255,125 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
               </div>
             )}
 
+            {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
+                <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
+                {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                  const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                  const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                  const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                  const hotelInclusions = resolvePrebookInclusions(detailRow);
+                  const hotelMealType = resolvePrebookMealPlan(detailRow);
+                  const hotelCancellation = normalizeCancellationPolicyItems(
+                    detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                  );
+
+                  return (
+                    <details key={`ntbo-only-${hotel?.routeId ?? index}`} className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                            <p className="text-xs text-[#6c6c6c]">
+                              Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                              {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                            </p>
+                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                          </div>
+                          <div className="text-sm text-left md:text-right">
+                            <p className="text-[#6c6c6c]">Selected Price</p>
+                            <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                        {hotelMealType ? (
+                          <p className="text-xs text-[#6c6c6c]">
+                            Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                          </p>
+                        ) : null}
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                          <div className="mt-2">
+                            {hotelCancellation.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelCancellation.map((item, idx) => (
+                                  <li key={`ntbo-only-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                          <div className="mt-2">
+                            {hotelRateConditions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelRateConditions.map((item, idx) => (
+                                  <li key={`ntbo-only-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                          <div className="mt-2">
+                            {hotelAmenities.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelAmenities.map((item, idx) => (
+                                  <li key={`ntbo-only-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No amenities available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                          <div className="mt-2">
+                            {hotelInclusions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelInclusions.map((item, idx) => (
+                                  <li key={`ntbo-only-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                          Policies and rate conditions are managed by the provider. TBO prebook is not applicable.
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })}
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the selected hotel details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
+
             {prebookData && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
@@ -7968,7 +8385,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     </p>
                   </div>
                   <div>
-                    <p className="text-[#6c6c6c]">Hotels Prebooked</p>
+                    <p className="text-[#6c6c6c]">Hotels Prebooked (TBO)</p>
                     <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
                   </div>
                 </div>
@@ -8104,6 +8521,122 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   );
                 })}
 
+                {nonTboSelectedHotelEntries.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
+                    {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                      const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                      const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                      const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                      const hotelInclusions = resolvePrebookInclusions(detailRow);
+                      const hotelMealType = resolvePrebookMealPlan(detailRow);
+                      const hotelCancellation = normalizeCancellationPolicyItems(
+                        detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                      );
+
+                      return (
+                        <details
+                          key={`non-tbo-hotel-${hotel?.routeId ?? index}`}
+                          className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3"
+                        >
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                                  {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                                </p>
+                                <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                              </div>
+                              <div className="text-sm text-left md:text-right">
+                                <p className="text-[#6c6c6c]">Selected Price</p>
+                                <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                              </div>
+                            </div>
+                          </summary>
+
+                          <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                            <div>
+                              <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || detailRow?.hotelCode || '-'}</p>
+                              {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                              {hotelMealType ? (
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                              <div className="mt-2">
+                                {hotelCancellation.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelCancellation.map((item, idx) => (
+                                      <li key={`non-tbo-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                              <div className="mt-2">
+                                {hotelRateConditions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelRateConditions.map((item, idx) => (
+                                      <li key={`non-tbo-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                              <div className="mt-2">
+                                {hotelAmenities.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelAmenities.map((item, idx) => (
+                                      <li key={`non-tbo-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No amenities available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                              <div className="mt-2">
+                                {hotelInclusions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelInclusions.map((item, idx) => (
+                                      <li key={`non-tbo-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                              This hotel is managed outside TBO. Details shown here come from the selected provider record.
+                            </p>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {hasPrebookPriceChanged && (
                   <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
                     Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
@@ -8221,20 +8754,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Nationality <span className="text-red-500">*</span>
+                    <span className="ml-1 text-[10px] text-[#8b43d1] font-normal">(locked from search)</span>
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                     placeholder="IN"
                     value={guestDetails.nationality}
-                    onChange={(e) => {
-                      setGuestDetails({ ...guestDetails, nationality: e.target.value.toUpperCase() });
-                      setFormErrors((prev) => {
-                        const next = { ...prev };
-                        delete next['primary-nationality'];
-                        return next;
-                      });
-                    }}
+                    readOnly
+                    title="Nationality is locked from itinerary search and cannot be changed at booking time"
                   />
                   {formErrors['primary-nationality'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-nationality']}</p>}
                 </div>
@@ -8343,14 +8871,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input
                           type="text"
-                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                           placeholder="IN"
                           value={adult.nationality}
-                          onChange={(e) => {
-                            const next = [...additionalAdults];
-                            next[index].nationality = e.target.value.toUpperCase();
-                            setAdditionalAdults(next);
-                          }}
+                          readOnly
+                          title="Nationality is locked from itinerary search"
                         />
                       </div>
                       <div className="sm:col-span-1">
@@ -8412,7 +8937,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Child
@@ -8444,11 +8969,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]"
+                          placeholder="Age"
+                          value={child.age}
+                          readOnly
+                          title="Child age is locked from itinerary/search and cannot be changed at booking time"
+                        />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={child.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
                       <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -8483,7 +9015,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Infant
@@ -8515,11 +9047,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]" placeholder="Age" value={infant.age} readOnly title="Infant age is locked from itinerary/search and cannot be changed at booking time" />
                       </div>
                       <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={infant.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
                       <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
@@ -8652,7 +9184,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                   name: '',
                   contactNo: '',
                   age: '',
-                  nationality: 'IN',
+                  nationality: confirmDefaultNationality,
                   panNo: '',
                   passportNo: '',
                   alternativeContactNo: '',

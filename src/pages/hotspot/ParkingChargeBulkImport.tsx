@@ -15,24 +15,41 @@ type TempRow = {
 
 const PARKING_IMPORT_SESSION_KEY = "parkingChargeImportSessionId";
 
+
+
 function downloadSample() {
   const rows = [
-    ["hotspot_name", "hotspot_location", "vehicle_type_title", "parking_charge"],
-    ["Calangute Beach", "Goa", "Sedan", "80"],
-    ["Dudhsagar Falls", "Goa Railway Station", "SUV", "120"],
-    ["Basilica of Bom Jesus", "Goa Bus Stand", "Tempo Traveller", "150"],
+    ["hotspot_name", "hotspot_location", "Sedan", "MUV", "Crysta", "Tempo", "Urbania"],
+    ["Calangute Beach", "Goa", "40", "80", "50", "70", "60"],
+    ["Dudhsagar Falls", "Goa Railway Station", "60", "120", "", "", ""],
+    ["Basilica of Bom Jesus", "Goa Bus Stand", "", "", "", "150", ""],
   ];
-  const csv = rows.map(r => r.map(s => {
-    const v = String(s ?? "");
-    return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-  }).join(",")).join("\n");
+
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const value = String(cell ?? "");
+          return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+        })
+        .join(",")
+    )
+    .join("\n");
+
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "parking_charges_sample.csv";
-  document.body.appendChild(a); a.click(); a.remove();
+
+  a.href = url;
+  a.download = "parking_charges_sample.csv";
+
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
   URL.revokeObjectURL(url);
 }
+
 
 const Page: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);

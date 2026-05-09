@@ -321,6 +321,7 @@ export default function BasicStep({
         reset({
           hotel_name: row.hotel_name ?? row.name ?? "",
           hotel_place: row.hotel_place ?? row.place ?? "",
+          axisrooms_property_id: row.axisrooms_property_id ?? "",
           // force strings for selects
           hotel_status:
             row.status !== undefined

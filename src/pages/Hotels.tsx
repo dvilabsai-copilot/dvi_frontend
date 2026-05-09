@@ -25,6 +25,7 @@ type HotelRow = {
   backendId: string; // backend PK
   name: string;
   code: string;
+  axisCode: string;
 
   // Raw IDs from DB (may be string/number)
   stateId?: string | number | null;
@@ -260,6 +261,7 @@ const HotelPage: React.FC = () => {
     backendId: String((h as any).id ?? (h as any).hotel_id ?? ""),
     name: (h as any).name ?? (h as any).hotel_name ?? "",
     code: (h as any).code ?? (h as any).hotel_code ?? "",
+    axisCode: (h as any).axisrooms_property_id ?? "",
     stateId: (h as any).hotel_state ?? (h as any).state ?? null,
     cityId: (h as any).hotel_city ?? (h as any).city ?? null,
     mobile:
@@ -739,7 +741,29 @@ const HotelPage: React.FC = () => {
                       </div>
                     </td>
                     <td>{row.name}</td>
-                    <td>{row.code}</td>
+                    <td>
+                      <div style={{display:"flex",flexDirection:"column",gap:"3px",alignItems:"flex-start"}}>
+                        {row.code ? (
+                          <span
+                            title="Click to copy Hotel Code"
+                            onClick={() => navigator.clipboard.writeText(row.code)}
+                            style={{cursor:"pointer",fontFamily:"monospace",fontSize:"11px",background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:"4px",padding:"1px 5px",color:"#0369a1",whiteSpace:"nowrap"}}
+                          >
+                            {row.code}
+                          </span>
+                        ) : null}
+                        {row.axisCode ? (
+                          <span
+                            title="Click to copy Axisrooms ID"
+                            onClick={() => navigator.clipboard.writeText(row.axisCode)}
+                            style={{cursor:"pointer",fontFamily:"monospace",fontSize:"11px",background:"#f0fdf4",border:"1px solid #86efac",borderRadius:"4px",padding:"1px 5px",color:"#15803d",whiteSpace:"nowrap"}}
+                          >
+                            {row.axisCode}
+                          </span>
+                        ) : null}
+                        {!row.code && !row.axisCode ? <span style={{color:"#999"}}>—</span> : null}
+                      </div>
+                    </td>
                     <td>{row.stateName}</td>
                     <td>{row.cityName}</td>
                     <td>{row.mobile}</td>
