@@ -12,10 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { AutoSuggestOption } from "@/components/AutoSuggestSelect";
 import {
-  AutoSuggestSelect,
-  AutoSuggestOption,
-} from "@/components/AutoSuggestSelect";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { LocationOption } from "@/services/itineraryDropdownsMock";
 import { locationsApi } from "@/services/locations";
 
@@ -100,11 +104,28 @@ export const RouteDetailsBlock = ({
   departureLocation,
   hideIntercityKm = false,
 }: RouteDetailsBlockProps) => {
+  const sanitizeOptions = (options: AutoSuggestOption[]): AutoSuggestOption[] => {
+    const seen = new Set<string>();
+    return options
+      .map((opt) => ({
+        value: String(opt.value || "").trim(),
+        label: String(opt.label || opt.value || "").trim(),
+      }))
+      .filter((opt) => {
+        if (!opt.value) return false;
+        if (seen.has(opt.value)) return false;
+        seen.add(opt.value);
+        return true;
+      });
+  };
+
   // Global fallback options (like PHP selectize list)
-  const globalLocationOptions: AutoSuggestOption[] = locations.map((loc) => ({
-    value: loc.name,
-    label: loc.name,
-  }));
+  const globalLocationOptions: AutoSuggestOption[] = sanitizeOptions(
+    locations.map((loc) => ({
+      value: loc.name,
+      label: loc.name,
+    }))
+  );
 
   // Find the departure location object from locations array
   const departureLocationObj = departureLocation
@@ -122,7 +143,7 @@ export const RouteDetailsBlock = ({
   // After adding a day: focus previous last day's "Next Destination"
   const [focusNextIdx, setFocusNextIdx] = useState<number | null>(null);
 
-  // Refs for Next Destination AutoSuggestSelect components
+  // Refs for Next Destination Select trigger buttons
   const nextDestinationRefs = useRef<Array<{ focus: () => void } | null>>([]);
   const addDayButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -283,6 +304,10 @@ const destLocations = data.rows
   const handleAddDay = () => {
     if (addDay) {
       addDay();
+      // Scroll to new row after a tick
+      setTimeout(() => {
+        addDayButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 50);
       return;
     }
 
@@ -340,6 +365,56 @@ const destLocations = data.rows
 
     // Focus previous last row's "Next Destination" (e.g., Day 8 destination)
     setFocusNextIdx(Math.max(0, routeDetails.length - 1));
+
+    // Scroll to the cleared row so user sees what to fill
+    setTimeout(() => {
+      const prevLastIdx = Math.max(0, routeDetails.length - 1);
+      document.getElementById(`next-destination-${prevLastIdx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  };
+
+  const handleDeleteDay = () => {
+    try {
+      if (onDeleteDay) {
+        onDeleteDay();
+        return;
+      }
+    } catch (err) {
+      console.error("Delete day callback failed. Falling back to local delete.", err);
+    }
+
+    // Fallback: delete last day locally for contexts that don't wire onDeleteDay.
+    setRouteDetails((prev) => {
+      if (prev.length <= 1) return prev;
+
+      return prev.slice(0, -1).map((row, index) => ({
+        ...row,
+        id: index + 1,
+        day: index + 1,
+      }));
+    });
+
+    setDestinationOptionsMap((prev) => {
+      const next: Record<number, AutoSuggestOption[]> = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        const idx = Number(key);
+        if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
+          next[idx] = value;
+        }
+      });
+      return next;
+    });
+
+    setLoadedSources((prev) => {
+      const next: Record<number, string> = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        const idx = Number(key);
+        if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
+          next[idx] = value;
+        }
+      });
+      return next;
+    });
   };
 
   const firstRouteSourceError = validationErrors?.firstRouteSource;
@@ -408,6 +483,13 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
                     : globalLocationOptions;
               }
 
+              const safeOptions = sanitizeOptions(rowSpecificOptions);
+              const safeNextDestinationValue = safeOptions.some(
+                (opt) => opt.value === nextDestinationValue
+              )
+                ? nextDestinationValue
+                : undefined;
+
               return (
                 <TableRow key={idx}>
   <TableCell>{`DAY ${row.day}`}</TableCell>
@@ -460,68 +542,71 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
           : ""
       }
     >
-      <AutoSuggestSelect
-  ref={(el) => {
-    nextDestinationRefs.current[idx] = el;
-  }}
-  mode="single"
-  value={nextDestinationValue}
-  scrollToValue={row.source}
-  onChange={async (val) => {
-    if (isLastRowLocked) return;
-
-    const chosen = (val as string) || "";
-
-    // Build the updated row here
-    const updatedRow: RouteDetailRow = {
-      ...row,
-      next: chosen,
-      via: "",
-      via_routes: [],
-      no_of_km: 0,
-    };
-
-    // Optimistically update the UI (without KM)
-    setRouteDetails((prev) => {
-      const updated = [...prev];
-      updated[idx] = updatedRow;
-      if (idx + 1 < updated.length) {
-        updated[idx + 1] = {
-          ...updated[idx + 1],
-          source: chosen,
-        };
-      }
-      return updated;
-    });
-
-    // Call the backend API and update KM when it returns
-    if (onRefreshRouteDistance) {
-      const km = await onRefreshRouteDistance(updatedRow);
-      setRouteDetails((prev) => {
-        const updated = [...prev];
-        // Only update if row still matches (user hasn't changed again)
-        if (
-          updated[idx].source === updatedRow.source &&
-          updated[idx].next === updatedRow.next
-        ) {
-          updated[idx] = {
-            ...updated[idx],
-            no_of_km: km ?? 0,
+<Select
+  value={safeNextDestinationValue}
+        disabled={isLastRowLocked}
+        onValueChange={async (val) => {
+          if (isLastRowLocked) return;
+          const chosen = val || "";
+          const updatedRow: RouteDetailRow = {
+            ...row,
+            next: chosen,
+            via: "",
+            via_routes: [],
+            no_of_km: 0,
           };
-        }
-        return updated;
-      });
-    }
-  }}
-  onSelectionCommit={() => {
-    if (isLastRowLocked) return;
-    moveFocusToNextDestination(idx);
-  }}
-  disabled={isLastRowLocked}
-  readOnly={isLastRowLocked}
-  options={rowSpecificOptions}
-  placeholder="Next Destination"
-/>
+          setRouteDetails((prev) => {
+            const updated = [...prev];
+            updated[idx] = updatedRow;
+            if (idx + 1 < updated.length) {
+              updated[idx + 1] = { ...updated[idx + 1], source: chosen };
+            }
+            return updated;
+          });
+          if (onRefreshRouteDistance) {
+            const km = await onRefreshRouteDistance(updatedRow);
+            setRouteDetails((prev) => {
+              const updated = [...prev];
+              if (
+                updated[idx].source === updatedRow.source &&
+                updated[idx].next === updatedRow.next
+              ) {
+                updated[idx] = { ...updated[idx], no_of_km: km ?? 0 };
+              }
+              return updated;
+            });
+          }
+          moveFocusToNextDestination(idx);
+        }}
+      >
+        <SelectTrigger
+          ref={(el) => {
+            nextDestinationRefs.current[idx] = el
+              ? { focus: () => el.click() }
+              : null;
+          }}
+          className={`h-9 text-sm ${
+            isLastRowLocked
+              ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 opacity-60"
+              : "border-[#e5d7f6] bg-white"
+          }`}
+        >
+          <SelectValue placeholder="Next Destination" />
+        </SelectTrigger>
+        <SelectContent>
+          {safeOptions.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              {row.source ? "Loading destinations…" : "Select a source first"}
+            </div>
+          ) : (
+            safeOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))
+          )}
+        </SelectContent>
+      </Select>
     </div>
     {isFirstRow && firstRouteNextError && (
       <p className="mt-1 text-xs text-red-500">
@@ -591,6 +676,7 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
 
         <Button
           ref={addDayButtonRef}
+          type="button"
           onClick={handleAddDay}
           className="mt-4 bg-[#f054b5] hover:bg-[#e249a9]"
         >
@@ -600,7 +686,7 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
          <Button
     type="button"
     variant="outline"
-    onClick={() => onDeleteDay?.()}
+          onClick={handleDeleteDay}
     disabled={routeDetails.length === 1}
     className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
   >
