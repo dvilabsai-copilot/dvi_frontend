@@ -251,6 +251,7 @@ const cheapest = vehicles.reduce((prev, curr) => {
   return cheapest.vendorEligibleId ?? null;
 };
 
+
 export type VehicleListProps = {
   vehicleTypeId?: number;
   vehicleTypeLabel: string;
@@ -403,26 +404,35 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         )
         .join("");
 
-      const totalRows = [
-        ["TOTAL COST OF VEHICLE", formatCurrencyINR(vehicle.totalCostOfVehicle)],
-        ["SUBTOTAL", formatCurrencyINR(vehicle.subtotal)],
-        (vehicle.vehicleGstAmount ?? 0) > 0
-          ? [`GST (${vehicle.vehicleGstPercentage ?? 0}%)`, formatCurrencyINR(vehicle.vehicleGstAmount)]
-          : null,
-        (vehicle.vendorMarginAmount ?? 0) > 0
-          ? [`DVI Margin (${vehicle.vendorMarginPercentage ?? 0}%)`, formatCurrencyINR(vehicle.vendorMarginAmount)]
-          : null,
-        (vehicle.vendorMarginGstAmount ?? 0) > 0
-          ? [
-              `DVI Margin Service Tax (${vehicle.vendorMarginGstPercentage ?? 0}%)`,
-              formatCurrencyINR(vehicle.vendorMarginGstAmount),
-            ]
-          : null,
-       [
-  `GRAND TOTAL (${vehicle.totalQty || 1} x ${formatCurrencyINR(getVehicleGrandTotal(vehicle))})`,
-  formatCurrencyINR(getVehicleGrandTotal(vehicle)),
-],
+
+     const vehicleSubtotal = getVehicleSubtotal(vehicle);
+const vehicleGstPercentage = getVehicleGstPercentage(vehicle);
+const vehicleGstAmount = getVehicleGstAmount(vehicle);
+const vendorMarginPercentage = getVehicleVendorMarginPercentage(vehicle);
+const vendorMarginAmount = getVehicleVendorMarginAmount(vehicle);
+const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(vehicle);
+const marginServiceTaxAmount = getVehicleMarginServiceTaxAmount(vehicle);
+const vehicleGrandTotal = getVehicleGrandTotal(vehicle);
+
+const totalRows = [
+  ["SUBTOTAL", formatCurrencyINR(vehicleSubtotal)],
+  vehicleGstAmount > 0
+    ? [`GST (${vehicleGstPercentage}%)`, formatCurrencyINR(vehicleGstAmount)]
+    : null,
+  vendorMarginAmount > 0
+    ? [`DVI Margin (${vendorMarginPercentage}%)`, formatCurrencyINR(vendorMarginAmount)]
+    : null,
+  marginServiceTaxAmount > 0
+    ? [
+        `DVI Margin Service Tax (${marginServiceTaxPercentage}%)`,
+        formatCurrencyINR(marginServiceTaxAmount),
       ]
+    : null,
+  [
+    `GRAND TOTAL (${vehicle.totalQty || 1} x ${formatCurrencyINR(vehicleGrandTotal)})`,
+    formatCurrencyINR(vehicleGrandTotal),
+  ],
+]
         .filter(Boolean)
         .map((row, idx, all) => {
           const isGrand = idx === all.length - 1;
@@ -1005,38 +1015,61 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     </th>
                                   </tr>
                                 </thead>
-                                <tbody>
-                                  <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL COST OF VEHICLE</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.totalCostOfVehicle)}</td>
-                                  </tr>
-                                  <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">SUBTOTAL</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.subtotal)}</td>
-                                  </tr>
-                                  {(v.vehicleGstAmount ?? 0) > 0 && (
-                                    <tr>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">GST ({v.vehicleGstPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vehicleGstAmount)}</td>
-                                    </tr>
-                                  )}
-                                  {(v.vendorMarginAmount ?? 0) > 0 && (
-                                    <tr>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">DVI Margin ({v.vendorMarginPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginAmount)}</td>
-                                    </tr>
-                                  )}
-                                  {(v.vendorMarginGstAmount ?? 0) > 0 && (
-                                    <tr>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">DVI Margin Service Tax ({v.vendorMarginGstPercentage ?? 0}%)</td>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatCurrencyINR(v.vendorMarginGstAmount)}</td>
-                                    </tr>
-                                  )}
-                                  <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-purple-700 font-bold text-base">GRAND TOTAL ({v.totalQty || 1} x {formatCurrencyINR(v.grandTotal ?? v.totalAmount)})</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-purple-700 font-bold text-base">{formatCurrencyINR(v.grandTotal ?? v.totalAmount)}</td>
-                                  </tr>
-                                </tbody>
+
+
+    <tbody>
+  <tr>
+    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">
+      SUBTOTAL
+    </td>
+    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+      {formatCurrencyINR(subtotalVehicle)}
+    </td>
+  </tr>
+
+  {gstAmount > 0 && (
+    <tr>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">
+        GST ({gstPercentage}%)
+      </td>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+        {formatCurrencyINR(gstAmount)}
+      </td>
+    </tr>
+  )}
+
+  {vendorMargin > 0 && (
+    <tr>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">
+        DVI Margin ({vendorMarginPercentage}%)
+      </td>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+        {formatCurrencyINR(vendorMargin)}
+      </td>
+    </tr>
+  )}
+
+  {marginServiceTax > 0 && (
+    <tr>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">
+        DVI Margin Service Tax ({marginServiceTaxPercentage}%)
+      </td>
+      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+        {formatCurrencyINR(marginServiceTax)}
+      </td>
+    </tr>
+  )}
+
+  <tr>
+    <td className="w-1/2 border border-gray-300 px-1 py-1 text-purple-700 font-bold text-base">
+      GRAND TOTAL ({qty} x {formatCurrencyINR(calculatedGrandTotal)})
+    </td>
+    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-purple-700 font-bold text-base">
+      {formatCurrencyINR(displayTotalAmount)}
+    </td>
+  </tr>
+</tbody>
+
                               </table>
                             </div>
                           </div>
