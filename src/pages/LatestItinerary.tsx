@@ -24,7 +24,6 @@ import {
 import {
   Download,
   Edit,
-  Eye,
   Calendar as CalendarIcon,
 } from "lucide-react";
 
@@ -96,9 +95,7 @@ export const LatestItinerary = () => {
       | "createdBy"
       | "startDate"
       | "endDate"
-      | "createdOn"
-      | "nights"
-      | "persons";
+      | "createdOn";
     dir: "asc" | "desc";
   }>({
     field: "sno",
@@ -181,20 +178,34 @@ export const LatestItinerary = () => {
       const totalRecords = res?.recordsFiltered ?? res?.recordsTotal ?? 0;
       setTotal(totalRecords);
 
+      const getTypeLabel = (preference: number) => {
+        switch (preference) {
+          case 1:
+            return "Hotel";
+          case 2:
+            return "Vehicle";
+          case 3:
+            return "Vehicle+Hotel";
+          default:
+            return "Unknown";
+        }
+      };
+
       const mapped =
         (res?.data ?? []).map((r: any) => {
           const quoteId =
             r.itinerary_quote_ID || r.itinerary_booking_ID || "";
 
+          const preference = Number(r.itinerary_preference ?? 0) || 0;
+          const typeLabel = getTypeLabel(preference);
+
           const ndStr = String(r.no_of_days_and_nights ?? "0&0");
           const [nightsStr] = ndStr.split("&");
           const nights = Number(nightsStr) || 0;
 
-          const total_adult = Number(r.total_adult ?? 0) || 0;
-          const total_children = Number(r.total_children ?? 0) || 0;
-          const total_infants = Number(r.total_infants ?? 0) || 0;
-          const persons =
-            total_adult + total_children + total_infants;
+          const adults = Number(r.total_adult ?? 0) || 0;
+          const children = Number(r.total_children ?? 0) || 0;
+          const infants = Number(r.total_infants ?? 0) || 0;
 
           return {
             id: Number(r.modify ?? 0) || 0,
@@ -205,8 +216,11 @@ export const LatestItinerary = () => {
             startDate: r.trip_start_date_and_time ?? "",
             endDate: r.trip_end_date_and_time ?? "",
             createdOn: r.createdon ?? "",
+            type: typeLabel,
             nights,
-            persons,
+            adults,
+            children,
+            infants,
           };
         }) ?? [];
 
@@ -257,9 +271,7 @@ export const LatestItinerary = () => {
       | "createdBy"
       | "startDate"
       | "endDate"
-      | "createdOn"
-      | "nights"
-      | "persons",
+      | "createdOn",
   ) => {
     setSortConfig((prev) => {
       if (prev.field === field) {
@@ -558,8 +570,8 @@ export const LatestItinerary = () => {
           </div>
 
           {/* table */}
-          <div className="overflow-x-auto border rounded-md">
-            <Table className="min-w-full">
+          <div className="border rounded-md">
+            <Table className="w-full">
               <TableHeader>
                 <TableRow className="bg-[#fbf7ff]">
                   <TableHead
@@ -570,19 +582,19 @@ export const LatestItinerary = () => {
                   </TableHead>
                   <TableHead
                     onClick={() => toggleSort("quoteId")}
-                    className="text-xs font-medium text-[#4a4260] min-w-[220px] cursor-pointer select-none"
+                    className="px-2 text-xs font-medium text-[#4a4260] cursor-pointer select-none"
                   >
                     Quote ID {renderSortIcon("quoteId")}
                   </TableHead>
                   <TableHead
                     onClick={() => toggleSort("arrival")}
-                    className="text-xs font-medium text-[#4a4260] min-w-[180px] cursor-pointer select-none"
+                    className="text-xs font-medium text-[#4a4260] cursor-pointer select-none"
                   >
                     Arrival {renderSortIcon("arrival")}
                   </TableHead>
                   <TableHead
                     onClick={() => toggleSort("departure")}
-                    className="text-xs font-medium text-[#4a4260] min-w-[200px] cursor-pointer select-none"
+                    className="text-xs font-medium text-[#4a4260] cursor-pointer select-none"
                   >
                     Departure {renderSortIcon("departure")}
                   </TableHead>
@@ -610,17 +622,11 @@ export const LatestItinerary = () => {
                   >
                     Created On {renderSortIcon("createdOn")}
                   </TableHead>
-                  <TableHead
-                    onClick={() => toggleSort("nights")}
-                    className="text-xs font-medium text-[#4a4260] cursor-pointer select-none"
-                  >
-                    Nights &amp; Days {renderSortIcon("nights")}
+                  <TableHead className="text-xs font-medium text-[#4a4260]">
+                    Nights &amp; Days
                   </TableHead>
-                  <TableHead
-                    onClick={() => toggleSort("persons")}
-                    className="text-xs font-medium text-[#4a4260] cursor-pointer select-none"
-                  >
-                    No of Person {renderSortIcon("persons")}
+                  <TableHead className="text-xs font-medium text-[#4a4260]">
+                    No of Person
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -635,53 +641,56 @@ export const LatestItinerary = () => {
                         idx +
                         1}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Link
-                          to={`/itinerary-details/${itinerary.quoteId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="View Details"
+                    <TableCell className="px-2 py-2">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        {/* Type badge */}
+                        <span
+                          className={`inline-flex h-5 min-w-[18px] shrink-0 items-center justify-center rounded px-1 text-[10px] font-bold text-white ${
+                            itinerary.type === "Hotel"
+                              ? "bg-[#3b82f6]"
+                              : itinerary.type === "Vehicle"
+                                ? "bg-[#8b43d1]"
+                                : "bg-[#d946ef]"
+                          }`}
                         >
-                          <div className="h-8 w-8 rounded-md bg-[#f057b8] flex items-center justify-center text-white cursor-pointer hover:bg-[#d546ab]">
-                            <Eye className="h-4 w-4" />
-                          </div>
+                          {itinerary.type === "Hotel"
+                            ? "H"
+                            : itinerary.type === "Vehicle"
+                              ? "V"
+                              : "B"}
+                        </span>
+                        {/* Quote ID */}
+                        <Link to={`/itinerary-details/${itinerary.quoteId}`}>
+                          <span className="font-semibold text-[#3b2f55] hover:text-[#d546ab] cursor-pointer text-sm">
+                            {itinerary.quoteId}
+                          </span>
                         </Link>
+                        {/* Actions — always visible */}
                         <Link
                           to={`/create-itinerary?id=${itinerary.id}`}
                           title="Edit Itinerary"
                         >
-                          <div className="h-8 w-8 rounded-md bg-[#4CAF50] flex items-center justify-center text-white cursor-pointer hover:bg-[#45a049]">
-                            <Edit className="h-4 w-4" />
+                          <div className="h-6 w-6 rounded bg-[#4CAF50] flex items-center justify-center text-white hover:bg-[#45a049]">
+                            <Edit className="h-3.5 w-3.5" />
                           </div>
                         </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-[#343434] hover:text-[#d546ab]"
-                          onClick={() => {
-                            // Download Excel export from NestJS backend
-                            const planId = itinerary.id;
-                            const exportUrl = `${API_BASE_URL}/itineraries/export/${planId}`;
-                            window.open(exportUrl, '_blank');
-                          }}
+                        <button
                           title="Download Excel"
+                          onClick={() => {
+                            const exportUrl = `${API_BASE_URL}/itineraries/export/${itinerary.id}`;
+                            window.open(exportUrl, "_blank");
+                          }}
+                          className="h-6 w-6 rounded flex items-center justify-center text-[#555] hover:text-[#d546ab] hover:bg-[#f3e8ff] transition-colors"
                         >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Link
-                          to={`/itinerary-details/${itinerary.quoteId}`}
-                        >
-                          <span className="font-semibold text-[#3b2f55] hover:text-[#d546ab] cursor-pointer">
-                            {itinerary.quoteId}
-                          </span>
-                        </Link>
+                          <Download className="h-3.5 w-3.5" />
+                        </button>
+
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm break-words whitespace-normal">
                       {itinerary.arrival}
                     </TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell className="text-sm break-words whitespace-normal">
                       {itinerary.departure}
                     </TableCell>
                     <TableCell className="text-sm">
@@ -700,7 +709,9 @@ export const LatestItinerary = () => {
                       {itinerary.nights}N / {itinerary.nights + 1}D
                     </TableCell>
                     <TableCell className="text-sm">
-                      {itinerary.persons}
+                      <div>Adult - {itinerary.adults}</div>
+                      <div>Children - {itinerary.children}</div>
+                      <div>Infants - {itinerary.infants}</div>
                     </TableCell>
                   </TableRow>
                 ))}
