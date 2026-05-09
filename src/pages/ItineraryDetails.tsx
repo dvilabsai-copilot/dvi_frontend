@@ -536,6 +536,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const pref = Number(itinerary?.itineraryPreference ?? 0);
     return pref === 2 || pref === 3;
   })();
+  const isVehicleOnly = (() => {
+    const pref = Number(itinerary?.itineraryPreference ?? 0);
+    return pref === 2;
+  })();
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -2065,6 +2069,34 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       }));
   };
 
+  const handleDirectClipboardCopy = async (type: 'recommended' | 'highlights' | 'para') => {
+    if (!itinerary) return;
+
+    try {
+      const { html, plainText } = await ItineraryService.getClipboardContent(
+        itinerary.quoteId,
+        type,
+        [],
+      );
+
+      if (!html || !plainText) {
+        toast.error("Failed to prepare clipboard content");
+        return;
+      }
+
+      await copyHtmlToClipboard(html, plainText)
+        .then(() => {
+          toast.success("Itinerary copied to clipboard!");
+        })
+        .catch(() => {
+          toast.error("Failed to copy to clipboard");
+        });
+    } catch (error) {
+      console.error("Failed to fetch clipboard content", error);
+      toast.error("Failed to prepare clipboard content");
+    }
+  };
+
   const buildClipboardHtml = (mode: ClipboardMode) => {
     if (!hotelDetails || !itinerary) {
       return { html: "", plainText: "" };
@@ -2166,15 +2198,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
                 No hotel available
               </td>
             </tr>
-            <tr>
-              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
-              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
-              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
-              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
-              ${clipboardRatesVisible ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>` : ""}
-              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
-            </tr>
-            ${rowsHtml}
           `;
 
         return groupLabelRow + dataRows;
@@ -6586,30 +6609,42 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
+              onClick={async () => {
                 setClipboardType('recommended');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
+                if (isVehicleOnly) {
+                  await handleDirectClipboardCopy('recommended');
+                } else {
+                  setSelectedHotels(buildDefaultClipboardSelection());
+                  setClipboardModal(true);
+                }
               }}
             >
               <span>📋</span> Copy Recommended
             </button>
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
+              onClick={async () => {
                 setClipboardType('highlights');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
+                if (isVehicleOnly) {
+                  await handleDirectClipboardCopy('highlights');
+                } else {
+                  setSelectedHotels(buildDefaultClipboardSelection());
+                  setClipboardModal(true);
+                }
               }}
             >
               <span>✨</span> Copy to Highlights
             </button>
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-              onClick={() => {
+              onClick={async () => {
                 setClipboardType('para');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
+                if (isVehicleOnly) {
+                  await handleDirectClipboardCopy('para');
+                } else {
+                  setSelectedHotels(buildDefaultClipboardSelection());
+                  setClipboardModal(true);
+                }
               }}
             >
               <span>📝</span> Copy to Para
