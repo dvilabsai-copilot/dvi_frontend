@@ -1,5 +1,5 @@
 // src/pages/hotels/HotelBasicInfoTab.tsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Hotel } from "@/services/hotels";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,15 +7,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X } from "lucide-react";
 
+type HotelBasicInfoFormData = Partial<Hotel> & {
+  name?: string;
+  place?: string;
+  status?: string;
+  mobile?: string[];
+  email?: string[];
+  category?: string;
+  powerBackup?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  pincode?: string;
+  hotelCode?: string;
+  hotelMarginPercent?: number;
+  hotelMarginGstType?: string;
+  hotelMarginGstPercent?: string;
+  latitude?: string;
+  longitude?: string;
+  hotspotStatus?: string;
+  address?: string;
+};
+
 interface HotelBasicInfoTabProps {
-  initialData: Partial<Hotel>;
-  onSave: (data: Partial<Hotel>) => void;
+  initialData: HotelBasicInfoFormData;
+  onSave: (data: HotelBasicInfoFormData) => void;
   loading: boolean;
   onBack: () => void;
 }
 
 export const HotelBasicInfoTab = ({ initialData, onSave, loading, onBack }: HotelBasicInfoTabProps) => {
-  const [formData, setFormData] = useState<Partial<Hotel>>(initialData);
+  const [formData, setFormData] = useState<HotelBasicInfoFormData>(initialData);
   const [mobileInput, setMobileInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
 
@@ -23,9 +45,9 @@ export const HotelBasicInfoTab = ({ initialData, onSave, loading, onBack }: Hote
     setFormData(initialData);
   }, [initialData]);
 
-  const updateField = (field: keyof Hotel, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
+const updateField = (field: keyof HotelBasicInfoFormData, value: any) => {
+  setFormData((prev) => ({ ...prev, [field]: value }));
+};
 
   const addMobile = () => {
     if (mobileInput.trim()) {
@@ -37,7 +59,7 @@ export const HotelBasicInfoTab = ({ initialData, onSave, loading, onBack }: Hote
 
   const removeMobile = (index: number) => {
     const mobiles = formData.mobile || [];
-    updateField("mobile", mobiles.filter((_, i) => i !== index));
+    updateField("mobile", mobiles.filter((_: string, i: number) => i !== index));
   };
 
   const addEmail = () => {
@@ -50,13 +72,13 @@ export const HotelBasicInfoTab = ({ initialData, onSave, loading, onBack }: Hote
 
   const removeEmail = (index: number) => {
     const emails = formData.email || [];
-    updateField("email", emails.filter((_, i) => i !== index));
+    updateField("email", emails.filter((_: string, i: number) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave(formData);
-  };
+const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  onSave(formData);
+};
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
