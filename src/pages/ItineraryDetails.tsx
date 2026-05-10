@@ -2029,9 +2029,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {
+      const outlookSafeHtml = `
+        <div style="display:block;width:100%;margin:0;padding:0;font-family:Calibri;font-size:11px;color:#302c6e;">
+          ${html.trim()}
+          <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">
+            <tr><td style="font-size:1px;line-height:1px;height:1px;">&nbsp;</td></tr>
+          </table>
+        </div>
+      `;
+
       if (window.ClipboardItem && navigator.clipboard?.write) {
         const item = new ClipboardItem({
-          "text/html": new Blob([html], { type: "text/html" }),
+          "text/html": new Blob([outlookSafeHtml], { type: "text/html" }),
           "text/plain": new Blob([plainText], { type: "text/plain" }),
         });
 
@@ -2283,14 +2292,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   `;
 
     const fullHtml = `
-    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
-      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
-        <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;display:block;width:100%;">
+      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;text-align:left;display:block;">
+        <table width="700" align="left" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;float:none;display:block;">
           <tr><td style="padding-bottom:8px;">${summaryHtml}</td></tr>
           <tr><td style="padding-bottom:8px;">${hotelSectionsHtml}</td></tr>
           ${vehicleSectionHtml ? `<tr><td style="padding-bottom:8px;">${vehicleSectionHtml}</td></tr>` : ""}
           <tr><td style="padding-bottom:8px;">${costSectionHtml}</td></tr>
         </table>
+        <p style="margin:0; clear:both; text-align:left; line-height:0; font-size:0;">&nbsp;</p>
       </div>
     </div>
   `;
