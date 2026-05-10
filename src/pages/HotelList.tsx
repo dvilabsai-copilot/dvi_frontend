@@ -352,9 +352,18 @@ export const HotelList: React.FC<HotelListProps> = ({
     return baseAmount;
   };
 
-  const getHotelsForStay = (sourceHotels: ItineraryHotelRow[], routeId: number, stayDate: string) => {
+  const getHotelsForStay = (
+    sourceHotels: ItineraryHotelRow[],
+    routeId: number,
+    stayDate: string,
+    groupType?: number,
+  ) => {
     const hotelsForRoute = sourceHotels
       .filter((h: any) => toNumber(h.itineraryRouteId, 0) === routeId)
+      .filter((h: any) => {
+        if (!groupType || groupType <= 0) return true;
+        return toNumber((h as any).groupType, 0) === toNumber(groupType, 0);
+      })
       .filter((h: any) => String(h.date || '').trim() === stayDate)
       .map((h: any) => ({
         ...h,
@@ -395,6 +404,13 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
 
     return Array.from(uniqueByRateOption.values());
+  };
+
+  const isPlaceholderHotel = (hotel?: Partial<ItineraryHotelRow> | null): boolean => {
+    if (!hotel) return true;
+    const name = String((hotel as any).hotelName || '').trim().toLowerCase();
+    const hotelId = toNumber((hotel as any).hotelId, 0);
+    return name === 'no hotels available' || hotelId <= 0;
   };
 
   // ✅ Track selected hotel PER GROUP TYPE and PER STAY
@@ -457,6 +473,19 @@ export const HotelList: React.FC<HotelListProps> = ({
         }
 
         Object.entries(stayMap).forEach(([stayKey, hotelOptions]) => {
+          const hasExistingSelection = Boolean(newSelected[groupType][stayKey]);
+          const existingSelection = newSelected[groupType][stayKey];
+          const hasRealOptions = hotelOptions.some((option) => !isPlaceholderHotel(option));
+
+          // Replace stale placeholder default with real option as soon as any real option exists.
+          if (
+            hasExistingSelection &&
+            isPlaceholderHotel(existingSelection) &&
+            hasRealOptions
+          ) {
+            delete newSelected[groupType][stayKey];
+          }
+
           if (!newSelected[groupType][stayKey]) {
             const persistedSelection = [...hotelOptions]
               .filter((option) => toNumber((option as any).itineraryPlanHotelDetailsId, 0) > 0)
@@ -467,7 +496,11 @@ export const HotelList: React.FC<HotelListProps> = ({
               return;
             }
 
-            const sortedByPrice = [...hotelOptions].sort((a, b) => {
+            const candidateOptions = hasRealOptions
+              ? hotelOptions.filter((option) => !isPlaceholderHotel(option))
+              : [...hotelOptions];
+
+            const sortedByPrice = [...candidateOptions].sort((a, b) => {
               const priceA = (a.totalHotelCost || 0) + (a.totalHotelTaxAmount || 0);
               const priceB = (b.totalHotelCost || 0) + (b.totalHotelTaxAmount || 0);
               return priceA - priceB;
@@ -565,7 +598,12 @@ export const HotelList: React.FC<HotelListProps> = ({
       return;
     }
 
-    const updatedHotels = getHotelsForStay(hotels, routeId, stayDate);
+    const updatedHotels = getHotelsForStay(
+      hotels,
+      routeId,
+      stayDate,
+      toNumber(activeGroupType, 0),
+    );
     if (updatedHotels.length === 0) {
       setExpandedRowKey(null);
       setRoomDetails([]);
@@ -605,7 +643,11 @@ export const HotelList: React.FC<HotelListProps> = ({
         return selectedForGroup;
       }
 
-      const sortedStayHotels = [...stayHotels].sort((a, b) => {
+      const candidateHotels = stayHotels.some((hotel) => !isPlaceholderHotel(hotel))
+        ? stayHotels.filter((hotel) => !isPlaceholderHotel(hotel))
+        : [...stayHotels];
+
+      const sortedStayHotels = [...candidateHotels].sort((a, b) => {
         const priceA = getHotelAmountWithRooms(a);
         const priceB = getHotelAmountWithRooms(b);
         if (priceA !== priceB) return priceA - priceB;
@@ -751,7 +793,11 @@ export const HotelList: React.FC<HotelListProps> = ({
         return userSelected;
       }
       const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
-      const sortedStayHotels = [...stayHotels].sort((a, b) => {
+      const candidateHotels = stayHotels.some((hotel) => !isPlaceholderHotel(hotel))
+        ? stayHotels.filter((hotel) => !isPlaceholderHotel(hotel))
+        : [...stayHotels];
+
+      const sortedStayHotels = [...candidateHotels].sort((a, b) => {
         const ratingDiff = toNumber(b.category, 0) - toNumber(a.category, 0);
         if (ratingDiff !== 0) return ratingDiff;
         const priceA = getHotelAmountWithRooms(a);
@@ -838,7 +884,12 @@ export const HotelList: React.FC<HotelListProps> = ({
     const itineraryStayDate = String(hotel.date || '').trim();
     setSelectedHotelId(hotel.hotelId);
 
-    let uniqueHotels = getHotelsForStay(localHotels, Number(itineraryRouteId || 0), itineraryStayDate);
+    let uniqueHotels = getHotelsForStay(
+      localHotels,
+      Number(itineraryRouteId || 0),
+      itineraryStayDate,
+      toNumber(activeGroupType, 0),
+    );
 
     // ✅ Sort to put selected hotel first, then remaining hotels
     const selectedHotelId = hotel.hotelId;
