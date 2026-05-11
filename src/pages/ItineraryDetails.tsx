@@ -2410,20 +2410,93 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
   };
 
-  const htmlToPlainText = (html: string): string => {
-    return html
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#039;/g, "'")
-      .replace(/\s+/g, " ")
-      .trim();
-  };
+const htmlToPlainText = (html: string): string => {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const cleanVehicleOnlyClipboardHtml = (html: string): string => {
+  if (!html) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  doc.querySelectorAll("table").forEach((table) => {
+    const rows = Array.from(table.querySelectorAll("tr"));
+
+    const hotelStartIndex = rows.findIndex((row) =>
+      /Recommended Hotel/i.test(row.textContent || ""),
+    );
+
+    const vehicleStartIndex = rows.findIndex((row, index) =>
+      index > hotelStartIndex && /Vehicle Details/i.test(row.textContent || ""),
+    );
+
+    if (hotelStartIndex !== -1 && vehicleStartIndex !== -1) {
+      rows.slice(hotelStartIndex, vehicleStartIndex).forEach((row) => row.remove());
+    }
+  });
+
+  doc.querySelectorAll("td, th").forEach((cell) => {
+    const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+    if (/^Room Count\b/i.test(text)) {
+      cell.remove();
+    }
+  });
+
+  doc.querySelectorAll("tr").forEach((row) => {
+    const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+    if (/^Total Room Cost\b/i.test(text)) {
+      row.remove();
+    }
+  });
+
+  return doc.body.innerHTML;
+};
+
+const handleVehicleOnlyClipboardCopy = async () => {
+  if (!quoteId || itineraryPreference !== 2) return;
+
+  try {
+    const { html, plainText } = await ItineraryService.getClipboardContent(
+      quoteId,
+      "recommended",
+      [],
+    );
+
+    if (!html && !plainText) {
+      toast.error("Failed to prepare clipboard content");
+      return;
+    }
+
+const vehicleOnlyHtml = html
+  ? cleanVehicleOnlyClipboardHtml(html)
+  : plainText;
+
+  
+    const vehicleOnlyPlainText = vehicleOnlyHtml
+      ? htmlToPlainText(vehicleOnlyHtml)
+      : plainText;
+
+    await copyHtmlToClipboard(vehicleOnlyHtml, vehicleOnlyPlainText);
+    toast.success("Formatted clipboard content copied!");
+  } catch (error) {
+    console.error("Failed to copy vehicle-only clipboard content", error);
+    toast.error("Failed to copy clipboard content");
+  }
+};
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
   const [voucherModal, setVoucherModal] = useState(false);
@@ -6558,44 +6631,53 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 justify-center">
-        {/* Clipboard Dropdown */}
-        <div className="relative group">
-          <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
-            Clipboard ▼
-          </Button>
-          <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                setClipboardType('recommended');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>📋</span> Copy Recommended
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                setClipboardType('highlights');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>✨</span> Copy to Highlights
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-              onClick={() => {
-                setClipboardType('para');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>📝</span> Copy to Para
-            </button>
-          </div>
-        </div>
+       {/* Clipboard Dropdown */}
+{itineraryPreference === 2 ? (
+  <Button
+    className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]"
+    onClick={handleVehicleOnlyClipboardCopy}
+  >
+    Clipboard
+  </Button>
+) : (
+  <div className="relative group">
+    <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
+      Clipboard ▼
+    </Button>
+    <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+        onClick={() => {
+          setClipboardType('recommended');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>📋</span> Copy Recommended
+      </button>
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+        onClick={() => {
+          setClipboardType('highlights');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>✨</span> Copy to Highlights
+      </button>
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
+        onClick={() => {
+          setClipboardType('para');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>📝</span> Copy to Para
+      </button>
+    </div>
+  </div>
+)}
 
         <Link to="/create-itinerary">
           <Button className="bg-[#28a745] hover:bg-[#218838]">
@@ -7794,7 +7876,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       </Dialog>
 
       {/* Clipboard Modal */}
-      <Dialog open={clipboardModal} onOpenChange={setClipboardModal}>
+      <Dialog
+  open={itineraryPreference === 2 ? false : clipboardModal}
+  onOpenChange={itineraryPreference === 2 ? undefined : setClipboardModal}
+>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
