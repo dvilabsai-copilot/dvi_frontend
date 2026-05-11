@@ -100,9 +100,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
               </div>
             </div>
             <div className="text-sm font-semibold text-slate-800">{savingLabel}...</div>
-            <div className="text-xs text-slate-500">
-              Estimated ~{Math.max(1, estimatedSeconds)}s for {dayCount} day{dayCount > 1 ? "s" : ""}
-            </div>
+          
           </div>
         )}
       </div>
