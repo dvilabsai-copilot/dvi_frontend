@@ -5516,8 +5516,10 @@ const vehicleOnlyHtml = html
                   {routeProgressPct}%
                 </div>
               </div>
+
               <div className="text-sm font-semibold text-slate-800">Updating itinerary...</div>
               <div className="text-xs text-slate-500">Estimated ~{Math.max(1, Math.round(routeTimeEstimatedMs / 1000))}s</div>
+
             </div>
           </div>
         </div>
