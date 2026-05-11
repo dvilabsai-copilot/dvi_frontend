@@ -18,7 +18,14 @@ type HotelReview = {
 const ratingOptions = ["1", "2", "3", "4", "5"];
 
 function formatDate(date: Date) {
-  return date.toLocaleDateString("en-US");
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
 }
 
 function getStorageKey(hotelId: number | null) {

@@ -8,7 +8,22 @@ type ApiCtx = {
 
 // Safe string render
 const S = (v: any) => (v === null || v === undefined || v === "" ? "-" : String(v));
-const isNumericLike = (v: any) => {
+
+const formatReviewDate = (value: any) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};const isNumericLike = (v: any) => {
   if (v === null || v === undefined || v === "") return false;
   const n = Number(v);
   return Number.isFinite(n);
@@ -431,7 +446,7 @@ export default function PreviewStep({
                     <td>{idx + 1}</td>
                     <td>{r.rating}</td>
                     <td>{r.description}</td>
-                    <td>{r.createdOn}</td>
+                    <td>{formatReviewDate(r.createdOn)}</td>
                   </tr>
                 ))
               )}
