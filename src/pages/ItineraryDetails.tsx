@@ -20,6 +20,7 @@ import {
 import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, Loader2, RefreshCw, Edit } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
+import type { VehicleBuildStatusResponse } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
@@ -363,6 +364,8 @@ type ItineraryHotelDetailsResponse = {
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
 };
 
+type VehicleBuildState = "PENDING" | "PROCESSING" | "READY" | "FAILED";
+
 // Dedupe in-flight details requests per quote to prevent duplicate API calls
 // in React StrictMode/dev remount scenarios.
 const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
@@ -540,6 +543,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildStatusResponse | null>(null);
+  const [isRetryingVehicleBuild, setIsRetryingVehicleBuild] = useState(false);
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -1261,6 +1266,38 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
+  const vehicleStatusChip = useMemo(() => {
+    if (!shouldShowVehicles) return null;
+
+    const status = String(vehicleBuildStatus?.status || "").toUpperCase() as VehicleBuildState | "";
+    if (!status) return null;
+
+    if (status === "PROCESSING" || status === "PENDING") {
+      return {
+        status,
+        label: "Vehicle Processing",
+        className: "border-[#d546ab]/30 bg-[#fdf2fb] text-[#9f2d7d]",
+      };
+    }
+
+    if (status === "FAILED") {
+      return {
+        status,
+        label: "Vehicle Failed",
+        className: "border-[#f2c7c7] bg-[#fff5f5] text-[#b83232]",
+      };
+    }
+
+    if (status === "READY") {
+      return {
+        status,
+        label: "Vehicle Ready",
+        className: "border-[#c8ead7] bg-[#f0fff6] text-[#1f7a4d]",
+      };
+    }
+
+    return null;
+  }, [shouldShowVehicles, vehicleBuildStatus?.status]);
 
   const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
     if (!quoteId || isLoadingMoreHotels) return;
@@ -3050,6 +3087,73 @@ const vehicleOnlyHtml = html
       console.error("Failed to refresh vehicle data", e);
     }
   }, [quoteId]);
+
+  const fetchVehicleBuildStatus = useCallback(async (planId: number) => {
+    try {
+      const res = await ItineraryService.getVehicleBuildStatus(planId);
+      setVehicleBuildStatus(res);
+      return res;
+    } catch (e: any) {
+      console.error("Failed to fetch vehicle build status", e);
+      return null;
+    }
+  }, []);
+
+  const handleRetryVehicleBuild = useCallback(async () => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!planId || isRetryingVehicleBuild) return;
+
+    try {
+      setIsRetryingVehicleBuild(true);
+      const statusRes = await ItineraryService.triggerVehicleBuildAsync(planId);
+      setVehicleBuildStatus(statusRes);
+      toast.success("Vehicle build retriggered");
+    } catch (e: any) {
+      console.error("Failed to retrigger vehicle build", e);
+      toast.error(e?.message || "Failed to retrigger vehicle build");
+    } finally {
+      setIsRetryingVehicleBuild(false);
+    }
+  }, [itinerary?.planId, isRetryingVehicleBuild]);
+
+  useEffect(() => {
+    setVehicleBuildStatus(null);
+  }, [quoteId]);
+
+  useEffect(() => {
+    const planId = Number(itinerary?.planId || 0);
+    const hasVehicleRows = Array.isArray(itinerary?.vehicles) && itinerary.vehicles.length > 0;
+    if (!shouldShowVehicles || !planId || hasVehicleRows) {
+      return;
+    }
+
+    let disposed = false;
+    let timerId: number | null = null;
+
+    const poll = async () => {
+      const statusRes = await fetchVehicleBuildStatus(planId);
+      if (disposed || !statusRes) return;
+
+      const state = String(statusRes.status || "").toUpperCase() as VehicleBuildState;
+      if (state === "READY") {
+        await refreshVehicleData();
+        return;
+      }
+
+      if (state === "FAILED") {
+        return;
+      }
+
+      timerId = window.setTimeout(poll, 3000);
+    };
+
+    poll();
+
+    return () => {
+      disposed = true;
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [itinerary?.planId, itinerary?.vehicles, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
 
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
@@ -5544,6 +5648,16 @@ const vehicleOnlyHtml = html
                       Vehicle
                     </button>
                     <span className="text-[#6c6c6c]">Only</span>
+                    {vehicleStatusChip && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
+                      >
+                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {vehicleStatusChip.label}
+                      </span>
+                    )}
                   </>
                 )}
                 {itineraryPreference === 1 && (
@@ -5578,6 +5692,16 @@ const vehicleOnlyHtml = html
                     >
                       Hotel
                     </button>
+                    {vehicleStatusChip && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
+                      >
+                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {vehicleStatusChip.label}
+                      </span>
+                    )}
                   </>
                 )}
                 <span className="text-[#6c6c6c]">)</span>
@@ -6434,6 +6558,56 @@ const vehicleOnlyHtml = html
           </div>
         );
       })()}
+
+      {shouldShowVehicles && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+        <div ref={vehicleListRef} id="vehicle-list-section">
+          <Card className="border border-[#e5d9f2] bg-white">
+            <CardContent className="py-10 px-6">
+              {(vehicleBuildStatus?.status === "PENDING" ||
+                vehicleBuildStatus?.status === "PROCESSING" ||
+                !vehicleBuildStatus) && (
+                <div className="flex items-center justify-center gap-3 text-[#6c6c6c]">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+                  <span>Building vehicle list. Please wait...</span>
+                </div>
+              )}
+
+              {vehicleBuildStatus?.status === "FAILED" && (
+                <div className="flex flex-col items-center gap-3 text-center text-[#6c6c6c]">
+                  <div className="flex items-center gap-2 text-[#c53030]">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span>Vehicle build failed.</span>
+                  </div>
+                  {vehicleBuildStatus.error && (
+                    <p className="text-xs text-[#8a8a8a] max-w-[800px] break-words">
+                      {vehicleBuildStatus.error}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={handleRetryVehicleBuild}
+                    disabled={isRetryingVehicleBuild}
+                    className="bg-[#d546ab] hover:bg-[#bb3a94]"
+                  >
+                    {isRetryingVehicleBuild ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      "Retry Vehicle Build"
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {vehicleBuildStatus?.status === "READY" && (
+                <div className="text-center text-[#6c6c6c]">No Vehicle available</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Package Includes & Overall Cost */}
       <div className="grid lg:grid-cols-2 gap-6">

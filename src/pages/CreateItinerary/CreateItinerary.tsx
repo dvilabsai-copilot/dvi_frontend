@@ -1520,12 +1520,20 @@ const handleSaveWithType = async (
       res?.quoteId && typeof res.quoteId === "string"
         ? res.quoteId
         : null;
+    const vehicleBuildProcessing =
+      String(res?.vehicleBuildStatus || "").toUpperCase() === "PROCESSING";
 
     toast({
       title: isUpdate ? "Itinerary updated" : "Itinerary created",
-      description: isUpdate
-        ? "The itinerary has been updated successfully."
-        : "The itinerary has been created successfully.",
+      description: `${
+        isUpdate
+          ? "The itinerary has been updated successfully."
+          : "The itinerary has been created successfully."
+      }${
+        vehicleBuildProcessing
+          ? " Vehicle list is being prepared in the background."
+          : ""
+      }`,
     });
 
     setShowRouteConfirm(false);
