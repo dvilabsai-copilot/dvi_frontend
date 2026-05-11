@@ -65,13 +65,24 @@ async function downloadExcel(headers: string[], rows: string[][], filename: stri
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
+
+
 function fmtDate(d: any) {
   const raw = d ?? "";
   if (!raw) return "-";
+
   try {
     const dt = new Date(raw);
     if (isNaN(dt.getTime())) return String(raw);
-    return dt.toLocaleDateString();
+
+    return dt.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   } catch {
     return String(raw);
   }
