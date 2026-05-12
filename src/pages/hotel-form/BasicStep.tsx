@@ -27,11 +27,17 @@ function ChipInput({
     if (!items.length) return;
     const next = [...value];
     for (const item of items) {
-      if (type === "phone") {
-        const ph = item.replace(/[^\d+]/g, "");
-        if (ph.length < 7) continue;
-        if (!next.includes(ph)) next.push(ph);
-      } else if (type === "email") {
+if (type === "phone") {
+  const ph = item.replace(/\D/g, "").slice(0, 10);
+
+  if (!/^[6-9]\d{9}$/.test(ph)) {
+    continue;
+  }
+
+  if (!next.includes(ph)) next.push(ph);
+}
+
+      else if (type === "email") {
         const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item);
         if (!ok) continue;
         if (!next.includes(item)) next.push(item);
@@ -94,12 +100,20 @@ const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
         </span>
       ))}
       <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="flex-1 min-w-[160px] outline-none bg-transparent"
-      />
+  value={text}
+  onChange={(e) => {
+    const nextValue =
+      type === "phone"
+        ? e.target.value.replace(/\D/g, "").slice(0, 10)
+        : e.target.value;
+
+    setText(nextValue);
+  }}
+  maxLength={type === "phone" ? 10 : undefined}
+  onKeyDown={handleKeyDown}
+  placeholder={placeholder}
+  className="flex-1 min-w-[160px] outline-none bg-transparent"
+/>
     </div>
   );
 }
