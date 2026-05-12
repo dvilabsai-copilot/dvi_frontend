@@ -274,10 +274,9 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const stickyHeaderClass = "sticky top-0 z-20 bg-white border-b border-slate-200";
-  const stickyCol1 = "sticky left-0 z-10 bg-white border-r border-slate-200";
-  const stickyCol2 = "sticky left-[210px] z-10 bg-white border-r border-slate-200";
-
+const stickyHeaderClass = "sticky top-0 z-30 border border-slate-300 bg-[#9b9b9b] text-white";
+const stickyCol1 = "sticky left-0 z-40 min-w-[160px] w-[160px] border-r border-slate-300";
+const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r border-slate-300";
   function formatDisplayDate(ymd: string) {
     const d = new Date(`${ymd}T00:00:00`);
     if (Number.isNaN(d.getTime())) return ymd;
@@ -460,35 +459,41 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
           <table className="min-w-max border-collapse text-sm">
             <thead>
               <tr>
-                <th
-                  className={clsx(
-                    stickyHeaderClass,
-                    stickyCol1,
-                    "min-w-[210px] border border-slate-300 bg-[#9b9b9b] p-2 text-left font-semibold text-white",
-                  )}
-                >
-                  Vendor Name
-                </th>
-                <th
-                  className={clsx(
-                    stickyHeaderClass,
-                    stickyCol2,
-                    "min-w-[240px] border border-slate-300 bg-[#9b9b9b] p-2 text-left font-semibold text-white",
-                  )}
-                >
-                  Vehicle Type
-                </th>
-                {data.dates.map((d) => (
-                  <th
-                    key={d}
-                    className={clsx(
-                      stickyHeaderClass,
-                      "min-w-[190px] border border-slate-300 bg-[#9b9b9b] px-2 py-2 text-left font-semibold text-white",
-                    )}
-                  >
-                    <div className="text-xs">{formatDisplayDate(d)}</div>
-                  </th>
-                ))}
+
+<th
+ className={clsx(
+  stickyHeaderClass,
+  stickyCol1,
+  "z-50 min-w-[160px] w-[160px] bg-[#9b9b9b] p-3 text-left text-sm font-semibold text-white",
+)}
+>
+  Vendor
+</th>
+
+<th
+  className={clsx(
+    stickyHeaderClass,
+    stickyCol2,
+      "z-50 min-w-[180px] w-[180px] bg-[#9b9b9b] p-3 text-left text-sm font-semibold text-white",
+  )}
+>
+  Vehicle Type
+</th>
+
+{data.dates.map((d) => (
+  <th
+    key={d}
+    className={clsx(
+      stickyHeaderClass,
+      "min-w-[140px] p-3 text-left text-sm font-semibold",
+    )}
+  >
+    {formatDisplayDate(d)}
+  </th>
+))}
+
+                  
+              
               </tr>
             </thead>
 
@@ -506,13 +511,13 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
 
               {filteredRows.map((row) => (
                 <tr key={`${row.vendorId}-${row.vehicleTypeId}-${row.vehicleId}`}>
-                  <td className={clsx(stickyCol1, "border border-slate-300 bg-[#fbf9ff] p-2 align-top")}>
+                  <td className={clsx(stickyCol1, "border border-slate-300 bg-[#fbf9ff] p-3 align-top")}>
                     <div className="text-sm font-medium text-slate-900">
                       {row.vendorName || `Vendor #${row.vendorId}`}
                     </div>
                   </td>
 
-                  <td className={clsx(stickyCol2, "border border-slate-300 bg-[#fbf9ff] p-2 align-top")}>
+                 <td className={clsx(stickyCol2, "border border-slate-300 bg-[#fbf9ff] p-3 align-top")}>
                     <div className="text-sm font-medium text-slate-900">
                       {row.vehicleTypeTitle?.trim()
                         ? row.vehicleTypeTitle
