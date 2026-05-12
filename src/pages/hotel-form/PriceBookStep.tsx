@@ -388,7 +388,6 @@ export default function PriceBookStep({
       if (selectedRoomId === null) return { items: [] };
       return api.apiGetFirst([
         `/api/v1/hotels/${hotelId}/rooms/${selectedRoomId}/rateplans`,
-        `/api/v1/hotels/rateplans`,
       ]).catch(() => ({ items: [] }));
     },
   });
