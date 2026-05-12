@@ -100,12 +100,27 @@ const viaRoutePlaceOptions = useMemo(
   () =>
     Array.from(
       new Set(
-        [...(sources || []), ...(destinations || [])]
+        [
+          ...(sources || []),
+          ...(destinations || []),
+          selectedSource,
+          selectedDestination,
+          ...(routeSuggestions || []),
+        ]
           .map((item) => String(item || "").trim())
           .filter(Boolean)
       )
     ).sort((a, b) => a.localeCompare(b)),
-  [sources, destinations]
+  [sources, destinations, selectedSource, selectedDestination, routeSuggestions]
+);
+
+const suggestionDayOptions: AutoSuggestOption[] = useMemo(
+  () =>
+    viaRoutePlaceOptions.map((item) => ({
+      value: item,
+      label: item,
+    })),
+  [viaRoutePlaceOptions]
 );
 
 const filteredRouteSuggestions = useMemo(() => {
@@ -1869,19 +1884,24 @@ const confirmDeleteSelectedSuggestion = async () => {
                   #{`Day ${index + 1}`}
                 </label>
                 <LocationAutosuggestInput
-                  placeholder="Search location..."
-                  value={dayValue}
-                  onValueChange={(value) =>
-                    setEditingSuggestionDays((prev) =>
-                      prev.map((item, itemIndex) =>
-                        itemIndex === index ? value : item
-                      )
-                    )
-                  }
-                  search={(phrase) =>
-                    locationsApi.searchDestinations(phrase, selectedSource)
-                  }
-                />
+  placeholder="Search location..."
+  value={dayValue}
+  onValueChange={(value) =>
+    setEditingSuggestionDays((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index ? value : item
+      )
+    )
+  }
+  search={(phrase) =>
+    locationsApi.searchDestinations(phrase, selectedSource, {
+      dayNo: index + 1,
+      totalNoOfDays: editingSuggestionDays.length,
+      departureLocation: selectedSource,
+    })
+  }
+  defaultItems={viaRoutePlaceOptions}
+/>
               </div>
             ))}
           </div>
@@ -2010,19 +2030,18 @@ const confirmDeleteSelectedSuggestion = async () => {
               <label className="text-sm font-medium mb-2 block">
                 #{`Day ${index + 1}`}
               </label>
-              <LocationAutosuggestInput
-                placeholder="Search location..."
+              <AutoSuggestSelect
+                mode="single"
                 value={dayValue}
-                onValueChange={(value) =>
+                onChange={(value) =>
                   setAddingSuggestionDays((prev) =>
                     prev.map((item, itemIndex) =>
-                      itemIndex === index ? value : item
+                      itemIndex === index ? String(value || "") : item
                     )
                   )
                 }
-                search={(phrase) =>
-                  locationsApi.searchDestinations(phrase, selectedSource)
-                }
+                options={suggestionDayOptions}
+                placeholder="Choose Location"
               />
             </div>
           ))}
