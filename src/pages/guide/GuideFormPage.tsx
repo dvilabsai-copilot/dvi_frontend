@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronRight,
+  ChevronRight,Copy,
+  FileSpreadsheet,
+  FileText,
   ChevronDown,
   Eye,
   EyeOff,
@@ -384,6 +386,7 @@ export default function GuideFormPage() {
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+const [searchReview, setSearchReview] = useState("");
   const [emailDuplicateError, setEmailDuplicateError] = useState(false);
 
   // Field-level validation errors
@@ -1020,11 +1023,63 @@ export default function GuideFormPage() {
     setNewRating(Number(review.rating || 0));
     setNewFeedback(review.description || "");
   };
+const handleCopyReviews = async () => {
+  const text = filteredReviews
+    .map(
+      (r, i) =>
+        `${i + 1}. Rating: ${r.rating} | Description: ${r.description} | Created: ${r.createdOn}`
+    )
+    .join("\n");
+
+  await navigator.clipboard.writeText(text);
+
+  toast.success("Copied Successfully");
+};
+
+const handleDownloadCSV = () => {
+  const headers = ["S.NO", "RATING", "DESCRIPTION", "CREATED ON"];
+
+  const rows = filteredReviews.map((r, i) => [
+    i + 1,
+    r.rating,
+    r.description,
+    r.createdOn,
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((e) => e.join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "guide_reviews.csv";
+
+  link.click();
+
+  toast.success("CSV Downloaded");
+};
+
+const handleDownloadExcel = () => {
+  handleDownloadCSV();
+
+  toast.success("Excel Downloaded");
+};
 
   const handleConfirm = async () => {
     toast.success("Guide saved successfully");
     navigate("/guide");
   };
+
+  const filteredReviews = reviews.filter((review) =>
+  review.description
+    ?.toLowerCase()
+    .includes(searchReview.toLowerCase())
+);
 
   const renderStars = (count: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -2096,56 +2151,165 @@ export default function GuideFormPage() {
                 )}
               </div>
 
-              {/* Right: Reviews List */}
-              <div className="bg-white border rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold">List of Reviews</h3>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>S.NO</TableHead>
-                      <TableHead>RATING</TableHead>
-                      <TableHead>DESCRIPTION</TableHead>
-                      <TableHead>CREATED ON</TableHead>
-                      <TableHead>ACTION</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reviews.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center">
-                          No reviews yet
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      reviews.map((review, idx) => (
-                        <TableRow key={review.id}>
-                          <TableCell>{idx + 1}</TableCell>
-                          <TableCell>
-                            <div className="flex">{renderStars(review.rating)}</div>
-                          </TableCell>
-                          <TableCell>{review.description}</TableCell>
-                          <TableCell>{review.createdOn}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => handleEditReview(review)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteReview(review.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+
+              {/* Right: Reviews List */}
+<div className="bg-white border rounded-lg p-6 min-h-[520px]">
+  <h3 className="text-[18px] font-semibold mb-6">
+    List of Reviews
+  </h3>
+
+  {/* Toolbar */}
+  <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+    
+    {/* Left Controls */}
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="flex items-center gap-2">
+        <span className="text-[15px]">Show</span>
+
+        <select className="h-10 w-[90px] rounded-md border border-gray-300 bg-white px-3">
+          <option>10</option>
+          <option>25</option>
+          <option>50</option>
+        </select>
+
+        <span className="text-[15px]">entries</span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-[15px]">Search:</span>
+
+       <Input
+  className="w-[220px]"
+  value={searchReview}
+  onChange={(e) => setSearchReview(e.target.value)}
+  placeholder="Search reviews"
+/>
+      </div>
+    </div>
+
+    {/* Right Buttons */}
+    <div className="flex flex-wrap items-center gap-3">
+      <Button
+  variant="outline"
+  onClick={handleCopyReviews}
+  className="border-violet-500 text-violet-600"
+>
+  <Copy className="h-4 w-4 mr-2" />
+  Copy
+</Button>
+
+      <Button
+  variant="outline"
+  onClick={handleDownloadExcel}
+  className="border-green-500 text-green-600"
+>
+  <FileSpreadsheet className="h-4 w-4 mr-2" />
+  Excel
+</Button>
+
+     <Button
+  variant="outline"
+  onClick={handleDownloadCSV}
+>
+  <FileText className="h-4 w-4 mr-2" />
+  CSV
+</Button>
+    </div>
+  </div>
+
+  {/* Table */}
+  <div className="overflow-x-auto">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>S.NO</TableHead>
+          <TableHead>RATING</TableHead>
+          <TableHead>DESCRIPTION</TableHead>
+          <TableHead>CREATED ON</TableHead>
+          <TableHead>ACTION</TableHead>
+        </TableRow>
+      </TableHeader>
+
+      <TableBody>
+        {filteredReviews.length === 0 ? (
+          <TableRow>
+            <TableCell
+              colSpan={5}
+              className="text-center py-10 text-gray-500"
+            >
+              No data available in table
+            </TableCell>
+          </TableRow>
+        ) : (
+          filteredReviews.map((review, idx) => (
+            <TableRow key={review.id}>
+              <TableCell>{idx + 1}</TableCell>
+
+              <TableCell>
+                <div className="flex gap-1">
+                  {renderStars(review.rating)}
+                </div>
+              </TableCell>
+
+              <TableCell>
+                {review.description}
+              </TableCell>
+
+              <TableCell>
+                {review.createdOn}
+              </TableCell>
+
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleEditReview(review)}
+                  >
+                    <Pencil className="h-4 w-4 text-violet-600" />
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleDeleteReview(review.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))
+        )}
+      </TableBody>
+    </Table>
+  </div>
+
+  {/* Footer */}
+  <div className="flex items-center justify-between mt-6">
+    <p className="text-sm text-gray-500">
+      Showing {reviews.length > 0 ? 1 : 0} to {reviews.length} of {reviews.length} entries
+    </p>
+
+    <div className="flex items-center gap-2">
+      <Button variant="outline" disabled>
+        Previous
+      </Button>
+
+      <Button
+        className="bg-gradient-to-r from-primary to-pink-500 text-white"
+      >
+        1
+      </Button>
+
+      <Button variant="outline" disabled>
+        Next
+      </Button>
+    </div>
+  </div>
+</div>
+
 
               {/* Buttons */}
               <div className="col-span-full flex justify-between pt-4">
