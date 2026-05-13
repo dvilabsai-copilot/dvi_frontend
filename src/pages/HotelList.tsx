@@ -1753,19 +1753,33 @@ export const HotelList: React.FC<HotelListProps> = ({
                                     {/* Provider Badge */}
                                     {hotel.provider && (
                                       <div className="absolute top-2 right-2 z-10">
+                                        {(() => {
+                                          const providerKey = String(hotel.provider || '').trim().toLowerCase();
+                                          const providerBadgeText =
+                                            providerKey === 'tbo' ? 'T'
+                                              : providerKey === 'resavenue' ? 'RS'
+                                              : providerKey === 'axisrooms' ? 'AX'
+                                              : providerKey === 'hobse' ? 'HB'
+                                              : String(hotel.provider || '').toUpperCase();
+                                          const providerBadgeClass =
+                                            providerKey === 'resavenue'
+                                              ? 'bg-emerald-500 text-white'
+                                              : providerKey === 'tbo'
+                                                ? 'bg-blue-500 text-white'
+                                                : providerKey === 'axisrooms'
+                                                  ? 'bg-amber-500 text-white'
+                                                  : providerKey === 'hobse'
+                                                    ? 'bg-fuchsia-500 text-white'
+                                                    : 'bg-gray-500 text-white';
+
+                                          return (
                                         <span 
-                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                            hotel.provider.toLowerCase() === 'resavenue' 
-                                              ? 'bg-emerald-500 text-white' 
-                                              : hotel.provider.toLowerCase() === 'tbo'
-                                              ? 'bg-blue-500 text-white'
-                                              : 'bg-gray-500 text-white'
-                                          }`}
+                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
                                         >
-                                          {hotel.provider.toLowerCase() === 'resavenue' ? '🌟 ResAvenue' : 
-                                           hotel.provider.toLowerCase() === 'tbo' ? '🔵 TBO' : 
-                                           hotel.provider?.toUpperCase()}
+                                          {providerBadgeText}
                                         </span>
+                                          );
+                                        })()}
                                       </div>
                                     )}
                                     <div className="absolute inset-0 flex flex-col justify-end p-3 bg-black/30">

@@ -553,12 +553,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     routeId: number | null;
     hotspotId: number | null;
     hotspotName: string;
+    hotspotWasPrebuilt: boolean;
   }>({
     open: false,
     planId: null,
     routeId: null,
     hotspotId: null,
     hotspotName: "",
+    hotspotWasPrebuilt: false,
   });
   const [isDeleting, setIsDeleting] = useState(false);
   const [routeNeedsRebuild, setRouteNeedsRebuild] = useState<number | null>(null);
@@ -857,7 +859,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     const parseStartMinutes = (value: any): number => {
       const raw = String(value || '').trim();
-      if (!raw || raw === '--' || raw === 'Not schedulable') return Number.POSITIVE_INFINITY;
+      if (!raw || raw === '--' || /manual override/i.test(raw) || raw === 'Not schedulable') {
+        return Number.POSITIVE_INFINITY;
+      }
 
       const startPart = raw.split('-')[0]?.trim() || raw;
       const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -3431,10 +3435,13 @@ const vehicleOnlyHtml = html
         routeId: null,
         hotspotId: null,
         hotspotName: "",
+        hotspotWasPrebuilt: false,
       });
 
-      // Show rebuild button by setting route ID with pending rebuild
-      setRouteNeedsRebuild(deleteHotspotModal.routeId);
+      // Show rebuild button only when a prebuilt hotspot was deleted.
+      if (deleteHotspotModal.hotspotWasPrebuilt && deleteHotspotModal.routeId) {
+        setRouteNeedsRebuild(deleteHotspotModal.routeId);
+      }
 
       // Reload itinerary data
       if (quoteId) {
@@ -3674,7 +3681,8 @@ const vehicleOnlyHtml = html
     planId: number,
     routeId: number,
     hotspotId: number,
-    hotspotName: string
+    hotspotName: string,
+    isManualHotspot: boolean = false,
   ) => {
     setDeleteHotspotModal({
       open: true,
@@ -3682,6 +3690,7 @@ const vehicleOnlyHtml = html
       routeId,
       hotspotId,
       hotspotName,
+      hotspotWasPrebuilt: !isManualHotspot,
     });
   };
 
@@ -4019,6 +4028,35 @@ const vehicleOnlyHtml = html
       const currentRoute = itinerary?.days.find((d) => d.id === routeId);
       if (currentRoute) {
         setExcludedHotspotIds((currentRoute as any).excluded_hotspot_ids || []);
+
+        const existingManualHotspotIds: number[] = Array.from(
+          new Set(
+            (Array.isArray((currentRoute as any).segments) ? (currentRoute as any).segments : [])
+              .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
+              .filter((seg: any) => seg?.planOwnWay === true || seg?.isManual === true)
+              .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+              .filter((id: number): id is number => Number.isFinite(id) && id > 0),
+          ),
+        );
+
+        if (existingManualHotspotIds.length > 0) {
+          const routePreview = (Array.isArray((currentRoute as any).segments)
+            ? (currentRoute as any).segments
+            : [])
+            .map(mapDaySegmentToPreview)
+            .filter(Boolean);
+
+          setSelectedHotspotIds(existingManualHotspotIds);
+          setPreviewTimelinesByHotspot((prev) => {
+            const next = { ...prev } as Record<number, any[]>;
+            for (const manualId of existingManualHotspotIds) {
+              next[manualId] = routePreview;
+            }
+            return next;
+          });
+          setGroupPreviewTimeline(routePreview);
+          setTempModalTimeline(routePreview);
+        }
       }
     } catch (e: any) {
       console.error("Failed to fetch available hotspots", e);
@@ -4278,7 +4316,7 @@ const vehicleOnlyHtml = html
         toast.success(`Added ${selectedHotspotIds.length} hotspot(s) successfully`);
       }
 
-      // Show rebuild button for the day where manual hotspot was added.
+      // Show rebuild button for the day where a manual hotspot was added.
       if (affectedRouteId) {
         setRouteNeedsRebuild(affectedRouteId);
       }
@@ -6062,6 +6100,10 @@ const vehicleOnlyHtml = html
                           const travelFromLabel = segment.from;
                           const travelToLabel = segment.to;
                           const travelDistanceLabel = segment.distance;
+                          const showTravelDistance = Boolean(
+                            String(travelDistanceLabel || '').trim()
+                            && String(travelDistanceLabel || '').trim() !== '--'
+                          );
 
                           return (
                             <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
@@ -6074,7 +6116,9 @@ const vehicleOnlyHtml = html
                               </span>
                               <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
                                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
-                                <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                                {showTravelDistance && (
+                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                                )}
                                 <span className="flex items-center gap-1">⏱ {segment.duration}</span>
                                 {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
                               </span>
@@ -6091,7 +6135,11 @@ const vehicleOnlyHtml = html
                               {segment.isConflict && (
                                 <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-xs font-bold mb-2 animate-pulse">
                                   <AlertTriangle className="h-4 w-4" />
-                                  <span>WARNING: {segment.conflictReason}</span>
+                                  <span>
+                                    {/forced manual insertion after user confirmation/i.test(segment.conflictReason || '')
+                                      ? 'Manual override confirmed: This stop is included, but timing may shift.'
+                                      : `Schedule note: ${segment.conflictReason || 'Timing may shift.'}`}
+                                  </span>
                                 </div>
                               )}
                               <div className="flex flex-col sm:flex-row gap-3">
@@ -6108,7 +6156,8 @@ const vehicleOnlyHtml = html
                                           itinerary.planId || 0,
                                           day.id,
                                           segment.routeHotspotId || 0,
-                                          segment.name
+                                          segment.name,
+                                          segment.isManual === true,
                                         )
                                       }
                                     >
@@ -6210,7 +6259,7 @@ const vehicleOnlyHtml = html
                                 </div>
                                 <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
                                   <p className="text-sm font-medium m-0">
-                                    Manual Addition: This place was added manually. Timing may vary from our optimized route.
+                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route.
                                   </p>
                                 </div>
                               </div>
@@ -6962,6 +7011,7 @@ const vehicleOnlyHtml = html
                   routeId: null,
                   hotspotId: null,
                   hotspotName: "",
+                  hotspotWasPrebuilt: false,
                 })
               }
               disabled={isDeleting}
@@ -7507,29 +7557,88 @@ const vehicleOnlyHtml = html
                     </div>
                   </div>
                 ) : null}
-                {!pendingPriorityReplacementHotspotId && activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
-                  <div className="mb-3 p-4 rounded-xl border border-red-200 bg-red-50 shadow-sm flex-shrink-0">
-                    <p className="text-sm font-bold text-red-800">Selected hotspot does not fit the rebuilt slot</p>
-                    <p className="text-xs text-red-700 mt-1 leading-5">
-                      {activePreviewValidation?.reason || "The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot."}
-                    </p>
-                    <p className="text-xs text-red-700 mt-2 font-medium leading-5">
-                      Use the confirm button below to insert anyway. It will be marked as conflict in the timeline.
-                    </p>
+                {!pendingPriorityReplacementHotspotId && (
+                  <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
+                      <div className="p-3 rounded-xl border border-red-200 bg-red-50 shadow-sm">
+                        <p className="text-sm font-bold text-red-800">Selected hotspot does not fit the rebuilt slot</p>
+                        <p className="text-xs text-red-700 mt-1 leading-4 line-clamp-2">
+                          {activePreviewValidation?.reason || "The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot."}
+                        </p>
+                        {selectedHotspotAnchor ? (
+                          <p className="text-xs text-red-700 mt-2 leading-4">
+                            Attempted insertion slot:{' '}
+                            <span className="font-semibold">
+                              {(selectedHotspotAnchor.anchorFrom || 'Current stop')}
+                              {' -> '}
+                              {(selectedHotspotAnchor.anchorTo || 'Next stop')}
+                            </span>
+                            {selectedHotspotAnchor.anchorTimeRange ? ` (${selectedHotspotAnchor.anchorTimeRange})` : ''}
+                          </p>
+                        ) : null}
+                        {Array.isArray(activePreviewResolution?.unscheduledManualHotspots)
+                        && activePreviewResolution.unscheduledManualHotspots.length > 0 ? (
+                          <div className="mt-2 text-xs text-red-700 leading-4">
+                            <p className="font-semibold text-red-800">Could not schedule:</p>
+                            <ul className="mt-1 list-disc pl-4 space-y-1">
+                              {activePreviewResolution.unscheduledManualHotspots
+                                .slice(0, 3)
+                                .map((row: any, idx: number) => (
+                                  <li key={`unscheduled-manual-${Number(row?.id || 0)}-${idx}`}>
+                                    <span className="font-semibold">{row?.name || `Hotspot ${row?.id || ''}`}</span>
+                                    {row?.reason ? `: ${row.reason}` : ''}
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
+                          && activePreviewResolution.removedOptionalHotspots.length > 0)
+                        || (Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
+                          && activePreviewResolution.removedTopPriorityHotspots.length > 0) ? (
+                          <div className="mt-2 text-xs text-red-700 leading-4">
+                            <p className="font-semibold text-red-800">Removed while trying to fit:</p>
+                            <p className="mt-1 font-medium">
+                              {[
+                                ...(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
+                                  ? activePreviewResolution.removedOptionalHotspots
+                                  : []),
+                                ...(Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
+                                  ? activePreviewResolution.removedTopPriorityHotspots
+                                  : []),
+                              ]
+                                .map((row: any) => row?.name)
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-700 mt-2 leading-4">
+                            No more removable optional hotspots are available in this slot.
+                          </p>
+                        )}
+                        <p className="text-xs text-red-700 mt-1 font-medium leading-4">
+                          Use confirm below to insert it as conflict.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {Array.isArray(activePreviewResolution?.removedOptionalHotspots) && activePreviewResolution.removedOptionalHotspots.length > 0 ? (
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
+                        <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
+                        <p className="text-xs text-amber-700 mt-1 leading-4">
+                          To fit your selected hotspot(s), these optional hotspots will be removed:
+                        </p>
+                        <p className="text-xs text-amber-800 mt-1 font-semibold leading-4 line-clamp-2">
+                          {activePreviewResolution.removedOptionalHotspots
+                            .map((row: any) => row?.name)
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-                {!pendingPriorityReplacementHotspotId && Array.isArray(activePreviewResolution?.removedOptionalHotspots) && activePreviewResolution.removedOptionalHotspots.length > 0 ? (
-                  <div className="mb-3 p-4 rounded-xl border border-amber-200 bg-amber-50 shadow-sm flex-shrink-0">
-                    <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
-                    <p className="text-xs text-amber-700 mt-1 leading-5">
-                      To fit your selected hotspot(s), these optional hotspots will be removed:
-                      <span className="font-semibold"> {activePreviewResolution.removedOptionalHotspots
-                        .map((row: any) => row?.name)
-                        .filter(Boolean)
-                        .join(', ')}</span>.
-                    </p>
-                  </div>
-                ) : null}
+                )}
                 <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
                   {isPreviewingHotspotId ? (
                     <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
@@ -7699,7 +7808,9 @@ const vehicleOnlyHtml = html
                             {seg?.isConflict && (
                               <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
                                 <p className="text-xs text-red-600 font-medium leading-tight">
-                                  {seg?.conflictReason}
+                                  {/forced manual insertion after user confirmation/i.test(String(seg?.conflictReason || ''))
+                                    ? 'Manual override confirmed. This stop will be included; exact timing may shift.'
+                                    : seg?.conflictReason}
                                 </p>
                               </div>
                             )}
