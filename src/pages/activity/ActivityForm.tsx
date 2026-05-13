@@ -1896,11 +1896,12 @@ const persistPendingReviews = async (activityId: number) => {
           )}
 
           {/* Tab 3: Feedback & Review */}
-          {activeTab === 3 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+ {activeTab === 3 && (
+    <div className="space-y-6">
+  <div className="flex flex-row gap-6 items-start justify-start">
               {/* Left: Add Review Form */}
-              <Card>
-                <CardContent className="p-6">
+              <Card className="w-[300px] min-w-[300px] min-h-[365px]">
+  <CardContent className="p-6">
                   <h3 className="text-lg font-medium text-primary mb-4">
                     Rating
                   </h3>
@@ -1947,12 +1948,12 @@ const persistPendingReviews = async (activityId: number) => {
               </Card>
 
               {/* Right: Reviews List */}
-              <Card>
-                <CardContent className="p-6">
+              <Card className="flex-1 min-w-0 min-h-[365px]">
+  <CardContent className="p-6">
                   <h3 className="text-lg font-medium mb-4">List of Reviews</h3>
 
 
-                  <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                  <div className="mb-4 flex flex-wrap items-center gap-4">
   <div className="flex flex-wrap items-center gap-2">
     <span className="text-sm">Show</span>
     <Select
@@ -2013,16 +2014,15 @@ const persistPendingReviews = async (activityId: number) => {
 </div>
 
 
-
-                  <div className="overflow-x-auto">
-                    <Table className="w-full">
+<div className="overflow-x-auto">
+  <Table className="w-full table-fixed">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[70px]">S.NO</TableHead>
-                        <TableHead className="w-[120px]">RATING</TableHead>
-                        <TableHead>DESCRIPTION</TableHead>
-                        <TableHead className="w-[220px]">CREATED ON</TableHead>
-                        <TableHead className="w-[110px] text-center">ACTION</TableHead>
+                      <TableHead className="w-[55px]">S.NO</TableHead>
+                      <TableHead className="w-[110px]">RATING</TableHead>
+                      <TableHead className="w-[170px]">DESCRIPTION</TableHead>
+                      <TableHead className="w-[190px]">CREATED ON</TableHead>
+                      <TableHead className="w-[80px] text-center">ACTION</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2046,7 +2046,7 @@ const persistPendingReviews = async (activityId: number) => {
                                 {renderStars(review.rating)}
                               </div>
                             </TableCell>
-                            <TableCell className="break-words">{review.description}</TableCell>
+                            <TableCell className="truncate">{review.description}</TableCell>
         
                             <TableCell className="whitespace-nowrap">
                                 {formatReviewDateTime(review.createdOn)}
@@ -2109,17 +2109,19 @@ const persistPendingReviews = async (activityId: number) => {
                 </CardContent>
               </Card>
 
-              {/* Buttons */}
-              <div className="col-span-full flex items-center justify-between pt-6 border-t">
-                <Button variant="secondary" onClick={goToPrevTab}>
-                  Back
-                </Button>
-                {!isReadonly && (
-                  <Button onClick={goToNextTab}>Update & Continue</Button>
-                )}
-              </div>
-            </div>
-          )}
+                  </div>
+
+    {/* Buttons */}
+    <div className="flex items-center justify-between pt-6 border-t">
+      <Button variant="secondary" onClick={goToPrevTab}>
+        Back
+      </Button>
+      {!isReadonly && (
+        <Button onClick={goToNextTab}>Update & Continue</Button>
+      )}
+    </div>
+  </div>
+)}
 
           {/* Tab 4: Preview */}
           {activeTab === 4 && (
