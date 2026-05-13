@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -346,14 +345,15 @@ const destLocations = data.rows
   const firstRouteNextError = validationErrors?.firstRouteNext;
 
   return (
-    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
+    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none overflow-visible">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-[#4a4260]">
           Route Details
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
-        <Table>
+      <CardContent className="pt-0 overflow-visible pb-24">
+  <div className="w-full overflow-visible">
+    <table className="w-full caption-bottom text-sm overflow-visible">
           <TableHeader>
             <TableRow className="bg-[#faf1ff]">
   <TableHead className="text-xs text-[#4a4260] w-[80px]">DAY</TableHead>
@@ -409,7 +409,11 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
               }
 
               return (
-                <TableRow key={idx}>
+  <TableRow
+    key={idx}
+    className="overflow-visible"
+    style={{ position: "relative", zIndex: routeDetails.length - idx }}
+  >
   <TableCell>{`DAY ${row.day}`}</TableCell>
 
   <TableCell>
@@ -449,9 +453,11 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
   </TableCell>
 
   <TableCell
-    data-field={isFirstRow ? "firstRouteNext" : undefined}
-    className={isFirstRow && firstRouteNextError ? "align-top" : ""}
-  >
+  data-field={isFirstRow ? "firstRouteNext" : undefined}
+  className={`relative overflow-visible ${
+    isFirstRow && firstRouteNextError ? "align-top" : ""
+  }`}
+>
     <div
       id={`next-destination-${idx}`}
       className={
@@ -587,7 +593,8 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
               );
             })}
           </TableBody>
-        </Table>
+        </table>
+        </div>
 
         <Button
           ref={addDayButtonRef}
