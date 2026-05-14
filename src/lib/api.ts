@@ -6,10 +6,20 @@
  * Make sure .env (at project root) contains:
  * VITE_API_DVI_BASE_URL=https://dvi.travel
  */
-const RAW_FROM_ENV = (import.meta.env.VITE_API_DVI_BASE_URL ?? "").trim(); console.log(RAW_FROM_ENV)
-const IS_LOCAL_BROWSER = typeof window !== "undefined" && /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
-export const RAW_API_BASE = RAW_FROM_ENV || (IS_LOCAL_BROWSER ? "http://localhost:4006" : "https://dvi.travel");
-console.log('[API_BASE_URL]', RAW_API_BASE);
+const RAW_FROM_ENV = (import.meta.env.VITE_API_DVI_BASE_URL ?? "").trim();
+
+const IS_LOCAL_BROWSER =
+  typeof window !== "undefined" &&
+  /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+
+function isLocalApiBase(base: string) {
+  return /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.test(base);
+}
+
+export const RAW_API_BASE =
+  RAW_FROM_ENV && (IS_LOCAL_BROWSER || !isLocalApiBase(RAW_FROM_ENV))
+    ? RAW_FROM_ENV
+    : "";
 
 /** Normalize base URL (append /api/v1 if missing). */
 function normalizeBase(base: string) {
@@ -18,7 +28,7 @@ function normalizeBase(base: string) {
   return base;
 }
 
-export const API_BASE_URL = normalizeBase(RAW_API_BASE);
+export const API_BASE_URL = RAW_API_BASE ? normalizeBase(RAW_API_BASE) : "/api/v1";
 
 type ApiOptions = {
   method?: string;
@@ -49,7 +59,7 @@ function buildUrl(path: string) {
 /** Universal API function */
 export async function api(path: string, opts: ApiOptions = {} ) {
   const { method = "GET", auth = true, headers = {}, body, cache } = opts;
-console.debug("[api]", method, buildUrl(path));
+//console.debug("[api]", method, buildUrl(path));
   const isFormLike =
     (typeof FormData !== "undefined" && body instanceof FormData) ||
     (typeof Blob !== "undefined" && body instanceof Blob) ||
@@ -83,7 +93,7 @@ console.debug("[api]", method, buildUrl(path));
     ...(cache && { cache }), // Add cache option if provided
   });
 
-  console.debug(`[api] response ${res.status} ${res.statusText} for ${method} ${url}`);
+  //console.debug(`[api] response ${res.status} ${res.statusText} for ${method} ${url}`);
 
   if (!res.ok) {
     // Handle 401 Unauthorized - redirect to login
