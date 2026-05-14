@@ -96,6 +96,30 @@ function csvToNumberArray(v: unknown): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption[]): string {
+  const codeFromPlan = typeof plan?.meal_plan_code === "string" ? plan.meal_plan_code.trim() : "";
+  if (codeFromPlan) {
+    const matchedByCode = (mealPlans || []).find((mp) => mp.code === codeFromPlan);
+    return matchedByCode?.code || codeFromPlan;
+  }
+
+  const breakfast = Number(plan?.meal_plan_breakfast ?? 0) ? 1 : 0;
+  const lunch = Number(plan?.meal_plan_lunch ?? 0) ? 1 : 0;
+  const dinner = Number(plan?.meal_plan_dinner ?? 0) ? 1 : 0;
+  const hasExplicitFlags = breakfast === 1 || lunch === 1 || dinner === 1;
+
+  if (!hasExplicitFlags) return "__ALL__";
+
+  const matchedByFlags = (mealPlans || []).find(
+    (mp) =>
+      Number(mp.includesBreakfast) === breakfast &&
+      Number(mp.includesLunch) === lunch &&
+      Number(mp.includesDinner) === dinner,
+  );
+
+  return matchedByFlags?.code || "__ALL__";
+}
+
 function mapPhpBedTypeToUiValue(bedType: unknown): "Without Bed" | "With Bed" {
   return Number(bedType) === 2 ? "With Bed" : "Without Bed";
 }
@@ -648,16 +672,7 @@ useEffect(() => {
             // ✅ foodPreference state holds option id
             setFoodPreference(p.food_type != null ? String(p.food_type) : "");
 
-            const mealPlanCodeFromPlan = typeof p.meal_plan_code === "string" ? p.meal_plan_code : "";
-            const matchedMealPlan = mealPlanCodeFromPlan
-              ? (mealPlansRes || []).find((mp) => mp.code === mealPlanCodeFromPlan)
-              : (mealPlansRes || []).find(
-                  (mp) =>
-                    Number(mp.includesBreakfast) === Number(p.meal_plan_breakfast ?? 0) &&
-                    Number(mp.includesLunch) === Number(p.meal_plan_lunch ?? 0) &&
-                    Number(mp.includesDinner) === Number(p.meal_plan_dinner ?? 0)
-                );
-            setMealPlanCode(matchedMealPlan?.code || mealPlanCodeFromPlan || "__ALL__");
+            setMealPlanCode(resolveMealPlanCodeFromPlan(p, mealPlansRes || []));
 
 
 
@@ -776,16 +791,7 @@ useEffect(() => {
           );
           setNationality(plan.nationality != null ? String(plan.nationality) : "");
           setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
-          const mealPlanCodeFromPlan = typeof plan.meal_plan_code === "string" ? plan.meal_plan_code : "";
-          const matchedMealPlan = mealPlanCodeFromPlan
-            ? (mealPlanOptions || []).find((mp) => mp.code === mealPlanCodeFromPlan)
-            : (mealPlanOptions || []).find(
-                (mp) =>
-                  Number(mp.includesBreakfast) === Number(plan.meal_plan_breakfast ?? 0) &&
-                  Number(mp.includesLunch) === Number(plan.meal_plan_lunch ?? 0) &&
-                  Number(mp.includesDinner) === Number(plan.meal_plan_dinner ?? 0)
-              );
-          setMealPlanCode(matchedMealPlan?.code || mealPlanCodeFromPlan || "__ALL__");
+          setMealPlanCode(resolveMealPlanCodeFromPlan(plan, mealPlanOptions || []));
           setBudget(plan.expecting_budget ?? "");
           setSpecialInstructions(plan.special_instructions ?? "");
           setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
