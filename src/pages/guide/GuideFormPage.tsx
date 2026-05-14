@@ -1827,31 +1827,69 @@ const handleDownloadExcel = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Guide Cost Details</h3>
                 <div className="flex items-center gap-3">
-                  <Input
-                    type="date"
-                    placeholder="Start Date"
-                    value={pricebook.startDate}
-                    onChange={(e) => {
-                      const newStart = e.target.value;
-                      setPricebook((prev) => ({
-                        ...prev,
-                        startDate: newStart,
-                        // clear end date if it's now before the new start date
-                        endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
-                      }));
-                    }}
-                    className="w-36"
-                  />
-                  <Input
-                    type="date"
-                    placeholder="End date"
-                    value={pricebook.endDate}
-                    min={pricebook.startDate || undefined}
-                    onChange={(e) =>
-                      setPricebook((prev) => ({ ...prev, endDate: e.target.value }))
-                    }
-                    className="w-36"
-                  />
+
+
+                 <Flatpickr
+  value={pricebook.startDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    const newStart = format(selected, "yyyy-MM-dd");
+
+    setPricebook((prev) => ({
+      ...prev,
+      startDate: newStart,
+      endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="Start Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+<Flatpickr
+  value={pricebook.endDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+    minDate: pricebook.startDate || undefined,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    setPricebook((prev) => ({
+      ...prev,
+      endDate: format(selected, "yyyy-MM-dd"),
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="End Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+
                   <Button
                     onClick={handleUpdatePricebook}
                     disabled={loading}
@@ -2081,21 +2119,16 @@ const handleDownloadExcel = () => {
                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
+
                 <div className="flex gap-2">
-                  <Button
-                    onClick={handleUpdatePricebook}
-                    disabled={loading}
-                    className="bg-gradient-to-r from-primary to-pink-500"
-                  >
-                    {loading ? "Saving..." : "Update"}
-                  </Button>
-                  <Button
-                    onClick={() => setCurrentStep(3)}
-                    className="bg-gradient-to-r from-primary to-pink-500"
-                  >
-                    Continue →
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => setCurrentStep(3)}
+                  className="bg-gradient-to-r from-primary to-pink-500"
+                >
+                  Continue →
+                </Button>
+              </div>
+
               </div>
             </div>
           )}
