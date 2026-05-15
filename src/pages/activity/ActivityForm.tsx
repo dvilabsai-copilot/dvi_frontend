@@ -2094,15 +2094,21 @@ const persistPendingReviews = async (activityId: number) => {
                             <Pencil className="h-4 w-4" />
                           </Button>
 
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border-[#eadcff]"
-                            onClick={() => deleteReview(review.id)}
-                            disabled={isReadonly}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                         <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg border-[#eadcff]"
+                          onClick={() => {
+                            const confirmed = window.confirm("Delete this review?");
+                            if (!confirmed) return;
+
+                            deleteReview(review.id);
+                          }}
+                          disabled={isReadonly}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+
                         </div>
                       </TableCell>
                     </TableRow>
