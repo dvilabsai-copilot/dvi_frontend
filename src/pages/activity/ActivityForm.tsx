@@ -1895,234 +1895,272 @@ const persistPendingReviews = async (activityId: number) => {
             </div>
           )}
 
-          {/* Tab 3: Feedback & Review */}
- {activeTab === 3 && (
-    <div className="space-y-6">
-  <div className="flex flex-row gap-6 items-start justify-start">
-              {/* Left: Add Review Form */}
-              <Card className="w-[300px] min-w-[300px] min-h-[365px]">
-  <CardContent className="p-6">
-                  <h3 className="text-lg font-medium text-primary mb-4">
-                    Rating
-                  </h3>
-                  <Select
-                    value={reviewRating}
-                    onValueChange={setReviewRating}
-                    disabled={isReadonly}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 Star</SelectItem>
-                      <SelectItem value="2">2 Stars</SelectItem>
-                      <SelectItem value="3">3 Stars</SelectItem>
-                      <SelectItem value="4">4 Stars</SelectItem>
-                      <SelectItem value="5">5 Stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-gray-500 mt-2 mb-4">
-                    All reviews are from genuine customers
-                  </p>
-                  <Label>
-                    Feedback <span className="text-red-500">*</span>
-                  </Label>
-                  <Textarea
-                    value={reviewFeedback}
-                    onChange={(e) => setReviewFeedback(e.target.value)}
-                    rows={4}
-                    className="mt-2"
-                    disabled={isReadonly}
-                  />
-                  {!isReadonly && (
-                    <Button onClick={handleSaveReview} className="mt-4">
-                      {editingReviewId ? "Update" : "Save"}
-                    </Button>
-                  )}
-                  {editingReviewId && !isReadonly && (
-                    <Button variant="outline" onClick={cancelEditReview} className="mt-4 ml-2">
-                      Cancel
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
+{/* Tab 3: Feedback & Review */}
+{activeTab === 3 && (
+  <div className="mx-auto max-w-[929px] space-y-4">
+    <h2 className="text-[18px] font-semibold text-primary">
+      Review & Feedback
+    </h2>
 
-              {/* Right: Reviews List */}
-              <Card className="flex-1 min-w-0 min-h-[365px]">
-  <CardContent className="p-6">
-                  <h3 className="text-lg font-medium mb-4">List of Reviews</h3>
+    <div className="grid grid-cols-[224px_1fr] gap-6 items-start">
+      {/* Left: Rating */}
+      <Card className="h-[413px] w-[224px] rounded-2xl border-[#eadcff] shadow-none">
+        <CardContent className="p-4">
+          <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+            Rating
+          </h3>
 
+          <Select
+            value={reviewRating}
+            onValueChange={setReviewRating}
+            disabled={isReadonly}
+          >
+            <SelectTrigger className="h-[44px] rounded-xl border-[#eadcff] text-[14px]">
+              <SelectValue placeholder="Select Rating" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1 Star</SelectItem>
+              <SelectItem value="2">2 Stars</SelectItem>
+              <SelectItem value="3">3 Stars</SelectItem>
+              <SelectItem value="4">4 Stars</SelectItem>
+              <SelectItem value="5">5 Stars</SelectItem>
+            </SelectContent>
+          </Select>
 
-                  <div className="mb-4 flex flex-wrap items-center gap-4">
-  <div className="flex flex-wrap items-center gap-2">
-    <span className="text-sm">Show</span>
-    <Select
-      value={String(reviewPageSize)}
-      onValueChange={(v) => setReviewPageSize(Number(v))}
-    >
-      <SelectTrigger className="h-10 w-20">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="10">10</SelectItem>
-        <SelectItem value="25">25</SelectItem>
-      </SelectContent>
-    </Select>
-    <span className="text-sm">entries</span>
-  </div>
+          <p className="my-4 text-[13px] leading-5 text-[#8a86a3]">
+            All reviews are from genuine customers
+          </p>
 
-  <div className="flex flex-wrap items-center gap-3">
-    <div className="flex items-center gap-2">
-      <span className="text-sm">Search:</span>
-      <Input
-        value={reviewSearch}
-        onChange={(e) => setReviewSearch(e.target.value)}
-        className="h-10 w-[220px]"
-      />
+          <Label className="text-[13px] font-semibold text-[#1f2937]">
+            Feedback <span className="text-red-500">*</span>
+          </Label>
+
+          <Textarea
+            value={reviewFeedback}
+            onChange={(e) => setReviewFeedback(e.target.value)}
+            disabled={isReadonly}
+            className="mt-3 h-[120px] resize-none rounded-xl border-[#eadcff] px-3 py-2 text-[14px]"
+          />
+
+          {!isReadonly && (
+            <div className="mt-3 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={cancelEditReview}
+                className="h-[38px] rounded-xl px-5 text-[14px]"
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                onClick={handleSaveReview}
+                className="h-[38px] rounded-xl px-5 text-[14px]"
+              >
+                {editingReviewId ? "Update" : "Save"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Right: List of Reviews */}
+      <Card className="h-[413px] min-w-0 rounded-2xl border-[#eadcff] shadow-none">
+        <CardContent className="p-4">
+          <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+            List of Reviews
+          </h3>
+
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-[15px]">Show</span>
+
+            <Select
+              value={String(reviewPageSize)}
+              onValueChange={(v) => setReviewPageSize(Number(v))}
+            >
+              <SelectTrigger className="h-[40px] w-[74px] rounded-xl border-[#eadcff]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <span className="text-[15px]">entries</span>
+          </div>
+
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-[15px]">Search:</span>
+
+            <Input
+              value={reviewSearch}
+              onChange={(e) => setReviewSearch(e.target.value)}
+              className="h-[42px] w-[220px] rounded-xl border-[#eadcff] text-[14px]"
+            />
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReviewCopy}
+              className="h-[42px] min-w-[92px] rounded-xl border-[#7c5cff] text-[#4f46e5]"
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Copy
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReviewExcel}
+              className="h-[42px] min-w-[92px] rounded-xl border-green-500 text-green-600"
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Excel
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleReviewCSV}
+              className="h-[42px] min-w-[84px] rounded-xl border-gray-300 text-gray-600"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              CSV
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-[#eadcff]">
+            <Table className="w-full text-[13px]">
+              <TableHeader className="bg-[#fbf7ff]">
+                <TableRow>
+                  <TableHead className="w-[75px] px-3 py-2 font-semibold">
+                    S.NO ↕
+                  </TableHead>
+                  <TableHead className="w-[95px] px-3 py-2 font-semibold">
+                    RATING ↕
+                  </TableHead>
+                  <TableHead className="w-[135px] px-3 py-2 font-semibold">
+                    DESCRIPTION ↕
+                  </TableHead>
+                  <TableHead className="w-[166px] px-3 py-2 font-semibold whitespace-nowrap">
+                    CREATED ON ↕
+                  </TableHead>
+                  <TableHead className="w-[103px] px-3 py-2 text-center font-semibold whitespace-nowrap">
+                    ACTIONS ↕
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+
+              <TableBody>
+                {paginatedReviews.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-gray-500">
+                      No data available in table
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedReviews.map((review, index) => (
+                    <TableRow key={review.id}>
+                      <TableCell className="px-3 py-2">
+                        {(reviewPage - 1) * reviewPageSize + index + 1}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2">
+                        <div className="flex items-center gap-0.5">
+                          {renderStars(review.rating)}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2">
+                        {review.description}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2 whitespace-nowrap">
+                        {formatReviewDateTime(review.createdOn)}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg border-[#eadcff]"
+                            onClick={() => startEditReview(review)}
+                            disabled={isReadonly}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg border-[#eadcff]"
+                            onClick={() => deleteReview(review.id)}
+                            disabled={isReadonly}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-[14px] text-gray-500">
+              Showing{" "}
+              {filteredReviews.length > 0
+                ? (reviewPage - 1) * reviewPageSize + 1
+                : 0}{" "}
+              to {Math.min(reviewPage * reviewPageSize, filteredReviews.length)} of{" "}
+              {filteredReviews.length} entries
+            </span>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                disabled={reviewPage <= 1}
+                onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
+                className="h-[40px]"
+              >
+                Previous
+              </Button>
+
+              <Button
+                variant="outline"
+                disabled={reviewPage >= totalReviewPages}
+                onClick={() =>
+                  setReviewPage((p) => Math.min(totalReviewPages, p + 1))
+                }
+                className="h-[40px]"
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
 
-    <Button
-      type="button"
-      variant="outline"
-      className="h-10 min-w-[96px] border-[#7c5cff] text-[#7c5cff] hover:bg-[#f3efff]"
-      onClick={handleReviewCopy}
-    >
-      <Copy className="mr-2 h-4 w-4" />
-      Copy
-    </Button>
-
-    <Button
-      type="button"
-      variant="outline"
-      className="h-10 min-w-[96px] border-green-500 text-green-600 hover:bg-green-50"
-      onClick={handleReviewExcel}
-    >
-      <FileSpreadsheet className="mr-2 h-4 w-4" />
-      Excel
-    </Button>
-
-    <Button
-      type="button"
-      variant="outline"
-      className="h-10 min-w-[96px] border-gray-300 text-gray-500 hover:bg-gray-50"
-      onClick={handleReviewCSV}
-    >
-      <FileText className="mr-2 h-4 w-4" />
-      CSV
-    </Button>
-  </div>
-</div>
-
-
-<div className="overflow-x-auto">
-  <Table className="w-full table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                      <TableHead className="w-[55px]">S.NO</TableHead>
-                      <TableHead className="w-[110px]">RATING</TableHead>
-                      <TableHead className="w-[170px]">DESCRIPTION</TableHead>
-                      <TableHead className="w-[190px]">CREATED ON</TableHead>
-                      <TableHead className="w-[80px] text-center">ACTION</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedReviews.length === 0 ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={5}
-                            className="text-center py-4 text-gray-500"
-                          >
-                            No data available in table
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        paginatedReviews.map((review, index) => (
-                          <TableRow key={review.id} className="align-middle">
-                            <TableCell>
-                              {(reviewPage - 1) * reviewPageSize + index + 1}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex">
-                                {renderStars(review.rating)}
-                              </div>
-                            </TableCell>
-                            <TableCell className="truncate">{review.description}</TableCell>
-        
-                            <TableCell className="whitespace-nowrap">
-                                {formatReviewDateTime(review.createdOn)}
-                              </TableCell>
-
-                            <TableCell>
-                              <div className="flex gap-1 justify-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-yellow-600"
-                                  onClick={() => startEditReview(review)}
-                                  disabled={isReadonly}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 text-red-600"
-                                  onClick={() => deleteReview(review.id)}
-                                  disabled={isReadonly}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                    </Table>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-4">
-                    <span className="text-sm text-gray-500">
-                      Showing {filteredReviews.length > 0 ? (reviewPage - 1) * reviewPageSize + 1 : 0} to{" "}
-                      {Math.min(reviewPage * reviewPageSize, filteredReviews.length)} of {filteredReviews.length}{" "}
-                      entries
-                    </span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={reviewPage <= 1}
-                        onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={reviewPage >= totalReviewPages}
-                        onClick={() => setReviewPage((p) => Math.min(totalReviewPages, p + 1))}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-                  </div>
-
-    {/* Buttons */}
-    <div className="flex items-center justify-between pt-6 border-t">
+    <div className="flex items-center justify-between border-t pt-4">
       <Button variant="secondary" onClick={goToPrevTab}>
         Back
       </Button>
+
       {!isReadonly && (
-        <Button onClick={goToNextTab}>Update & Continue</Button>
+        <Button onClick={goToNextTab}>
+          Update & Continue
+        </Button>
       )}
     </div>
   </div>
 )}
-
           {/* Tab 4: Preview */}
           {activeTab === 4 && (
             <div className="space-y-6">
@@ -2302,9 +2340,10 @@ const persistPendingReviews = async (activityId: number) => {
               </div>
             </div>
           )}
+
+
         </CardContent>
          </Card>
-
       {deleteImageIndex !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-lg bg-white p-8 text-center shadow-xl">
