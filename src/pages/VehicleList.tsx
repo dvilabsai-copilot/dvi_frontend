@@ -39,6 +39,7 @@ export interface DayWisePricingItem {
   extraHourCount: number;
   extraHourRate: number;
   extraHourCharges: number;
+  extraKms: number;
   extraKmCharges: number;
   totalCharges: number;
 }
@@ -330,6 +331,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.dropKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.extraKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</td>
@@ -467,6 +469,7 @@ const totalRows = [
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;">Sightseeing<br/>KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Drop KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;"><span style="line-height:1.1;display:inline-block;">Extra KM<br/>Charge</span></th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Rental</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Toll</th>
@@ -866,6 +869,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Sightseeing<br />KM</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Drop KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Extra KM<br />Charge</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Rental</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Toll</th>
@@ -892,6 +896,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.dropKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.extraKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
