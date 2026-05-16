@@ -841,173 +841,147 @@ export const AccountsManager: React.FC = () => {
         </button>
       </div>
 
-      {/* FILTER BAR */}
-      <Card className="shadow-none border-none mb-4 bg-white/70">
-        <CardContent className="pt-6 pb-5">
-          <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Quote ID */}
-            <div className="space-y-2 relative">
-              <Label className="text-sm text-[#4a4260]">Quote ID</Label>
-              <Input
-                placeholder="Enter the Quote ID"
-                value={quoteIdFilter}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setQuoteIdFilter(value);
-                  setQuoteSearchTerm(value);
-                }}
-                className="h-9"
-              />
-              {quoteSuggestions.length > 0 && (
-                <div className="absolute z-20 bg-white border rounded mt-1 w-full max-h-40 overflow-y-auto text-xs">
-                  {quoteSuggestions.map((q) => (
-                    <div
-                      key={q}
-                      className="px-2 py-1 hover:bg-gray-100 cursor-pointer"
-                      onClick={() => {
-                        setQuoteIdFilter(q);
-                        setQuoteSearchTerm(q);
-                        setQuoteSuggestions([]);
-                      }}
-                    >
-                      {q}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            {/* Component Type */}
-            <div className="space-y-2">
-              <Label className="text-sm text-[#4a4260]">Component Type</Label>
-              <Select
-                value={componentType}
-                onValueChange={(v) =>
-                  setComponentType(v as "all" | AccountsComponentType)
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="hotel">Hotel</SelectItem>
-                  <SelectItem value="flight">Flight</SelectItem>
-                  <SelectItem value="vehicle">Vehicle</SelectItem>
-                  <SelectItem value="guide">Guide</SelectItem>
-                  <SelectItem value="hotspot">Hotspot</SelectItem>
-                  <SelectItem value="activity">Activity</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+   {/* FILTER BAR */}
+<Card className="shadow-none border-none mb-4 bg-white/70">
+  <CardContent className="pt-6 pb-5">
+    <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
 
-            {/* From Date */}
-            <div className="space-y-2">
-              <Label className="text-sm text-[#4a4260]">From Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-9 text-left font-normal ${
-                      !fromDate ? "text-muted-foreground" : ""
-                    }`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {fromDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={fromDateObj}
-                    onSelect={(date) => {
-                      setFromDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setFromDate(formatted);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="space-y-2 lg:col-span-3">
+        <Label className="text-sm text-[#4a4260]">Quote ID</Label>
+        <Input
+          placeholder="Enter the Quote ID"
+          value={quoteIdFilter}
+          onChange={(e) => {
+            const value = e.target.value;
+            setQuoteIdFilter(value);
+            setQuoteSearchTerm(value);
+          }}
+          className="h-10"
+        />
+      </div>
 
-            {/* To Date */}
-            <div className="space-y-2">
-              <Label className="text-sm text-[#4a4260]">To Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={`w-full justify-start h-9 text-left font-normal ${
-                      !toDate ? "text-muted-foreground" : ""
-                    }`}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {toDate || "DD/MM/YYYY"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={toDateObj}
-                    onSelect={(date) => {
-                      setToDateObj(date ?? undefined);
-                      const formatted = formatToDDMMYYYY(date ?? undefined);
-                      setToDate(formatted);
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+      <div className="space-y-2 lg:col-span-2">
+        <Label className="text-sm text-[#4a4260]">Component Type</Label>
+        <Select
+          value={componentType}
+          onValueChange={(v) =>
+            setComponentType(v as "all" | AccountsComponentType)
+          }
+        >
+          <SelectTrigger className="h-10">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="hotel">Hotel</SelectItem>
+            <SelectItem value="flight">Flight</SelectItem>
+            <SelectItem value="vehicle">Vehicle</SelectItem>
+            <SelectItem value="guide">Guide</SelectItem>
+            <SelectItem value="hotspot">Hotspot</SelectItem>
+            <SelectItem value="activity">Activity</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-            {/* Agent + Clear */}
-            <div className="space-y-2 flex flex-col justify-end">
-              <Label className="text-sm text-[#4a4260]">Agent</Label>
-              <div className="flex gap-2">
-                <Select
-                  value={agent || "__all"}
-                  onValueChange={(v) => {
-                    if (v === "__all") {
-                      setAgent("");
-                    } else {
-                      setAgent(v);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select Agent" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all">All</SelectItem>
-                    {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.name}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  onClick={clearFilters}
-                  className="bg-[#f057b8] hover:bg-[#e348aa] text-white h-9 px-4"
-                >
-                  Clear
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="bg-[#0f9c34] hover:bg-[#0d8a2e] text-white h-9 px-4 flex items-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Excel
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-2 lg:col-span-2">
+        <Label className="text-sm text-[#4a4260]">From Date</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={`h-10 w-full justify-start px-1 text-left text-sm font-normal ${
+                !fromDate ? "text-muted-foreground" : ""
+              }`}
+            >
+              <CalendarIcon className="mr-0.5 h-4 w-4" />
+              {fromDate || "DD/MM/YYYY"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={fromDateObj}
+              onSelect={(date) => {
+                setFromDateObj(date ?? undefined);
+                setFromDate(formatToDDMMYYYY(date ?? undefined));
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="space-y-2 lg:col-span-2">
+        <Label className="text-sm text-[#4a4260]">To Date</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={`h-10 w-full justify-start px-1 text-left text-sm font-normal ${
+                  !toDate ? "text-muted-foreground" : ""
+                }`}
+            >
+              <CalendarIcon className="mr-0.5 h-4 w-4" />
+              {toDate || "DD/MM/YYYY"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={toDateObj}
+              onSelect={(date) => {
+                setToDateObj(date ?? undefined);
+                setToDate(formatToDDMMYYYY(date ?? undefined));
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="space-y-2 lg:col-span-3">
+        <Label className="text-sm text-[#4a4260]">Agent</Label>
+        <Select
+          value={agent || "__all"}
+          onValueChange={(v) => setAgent(v === "__all" ? "" : v)}
+        >
+          <SelectTrigger className="h-10">
+            <SelectValue placeholder="Select Agent" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all">All</SelectItem>
+            {agents.map((a) => (
+              <SelectItem key={a.id} value={a.name}>
+                {a.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="lg:col-span-12 flex justify-end gap-3">
+        <Button
+          type="button"
+          onClick={clearFilters}
+          className="h-10 bg-[#f057b8] px-6 text-white hover:bg-[#e348aa]"
+        >
+          Clear
+        </Button>
+
+        <Button
+          type="button"
+          onClick={handleExportExcel}
+          className="flex h-10 items-center gap-2 bg-[#0f9c34] px-6 text-white hover:bg-[#0d8a2e]"
+        >
+          <Download className="h-4 w-4" />
+          Excel
+        </Button>
+      </div>
+    </div>
+  </CardContent>
+</Card>
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
