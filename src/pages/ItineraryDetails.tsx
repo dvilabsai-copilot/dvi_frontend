@@ -1,4 +1,5 @@
 // FILE: src/pages/ItineraryDetails.tsx
+// Keep this as a named + default export module for router compatibility across HMR reloads.
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
@@ -34,6 +35,7 @@ import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionM
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
+import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
@@ -515,6 +517,7 @@ const normalizeDateToYmd = (input?: string | null): string => {
 };
 
 // ----------------- Main Component -----------------
+// Note: keep explicit named + default export shape for router/HMR compatibility.
 
 interface ItineraryDetailsProps {
   readOnly?: boolean; // If true, component is read-only (confirmed itinerary view)
@@ -688,6 +691,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   // Refs for scrolling
   const hotspotListRef = useRef<HTMLDivElement>(null);
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
+  const priorityConfirmRef = useRef<HTMLDivElement>(null);
 
   const selectedHotspotId = selectedHotspotIds.length > 0
     ? selectedHotspotIds[selectedHotspotIds.length - 1]
@@ -857,6 +861,23 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       });
     const rows = [...routeScopedRows];
 
+    const anyHavePreviewOrder = rows.some((row: any) => (
+      Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder))
+    ));
+    if (anyHavePreviewOrder) {
+      return [...rows].sort((a: any, b: any) => (
+        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+      ));
+    }
+
+    const hasMatrixOrderedRows = rows.some((row: any) => (
+      row?.isMatrixSplitTravel === true || row?.isMatrixPositioned === true
+    ));
+    if (hasMatrixOrderedRows) {
+      return rows;
+    }
+
     const parseStartMinutes = (value: any): number => {
       const raw = String(value || '').trim();
       if (!raw || raw === '--' || /manual override/i.test(raw) || raw === 'Not schedulable') {
@@ -929,9 +950,123 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return groupPreviewResolution || previewResolutionsByHotspot[pendingPriorityReplacementHotspotId] || null;
   }, [groupPreviewResolution, pendingPriorityReplacementHotspotId, previewResolutionsByHotspot]);
 
+  // Scroll the confirm box into view when it appears
+  useEffect(() => {
+    if (pendingPriorityReplacementHotspotId && priorityConfirmRef.current) {
+      priorityConfirmRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [pendingPriorityReplacementHotspotId]);
+
   const effectivePreviewTimeline = useMemo(() => {
-    if (activePreviewTimeline.length > 0) {
-      return activePreviewTimeline;
+    const enforceHotelOrderingSafety = (rows: any[]): any[] => {
+      if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+      const isHotelLike = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        const text = String(row?.text || row?.name || '').toLowerCase();
+        return type === 'hotel' || Number(row?.item_type) === 6 || text.includes('check-in at hotel');
+      };
+      const isRouteContent = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        return type === 'attraction' || type === 'travel' || Number(row?.item_type) === 3 || Number(row?.item_type) === 4;
+      };
+
+      const hotelIndex = rows.findIndex((row: any) => isHotelLike(row));
+      if (hotelIndex < 0) return rows;
+
+      const hasLaterRouteContent = rows.slice(hotelIndex + 1).some((row: any) => isRouteContent(row));
+      if (!hasLaterRouteContent) return rows;
+
+      const anyHavePreviewOrder = rows.some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)));
+      if (!anyHavePreviewOrder) return rows;
+
+      return [...rows].sort((a: any, b: any) => (
+        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+      ));
+    };
+
+    const applyBestSlotOrdering = (rows: any[]): any[] => {
+      if (!Array.isArray(rows) || rows.length === 0 || !selectedHotspotId) return rows;
+
+      // Backend-provided matrix split travel rows already represent the correct route shape.
+      if (rows.some((row: any) => row?.isMatrixSplitTravel === true)) {
+        return rows;
+      }
+
+      const fit = (activePreviewResolution as any)?.manualInsertionFit;
+      const selectedIdNum = Number(selectedHotspotId);
+      const fitBest = fit?.bestSlot || null;
+      const fitChosen = fit?.chosenSlot || null;
+      const chosenInvalid = Boolean(
+        fitChosen
+        && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
+      );
+      const safeChosen = chosenInvalid ? null : fitChosen;
+      const safeBest = (fitBest
+        && Number(fitBest?.fromHotspotId) !== selectedIdNum
+        && Number(fitBest?.toHotspotId) !== selectedIdNum)
+        ? fitBest
+        : null;
+
+      const fromName = String(safeChosen?.fromName || safeBest?.fromName || '').trim();
+      if (!fromName) return rows;
+
+      const getSegHotspotId = (seg: any): number => Number(
+        seg?.selectedHotspotId ??
+        seg?.locationId ??
+        seg?.hotspotId ??
+        seg?.hotspot_ID ??
+        seg?.hotspot_id ??
+        0,
+      );
+
+      const selectedIdx = rows.findIndex((seg: any) => (
+        String(seg?.type || '').toLowerCase() === 'attraction'
+        && getSegHotspotId(seg) === selectedIdNum
+      ));
+      if (selectedIdx < 0) return rows;
+
+      const fromIdx = rows.findIndex((seg: any) => (
+        String(seg?.type || '').toLowerCase() === 'attraction'
+        && String(seg?.text || '').trim() === fromName
+      ));
+      if (fromIdx < 0) return rows;
+
+      const targetIdx = Math.min(fromIdx + 1, rows.length);
+      if (targetIdx === selectedIdx || targetIdx === (selectedIdx + 1)) return rows;
+
+      const reordered = [...rows];
+      const [selectedSeg] = reordered.splice(selectedIdx, 1);
+      const adjustedTargetIdx = selectedIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      reordered.splice(adjustedTargetIdx, 0, selectedSeg);
+      return reordered;
+    };
+
+    const activeAttractionCount = activePreviewTimeline.filter(
+      (seg: any) => String(seg?.type || '').toLowerCase() === 'attraction',
+    ).length;
+    const selectedCount = selectedHotspotIds.length;
+    const hasMatrixFit = Boolean(
+      (activePreviewResolution as any)?.manualInsertionFit
+      || (groupPreviewResolution as any)?.manualInsertionFit,
+    );
+    const shouldMergeBaselineForMatrix = Boolean(
+      hasMatrixFit
+      && activePreviewTimeline.length > 0
+      && defaultPreviewTimeline.length > activePreviewTimeline.length,
+    );
+
+    // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
+    // In that case, show the default route timeline plus selected segments so users can review full context.
+    const useMergedBaselineDuringPriorityConfirm = Boolean(
+      pendingPriorityReplacementHotspotId
+      && activePreviewTimeline.length > 0
+      && activeAttractionCount <= Math.max(1, selectedCount + 1),
+    );
+
+    if (activePreviewTimeline.length > 0 && !useMergedBaselineDuringPriorityConfirm && !shouldMergeBaselineForMatrix) {
+      return enforceHotelOrderingSafety(applyBestSlotOrdering(activePreviewTimeline));
     }
 
     const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
@@ -954,8 +1089,286 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return hour * 60 + minute;
     };
 
-    return merged.sort((a: any, b: any) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
-  }, [activePreviewTimeline, defaultPreviewTimeline, selectedPreviewSegments]);
+    const sortedMerged = merged.sort((a: any, b: any) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
+    return enforceHotelOrderingSafety(applyBestSlotOrdering(sortedMerged));
+  }, [
+    activePreviewResolution,
+    activePreviewTimeline,
+    defaultPreviewTimeline,
+    groupPreviewResolution,
+    pendingPriorityReplacementHotspotId,
+    selectedHotspotId,
+    selectedHotspotIds.length,
+    selectedPreviewSegments,
+  ]);
+
+  // ── Route-intelligence: manualInsertionFit from backend ─────────────────────
+  const manualInsertionFit = useMemo(() => {
+    return (activePreviewResolution as any)?.manualInsertionFit ?? null;
+  }, [activePreviewResolution]);
+
+  const matrixFit = useMemo(() => {
+    return (activePreviewResolution as any)?.manualInsertionFit
+      || (groupPreviewResolution as any)?.manualInsertionFit
+      || null;
+  }, [activePreviewResolution, groupPreviewResolution]);
+
+  const safeMatrixSlots = useMemo(() => {
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const allSlots: any[] = Array.isArray(matrixFit?.allSlotResults)
+      ? matrixFit.allSlotResults
+      : [];
+    return allSlots.filter((slot: any) => (
+      Number(slot?.fromHotspotId) !== selectedIdNum
+      && Number(slot?.toHotspotId) !== selectedIdNum
+    ));
+  }, [matrixFit, selectedHotspotId]);
+
+  const effectiveFitSlot = useMemo(() => {
+    if (!matrixFit) return null;
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const chosen = (matrixFit as any)?.chosenSlot ?? null;
+    const best = (matrixFit as any)?.bestSlot ?? null;
+
+    const isInvalid = (slot: any): boolean => {
+      if (!slot) return true;
+      return Number(slot?.fromHotspotId) === selectedIdNum || Number(slot?.toHotspotId) === selectedIdNum;
+    };
+
+    if (!isInvalid(chosen)) return chosen;
+    if (!isInvalid(best)) return best;
+
+    return safeMatrixSlots.find((slot: any) => !isInvalid(slot)) || null;
+  }, [matrixFit, safeMatrixSlots, selectedHotspotId]);
+
+  /** Helper: map route_fit_type to Tailwind badge classes */
+  const routeFitBadgeClass = (routeFitType: string | undefined): string => {
+    switch (routeFitType) {
+      case 'ON_ROUTE':    return 'bg-green-100 text-green-800';
+      case 'MINOR_DETOUR': return 'bg-amber-100 text-amber-700';
+      case 'BACKTRACK':   return 'bg-orange-100 text-orange-700';
+      case 'OFF_ROUTE':   return 'bg-red-100 text-red-700';
+      case 'MATRIX_UNAVAILABLE': return 'bg-gray-100 text-gray-600';
+      default:            return 'bg-gray-100 text-gray-500';
+    }
+  };
+
+  const normalizedInsertionSlots = useMemo(() => {
+    const rawSlots = Array.isArray(matrixFit?.allSlotResults) && matrixFit.allSlotResults.length > 0
+      ? matrixFit.allSlotResults
+      : (Array.isArray(activePreviewResolution?.slotInsights)
+        ? activePreviewResolution.slotInsights
+        : (Array.isArray(activePreviewResolution?.allInsertionSlots)
+          ? activePreviewResolution.allInsertionSlots
+          : []));
+
+    if (rawSlots.length === 0) return [];
+
+    const stopNames: string[] = [];
+
+    const requestedFrom = String(selectedHotspotAnchor?.anchorFrom || '').trim();
+    if (requestedFrom) {
+      stopNames.push(requestedFrom);
+    }
+
+    for (const seg of effectivePreviewTimeline as any[]) {
+      const type = String(seg?.type || '').toLowerCase();
+      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? seg?.hotspot_ID ?? 0);
+
+      if (type === 'attraction' && hotspotId === Number(selectedHotspotId || 0)) {
+        continue;
+      }
+
+      let label = '';
+      if (type === 'attraction') {
+        label = String(seg?.text || seg?.name || '').trim();
+      } else if (type === 'hotel') {
+        label = 'Hotel';
+      }
+
+      if (!label) continue;
+      if (stopNames[stopNames.length - 1] === label) continue;
+      stopNames.push(label);
+    }
+
+    // Determine which slotIndex is best from matrix-fit payload
+    const bestSlotIndex: number | null = matrixFit?.bestSlot?.slotIndex ?? null;
+
+    return rawSlots.map((slot: any, index: number) => {
+      const fromName = slot?.fromName || stopNames[index] || `Stop ${index + 1}`;
+      const toName = slot?.toName || stopNames[index + 1] || 'Destination';
+
+      // ── From manualInsertionFit.allSlotResults ──
+      const routeFitType: string = slot?.routeFitType || '';
+      const routeFitLabel: string = slot?.label || '';
+      const routeFitDisplayLabel: string = slot?.displayLabel || routeFitLabel;
+      const routeFitShortLabel: string = slot?.shortLabel || routeFitDisplayLabel || routeFitLabel;
+      const roadDetourKm: number | null = slot?.roadDetourKm != null ? Number(slot.roadDetourKm) : null;
+      const isZeroExtraDetour: boolean = slot?.isZeroExtraDetour === true || (roadDetourKm != null && roadDetourKm <= 0.5);
+      const distanceComparisonNote: string | null = slot?.distanceComparisonNote ?? null;
+      const routeDecisionReason: string | null = slot?.routeDecisionReason ?? null;
+      const timingDecisionReason: string | null = slot?.timingDecisionReason ?? null;
+      const priorityDecisionReason: string | null = slot?.priorityDecisionReason ?? null;
+      const finalDecisionReason: string | null = slot?.finalDecisionReason ?? null;
+      const routePossible: boolean = slot?.routePossible !== false;
+      const timingPossible: boolean = slot?.timingPossible === true;
+      const prioritySafe: boolean = slot?.prioritySafe !== false;
+
+      // Legacy fallback fields
+      const directKm: number = Number(slot?.directKm ?? slot?.abOsrmDistanceKm ?? 0);
+      const distanceDeltaRaw: number = roadDetourKm != null ? roadDetourKm : Number(slot?.distanceDelta || 0);
+      const distanceDelta: number = Math.max(0, Number.isFinite(distanceDeltaRaw) ? distanceDeltaRaw : 0);
+      const viaKm: number = Number(slot?.insertedRouteDistanceKm ?? slot?.viaKm ?? (directKm + distanceDelta));
+
+      const isFeasibleType = routeFitType === 'ON_ROUTE' || routeFitType === 'MINOR_DETOUR';
+      const fitsOverall: boolean = routeFitType
+        ? isFeasibleType
+        : slot?.fitsOverall !== false;
+      const isBest = bestSlotIndex != null
+        ? (slot?.slotIndex === bestSlotIndex || index === bestSlotIndex)
+        : slot?.isBest === true;
+
+      return {
+        ...slot,
+        slot: `${fromName} → ${toName}`,
+        fromName,
+        toName,
+        directKm,
+        viaKm,
+        distanceDelta,
+        routeFitType,
+        routeFitLabel,
+        displayLabel: routeFitDisplayLabel,
+        shortLabel: routeFitShortLabel,
+        roadDetourKm,
+        isZeroExtraDetour,
+        distanceComparisonNote,
+        routeDecisionReason,
+        timingDecisionReason,
+        priorityDecisionReason,
+        finalDecisionReason,
+        proposedTimeRange: slot?.proposedTimeRange || null,
+        operatingHours: slot?.operatingHours || null,
+        fitsTiming: timingPossible,
+        fitsOverall,
+        isBest: slot?.selectedAsBest === true || isBest,
+        routePossible,
+        timingPossible,
+        prioritySafe,
+        selectedAsBest: slot?.selectedAsBest === true || isBest,
+        attempted: slot?.attempted === true || true,
+        timingReason: timingDecisionReason || slot?.timingReason || slot?.reason || routeDecisionReason || null,
+      };
+    });
+  }, [activePreviewResolution, effectivePreviewTimeline, selectedHotspotAnchor, selectedHotspotId, matrixFit, safeMatrixSlots]);
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const activeAnchorFitInsight = useMemo(() => {
+    const bestSlot = normalizedInsertionSlots.find((slot: any) => slot?.isBest)
+      || normalizedInsertionSlots[0]
+      || null;
+    const routeId = Number(addHotspotModal.routeId || 0);
+    if (!routeId || !selectedHotspotId) return null;
+
+    // Prefer matrix-fit chosen/best slot for inserted-hotspot labels.
+    const fitBest = (matrixFit as any)?.bestSlot ?? null;
+    const fitChosen = (matrixFit as any)?.chosenSlot ?? null;
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const chosenInvalid = Boolean(
+      fitChosen
+      && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
+    );
+    const safeChosen = chosenInvalid ? null : fitChosen;
+    const sourceSlot = safeChosen || fitBest;
+
+    if (sourceSlot) {
+      const fitType: string = sourceSlot.routeFitType || '';
+      const label: string = sourceSlot.displayLabel || sourceSlot.label || fitType;
+      const detour: number | null = sourceSlot.roadDetourKm != null ? Number(sourceSlot.roadDetourKm) : null;
+      const tone = fitType === 'ON_ROUTE' || fitType === 'MINOR_DETOUR'
+        ? 'green' as const
+        : fitType === 'BACKTRACK'
+          ? 'amber' as const
+          : 'red' as const;
+      const between = `${sourceSlot.fromName} → ${sourceSlot.toName}`;
+      const extraLabel = detour != null ? `+${detour.toFixed(1)} km` : null;
+      return {
+        label,
+        tone,
+        extraDistanceLabel: extraLabel,
+        anchorLegLabel: between,
+        insertedLabel: label,
+        reason: sourceSlot.decisionReason || null,
+        source: (matrixFit as any)?.chosenSlotSource || null,
+        warning: (matrixFit as any)?.warning || null,
+        requestedSlot: (matrixFit as any)?.requestedSlot || null,
+        chosenSlot: safeChosen,
+      };
+    }
+
+    const distanceDelta = bestSlot?.distanceDelta ?? activePreviewResolution?.newHotspot?.distanceDelta;
+    const bestFits = bestSlot ? (bestSlot?.fitsOverall !== false) : true;
+    const bestReason = bestSlot?.timingReason || null;
+
+    if (!bestFits) {
+      return {
+        label: 'Not on the way',
+        tone: 'red' as const,
+        extraDistanceLabel: null,
+        anchorLegLabel: null,
+        insertedLabel: 'Selected slot is not feasible',
+        reason: bestReason,
+      };
+    }
+
+    // If backend provided distanceDelta, use it directly
+    if (Number.isFinite(distanceDelta) && distanceDelta !== null) {
+      const delta = Number(distanceDelta);
+      const isNeutral = Math.abs(delta) <= 0.5; // Within tolerance
+
+      if (isNeutral || delta <= 0) {
+        return {
+          label: 'Fits on the way',
+          tone: 'green' as const,
+          extraDistanceLabel: delta < -0.5 ? `~${Math.abs(delta).toFixed(1)} km shorter` : 'No extra backtrack',
+          anchorLegLabel: null,
+          insertedLabel: 'Inserted correctly between spots',
+        };
+      }
+
+      return {
+        label: 'Distance increased',
+        tone: 'red' as const,
+        extraDistanceLabel: `+${delta.toFixed(1)} km extra travel`,
+        anchorLegLabel: null,
+        insertedLabel: `Inserted with detour (+${delta.toFixed(1)} km)`,
+        reason: null,
+      };
+    }
+
+    // Fallback: no distance delta available from backend
+    return {
+      label: 'Inserted',
+      tone: 'amber' as const,
+      extraDistanceLabel: null,
+      anchorLegLabel: null,
+      insertedLabel: 'Inserted (distance unavailable)',
+      reason: null,
+    };
+  }, [addHotspotModal.routeId, activePreviewResolution, normalizedInsertionSlots, selectedHotspotId, matrixFit]);
+
+
+  const bestInsertionSlot = useMemo(() => {
+    const slots = normalizedInsertionSlots;
+
+    if (slots.length === 0) return null;
+
+    return slots.find((slot: any) => slot?.isBest)
+      || [...slots].sort(
+        (a: any, b: any) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
+      )[0]
+      || null;
+  }, [normalizedInsertionSlots]);
 
   const previewHotspotMetaById = useMemo(() => {
     const routeId = Number(addHotspotModal.routeId || 0);
@@ -3212,6 +3625,79 @@ const vehicleOnlyHtml = html
     setHotelVoucherModalOpen(true);
   }, []);
 
+  const handleCancelVoucherItems = useCallback(async (items: Array<{
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }>) => {
+    const itineraryPlanId = Number(itinerary?.planId || 0);
+    if (!itineraryPlanId) {
+      toast.error('Unable to resolve itinerary plan ID for hotel cancellation');
+      return;
+    }
+
+    const validItems = Array.isArray(items) ? items : [];
+    if (validItems.length === 0) {
+      toast.error('No hotels selected for cancellation');
+      return;
+    }
+
+    const reason = window.prompt('Enter cancellation reason')?.trim() || '';
+    if (!reason) {
+      toast.error('Cancellation reason is required');
+      return;
+    }
+
+    try {
+      const routeIds = Array.from(
+        new Set(validItems.map((i) => Number(i.routeId)).filter((id) => Number.isFinite(id) && id > 0)),
+      );
+      const hotelDetailsIds = Array.from(
+        new Set(
+          validItems
+            .flatMap((i) => i.hotelDetailsIds || [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      );
+
+      await HotelVoucherService.cancelHotelVouchers({
+        itineraryPlanId,
+        reason,
+        routeIds,
+        hotelDetailsIds,
+      });
+
+      toast.success(
+        validItems.length > 1
+          ? `Cancelled ${validItems.length} hotel voucher(s)`
+          : 'Hotel voucher cancelled successfully',
+      );
+      await refreshHotelData();
+    } catch (error: any) {
+      console.error('Failed to cancel hotel vouchers', error);
+      toast.error(error?.message || 'Failed to cancel hotel voucher(s)');
+    }
+  }, [itinerary?.planId, refreshHotelData]);
+
+  const handleCancelVoucherSingle = useCallback(async (item: {
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }) => {
+    await handleCancelVoucherItems([item]);
+  }, [handleCancelVoucherItems]);
+
   const handleHotelSelectionsChange = useCallback((selections: Record<number, {
     provider: string;
     hotelCode: string;
@@ -4125,8 +4611,14 @@ const vehicleOnlyHtml = html
         fullTimeline.push(preview.newHotspot);
       }
 
-      // The backend returns { newHotspot, otherConflicts, fullTimeline }.
-      const previewResolution = preview?.resolution || null;
+      // The backend returns { newHotspot, otherConflicts, fullTimeline, allInsertionSlots }.
+      const previewResolution = {
+        ...(preview?.resolution || {}),
+        anchorPreference: preview?.anchorPreference || null,
+        newHotspot: preview?.newHotspot || null,
+        allInsertionSlots: preview?.allInsertionSlots || [],
+        slotInsights: preview?.resolution?.slotInsights || [],
+      };
       setPreviewTimelinesByHotspot((prev) => ({
         ...prev,
         [hotspotId]: fullTimeline,
@@ -4288,6 +4780,25 @@ const vehicleOnlyHtml = html
     setIsAddingHotspot(true);
     try {
       const affectedRouteId = addHotspotModal.routeId;
+      const matrixFit =
+        (activePreviewResolution as any)?.manualInsertionFit
+        || (groupPreviewResolution as any)?.manualInsertionFit
+        || null;
+
+      const bestSlot = matrixFit?.bestSlot || null;
+      const matrixPreferredSlot = (
+        matrixFit?.chosenSlotSource === 'BEST_FIT'
+        && bestSlot
+        && Number(bestSlot?.fromHotspotId || 0) > 0
+        && Number(bestSlot?.toHotspotId || 0) > 0
+      )
+        ? {
+            fromHotspotId: Number(bestSlot.fromHotspotId),
+            toHotspotId: Number(bestSlot.toHotspotId),
+            slotIndex: Number.isFinite(Number(bestSlot?.slotIndex)) ? Number(bestSlot.slotIndex) : 0,
+            source: 'BEST_FIT' as const,
+          }
+        : undefined;
 
       const addResult: any = await ItineraryService.applyManualHotspots(
         addHotspotModal.planId,
@@ -4302,15 +4813,20 @@ const vehicleOnlyHtml = html
         {
           allowTopPriorityRemoval: topPriorityReplacementApproved === true,
           forceConflictInsertion,
+          matrixPreferredSlot,
         },
       );
 
       if (addResult?.success === false || addResult?.inserted === false) {
-        toast.error("Failed to add selected hotspots at this position");
+        toast.error(addResult?.message || addResult?.reason || "Failed to add selected hotspots at this position");
         return;
       }
 
-      if (addResult?.resolution?.forceConflictInsertionApplied === true) {
+      if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_LOW_PRIORITY_REMOVAL') {
+        toast.success('Added hotspot by removing lower-priority stops on this route');
+      } else if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_MATRIX_SLOT') {
+        toast.success('Added hotspot using best route-fit slot');
+      } else if (addResult?.resolution?.forceConflictInsertionApplied === true) {
         toast.success(`Inserted ${selectedHotspotIds.length} hotspot(s) as conflict(s) after confirmation`);
       } else {
         toast.success(`Added ${selectedHotspotIds.length} hotspot(s) successfully`);
@@ -4352,7 +4868,35 @@ const vehicleOnlyHtml = html
       }
     } catch (e: any) {
       console.error("Failed to add hotspot", e);
-      toast.error(e?.message || "Failed to add hotspot");
+      const rawMessage = String(e?.message || '').trim();
+      let backendCode = '';
+      let backendMessage = '';
+
+      try {
+        // api(...) throws Error with response text appended after status text.
+        const jsonStart = rawMessage.indexOf('{');
+        if (jsonStart >= 0) {
+          const payload = JSON.parse(rawMessage.slice(jsonStart));
+          backendCode = String(payload?.code || payload?.error?.code || '').trim();
+          backendMessage = String(payload?.message || payload?.error?.message || '').trim();
+        }
+      } catch {
+        // Fall through to generic extraction.
+      }
+
+      const fallbackFromStatus = (() => {
+        if (rawMessage.includes(' 409 ')) return 'Conflict while applying hotspot.';
+        if (rawMessage.includes(' 422 ')) return 'Validation failed while applying hotspot.';
+        return '';
+      })();
+
+      const displayMessage = [backendCode, backendMessage || fallbackFromStatus]
+        .filter((v) => String(v || '').trim().length > 0)
+        .join(': ')
+        || rawMessage
+        || 'Failed to add hotspot';
+
+      toast.error(displayMessage);
     } finally {
       setIsAddingHotspot(false);
     }
@@ -6096,6 +6640,8 @@ const vehicleOnlyHtml = html
                           </div>
                         )}
 
+
+
                         {segment.type === "travel" && (() => {
                           const travelFromLabel = segment.from;
                           const travelToLabel = segment.to;
@@ -6541,6 +7087,8 @@ const vehicleOnlyHtml = html
             onGetSaveFunction={handleGetSaveFunction}
             readOnly={readOnly}
             onCreateVoucher={handleCreateVoucher}
+            onCancelVoucher={handleCancelVoucherSingle}
+            onBulkCancelVouchers={handleCancelVoucherItems}
             onHotelSelectionsChange={handleHotelSelectionsChange}
             pagination={hotelDetails.pagination}
             routePagination={hotelDetails.routePagination}
@@ -7509,54 +8057,62 @@ const vehicleOnlyHtml = html
               </div>
 
               {/* Right Column: Preview */}
-              <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-hidden min-h-0">
+              <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-y-auto min-h-0 pr-1">
                 <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
                   <Clock className="h-4 w-4" />
                   Proposed Timeline
                 </h3>
-                {pendingPriorityReplacementHotspotId ? (
-                  <div className="mb-3 p-4 rounded-xl border border-red-200 bg-red-50 shadow-sm flex-shrink-0">
-                    <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
-                        <AlertTriangle className="h-4 w-4" />
+                {(selectedHotspotAnchor || bestInsertionSlot) && (
+                  <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
+                    <p className="text-xs text-[#6c6c6c]">
+                      {bestInsertionSlot ? 'Best Insert Slot' : 'Requested Insert Slot'}
+                    </p>
+                    <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
+                      {bestInsertionSlot?.slot || (
+                        <>
+                          {(selectedHotspotAnchor?.anchorFrom || 'Current stop')}
+                          {' -> '}
+                          {(selectedHotspotAnchor?.anchorTo || 'Next stop')}
+                          {selectedHotspotAnchor?.anchorTimeRange ? ` (${selectedHotspotAnchor.anchorTimeRange})` : ''}
+                        </>
+                      )}
+                    </p>
+
+                    {activePreviewResolution?.anchorPreference?.honored === false && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        Auto-moved away from the requested segment to the lower-detour feasible slot.
+                      </p>
+                    )}
+
+
+
+                    {activeAnchorFitInsight && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            activeAnchorFitInsight.tone === 'green'
+                              ? 'bg-green-100 text-green-700'
+                              : activeAnchorFitInsight.tone === 'red'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {activeAnchorFitInsight.label}
+                        </span>
+                        {activeAnchorFitInsight.extraDistanceLabel && (
+                          <span className="text-xs font-semibold text-[#4a4260]">
+                            {activeAnchorFitInsight.extraDistanceLabel}
+                          </span>
+                        )}
+                        {activeAnchorFitInsight.anchorLegLabel && (
+                          <span className="text-xs text-[#6c6c6c]">
+                            Anchor leg: {activeAnchorFitInsight.anchorLegLabel}
+                          </span>
+                        )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base font-bold text-red-700">Replace Priority Hotspot?</p>
-                        <p className="text-xs text-red-700 mt-1 leading-5">
-                          Adding this hotspot will replace current priority hotspot:
-                          <span className="font-semibold"> {(Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
-                            ? pendingPriorityResolution.removedTopPriorityHotspots
-                            : Array.isArray(pendingPriorityResolution?.topPriorityAffected)
-                              ? pendingPriorityResolution.topPriorityAffected
-                              : [])
-                            .map((row: any) => row?.name)
-                            .filter(Boolean)
-                            .join(', ')}</span>.
-                          {' '}This action will reschedule following items in your itinerary.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button
-                        size="sm"
-                        className="w-full bg-red-600 hover:bg-red-700 text-white"
-                        onClick={handleConfirmPriorityReplacement}
-                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
-                      >
-                        Confirm Replace
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                        onClick={handleCancelPriorityReplacement}
-                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
+                    )}
                   </div>
-                ) : null}
+                )}
                 {!pendingPriorityReplacementHotspotId && (
                   <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
                     {activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
@@ -7639,7 +8195,7 @@ const vehicleOnlyHtml = html
                     ) : null}
                   </div>
                 )}
-                <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
+                <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
                   {isPreviewingHotspotId ? (
                     <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
@@ -7649,6 +8205,53 @@ const vehicleOnlyHtml = html
 
                   {effectivePreviewTimeline.length > 0 ? (
                     <>
+                      {/* Rescheduling Applied Banner */}
+                      {manualInsertionFit?.rescheduleApplied === true && (
+                        <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
+                          <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
+                          <p className="text-xs text-blue-800 mt-1">
+                            Route-fit is feasible. Timeline rows below B have been shifted forward accordingly.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Day End Overflow — only show if no resolved removal plan replaces it */}
+                      {manualInsertionFit?.exceedsDayEnd === true &&
+                        (manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved !== true && (
+                        <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
+                          <p className="font-semibold text-amber-900">⚠ Timeline exceeds day end.</p>
+                          <p className="text-xs text-amber-800 mt-1">
+                            Final hotel check-in would exceed day end by {manualInsertionFit?.dayOverflowMinutes || 0} minutes.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Low-priority removal plan — resolved case */}
+                      {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
+                        <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
+                          <p className="font-semibold text-orange-900">⚠ Lower-priority stops will be removed to fit this hotspot</p>
+                          <p className="text-xs text-orange-700 mt-1 leading-4">
+                            Adding this manual hotspot exceeds the day end ({(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.overflowMinutes || 0} min overflow).
+                            The following lower-priority stops on this route will be removed automatically:
+                          </p>
+                          {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
+                            (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
+                            <ul className="mt-2 space-y-1">
+                              {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row: any, ri: number) => (
+                                <li key={ri} className="text-xs text-orange-900 leading-4">
+                                  <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
+                                  {row?.priority ? <span className="ml-1 text-orange-700">(P{row.priority})</span> : null}
+                                  {' '}— removed because it is lower priority than the selected manual hotspot and the day would exceed its end time.
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <p className="text-xs text-orange-800 mt-2 font-medium leading-4">
+                            The preview below shows the timeline after these stops are removed.
+                          </p>
+                        </div>
+                      )}
+
                       {effectivePreviewTimeline.map((seg: any, idx: number) => {
                         const isUserSelected = seg?.isUserSelectedPreview === true;
                         const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
@@ -7776,6 +8379,305 @@ const vehicleOnlyHtml = html
                                 seg?.text
                               )}
                             </p>
+
+                            {/* Display distance and duration for matrix split travel rows */}
+                            {seg?.isMatrixSplitTravel === true && (
+                              <div className="mt-2 text-xs text-gray-600 space-y-0.5">
+                                {(seg?.fromName || seg?.toName) && (
+                                  <p>Route leg: {seg?.fromName || 'A'} → {seg?.toName || 'B'}</p>
+                                )}
+                                {seg?.matrixDistanceKm != null && (
+                                  <p>Distance: {Number(seg.matrixDistanceKm).toFixed(1)} km</p>
+                                )}
+                                {seg?.matrixDurationMin != null && (
+                                  <p>Duration: {Math.max(1, Math.round(Number(seg.matrixDurationMin)))} min</p>
+                                )}
+                              </div>
+                            )}
+
+                            {isUserSelected && String(seg?.type || '').toLowerCase() === 'attraction' && (
+                              <div className="mt-3 space-y-2">
+                                {/* ── manualInsertionFit: Best slot panel ── */}
+                                {effectiveFitSlot && (
+                                  <div className="border border-blue-200 bg-blue-50 p-3 rounded-lg text-sm">
+                                    <p className="font-bold text-blue-900 text-[11px] mb-1.5 uppercase tracking-wide">Best insertion slot</p>
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-semibold text-gray-800 truncate">
+                                          {effectiveFitSlot.fromName} → {effectiveFitSlot.toName}
+                                        </p>
+                                        {effectiveFitSlot.roadDetourKm != null && (
+                                          <p className="text-[10px] text-gray-600 mt-0.5">
+                                            Extra distance: +{Number(effectiveFitSlot.roadDetourKm).toFixed(1)} km
+                                          </p>
+                                        )}
+                                        {effectiveFitSlot.finalDecisionReason && (
+                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">Final reason: {effectiveFitSlot.finalDecisionReason}</p>
+                                        )}
+                                        {!effectiveFitSlot.finalDecisionReason && effectiveFitSlot.decisionReason && (
+                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">{effectiveFitSlot.decisionReason}</p>
+                                        )}
+                                      </div>
+                                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${routeFitBadgeClass(effectiveFitSlot.routeFitType)}`}>
+                                        {effectiveFitSlot.displayLabel || effectiveFitSlot.label}
+                                      </span>
+                                    </div>
+                                    {effectiveFitSlot?.distanceComparisonNote && (
+                                      <p className="text-[10px] text-blue-700 mt-1">Note: {effectiveFitSlot.distanceComparisonNote}</p>
+                                    )}
+                                    {/* Requested slot if different */}
+                                    {matrixFit?.requestedSlot && matrixFit.requestedSlot.routeFitType === 'MATRIX_UNAVAILABLE' && (
+                                      <div className="mt-2 pt-2 border-t border-blue-200">
+                                        <p className="text-[10px] font-semibold text-gray-500 mb-0.5">Requested slot:</p>
+                                        <p className="text-[10px] text-gray-600">
+                                          {matrixFit.requestedSlot.fromName} → {matrixFit.requestedSlot.toName}
+                                        </p>
+                                        <span className="text-[10px] text-gray-400 italic">{matrixFit.requestedSlot.label}</span>
+                                      </div>
+                                    )}
+                                    {matrixFit?.warning && (
+                                      <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1">
+                                        ⚠ {matrixFit.warning}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Inserted hotspot route summary */}
+                                {seg?.matrixFit?.routeLegSummary && (
+                                  <div className="border border-emerald-200 bg-emerald-50 p-3 rounded-lg text-xs text-emerald-900 space-y-1">
+                                    <p className="font-semibold">Route summary:</p>
+                                    <p>
+                                      {effectiveFitSlot?.fromName || seg?.matrixFit?.fromName || 'A'} → {seg?.text || seg?.name || 'Inserted hotspot'}:{' '}
+                                      {seg?.matrixFit?.routeLegSummary?.acDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.acDistanceKm).toFixed(1)} km` : '--'}
+                                      {' / '}
+                                      {seg?.matrixFit?.routeLegSummary?.acDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.acDurationMin)))} min` : '--'}
+                                    </p>
+                                    <p>
+                                      {seg?.text || seg?.name || 'Inserted hotspot'} → {effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B'}:{' '}
+                                      {seg?.matrixFit?.routeLegSummary?.cbDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.cbDistanceKm).toFixed(1)} km` : '--'}
+                                      {' / '}
+                                      {seg?.matrixFit?.routeLegSummary?.cbDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.cbDurationMin)))} min` : '--'}
+                                    </p>
+                                    <p>
+                                      Via total: {seg?.matrixFit?.routeLegSummary?.viaDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.viaDistanceKm).toFixed(1)} km` : '--'}
+                                    </p>
+                                    <p>
+                                      Direct: {seg?.matrixFit?.routeLegSummary?.directDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.directDistanceKm).toFixed(1)} km` : '--'}
+                                    </p>
+                                    <p>
+                                      Extra: +{seg?.matrixFit?.routeLegSummary?.extraDistanceKm != null ? Number(Math.max(0, Number(seg.matrixFit.routeLegSummary.extraDistanceKm))).toFixed(1) : '--'} km
+                                    </p>
+                                    {seg?.matrixFit?.distanceComparisonNote && (
+                                      <p className="text-emerald-800">Note: {seg.matrixFit.distanceComparisonNote}</p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Show all insertion slots */}
+                                {normalizedInsertionSlots.length > 0 && (
+                                  <div className="border border-purple-200 bg-purple-50 p-3 rounded-lg text-sm space-y-2">
+                                    <p className="font-bold text-purple-900 text-xs">
+                                      All insertion attempts ({normalizedInsertionSlots.length}):
+                                    </p>
+                                    {normalizedInsertionSlots.map((slotOption: any, slotIdx: number) => {
+                                      const isBest = slotOption?.selectedAsBest === true || slotOption?.isBest === true;
+                                      const fits = slotOption?.fitsOverall !== false;
+                                      const fitLabel: string = slotOption.displayLabel || slotOption.routeFitLabel || slotOption.label || slotOption.routeFitType || (fits ? 'On route' : 'Off route');
+                                      const badgeClass: string = routeFitBadgeClass(slotOption.routeFitType);
+
+                                      const detourKm: number | null = slotOption?.roadDetourKm != null
+                                        ? Number(slotOption.roadDetourKm)
+                                        : (slotOption?.distanceDelta != null ? Number(slotOption.distanceDelta) : null);
+                                      const displayDetourKm: number | null = detourKm != null
+                                        ? Math.max(0, Number.isFinite(detourKm) ? detourKm : 0)
+                                        : null;
+                                      const abKm: number | null = slotOption?.abOsrmDistanceKm != null
+                                        ? Number(slotOption.abOsrmDistanceKm)
+                                        : null;
+                                      const viaKm: number | null = slotOption?.insertedRouteDistanceKm != null
+                                        ? Number(slotOption.insertedRouteDistanceKm)
+                                        : null;
+
+                                      return (
+                                        <div
+                                          key={slotIdx}
+                                          className={`rounded-lg border px-3 py-2 ${
+                                            isBest
+                                              ? 'border-green-400 bg-green-50'
+                                              : fits
+                                                ? 'border-gray-200 bg-white'
+                                                : 'border-red-200 bg-red-50 opacity-80'
+                                          }`}
+                                        >
+                                          {/* Slot header */}
+                                          <div className="flex items-start justify-between gap-2">
+                                            <span className={`text-xs font-semibold flex-1 truncate ${isBest ? 'text-green-800' : 'text-gray-800'}`}>
+                                              {isBest ? '⭐ ' : `${slotIdx + 1}. `}
+                                              {slotOption?.fromName} → {slotOption?.toName}
+                                            </span>
+                                            <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeClass}`}>
+                                              {fitLabel}
+                                            </span>
+                                          </div>
+
+                                          {(abKm != null || viaKm != null || detourKm != null) && (
+                                            <div className="mt-1.5 grid grid-cols-3 gap-x-2 text-[10px] text-gray-600 bg-gray-50 rounded px-2 py-1">
+                                              {abKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">A→B direct</span>
+                                                  <span className="font-semibold text-gray-700">{abKm.toFixed(1)} km</span>
+                                                </div>
+                                              )}
+                                              {viaKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">Via hotspot</span>
+                                                  <span className="font-semibold text-gray-700">{viaKm.toFixed(1)} km</span>
+                                                </div>
+                                              )}
+                                              {displayDetourKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">Extra</span>
+                                                  <span className={`font-bold ${displayDetourKm <= 0.5 ? 'text-green-600' : displayDetourKm <= 5 ? 'text-yellow-700' : 'text-red-600'}`}>
+                                                    +{displayDetourKm.toFixed(1)} km
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {slotOption?.distanceComparisonNote && (
+                                            <p className="mt-0.5 text-[10px] text-blue-700">Note: {slotOption.distanceComparisonNote}</p>
+                                          )}
+
+                                          {/* Decision reason */}
+                                          {slotOption?.routeDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-gray-500 italic">{slotOption.routeDecisionReason}</p>
+                                          )}
+
+                                          {slotOption?.timingDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-gray-500 italic">Timing reason: {slotOption.timingDecisionReason}</p>
+                                          )}
+
+                                          {slotOption?.finalDecisionReason && (
+                                            <p className={`mt-0.5 text-[10px] italic ${isBest ? 'text-green-700' : 'text-gray-700'}`}>
+                                              {isBest ? 'Final reason: ' : 'Why not selected: '}
+                                              {slotOption.finalDecisionReason}
+                                            </p>
+                                          )}
+
+                                          {!slotOption?.prioritySafe && slotOption?.priorityDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-red-700 italic">Priority reason: {slotOption.priorityDecisionReason}</p>
+                                          )}
+
+                                          {/* Best badge */}
+                                          {isBest && (
+                                            <p className="mt-1 text-[10px] font-semibold text-green-700">✓ Best available slot</p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Show current insertion status on the inserted hotspot row */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-green-100 text-green-700">
+                                    Inserted hotspot
+                                  </span>
+                                  {activeAnchorFitInsight?.label && (
+                                    <span
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                        activeAnchorFitInsight.tone === 'green'
+                                          ? 'bg-green-100 text-green-700'
+                                          : activeAnchorFitInsight.tone === 'red'
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {activeAnchorFitInsight.insertedLabel || activeAnchorFitInsight.label}
+                                    </span>
+                                  )}
+                                  {activeAnchorFitInsight?.anchorLegLabel && (
+                                    <span className="text-[10px] text-gray-500">
+                                      Between: {activeAnchorFitInsight.anchorLegLabel}
+                                    </span>
+                                  )}
+                                  {activeAnchorFitInsight?.extraDistanceLabel && (
+                                    <span className="text-[11px] font-semibold text-[#4a4260]">
+                                      Extra distance: {activeAnchorFitInsight.extraDistanceLabel}
+                                    </span>
+                                  )}
+                                  {String((seg as any)?.timeRange || '').trim() && (
+                                    <span className="text-[11px] font-semibold text-[#4a4260]">
+                                      Timing: {String((seg as any)?.timeRange || '').trim()}
+                                    </span>
+                                  )}
+                                  {(activeAnchorFitInsight as any)?.reason && (
+                                    <span className="w-full text-[10px] text-gray-500 italic">{(activeAnchorFitInsight as any).reason}</span>
+                                  )}
+                                </div>
+
+                                {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
+                                {pendingPriorityReplacementHotspotId && Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots) && pendingPriorityResolution.removedTopPriorityHotspots.length > 0 && (
+                                  <div ref={priorityConfirmRef} className="mt-3 p-3 rounded-xl border border-red-200 bg-red-50">
+                                    {(() => {
+                                      const removedPriorityRows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
+                                        ? pendingPriorityResolution.removedTopPriorityHotspots : [];
+                                      const affectedPriorityRows = Array.isArray(pendingPriorityResolution?.topPriorityAffected)
+                                        ? pendingPriorityResolution.topPriorityAffected : [];
+                                      const sourceRows = removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows;
+                                      const affectedPriorityHotspots = sourceRows
+                                        .map((row: any) => {
+                                          const id = Number(row?.id ?? row?.hotspotId ?? row?.hotspot_id ?? 0);
+                                          const name = String(row?.name || row?.hotspot_name || row?.hotspotName || '').trim();
+                                          if (name) return name;
+                                          if (id > 0) return `Hotspot #${id}`;
+                                          return '';
+                                        })
+                                        .filter(Boolean);
+                                      const affectedPriorityLabel = affectedPriorityHotspots.length > 0
+                                        ? affectedPriorityHotspots.join(', ') : 'one or more priority hotspots';
+                                      const pluralSuffix = affectedPriorityHotspots.length === 1 ? '' : 's';
+                                      return (
+                                        <div className="flex items-start gap-2 mb-3">
+                                          <div className="h-7 w-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
+                                            <AlertTriangle className="h-3.5 w-3.5" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-bold text-red-700">Reschedule Priority Hotspot{pluralSuffix}?</p>
+                                            <p className="text-xs text-red-700 mt-1 leading-5">
+                                              Adding this hotspot requires moving these priority hotspot{pluralSuffix} from the current slot:
+                                              <span className="font-semibold"> {affectedPriorityLabel}</span>.
+                                              {' '}No hotspot is deleted. The timeline will be reshuffled and following items will be rescheduled.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                        onClick={handleConfirmPriorityReplacement}
+                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                                      >
+                                        Confirm Reschedule
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                                        onClick={handleCancelPriorityReplacement}
+                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {String(seg?.type || '').toLowerCase() === 'attraction' && (
                               <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">

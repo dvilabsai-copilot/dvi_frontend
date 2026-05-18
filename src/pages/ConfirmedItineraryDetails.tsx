@@ -131,12 +131,20 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
       return;
     }
 
-    if (!id) return;
+    const itineraryPlanId = Number(itinerary?.plan?.itinerary_plan_ID || 0);
+    if (!itineraryPlanId) {
+      toast({
+        title: 'Error',
+        description: 'Unable to resolve itinerary plan ID for cancellation',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsCancelling(true);
     try {
       const response = await ItineraryService.cancelItinerary({
-        itinerary_plan_ID: parseInt(id),
+        itinerary_plan_ID: itineraryPlanId,
         reason: cancellationReason,
         cancellation_percentage: 10,
         cancellation_options: {
