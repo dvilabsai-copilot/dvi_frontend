@@ -1628,20 +1628,58 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
     const day = itinerary.days.find((d) => Number(d?.id) === routeId);
     const ids = new Set<number>();
+    const excludedSet = new Set(excludedHotspotIds.map(Number));
     for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
       const routeSeg = seg as any;
       if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
+      // Skip deleted/excluded rows
+      if (
+        routeSeg?.isDeleted === true ||
+        routeSeg?.deleted === true ||
+        routeSeg?.isExcluded === true ||
+        routeSeg?.excluded === true ||
+        routeSeg?.removed === true ||
+        routeSeg?.deletedAt != null ||
+        routeSeg?.deleted_at != null ||
+        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
+        String(routeSeg?.status || '').toLowerCase() === 'excluded'
+      ) {
+        continue;
+      }
       const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (Number.isFinite(id) && id > 0) ids.add(id);
+      if (Number.isFinite(id) && id > 0 && !excludedSet.has(id)) ids.add(id);
     }
     return ids;
-  }, [addHotspotModal.routeId, itinerary?.days]);
+  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
 
   const isCurrentPreviewAlreadyAdded = useMemo(() => {
     const id = Number(activePreviewHotspotId || 0);
     if (!id) return false;
     return currentRouteAttractionHotspotIds.has(id) || addedInModalHotspotIds.has(id);
   }, [activePreviewHotspotId, addedInModalHotspotIds, currentRouteAttractionHotspotIds]);
+
+  // Helper to normalize available hotspots after fetching
+  const normalizeAvailableHotspots = useCallback((hotspots: AvailableHotspot[]): AvailableHotspot[] => {
+    const routeId = Number(addHotspotModal.routeId || 0);
+    if (!routeId) return hotspots;
+
+    return hotspots.map((hotspot) => {
+      const hotspotId = Number(hotspot.id);
+      const isInExcludedList = excludedHotspotIds.map(Number).includes(hotspotId);
+
+      if (isInExcludedList && !currentRouteAttractionHotspotIds.has(hotspotId)) {
+        // Deleted/excluded hotspot that's not currently in timeline
+        return {
+          ...hotspot,
+          alreadyAdded: false,
+          availabilityStatus: 'EXCLUDED_BY_ROUTE',
+          actionDisabled: false,
+          buttonLabel: 'Preview',
+        };
+      }
+      return hotspot;
+    });
+  }, [addHotspotModal.routeId, excludedHotspotIds, currentRouteAttractionHotspotIds]);
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
@@ -4136,6 +4174,9 @@ const vehicleOnlyHtml = html
 
     setIsDeleting(true);
     try {
+      const deletedHotspotId = Number(deleteHotspotModal.hotspotId);
+      const deletedRouteId = Number(deleteHotspotModal.routeId);
+
       await ItineraryService.deleteHotspot(
         deleteHotspotModal.planId,
         deleteHotspotModal.routeId,
@@ -4143,6 +4184,38 @@ const vehicleOnlyHtml = html
       );
 
       toast.success("Hotspot deleted successfully");
+
+      // Update local state immediately before reload
+      // Remove from modal added set
+      setAddedInModalHotspotIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deletedHotspotId);
+        return next;
+      });
+
+      // Add to excluded set
+      setExcludedHotspotIds((prev) =>
+        Array.from(new Set([...prev.map(Number), deletedHotspotId]))
+      );
+
+      // Update itinerary to remove deleted attraction segment
+      setItinerary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          days: prev.days.map((day) => {
+            if (Number(day.id) !== deletedRouteId) return day;
+            return {
+              ...day,
+              segments: day.segments.filter((seg: any) => {
+                if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
+                const segHotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+                return segHotspotId !== deletedHotspotId;
+              }),
+            };
+          }),
+        };
+      });
 
       // Close modal
       setDeleteHotspotModal({
@@ -4734,7 +4807,7 @@ const vehicleOnlyHtml = html
     setLoadingHotspots(true);
     try {
       const hotspots = await ItineraryService.getAvailableHotspots(routeId);
-      setAvailableHotspots(hotspots as AvailableHotspot[]);
+      setAvailableHotspots(normalizeAvailableHotspots(hotspots as AvailableHotspot[]));
 
       const currentRoute = itinerary?.days.find((d) => d.id === routeId);
       if (currentRoute) {
@@ -5154,7 +5227,7 @@ const vehicleOnlyHtml = html
 
       if (addHotspotModal.routeId) {
         ItineraryService.getAvailableHotspots(addHotspotModal.routeId)
-          .then((rows) => setAvailableHotspots(rows as AvailableHotspot[]))
+          .then((rows) => setAvailableHotspots(normalizeAvailableHotspots(rows as AvailableHotspot[])))
           .catch(() => {
             // Local optimistic update already applied; silent background sync failure.
           });
@@ -8261,14 +8334,28 @@ const vehicleOnlyHtml = html
                     {filteredHotspots.map((hotspot) => (
                       (() => {
                         const isSelected = Number(activePreviewHotspotId || 0) === Number(hotspot.id);
+                        const hotspotId = Number(hotspot.id);
+                        const isDeletedFromTimeline = excludedHotspotIds.map(Number).includes(hotspotId);
+                        const isActuallyInCurrentTimeline =
+                          currentRouteAttractionHotspotIds.has(hotspotId) ||
+                          addedInModalHotspotIds.has(hotspotId);
                         const backendStatus = String(hotspot.availabilityStatus || '').trim();
                         const isAdded =
-                          currentRouteAttractionHotspotIds.has(Number(hotspot.id))
-                          || addedInModalHotspotIds.has(Number(hotspot.id))
-                          || hotspot.alreadyAdded === true
-                          || backendStatus === 'ACTIVE_THIS_ROUTE';
+                          isActuallyInCurrentTimeline ||
+                          (
+                            !isDeletedFromTimeline &&
+                            (
+                              hotspot.alreadyAdded === true ||
+                              backendStatus === 'ACTIVE_THIS_ROUTE'
+                            )
+                          );
                         const isAlsoOnOtherRoute = backendStatus === 'ACTIVE_OTHER_ROUTE';
-                        const isActionDisabled = hotspot.actionDisabled === true || isAdded;
+                        const isActionDisabled =
+                          isAdded ||
+                          (
+                            hotspot.actionDisabled === true &&
+                            !isDeletedFromTimeline
+                          );
                         const hotspotTimeline = previewTimelinesByHotspot[hotspot.id] || [];
                         const hasConflict = hotspotTimeline.some(
                           (seg: any) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
@@ -8334,6 +8421,8 @@ const vehicleOnlyHtml = html
                                       "Added"
                                     ) : isSelected ? (
                                       "Refresh"
+                                    ) : isDeletedFromTimeline ? (
+                                      "Preview"
                                     ) : (
                                       hotspot.buttonLabel || "Preview"
                                     )}
