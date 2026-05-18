@@ -527,6 +527,12 @@ export const ItineraryService = {
     });
   },
 
+  async buildMissingManualHotspotMatrix(planId: number, routeId: number, candidateHotspotId: number) {
+    return api(`itineraries/${planId}/routes/${routeId}/manual-hotspots/${candidateHotspotId}/build-matrix`, {
+      method: "POST",
+    });
+  },
+
   async removeManualHotspot(planId: number, hotspotId: number) {
     return api(`itineraries/${planId}/manual-hotspot/${hotspotId}`, {
       method: "DELETE",
