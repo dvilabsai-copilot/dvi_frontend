@@ -1043,18 +1043,70 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return reordered;
     };
 
+    const fit = (activePreviewResolution as any)?.manualInsertionFit
+      || (groupPreviewResolution as any)?.manualInsertionFit
+      || null;
+    const resolvedLowPriorityPlan = fit?.lowPriorityRemovalPlanPreview?.resolved === true;
+    const backendResolvedTimeline = Boolean(
+      resolvedLowPriorityPlan
+      || fit?.fullTimelineIsResolvedRemovalPlan === true
+      || fit?.timelineSource === 'LOW_PRIORITY_REMOVAL_FINAL_TIMELINE',
+    );
+    const plannedRemovals: any[] = Array.isArray(fit?.lowPriorityRemovalPlanPreview?.plannedRemovals)
+      ? fit.lowPriorityRemovalPlanPreview.plannedRemovals
+      : [];
+
+    const removePlannedRemovalRows = (rows: any[]): any[] => {
+      const removedIds = new Set(
+        plannedRemovals
+          .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+          .filter((id: number) => Number.isFinite(id) && id > 0),
+      );
+      const removedNames = new Set(
+        plannedRemovals
+          .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+          .filter(Boolean),
+      );
+
+      return (rows || []).filter((row: any) => {
+        const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
+        const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
+
+        if (rowId > 0 && removedIds.has(rowId)) return false;
+        for (const removedName of removedNames) {
+          if (removedName && rowText.includes(removedName)) return false;
+        }
+        return true;
+      });
+    };
+
+    const sortByPreviewOrder = (rows: any[]): any[] => {
+      if ((rows || []).some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)))) {
+        return [...rows].sort((a: any, b: any) => (
+          Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+          - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+        ));
+      }
+      return rows;
+    };
+
+    if (backendResolvedTimeline && activePreviewTimeline.length > 0) {
+      return enforceHotelOrderingSafety(
+        sortByPreviewOrder(removePlannedRemovalRows(activePreviewTimeline)),
+      );
+    }
+
     const activeAttractionCount = activePreviewTimeline.filter(
       (seg: any) => String(seg?.type || '').toLowerCase() === 'attraction',
     ).length;
     const selectedCount = selectedHotspotIds.length;
-    const hasMatrixFit = Boolean(
-      (activePreviewResolution as any)?.manualInsertionFit
-      || (groupPreviewResolution as any)?.manualInsertionFit,
-    );
+    const hasMatrixFit = Boolean(fit);
+    const isMinimalPreview = activeAttractionCount <= Math.max(1, selectedCount + 1);
     const shouldMergeBaselineForMatrix = Boolean(
       hasMatrixFit
+      && !backendResolvedTimeline
       && activePreviewTimeline.length > 0
-      && defaultPreviewTimeline.length > activePreviewTimeline.length,
+      && isMinimalPreview,
     );
 
     // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
@@ -1112,6 +1164,37 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       || (groupPreviewResolution as any)?.manualInsertionFit
       || null;
   }, [activePreviewResolution, groupPreviewResolution]);
+
+  const resolvedRemovalTimelineLeak = useMemo(() => {
+    const resolved = (matrixFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true;
+    if (!resolved || !Array.isArray(effectivePreviewTimeline) || effectivePreviewTimeline.length === 0) return false;
+
+    const plannedRemovals: any[] = Array.isArray((matrixFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals)
+      ? (matrixFit as any).lowPriorityRemovalPlanPreview.plannedRemovals
+      : [];
+    if (plannedRemovals.length === 0) return false;
+
+    const removedIds = new Set(
+      plannedRemovals
+        .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+        .filter((id: number) => Number.isFinite(id) && id > 0),
+    );
+    const removedNames = new Set(
+      plannedRemovals
+        .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    return effectivePreviewTimeline.some((row: any) => {
+      const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
+      const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
+      if (rowId > 0 && removedIds.has(rowId)) return true;
+      for (const removedName of removedNames) {
+        if (removedName && rowText.includes(removedName)) return true;
+      }
+      return false;
+    });
+  }, [effectivePreviewTimeline, matrixFit]);
 
   const safeMatrixSlots = useMemo(() => {
     const selectedIdNum = Number(selectedHotspotId || 0);
@@ -8229,10 +8312,9 @@ const vehicleOnlyHtml = html
                       {/* Low-priority removal plan — resolved case */}
                       {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
                         <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
-                          <p className="font-semibold text-orange-900">⚠ Lower-priority stops will be removed to fit this hotspot</p>
+                          <p className="font-semibold text-orange-900">Overflow resolved by removing lower-priority hotspots.</p>
                           <p className="text-xs text-orange-700 mt-1 leading-4">
-                            Adding this manual hotspot exceeds the day end ({(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.overflowMinutes || 0} min overflow).
-                            The following lower-priority stops on this route will be removed automatically:
+                            To fit this manual hotspot and keep hotel check-in before 8:00 PM, these lower-priority hotspots will be removed:
                           </p>
                           {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
                             (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
@@ -8241,14 +8323,19 @@ const vehicleOnlyHtml = html
                                 <li key={ri} className="text-xs text-orange-900 leading-4">
                                   <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
                                   {row?.priority ? <span className="ml-1 text-orange-700">(P{row.priority})</span> : null}
-                                  {' '}— removed because it is lower priority than the selected manual hotspot and the day would exceed its end time.
+                                  {row?.reason ? <span className="text-orange-700"> {'—'} {row.reason}</span> : null}
                                 </li>
                               ))}
                             </ul>
                           ) : null}
                           <p className="text-xs text-orange-800 mt-2 font-medium leading-4">
-                            The preview below shows the timeline after these stops are removed.
+                            The preview below already shows the final resolved timeline after these stops are removed.
                           </p>
+                          {import.meta.env.DEV && resolvedRemovalTimelineLeak && (
+                            <p className="text-xs text-red-700 mt-2 font-semibold leading-4">
+                              BUG: resolved-removal timeline still contains planned removals.
+                            </p>
+                          )}
                         </div>
                       )}
 
