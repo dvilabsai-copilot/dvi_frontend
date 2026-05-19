@@ -826,7 +826,7 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
         queryParams.append(key, String(value));
       }
     });
@@ -845,8 +845,8 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        queryParams.append(key, String(value));
+if (value !== undefined && value !== null && String(value).trim() !== "") {
+          queryParams.append(key, String(value));
       }
     });
 
