@@ -988,13 +988,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const pendingPriorityReplacementHotspotId = useMemo(() => {
     const needsReplacementApproval = (resolution: any): boolean => {
       if (!resolution) return false;
-      const topPriorityAffectedCount = Array.isArray(resolution?.topPriorityAffected)
-        ? resolution.topPriorityAffected.length
-        : 0;
       const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
         ? resolution.removedTopPriorityHotspots.length
         : 0;
-      return resolution?.requiresConfirmation === true || topPriorityAffectedCount > 0 || removedTopPriorityCount > 0;
+      return removedTopPriorityCount > 0;
     };
 
     const resolution = groupPreviewResolution || activePreviewResolution;
@@ -5037,9 +5034,7 @@ const vehicleOnlyHtml = html
     const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
     if (!targetHotspotId) return;
 
-    const resolution = previewResolutionsByHotspot[targetHotspotId];
-    const needsReplacementApproval = resolution?.requiresConfirmation === true ||
-      (Array.isArray(groupPreviewResolution?.topPriorityAffected) && groupPreviewResolution.topPriorityAffected.length > 0) ||
+    const needsReplacementApproval =
       (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0);
 
     if (needsReplacementApproval) {
@@ -5129,16 +5124,10 @@ const vehicleOnlyHtml = html
 
     const unresolvedPriorityReplacement = (() => {
       const resolution = groupPreviewResolution || activePreviewResolution;
-      const topPriorityAffectedCount = Array.isArray(resolution?.topPriorityAffected)
-        ? resolution.topPriorityAffected.length
-        : 0;
       const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
         ? resolution.removedTopPriorityHotspots.length
         : 0;
-      const needsReplacementApproval =
-        resolution?.requiresConfirmation === true
-        || topPriorityAffectedCount > 0
-        || removedTopPriorityCount > 0;
+      const needsReplacementApproval = removedTopPriorityCount > 0;
       return needsReplacementApproval && topPriorityReplacementApproved !== true;
     })();
 
@@ -8856,6 +8845,13 @@ const vehicleOnlyHtml = html
                         const displaySegmentText = String(seg?.type || '').toLowerCase() === 'travel'
                           ? (travelToLabel ? `Travel to ${travelToLabel}` : (seg?.text || seg?.name || 'Travel'))
                           : (seg?.text || seg?.name || '');
+                        const selectedConflictByMatrix =
+                          isUserSelected
+                          && seg?.isMatrixPositioned === true
+                          && (seg?.isConflict === true || String(seg?.conflictReason || '').length > 0);
+                        const displayTimeRange = selectedConflictByMatrix
+                          ? 'Needs reschedule'
+                          : (seg?.timeRange || '--');
                         
                         // ✅ FIX: Handle hotel check-in zero-duration segments
                         const isZeroDurationHotel = seg?.isZeroDurationHotel === true || 
@@ -8912,7 +8908,7 @@ const vehicleOnlyHtml = html
                                   {seg?.type || 'item'}
                                 </span>
                                 <span className="text-xs font-bold text-[#4a4260]">
-                                  {seg?.timeRange || '--'}
+                                  {displayTimeRange}
                                 </span>
                               </div>
 
