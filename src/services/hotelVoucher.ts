@@ -1,6 +1,3 @@
-// Hotel Voucher and Cancellation Policy Service
-// This service manages hotel vouchers and their cancellation policies
-
 import { api } from '@/lib/api';
 
 export interface HotelCancellationPolicy {
@@ -56,58 +53,22 @@ export interface AddCancellationPolicyPayload {
   description: string;
 }
 
-// Mock data for development
-let mockCancellationPolicies: HotelCancellationPolicy[] = [
-  {
-    id: 1,
-    hotelId: 101,
-    hotelName: "JVK PARK",
-    cancellationDate: "2026-02-01",
-    cancellationPercentage: 10,
-    description: "Cancellation before 7 days - 10% deduction",
-    itineraryPlanId: 36041
-  },
-  {
-    id: 2,
-    hotelId: 102,
-    hotelName: "MUNNAR QUEEN",
-    cancellationDate: "2026-02-05",
-    cancellationPercentage: 25,
-    description: "Cancellation before 3 days - 25% deduction",
-    itineraryPlanId: 36041
-  }
-];
-
-// Utility functions for localStorage persistence
-const VOUCHERS_KEY = 'mockHotelVouchers';
-function loadVouchersFromStorage(): HotelVoucherData[] {
-  try {
-    const data = localStorage.getItem(VOUCHERS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+export interface CancelHotelVouchersPayload {
+  itineraryPlanId: number;
+  reason: string;
+  routeIds?: number[];
+  hotelDetailsIds?: number[];
+  cancelAll?: boolean;
 }
-function saveVouchersToStorage(vouchers: HotelVoucherData[]) {
-  try {
-    localStorage.setItem(VOUCHERS_KEY, JSON.stringify(vouchers));
-  } catch {}
-}
-let mockVouchers: HotelVoucherData[] = loadVouchersFromStorage();
-let nextPolicyId = 3;
-let nextVoucherId = 1;
 
 export const HotelVoucherService = {
   /**
    * Get all cancellation policies for an itinerary
    */
   getCancellationPolicies: async (itineraryPlanId: number): Promise<HotelCancellationPolicy[]> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return mockCancellationPolicies.filter(
-      policy => policy.itineraryPlanId === itineraryPlanId
-    );
+    return api(`/itineraries/${itineraryPlanId}/hotel-vouchers/cancellation-policies`, {
+      method: 'GET',
+    });
   },
 
   /**
@@ -117,11 +78,9 @@ export const HotelVoucherService = {
     itineraryPlanId: number,
     hotelId: number
   ): Promise<HotelCancellationPolicy[]> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    return mockCancellationPolicies.filter(
-      policy => policy.itineraryPlanId === itineraryPlanId && policy.hotelId === hotelId
-    );
+    return api(`/itineraries/${itineraryPlanId}/hotel-vouchers/${hotelId}/cancellation-policies`, {
+      method: 'GET',
+    });
   },
 
   /**
@@ -130,48 +89,27 @@ export const HotelVoucherService = {
   addCancellationPolicy: async (
     payload: AddCancellationPolicyPayload
   ): Promise<{ success: boolean; data: HotelCancellationPolicy }> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Mock: Get hotel name (in real app, fetch from hotel ID)
-    const hotelNames: Record<number, string> = {
-      101: "JVK PARK",
-      102: "MUNNAR QUEEN",
-      103: "SPICE GROVE",
-      104: "Classic Regency",
-      105: "COUNTRY CLUB BEACH RESORT"
-    };
-
-    const newPolicy: HotelCancellationPolicy = {
-      id: nextPolicyId++,
-      hotelId: payload.hotelId,
-      hotelName: hotelNames[payload.hotelId] || `Hotel ${payload.hotelId}`,
-      cancellationDate: payload.cancellationDate,
-      cancellationPercentage: payload.cancellationPercentage,
-      description: payload.description,
-      itineraryPlanId: payload.itineraryPlanId
-    };
-
-    mockCancellationPolicies.push(newPolicy);
-
-    return {
-      success: true,
-      data: newPolicy
-    };
+    return api(`/itineraries/${payload.itineraryPlanId}/hotel-vouchers/cancellation-policies`, {
+      method: 'POST',
+      body: {
+        hotelId: payload.hotelId,
+        cancellationDate: payload.cancellationDate,
+        cancellationPercentage: payload.cancellationPercentage,
+        description: payload.description,
+      },
+    });
   },
 
   /**
    * Delete a cancellation policy
    */
-  deleteCancellationPolicy: async (policyId: number): Promise<{ success: boolean }> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    const index = mockCancellationPolicies.findIndex(p => p.id === policyId);
-    if (index !== -1) {
-      mockCancellationPolicies.splice(index, 1);
-      return { success: true };
-    }
-
-    throw new Error('Cancellation policy not found');
+  deleteCancellationPolicy: async (
+    itineraryPlanId: number,
+    policyId: number,
+  ): Promise<{ success: boolean }> => {
+    return api(`/itineraries/${itineraryPlanId}/hotel-vouchers/cancellation-policies/${policyId}`, {
+      method: 'DELETE',
+    });
   },
 
   /**
@@ -181,12 +119,9 @@ export const HotelVoucherService = {
     itineraryPlanId: number,
     hotelId: number
   ): Promise<HotelVoucherData | null> => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    const voucher = mockVouchers.find(
-      v => v.itineraryPlanId === itineraryPlanId && v.hotelId === hotelId
-    );
-    return voucher || null;
+    return api(`/itineraries/${itineraryPlanId}/hotel-vouchers/${hotelId}`, {
+      method: 'GET',
+    });
   },
 
   /**
@@ -195,56 +130,39 @@ export const HotelVoucherService = {
   createHotelVouchers: async (
     payload: CreateVoucherPayload
   ): Promise<{ success: boolean; message: string }> => {
-    try {
-      // Make API call to backend
-      const response = await api(`/itineraries/${payload.itineraryPlanId}/hotel-vouchers`, {
-        method: 'POST',
-        body: payload
-      });
+    const response = await api(`/itineraries/${payload.itineraryPlanId}/hotel-vouchers`, {
+      method: 'POST',
+      body: payload,
+    });
 
-      return {
-        success: true,
-        message: response.message || 'Hotel voucher successfully created and sent to respective hotels'
-      };
-    } catch (error: any) {
-      console.error('Failed to create hotel vouchers:', error);
-      throw error;
-    }
+    return {
+      success: true,
+      message: response.message || 'Hotel voucher successfully created and sent to respective hotels',
+    };
   },
 
   /**
    * Get default voucher terms and conditions
    */
-  getDefaultVoucherTerms: async (): Promise<string> => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+  getDefaultVoucherTerms: async (itineraryPlanId: number): Promise<string> => {
+    const response = await api(`/itineraries/${itineraryPlanId}/hotel-vouchers/default-terms`, {
+      method: 'GET',
+    });
+    return String(response?.terms || '').trim();
+  },
 
-    return `
-<h3>Package Includes: (Inclusion)</h3>
-<p>All Hotel Taxes & Service Taxes</p>
-<ul>
-  <li>Accommodation on double/triple sharing basis</li>
-  <li>Daily breakfast at the hotel</li>
-  <li>All transfers and sightseeing by private vehicle</li>
-  <li>All applicable hotel taxes</li>
-</ul>
-
-<h3>Package Excludes: (Exclusion)</h3>
-<ul>
-  <li>Any airfare or train tickets</li>
-  <li>Personal expenses such as laundry, telephone calls, tips & gratuity</li>
-  <li>Any optional activities or services</li>
-  <li>Travel insurance</li>
-</ul>
-
-<h3>Cancellation Policy:</h3>
-<p>Please refer to the cancellation policy table above for specific charges based on cancellation date.</p>
-
-<h3>Important Notes:</h3>
-<ul>
-  <li>Check-in time: 2:00 PM | Check-out time: 11:00 AM</li>
-  <li>Valid ID proof required at the time of check-in</li>
-  <li>Hotel reserves the right to admission</li>
-</ul>
-    `.trim();
-  }
+  /**
+   * Cancel hotels for selected routes/hotel detail IDs (bulk or individual)
+   */
+  cancelHotelVouchers: async (payload: CancelHotelVouchersPayload) => {
+    return api(`/itineraries/${payload.itineraryPlanId}/hotel-cancellations`, {
+      method: 'POST',
+      body: {
+        reason: payload.reason,
+        route_ids: payload.routeIds,
+        hotel_details_ids: payload.hotelDetailsIds,
+        cancel_all: payload.cancelAll === true,
+      },
+    });
+  },
 };

@@ -51,6 +51,7 @@ import GuideFormPage from "./pages/guide/GuideFormPage";
 import GuidePreview from "./pages/guide/GuidePreview";
 import ActivityPreviewPage from "./pages/activity/ActivityPreviewPage";
 import LocationsPage from "./pages/locations/LocationsPage";
+import BetweenHotspotsPage from "./pages/locations/BetweenHotspotsPage";
 import TollChargePage from "./pages/locations/TollChargePage";
 import LocationsPreviewPage from "./pages/locations/LocationsPreviewPage";
 import StaffListPage from "./pages/staff/StaffListPage";
@@ -652,6 +653,15 @@ const App = () => (
               element={
                 <MainLayout>
                   <LocationsPage />
+                </MainLayout>
+              }
+            />
+
+            <Route
+              path="/locations/between-hotspots"
+              element={
+                <MainLayout>
+                  <BetweenHotspotsPage />
                 </MainLayout>
               }
             />

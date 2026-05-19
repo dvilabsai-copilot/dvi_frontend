@@ -20,6 +20,70 @@ export type LocationRow = {
   location_description?: string | null;
 };
 
+export type BetweenHotspotsRow = {
+  between_hotspot_id: number | string;
+  between_hotspot_name: string;
+  between_hotspot_location: string;
+  route_fit_type: string;
+  road_detour_km: number | string;
+  road_detour_ratio: number | string;
+  candidate_distance_from_ab_route_meters: number | string;
+  route_decision_reason: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsHotspotSummary = {
+  id?: number | string;
+  hotspot_id?: number | string;
+  hotspotId?: number | string;
+  hotspot_name?: string;
+  hotspotName?: string;
+  name?: string;
+  location?: string;
+  city?: string;
+  source_location?: string;
+  source_location_city?: string;
+  destination_location?: string;
+  destination_location_city?: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsLocationContext = {
+  source_location?: string;
+  source_location_city?: string;
+  destination_location?: string;
+  destination_location_city?: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsResponse = {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: BetweenHotspotsRow[];
+  sourceHotspot?: BetweenHotspotsHotspotSummary;
+  destinationHotspot?: BetweenHotspotsHotspotSummary;
+  locationContext?: BetweenHotspotsLocationContext;
+};
+
+export type BetweenHotspotsFilterLocation = {
+  locationId: number | string;
+  locationName: string;
+};
+
+export type BetweenHotspotsFilterHotspot = {
+  hotspotId: number | string;
+  hotspotName: string;
+  locationId?: number | string;
+  locationName?: string;
+};
+
+export type BetweenHotspotsFiltersResponse = {
+  locations: BetweenHotspotsFilterLocation[];
+  sourceHotspots: BetweenHotspotsFilterHotspot[];
+  destinationHotspots: BetweenHotspotsFilterHotspot[];
+};
+
 /** Source-only payload for creating a new location (Add Location modal) */
 export type CreateLocationPayload = {
   source_location: string;
@@ -260,6 +324,66 @@ export const locationsApi = {
     pageSize: Number(data?.pageSize ?? params?.pageSize ?? 10),
   };
 },
+
+  async betweenHotspots(params: {
+    locationId?: number;
+    sourceHotspotId: number;
+    destinationHotspotId: number;
+    onlyUsable?: boolean;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const data = (await api(`/locations/between-hotspots${qs({
+      locationId: params.locationId,
+      sourceHotspotId: params.sourceHotspotId,
+      destinationHotspotId: params.destinationHotspotId,
+      onlyUsable: params.onlyUsable,
+      search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
+    })}`)) as any;
+
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+
+    return {
+      total: Number(data?.total ?? rows.length),
+      page: Number(data?.page ?? params.page ?? 1),
+      pageSize: Number(data?.pageSize ?? params.pageSize ?? 50),
+      rows,
+      sourceHotspot: data?.sourceHotspot ?? data?.source_hotspot ?? null,
+      destinationHotspot: data?.destinationHotspot ?? data?.destination_hotspot ?? null,
+      locationContext: data?.locationContext ?? data?.location_context ?? null,
+    } as BetweenHotspotsResponse;
+  },
+
+  async betweenHotspotsFilters(params: {
+    locationId?: number;
+    sourceHotspotId?: number;
+    onlyUsable?: boolean;
+    search?: string;
+  } = {}) {
+    const data = (await api(`/locations/between-hotspots/filters${qs({
+      locationId: params.locationId,
+      sourceHotspotId: params.sourceHotspotId,
+      onlyUsable: params.onlyUsable,
+      search: params.search,
+    })}`)) as any;
+
+    return {
+      locations: Array.isArray(data?.locations) ? data.locations : [],
+      sourceHotspots: Array.isArray(data?.sourceHotspots)
+        ? data.sourceHotspots
+        : Array.isArray(data?.source_hotspots)
+        ? data.source_hotspots
+        : [],
+      destinationHotspots: Array.isArray(data?.destinationHotspots)
+        ? data.destinationHotspots
+        : Array.isArray(data?.destination_hotspots)
+        ? data.destination_hotspots
+        : [],
+    } as BetweenHotspotsFiltersResponse;
+  },
 
     async dropdowns(params?: ItineraryLocationQuery) {
   if (params?.itineraryMode) {

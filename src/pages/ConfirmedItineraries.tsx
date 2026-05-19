@@ -24,6 +24,7 @@ function formatToDDMMYYYY(date: Date | undefined) {
 
 interface ConfirmedItinerary {
   itinerary_plan_ID: number;
+  confirmed_itinerary_plan_ID?: number | null;
   booking_quote_id: string;
   agent_name: string;
   primary_customer_name: string;
@@ -422,7 +423,7 @@ export const ConfirmedItineraries: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              <Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
+                              <Link to={`/confirmed-itinerary/${itinerary.confirmed_itinerary_plan_ID ?? itinerary.itinerary_plan_ID}`}>
                                 <Button
                                   size="sm"
                                   variant="ghost"

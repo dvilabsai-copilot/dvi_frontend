@@ -103,7 +103,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
         setVoucherTerms(existingVoucher.voucherTermsCondition);
       } else {
         // Load default terms
-        const defaultTerms = await HotelVoucherService.getDefaultVoucherTerms();
+        const defaultTerms = await HotelVoucherService.getDefaultVoucherTerms(itineraryPlanId);
         setVoucherTerms(defaultTerms);
       }
 
@@ -135,7 +135,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
     }
 
     try {
-      await HotelVoucherService.deleteCancellationPolicy(policyId);
+      await HotelVoucherService.deleteCancellationPolicy(itineraryPlanId, policyId);
       toast.success('Cancellation policy deleted successfully');
       await loadCancellationPolicies();
     } catch (error: any) {
