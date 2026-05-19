@@ -185,12 +185,16 @@ export const ItineraryService = {
     });
   },
 
-  async rebuildRoute(planId: number, routeId: number) {
-    return api(`itineraries/${planId}/route/${routeId}/rebuild`, {
-      method: "POST",
-    });
-  },
-
+  async rebuildRoute(
+  planId: number,
+  routeId: number,
+  payload?: { excludedHotspotIds?: number[] }
+) {
+  return api(`itineraries/${planId}/route/${routeId}/rebuild`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+},
   async getAvailableActivities(hotspotId: number) {
     return api(`itineraries/activities/available/${hotspotId}`, {
       method: "GET",
@@ -497,10 +501,10 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        queryParams.append(key, String(value));
-      }
-    });
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+          queryParams.append(key, String(value));
+        }
+      });
 
     return api(`itineraries/confirmed?${queryParams.toString()}`, {
       method: "GET",
@@ -521,11 +525,11 @@ export const ItineraryService = {
   }) {
     const queryParams = new URLSearchParams();
     
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        queryParams.append(key, String(value));
-      }
-    });
+  Object.entries(params).forEach(([key, value]) => {
+  if (value !== undefined && value !== null && String(value).trim() !== "") {
+    queryParams.append(key, String(value));
+  }
+});
 
     return api(`itineraries/cancelled?${queryParams.toString()}`, {
       method: "GET",
@@ -541,10 +545,10 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
-        queryParams.append(key, String(value));
-      }
-    });
+  if (value !== undefined && value !== null && String(value).trim() !== "") {
+    queryParams.append(key, String(value));
+  }
+});
 
     return api(`itineraries/accounts?${queryParams.toString()}`, {
       method: "GET",

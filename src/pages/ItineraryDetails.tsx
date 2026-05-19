@@ -270,6 +270,7 @@ type CostBreakdown = {
 type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
+  confirmed_itinerary_plan_ID?: number;
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
@@ -466,15 +467,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
-    open: boolean;
-    planId: number | null;
-    routeId: number | null;
-    hotspotId: number | null;
-    hotspotName: string;
-  }>({
+  open: boolean;
+  planId: number | null;
+  routeId: number | null;
+  routeHotspotId: number | null;
+  hotspotId: number | null;
+  hotspotName: string;
+}>({
     open: false,
     planId: null,
     routeId: null,
+    routeHotspotId: null,
     hotspotId: null,
     hotspotName: "",
   });
@@ -1576,26 +1579,59 @@ const htmlToPlainText = (html: string): string => {
   };
 
   const handleDeleteHotspot = async () => {
-    if (!deleteHotspotModal.planId || !deleteHotspotModal.routeId || !deleteHotspotModal.hotspotId) {
-      return;
-    }
+  if (
+  !deleteHotspotModal.planId ||
+  !deleteHotspotModal.routeId ||
+  !deleteHotspotModal.routeHotspotId
+) {
+  toast.error("Missing hotspot delete information");
+  return;
+}
 
     setIsDeleting(true);
     try {
-      await ItineraryService.deleteHotspot(
-        deleteHotspotModal.planId,
-        deleteHotspotModal.routeId,
-        deleteHotspotModal.hotspotId
-      );
+  const deletedHotspotId = deleteHotspotModal.hotspotId;
+
+await ItineraryService.deleteHotspot(
+  deleteHotspotModal.planId,
+  deleteHotspotModal.routeId,
+  deleteHotspotModal.routeHotspotId
+);
+
+if (deletedHotspotId) {
+  setExcludedHotspotIds((prev) =>
+    prev.includes(deletedHotspotId) ? prev : [...prev, deletedHotspotId]
+  );
+}
+toast.success("Hotspot deleted successfully");
       
-      toast.success("Hotspot deleted successfully");
-      
+setItinerary((prev) => {
+  if (!prev) return prev;
+
+  return {
+    ...prev,
+    days: prev.days.map((day) =>
+      day.id === deleteHotspotModal.routeId
+        ? {
+            ...day,
+            segments: day.segments.filter(
+              (segment) =>
+                segment.type !== "attraction" ||
+                segment.routeHotspotId !== deleteHotspotModal.routeHotspotId
+            ),
+          }
+        : day
+    ),
+  };
+});
+
       // Close modal
       setDeleteHotspotModal({
         open: false,
         planId: null,
         routeId: null,
-        hotspotId: null,
+        routeHotspotId: null,
+       hotspotId: null,
         hotspotName: "",
       });
       
@@ -1603,14 +1639,9 @@ const htmlToPlainText = (html: string): string => {
       setRouteNeedsRebuild(deleteHotspotModal.routeId);
       
       // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
+     // Do not reload itinerary here.
+// Reloading immediately brings deleted hotspot back from old backend allocation.
+// Keep UI updated locally and show Rebuild Route button instead.
     } catch (e: any) {
       console.error("Failed to delete hotspot", e);
       toast.error(e?.message || "Failed to delete hotspot");
@@ -1622,7 +1653,9 @@ const htmlToPlainText = (html: string): string => {
   const handleRebuildRoute = async (planId: number, routeId: number) => {
     setIsRebuilding(true);
     try {
-      await ItineraryService.rebuildRoute(planId, routeId);
+      await ItineraryService.rebuildRoute(planId, routeId, {
+  excludedHotspotIds,
+});
       toast.success("Route rebuilt successfully");
       
       // Clear rebuild flag
@@ -1682,20 +1715,22 @@ const htmlToPlainText = (html: string): string => {
     }
   };
 
-  const openDeleteHotspotModal = (
-    planId: number,
-    routeId: number,
-    hotspotId: number,
-    hotspotName: string
-  ) => {
-    setDeleteHotspotModal({
-      open: true,
-      planId,
-      routeId,
-      hotspotId,
-      hotspotName,
-    });
-  };
+ const openDeleteHotspotModal = (
+  planId: number,
+  routeId: number,
+  routeHotspotId: number,
+  hotspotId: number,
+  hotspotName: string
+) => {
+  setDeleteHotspotModal({
+    open: true,
+    planId,
+    routeId,
+    routeHotspotId,
+    hotspotId,
+    hotspotName,
+  });
+};
 
   const openAddActivityModal = async (
     planId: number,
@@ -2955,7 +2990,14 @@ if (error || !itinerary) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
+            onClick={() => {
+                if (!itinerary.planId) {
+                  toast.error("Plan ID not found");
+                  return;
+                }
+
+                handleRebuildRoute(itinerary.planId, day.id);
+              }}
             disabled={isRebuilding}
             className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
           >
@@ -3172,10 +3214,11 @@ if (error || !itinerary) {
                                 className="text-red-500 hover:text-red-700 p-1"
                                 title="Delete Hotspot"
                                 onClick={() =>
-                                  openDeleteHotspotModal(
+                                 openDeleteHotspotModal(
                                     itinerary.planId || 0,
                                     day.id,
                                     segment.routeHotspotId || 0,
+                                    segment.hotspotId || 0,
                                     segment.name
                                   )
                                 }
@@ -3960,10 +4003,11 @@ if (error || !itinerary) {
             <Button
               variant="outline"
               onClick={() =>
-                setDeleteHotspotModal({
+               setDeleteHotspotModal({
                   open: false,
                   planId: null,
                   routeId: null,
+                  routeHotspotId: null,
                   hotspotId: null,
                   hotspotName: "",
                 })
