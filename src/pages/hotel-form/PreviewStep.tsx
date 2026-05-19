@@ -8,7 +8,22 @@ type ApiCtx = {
 
 // Safe string render
 const S = (v: any) => (v === null || v === undefined || v === "" ? "-" : String(v));
-const isNumericLike = (v: any) => {
+
+const formatReviewDate = (value: any) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};const isNumericLike = (v: any) => {
   if (v === null || v === undefined || v === "") return false;
   const n = Number(v);
   return Number.isFinite(n);
@@ -57,6 +72,7 @@ export default function PreviewStep({
     return {
       hotelName: S(h.hotel_name ?? h.name),
       hotelCode: S(h.hotel_code ?? h.code),
+      axisRoomPropertyId: S(h.axisrooms_property_id),
       hotelMobile: S(
         h.hotel_mobile ??
           h.hotel_mobile_no ??
@@ -286,6 +302,24 @@ export default function PreviewStep({
             <div className="pv-value pv-dim">{info.hotelMobile}</div>
           </div>
 
+          <div className="pv-field">
+            <div className="pv-label">Axis Room Property Id</div>
+            {info.axisRoomPropertyId !== "-" ? (
+              <button
+                type="button"
+                className="pv-copy-chip"
+                title="Click to copy Axis Room Property Id"
+                onClick={() => navigator.clipboard.writeText(info.axisRoomPropertyId)}
+              >
+                {info.axisRoomPropertyId}
+              </button>
+            ) : (
+              <div className="pv-value">-</div>
+            )}
+          </div>
+          <div className="pv-field pv-empty" />
+          <div className="pv-field pv-empty" />
+
           {/* Row 2 */}
           <div className="pv-field">
             <div className="pv-label">Hotel Email</div>
@@ -412,7 +446,7 @@ export default function PreviewStep({
                     <td>{idx + 1}</td>
                     <td>{r.rating}</td>
                     <td>{r.description}</td>
-                    <td>{r.createdOn}</td>
+                    <td>{formatReviewDate(r.createdOn)}</td>
                   </tr>
                 ))
               )}
@@ -478,6 +512,22 @@ export default function PreviewStep({
         }
         .pv-value{
           font-size:15px; color:var(--pv-text); font-weight:600;
+        }
+        .pv-copy-chip{
+          display:inline-flex;
+          align-items:center;
+          border:1px solid #86efac;
+          background:#f0fdf4;
+          color:#166534;
+          border-radius:8px;
+          padding:3px 8px;
+          font-size:13px;
+          font-weight:600;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          cursor:pointer;
+        }
+        .pv-copy-chip:hover{
+          background:#dcfce7;
         }
         .pv-dim{
           color:#9aa0b4; font-weight:600;

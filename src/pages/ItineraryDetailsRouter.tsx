@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ItineraryService } from '@/services/itinerary';
-import { ItineraryDetails } from './ItineraryDetails';
 import { ConfirmedItineraryDetails } from './ConfirmedItineraryDetails';
+import * as ItineraryDetailsModule from './ItineraryDetails';
 import { Loader2 } from 'lucide-react';
+
+// Resilient component resolution with HMR/module cache fallback
+const ItineraryDetailsComponent =
+  (ItineraryDetailsModule as any)?.ItineraryDetails ||
+  (ItineraryDetailsModule as any)?.default;
 
 /**
  * Smart router that checks if itinerary is confirmed
@@ -72,9 +77,9 @@ export const ItineraryDetailsRouter: React.FC = () => {
   // Error state - default to edit mode
   if (error) {
     console.warn('Error checking confirmation status, loading in edit mode:', error);
-    return <ItineraryDetails readOnly={false} />;
+    return <ItineraryDetailsComponent readOnly={false} />;
   }
 
   // Normal itinerary route
-  return <ItineraryDetails readOnly={isConfirmed} />;
+  return <ItineraryDetailsComponent readOnly={isConfirmed} />;
 };

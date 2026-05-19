@@ -67,6 +67,7 @@ const menuItems: MenuItem[] = [
     ],
   },
   { id: "hotels", title: "Hotels", icon: FileText, path: "/hotels" },
+  { id: "axisrooms-hotels", title: "AxisRooms Hotels", icon: FileText, path: "/hotels/axisrooms" },
   { id: "daily-moment", title: "Daily Moment Tracker", icon: Clock, path: "/daily-moment" },
   {
     id: "vendor-management",
@@ -100,6 +101,7 @@ const menuItems: MenuItem[] = [
     hasSubmenu: true,
     children: [
       { id: "locations-main", title: "Locations", path: "/locations" },
+      { id: "locations-between-hotspots", title: "Between Hotspots", path: "/locations/between-hotspots" },
       { id: "toll-charge", title: "Toll Charge", path: "/toll-charge" },
     ],
   },
@@ -129,11 +131,13 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void }
+interface SidebarProps { mobileOpen: boolean; onMobileToggle: () => void; collapsed?: boolean; onCollapsedChange?: (v: boolean) => void }
 
-export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
+export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, onCollapsedChange }: SidebarProps) => {
   const [openParentId, setOpenParentId] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
+  const collapsed = collapsedProp !== undefined ? collapsedProp : localCollapsed;
+  const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
 
   const token = localStorage.getItem("accessToken");
@@ -160,7 +164,7 @@ export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
       return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","staff","wallet","subscription-history"].includes(item.id);
     }
     if (role === 1) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","accounts","hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
+      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","accounts","hotels","axisrooms-hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
     }
     return false;
   });
@@ -208,7 +212,16 @@ export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
 
             return (
               <li key={item.id}>
-                <NavLink to={item.path} className={({ isActive }) => cn("flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]", isActive && "bg-gradient-to-r from-primary to-pink-500 text-white")}>
+                <NavLink
+                  to={item.path}
+                  end={item.id === "hotels" || item.id === "axisrooms-hotels"}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]",
+                      isActive && "bg-gradient-to-r from-primary to-pink-500 text-white",
+                    )
+                  }
+                >
                   <Icon className="h-5 w-5" />
                   {!collapsed && <span className="text-sm">{item.title}</span>}
                 </NavLink>
@@ -262,7 +275,10 @@ export const Sidebar = ({ mobileOpen, onMobileToggle }: SidebarProps) => {
         </SheetContent>
       </Sheet>
 
-      <aside className={cn("hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300", collapsed ? "w-20" : "w-64")}>
+      <aside
+        className="hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300"
+        style={{ width: collapsed ? "5rem" : "16rem" }}
+      >
         <SidebarContent />
       </aside>
     </>

@@ -1,19 +1,20 @@
 // FILE: src/pages/locations/LocationsPage.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Trash2, Plus, IndianRupee } from "lucide-react";
+import { Eye, Pencil, Trash2, Plus, IndianRupee, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { locationsApi, LocationRow, TollRow } from "@/services/locations";
+import { locationsApi, LocationRow, TollRow, CreateLocationPayload } from "@/services/locations";
 import { useNavigate } from "react-router-dom";
 import { AddLocationDialog } from "./components/AddLocationDialog";
 import { EditLocationDialog } from "./components/EditLocationDialog";
-import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
+import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
 
 const PAGE_SIZES = [10, 25, 50];
+const MIN_SAME_LOCATION_DISTANCE_KM = 10;
 
 // safe lowercase helper
 const lo = (v: unknown) => (v === null || v === undefined ? "" : String(v)).toLowerCase();
@@ -73,9 +74,32 @@ export default function LocationsPage() {
 
   const [sources, setSources] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
+  const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [source, setSource] = useState<string>("");
   const [destination, setDestination] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const locationOptions: AutoSuggestOption[] = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [...sources, ...destinations]
+            .map((item) => String(item || "").trim())
+            .filter(Boolean)
+        )
+      )
+        .sort((a, b) => a.localeCompare(b))
+        .map((item) => ({
+          value: item,
+          label: item,
+        })),
+    [sources, destinations]
+  );
+
+  const sourceOptions: AutoSuggestOption[] = locationOptions;
+
+  const destinationOptions: AutoSuggestOption[] = locationOptions;
 
   // dialogs
    const [addOpen, setAddOpen] = useState(false);
@@ -86,40 +110,124 @@ export default function LocationsPage() {
     row: LocationRow | null;
     scope: "source" | "destination";
   }>({ open: false, row: null, scope: "source" });
-  const [deleteRow, setDeleteRow] = useState<LocationRow | null>(null);
-  const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
+  const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
+const [deleteLocationName, setDeleteLocationName] = useState("");
+const [deleteDialogOptions, setDeleteDialogOptions] = useState<AutoSuggestOption[]>([]);
+const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
+const [deleteSelectedSource, setDeleteSelectedSource] = useState("");
+const [deleteSelectedDestination, setDeleteSelectedDestination] = useState("");
+const [deletePopupSelectedIds, setDeletePopupSelectedIds] = useState<number[]>([]);
+const [deletePopupRows, setDeletePopupRows] = useState<LocationRow[]>([]);
+const [deletePopupPage, setDeletePopupPage] = useState(1);
+const [deletePopupPageSize, setDeletePopupPageSize] = useState(10);
+const [deletePopupTotal, setDeletePopupTotal] = useState(0);
+const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | null; items: TollRow[] }>({ open: false, row: null, items: [] });
 
   useEffect(() => {
-    loadDropdowns();
+    void loadDropdowns();
   }, []);
 
   // fetch on page/pageSize/source/destination change
   useEffect(() => {
-    loadList();
+    void loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, source, destination]);
+  }, [page, pageSize, source, destination, debouncedSearch]);
 
   // debounced fetch on search change
   useEffect(() => {
     const t = setTimeout(() => {
+      setDebouncedSearch(search);
       setPage(1);
-      loadList();
     }, 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   async function loadDropdowns() {
-    const d = await locationsApi.dropdowns();
-    setSources(d?.sources || []);
-    setDestinations(d?.destinations || []);
+    setDropdownsLoading(true);
+    try {
+      const d = await locationsApi.dropdowns();
+      setSources(d?.sources || []);
+      setDestinations(d?.destinations || []);
+    } catch (error) {
+      console.error("Error loading location dropdowns:", error);
+      toast.error("Failed to load location filters");
+      setSources([]);
+      setDestinations([]);
+    } finally {
+      setDropdownsLoading(false);
+    }
   }
 
   async function loadList() {
-    const data = await locationsApi.list({ page, pageSize, source, destination, search });
-    const normalized = Array.isArray(data?.rows) ? data.rows.map(normalizeRow) : [];
-    setRows(normalized);
-    setTotal(Number(data?.total ?? normalized.length));
+    const sourceValue = source.trim();
+    const destinationValue = destination.trim();
+    const sourceLower = sourceValue.toLowerCase();
+    const sameLocationSelected =
+      Boolean(sourceValue) &&
+      Boolean(destinationValue) &&
+      sourceLower === destinationValue.toLowerCase();
+
+    if (!sameLocationSelected) {
+      const data = await locationsApi.list({
+        page,
+        pageSize,
+        source,
+        destination,
+        search: debouncedSearch,
+      });
+
+      const normalized = Array.isArray(data?.rows) ? data.rows : [];
+      setRows(normalized);
+      setTotal(Number(data?.total ?? normalized.length));
+      return;
+    }
+
+    const sourceOnlyPageSize = 200;
+    const firstPage = await locationsApi.list({
+      page: 1,
+      pageSize: sourceOnlyPageSize,
+      source: sourceValue,
+      destination: "",
+      search: debouncedSearch,
+    });
+
+    const firstRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
+    const backendTotal = Number(firstPage?.total ?? firstRows.length);
+    const backendTotalPages = Math.max(1, Math.ceil(backendTotal / sourceOnlyPageSize));
+
+    let allRows = [...firstRows];
+
+    for (let nextPage = 2; nextPage <= backendTotalPages; nextPage += 1) {
+      const nextData = await locationsApi.list({
+        page: nextPage,
+        pageSize: sourceOnlyPageSize,
+        source: sourceValue,
+        destination: "",
+        search: debouncedSearch,
+      });
+
+      const nextRows = Array.isArray(nextData?.rows) ? nextData.rows : [];
+      if (!nextRows.length) break;
+      allRows = allRows.concat(nextRows);
+    }
+
+    const sameLocationRows = allRows.filter((row) => {
+      const rowSource = row.source_location.trim().toLowerCase();
+      const rowDestination = row.destination_location.trim().toLowerCase();
+      const distance = Number(row.distance_km || 0);
+
+      return (
+        rowSource === sourceLower &&
+        rowDestination === sourceLower &&
+        distance >= MIN_SAME_LOCATION_DISTANCE_KM
+      );
+    });
+
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+
+    setRows(sameLocationRows.slice(startIndex, endIndex));
+    setTotal(sameLocationRows.length);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -133,6 +241,89 @@ export default function LocationsPage() {
         .some((v) => lo(v).includes(s))
     );
   }, [rows, search]);
+
+  const currentPageRows = useMemo(() => rows, [rows]);
+
+const deleteSelectedFilteredRows = useMemo(() => {
+  if (!deleteSelectedOpen) return [];
+
+  if (!deleteSelectedSource && !deleteSelectedDestination) {
+    return currentPageRows;
+  }
+
+  return deletePopupRows;
+}, [currentPageRows, deletePopupRows, deleteSelectedDestination, deleteSelectedOpen, deleteSelectedSource]);
+
+const deleteSelectedFilteredIds = useMemo(
+  () => deleteSelectedFilteredRows.map((row) => row.location_ID),
+  [deleteSelectedFilteredRows]
+);
+
+const allDeletePopupRowsSelected =
+  deleteSelectedFilteredIds.length > 0 &&
+  deleteSelectedFilteredIds.every((id) => deletePopupSelectedIds.includes(id));
+
+useEffect(() => {
+  if (!deleteSelectedOpen) return;
+
+  setDeletePopupSelectedIds((prev) =>
+    prev.filter((id) => deleteSelectedFilteredIds.includes(id))
+  );
+}, [deleteSelectedOpen, deleteSelectedFilteredIds]);
+
+useEffect(() => {
+  if (!deleteSelectedOpen) return;
+
+  const sourceValue = deleteSelectedSource.trim();
+  const destinationValue = deleteSelectedDestination.trim();
+
+  if (!sourceValue && !destinationValue) {
+    setDeletePopupRows([]);
+    return;
+  }
+
+  let cancelled = false;
+
+  const loadDeletePopupRows = async () => {
+    try {
+      const result = await locationsApi.list({
+        page: deletePopupPage,
+        pageSize: deletePopupPageSize,
+        source: sourceValue,
+        destination: destinationValue,
+      });
+
+      if (cancelled) return;
+      setDeletePopupRows(result.rows || []);
+      setDeletePopupTotal(Number(result.total ?? result.rows?.length ?? 0));
+    } catch (error) {
+      if (cancelled) return;
+      console.error("Error loading records for delete popup:", error);
+      setDeletePopupRows([]);
+      setDeletePopupTotal(0);
+      toast.error("Failed to load matching records");
+    }
+  };
+
+  void loadDeletePopupRows();
+
+  return () => {
+    cancelled = true;
+  };
+}, [deletePopupPage, deletePopupPageSize, deleteSelectedDestination, deleteSelectedOpen, deleteSelectedSource]);
+
+useEffect(() => {
+  if (!deleteLocationOpen) {
+    setDeleteDialogOptions([]);
+    return;
+  }
+
+  const frameId = window.requestAnimationFrame(() => {
+    setDeleteDialogOptions(locationOptions);
+  });
+
+  return () => window.cancelAnimationFrame(frameId);
+}, [deleteLocationOpen, locationOptions]);
 
   // ---------- handlers ----------
              function openModifyLocation() {
@@ -160,16 +351,39 @@ export default function LocationsPage() {
   }
 
   function openDeleteLocationName() {
-    const rowToDelete = selectedRow ?? rows[0] ?? null;
+  setDeleteLocationName("");
+  setDeleteLocationOpen(true);
+}
 
-    if (!rowToDelete) {
-      toast.error("No location available to delete");
-      return;
+function openDeleteSelectedRecords() {
+  setDeleteSelectedSource("");
+  setDeleteSelectedDestination("");
+  setDeletePopupRows([]);
+  setDeletePopupPage(1);
+  setDeletePopupTotal(0);
+  setDeletePopupSelectedIds(currentPageRows.map((row) => row.location_ID));
+  setDeleteSelectedOpen(true);
+}
+
+function toggleDeletePopupRecord(id: number, checked: boolean) {
+  setDeletePopupSelectedIds((prev) => {
+    if (checked) {
+      return prev.includes(id) ? prev : [...prev, id];
     }
 
-    setSelectedRow(rowToDelete);
-    setDeleteRow(rowToDelete);
-  }
+    return prev.filter((item) => item !== id);
+  });
+}
+
+function toggleAllDeletePopupRecords(checked: boolean) {
+  setDeletePopupSelectedIds((prev) => {
+    if (!checked) {
+      return prev.filter((id) => !deleteSelectedFilteredIds.includes(id));
+    }
+
+    return Array.from(new Set([...prev, ...deleteSelectedFilteredIds]));
+  });
+}
 
   async function openSelectedTolls() {
     const rowForTolls = selectedRow ?? rows[0] ?? null;
@@ -182,20 +396,40 @@ export default function LocationsPage() {
     setSelectedRow(rowForTolls);
     await openTolls(rowForTolls);
   }
-  async function handleCreate(payload: Omit<LocationRow, "location_ID">) {
-    await locationsApi.create(payload);
+    async function handleCreate(payload: CreateLocationPayload) {
+    const created = await locationsApi.create(payload);
+
     toast.success("Location added");
     setAddOpen(false);
     setPage(1);
-    await Promise.all([loadList(), loadDropdowns()]);
-}
+
+    setRows((prev) => [created, ...prev]);
+    setTotal((prev) => prev + 1);
+
+    await Promise.all([loadDropdowns(), loadList()]);
+  }
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
+
+    const nextSource = String(payload.source_location ?? editRow.source_location ?? "").trim();
+    const nextDestination = String(payload.destination_location ?? editRow.destination_location ?? "").trim();
+    const nextDistance = Number(payload.distance_km ?? editRow.distance_km ?? 0);
+
+    if (
+      nextSource &&
+      nextDestination &&
+      nextSource.toLowerCase() === nextDestination.toLowerCase() &&
+      nextDistance < MIN_SAME_LOCATION_DISTANCE_KM
+    ) {
+      toast.error(`When source and destination are the same, distance must be at least ${MIN_SAME_LOCATION_DISTANCE_KM} km.`);
+      return;
+    }
+
     await locationsApi.update(editRow.location_ID, payload);
     toast.success("Location updated");
     setEditRow(null);
-    await loadList();
+    await Promise.all([loadDropdowns(), loadList()]);
   }
 
   async function handleRename(new_name: string) {
@@ -204,32 +438,96 @@ export default function LocationsPage() {
     await locationsApi.modifyName(row.location_ID, scope, new_name);
     toast.success("Location name updated");
     setRenameInfo({ open: false, row: null, scope: "source" });
-    await loadList();
+    await Promise.all([loadDropdowns(), loadList()]);
   }
 
-    async function handleDelete() {
-    if (!deleteRow) return;
+   async function handleDeleteLocationName() {
+  const locationName = deleteLocationName.trim();
 
-    const rowToDelete = deleteRow;
-    const deletedLabel = `${rowToDelete.source_location} → ${rowToDelete.destination_location}`;
+  if (!locationName) {
+    toast.error("Please select a location to delete");
+    return;
+  }
 
-    await locationsApi.remove(rowToDelete.location_ID);
+  const deletingToastId = toast.loading("Deleting location...");
 
-    setDeleteRow(null);
+  try {
+    const result = await locationsApi.deleteLocationName(locationName);
+
+    setDeleteLocationOpen(false);
+    setDeleteLocationName("");
     setSelectedRow(null);
-    await loadList();
 
-    toast.success(`Deleted location: ${deletedLabel}`, {
-      action: {
-        label: "Undo",
-        onClick: async () => {
-          await locationsApi.restore(rowToDelete.location_ID);
-          toast.success(`Restored location: ${deletedLabel}`);
-          await loadList();
-        },
-      },
-    });
+    toast.success(
+      `Deleted location: ${result.deletedLocation || locationName} (${result.deletedCount || 0} record${Number(result.deletedCount || 0) === 1 ? "" : "s"})`,
+      { id: deletingToastId }
+    );
+
+    void Promise.all([loadDropdowns(), loadList()]);
+  } catch (error) {
+    console.error("Error deleting location name:", error);
+    toast.error("Failed to delete location", { id: deletingToastId });
   }
+}
+
+async function handleDeleteSelectedRecords(ids?: number[]) {
+  const idsToDelete = [...(ids && ids.length ? ids : deletePopupSelectedIds)];
+
+  if (!idsToDelete.length) {
+    toast.error("Please select at least one record to delete");
+    return;
+  }
+
+  const deletingToastId = toast.loading(
+    `Deleting ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}...`
+  );
+
+  try {
+    await Promise.all(idsToDelete.map((id) => locationsApi.remove(id)));
+
+    setDeleteSelectedOpen(false);
+    setDeleteSelectedSource("");
+    setDeleteSelectedDestination("");
+    setDeletePopupRows([]);
+    setDeletePopupPage(1);
+    setDeletePopupTotal(0);
+    setDeletePopupSelectedIds([]);
+    setSelectedRow(null);
+
+    toast.success(
+      `Deleted ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
+      {
+        id: deletingToastId,
+        duration: 5000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const restoreToastId = toast.loading(
+              `Restoring ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}...`
+            );
+
+            try {
+              await Promise.all(idsToDelete.map((id) => locationsApi.restore(id)));
+              toast.success(
+                `Restored ${idsToDelete.length} selected record${idsToDelete.length === 1 ? "" : "s"}`,
+                { id: restoreToastId }
+              );
+              void Promise.all([loadDropdowns(), loadList()]);
+            } catch (error) {
+              console.error("Error restoring selected records:", error);
+              toast.error("Failed to restore selected records", { id: restoreToastId });
+            }
+          },
+        },
+      }
+    );
+
+    void Promise.all([loadDropdowns(), loadList()]);
+  } catch (error) {
+    console.error("Error deleting selected records:", error);
+    toast.error("Failed to delete selected records", { id: deletingToastId });
+  }
+}
 
   async function openTolls(row: LocationRow) {
     const items = await locationsApi.tolls(row.location_ID);
@@ -247,9 +545,8 @@ export default function LocationsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-primary">List of Locations</h1>
-                      <div className="flex gap-2">
+      <div className="space-y-4">
+  <div className="flex flex-wrap gap-2">
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Locations
@@ -264,45 +561,69 @@ export default function LocationsPage() {
           </Button>
 
           <Button variant="outline" onClick={openDeleteLocationName}>
-            Delete Location Name
-          </Button>
+  Delete Location
+</Button>
 
-          <Button variant="outline" onClick={openSelectedTolls}>
+<Button variant="outline" onClick={openDeleteSelectedRecords}>
+  Delete Selected Records
+</Button>
+
+<Button variant="outline" onClick={openSelectedTolls}>
             <IndianRupee className="mr-2 h-4 w-4" />
             Toll Charges
           </Button>
+          <h1 className="text-2xl font-bold text-primary">List of Locations</h1>
         </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div>
-            <div className="text-xs mb-1">Source Location *</div>
-            <LocationAutosuggestInput
-              placeholder="Type source location"
-              value={source}
-              onValueChange={(value) => {
-                setSource(value);
-                setDestination("");
-                setPage(1);
-              }}
-              search={locationsApi.searchSources}
-            />
-          </div>
+                   
+            <div>
+  <div className="text-xs mb-1">Source Location *</div>
+    {dropdownsLoading ? (
+      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading source locations...
+      </div>
+    ) : (
+      <AutoSuggestSelect
+        mode="single"
+        value={source}
+        onChange={(val) => {
+          setSource((val as string) || "");
+          setPage(1);
+        }}
+        options={sourceOptions}
+        placeholder="Choose Source Location"
+        disabled={dropdownsLoading}
+      />
+    )}
+</div>
 
           <div>
-            <div className="text-xs mb-1">Destination Location *</div>
-            <LocationAutosuggestInput
-              placeholder="Type destination location"
-              value={destination}
-              onValueChange={(value) => {
-                setDestination(value);
-                setPage(1);
-              }}
-              search={(phrase) => locationsApi.searchDestinations(phrase, source)}
-            />
-          </div>
+  <div className="text-xs mb-1">Destination Location *</div>
+    {dropdownsLoading ? (
+      <div className="h-9 px-3 rounded-md border border-[#e5d7f6] bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading destination locations...
+      </div>
+    ) : (
+      <AutoSuggestSelect
+        mode="single"
+        value={destination}
+        onChange={(val) => {
+          setDestination((val as string) || "");
+          setPage(1);
+        }}
+        options={destinationOptions}
+        placeholder="Choose Destination Location"
+        disabled={dropdownsLoading}
+      />
+    )}
+</div>
+
           <div className="flex items-end gap-2">
             <Button
               variant="outline"
@@ -343,7 +664,7 @@ export default function LocationsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-                        {filtered.map((r, idx) => (
+            {filtered.map((r, idx) => (
               <TableRow
                 key={r.location_ID}
                 onClick={() => setSelectedRow(r)}
@@ -351,7 +672,7 @@ export default function LocationsPage() {
               >
                 <TableCell>{(page - 1) * pageSize + idx + 1}</TableCell>
                 <TableCell>
-                                  <div className="flex gap-1">
+                  <div className="flex gap-1">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -363,28 +684,27 @@ export default function LocationsPage() {
                       <Eye className="h-4 w-4" />
                     </Button>
 
-                         {renameInfo.open && renameInfo.row && (
-        <SimpleRenameDialog
-          open
-          title="Update Location Name"
-          currentName={
-            renameInfo.scope === "source"
-              ? renameInfo.row.source_location
-              : renameInfo.row.destination_location
-          }
-          onClose={() =>
-            setRenameInfo({ open: false, row: null, scope: "source" })
-          }
-          onSubmit={handleRename}
-        />
-      )}
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedRow(r);
-                        setDeleteRow(r);
+                        setEditRow(r);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4 text-blue-600" />
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteSelectedSource("");
+                        setDeleteSelectedDestination("");
+                        setDeletePopupSelectedIds([r.location_ID]);
+                        setDeleteSelectedOpen(true);
                       }}
                     >
                       <Trash2 className="h-4 w-4 text-red-600" />
@@ -438,15 +758,59 @@ export default function LocationsPage() {
       )}
 
       {/* Delete confirm */}
-            {deleteRow && (
-        <SimpleConfirmDialog
+      <DeleteLocationNameDialog
+        open={deleteLocationOpen}
+        value={deleteLocationName}
+        options={deleteDialogOptions}
+        onChange={setDeleteLocationName}
+        onClose={() => {
+          setDeleteLocationOpen(false);
+          setDeleteLocationName("");
+        }}
+        onConfirm={handleDeleteLocationName}
+      />
+
+      {deleteSelectedOpen && (
+        <DeleteSelectedRecordsDialog
           open
-          title="Delete Location"
-          locationLabel={`${deleteRow.source_location} → ${deleteRow.destination_location}`}
-          message="Do you really want to delete this location record?"
+          title="Delete Selected Records"
+          selectedLabel={`${currentPageRows.length} record${currentPageRows.length === 1 ? "" : "s"} on page ${page}`}
+          message="Do you really want to delete the selected location records?"
           warning="You can undo this immediately after deletion."
-          onClose={() => setDeleteRow(null)}
-          onConfirm={handleDelete}
+          source={deleteSelectedSource}
+          destination={deleteSelectedDestination}
+          sourceOptions={sourceOptions}
+          destinationOptions={destinationOptions}
+          rows={deleteSelectedFilteredRows}
+          selectedIds={deletePopupSelectedIds}
+          allSelected={allDeletePopupRowsSelected}
+          onSourceChange={setDeleteSelectedSource}
+          onDestinationChange={setDeleteSelectedDestination}
+          onToggleRecord={toggleDeletePopupRecord}
+          onToggleAll={toggleAllDeletePopupRecords}
+          onClose={() => {
+            setDeleteSelectedOpen(false);
+            setDeleteSelectedSource("");
+            setDeleteSelectedDestination("");
+            setDeletePopupRows([]);
+            setDeletePopupPage(1);
+            setDeletePopupTotal(0);
+            setDeletePopupSelectedIds([]);
+          }}
+          onConfirm={() =>
+            handleDeleteSelectedRecords(
+              deletePopupSelectedIds.filter((id) => deleteSelectedFilteredIds.includes(id))
+            )
+          }
+          deletePopupPage={deletePopupPage}
+          deletePopupPageSize={deletePopupPageSize}
+          deletePopupTotal={deletePopupTotal}
+          onDeletePopupPageChange={setDeletePopupPage}
+          onDeletePopupPageSizeChange={(size) => {
+            setDeletePopupPageSize(size);
+            setDeletePopupPage(1);
+          }}
+          hasBackendFilter={Boolean(deleteSelectedSource || deleteSelectedDestination)}
         />
       )}
 
@@ -466,20 +830,66 @@ export default function LocationsPage() {
 }
 
 // ---------- Dialogs ----------
-function SimpleConfirmDialog(props: {
+function DeleteSelectedRecordsDialog(props: {
   open: boolean;
   title: string;
-  locationLabel: string;
+  selectedLabel: string;
   message: string;
   warning?: string;
+  source: string;
+  destination: string;
+  sourceOptions: AutoSuggestOption[];
+  destinationOptions: AutoSuggestOption[];
+  rows: LocationRow[];
+  selectedIds: number[];
+  allSelected: boolean;
+  onSourceChange: (value: string) => void;
+  onDestinationChange: (value: string) => void;
+  onToggleRecord: (id: number, checked: boolean) => void;
+  onToggleAll: (checked: boolean) => void;
   onConfirm: () => void;
   onClose: () => void;
+  deletePopupPage?: number;
+  deletePopupPageSize?: number;
+  deletePopupTotal?: number;
+  onDeletePopupPageChange?: (page: number) => void;
+  onDeletePopupPageSizeChange?: (size: number) => void;
+  hasBackendFilter?: boolean;
 }) {
-  const { open, title, locationLabel, message, warning, onConfirm, onClose } = props;
+  const {
+    open,
+    title,
+    selectedLabel,
+    message,
+    warning,
+    source,
+    destination,
+    sourceOptions,
+    destinationOptions,
+    rows,
+    selectedIds,
+    allSelected,
+    onSourceChange,
+    onDestinationChange,
+    onToggleRecord,
+    onToggleAll,
+    onConfirm,
+    onClose,
+  } = props;
+
+  const deletePopupPage = (props as any).deletePopupPage ?? 1;
+  const deletePopupPageSize = (props as any).deletePopupPageSize ?? 10;
+  const deletePopupTotal = (props as any).deletePopupTotal ?? 0;
+  const onDeletePopupPageChange = (props as any).onDeletePopupPageChange ?? (() => {});
+  const onDeletePopupPageSizeChange = (props as any).onDeletePopupPageSizeChange ?? (() => {});
+  const hasBackendFilter = (props as any).hasBackendFilter ?? false;
+  const deletePopupTotalPages = Math.max(1, Math.ceil(deletePopupTotal / deletePopupPageSize));
+
+  const selectedCount = rows.filter((row) => selectedIds.includes(row.location_ID)).length;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -488,14 +898,175 @@ function SimpleConfirmDialog(props: {
           <div className="text-sm">{message}</div>
 
           <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm font-medium">
-            {locationLabel}
+            {selectedLabel}
           </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <div className="mb-1 text-xs">Source Location</div>
+              <AutoSuggestSelect
+                mode="single"
+                value={source}
+                onChange={(val) => onSourceChange((val as string) || "")}
+                options={sourceOptions}
+                placeholder="Choose Source Location"
+                openOnFocus={false}
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-xs">Destination Location</div>
+              <AutoSuggestSelect
+                mode="single"
+                value={destination}
+                onChange={(val) => onDestinationChange((val as string) || "")}
+                options={destinationOptions}
+                placeholder="Choose Destination Location"
+                openOnFocus={false}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-md border">
+            <div className="border-b bg-muted/40 px-3 py-2 text-sm font-medium">
+              Matching records: {hasBackendFilter ? deletePopupTotal : rows.length} | Selected in popup: {selectedCount}
+            </div>
+            <div className="max-h-56 overflow-auto">
+              {rows.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={(e) => onToggleAll(e.target.checked)}
+                          aria-label="Select all matching records in popup"
+                        />
+                      </TableHead>
+                      <TableHead>S.NO</TableHead>
+                      <TableHead>SOURCE LOCATION</TableHead>
+                      <TableHead>DESTINATION LOCATION</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row, index) => (
+                      <TableRow key={row.location_ID}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(row.location_ID)}
+                            onChange={(e) => onToggleRecord(row.location_ID, e.target.checked)}
+                            aria-label={`Select popup record ${row.location_ID}`}
+                          />
+                        </TableCell>
+                        <TableCell>{(deletePopupPage - 1) * deletePopupPageSize + index + 1}</TableCell>
+                        <TableCell>{row.source_location}</TableCell>
+                        <TableCell>{row.destination_location}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="px-3 py-5 text-center text-sm text-muted-foreground">
+                  No selected records found for the chosen source/destination.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {hasBackendFilter && deletePopupTotal > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <Select value={String(deletePopupPageSize)} onValueChange={(v) => onDeletePopupPageSizeChange(Number(v))}>
+                  <SelectTrigger className="w-16"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[5, 10, 25].map((n) => (
+                      <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span>per page</span>
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={deletePopupPage === 1}
+                  onClick={() => onDeletePopupPageChange(deletePopupPage - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="px-2 py-1 text-xs">Page {deletePopupPage} of {deletePopupTotalPages}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={deletePopupPage >= deletePopupTotalPages}
+                  onClick={() => onDeletePopupPageChange(deletePopupPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
 
           {warning ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               {warning}
             </div>
           ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={!selectedCount}>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLocationNameDialog(props: {
+  open: boolean;
+  value: string;
+  options: AutoSuggestOption[];
+  onChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { open, value, options, onChange, onConfirm, onClose } = props;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete Location</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Select the location you want to delete from the database.
+          </div>
+
+          <div>
+            <div className="text-xs mb-1">Location *</div>
+            <AutoSuggestSelect
+              mode="single"
+              value={value}
+              onChange={(val) => onChange((val as string) || "")}
+              options={options}
+              placeholder="Choose Location"
+              openOnFocus={false}
+            />
+          </div>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This will delete the selected location from stored locations.
+          </div>
         </div>
 
         <DialogFooter>
@@ -534,7 +1105,7 @@ function TollDialog(props: { open: boolean; title: string; rows: TollRow[]; onCl
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
-        <div className="border rounded-md">
+        <div className="max-h-[60vh] overflow-y-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

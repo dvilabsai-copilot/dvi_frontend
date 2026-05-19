@@ -8,6 +8,7 @@ import { hotelFormApi, getHotelBackendRow } from "@/services/hotels";
 export type HotelForm = {
   hotel_name: string;
   hotel_place: string;
+  axisrooms_property_id?: string;
   hotel_status: number | string;
   hotel_mobile_no: string;
   hotel_email_id: string;
@@ -152,7 +153,7 @@ export default function HotelFormOrchestrator() {
     { n: 6, label: "Preview" },
   ];
 
-  const isClickable = (tab: string) => isEdit && tab !== "basic";
+  const isClickable = (tab: string) => isEdit && Boolean(tab);
 
   return (
     <div className="p-4">

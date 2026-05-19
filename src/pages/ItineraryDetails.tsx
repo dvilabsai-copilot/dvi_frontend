@@ -1,7 +1,8 @@
-// FILE: src/pages/itineraries/ItineraryDetails.tsx
+// FILE: src/pages/ItineraryDetails.tsx
+// Keep this as a named + default export module for router compatibility across HMR reloads.
 
-import React, { useEffect, useMemo, useState, useRef, useLayoutEffect, useCallback } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -17,8 +18,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, ChevronUp, ChevronDown, Loader2, RefreshCw, Edit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, Loader2, RefreshCw, Edit } from "lucide-react";
+import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
+import type { VehicleBuildStatusResponse } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
@@ -27,12 +30,16 @@ import { PluckCardModal } from "./PluckCardModal";
 import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
+import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
 import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
+import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
+import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
+import { getEstimatedSaveMs } from "./CreateItinerary/helpers/saveProgress.constants";
 
 // --------- Types aligned with CURRENT API RESPONSE ---------
 
@@ -71,6 +78,7 @@ type Activity = {
   endTime: string | null;
   duration: string | null;
   image: string | null;
+  galleryImages?: string[];
 };
 
 type AttractionSegment = {
@@ -79,12 +87,15 @@ type AttractionSegment = {
   description: string;
   visitTime: string; // "06:45 AM - 08:45 AM"
   duration: string; // "2 Hours"
+  priority?: number;
   amount: number | null; // Entry cost
   timings?: string;
   image: string | null;
+  galleryImages?: string[];
   videoUrl?: string | null;
   planOwnWay?: boolean;
   activities?: Activity[];
+  hasAvailableActivities?: boolean;
   hotspotId?: number;
   routeHotspotId?: number;
   locationId?: number | null;
@@ -97,6 +108,19 @@ type HotspotSegment = {
   type: "hotspot";
   text: string;
   locationId?: number;
+  anchorType?: "after_travel";
+  anchorIndex?: number;
+  anchorFrom?: string;
+  anchorTo?: string;
+  anchorTimeRange?: string | null;
+};
+
+type HotspotAnchor = {
+  anchorType: "after_travel";
+  anchorIndex: number;
+  anchorFrom?: string;
+  anchorTo?: string;
+  anchorTimeRange?: string | null;
 };
 
 type CheckinSegment = {
@@ -155,6 +179,7 @@ export type ItineraryHotelRow = {
   mealPlan: string;
   totalHotelCost: number;
   totalHotelTaxAmount: number;
+  noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   voucherCancelled?: boolean; // Whether voucher is cancelled
   itineraryPlanHotelDetailsId?: number;
@@ -164,6 +189,10 @@ export type ItineraryHotelRow = {
   bookingCode?: string; // HOBSE booking code
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
+  // ✅ Hotel distance from route location (calculated via Haversine on backend)
+  hotelDistance?: string | null; // Distance in "XX.XX KM" format
+  hotelAddress?: string | null;
+  cancellationPolicy?: string[];
 };
 
 export type ItineraryHotelTab = {
@@ -180,6 +209,37 @@ type HotelAvailabilityMeta = {
   emptySearchRoutes: number;
   isPlaceholderOnly: boolean;
   message: string;
+};
+
+const normalizeMealPlanLabel = (value?: string | null): string => {
+  const mealPlanLabelByCode: Record<string, string> = {
+    CP: 'CP - Continental Plan (Breakfast only)',
+    EP: 'EP - European Plan (Room only)',
+    MAP: 'MAP - Modified American Plan (Breakfast + Lunch or Dinner)',
+    AP: 'AP - American Plan (Breakfast + Lunch + Dinner)',
+  };
+
+  const raw = String(value || '').trim();
+  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
+
+  const upper = raw.toUpperCase();
+  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
+  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
+  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
+  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
+
+  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
+  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
+
+  const hasBreakfast = upper.includes('BREAKFAST');
+  const hasLunch = upper.includes('LUNCH');
+  const hasDinner = upper.includes('DINNER');
+
+  if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
+  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
+  if (hasBreakfast) return mealPlanLabelByCode.CP;
+
+  return mealPlanLabelByCode.EP;
 };
 
 // --------- VEHICLES ---------
@@ -244,17 +304,17 @@ type CostBreakdown = {
   childWithBedCost?: number | null;
   childWithoutBedCost?: number | null;
   totalHotelAmount?: number | null;
-  
+
   // Vehicle costs
   totalVehicleCost: number | null;
   totalVehicleAmount: number | null;
   totalVehicleQty?: number | null;
-  
+
   // Activity/Guide costs
   totalGuideCost?: number | null;
   totalHotspotCost?: number | null;
   totalActivityCost?: number | null;
-  
+
   // Final calculations
   additionalMargin: number | null;
   totalAmount: number | null;
@@ -270,10 +330,13 @@ type CostBreakdown = {
 type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
+  itineraryPreference?: number;
   confirmed_itinerary_plan_ID?: number;
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
+  dayCount?: number;
+  nightCount?: number;
   roomCount: number;
   extraBed: number;
   childWithBed: number;
@@ -282,6 +345,7 @@ type ItineraryDetailsResponse = {
   children: number;
   infants: number;
   overallCost: string | number; // API is giving "15000.00"
+  meal_plan_code?: string | null;
 
   days: ItineraryDay[];
 
@@ -298,6 +362,29 @@ type ItineraryHotelDetailsResponse = {
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
+  pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
+  routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
+};
+
+type VehicleBuildState = "PENDING" | "PROCESSING" | "READY" | "FAILED";
+
+// Dedupe in-flight details requests per quote to prevent duplicate API calls
+// in React StrictMode/dev remount scenarios.
+const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
+
+const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
+  const existing = detailsInFlight.get(quoteId);
+  if (existing) {
+    return existing;
+  }
+
+  const req = (ItineraryService.getDetails(quoteId) as Promise<ItineraryDetailsResponse>)
+    .finally(() => {
+      detailsInFlight.delete(quoteId);
+    });
+
+  detailsInFlight.set(quoteId, req);
+  return req;
 };
 
 // ----------------- Helper functions -----------------
@@ -328,123 +415,109 @@ const parseDisplayTimeToHms = (displayTime: string): string => {
   const timeParts = time.split(':');
   if (timeParts.length < 2) return "09:00:00";
   let [hours, minutes] = timeParts.map(Number);
-  
+
   if (ampm === 'PM' && hours < 12) hours += 12;
   if (ampm === 'AM' && hours === 12) hours = 0;
-  
+
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 };
 
-const TimePickerPopover: React.FC<{
-  value: string;
-  onSave: (newValue: string) => Promise<void>;
-  label: string;
-}> = ({ value, onSave, label }) => {
-  const parts = value.split(' ');
-  const [localTime, setLocalTime] = useState(parts[0] || "09:00");
-  const [localAmPm, setLocalAmPm] = useState(parts[1] || "AM");
-  const [isSaving, setIsSaving] = useState(false);
+// Returns true for times in the 01:00–07:59 range (early morning, requires previous-day hotel)
+const isEarlyMorningTime = (hms: string): boolean => {
+  const [h = 0, m = 0] = hms.split(':').map(Number);
+  const totalMinutes = h * 60 + m;
+  return totalMinutes >= 60 && totalMinutes < 480;
+};
 
-  const timeParts = localTime.split(':');
-  const hours = Number(timeParts[0] || 9);
-  const minutes = Number(timeParts[1] || 0);
-  
-  const handleHourChange = (delta: number) => {
-    let newHour = hours + delta;
-    
-    // Toggle AM/PM when crossing 11 <-> 12 boundary
-    if (hours === 11 && delta === 1) {
-      toggleAmPm();
-    } else if (hours === 12 && delta === -1) {
-      toggleAmPm();
+const normalizeTimelineLabel = (value: unknown): string => {
+  return String(value ?? '').trim().toLowerCase();
+};
+
+const parseDisplayMinutes = (value?: string | null, edge: 'start' | 'end' = 'start'): number | null => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  const timeText = raw.includes(' - ')
+    ? raw.split(' - ')[edge === 'start' ? 0 : 1]?.trim()
+    : raw;
+
+  if (!timeText) return null;
+
+  const hms = parseDisplayTimeToHms(timeText);
+  const [hours = 0, minutes = 0] = hms.split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const formatMinutesToDisplay = (totalMinutes: number): string => {
+  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
+  const hours24 = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
+};
+
+const formatMinutesDuration = (minutes: number): string => {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+
+  if (hours > 0 && remainder > 0) return `${hours} Hours ${remainder} Min`;
+  if (hours > 0) return `${hours} Hours`;
+  return `${remainder} Min`;
+};
+
+const parseDistanceKmValue = (distanceText?: string | null): number | null => {
+  const raw = String(distanceText ?? '').trim().toLowerCase();
+  if (!raw) return null;
+
+  const value = Number.parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  if (raw.includes('km')) return value;
+  if (raw.includes('m')) return value / 1000;
+  return value;
+};
+
+const estimateHotelTravelMinutesFromDistance = (distanceText?: string | null): number | null => {
+  const distanceKm = parseDistanceKmValue(distanceText);
+  if (distanceKm === null) return null;
+
+  // Keep this conservative for city traffic conditions.
+  const assumedCitySpeedKmH = 25;
+  const estimated = Math.round((distanceKm / assumedCitySpeedKmH) * 60);
+  return Math.max(10, estimated);
+};
+
+const normalizeDateToYmd = (input?: string | null): string => {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    const year = Number(dmy[3]);
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
+  }
 
-    if (newHour > 12) newHour = 1;
-    if (newHour < 1) newHour = 12;
-    setLocalTime(`${String(newHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`);
-  };
-  
-  const handleMinuteChange = (delta: number) => {
-    let newMinute = minutes + delta;
-    if (newMinute >= 60) newMinute = 0;
-    if (newMinute < 0) newMinute = 55;
-    setLocalTime(`${String(hours).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`);
-  };
-  
-  const toggleAmPm = () => {
-    setLocalAmPm(prev => prev === 'AM' ? 'PM' : 'AM');
-  };
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onSave(`${localTime} ${localAmPm}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center p-4 bg-white rounded-lg shadow-xl border border-[#e5d9f2] min-w-[220px]">
-      <span className="text-[10px] font-bold text-[#6c6c6c] uppercase mb-3 tracking-wider">{label}</span>
-      <div className="flex items-center gap-4">
-        <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(1)} disabled={isSaving}>
-            <ChevronUp className="h-5 w-5" />
-          </Button>
-          <div className="bg-[#f8f5fc] border border-[#e5d9f2] rounded-md w-12 h-12 flex items-center justify-center text-xl font-bold text-[#4a4260]">
-            {String(hours).padStart(2, '0')}
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleHourChange(-1)} disabled={isSaving}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </div>
-        
-        <span className="text-2xl font-bold text-[#4a4260] mt-2">:</span>
-        
-        <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(5)} disabled={isSaving}>
-            <ChevronUp className="h-5 w-5" />
-          </Button>
-          <div className="bg-[#f8f5fc] border border-[#e5d9f2] rounded-md w-12 h-12 flex items-center justify-center text-xl font-bold text-[#4a4260]">
-            {String(minutes).padStart(2, '0')}
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-[#d546ab]" onClick={() => handleMinuteChange(-5)} disabled={isSaving}>
-            <ChevronDown className="h-5 w-5" />
-          </Button>
-        </div>
-        
-        <div className="flex flex-col items-center justify-center h-full pt-8">
-          <Button 
-            variant="outline" 
-            className={`h-12 w-12 font-bold border-2 ${localAmPm === 'AM' ? 'border-[#d546ab] text-[#d546ab] bg-[#fdf2f8]' : 'border-[#4a4260] text-[#4a4260]'}`}
-            onClick={toggleAmPm}
-            disabled={isSaving}
-          >
-            {localAmPm}
-          </Button>
-        </div>
-      </div>
-
-      <Button 
-        className="w-full mt-4 bg-[#d546ab] hover:bg-[#c4359a] text-white shadow-md"
-        onClick={handleSave}
-        disabled={isSaving}
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Updating...
-          </>
-        ) : (
-          "Update Time"
-        )}
-      </Button>
-    </div>
-  );
+  return '';
 };
 
 // ----------------- Main Component -----------------
+// Note: keep explicit named + default export shape for router/HMR compatibility.
 
 interface ItineraryDetailsProps {
   readOnly?: boolean; // If true, component is read-only (confirmed itinerary view)
@@ -453,33 +526,45 @@ interface ItineraryDetailsProps {
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
   const location = useLocation();
+    const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
-  
+
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
   );
+  const shouldShowHotels = (() => {
+    const pref = Number(itinerary?.itineraryPreference ?? 0);
+    return pref === 1 || pref === 3;
+  })();
+  const shouldShowVehicles = (() => {
+    const pref = Number(itinerary?.itineraryPreference ?? 0);
+    return pref === 2 || pref === 3;
+  })();
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
+  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildStatusResponse | null>(null);
+  const [isRetryingVehicleBuild, setIsRetryingVehicleBuild] = useState(false);
+
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
-  open: boolean;
-  planId: number | null;
-  routeId: number | null;
-  routeHotspotId: number | null;
-  hotspotId: number | null;
-  hotspotName: string;
-}>({
+    open: boolean;
+    planId: number | null;
+    routeId: number | null;
+    hotspotId: number | null;
+    hotspotName: string;
+    hotspotWasPrebuilt: boolean;
+  }>({
     open: false,
     planId: null,
     routeId: null,
     routeHotspotId: null,
     hotspotId: null,
     hotspotName: "",
+    hotspotWasPrebuilt: false,
   });
   const [isDeleting, setIsDeleting] = useState(false);
   const [routeNeedsRebuild, setRouteNeedsRebuild] = useState<number | null>(null);
@@ -569,6 +654,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     locationMap: string | null;
     timings?: string;
     visitAgain?: boolean;
+    alreadyAdded?: boolean;
+    alreadyAddedOnOtherRoute?: boolean;
+    availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE';
+    availabilityReason?: string;
+    actionDisabled?: boolean;
+    buttonLabel?: string;
+    priority?: number;
+    hotspotPriority?: number;
+    hotspot_priority?: number;
   };
 
   const [addHotspotModal, setAddHotspotModal] = useState<{
@@ -585,121 +679,1044 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     locationName: "",
   });
 
-  // Inline Add Hotspot state
-  const [expandedAddHotspotDayId, setExpandedAddHotspotDayId] = useState<number | null>(null);
+  // Add Hotspot state
   const [loadingHotspots, setLoadingHotspots] = useState(false);
   const [isAddingHotspot, setIsAddingHotspot] = useState(false);
   const [hotspotSearchQuery, setHotspotSearchQuery] = useState("");
   const [availableHotspots, setAvailableHotspots] = useState<AvailableHotspot[]>([]);
-  const [previewTimeline, setPreviewTimeline] = useState<any[] | null>(null);
-  const [isPreviewing, setIsPreviewing] = useState(false);
-  const [selectedHotspotId, setSelectedHotspotId] = useState<number | null>(null);
+  const [previewTimelinesByHotspot, setPreviewTimelinesByHotspot] = useState<Record<number, any[]>>({});
+  const [previewResolutionsByHotspot, setPreviewResolutionsByHotspot] = useState<Record<number, any>>({});
+  const [groupPreviewTimeline, setGroupPreviewTimeline] = useState<any[]>([]);
+  const [groupPreviewResolution, setGroupPreviewResolution] = useState<any | null>(null);
+  const [tempModalTimeline, setTempModalTimeline] = useState<any[]>([]);
+  const [forceReplacementApprovedByHotspot, setForceReplacementApprovedByHotspot] = useState<Record<number, boolean>>({});
+  const [topPriorityReplacementApproved, setTopPriorityReplacementApproved] = useState(false);
+  const [isPreviewingHotspotId, setIsPreviewingHotspotId] = useState<number | null>(null);
+  const [activePreviewHotspotId, setActivePreviewHotspotId] = useState<number | null>(null);
+  const [addedInModalHotspotIds, setAddedInModalHotspotIds] = useState<Set<number>>(new Set());
+  const [manualPreviewState, setManualPreviewState] = useState<any | null>(null);
+  const [isApplyingPreviewHotspot, setIsApplyingPreviewHotspot] = useState(false);
+  const [isBuildingMatrix, setIsBuildingMatrix] = useState(false);
+  const [selectedHotspotIds, setSelectedHotspotIds] = useState<number[]>([]);
+  const [selectedHotspotAnchor, setSelectedHotspotAnchor] = useState<HotspotAnchor | null>(null);
 
   // Refs for scrolling
   const hotspotListRef = useRef<HTMLDivElement>(null);
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
+  const priorityConfirmRef = useRef<HTMLDivElement>(null);
+  const previewRequestIdRef = useRef(0);
 
-  // Scroll management for Add Hotspot Modal
-  // Unified scroll handler - execute after DOM is fully rendered
-  useLayoutEffect(() => {
+  const selectedHotspotId = activePreviewHotspotId ?? (selectedHotspotIds.length > 0
+    ? selectedHotspotIds[selectedHotspotIds.length - 1]
+    : null);
+
+  const resetManualHotspotPreviewState = useCallback(() => {
+    setManualPreviewState(null);
+    setPreviewTimelinesByHotspot({});
+    setPreviewResolutionsByHotspot({});
+    setGroupPreviewTimeline([]);
+    setGroupPreviewResolution(null);
+    setTempModalTimeline([]);
+    setForceReplacementApprovedByHotspot({});
+    setTopPriorityReplacementApproved(false);
+    setSelectedHotspotIds([]);
+    setIsPreviewingHotspotId(null);
+  }, []);
+
+  const resetManualHotspotPreviewStateButKeepActiveHotspot = useCallback((candidateId: number) => {
+    resetManualHotspotPreviewState();
+    setActivePreviewHotspotId(candidateId);
+  }, [resetManualHotspotPreviewState]);
+
+  const extractTravelToFromText = useCallback((value: unknown): string => {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const match = raw.match(/^travel\s+to\s+(.+)$/i);
+    return String(match?.[1] || '').trim();
+  }, []);
+
+  const extractTravelFromToFromText = useCallback((value: unknown): { from: string; to: string } => {
+    const raw = String(value || '').trim();
+    if (!raw) return { from: '', to: '' };
+    const match = raw.match(/^travell?ing\s+from\s+(.+?)\s+to\s+(.+)$/i);
+    if (!match) return { from: '', to: '' };
+    return {
+      from: String(match[1] || '').trim(),
+      to: String(match[2] || '').trim(),
+    };
+  }, []);
+
+  const mapDaySegmentToPreview = useCallback((seg: ItinerarySegment): any | null => {
+    if (!seg) return null;
+
+    if (seg.type === "hotspot") return null;
+
+    if (seg.type === "attraction") {
+      return {
+        type: "attraction",
+        text: seg.name,
+        timeRange: seg.visitTime || null,
+        visitTime: seg.visitTime || null,
+        duration: seg.duration || null,
+        timings: seg.timings || null,
+        priority: seg.priority ?? null,
+        locationId: Number(seg.hotspotId ?? seg.locationId ?? 0) || null,
+        isConflict: seg.isConflict === true,
+        conflictReason: seg.conflictReason ?? null,
+      };
+    }
+
+    if (seg.type === "travel") {
+      const travelSeg = seg as any;
+      const resolvedTo = String(travelSeg?.to || extractTravelToFromText(travelSeg?.text) || '').trim();
+      return {
+        type: "travel",
+        text: resolvedTo ? `Travel to ${resolvedTo}` : (travelSeg?.text || 'Travel'),
+        timeRange: travelSeg?.timeRange || null,
+        locationId: null,
+        isConflict: travelSeg?.isConflict === true,
+        conflictReason: travelSeg?.conflictReason ?? null,
+        from: travelSeg?.from,
+        to: travelSeg?.to,
+        fromName: travelSeg?.from,
+        toName: travelSeg?.to,
+        displayFromName: travelSeg?.from,
+        displayToName: travelSeg?.to,
+        distance: travelSeg?.distance || null,
+        duration: travelSeg?.duration || null,
+      };
+    }
+
+    if (seg.type === "start") {
+      return {
+        type: "start",
+        text: seg.title || "Start",
+        timeRange: seg.timeRange || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "break") {
+      return {
+        type: "break",
+        text: `Break at ${seg.location}`,
+        timeRange: seg.timeRange || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "checkin") {
+      return {
+        type: "checkin",
+        text: `Check-in at ${seg.hotelName}`,
+        timeRange: seg.time || null,
+        locationId: null,
+      };
+    }
+
+    if (seg.type === "return") {
+      return {
+        type: "return",
+        text: "Return",
+        timeRange: seg.time || null,
+        locationId: null,
+      };
+    }
+
+    return null;
+  }, [extractTravelToFromText]);
+
+  const defaultPreviewTimeline = useMemo(() => {
+    const routeId = addHotspotModal.routeId;
+    if (!routeId || !itinerary?.days?.length) return [];
+
+    const day = itinerary.days.find((d) => Number(d.id) === Number(routeId));
+    if (!day?.segments?.length) return [];
+
+    return day.segments
+      .map(mapDaySegmentToPreview)
+      .filter(Boolean);
+  }, [addHotspotModal.routeId, itinerary?.days, mapDaySegmentToPreview]);
+
+  const selectedPreviewSegments = useMemo(() => {
+    const fallbackFor = (hotspotId: number) => {
+      const hotspot = availableHotspots.find((h) => Number(h.id) === Number(hotspotId));
+      return {
+        type: "attraction",
+        text: hotspot?.name || "Selected Hotspot",
+        timeRange: null,
+        locationId: hotspotId,
+        isConflict: false,
+        conflictReason: null,
+        isUserSelectedPreview: true,
+        selectedHotspotId: hotspotId,
+      };
+    };
+
+    return selectedHotspotIds.map((hotspotId) => {
+      const timeline = previewTimelinesByHotspot[hotspotId] || [];
+      const candidates = timeline.filter((seg: any) => (
+        seg?.type === "attraction" && Number(seg?.locationId) === Number(hotspotId)
+      ));
+
+      const hasConflictCandidate = candidates.some((seg: any) => seg?.isConflict === true);
+      const fromTimeline = candidates.sort((a: any, b: any) => {
+        const aConflict = a?.isConflict === true ? 1 : 0;
+        const bConflict = b?.isConflict === true ? 1 : 0;
+        if (aConflict !== bConflict) {
+          return hasConflictCandidate ? (bConflict - aConflict) : (aConflict - bConflict);
+        }
+        const toStartMinutes = (timeRange: string): number => {
+          const raw = String(timeRange || '').trim();
+          const startPart = raw.split('-')[0]?.trim() || raw;
+          const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+          if (!match) return Number.MAX_SAFE_INTEGER;
+          let h = Number(match[1]);
+          const m = Number(match[2]);
+          const ampm = match[3].toUpperCase();
+          if (ampm === 'AM' && h === 12) h = 0;
+          if (ampm === 'PM' && h !== 12) h += 12;
+          return (h * 60) + m;
+        };
+        return toStartMinutes(String(a?.timeRange || '')) - toStartMinutes(String(b?.timeRange || ''));
+      })[0];
+
+      if (!fromTimeline) {
+        return fallbackFor(hotspotId);
+      }
+
+      return {
+        ...fromTimeline,
+        isUserSelectedPreview: true,
+        selectedHotspotId: hotspotId,
+      };
+    });
+  }, [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds]);
+
+  const activePreviewTimeline = useMemo(() => {
+    const sourceTimeline = (Array.isArray(manualPreviewState?.fullTimeline) && manualPreviewState.fullTimeline.length > 0)
+      ? manualPreviewState.fullTimeline
+      : (tempModalTimeline.length > 0
+      ? tempModalTimeline
+      : (groupPreviewTimeline.length > 0
+          ? groupPreviewTimeline
+          : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : [])));
+    if (!selectedHotspotId && sourceTimeline.length === 0) return [];
+
+    const routeScopedRows = sourceTimeline
+      .filter((row: any) => {
+        const rowRouteId = Number(
+          row?.itinerary_route_ID ??
+          row?.itineraryRouteId ??
+          row?.itinerary_route_id ??
+          row?.route_id ??
+          row?.routeId ??
+          row?.dayId ??
+          row?.routeID ??
+          row?.route,
+        );
+        if (!Number.isFinite(rowRouteId) || rowRouteId <= 0) return true;
+        return rowRouteId === Number(addHotspotModal.routeId);
+      });
+    const rows = [...routeScopedRows];
+
+    const anyHavePreviewOrder = rows.some((row: any) => (
+      Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder))
+    ));
+    if (anyHavePreviewOrder) {
+      return [...rows].sort((a: any, b: any) => (
+        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+      ));
+    }
+
+    const hasMatrixOrderedRows = rows.some((row: any) => (
+      row?.isMatrixSplitTravel === true || row?.isMatrixPositioned === true
+    ));
+    if (hasMatrixOrderedRows) {
+      return rows;
+    }
+
+    const parseStartMinutes = (value: any): number => {
+      const raw = String(value || '').trim();
+      if (!raw || raw === '--' || /manual override/i.test(raw) || raw === 'Not schedulable') {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      const startPart = raw.split('-')[0]?.trim() || raw;
+      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return Number.POSITIVE_INFINITY;
+
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      const ampm = match[3].toUpperCase();
+
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      if (ampm === 'PM' && hour !== 12) hour += 12;
+
+      return hour * 60 + minute;
+    };
+
+    const typePriority = (segment: any): number => {
+      const rawType = String(segment?.type || segment?.itemType || '').toLowerCase();
+      if (rawType === 'refreshment' || Number(segment?.item_type) === 1) return 0;
+      if (rawType === 'travel' || Number(segment?.item_type) === 3) return 1;
+      if (rawType === 'attraction' || Number(segment?.item_type) === 4) return 2;
+      if (rawType === 'hotel' || Number(segment?.item_type) === 6) return 4;
+      return 3;
+    };
+
+    return rows.sort((a: any, b: any) => {
+      const startDiff = parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange);
+      if (startDiff !== 0) return startDiff;
+      return typePriority(a) - typePriority(b);
+    });
+  }, [addHotspotModal.routeId, groupPreviewTimeline, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId, tempModalTimeline]);
+
+  const activePreviewResolution = useMemo(() => {
+    if (manualPreviewState) {
+      return manualPreviewState?.resolution || manualPreviewState || null;
+    }
+    if (groupPreviewResolution) return groupPreviewResolution;
+    if (!selectedHotspotId) return null;
+    return previewResolutionsByHotspot[selectedHotspotId] || null;
+  }, [groupPreviewResolution, manualPreviewState, previewResolutionsByHotspot, selectedHotspotId]);
+
+  const activePreviewValidation = useMemo(() => {
+    return activePreviewResolution?.validation || null;
+  }, [activePreviewResolution]);
+
+  const pendingPriorityReplacementHotspotId = useMemo(() => {
+    const needsReplacementApproval = (resolution: any): boolean => {
+      if (!resolution) return false;
+      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
+        ? resolution.removedTopPriorityHotspots.length
+        : 0;
+      return removedTopPriorityCount > 0;
+    };
+
+    const resolution = groupPreviewResolution || activePreviewResolution;
+    if (!needsReplacementApproval(resolution)) return null;
+    if (topPriorityReplacementApproved) return null;
+    const fallbackHotspotId = selectedHotspotIds.length > 0
+      ? selectedHotspotIds[selectedHotspotIds.length - 1]
+      : null;
+    return Number.isFinite(Number(fallbackHotspotId)) ? Number(fallbackHotspotId) : null;
+  }, [activePreviewResolution, groupPreviewResolution, selectedHotspotIds, topPriorityReplacementApproved]);
+
+  const pendingPriorityResolution = useMemo(() => {
+    if (!pendingPriorityReplacementHotspotId) return null;
+    return groupPreviewResolution || previewResolutionsByHotspot[pendingPriorityReplacementHotspotId] || null;
+  }, [groupPreviewResolution, pendingPriorityReplacementHotspotId, previewResolutionsByHotspot]);
+
+  // Scroll the confirm box into view when it appears
+  useEffect(() => {
+    if (pendingPriorityReplacementHotspotId && priorityConfirmRef.current) {
+      priorityConfirmRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [pendingPriorityReplacementHotspotId]);
+
+  const effectivePreviewTimeline = useMemo(() => {
+    const enforceHotelOrderingSafety = (rows: any[]): any[] => {
+      if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+      const isHotelLike = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        const text = String(row?.text || row?.name || '').toLowerCase();
+        return type === 'hotel' || Number(row?.item_type) === 6 || text.includes('check-in at hotel');
+      };
+      const isRouteContent = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        return type === 'attraction' || type === 'travel' || Number(row?.item_type) === 3 || Number(row?.item_type) === 4;
+      };
+
+      const hotelIndex = rows.findIndex((row: any) => isHotelLike(row));
+      if (hotelIndex < 0) return rows;
+
+      const hasLaterRouteContent = rows.slice(hotelIndex + 1).some((row: any) => isRouteContent(row));
+      if (!hasLaterRouteContent) return rows;
+
+      const anyHavePreviewOrder = rows.some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)));
+      if (!anyHavePreviewOrder) return rows;
+
+      return [...rows].sort((a: any, b: any) => (
+        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+      ));
+    };
+
+    const applyBestSlotOrdering = (rows: any[]): any[] => {
+      if (!Array.isArray(rows) || rows.length === 0 || !selectedHotspotId) return rows;
+
+      // Backend-provided matrix split travel rows already represent the correct route shape.
+      if (rows.some((row: any) => row?.isMatrixSplitTravel === true)) {
+        return rows;
+      }
+
+      const fit = (activePreviewResolution as any)?.manualInsertionFit;
+      const selectedIdNum = Number(selectedHotspotId);
+      const fitBest = fit?.bestSlot || null;
+      const fitChosen = fit?.chosenSlot || null;
+      const chosenInvalid = Boolean(
+        fitChosen
+        && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
+      );
+      const safeChosen = chosenInvalid ? null : fitChosen;
+      const safeBest = (fitBest
+        && Number(fitBest?.fromHotspotId) !== selectedIdNum
+        && Number(fitBest?.toHotspotId) !== selectedIdNum)
+        ? fitBest
+        : null;
+
+      const fromName = String(safeChosen?.fromName || safeBest?.fromName || '').trim();
+      if (!fromName) return rows;
+
+      const getSegHotspotId = (seg: any): number => Number(
+        seg?.selectedHotspotId ??
+        seg?.locationId ??
+        seg?.hotspotId ??
+        seg?.hotspot_ID ??
+        seg?.hotspot_id ??
+        0,
+      );
+
+      const selectedIdx = rows.findIndex((seg: any) => (
+        String(seg?.type || '').toLowerCase() === 'attraction'
+        && getSegHotspotId(seg) === selectedIdNum
+      ));
+      if (selectedIdx < 0) return rows;
+
+      const fromIdx = rows.findIndex((seg: any) => (
+        String(seg?.type || '').toLowerCase() === 'attraction'
+        && String(seg?.text || '').trim() === fromName
+      ));
+      if (fromIdx < 0) return rows;
+
+      const targetIdx = Math.min(fromIdx + 1, rows.length);
+      if (targetIdx === selectedIdx || targetIdx === (selectedIdx + 1)) return rows;
+
+      const reordered = [...rows];
+      const [selectedSeg] = reordered.splice(selectedIdx, 1);
+      const adjustedTargetIdx = selectedIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      reordered.splice(adjustedTargetIdx, 0, selectedSeg);
+      return reordered;
+    };
+
+    const fit = (activePreviewResolution as any)?.manualInsertionFit
+      || (groupPreviewResolution as any)?.manualInsertionFit
+      || null;
+    const resolvedLowPriorityPlan = fit?.lowPriorityRemovalPlanPreview?.resolved === true;
+    const backendResolvedTimeline = Boolean(
+      resolvedLowPriorityPlan
+      || fit?.fullTimelineIsResolvedRemovalPlan === true
+      || fit?.timelineSource === 'LOW_PRIORITY_REMOVAL_FINAL_TIMELINE',
+    );
+    const plannedRemovals: any[] = Array.isArray(fit?.lowPriorityRemovalPlanPreview?.plannedRemovals)
+      ? fit.lowPriorityRemovalPlanPreview.plannedRemovals
+      : [];
+
+    const removePlannedRemovalRows = (rows: any[]): any[] => {
+      const removedIds = new Set(
+        plannedRemovals
+          .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+          .filter((id: number) => Number.isFinite(id) && id > 0),
+      );
+      const removedNames = new Set(
+        plannedRemovals
+          .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+          .filter(Boolean),
+      );
+
+      return (rows || []).filter((row: any) => {
+        const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
+        const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
+
+        if (rowId > 0 && removedIds.has(rowId)) return false;
+        for (const removedName of removedNames) {
+          if (removedName && rowText.includes(removedName)) return false;
+        }
+        return true;
+      });
+    };
+
+    const sortByPreviewOrder = (rows: any[]): any[] => {
+      if ((rows || []).some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)))) {
+        return [...rows].sort((a: any, b: any) => (
+          Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
+          - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
+        ));
+      }
+      return rows;
+    };
+
+    if (backendResolvedTimeline && activePreviewTimeline.length > 0) {
+      return enforceHotelOrderingSafety(
+        sortByPreviewOrder(removePlannedRemovalRows(activePreviewTimeline)),
+      );
+    }
+
+    const activeAttractionCount = activePreviewTimeline.filter(
+      (seg: any) => String(seg?.type || '').toLowerCase() === 'attraction',
+    ).length;
+    const selectedCount = selectedHotspotIds.length;
+    const hasMatrixFit = Boolean(fit);
+    const isMinimalPreview = activeAttractionCount <= Math.max(1, selectedCount + 1);
+    const shouldMergeBaselineForMatrix = Boolean(
+      hasMatrixFit
+      && !backendResolvedTimeline
+      && activePreviewTimeline.length > 0
+      && isMinimalPreview,
+    );
+
+    // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
+    // In that case, show the default route timeline plus selected segments so users can review full context.
+    const useMergedBaselineDuringPriorityConfirm = Boolean(
+      pendingPriorityReplacementHotspotId
+      && activePreviewTimeline.length > 0
+      && activeAttractionCount <= Math.max(1, selectedCount + 1),
+    );
+
+    if (activePreviewTimeline.length > 0 && !useMergedBaselineDuringPriorityConfirm && !shouldMergeBaselineForMatrix) {
+      return enforceHotelOrderingSafety(applyBestSlotOrdering(activePreviewTimeline));
+    }
+
+    const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
+
+    const parseStartMinutes = (value: any): number => {
+      const raw = String(value || '').trim();
+      if (!raw || raw === '--') return Number.POSITIVE_INFINITY;
+
+      const startPart = raw.split('-')[0]?.trim() || raw;
+      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return Number.POSITIVE_INFINITY;
+
+      let hour = Number(match[1]);
+      const minute = Number(match[2]);
+      const ampm = match[3].toUpperCase();
+
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      if (ampm === 'PM' && hour !== 12) hour += 12;
+
+      return hour * 60 + minute;
+    };
+
+    const sortedMerged = merged.sort((a: any, b: any) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
+    return enforceHotelOrderingSafety(applyBestSlotOrdering(sortedMerged));
+  }, [
+    activePreviewResolution,
+    activePreviewTimeline,
+    defaultPreviewTimeline,
+    groupPreviewResolution,
+    pendingPriorityReplacementHotspotId,
+    selectedHotspotId,
+    selectedHotspotIds.length,
+    selectedPreviewSegments,
+  ]);
+
+  // ── Route-intelligence: manualInsertionFit from backend ─────────────────────
+  const manualInsertionFit = useMemo(() => {
+    return (activePreviewResolution as any)?.manualInsertionFit ?? null;
+  }, [activePreviewResolution]);
+
+  const matrixFit = useMemo(() => {
+    return (activePreviewResolution as any)?.manualInsertionFit
+      || (groupPreviewResolution as any)?.manualInsertionFit
+      || null;
+  }, [activePreviewResolution, groupPreviewResolution]);
+
+  const matrixRequiresBuild = useMemo(() => {
+    if (!matrixFit) return false;
+    return matrixFit?.requiresMatrixBuild === true || matrixFit?.routeFitAvailable === false;
+  }, [matrixFit]);
+
+  const matrixBuildSuggestion = useMemo(() => {
+    return (activePreviewResolution as any)?.missingMatrixBuildSuggestion
+      || (activePreviewResolution as any)?.resolution?.missingMatrixBuildSuggestion
+      || (groupPreviewResolution as any)?.missingMatrixBuildSuggestion
+      || (groupPreviewResolution as any)?.resolution?.missingMatrixBuildSuggestion
+      || null;
+  }, [activePreviewResolution, groupPreviewResolution]);
+
+  const hasValidChosenMatrixSlot = useMemo(() => {
+    const chosen = matrixFit?.chosenSlot;
+    if (!chosen) return false;
+    return (
+      matrixFit?.routeFitAvailable !== false
+      && ['ON_ROUTE', 'MINOR_DETOUR'].includes(String(chosen?.routeFitType || '').toUpperCase())
+      && Number(chosen?.fromHotspotId || 0) > 0
+      && Number(chosen?.toHotspotId || 0) > 0
+    );
+  }, [matrixFit]);
+
+  const isMatrixMissingBlockedState = useMemo(() => {
+    if (!matrixFit) return false;
+    return (
+      matrixFit?.requiresMatrixBuild === true
+      || matrixFit?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || (activePreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
+      || (groupPreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || (groupPreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
+    );
+  }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
+
+  const isMatrixBuiltButNoFeasibleSlot = useMemo(() => {
+    return (
+      matrixFit?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
+      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
+      || (activePreviewResolution as any)?.previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
+      || (groupPreviewResolution as any)?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
+      || (groupPreviewResolution as any)?.previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
+      || (
+        matrixFit?.requiresMatrixBuild !== true
+        && matrixFit?.hasAnyMatrixData === true
+        && matrixFit?.hasFeasibleMatrixSlot === false
+      )
+    );
+  }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
+
+  const matrixApplyBlocked = useMemo(() => {
+    if (!matrixFit) return false;
+    return (
+      isMatrixMissingBlockedState
+      || isMatrixBuiltButNoFeasibleSlot
+      || matrixFit?.canApply === false
+      || !hasValidChosenMatrixSlot
+    );
+  }, [hasValidChosenMatrixSlot, isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit]);
+
+  const resolvedRemovalTimelineLeak = useMemo(() => {
+    const resolved = (matrixFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true;
+    if (!resolved || !Array.isArray(effectivePreviewTimeline) || effectivePreviewTimeline.length === 0) return false;
+
+    const plannedRemovals: any[] = Array.isArray((matrixFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals)
+      ? (matrixFit as any).lowPriorityRemovalPlanPreview.plannedRemovals
+      : [];
+    if (plannedRemovals.length === 0) return false;
+
+    const removedIds = new Set(
+      plannedRemovals
+        .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+        .filter((id: number) => Number.isFinite(id) && id > 0),
+    );
+    const removedNames = new Set(
+      plannedRemovals
+        .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    return effectivePreviewTimeline.some((row: any) => {
+      const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
+      const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
+      if (rowId > 0 && removedIds.has(rowId)) return true;
+      for (const removedName of removedNames) {
+        if (removedName && rowText.includes(removedName)) return true;
+      }
+      return false;
+    });
+  }, [effectivePreviewTimeline, matrixFit]);
+
+  const safeMatrixSlots = useMemo(() => {
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const allSlots: any[] = Array.isArray(matrixFit?.allSlotResults)
+      ? matrixFit.allSlotResults
+      : [];
+    return allSlots.filter((slot: any) => (
+      Number(slot?.fromHotspotId) !== selectedIdNum
+      && Number(slot?.toHotspotId) !== selectedIdNum
+    ));
+  }, [matrixFit, selectedHotspotId]);
+
+  const effectiveFitSlot = useMemo(() => {
+    if (matrixRequiresBuild) return null;
+    if (!matrixFit) return null;
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const chosen = (matrixFit as any)?.chosenSlot ?? null;
+    const best = (matrixFit as any)?.bestSlot ?? null;
+
+    const isInvalid = (slot: any): boolean => {
+      if (!slot) return true;
+      return Number(slot?.fromHotspotId) === selectedIdNum || Number(slot?.toHotspotId) === selectedIdNum;
+    };
+
+    if (!isInvalid(chosen)) return chosen;
+    if (!isInvalid(best)) return best;
+
+    return safeMatrixSlots.find((slot: any) => !isInvalid(slot)) || null;
+  }, [matrixFit, matrixRequiresBuild, safeMatrixSlots, selectedHotspotId]);
+
+  /** Helper: map route_fit_type to Tailwind badge classes */
+  const routeFitBadgeClass = (routeFitType: string | undefined): string => {
+    switch (routeFitType) {
+      case 'ON_ROUTE':    return 'bg-green-100 text-green-800';
+      case 'MINOR_DETOUR': return 'bg-amber-100 text-amber-700';
+      case 'BACKTRACK':   return 'bg-orange-100 text-orange-700';
+      case 'OFF_ROUTE':   return 'bg-red-100 text-red-700';
+      case 'MATRIX_UNAVAILABLE': return 'bg-gray-100 text-gray-600';
+      default:            return 'bg-gray-100 text-gray-500';
+    }
+  };
+
+  const normalizedInsertionSlots = useMemo(() => {
+    const rawSlots = Array.isArray(matrixFit?.allSlotResults) && matrixFit.allSlotResults.length > 0
+      ? matrixFit.allSlotResults
+      : (Array.isArray(activePreviewResolution?.slotInsights)
+        ? activePreviewResolution.slotInsights
+        : (Array.isArray(activePreviewResolution?.allInsertionSlots)
+          ? activePreviewResolution.allInsertionSlots
+          : []));
+
+    if (rawSlots.length === 0) return [];
+
+    const stopNames: string[] = [];
+
+    const requestedFrom = String(selectedHotspotAnchor?.anchorFrom || '').trim();
+    if (requestedFrom) {
+      stopNames.push(requestedFrom);
+    }
+
+    for (const seg of effectivePreviewTimeline as any[]) {
+      const type = String(seg?.type || '').toLowerCase();
+      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? seg?.hotspot_ID ?? 0);
+
+      if (type === 'attraction' && hotspotId === Number(selectedHotspotId || 0)) {
+        continue;
+      }
+
+      let label = '';
+      if (type === 'attraction') {
+        label = String(seg?.text || seg?.name || '').trim();
+      } else if (type === 'hotel') {
+        label = 'Hotel';
+      }
+
+      if (!label) continue;
+      if (stopNames[stopNames.length - 1] === label) continue;
+      stopNames.push(label);
+    }
+
+    // Determine which slotIndex is best from matrix-fit payload
+    const bestSlotIndex: number | null = matrixFit?.bestSlot?.slotIndex ?? null;
+
+    return rawSlots.map((slot: any, index: number) => {
+      const fromName = slot?.fromName || stopNames[index] || `Stop ${index + 1}`;
+      const toName = slot?.toName || stopNames[index + 1] || 'Destination';
+
+      // ── From manualInsertionFit.allSlotResults ──
+      const routeFitType: string = slot?.routeFitType || '';
+      const routeFitLabel: string = slot?.label || '';
+      const routeFitDisplayLabel: string = slot?.displayLabel || routeFitLabel;
+      const routeFitShortLabel: string = slot?.shortLabel || routeFitDisplayLabel || routeFitLabel;
+      const roadDetourKm: number | null = slot?.roadDetourKm != null ? Number(slot.roadDetourKm) : null;
+      const isZeroExtraDetour: boolean = slot?.isZeroExtraDetour === true || (roadDetourKm != null && roadDetourKm <= 0.5);
+      const distanceComparisonNote: string | null = slot?.distanceComparisonNote ?? null;
+      const routeDecisionReason: string | null = slot?.routeDecisionReason ?? null;
+      const timingDecisionReason: string | null = slot?.timingDecisionReason ?? null;
+      const priorityDecisionReason: string | null = slot?.priorityDecisionReason ?? null;
+      const finalDecisionReason: string | null = slot?.finalDecisionReason ?? null;
+      const routePossible: boolean = slot?.routePossible !== false;
+      const timingPossible: boolean = slot?.timingPossible === true;
+      const prioritySafe: boolean = slot?.prioritySafe !== false;
+
+      // Legacy fallback fields
+      const directKm: number = Number(slot?.directKm ?? slot?.abOsrmDistanceKm ?? 0);
+      const distanceDeltaRaw: number = roadDetourKm != null ? roadDetourKm : Number(slot?.distanceDelta || 0);
+      const distanceDelta: number = Math.max(0, Number.isFinite(distanceDeltaRaw) ? distanceDeltaRaw : 0);
+      const viaKm: number = Number(slot?.insertedRouteDistanceKm ?? slot?.viaKm ?? (directKm + distanceDelta));
+
+      const isFeasibleType = routeFitType === 'ON_ROUTE' || routeFitType === 'MINOR_DETOUR';
+      const fitsOverall: boolean = routeFitType
+        ? isFeasibleType
+        : slot?.fitsOverall !== false;
+      const isBest = !matrixRequiresBuild && (bestSlotIndex != null
+        ? (slot?.slotIndex === bestSlotIndex || index === bestSlotIndex)
+        : slot?.isBest === true);
+
+      return {
+        ...slot,
+        slot: `${fromName} → ${toName}`,
+        fromName,
+        toName,
+        directKm,
+        viaKm,
+        distanceDelta,
+        routeFitType,
+        routeFitLabel,
+        displayLabel: routeFitDisplayLabel,
+        shortLabel: routeFitShortLabel,
+        roadDetourKm,
+        isZeroExtraDetour,
+        distanceComparisonNote,
+        routeDecisionReason,
+        timingDecisionReason,
+        priorityDecisionReason,
+        finalDecisionReason,
+        proposedTimeRange: slot?.proposedTimeRange || null,
+        operatingHours: slot?.operatingHours || null,
+        fitsTiming: timingPossible,
+        fitsOverall,
+        isBest: matrixRequiresBuild ? false : (slot?.selectedAsBest === true || isBest),
+        routePossible,
+        timingPossible,
+        prioritySafe,
+        selectedAsBest: matrixRequiresBuild ? false : (slot?.selectedAsBest === true || isBest),
+        attempted: slot?.attempted === true || true,
+        timingReason: timingDecisionReason || slot?.timingReason || slot?.reason || routeDecisionReason || null,
+      };
+    });
+  }, [activePreviewResolution, effectivePreviewTimeline, selectedHotspotAnchor, selectedHotspotId, matrixFit, matrixRequiresBuild, safeMatrixSlots]);
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const activeAnchorFitInsight = useMemo(() => {
+    if (matrixRequiresBuild) return null;
+    const bestSlot = normalizedInsertionSlots.find((slot: any) => slot?.isBest)
+      || normalizedInsertionSlots[0]
+      || null;
+    const routeId = Number(addHotspotModal.routeId || 0);
+    if (!routeId || !selectedHotspotId) return null;
+
+    // Prefer matrix-fit chosen/best slot for inserted-hotspot labels.
+    const fitBest = (matrixFit as any)?.bestSlot ?? null;
+    const fitChosen = (matrixFit as any)?.chosenSlot ?? null;
+    const selectedIdNum = Number(selectedHotspotId || 0);
+    const chosenInvalid = Boolean(
+      fitChosen
+      && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
+    );
+    const safeChosen = chosenInvalid ? null : fitChosen;
+    const sourceSlot = safeChosen || fitBest;
+
+    if (sourceSlot) {
+      const fitType: string = sourceSlot.routeFitType || '';
+      const label: string = sourceSlot.displayLabel || sourceSlot.label || fitType;
+      const detour: number | null = sourceSlot.roadDetourKm != null ? Number(sourceSlot.roadDetourKm) : null;
+      const tone = fitType === 'ON_ROUTE' || fitType === 'MINOR_DETOUR'
+        ? 'green' as const
+        : fitType === 'BACKTRACK'
+          ? 'amber' as const
+          : 'red' as const;
+      const hasNamedAnchors = String(sourceSlot?.fromName || '').trim().length > 0
+        && String(sourceSlot?.toName || '').trim().length > 0;
+      const between = hasNamedAnchors ? `${sourceSlot.fromName} → ${sourceSlot.toName}` : null;
+      const extraLabel = detour != null ? `+${detour.toFixed(1)} km` : null;
+      return {
+        label,
+        tone,
+        extraDistanceLabel: extraLabel,
+        anchorLegLabel: between,
+        insertedLabel: label,
+        reason: sourceSlot.decisionReason || null,
+        source: (matrixFit as any)?.chosenSlotSource || null,
+        warning: (matrixFit as any)?.warning || null,
+        requestedSlot: (matrixFit as any)?.requestedSlot || null,
+        chosenSlot: safeChosen,
+      };
+    }
+
+    const distanceDelta = bestSlot?.distanceDelta ?? activePreviewResolution?.newHotspot?.distanceDelta;
+    const bestFits = bestSlot ? (bestSlot?.fitsOverall !== false) : true;
+    const bestReason = bestSlot?.timingReason || null;
+
+    if (!bestFits) {
+      return {
+        label: 'Not on the way',
+        tone: 'red' as const,
+        extraDistanceLabel: null,
+        anchorLegLabel: null,
+        insertedLabel: 'Selected slot is not feasible',
+        reason: bestReason,
+      };
+    }
+
+    // If backend provided distanceDelta, use it directly
+    if (Number.isFinite(distanceDelta) && distanceDelta !== null) {
+      const delta = Number(distanceDelta);
+      const isNeutral = Math.abs(delta) <= 0.5; // Within tolerance
+
+      if (isNeutral || delta <= 0) {
+        return {
+          label: 'Fits on the way',
+          tone: 'green' as const,
+          extraDistanceLabel: delta < -0.5 ? `~${Math.abs(delta).toFixed(1)} km shorter` : 'No extra backtrack',
+          anchorLegLabel: null,
+          insertedLabel: 'Inserted correctly between spots',
+        };
+      }
+
+      return {
+        label: 'Distance increased',
+        tone: 'red' as const,
+        extraDistanceLabel: `+${delta.toFixed(1)} km extra travel`,
+        anchorLegLabel: null,
+        insertedLabel: `Inserted with detour (+${delta.toFixed(1)} km)`,
+        reason: null,
+      };
+    }
+
+    // Fallback: no distance delta available from backend
+    return {
+      label: 'Inserted',
+      tone: 'amber' as const,
+      extraDistanceLabel: null,
+      anchorLegLabel: null,
+      insertedLabel: 'Inserted (distance unavailable)',
+      reason: null,
+    };
+  }, [addHotspotModal.routeId, activePreviewResolution, matrixRequiresBuild, normalizedInsertionSlots, selectedHotspotId, matrixFit]);
+
+
+  const bestInsertionSlot = useMemo(() => {
+    if (matrixRequiresBuild) return null;
+    const slots = normalizedInsertionSlots;
+
+    if (slots.length === 0) return null;
+
+    return slots.find((slot: any) => slot?.isBest)
+      || [...slots].sort(
+        (a: any, b: any) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
+      )[0]
+      || null;
+  }, [matrixRequiresBuild, normalizedInsertionSlots]);
+
+  const previewHotspotMetaById = useMemo(() => {
+    const routeId = Number(addHotspotModal.routeId || 0);
+    const day = itinerary?.days?.find((d) => Number(d.id) === routeId);
+    const map = new Map<number, { visitTime?: string | null; duration?: string | null; timings?: string | null; priority?: number | null }>();
+
+    const daySegments = Array.isArray(day?.segments) ? day!.segments : [];
+    for (const seg of daySegments as any[]) {
+      if (String(seg?.type || '').toLowerCase() !== 'attraction') continue;
+      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
+
+      map.set(hotspotId, {
+        visitTime: seg?.visitTime || null,
+        duration: seg?.duration || null,
+        timings: seg?.timings || null,
+        priority: Number.isFinite(Number(seg?.priority)) ? Number(seg.priority) : null,
+      });
+    }
+
+    for (const hotspot of availableHotspots) {
+      const hotspotId = Number(hotspot?.id || 0);
+      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
+
+      const existing = map.get(hotspotId) || {};
+      const durationFromHours = Number(hotspot?.timeSpend || 0) > 0
+        ? formatMinutesDuration(Math.round(Number(hotspot.timeSpend) * 60))
+        : null;
+
+      map.set(hotspotId, {
+        visitTime: existing.visitTime || null,
+        duration: existing.duration || durationFromHours,
+        timings: existing.timings || hotspot?.timings || null,
+        priority:
+          existing.priority ??
+          (Number.isFinite(Number((hotspot as any)?.priority)) ? Number((hotspot as any).priority) : null) ??
+          (Number.isFinite(Number((hotspot as any)?.hotspotPriority)) ? Number((hotspot as any).hotspotPriority) : null) ??
+          (Number.isFinite(Number((hotspot as any)?.hotspot_priority)) ? Number((hotspot as any).hotspot_priority) : null),
+      });
+    }
+
+    return map;
+  }, [addHotspotModal.routeId, availableHotspots, itinerary?.days]);
+
+  const currentRouteAttractionHotspotIds = useMemo(() => {
+    const routeId = Number(addHotspotModal.routeId || 0);
+    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
+    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
+    const ids = new Set<number>();
+    const excludedSet = new Set(excludedHotspotIds.map(Number));
+    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
+      const routeSeg = seg as any;
+      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
+      // Skip deleted/excluded rows
+      if (
+        routeSeg?.isDeleted === true ||
+        routeSeg?.deleted === true ||
+        routeSeg?.isExcluded === true ||
+        routeSeg?.excluded === true ||
+        routeSeg?.removed === true ||
+        routeSeg?.deletedAt != null ||
+        routeSeg?.deleted_at != null ||
+        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
+        String(routeSeg?.status || '').toLowerCase() === 'excluded'
+      ) {
+        continue;
+      }
+      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
+      if (Number.isFinite(id) && id > 0 && !excludedSet.has(id)) ids.add(id);
+    }
+    return ids;
+  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
+
+  const isCurrentPreviewAlreadyAdded = useMemo(() => {
+    const id = Number(activePreviewHotspotId || 0);
+    if (!id) return false;
+    return currentRouteAttractionHotspotIds.has(id) || addedInModalHotspotIds.has(id);
+  }, [activePreviewHotspotId, addedInModalHotspotIds, currentRouteAttractionHotspotIds]);
+
+  // Helper to normalize available hotspots after fetching
+  // Accepts explicit context options to avoid stale async state issues
+  const normalizeAvailableHotspots = useCallback((
+    hotspots: AvailableHotspot[],
+    options?: {
+      routeId?: number | null;
+      excludedIds?: number[];
+      activeIds?: Set<number>;
+    }
+  ): AvailableHotspot[] => {
+    const excludedSet = new Set((options?.excludedIds || excludedHotspotIds).map(Number));
+    const activeSet = options?.activeIds || currentRouteAttractionHotspotIds;
+
+    return hotspots.map((hotspot) => {
+      const hotspotId = Number(hotspot.id);
+      const backendStatus = String(hotspot.availabilityStatus || '').trim().toUpperCase();
+      const reason = String(hotspot.availabilityReason || '').trim().toLowerCase();
+
+      const isExcludedByBackend =
+        backendStatus === 'EXCLUDED_BY_ROUTE' ||
+        reason.includes('excluded for this route') ||
+        reason.includes('currently excluded');
+
+      const isDeletedOrExcluded =
+        excludedSet.has(hotspotId) || isExcludedByBackend;
+
+      const isActuallyActive =
+        activeSet.has(hotspotId);
+
+      if (isDeletedOrExcluded && !isActuallyActive) {
+        return {
+          ...hotspot,
+          alreadyAdded: false,
+          availabilityStatus: 'EXCLUDED_BY_ROUTE',
+          actionDisabled: false,
+          buttonLabel: 'Preview',
+        };
+      }
+
+      return hotspot;
+    });
+  }, [excludedHotspotIds, currentRouteAttractionHotspotIds]);
+
+  // Keep left list focused near latest selected card.
+  useEffect(() => {
     if (!addHotspotModal.open) return;
     if (!selectedHotspotId) return;
-    if (!previewTimeline || previewTimeline.length === 0) return;
 
-    // Declare in outer scope for cleanup function
-    let raf1: number;
-    let raf2: number;
-    let raf3: number;
+    const raf = requestAnimationFrame(() => {
+      if (!hotspotListRef.current) return;
+      const card = hotspotListRef.current.querySelector(
+        `[data-hotspot-id="${selectedHotspotId}"]`
+      ) as HTMLElement | null;
+      if (!card) return;
 
-    // Wait for next paint cycle to ensure all elements are rendered
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        raf3 = requestAnimationFrame(() => {
-          // Scroll left hotspot list
-          if (hotspotListRef.current) {
-            const card = hotspotListRef.current.querySelector(
-              `[data-hotspot-id="${selectedHotspotId}"]`
-            ) as HTMLElement | null;
-            
-            if (card && hotspotListRef.current) {
-              // Get container and card positions
-              const container = hotspotListRef.current;
-              const containerRect = container.getBoundingClientRect();
-              const cardRect = card.getBoundingClientRect();
-              
-              // Calculate relative position of card within container
-              const cardTopRelativeToContainer = card.offsetTop;
-              const cardHeightWithPadding = card.offsetHeight;
-              const containerHeight = container.clientHeight;
-              
-              // Scroll to position card more centered with larger offset
-              const scrollOffset = 150; // pixels from top - centers the card
-              const targetScrollTop = Math.max(0, cardTopRelativeToContainer - scrollOffset);
-              
-              container.scrollTo({
-                top: targetScrollTop,
-                behavior: "auto"
-              });
-              
-              // Debug logging
-              console.log('[Hotspot Scroll] Card found:', {
-                cardId: selectedHotspotId,
-                cardTop: cardTopRelativeToContainer,
-                containerHeight,
-                targetScrollTop,
-                containerScrollHeight: container.scrollHeight,
-                containerScrollTop: container.scrollTop
-              });
-            } else {
-              console.warn('[Hotspot Scroll] Card not found for ID:', selectedHotspotId);
-            }
-          } else {
-            console.warn('[Hotspot Scroll] Container ref not available');
-          }
-
-          // Scroll right timeline to show selected item
-          if (timelinePreviewRef.current) {
-            // Find the selected timeline item
-            const selectedItem = timelinePreviewRef.current.querySelector(
-              '[data-selected="true"]'
-            ) as HTMLElement | null;
-            
-            if (selectedItem) {
-              // Scroll to the selected item (the newly added hotspot)
-              const selectedItemTop = selectedItem.offsetTop;
-              const scrollOffset = 200; // pixels from top - larger offset for better visibility
-              const targetScroll = Math.max(0, selectedItemTop - scrollOffset);
-              
-              timelinePreviewRef.current.scrollTo({
-                top: targetScroll,
-                behavior: "auto"
-              });
-              
-              console.log('[Timeline Scroll] Found selected item, scrolled to:', {
-                selectedItemTop,
-                targetScroll,
-                containerScrollHeight: timelinePreviewRef.current.scrollHeight
-              });
-            } else {
-              // Fallback: scroll to top if no selected item
-              timelinePreviewRef.current.scrollTo({
-                top: 0,
-                behavior: "auto"
-              });
-              
-              console.log('[Timeline Scroll] No selected item, scrolled to top');
-            }
-          }
-        });
-      });
+      const targetScrollTop = Math.max(0, card.offsetTop - 150);
+      hotspotListRef.current.scrollTo({ top: targetScrollTop, behavior: "auto" });
     });
 
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      cancelAnimationFrame(raf3);
-    };
-  }, [addHotspotModal.open, selectedHotspotId, previewTimeline]);
+    return () => cancelAnimationFrame(raf);
+  }, [addHotspotModal.open, selectedHotspotId]);
 
   // Scroll list to top when search query changes
   useEffect(() => {
@@ -716,9 +1733,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         h.description.toLowerCase().includes(hotspotSearchQuery.toLowerCase())
     )
     .sort((a, b) => {
-      // Sort by visitAgain: false first, true at bottom
-      if (a.visitAgain === b.visitAgain) return 0;
-      return a.visitAgain ? 1 : -1;
+      // visitAgain (already visited) goes to the bottom
+      if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
+      // Within same visitAgain group: lower priority number = more important = shown first
+      // Treat 0 as unset (worst) so it never floats above real P1-P18
+      const normP = (p: any) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
+      const pa = normP((a as any).priority);
+      const pb = normP((b as any).priority);
+      if (pa !== pb) return pa - pb;
+      return 0;
     });
 
   // Hotel selection modal state
@@ -748,7 +1771,28 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     routeDate: "",
   });
   const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
-  
+  const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [latestArrivalPolicy, setLatestArrivalPolicy] = useState<HotelArrivalPolicyResponse | null>(null);
+  const [pendingRouteTimeUpdate, setPendingRouteTimeUpdate] = useState<{
+    planId: number;
+    routeId: number;
+    dayNumber: number;
+    startTimeHms: string;
+    endTimeHms: string;
+  } | null>(null);
+  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
+  const [arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal] = useState<{
+    open: boolean;
+    arrivalDate: string;
+    previousDayDate: string;
+    request: HotelArrivalPolicyRequest | null;
+  }>({
+    open: false,
+    arrivalDate: '',
+    previousDayDate: '',
+    request: null,
+  });
+
   const [roomSelectionModal, setRoomSelectionModal] = useState<{
     open: boolean;
     itinerary_plan_hotel_details_ID: number;
@@ -761,6 +1805,12 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
   const [availableHotels, setAvailableHotels] = useState<AvailableHotel[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
+  const [isRebuildingHotels, setIsRebuildingHotels] = useState(false);
+  const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
+  const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
+  const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
+  const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
+  const routeTimeProgressTimerRef = useRef<number | null>(null);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
   const [hotelSearchQuery, setHotelSearchQuery] = useState("");
   const [selectedMealPlan, setSelectedMealPlan] = useState({
@@ -777,6 +1827,31 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase())
   );
 
+  const stopRouteTimeProgress = useCallback(() => {
+    if (routeTimeProgressTimerRef.current !== null) {
+      window.clearInterval(routeTimeProgressTimerRef.current);
+      routeTimeProgressTimerRef.current = null;
+    }
+  }, []);
+
+  const startRouteTimeProgress = useCallback((estimatedMs: number) => {
+    stopRouteTimeProgress();
+    setRouteTimeProgressPercent(1);
+
+    const startedAt = Date.now();
+    routeTimeProgressTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
+      setRouteTimeProgressPercent(Math.min(95, Math.max(1, pct)));
+    }, 220);
+  }, [stopRouteTimeProgress]);
+
+  const getRouteTimeUpdateEstimateMs = useCallback((dayNumber: number) => {
+    const dayCount = Math.max(1, itinerary?.days?.length ?? dayNumber ?? 1);
+    const createEstimateMs = getEstimatedSaveMs(dayCount, "itineary_basic_info_with_optimized_route");
+    return Math.max(15000, createEstimateMs * 2);
+  }, [itinerary?.days?.length]);
+
   // Gallery modal state
   const [galleryModal, setGalleryModal] = useState<{
     open: boolean;
@@ -787,6 +1862,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     images: [],
     title: "",
   });
+  const [galleryActiveIdx, setGalleryActiveIdx] = useState(0);
 
   // Video modal state
   const [videoModal, setVideoModal] = useState<{
@@ -804,158 +1880,960 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [shareModal, setShareModal] = useState(false);
   const [clipboardType, setClipboardType] = useState<'recommended' | 'highlights' | 'para'>('recommended');
   const [clipboardRatesVisible, setClipboardRatesVisible] = useState<boolean>(false);
-  
+
   // Hotel Selection State (Multi-Provider)
   // Structure: { [routeId]: { provider, hotelCode, bookingCode, roomType, netAmount, hotelName, checkInDate, checkOutDate, groupType } }
-  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{ [routeId: number]: {
-  provider: string;
-  hotelCode: string;
-  bookingCode: string;
-  roomType: string;
-  netAmount: number;
-  hotelName: string;
-  checkInDate: string;
-  checkOutDate: string;
-    searchInitiatedAt?: string;
-  groupType?: number;
-}}>({});
+  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{
+    [routeId: number]: {
+      provider: string;
+      hotelCode: string;
+      bookingCode: string;
+      roomType: string;
+      netAmount: number;
+      hotelName: string;
+      checkInDate: string;
+      checkOutDate: string;
+      searchInitiatedAt?: string;
+      groupType?: number;
+    }
+  }>({});
 
-const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+  const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
+  const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
+  const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
+  const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
+    Record<number, { totalAmount: number; totalQty: number }>
+  >({});
+  const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
+  const summaryStickyRef = useRef<HTMLDivElement | null>(null);
+  const hotelListRef = useRef<HTMLDivElement | null>(null);
+  const vehicleListRef = useRef<HTMLDivElement | null>(null);
+  const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
+  /** page tracked per groupType for Load More */
+  const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
+  const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
 
-const selectedHotelTotal = useMemo(
-  () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
-  [selectedHotelBookings]
-);
+  useEffect(() => {
+    const el = summaryStickyRef.current;
+    if (!el) return;
 
-// ✅ Para should use recommendation GROUPS, not first 4 random hotels
-const paraRecommendations = useMemo(() => {
-  if (!hotelDetails?.hotelTabs?.length) return [];
+    const updateStickyHeight = () => {
+      setSummaryStickyHeight(Math.ceil(el.getBoundingClientRect().height));
+    };
 
-  const getRenderedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
-    const grouped = new Map<number, ItineraryHotelRow[]>();
+    updateStickyHeight();
+    const resizeObserver = new ResizeObserver(updateStickyHeight);
+    resizeObserver.observe(el);
+    window.addEventListener("resize", updateStickyHeight);
 
-    hotelDetails.hotels
-      .filter((h) => h.groupType === groupType)
-      .forEach((hotel) => {
-        const routeId = Number(hotel.itineraryRouteId || 0);
-        if (!grouped.has(routeId)) {
-          grouped.set(routeId, []);
-        }
-        grouped.get(routeId)!.push(hotel);
-      });
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateStickyHeight);
+    };
+  }, [itinerary?.quoteId]);
 
-    return Array.from(grouped.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([, hotelsForRoute]) => {
-        return hotelsForRoute.reduce((best, curr) => {
-          const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-          const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-          return currTotal < bestTotal ? curr : best;
-        });
-      });
+  useEffect(() => {
+    setSelectedVehicleTotalsByType({});
+  }, [itinerary?.quoteId]);
+
+  const scrollToSection = (el: HTMLDivElement | null) => {
+    if (!el) return;
+
+    let scrollParent: HTMLElement | null = el.parentElement;
+    while (scrollParent) {
+      const style = window.getComputedStyle(scrollParent);
+      const canScrollY = /(auto|scroll)/.test(style.overflowY || "");
+      if (canScrollY && scrollParent.scrollHeight > scrollParent.clientHeight) {
+        break;
+      }
+      scrollParent = scrollParent.parentElement;
+    }
+
+    const offset = summaryStickyHeight + 12;
+    if (scrollParent) {
+      const parentRect = scrollParent.getBoundingClientRect();
+      const targetTop =
+        scrollParent.scrollTop +
+        (el.getBoundingClientRect().top - parentRect.top) -
+        offset;
+
+      scrollParent.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
+      return;
+    }
+
+    const y = el.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
   };
 
-  return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
-    label: `Recommended #${idx + 1}`,
-    groupType: tab.groupType,
-    tabLabel: tab.label,
-    hotels: getRenderedHotelsForGroup(tab.groupType),
-  }));
-}, [hotelDetails]);
+  const scrollToHotelList = () => scrollToSection(hotelListRef.current);
+  const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
 
-const buildDefaultClipboardSelection = () => {
-  const next: Record<string, boolean> = {};
-  paraRecommendations.forEach((_item, idx) => {
-    next[`para-${idx}`] = true;
-  });
-  return next;
-};
+  const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
+  const vehicleStatusChip = useMemo(() => {
+    if (!shouldShowVehicles) return null;
 
-useEffect(() => {
-  setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
-}, [hotelDetails]);
+    const status = String(vehicleBuildStatus?.status || "").toUpperCase() as VehicleBuildState | "";
+    if (!status) return null;
 
-useEffect(() => {
-  if (!clipboardModal || !paraRecommendations.length) return;
+    if (status === "PROCESSING" || status === "PENDING") {
+      return {
+        status,
+        label: "Vehicle Processing",
+        className: "border-[#d546ab]/30 bg-[#fdf2fb] text-[#9f2d7d]",
+      };
+    }
 
-  const hasAnySelected = Object.values(selectedHotels).some(Boolean);
-  if (!hasAnySelected) {
-    setSelectedHotels(buildDefaultClipboardSelection());
-  }
-}, [clipboardModal, paraRecommendations, selectedHotels]);
+    if (status === "FAILED") {
+      return {
+        status,
+        label: "Vehicle Failed",
+        className: "border-[#f2c7c7] bg-[#fff5f5] text-[#b83232]",
+      };
+    }
 
-const escapeHtml = (value: unknown) => {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-};
+    if (status === "READY") {
+      return {
+        status,
+        label: "Vehicle Ready",
+        className: "border-[#c8ead7] bg-[#f0fff6] text-[#1f7a4d]",
+      };
+    }
 
-const formatCurrency = (value?: number | string | null) => {
-  const amount = Number(value || 0);
-  return `₹ ${amount.toFixed(2)}`;
-};
+    return null;
+  }, [shouldShowVehicles, vehicleBuildStatus?.status]);
 
-const copyHtmlToClipboard = async (html: string, plainText: string) => {
-  try {
-    if (window.ClipboardItem && navigator.clipboard?.write) {
-      const item = new ClipboardItem({
-        "text/html": new Blob([html], { type: "text/html" }),
-        "text/plain": new Blob([plainText], { type: "text/plain" }),
+  const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
+    if (!quoteId || isLoadingMoreHotels) return;
+    setIsLoadingMoreHotels(true);
+    try {
+      const data = await ItineraryService.getHotelDetails(quoteId, nextPage, 20, groupType, routeId);
+      const newRows: ItineraryHotelRow[] = data.hotels || [];
+      setHotelDetails((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          hotels: [...prev.hotels, ...newRows],
+          pagination: data.pagination ? { ...(prev.pagination || {}), ...data.pagination } : prev.pagination,
+          routePagination: data.routePagination
+            ? { ...(prev.routePagination || {}), ...data.routePagination }
+            : prev.routePagination,
+        };
+      });
+      setHotelPageByGroupRoute((prev) => ({ ...prev, [`${groupType}-${routeId}`]: nextPage }));
+    } catch (err) {
+      console.error('Load More hotels failed', err);
+    } finally {
+      setIsLoadingMoreHotels(false);
+    }
+  };
+
+  const dedupeHotelRows = useCallback((rows: ItineraryHotelRow[]): ItineraryHotelRow[] => {
+    const seen = new Set<string>();
+    const unique: ItineraryHotelRow[] = [];
+
+    rows.forEach((row) => {
+      const key = [
+        Number(row.groupType || 0),
+        Number(row.itineraryRouteId || 0),
+        String(row.date || row.checkInDate || ''),
+        String(row.hotelCode || ''),
+        String(row.bookingCode || ''),
+        String(row.roomType || ''),
+        String(row.hotelName || ''),
+      ].join('|');
+
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push(row);
+    });
+
+    return unique;
+  }, []);
+
+  const fetchCompleteHotelDetails = useCallback(async (
+    currentQuoteId: string,
+  ): Promise<ItineraryHotelDetailsResponse> => {
+    const base = await ItineraryService.getHotelDetails(currentQuoteId);
+
+    const merged: ItineraryHotelDetailsResponse = {
+      ...(base as ItineraryHotelDetailsResponse),
+      hotels: [...((base as ItineraryHotelDetailsResponse).hotels || [])],
+      pagination: { ...((base as ItineraryHotelDetailsResponse).pagination || {}) },
+      routePagination: { ...((base as ItineraryHotelDetailsResponse).routePagination || {}) },
+    };
+
+    const pending = new Map<string, { groupType: number; routeId: number; nextPage: number }>();
+
+    Object.entries(merged.routePagination || {}).forEach(([key, meta]) => {
+      const routeId = Number(String(key).split('-')[1] || 0);
+      if (!meta?.hasMore || !meta.groupType || !routeId) return;
+
+      pending.set(key, {
+        groupType: Number(meta.groupType),
+        routeId,
+        nextPage: Number(meta.page || 1) + 1,
+      });
+    });
+
+    while (pending.size > 0) {
+      const [key, req] = pending.entries().next().value as [
+        string,
+        { groupType: number; routeId: number; nextPage: number }
+      ];
+      pending.delete(key);
+
+      const next = await ItineraryService.getHotelDetails(
+        currentQuoteId,
+        req.nextPage,
+        20,
+        req.groupType,
+        req.routeId,
+      );
+
+      const nextTyped = next as ItineraryHotelDetailsResponse;
+
+      merged.hotels = dedupeHotelRows([...(merged.hotels || []), ...(nextTyped.hotels || [])]);
+      merged.pagination = {
+        ...(merged.pagination || {}),
+        ...(nextTyped.pagination || {}),
+      };
+      merged.routePagination = {
+        ...(merged.routePagination || {}),
+        ...(nextTyped.routePagination || {}),
+      };
+
+      const updatedMeta = merged.routePagination?.[key];
+      if (updatedMeta?.hasMore) {
+        pending.set(key, {
+          groupType: Number(updatedMeta.groupType),
+          routeId: req.routeId,
+          nextPage: Number(updatedMeta.page || req.nextPage) + 1,
+        });
+      }
+    }
+
+    return merged;
+  }, [dedupeHotelRows]);
+
+  const selectedHotelTotal = useMemo(
+    () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
+    [selectedHotelBookings]
+  );
+
+  const selectedHotelMetaByRoute = useMemo(() => {
+    const map = new Map<number, { hotelName: string; hotelDistance: string | null; totalAmount: number; noOfRooms: number }>();
+    if (!hotelDetails?.hotels?.length) return map;
+    const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+
+    const preferredGroupType =
+      activeHotelGroupType ??
+      hotelDetails.hotelTabs?.[0]?.groupType ??
+      1;
+
+    const routeBuckets = new Map<number, ItineraryHotelRow[]>();
+    hotelDetails.hotels
+      .filter((h) => h.groupType === preferredGroupType)
+      .forEach((h) => {
+        const routeId = Number(h.itineraryRouteId || 0);
+        if (!routeId) return;
+        if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
+        routeBuckets.get(routeId)!.push(h);
       });
 
-      await navigator.clipboard.write([item]);
-    } else {
+    routeBuckets.forEach((rows, routeId) => {
+      const selected = selectedHotelBookings[routeId];
+
+      if (selected) {
+        const matched = rows.find((h) => {
+          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
+          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
+          const amountMatch = Number(selected.netAmount || 0) > 0 &&
+            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
+          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
+          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
+          const hotelNameMatch = selected.hotelName && h.hotelName && selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
+          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
+        });
+
+        map.set(routeId, {
+          hotelName: selected.hotelName || matched?.hotelName || "Hotel",
+          hotelDistance: matched?.hotelDistance || null,
+          totalAmount:
+            Number(selected.netAmount || 0) ||
+            Number(matched?.totalHotelCost || 0) + Number(matched?.totalHotelTaxAmount || 0),
+          noOfRooms: Math.max(Number(matched?.noOfRooms || 0), 0) || itineraryRoomCount,
+        });
+        return;
+      }
+
+      const cheapest = rows.reduce((best, curr) => {
+        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+        return currTotal < bestTotal ? curr : best;
+      });
+
+      map.set(routeId, {
+        hotelName: cheapest.hotelName || "Hotel",
+        hotelDistance: cheapest.hotelDistance || null,
+        totalAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+        noOfRooms: Math.max(Number(cheapest.noOfRooms || 0), 0) || itineraryRoomCount,
+      });
+    });
+
+    return map;
+  }, [hotelDetails, selectedHotelBookings, activeHotelGroupType, itinerary?.roomCount]);
+
+  const computedHotelCost = useMemo(() => {
+    if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
+    if (selectedHotelTotal > 0) return selectedHotelTotal;
+
+    const preferredGroupType =
+      activeHotelGroupType ??
+      hotelDetails?.hotelTabs?.[0]?.groupType ??
+      1;
+
+    const getStayDate = (hotel: ItineraryHotelRow): string => {
+      if (hotel.checkInDate) return String(hotel.checkInDate);
+      if (hotel.date) return String(hotel.date);
+      const dayText = String(hotel.day || '');
+      const parts = dayText.split(' | ');
+      return (parts[1] || dayText).trim();
+    };
+
+    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
+    (hotelDetails?.hotels || [])
+      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+      .forEach((h) => {
+        const routeId = Number(h.itineraryRouteId || 0);
+        if (!routeId) return;
+        const stayKey = `${routeId}::${getStayDate(h)}`;
+        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
+        groupedByStay.get(stayKey)!.push(h);
+      });
+
+    const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+
+    const totalFromHotelApi = Array.from(groupedByStay.values()).reduce((sum, rows) => {
+      const cheapest = rows.reduce((best, curr) => {
+        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+        return currTotal < bestTotal ? curr : best;
+      });
+
+      const baseAmount = Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0);
+      const rowRooms = Math.max(Number(cheapest.noOfRooms || 0), 0);
+      const effectiveRooms = Math.max(rowRooms || itineraryRoomCount, 1);
+      return sum + baseAmount * effectiveRooms;
+    }, 0);
+
+    if (totalFromHotelApi > 0) return totalFromHotelApi;
+    return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
+  }, [
+    activeHotelListTotal,
+    selectedHotelTotal,
+    selectedHotelMetaByRoute,
+    hotelDetails,
+    activeHotelGroupType,
+    itinerary?.costBreakdown?.totalHotelAmount,
+    itinerary?.roomCount,
+  ]);
+
+  const roomBreakdownRoomNights = useMemo(() => {
+    const fallbackStayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
+    const fallbackRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+
+    if (!hotelDetails?.hotels?.length) {
+      return fallbackStayCount * fallbackRoomCount;
+    }
+
+    const preferredGroupType =
+      activeHotelGroupType ??
+      hotelDetails.hotelTabs?.[0]?.groupType ??
+      1;
+
+    const getStayDate = (hotel: ItineraryHotelRow): string => {
+      if (hotel.checkInDate) return String(hotel.checkInDate);
+      if (hotel.date) return String(hotel.date);
+      const dayText = String(hotel.day || '');
+      const parts = dayText.split(' | ');
+      return (parts[1] || dayText).trim();
+    };
+
+    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
+    hotelDetails.hotels
+      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+      .forEach((h) => {
+        const routeId = Number(h.itineraryRouteId || 0);
+        if (!routeId) return;
+        const stayDate = getStayDate(h);
+        const stayKey = `${routeId}::${stayDate}`;
+        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
+        groupedByStay.get(stayKey)!.push(h);
+      });
+
+    const matchSelectedHotelRow = (rows: ItineraryHotelRow[], routeId: number): ItineraryHotelRow | null => {
+      const selected = selectedHotelBookings[routeId];
+      if (!selected) return null;
+
+      return (
+        rows.find((h) => {
+          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
+          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
+          const amountMatch =
+            Number(selected.netAmount || 0) > 0 &&
+            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
+          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
+          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
+          const hotelNameMatch =
+            selected.hotelName &&
+            h.hotelName &&
+            selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
+
+          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
+        }) || null
+      );
+    };
+
+    let totalRoomNights = 0;
+    groupedByStay.forEach((rows, stayKey) => {
+      const routeId = Number(stayKey.split('::')[0] || 0);
+
+      const selectedMatch = routeId ? matchSelectedHotelRow(rows, routeId) : null;
+      const cheapest = rows.reduce((best, curr) => {
+        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+        return currTotal < bestTotal ? curr : best;
+      });
+
+      const chosen = selectedMatch || cheapest;
+      const rowRooms = Math.max(Number(chosen.noOfRooms || 0), 0);
+      const effectiveRooms = Math.max(rowRooms || fallbackRoomCount, 1);
+      totalRoomNights += effectiveRooms;
+    });
+
+    return totalRoomNights || fallbackStayCount * fallbackRoomCount;
+  }, [
+    hotelDetails,
+    activeHotelGroupType,
+    itinerary?.dayCount,
+    itinerary?.days?.length,
+    itinerary?.roomCount,
+    selectedHotelBookings,
+  ]);
+
+  const computedVehicleAmount = useMemo(() => {
+    if (!shouldShowVehicles) return 0;
+
+    const selectedTotal = Object.values(selectedVehicleTotalsByType).reduce(
+      (sum, row) => sum + Number(row.totalAmount || 0),
+      0,
+    );
+
+    if (selectedTotal > 0) return selectedTotal;
+
+    return Number(
+      itinerary?.costBreakdown?.totalVehicleAmount ??
+      itinerary?.costBreakdown?.totalVehicleCost ??
+      0,
+    );
+  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleAmount, itinerary?.costBreakdown?.totalVehicleCost, shouldShowVehicles]);
+
+  const computedVehicleQty = useMemo(() => {
+    if (!shouldShowVehicles) return 0;
+
+    const selectedQty = Object.values(selectedVehicleTotalsByType).reduce(
+      (sum, row) => sum + Number(row.totalQty || 0),
+      0,
+    );
+
+    if (selectedQty > 0) return selectedQty;
+    return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
+  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty, shouldShowVehicles]);
+
+  const financialTotals = useMemo(() => {
+    const hotelAmount = shouldShowHotels
+      ? Number(
+          computedHotelCost ||
+          itinerary?.costBreakdown?.totalRoomCost ||
+          itinerary?.costBreakdown?.totalHotelAmount ||
+          0,
+        )
+      : 0;
+
+    const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
+
+    const otherAmount =
+      Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
+      Number(itinerary?.costBreakdown?.extraBedCost || 0) +
+      Number(itinerary?.costBreakdown?.childWithBedCost || 0) +
+      Number(itinerary?.costBreakdown?.childWithoutBedCost || 0) +
+      Number(itinerary?.costBreakdown?.totalGuideCost || 0) +
+      Number(itinerary?.costBreakdown?.totalHotspotCost || 0) +
+      Number(itinerary?.costBreakdown?.totalActivityCost || 0) +
+      Number(itinerary?.costBreakdown?.additionalMargin || 0);
+
+    const totalAmount = hotelAmount + vehicleAmount + otherAmount;
+    const couponDiscount = Number(itinerary?.costBreakdown?.couponDiscount || 0);
+    const agentMargin = Number(itinerary?.costBreakdown?.agentMargin || 0);
+    const totalRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff || 0);
+    const netPayable = totalAmount - couponDiscount + agentMargin + totalRoundOff;
+
+    return {
+      hotelAmount,
+      totalAmount,
+      netPayable,
+      totalRoundOff,
+    };
+  }, [itinerary, computedHotelCost, computedVehicleAmount, shouldShowHotels, shouldShowVehicles]);
+
+  const hotelHydratedDays = useMemo(() => {
+    if (!itinerary?.days?.length) return [];
+
+    return itinerary.days.map((day, dayIndex) => {
+      // ALWAYS ensure we have a segments array to process
+      let segments = Array.isArray(day.segments) ? [...day.segments] : [];
+      
+      // If no segments,  just return the day with empty segments
+      // (don't try to process hotel logic if there's nothing to process)
+      if (!segments || segments.length === 0) {
+        return {
+          ...day,
+          segments: [],
+        };
+      }
+      
+      const currentHotelName = selectedHotelMetaByRoute.get(day.id)?.hotelName?.trim() || null;
+      const currentHotelDistance = selectedHotelMetaByRoute.get(day.id)?.hotelDistance?.trim() || null;
+      const previousDay = dayIndex > 0 ? itinerary.days[dayIndex - 1] : null;
+      const previousHotelName = previousDay
+        ? selectedHotelMetaByRoute.get(previousDay.id)?.hotelName?.trim() || null
+        : null;
+
+      let firstTravelSeen = false;
+      let derivedHotelArrivalMinutes: number | null = null;
+
+      segments = segments.map((segment) => {
+        if (segment.type === 'travel') {
+          const isFirstTravelOfDay = !firstTravelSeen;
+          firstTravelSeen = true;
+
+          let from = segment.from;
+          let to = segment.to;
+
+          if (currentHotelName && /\bhotel\b/i.test(String(segment.to || '').trim())) {
+            to = currentHotelName;
+          }
+
+          if (isFirstTravelOfDay && previousHotelName) {
+            const normalizedFrom = normalizeTimelineLabel(segment.from);
+            const normalizedDeparture = normalizeTimelineLabel(day.departure);
+            const normalizedArrival = normalizeTimelineLabel(day.arrival);
+
+            if (
+              /\bhotel\b/i.test(String(segment.from || '').trim()) ||
+              normalizedFrom === normalizedDeparture ||
+              normalizedFrom === normalizedArrival
+            ) {
+              from = previousHotelName;
+            }
+          } else if (currentHotelName && /\bhotel\b/i.test(String(segment.from || '').trim())) {
+            from = currentHotelName;
+          }
+
+          const isTravelToCurrentHotel =
+            !!currentHotelName &&
+            normalizeTimelineLabel(to) === normalizeTimelineLabel(currentHotelName);
+
+          if (isTravelToCurrentHotel) {
+            const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
+            const travelStartMinutes = parseDisplayMinutes(segment.timeRange, 'start');
+            const travelEndMinutes = parseDisplayMinutes(segment.timeRange, 'end');
+
+            if (
+              estimatedTravelMinutes != null &&
+              travelStartMinutes !== null &&
+              travelEndMinutes !== null
+            ) {
+              const scheduledTravelMinutes = Math.max(0, travelEndMinutes - travelStartMinutes);
+              const effectiveTravelMinutes = Math.max(scheduledTravelMinutes, estimatedTravelMinutes);
+              const adjustedTravelEndMinutes = travelStartMinutes + effectiveTravelMinutes;
+              derivedHotelArrivalMinutes = adjustedTravelEndMinutes;
+
+              return {
+                ...segment,
+                from,
+                to,
+                timeRange: `${formatMinutesToDisplay(travelStartMinutes)} - ${formatMinutesToDisplay(adjustedTravelEndMinutes)}`,
+                duration: formatMinutesDuration(effectiveTravelMinutes),
+                distance: currentHotelDistance || segment.distance,
+              };
+            }
+          }
+
+          return {
+            ...segment,
+            from,
+            to,
+          };
+        }
+
+        if (segment.type === 'checkin' && currentHotelName) {
+          const existingCheckinMinutes = parseDisplayMinutes(segment.time);
+          const adjustedCheckinMinutes =
+            derivedHotelArrivalMinutes != null && existingCheckinMinutes != null
+              ? Math.max(existingCheckinMinutes, derivedHotelArrivalMinutes)
+              : (derivedHotelArrivalMinutes ?? existingCheckinMinutes);
+
+          return {
+            ...segment,
+            hotelName: currentHotelName,
+            time: adjustedCheckinMinutes !== null ? formatMinutesToDisplay(adjustedCheckinMinutes) : segment.time,
+          };
+        }
+
+        return segment;
+      });
+
+      const earlyCheckinIndex = segments.findIndex((segment) => {
+        if (segment.type !== 'checkin') return false;
+        const timeMinutes = parseDisplayMinutes(segment.time);
+        if (timeMinutes === null) return false;
+        return isEarlyMorningTime(parseDisplayTimeToHms(segment.time || ''));
+      });
+
+      const hasEarlyMorningArrival = dayIndex === 0 && earlyCheckinIndex >= 0;
+
+      const hasLateHotelTravel =
+        hasEarlyMorningArrival &&
+        currentHotelName &&
+        segments.some((segment, segmentIndex) => (
+          segmentIndex > earlyCheckinIndex &&
+          segment.type === 'travel' &&
+          normalizeTimelineLabel(segment.to) === normalizeTimelineLabel(currentHotelName)
+        ));
+
+      const hasLateCheckin =
+        hasEarlyMorningArrival &&
+        segments.some((segment, segmentIndex) => (
+          segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
+        ));
+
+      if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel && !hasLateCheckin) {
+        const lastRenderableSegment = [...segments]
+          .reverse()
+          .find((segment, reverseIndex) => {
+            const actualIndex = segments.length - 1 - reverseIndex;
+            return actualIndex > earlyCheckinIndex && segment.type !== 'hotspot';
+          });
+
+        const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined): string => {
+          if (!segment) return day.arrival || day.departure || currentHotelName;
+          if (segment.type === 'attraction') return segment.name;
+          if (segment.type === 'travel') return segment.to || segment.from || day.arrival || currentHotelName;
+          if (segment.type === 'break') return segment.location || day.arrival || currentHotelName;
+          if (segment.type === 'checkin') return segment.hotelName || currentHotelName;
+          if (segment.type === 'start') return day.arrival || day.departure || currentHotelName;
+          if (segment.type === 'return') return day.arrival || day.departure || currentHotelName;
+          return day.arrival || day.departure || currentHotelName;
+        };
+
+        const lastLabel = getSegmentAnchorLabel(lastRenderableSegment);
+        const lastEndMinutes = lastRenderableSegment
+          ? lastRenderableSegment.type === 'attraction'
+            ? parseDisplayMinutes(lastRenderableSegment.visitTime, 'end')
+            : lastRenderableSegment.type === 'travel'
+              ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+              : lastRenderableSegment.type === 'break'
+                ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+                : lastRenderableSegment.type === 'checkin'
+                  ? parseDisplayMinutes(lastRenderableSegment.time)
+                  : lastRenderableSegment.type === 'start'
+                    ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
+                    : lastRenderableSegment.type === 'return'
+                      ? parseDisplayMinutes(lastRenderableSegment.time)
+                      : null
+          : null;
+
+        const dayEndMinutes = parseDisplayMinutes(day.endTime);
+        const finalCheckinMinutes = dayEndMinutes ?? lastEndMinutes;
+
+        if (lastLabel && normalizeTimelineLabel(lastLabel) !== normalizeTimelineLabel(currentHotelName)) {
+          if (
+            lastEndMinutes !== null &&
+            finalCheckinMinutes !== null &&
+            finalCheckinMinutes > lastEndMinutes
+          ) {
+            const scheduleGapMinutes = finalCheckinMinutes - lastEndMinutes;
+            const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
+            const effectiveTravelMinutes = estimatedTravelMinutes != null
+              ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
+              : scheduleGapMinutes;
+            const travelEndMinutes = lastEndMinutes + effectiveTravelMinutes;
+
+            segments.push({
+              type: 'travel',
+              from: lastLabel,
+              to: currentHotelName,
+              timeRange: `${formatMinutesToDisplay(lastEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
+              distance: currentHotelDistance || '',
+              duration: formatMinutesDuration(effectiveTravelMinutes),
+              note: 'This may vary due to traffic conditions',
+            });
+
+            const adjustedCheckinMinutes = Math.max(finalCheckinMinutes, travelEndMinutes);
+
+            segments.push({
+              type: 'checkin',
+              hotelName: currentHotelName,
+              hotelAddress: '',
+              time: formatMinutesToDisplay(adjustedCheckinMinutes),
+            });
+          } else {
+            segments.push({
+              type: 'checkin',
+              hotelName: currentHotelName,
+              hotelAddress: '',
+              time: finalCheckinMinutes !== null ? formatMinutesToDisplay(finalCheckinMinutes) : day.endTime || null,
+            });
+          }
+        }
+      }
+
+      return {
+        ...day,
+        segments,
+      };
+    });
+  }, [itinerary?.days, selectedHotelMetaByRoute]);
+
+  // Ensure "start" segment always appears before first travel segment within each day
+  const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map((day, idx) => {
+    // CRITICAL SAFEGUARD: Ensure segments always exist as an array
+    const rawSegments = (() => {
+      // First try hotelHydratedDays/current day segments
+      if (day.segments && Array.isArray(day.segments) && day.segments.length > 0) {
+        return day.segments;
+      }
+      
+      // Fallback: try to get from original itinerary.days in case hotelHydratedDays lost them
+      if (itinerary?.days && itinerary.days.length > idx) {
+        const originalDay = itinerary.days[idx];
+        if (originalDay.segments && Array.isArray(originalDay.segments)) {
+          return originalDay.segments;
+        }
+      }
+      
+      // Last resort: empty array
+      return [];
+    })();
+    
+    // DEBUG: Log for first day
+    if (idx === 0 && rawSegments.length === 0) {
+      console.warn('[ItineraryDetails] DisplayDays: No segments found for day 0!', {
+        dayFromHydrated: day,
+        dayFromOriginal: itinerary?.days?.[0],
+        hotelHydratedDaysLength: hotelHydratedDays.length,
+        itineraryDaysLength: itinerary?.days?.length,
+      });
+    }
+    
+    if (idx === 0) {
+      console.log('[ItineraryDetails] DisplayDays day 0:', {
+        segmentCount: rawSegments.length,
+        hasSegments: rawSegments.length > 0,
+        types: rawSegments.map(s => s?.type),
+      });
+    }
+    
+    return {
+      ...day,
+      segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
+        if (a.type === 'start' && b.type !== 'start') return -1;
+        if (b.type === 'start' && a.type !== 'start') return 1;
+        return 0;
+      }) : [],
+    };
+  });
+
+  const overallTripCostWithHotels = useMemo(() => {
+    // Keep header total in lockstep with the bottom "Net Payable" calculation.
+    return Number(financialTotals.netPayable || 0).toFixed(2);
+  }, [financialTotals.netPayable]);
+
+  // ✅ Para should use recommendation GROUPS, not first 4 random hotels
+  const paraRecommendations = useMemo(() => {
+    if (!hotelDetails?.hotelTabs?.length) return [];
+
+    const getRenderedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
+      const grouped = new Map<number, ItineraryHotelRow[]>();
+
+      hotelDetails.hotels
+        .filter((h) => h.groupType === groupType)
+        .forEach((hotel) => {
+          const routeId = Number(hotel.itineraryRouteId || 0);
+          if (!grouped.has(routeId)) {
+            grouped.set(routeId, []);
+          }
+          grouped.get(routeId)!.push(hotel);
+        });
+
+      return Array.from(grouped.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([, hotelsForRoute]) => {
+          return hotelsForRoute.reduce((best, curr) => {
+            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+            return currTotal < bestTotal ? curr : best;
+          });
+        });
+    };
+
+    return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
+      label: `Recommended #${idx + 1}`,
+      groupType: tab.groupType,
+      tabLabel: tab.label,
+      hotels: getRenderedHotelsForGroup(tab.groupType),
+    }));
+  }, [hotelDetails]);
+
+  const buildDefaultClipboardSelection = () => {
+    const next: Record<string, boolean> = {};
+    paraRecommendations.forEach((_item, idx) => {
+      next[`para-${idx}`] = true;
+    });
+    return next;
+  };
+
+  useEffect(() => {
+    setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
+  }, [hotelDetails]);
+
+  useEffect(() => {
+    if (!hotelDetails?.hotelTabs?.length) return;
+    if (activeHotelGroupType == null) {
+      setActiveHotelGroupType(hotelDetails.hotelTabs[0].groupType);
+    }
+  }, [hotelDetails, activeHotelGroupType]);
+
+  useEffect(() => {
+    const firstDay = itinerary?.days?.find((day) => Number(day.dayNumber) === 1) || itinerary?.days?.[0];
+    if (!firstDay || !hotelDetails) {
+      return;
+    }
+
+    const routeDateYmd = normalizeDateToYmd(firstDay.date);
+    const startTimeHms = parseDisplayTimeToHms(firstDay.startTime || '');
+    if (!routeDateYmd || !startTimeHms || !isEarlyMorningTime(startTimeHms)) {
+      return;
+    }
+
+    const hasPreviousDayMarkerRow = hotelDetails.hotels.some((hotel) => {
+      const hotelDateYmd = normalizeDateToYmd(hotel.date);
+      return (
+        Number(hotel.itineraryRouteId || 0) === Number(firstDay.id || 0) &&
+        Number(hotel.hotelId || 0) === 0 &&
+        Boolean(hotelDateYmd) &&
+        hotelDateYmd !== routeDateYmd
+      );
+    });
+
+    if (hasPreviousDayMarkerRow) {
+      setLastArrivalPolicyDecisionKey(
+        buildArrivalPolicyDecisionKey(firstDay.id, firstDay.date, startTimeHms),
+      );
+    }
+  }, [hotelDetails, itinerary]);
+
+  useEffect(() => {
+    if (!clipboardModal || !paraRecommendations.length) return;
+
+    const hasAnySelected = Object.values(selectedHotels).some(Boolean);
+    if (!hasAnySelected) {
+      setSelectedHotels(buildDefaultClipboardSelection());
+    }
+  }, [clipboardModal, paraRecommendations, selectedHotels]);
+
+  const escapeHtml = (value: unknown) => {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  };
+
+  const formatCurrency = (value?: number | string | null) => {
+    const amount = Number(value || 0);
+    return `₹ ${amount.toFixed(2)}`;
+  };
+
+  const copyHtmlToClipboard = async (html: string, plainText: string) => {
+    try {
+      const outlookSafeHtml = `
+        <div style="display:block;width:100%;margin:0;padding:0;font-family:Calibri;font-size:11px;color:#302c6e;">
+          ${html.trim()}
+          <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">
+            <tr><td style="font-size:1px;line-height:1px;height:1px;">&nbsp;</td></tr>
+          </table>
+        </div>
+      `;
+
+      if (window.ClipboardItem && navigator.clipboard?.write) {
+        const item = new ClipboardItem({
+          "text/html": new Blob([outlookSafeHtml], { type: "text/html" }),
+          "text/plain": new Blob([plainText], { type: "text/plain" }),
+        });
+
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(plainText);
+      }
+    } catch (error) {
+      console.error("Clipboard copy failed", error);
       await navigator.clipboard.writeText(plainText);
     }
-  } catch (error) {
-    console.error("Clipboard copy failed", error);
-    await navigator.clipboard.writeText(plainText);
-  }
-};
+  };
 
-type ClipboardMode = "recommended" | "highlights" | "para";
+  type ClipboardMode = "recommended" | "highlights" | "para";
 
-type ClipboardGroup = {
-  label: string;
-  groupType: number;
-  hotels: ItineraryHotelRow[];
-};
+  type ClipboardGroup = {
+    label: string;
+    groupType: number;
+    hotels: ItineraryHotelRow[];
+  };
 
-const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
-  if (!hotelDetails) return [];
+  const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
+    if (!hotelDetails) return [];
 
-  return paraRecommendations
-    .filter((item, idx) => selectedHotels[`para-${idx}`])
-    .map((item) => ({
-      label: item.label,
-      groupType: item.groupType,
-      hotels: item.hotels,
-    }));
-};
+    return paraRecommendations
+      .filter((item, idx) => selectedHotels[`para-${idx}`])
+      .map((item) => ({
+        label: item.label,
+        groupType: item.groupType,
+        hotels: item.hotels,
+      }));
+  };
 
-const buildClipboardHtml = (mode: ClipboardMode) => {
-  if (!hotelDetails || !itinerary) {
-    return { html: "", plainText: "" };
-  }
+  const buildClipboardHtml = (mode: ClipboardMode) => {
+    if (!hotelDetails || !itinerary) {
+      return { html: "", plainText: "" };
+    }
 
-  const selectedGroups = getSelectedClipboardGroups(mode);
+    const selectedGroups = getSelectedClipboardGroups(mode);
 
-  if (!selectedGroups.length) {
-    return { html: "", plainText: "" };
-  }
+    if (!selectedGroups.length) {
+      return { html: "", plainText: "" };
+    }
 
-  const sectionTitle =
-    mode === "highlights"
-      ? "Highlights"
-      : mode === "recommended"
-      ? "Recommended Hotels"
-      : "Recommended Hotel";
+    const sectionTitle =
+      mode === "highlights"
+        ? "Highlights"
+        : mode === "recommended"
+          ? "Recommended Hotels"
+          : "Recommended Hotel";
 
-  const summaryHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+    const summaryHtml = `
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <td colspan="4" align="center" style="font-size:22px;line-height:40px;font-weight:600;">
           Tour Itinerary Plan
@@ -963,7 +2841,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       </tr>
     </table>
 
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
       <tr>
         <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
           <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
@@ -987,85 +2865,68 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     </table>
   `;
 
-  const hotelSectionsHtml = selectedGroups
-    .map((group) => {
-      const rowsHtml =
-        group.hotels.length > 0
-          ? group.hotels
-              .map((hotel, index) => {
-                const totalPrice =
-                  Number(hotel.totalHotelCost || 0) +
-                  Number(hotel.totalHotelTaxAmount || 0);
+    const totalCols = clipboardRatesVisible ? 6 : 5;
+    const hotelSectionsHtml = `
+      <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+        ${selectedGroups.map((group) => {
+          const rowsHtml =
+            group.hotels.length > 0
+              ? group.hotels
+                .map((hotel, index) => {
+                  const totalPrice =
+                    Number(hotel.totalHotelCost || 0) +
+                    Number(hotel.totalHotelTaxAmount || 0);
 
-                return `
-                  <tr>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.destination)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
-                    </td>
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
-                    </td>
-                    ${
-                      clipboardRatesVisible
-                        ? `
+                  return `
+                    <tr>
                       <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                        <b>${escapeHtml(formatCurrency(totalPrice))}</b>
+                        Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
                       </td>
-                    `
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.destination)}
+                      </td>
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
+                      </td>
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
+                      </td>
+                      ${clipboardRatesVisible
+                        ? `<td style="text-align:left;border:1px solid #b1b1b1;padding:3px;"><b>${escapeHtml(formatCurrency(totalPrice))}</b></td>`
                         : ""
-                    }
-                    <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
-                      ${escapeHtml(hotel.mealPlan)}
-                    </td>
-                  </tr>
-                `;
-              })
-              .join("")
-          : `
+                      }
+                      <td style="text-align:left;border:1px solid #b1b1b1;padding:3px;">
+                        ${escapeHtml(normalizeMealPlanLabel(hotel.mealPlan))}
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join("")
+              : `<tr><td colspan="${totalCols}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">No hotel available</td></tr>`;
+
+          return `
             <tr>
-              <td colspan="${clipboardRatesVisible ? 6 : 5}" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
-                No hotel available
+              <td colspan="${totalCols}" align="center" style="font-size:18px;line-height:36px;font-weight:600;border:1px solid #b1b1b1;padding:4px;">
+                ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
               </td>
             </tr>
+            <tr>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
+              ${clipboardRatesVisible ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>` : ""}
+              <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
+            </tr>
+            ${rowsHtml}
           `;
+        }).join("")}
+      </table>
+    `;
 
-      return `
-        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
-          <tr>
-            <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
-              ${escapeHtml(sectionTitle)} - ${escapeHtml(group.label)}
-            </td>
-          </tr>
-        </table>
-
-        <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
-          <tr>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Day</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Destination</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Hotel Name - Category</th>
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Room Type - Count</th>
-            ${
-              clipboardRatesVisible
-                ? `<th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Price</th>`
-                : ""
-            }
-            <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Meal Plan</th>
-          </tr>
-          ${rowsHtml}
-        </table>
-      `;
-    })
-    .join("");
-
-  const vehicleRowsHtml =
-    itinerary.vehicles?.length > 0
-      ? itinerary.vehicles
+    const vehicleRowsHtml =
+      shouldShowVehicles && itinerary.vehicles?.length > 0
+        ? itinerary.vehicles
           .map((vehicle) => {
             return `
               <tr>
@@ -1080,7 +2941,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
             `;
           })
           .join("")
-      : `
+        : `
         <tr>
           <td colspan="2" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
             No Vehicle available
@@ -1088,135 +2949,206 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         </tr>
       `;
 
-  const vehicleSectionHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    const vehicleSectionHtml = shouldShowVehicles ? `
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
-        <td align="center" style="font-size:18px;line-height:40px;font-weight:600;">
+        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Vehicle Details
         </td>
       </tr>
-    </table>
-
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
       <tr>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
         <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
       </tr>
       ${vehicleRowsHtml}
     </table>
-  `;
+  ` : "";
 
-  const costSectionHtml = `
-    <table width="700" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
+    const clipboardRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
+    const clipboardRoomNightsLabel = `${clipboardRoomNights} room-night${clipboardRoomNights > 1 ? 's' : ''}`;
+
+    const costSectionHtml = `
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
       <tr>
         <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
           Overall Cost
         </td>
       </tr>
+      ${shouldShowHotels ? `
       <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Amount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalVehicleAmount || 0))}</td>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Hotel Cost For (${escapeHtml(clipboardRoomNightsLabel)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.hotelAmount || 0))}</strong></td>
       </tr>
+      ` : ""}
+      ${itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amenities Cost</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmenitiesCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Extra Bed Cost (${escapeHtml(itinerary.extraBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.extraBedCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child With Bed Cost (${escapeHtml(itinerary.childWithBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithBedCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child Without Bed Cost (${escapeHtml(itinerary.childWithoutBed || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithoutBedCost || 0))}</td>
+      </tr>
+      ` : ""}
+      ${shouldShowVehicles ? `
+      <tr>
+        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</th>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(computedVehicleAmount || 0))}</strong></td>
+      </tr>
+      ` : ""}
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmount || 0))}</strong></td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.totalAmount || 0))}</strong></td>
       </tr>
+      ${(itinerary.costBreakdown.couponDiscount ?? 0) > 0 ? `
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Coupon Discount</th>
         <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">- ${escapeHtml(formatCurrency(itinerary.costBreakdown.couponDiscount || 0))}</td>
       </tr>
+      ` : ""}
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Round Off</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalRoundOff || 0))}</td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(financialTotals.totalRoundOff || 0))}</td>
       </tr>
       <tr>
         <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Net Payable To ${escapeHtml(itinerary.costBreakdown.companyName || "DVI Holidays")}</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(itinerary.costBreakdown.netPayable || 0))}</strong></td>
+        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.netPayable || 0))}</strong></td>
       </tr>
     </table>
   `;
 
-  const fullHtml = `
-    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;">
-      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;">
-        ${summaryHtml}
-        ${hotelSectionsHtml}
-        ${vehicleSectionHtml}
-        ${costSectionHtml}
+    const fullHtml = `
+    <div style="margin:0;padding:0;background-color:#f9f9f9;font-family:Calibri;font-size:11px;color:#302c6e;display:block;width:100%;">
+      <div style="font-family:Calibri;font-size:11px;color:#302c6e;width:700px;text-align:left;display:block;">
+        <table width="700" align="left" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;float:none;display:block;">
+          <tr><td style="padding-bottom:8px;">${summaryHtml}</td></tr>
+          <tr><td style="padding-bottom:8px;">${hotelSectionsHtml}</td></tr>
+          ${vehicleSectionHtml ? `<tr><td style="padding-bottom:8px;">${vehicleSectionHtml}</td></tr>` : ""}
+          <tr><td style="padding-bottom:8px;">${costSectionHtml}</td></tr>
+        </table>
+        <p style="margin:0; clear:both; text-align:left; line-height:0; font-size:0;">&nbsp;</p>
       </div>
     </div>
   `;
 
-  const plainText = selectedGroups
-    .map((group) => {
-      const hotelLines = group.hotels
-        .map(
-          (hotel, index) =>
-            `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan}`
-        )
-        .join("\n");
+    const plainText = selectedGroups
+      .map((group) => {
+        const hotelLines = group.hotels
+          .map(
+            (hotel, index) =>
+              `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${normalizeMealPlanLabel(hotel.mealPlan)}`
+          )
+          .join("\n");
 
-      return `${sectionTitle} - ${group.label}\n${hotelLines}`;
-    })
-    .join("\n\n");
+        return `${sectionTitle} - ${group.label}\n${hotelLines}`;
+      })
+      .join("\n\n");
 
-  return { html: fullHtml, plainText };
-};
+    return { html: fullHtml, plainText, hotelSectionsHtml, costSectionHtml };
+  };
 
-const extractHotelSectionFromHtml = (html: string): string => {
-  if (!html) return "";
+  const extractHotelSectionFromHtml = (html: string): string => {
+    if (!html) return "";
 
-  const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
-  if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
-    return "";
-  }
+    const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
+    if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
+      return "";
+    }
 
-  const headingIndex = hotelHeadingMatch.index;
-  const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
-  if (hotelSectionStart === -1) return "";
+    const headingIndex = hotelHeadingMatch.index;
+    const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
+    if (hotelSectionStart === -1) return "";
 
-  const vehicleHeadingMatch = html.match(/Vehicle Details/i);
-  if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
-    return "";
-  }
+    const vehicleHeadingMatch = html.match(/Vehicle Details/i);
+    if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
+      return "";
+    }
 
-  const vehicleHeadingIndex = vehicleHeadingMatch.index;
-  const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
-  if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
-    return "";
-  }
+    const vehicleHeadingIndex = vehicleHeadingMatch.index;
+    const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
+    if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
+      return "";
+    }
 
-  return html.slice(hotelSectionStart, vehicleSectionStart);
-};
+    return html.slice(hotelSectionStart, vehicleSectionStart);
+  };
 
-const mergeClipboardWithRenderedHotels = (
-  backendHtml: string,
-  renderedHotelsHtml: string,
-): string => {
-  if (!backendHtml || !renderedHotelsHtml) return backendHtml;
+  const mergeClipboardWithRenderedHotels = (
+    backendHtml: string,
+    renderedHotelsHtml: string,
+  ): string => {
+    if (!backendHtml || !renderedHotelsHtml) return backendHtml;
 
-  const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-  if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
-    return backendHtml;
-  }
+    const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
+    if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
+      return backendHtml;
+    }
 
-  const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
-  const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
-  if (backendHotelStart === -1) return backendHtml;
+    const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
+    const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
+    if (backendVehicleStart === -1) {
+      return backendHtml;
+    }
 
-  const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-  if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
-    return backendHtml;
-  }
+    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
+    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
+      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+    }
 
-  const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
-  const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
-  if (backendVehicleStart === -1 || backendVehicleStart <= backendHotelStart) {
-    return backendHtml;
-  }
+    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
+    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
+    if (backendHotelStart === -1 || backendVehicleStart <= backendHotelStart) {
+      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+    }
 
-  return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-};
+    return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
+  };
+
+  const mergeClipboardWithRenderedCost = (
+    backendHtml: string,
+    renderedCostHtml: string,
+  ): string => {
+    if (!backendHtml || !renderedCostHtml) return backendHtml;
+
+    const backendHotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
+    if (!backendHotspotHeadingMatch || backendHotspotHeadingMatch.index === undefined) {
+      return backendHtml;
+    }
+
+    const backendHotspotHeadingIndex = backendHotspotHeadingMatch.index;
+    const backendHotspotStart = backendHtml.lastIndexOf("<table", backendHotspotHeadingIndex);
+    if (backendHotspotStart === -1) return backendHtml;
+
+    const roundOffIndex = backendHtml.lastIndexOf("Total Round Off", backendHotspotStart);
+    const netPayableIndex = backendHtml.lastIndexOf("Net Payable To", backendHotspotStart);
+    const totalAmountIndex = backendHtml.lastIndexOf("Total Amount", backendHotspotStart);
+    const anchorIndex = Math.max(roundOffIndex, netPayableIndex, totalAmountIndex);
+
+    if (anchorIndex === -1) {
+      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
+    }
+
+    const backendCostStart = backendHtml.lastIndexOf("<table", anchorIndex);
+    if (backendCostStart === -1 || backendCostStart >= backendHotspotStart) {
+      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
+    }
+
+    return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
+  };
 
 const htmlToPlainText = (html: string): string => {
   return html
@@ -1232,6 +3164,79 @@ const htmlToPlainText = (html: string): string => {
     .replace(/\s+/g, " ")
     .trim();
 };
+
+const cleanVehicleOnlyClipboardHtml = (html: string): string => {
+  if (!html) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  doc.querySelectorAll("table").forEach((table) => {
+    const rows = Array.from(table.querySelectorAll("tr"));
+
+    const hotelStartIndex = rows.findIndex((row) =>
+      /Recommended Hotel/i.test(row.textContent || ""),
+    );
+
+    const vehicleStartIndex = rows.findIndex((row, index) =>
+      index > hotelStartIndex && /Vehicle Details/i.test(row.textContent || ""),
+    );
+
+    if (hotelStartIndex !== -1 && vehicleStartIndex !== -1) {
+      rows.slice(hotelStartIndex, vehicleStartIndex).forEach((row) => row.remove());
+    }
+  });
+
+  doc.querySelectorAll("td, th").forEach((cell) => {
+    const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+    if (/^Room Count\b/i.test(text)) {
+      cell.remove();
+    }
+  });
+
+  doc.querySelectorAll("tr").forEach((row) => {
+    const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+    if (/^Total Room Cost\b/i.test(text)) {
+      row.remove();
+    }
+  });
+
+  return doc.body.innerHTML;
+};
+
+const handleVehicleOnlyClipboardCopy = async () => {
+  if (!quoteId || itineraryPreference !== 2) return;
+
+  try {
+    const { html, plainText } = await ItineraryService.getClipboardContent(
+      quoteId,
+      "recommended",
+      [],
+    );
+
+    if (!html && !plainText) {
+      toast.error("Failed to prepare clipboard content");
+      return;
+    }
+
+const vehicleOnlyHtml = html
+  ? cleanVehicleOnlyClipboardHtml(html)
+  : plainText;
+
+  
+    const vehicleOnlyPlainText = vehicleOnlyHtml
+      ? htmlToPlainText(vehicleOnlyHtml)
+      : plainText;
+
+    await copyHtmlToClipboard(vehicleOnlyHtml, vehicleOnlyPlainText);
+    toast.success("Formatted clipboard content copied!");
+  } catch (error) {
+    console.error("Failed to copy vehicle-only clipboard content", error);
+    toast.error("Failed to copy clipboard content");
+  }
+};
   // Confirm Quotation modal state
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
   const [voucherModal, setVoucherModal] = useState(false);
@@ -1241,16 +3246,16 @@ const htmlToPlainText = (html: string): string => {
   const [incidentalModal, setIncidentalModal] = useState(false);
   const [isConfirmingQuotation, setIsConfirmingQuotation] = useState(false);
   const [walletBalance, setWalletBalance] = useState<string>('');
-  
+
   // ✅ Reference to hotel save function
   const hotelSaveFunctionRef = React.useRef<(() => Promise<boolean>) | null>(null);
-  
+
   // ✅ Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
-  
+
   // ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
   const currentFetchRef = useRef<string | null>(null);
-  
+
   const [agentInfo, setAgentInfo] = useState<{
     quotation_no: string;
     agent_name: string;
@@ -1283,20 +3288,128 @@ const htmlToPlainText = (html: string): string => {
     departurePlace: '',
     departureFlightDetails: '',
   });
+  const [confirmDefaultNationality, setConfirmDefaultNationality] = useState('IN');
   const [additionalAdults, setAdditionalAdults] = useState<AdditionalPassenger[]>([]);
   const [additionalChildren, setAdditionalChildren] = useState<AdditionalPassenger[]>([]);
   const [additionalInfants, setAdditionalInfants] = useState<AdditionalPassenger[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [prebookData, setPrebookData] = useState<any | null>(null);
+  const prebookDataRef = useRef<any | null>(null);
   const [isPrebooking, setIsPrebooking] = useState(false);
+  const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
+  const [confirmOccupanciesTemplate, setConfirmOccupanciesTemplate] = useState<Array<{ adults: number; children: number; childrenAges: number[] }> | null>(null);
   const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
   const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
+  const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
+  const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
+    .filter(([, h]) => String((h as any)?.provider || '').trim().toLowerCase() !== 'tbo')
+    .map(([routeId, h]: [string, any]) => {
+      const routeIdNum = parseInt(routeId, 10);
+      const selectedProvider = String((h as any)?.provider || '').trim().toLowerCase();
+      const selectedBookingCode = String((h as any)?.bookingCode || '').trim();
+      const selectedHotelCode = String((h as any)?.hotelCode || '').trim();
+      const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
+      const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
+      const selectedAmount = Number((h as any)?.netAmount || 0);
 
-  const ALLOWED_TITLES = ['Mr', 'Mrs', 'Ms', 'Miss', 'Mx', 'Dr'];
+      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
+        Number(row?.itineraryRouteId || 0) === routeIdNum &&
+        String(row?.provider || '').trim().toLowerCase() === selectedProvider,
+      );
+
+      const matchedHotelRow =
+        routeRows.find((row: any) => {
+          const rowBookingCode = String(row?.bookingCode || '').trim();
+          const rowHotelCode = String(row?.hotelCode || '').trim();
+          const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
+          const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
+          const rowAmount = Number(row?.totalHotelCost || 0) + Number(row?.totalHotelTaxAmount || 0);
+
+          const bookingCodeMatch = selectedBookingCode !== '' && rowBookingCode !== '' && selectedBookingCode === rowBookingCode;
+          const hotelCodeMatch = selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode;
+          const hotelNameMatch = selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName;
+          const roomTypeMatch = selectedRoomType !== '' && rowRoomType !== '' && selectedRoomType === rowRoomType;
+          const amountMatch = selectedAmount > 0 && Math.abs(selectedAmount - rowAmount) <= 0.01;
+
+          return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
+        }) || routeRows[0] || null;
+
+      return { routeId: routeIdNum, ...h, matchedHotelRow };
+    });
+  const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+  const confirmPassengerMix = [
+    Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
+    Number(itinerary?.children || 0) > 0 ? `${Number(itinerary?.children || 0)} Child${Number(itinerary?.children || 0) === 1 ? '' : 'ren'}` : null,
+    Number(itinerary?.infants || 0) > 0 ? `${Number(itinerary?.infants || 0)} Infant${Number(itinerary?.infants || 0) === 1 ? '' : 's'}` : null,
+  ].filter(Boolean).join(', ');
+  const confirmOccupancyPreview = (confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+    ? confirmOccupanciesTemplate
+    : buildOccupancyPreview(
+        confirmRoomCount,
+        Number(itinerary?.adults || 0),
+        Number(itinerary?.children || 0),
+      )
+  ).map((room) => ({ adults: room.adults, children: room.children }));
+
+  const ALLOWED_TITLES = ['Mr', 'Ms', 'Mrs'];
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-  const isValidPassengerName = (value: string) => /^[A-Za-z][A-Za-z\s'-]{1,24}$/.test(value.trim());
+  const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+  const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
+  const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
+  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' => {
+    const provider = String(entry?.provider || '')
+      .trim()
+      .toLowerCase();
+    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms') {
+      return provider;
+    }
+
+    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
+    if (bookingCode.includes('!TB!')) return 'tbo';
+
+    return 'tbo';
+  };
+  const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
+    const explicitIso2 = String(
+      plan?.nationality_iso2 ||
+      plan?.nationality_shortname ||
+      plan?.guestNationality ||
+      '',
+    )
+      .trim()
+      .toUpperCase();
+    if (/^[A-Z]{2}$/.test(explicitIso2)) {
+      return explicitIso2;
+    }
+
+    const rawNationality = plan?.nationality;
+    if (typeof rawNationality === 'string' && /^[A-Z]{2}$/i.test(rawNationality.trim())) {
+      return rawNationality.trim().toUpperCase();
+    }
+
+    const legacyMap: Record<number, string> = {
+      284: 'AE',
+      229: 'NO',
+      101: 'IN',
+      177: 'IN',
+    };
+    const mapped = legacyMap[Number(rawNationality || 0)];
+    const fallback = String(fallbackNationality || 'IN').trim().toUpperCase();
+    return mapped || (/^[A-Z]{2}$/.test(fallback) ? fallback : 'IN');
+  };
+  const getPassengerFieldError = (
+    label: 'adult' | 'child' | 'infant',
+    index: number,
+    field: 'title' | 'name' | 'age' | 'nationality',
+  ) => formErrors[`${label}-${index}-${field}`];
+
+  useEffect(() => {
+    prebookDataRef.current = prebookData;
+  }, [prebookData]);
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -1334,10 +3447,12 @@ const htmlToPlainText = (html: string): string => {
 
     for (const age of childAges) {
       let assigned = false;
-      for (let idx = 0; idx < rooms; idx++) {
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (roomIndex + offset) % rooms;
         if (occupancies[idx].children < 4) {
           occupancies[idx].children += 1;
           occupancies[idx].childrenAges.push(age);
+          roomIndex = (idx + 1) % rooms;
           assigned = true;
           break;
         }
@@ -1350,12 +3465,122 @@ const htmlToPlainText = (html: string): string => {
     return occupancies;
   };
 
+  const buildOccupanciesFromTravellers = (
+    travellers: any[],
+    fallbackRooms: number,
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const rooms = Math.max(Number(fallbackRooms) || 1, 1);
+    const byRoom = new Map<number, { adults: number; children: number; childrenAges: number[] }>();
+
+    for (const t of Array.isArray(travellers) ? travellers : []) {
+      const roomIdRaw = Number((t as any)?.room_id ?? (t as any)?.roomId ?? 1);
+      const roomId = Number.isFinite(roomIdRaw) && roomIdRaw > 0 ? roomIdRaw : 1;
+      const paxType = Number((t as any)?.traveller_type ?? (t as any)?.travellerType ?? 0);
+      const age = Number((t as any)?.traveller_age ?? (t as any)?.travellerAge);
+
+      if (!byRoom.has(roomId)) {
+        byRoom.set(roomId, { adults: 0, children: 0, childrenAges: [] });
+      }
+
+      const occ = byRoom.get(roomId)!;
+      if (paxType === 1) {
+        occ.adults += 1;
+      } else if (paxType === 2) {
+        occ.children += 1;
+        if (Number.isFinite(age) && age >= 0 && age <= 11) {
+          occ.childrenAges.push(Math.trunc(age));
+        }
+      }
+    }
+
+    const maxRoomId = Math.max(rooms, ...Array.from(byRoom.keys()), 1);
+    return Array.from({ length: maxRoomId }, (_, idx) => {
+      const roomNo = idx + 1;
+      const occ = byRoom.get(roomNo) || { adults: 0, children: 0, childrenAges: [] };
+      return {
+        adults: Math.max(occ.adults, 1),
+        children: Math.max(occ.children, 0),
+        childrenAges: occ.childrenAges.slice(0, occ.children),
+      };
+    });
+  };
+
+  const applyChildAgesToTemplate = (
+    template: Array<{ adults: number; children: number; childrenAges: number[] }>,
+    childAges: number[],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    const agesPool = [...childAges];
+    return template.map((occ) => {
+      const ages: number[] = [];
+      for (let i = 0; i < Math.max(occ.children, 0); i++) {
+        const nextAge = agesPool.length > 0 ? Number(agesPool.shift()) : Number(occ.childrenAges?.[i]);
+        ages.push(Number.isFinite(nextAge) && nextAge >= 0 && nextAge <= 11 ? Math.trunc(nextAge) : 7);
+      }
+      return {
+        adults: Math.max(Number(occ.adults || 1), 1),
+        children: Math.max(Number(occ.children || 0), 0),
+        childrenAges: ages,
+      };
+    });
+  };
+
+  function buildOccupancyPreview(
+    roomCount: number,
+    totalAdults: number,
+    totalChildren: number,
+  ): Array<{ adults: number; children: number }> {
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    let childrenLeft = Math.max(totalChildren, 0);
+    let nextChildRoom = 0;
+    while (childrenLeft > 0) {
+      let assigned = false;
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (nextChildRoom + offset) % rooms;
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          childrenLeft -= 1;
+          nextChildRoom = (idx + 1) % rooms;
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  }
+
   const normalizeNameParts = (name: string) => {
     const trimmed = name.trim();
     const parts = trimmed.split(/\s+/).filter(Boolean);
     const firstName = parts[0] || trimmed;
     const lastName = parts.slice(1).join(' ') || firstName;
     return { firstName, lastName };
+  };
+
+  const validateNameParts = (name: string) => {
+    const parts = normalizeNameParts(name);
+    if (!isValidPassengerName(parts.firstName) || !isValidPassengerName(parts.lastName)) {
+      return false;
+    }
+    return true;
   };
 
   const getSafeErrorMessage = (error: unknown, fallback: string) => {
@@ -1382,6 +3607,136 @@ const htmlToPlainText = (html: string): string => {
       .filter(Boolean);
   };
 
+  const resolvePrebookInclusions = (hotel: any): string[] => {
+    const candidateLists = [
+      hotel?.inclusions,
+      hotel?.Inclusions,
+      hotel?.inclusion,
+      hotel?.Inclusion,
+      hotel?.facilities,
+      hotel?.Facilities,
+      hotel?.rooms?.[0]?.inclusion,
+      hotel?.rooms?.[0]?.Inclusion,
+      hotel?.Rooms?.[0]?.inclusion,
+      hotel?.Rooms?.[0]?.Inclusion,
+    ];
+
+    const merged = candidateLists.flatMap((value) => normalizePrebookItems(value));
+    return Array.from(new Set(merged.map((item) => String(item || '').trim()).filter(Boolean)));
+  };
+
+  const resolvePrebookMealPlan = (hotel: any): string => {
+    const direct = [
+      hotel?.mealPlan,
+      hotel?.MealPlan,
+      hotel?.mealType,
+      hotel?.MealType,
+      hotel?.meal_type,
+      hotel?.mealTypeName,
+      hotel?.MealTypeName,
+      hotel?.boardType,
+      hotel?.BoardType,
+      hotel?.boardBasis,
+      hotel?.BoardBasis,
+      hotel?.room?.mealType,
+      hotel?.room?.MealType,
+      hotel?.Room?.mealType,
+      hotel?.Room?.MealType,
+      hotel?.rooms?.[0]?.mealType,
+      hotel?.rooms?.[0]?.MealType,
+      hotel?.rooms?.[0]?.boardBasis,
+      hotel?.Rooms?.[0]?.mealType,
+      hotel?.Rooms?.[0]?.MealType,
+      hotel?.Rooms?.[0]?.boardBasis,
+    ];
+
+    for (const value of direct) {
+      const text = String(value || '').trim();
+      if (text) {
+        return text;
+      }
+    }
+
+    const inclusionText = resolvePrebookInclusions(hotel).join(' ').toLowerCase();
+    if (inclusionText.includes('full board')) return 'Full Board';
+    if (inclusionText.includes('half board')) return 'Half Board';
+    if (inclusionText.includes('room only') || inclusionText.includes('no meals')) return 'Room Only';
+    if (inclusionText.includes('breakfast')) return 'Breakfast Included';
+
+    return '';
+  };
+
+  const normalizeCancellationPolicyItems = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+
+    const chargeLabel = (chargeType: string, amount: any) => {
+      const normalizedType = String(chargeType || '').toLowerCase();
+      const num = Number(amount);
+      const safeAmount = Number.isFinite(num) ? num : amount;
+      if (normalizedType === 'percentage' || normalizedType === '2') {
+        return `${safeAmount}%`;
+      }
+      if (normalizedType === 'fixed' || normalizedType === '1') {
+        return `INR ${safeAmount}`;
+      }
+      return String(safeAmount);
+    };
+
+    const formatEntry = (item: any) => {
+      if (!item) return '';
+
+      if (typeof item === 'string') {
+        const trimmed = item.trim();
+        if (!trimmed) return '';
+
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+              return parsed
+                .map((p) => formatEntry(p))
+                .filter(Boolean)
+                .join('\n');
+            }
+            return formatEntry(parsed);
+          } catch {
+            return trimmed;
+          }
+        }
+
+        // Handle legacy TBO concatenated strings
+        if (trimmed.includes('#^#') || trimmed.includes('#!#')) {
+          return trimmed
+            .replace(/#\^#|#!#/g, '')
+            .split('|')
+            .map((part) => part.trim())
+            .filter(Boolean)
+            .join('\n');
+        }
+
+        return trimmed;
+      }
+
+      const fromDate = item.FromDate || item.fromDate || item.startDate || '-';
+      const chargeType = item.ChargeType || item.chargeType || '-';
+      const cancellationCharge =
+        item.CancellationCharge ?? item.cancellationCharge ?? item.Charge ?? item.charge ?? '-';
+
+      return `From ${fromDate} | ${chargeType} | Charge: ${chargeLabel(chargeType, cancellationCharge)}`;
+    };
+
+    const list = Array.isArray(value) ? value : [value];
+    return list
+      .flatMap((item) => {
+        const formatted = formatEntry(item);
+        return formatted ? formatted.split('\n') : [];
+      })
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
+
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<{
@@ -1398,25 +3753,36 @@ const htmlToPlainText = (html: string): string => {
   // Refresh hotel data after hotel update
   const refreshHotelData = useCallback(async () => {
     if (!quoteId) return;
-    
+
     try {
+      setLoadingHotels(true);
       console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const [detailsRes, hotelRes] = await Promise.all([
-        ItineraryService.getDetails(quoteId),
-        ItineraryService.getHotelDetails(quoteId),
-      ]);
-      console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
-      setItinerary(detailsRes as ItineraryDetailsResponse);
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      const detailsRes = await ItineraryService.getDetails(quoteId);
+      const details = detailsRes as ItineraryDetailsResponse;
+      setItinerary(details);
+
+      const pref = Number(details.itineraryPreference ?? 3);
+      const useHotels = pref === 1 || pref === 3;
+
+      if (useHotels) {
+        const hotelRes = await fetchCompleteHotelDetails(quoteId);
+        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      } else {
+        setHotelDetails(null);
+        setActiveHotelListTotal(0);
+      }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
     } catch (e: any) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
+    } finally {
+      setLoadingHotels(false);
     }
-  }, [quoteId]);
+  }, [quoteId, fetchCompleteHotelDetails]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
-    
+
     try {
       const detailsRes = await ItineraryService.getDetails(quoteId);
       setItinerary(detailsRes as ItineraryDetailsResponse);
@@ -1425,16 +3791,103 @@ const htmlToPlainText = (html: string): string => {
     }
   }, [quoteId]);
 
+  const fetchVehicleBuildStatus = useCallback(async (planId: number) => {
+    try {
+      const res = await ItineraryService.getVehicleBuildStatus(planId);
+      setVehicleBuildStatus(res);
+      return res;
+    } catch (e: any) {
+      console.error("Failed to fetch vehicle build status", e);
+      return null;
+    }
+  }, []);
+
+  const handleRetryVehicleBuild = useCallback(async () => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!planId || isRetryingVehicleBuild) return;
+
+    try {
+      setIsRetryingVehicleBuild(true);
+      const statusRes = await ItineraryService.triggerVehicleBuildAsync(planId);
+      setVehicleBuildStatus(statusRes);
+      toast.success("Vehicle build retriggered");
+    } catch (e: any) {
+      console.error("Failed to retrigger vehicle build", e);
+      toast.error(e?.message || "Failed to retrigger vehicle build");
+    } finally {
+      setIsRetryingVehicleBuild(false);
+    }
+  }, [itinerary?.planId, isRetryingVehicleBuild]);
+
+  useEffect(() => {
+    setVehicleBuildStatus(null);
+  }, [quoteId]);
+
+  useEffect(() => {
+    const planId = Number(itinerary?.planId || 0);
+    const hasVehicleRows = Array.isArray(itinerary?.vehicles) && itinerary.vehicles.length > 0;
+    if (!shouldShowVehicles || !planId || hasVehicleRows) {
+      return;
+    }
+
+    let disposed = false;
+    let timerId: number | null = null;
+
+    const poll = async () => {
+      const statusRes = await fetchVehicleBuildStatus(planId);
+      if (disposed || !statusRes) return;
+
+      const state = String(statusRes.status || "").toUpperCase() as VehicleBuildState;
+      if (state === "READY") {
+        await refreshVehicleData();
+        return;
+      }
+
+      if (state === "FAILED") {
+        return;
+      }
+
+      timerId = window.setTimeout(poll, 3000);
+    };
+
+    poll();
+
+    return () => {
+      disposed = true;
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [itinerary?.planId, itinerary?.vehicles, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
+
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
-    
+
     console.log("Hotel group type changed to:", groupType);
-    
+    setActiveHotelGroupType(groupType);
+
     try {
       // Only refetch itinerary details with the selected group type to update costs
       // Hotel data (hotels, hotelTabs) does NOT change by group type, only cost breakdown
       const detailsRes = await ItineraryService.getDetails(quoteId, groupType);
-      setItinerary(detailsRes as ItineraryDetailsResponse);
+      setItinerary((prev) => {
+        const next = detailsRes as ItineraryDetailsResponse;
+        const pref = Number(next.itineraryPreference ?? 0);
+        const shouldKeepVehicleState =
+          (pref === 2 || pref === 3) &&
+          (!Array.isArray(next.vehicles) || next.vehicles.length === 0) &&
+          Array.isArray(prev?.vehicles) &&
+          prev.vehicles.length > 0;
+
+        if (!shouldKeepVehicleState) {
+          return next;
+        }
+
+        // Some groupType responses return hotel-cost updates without vehicle rows.
+        // Keep the last known vehicle list so vehicle UI does not disappear.
+        return {
+          ...next,
+          vehicles: prev!.vehicles,
+        };
+      });
     } catch (e: any) {
       console.error("Failed to update data for group type change", e);
     }
@@ -1458,6 +3911,79 @@ const htmlToPlainText = (html: string): string => {
     setHotelVoucherModalOpen(true);
   }, []);
 
+  const handleCancelVoucherItems = useCallback(async (items: Array<{
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }>) => {
+    const itineraryPlanId = Number(itinerary?.planId || 0);
+    if (!itineraryPlanId) {
+      toast.error('Unable to resolve itinerary plan ID for hotel cancellation');
+      return;
+    }
+
+    const validItems = Array.isArray(items) ? items : [];
+    if (validItems.length === 0) {
+      toast.error('No hotels selected for cancellation');
+      return;
+    }
+
+    const reason = window.prompt('Enter cancellation reason')?.trim() || '';
+    if (!reason) {
+      toast.error('Cancellation reason is required');
+      return;
+    }
+
+    try {
+      const routeIds = Array.from(
+        new Set(validItems.map((i) => Number(i.routeId)).filter((id) => Number.isFinite(id) && id > 0)),
+      );
+      const hotelDetailsIds = Array.from(
+        new Set(
+          validItems
+            .flatMap((i) => i.hotelDetailsIds || [])
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0),
+        ),
+      );
+
+      await HotelVoucherService.cancelHotelVouchers({
+        itineraryPlanId,
+        reason,
+        routeIds,
+        hotelDetailsIds,
+      });
+
+      toast.success(
+        validItems.length > 1
+          ? `Cancelled ${validItems.length} hotel voucher(s)`
+          : 'Hotel voucher cancelled successfully',
+      );
+      await refreshHotelData();
+    } catch (error: any) {
+      console.error('Failed to cancel hotel vouchers', error);
+      toast.error(error?.message || 'Failed to cancel hotel voucher(s)');
+    }
+  }, [itinerary?.planId, refreshHotelData]);
+
+  const handleCancelVoucherSingle = useCallback(async (item: {
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }) => {
+    await handleCancelVoucherItems([item]);
+  }, [handleCancelVoucherItems]);
+
   const handleHotelSelectionsChange = useCallback((selections: Record<number, {
     provider: string;
     hotelCode: string;
@@ -1469,82 +3995,160 @@ const htmlToPlainText = (html: string): string => {
     checkOutDate: string;
     groupType: number;
   }>) => {
-    // Update selectedHotelBookings when user selects hotels in HotelList
-    setSelectedHotelBookings(selections);
+    // Merge route-wise selection updates so changing one day never resets other days.
+    setSelectedHotelBookings((prev) => {
+      const next: Record<number, any> = { ...prev };
+
+      Object.entries(selections).forEach(([routeIdRaw, value]) => {
+        const routeIdNum = Number(routeIdRaw);
+        next[routeIdNum] = {
+          ...(next[routeIdNum] || {}),
+          ...value,
+        };
+      });
+
+      return next;
+    });
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
-  useEffect(() => {
-  if (!quoteId) {
-    setError("Missing quote id in URL");
-    setLoading(false);
-    return;
-  }
+  const handleVehicleSelectedTotalChange = useCallback((payload: {
+    vehicleTypeId: number;
+    totalAmount: number;
+    totalQty: number;
+  }) => {
+    const key = Number(payload.vehicleTypeId || 0);
+    const nextAmount = Number(payload.totalAmount || 0);
+    const nextQty = Number(payload.totalQty || 0);
 
-  // Prevent wrong API call when this component is opened on confirmed route
-  if (location.pathname.startsWith("/confirmed-itinerary/")) {
-    console.warn(
-      "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
-      { quoteId, pathname: location.pathname }
-    );
-    setLoading(false);
-    return;
-  }
+    setSelectedVehicleTotalsByType((prev) => {
+      const existing = prev[key];
+      if (existing && existing.totalAmount === nextAmount && existing.totalQty === nextQty) {
+        return prev;
+      }
 
-  // If we're already fetching this quoteId, skip duplicate fetch
-  if (currentFetchRef.current === quoteId) {
-    console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-    return;
-  }
+      return {
+        ...prev,
+        [key]: {
+          totalAmount: nextAmount,
+          totalQty: nextQty,
+        },
+      };
+    });
+  }, []);
 
-  // Mark that we're fetching this quoteId
-  currentFetchRef.current = quoteId;
-  isMountedRef.current = true;
+  const shouldShowRebuildHotelsButton = useMemo(() => {
+    if (!hotelDetails?.hotels?.length) return false;
+    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
+    return hotelDetails.hotels.every((h) => h.hotelName === 'No Hotels Available');
+  }, [hotelDetails]);
 
-  const fetchDetails = async () => {
+  const handleRebuildHotels = useCallback(async () => {
+    if (!quoteId || isRebuildingHotels) return;
+
     try {
-      console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-      setLoading(true);
-      setError(null);
+      setIsRebuildingHotels(true);
+      setLoadingHotels(true);
+      toast.info('Rebuilding hotels...');
 
-      // Fetch both details and hotel data in parallel
-      const [detailsRes, hotelRes] = await Promise.all([
+      const [detailsRes] = await Promise.all([
         ItineraryService.getDetails(quoteId),
-        ItineraryService.getHotelDetails(quoteId),
+        ItineraryService.rebuildHotelDetails(quoteId, 1, 20, activeHotelGroupType || undefined),
       ]);
 
-      // Only update state if component is still mounted
-      if (!isMountedRef.current) {
-        console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-        return;
-      }
-
-      console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
       setItinerary(detailsRes as ItineraryDetailsResponse);
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      const completeHotelRes = await fetchCompleteHotelDetails(quoteId);
+      setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
+      toast.success('Hotels rebuilt successfully');
     } catch (e: any) {
-      // Only update state if component is still mounted
-      if (!isMountedRef.current) return;
-      
-      console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-      setError(e?.message || "Failed to load itinerary details");
-      setItinerary(null);
-      setHotelDetails(null);
+      toast.error(e?.message || 'Failed to rebuild hotels');
     } finally {
-      // Only update state if component is still mounted
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoadingHotels(false);
+      setIsRebuildingHotels(false);
     }
-  };
+  }, [quoteId, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
 
-  fetchDetails();
+  useEffect(() => {
+    if (!quoteId) {
+      setError("Missing quote id in URL");
+      setLoading(false);
+      return;
+    }
 
-  // Cleanup: Mark component as unmounted
-  return () => {
-    isMountedRef.current = false;
-  };
-}, [quoteId, location.pathname]);
+    // Prevent wrong API call when this component is opened on confirmed route
+    if (location.pathname.startsWith("/confirmed-itinerary/")) {
+      console.warn(
+        "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
+        { quoteId, pathname: location.pathname }
+      );
+      setLoading(false);
+      return;
+    }
+
+    // If we're already fetching this quoteId, skip duplicate fetch
+    if (currentFetchRef.current === quoteId) {
+      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+      return;
+    }
+
+    // Mark that we're fetching this quoteId
+    currentFetchRef.current = quoteId;
+    isMountedRef.current = true;
+
+    const fetchDetails = async () => {
+      try {
+        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
+        setLoading(true);
+        setLoadingHotels(true);
+        setError(null);
+
+        // Fetch details first so we can skip hotel API for vehicle-only itineraries.
+        const detailsRes = await getDetailsDeduped(quoteId);
+        const details = detailsRes as ItineraryDetailsResponse;
+        const pref = Number(details.itineraryPreference ?? 3);
+        const useHotels = pref === 1 || pref === 3;
+
+        let hotelRes: ItineraryHotelDetailsResponse | null = null;
+        if (useHotels) {
+          hotelRes = await fetchCompleteHotelDetails(quoteId);
+        }
+
+        // Only update state if component is still mounted
+        if (!isMountedRef.current) {
+          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
+          return;
+        }
+
+        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
+        setItinerary(details);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        if (!useHotels) {
+          setActiveHotelListTotal(0);
+        }
+      } catch (e: any) {
+        // Only update state if component is still mounted
+        if (!isMountedRef.current) return;
+
+        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
+        setError(e?.message || "Failed to load itinerary details");
+        setItinerary(null);
+        setHotelDetails(null);
+      } finally {
+        // Only update state if component is still mounted
+        if (isMountedRef.current) {
+          setLoading(false);
+          setLoadingHotels(false);
+        }
+      }
+    };
+
+    fetchDetails();
+
+    // Cleanup: Mark component as unmounted
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [quoteId, location.pathname, fetchCompleteHotelDetails]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -1559,22 +4163,25 @@ const htmlToPlainText = (html: string): string => {
     if (!quoteId) return null;
 
     try {
+      setLoadingHotels(true);
       let hotelRes;
-      
+
       // If confirmed itinerary is available, fetch from confirmed endpoint
       if (itinerary?.confirmed_itinerary_plan_ID) {
         hotelRes = await ItineraryService.getConfirmedItinerary(itinerary.confirmed_itinerary_plan_ID);
       } else {
         // Fallback to hotel details endpoint
-        hotelRes = await ItineraryService.getHotelDetails(quoteId);
+        hotelRes = await fetchCompleteHotelDetails(quoteId);
       }
-      
+
       setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       return hotelRes;
     } catch (error: any) {
       console.error("Failed to load hotel details", error);
       toast.error("Failed to load hotel details");
       return null;
+    } finally {
+      setLoadingHotels(false);
     }
   };
 
@@ -1590,40 +4197,63 @@ const htmlToPlainText = (html: string): string => {
 
     setIsDeleting(true);
     try {
-  const deletedHotspotId = deleteHotspotModal.hotspotId;
+      const deletedHotspotId = Number(deleteHotspotModal.hotspotId);
+      const deletedRouteId = Number(deleteHotspotModal.routeId);
 
-await ItineraryService.deleteHotspot(
-  deleteHotspotModal.planId,
-  deleteHotspotModal.routeId,
-  deleteHotspotModal.routeHotspotId
-);
+      await ItineraryService.deleteHotspot(
+        deleteHotspotModal.planId,
+        deleteHotspotModal.routeId,
+        deleteHotspotModal.hotspotId
+      );
 
-if (deletedHotspotId) {
-  setExcludedHotspotIds((prev) =>
-    prev.includes(deletedHotspotId) ? prev : [...prev, deletedHotspotId]
-  );
-}
-toast.success("Hotspot deleted successfully");
-      
-setItinerary((prev) => {
-  if (!prev) return prev;
+      toast.success("Hotspot deleted successfully");
 
-  return {
-    ...prev,
-    days: prev.days.map((day) =>
-      day.id === deleteHotspotModal.routeId
-        ? {
-            ...day,
-            segments: day.segments.filter(
-              (segment) =>
-                segment.type !== "attraction" ||
-                segment.routeHotspotId !== deleteHotspotModal.routeHotspotId
-            ),
-          }
-        : day
-    ),
-  };
-});
+      // Update local state immediately before reload
+      // Remove from modal added set
+      setAddedInModalHotspotIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deletedHotspotId);
+        return next;
+      });
+
+      // Add to excluded set
+      setExcludedHotspotIds((prev) =>
+        Array.from(new Set([...prev.map(Number), deletedHotspotId]))
+      );
+
+      // Update itinerary to remove deleted attraction segment
+      setItinerary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          days: prev.days.map((day) => {
+            if (Number(day.id) !== deletedRouteId) return day;
+            return {
+              ...day,
+              segments: day.segments.filter((seg: any) => {
+                if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
+                const segHotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+                return segHotspotId !== deletedHotspotId;
+              }),
+            };
+          }),
+        };
+      });
+
+      // Also immediately update availableHotspots if modal is already open
+      setAvailableHotspots((prev) =>
+        prev.map((row) =>
+          Number(row.id) === deletedHotspotId
+            ? {
+                ...row,
+                alreadyAdded: false,
+                availabilityStatus: 'EXCLUDED_BY_ROUTE',
+                actionDisabled: false,
+                buttonLabel: 'Preview',
+              }
+            : row
+        )
+      );
 
       // Close modal
       setDeleteHotspotModal({
@@ -1633,15 +4263,23 @@ setItinerary((prev) => {
         routeHotspotId: null,
        hotspotId: null,
         hotspotName: "",
+        hotspotWasPrebuilt: false,
       });
-      
-      // Show rebuild button by setting route ID with pending rebuild
-      setRouteNeedsRebuild(deleteHotspotModal.routeId);
-      
+
+      // Show rebuild button only when a prebuilt hotspot was deleted.
+      if (deleteHotspotModal.hotspotWasPrebuilt && deleteHotspotModal.routeId) {
+        setRouteNeedsRebuild(deleteHotspotModal.routeId);
+      }
+
       // Reload itinerary data
-     // Do not reload itinerary here.
-// Reloading immediately brings deleted hotspot back from old backend allocation.
-// Keep UI updated locally and show Rebuild Route button instead.
+      if (quoteId) {
+        const [detailsRes, hotelRes] = await Promise.all([
+          ItineraryService.getDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
+        ]);
+        setItinerary(detailsRes as ItineraryDetailsResponse);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      }
     } catch (e: any) {
       console.error("Failed to delete hotspot", e);
       toast.error(e?.message || "Failed to delete hotspot");
@@ -1657,15 +4295,15 @@ setItinerary((prev) => {
   excludedHotspotIds,
 });
       toast.success("Route rebuilt successfully");
-      
+
       // Clear rebuild flag
       setRouteNeedsRebuild(null);
-      
+
       // Reload itinerary data
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -1678,6 +4316,86 @@ setItinerary((prev) => {
     }
   };
 
+  const applyRouteTimePatch = async (
+    planId: number,
+    routeId: number,
+    dayNumber: number,
+    startTimeHms: string,
+    endTimeHms: string,
+    options?: {
+      previousDayBillingDecisionProvided?: boolean;
+      previousDayBillingConfirmed?: boolean;
+    },
+  ) => {
+    setIsApplyingRouteTimeUpdate(true);
+    const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
+    setRouteTimeEstimatedMs(estimatedMs);
+    startRouteTimeProgress(estimatedMs);
+
+    try {
+      await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+
+      if (quoteId) {
+        const [detailsRes, hotelRes] = await Promise.all([
+          ItineraryService.getDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
+        ]);
+        setItinerary(detailsRes as ItineraryDetailsResponse);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      }
+
+      setRouteTimeProgressPercent(100);
+      setPendingScrollDayNumber(dayNumber);
+
+      toast.success(`Day ${dayNumber} times updated`);
+    } catch (e: any) {
+      console.error('Failed to update route times', e);
+      toast.error(e?.message || 'Failed to update route times');
+    } finally {
+      stopRouteTimeProgress();
+      setIsApplyingRouteTimeUpdate(false);
+    }
+  };
+
+  const buildArrivalPolicyDecisionKey = (
+    routeId?: number,
+    routeDate?: string,
+    startTimeHms?: string,
+  ) => {
+    const normalizedRouteId = Number(routeId || 0);
+    const normalizedRouteDate = normalizeDateToYmd(routeDate);
+    const normalizedStartTime = String(startTimeHms || '').trim();
+
+    if (!normalizedRouteId || !normalizedRouteDate || !normalizedStartTime) {
+      return null;
+    }
+
+    return `${normalizedRouteId}|${normalizedRouteDate}|${normalizedStartTime}`;
+  };
+
+  const getRequestArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
+    if (!request) {
+      return null;
+    }
+
+    const arrivalTimeHms = (() => {
+      if (request.arrivalDateTime && request.arrivalDateTime.includes('T')) {
+        return request.arrivalDateTime.split('T')[1]?.slice(0, 8) || '';
+      }
+
+      const routeDay = itinerary?.days?.find(
+        (day) => Number(day.id) === Number(request.itineraryRouteId),
+      );
+      return parseDisplayTimeToHms(routeDay?.startTime || '');
+    })();
+
+    return buildArrivalPolicyDecisionKey(
+      request.itineraryRouteId,
+      request.routeDate,
+      arrivalTimeHms,
+    );
+  };
+
   const handleUpdateRouteTimesDirect = async (
     planId: number,
     routeId: number,
@@ -1687,50 +4405,124 @@ setItinerary((prev) => {
   ) => {
     const startTimeHms = parseDisplayTimeToHms(startTimeDisplay);
     const endTimeHms = parseDisplayTimeToHms(endTimeDisplay);
+    const routeDay =
+      itinerary?.days?.find((d) => Number(d.id) === Number(routeId)) ||
+      itinerary?.days?.find((d) => Number(d.dayNumber) === Number(dayNumber));
+    const currentStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || '');
+    const currentEndTimeHms = parseDisplayTimeToHms(routeDay?.endTime || '');
+    const hasTimeChanged =
+      startTimeHms !== currentStartTimeHms ||
+      endTimeHms !== currentEndTimeHms;
 
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
 
+    if (!hasTimeChanged) {
+      return;
+    }
+
+    // Day 1 early-morning gate: 01:00–07:59 requires previous-day hotel confirmation
+    if (dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
+      const resolvedRouteDay =
+        routeDay ||
+        itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
+        itinerary?.days?.[0];
+      const routeDateYmd = normalizeDateToYmd(resolvedRouteDay?.date);
+      const request: HotelArrivalPolicyRequest = {
+        itineraryPlanId: planId,
+        itineraryRouteId: routeId,
+        routeDayNumber: 1,
+        routeDate: routeDateYmd,
+        arrivalDateTime: routeDateYmd ? `${routeDateYmd}T${startTimeHms}` : undefined,
+        arrivalCityName: resolvedRouteDay?.departure || '',
+        routeSourceCityName: resolvedRouteDay?.departure || '',
+        nightStayCityName: resolvedRouteDay?.arrival || '',
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      };
+
+      setIsResolvingArrivalPolicy(true);
+      try {
+        const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+        if (policy.requiresPreviousDayBillingConfirmation) {
+          // Store pending update and show the confirmation modal
+          setPendingRouteTimeUpdate({ planId, routeId, dayNumber, startTimeHms, endTimeHms });
+          const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
+          const routeDate = new Date(`${safeRouteDate}T00:00:00`);
+          const previousDay = new Date(routeDate);
+          previousDay.setDate(previousDay.getDate() - 1);
+          const fmt = (d: Date) =>
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          setArrivalPolicyConfirmModal({
+            open: true,
+            arrivalDate: fmt(routeDate),
+            previousDayDate: fmt(previousDay),
+            request,
+          });
+          return;
+        }
+        // Policy resolved without needing confirmation – fall through to PATCH
+      } catch (e: any) {
+        toast.error(e?.message || 'Failed to resolve arrival policy');
+        return;
+      } finally {
+        setIsResolvingArrivalPolicy(false);
+      }
+    }
+
+    await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms);
+  };
+
+  const persistArrivalPolicyDecision = async (
+    request: HotelArrivalPolicyRequest,
+    confirmed: boolean,
+  ): Promise<boolean> => {
     try {
-      await ItineraryService.updateRouteTimes(
-        planId,
-        routeId,
+      const routeDay =
+        itinerary?.days?.find((d) => Number(d.id) === Number(request.itineraryRouteId)) ||
+        itinerary?.days?.find((d) => Number(d.dayNumber) === Number(request.routeDayNumber || 1));
+
+      if (!routeDay?.startTime || !routeDay?.endTime) {
+        return false;
+      }
+
+      const startTimeHms = parseDisplayTimeToHms(routeDay.startTime);
+      const endTimeHms = parseDisplayTimeToHms(routeDay.endTime);
+
+      await applyRouteTimePatch(
+        request.itineraryPlanId,
+        request.itineraryRouteId,
+        routeDay.dayNumber || request.routeDayNumber || 1,
         startTimeHms,
-        endTimeHms
+        endTimeHms,
+        {
+          previousDayBillingDecisionProvided: true,
+          previousDayBillingConfirmed: confirmed,
+        },
       );
 
-      toast.success(`Day ${dayNumber} times updated`);
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
-    } catch (e: any) {
-      console.error("Failed to update route times", e);
-      toast.error(e?.message || "Failed to update route times");
+      return true;
+    } catch (e) {
+      console.error('Failed to persist arrival policy decision', e);
+      return false;
     }
   };
 
- const openDeleteHotspotModal = (
-  planId: number,
-  routeId: number,
-  routeHotspotId: number,
-  hotspotId: number,
-  hotspotName: string
-) => {
-  setDeleteHotspotModal({
-    open: true,
-    planId,
-    routeId,
-    routeHotspotId,
-    hotspotId,
-    hotspotName,
-  });
-};
+  const openDeleteHotspotModal = (
+    planId: number,
+    routeId: number,
+    hotspotId: number,
+    hotspotName: string,
+    isManualHotspot: boolean = false,
+  ) => {
+    setDeleteHotspotModal({
+      open: true,
+      planId,
+      routeId,
+      hotspotId,
+      hotspotName,
+      hotspotWasPrebuilt: !isManualHotspot,
+    });
+  };
 
   const openAddActivityModal = async (
     planId: number,
@@ -1777,11 +4569,11 @@ setItinerary((prev) => {
       const conflictMessages = activityPreview.conflicts
         .map((c: any) => c.reason)
         .join('\n\n');
-      
+
       const confirm = window.confirm(
         `TIMING CONFLICTS DETECTED:\n\n${conflictMessages}\n\nDo you want to add this activity anyway?`
       );
-      
+
       if (!confirm) return;
       shouldSkipConflictCheck = true; // User confirmed override
     }
@@ -1796,12 +4588,12 @@ setItinerary((prev) => {
         activityId,
         amount,
       };
-      
+
       // Only add skipConflictCheck if user confirmed conflict override
       if (shouldSkipConflictCheck) {
         payload.skipConflictCheck = true;
       }
-      
+
       await ItineraryService.addActivity(payload);
 
       toast.success("Activity added successfully");
@@ -1827,8 +4619,13 @@ setItinerary((prev) => {
           console.error("Failed to reload itinerary after add", reloadErr);
         }
         try {
-          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          if (shouldShowHotels) {
+            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          } else {
+            setHotelDetails(null);
+            setActiveHotelListTotal(0);
+          }
         } catch {
           // Non-critical
         }
@@ -1876,8 +4673,8 @@ setItinerary((prev) => {
   };
 
   const handlePreviewActivity = async (activityId: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId || 
-        !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
+    if (!addActivityModal.planId || !addActivityModal.routeId ||
+      !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
       return;
     }
 
@@ -1972,8 +4769,13 @@ setItinerary((prev) => {
         }
         // Hotel reload is best-effort and must not block the itinerary refresh
         try {
-          const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-          setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          if (shouldShowHotels) {
+            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
+            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+          } else {
+            setHotelDetails(null);
+            setActiveHotelListTotal(0);
+          }
         } catch {
           // Non-critical — silence hotel reload errors
         }
@@ -2001,39 +4803,105 @@ setItinerary((prev) => {
     });
   };
 
-  const toggleInlineAddHotspot = async (
-    dayId: number,
+
+  const handleAddGuideClick = (day: ItineraryDay) => {
+  if (readOnly) {
+    toast.error("Guide cannot be added in read-only mode");
+    return;
+  }
+
+  navigate("/guide", {
+    state: {
+      fromItinerary: true,
+      quoteId,
+      planId: itinerary?.planId || 0,
+      routeId: day.id,
+      dayNumber: day.dayNumber,
+      date: day.date,
+      departure: day.departure,
+      arrival: day.arrival,
+    },
+  });
+};
+
+  const openAddHotspotModal = async (
+    planId: number,
+    routeId: number,
     locationId: number,
-    locationName: string
+    locationName: string,
+    anchor?: HotspotAnchor | null,
   ) => {
-    if (readOnly) {
-      console.log('Cannot add hotspots in read-only mode');
-      return;
-    }
-
-    if (expandedAddHotspotDayId === dayId) {
-      setExpandedAddHotspotDayId(null);
-      return;
-    }
-
-    setExpandedAddHotspotDayId(dayId);
+    previewRequestIdRef.current += 1;
     setAddHotspotModal({
-      open: false,
-      planId: itinerary?.planId || null,
-      routeId: dayId,
+      open: true,
+      planId,
+      routeId,
       locationId,
       locationName,
     });
-    
+    resetManualHotspotPreviewState();
+    setActivePreviewHotspotId(null);
+    setAddedInModalHotspotIds(new Set());
+    setSelectedHotspotAnchor(anchor || null);
+
+    // Fetch available hotspots for this location
     setLoadingHotspots(true);
     try {
-      const hotspots = await ItineraryService.getAvailableHotspots(dayId);
-      setAvailableHotspots(hotspots as AvailableHotspot[]);
-      
-      // Get excluded hotspot IDs for this route
-      const currentRoute = itinerary?.days.find(d => d.id === dayId);
+      // Calculate route excluded IDs and active IDs BEFORE fetching, to avoid stale state
+      const currentRoute = itinerary?.days.find((d) => Number(d.id) === Number(routeId));
+
+      const routeExcludedIds: number[] = Array.isArray((currentRoute as any)?.excluded_hotspot_ids)
+        ? (currentRoute as any).excluded_hotspot_ids.map(Number)
+        : [];
+
+      const routeActiveIds = new Set<number>(
+        (Array.isArray((currentRoute as any)?.segments) ? (currentRoute as any).segments : [])
+          .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
+          .filter((seg: any) => {
+            const deletedLike =
+              seg?.isDeleted === true ||
+              seg?.deleted === true ||
+              seg?.isExcluded === true ||
+              seg?.excluded === true ||
+              seg?.removed === true ||
+              seg?.deletedAt != null ||
+              seg?.deleted_at != null ||
+              String(seg?.status || '').toLowerCase() === 'deleted' ||
+              String(seg?.status || '').toLowerCase() === 'excluded';
+            return !deletedLike;
+          })
+          .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+          .filter((id: number) => Number.isFinite(id) && id > 0)
+      );
+
+      setExcludedHotspotIds(routeExcludedIds);
+
+      const hotspots = await ItineraryService.getAvailableHotspots(routeId);
+      setAvailableHotspots(
+        normalizeAvailableHotspots(hotspots as AvailableHotspot[], {
+          routeId,
+          excludedIds: routeExcludedIds,
+          activeIds: routeActiveIds,
+        })
+      );
+
       if (currentRoute) {
-        setExcludedHotspotIds((currentRoute as any).excluded_hotspot_ids || []);
+
+        const existingManualHotspotIds: number[] = Array.from(
+          new Set(
+            (Array.isArray((currentRoute as any).segments) ? (currentRoute as any).segments : [])
+              .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
+              .filter((seg: any) => seg?.planOwnWay === true || seg?.isManual === true)
+              .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+              .filter((id: number): id is number => Number.isFinite(id) && id > 0),
+          ),
+        );
+
+        if (existingManualHotspotIds.length > 0) {
+          // Existing manual hotspots should appear as already added on the left list,
+          // but must not become preselected preview candidates in sequential mode.
+          setSelectedHotspotIds([]);
+        }
       }
     } catch (e: any) {
       console.error("Failed to fetch available hotspots", e);
@@ -2043,44 +4911,30 @@ setItinerary((prev) => {
     }
   };
 
-  const openAddHotspotModal = async (
-    planId: number,
-    routeId: number,
-    locationId: number,
-    locationName: string
+  const handlePreviewHotspot = async (
+    hotspotId: number,
+    options?: {
+      planId?: number;
+      routeId?: number;
+      anchor?: HotspotAnchor;
+      allowTopPriorityRemoval?: boolean;
+      selectedHotspotIds?: number[];
+      forceRefresh?: boolean;
+      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH';
+    },
   ) => {
-    setAddHotspotModal({
-      open: true,
-      planId,
-      routeId,
-      locationId,
-      locationName,
-    });
-    setPreviewTimeline(null);
-    setSelectedHotspotId(null);
-
-    // Fetch available hotspots for this location
-    setLoadingHotspots(true);
-    try {
-      const hotspots = await ItineraryService.getAvailableHotspots(routeId);
-      setAvailableHotspots(hotspots as AvailableHotspot[]);
-    } catch (e: any) {
-      console.error("Failed to fetch available hotspots", e);
-      toast.error(e?.message || "Failed to load available hotspots");
-    } finally {
-      setLoadingHotspots(false);
-    }
-  };
-
-  const handlePreviewHotspot = async (hotspotId: number, planId?: number, routeId?: number) => {
-    const pId = planId || addHotspotModal.planId;
-    const rId = routeId || addHotspotModal.routeId;
+    const pId = options?.planId || addHotspotModal.planId;
+    const rId = options?.routeId || addHotspotModal.routeId;
+    const anchor = options?.anchor || selectedHotspotAnchor || undefined;
     if (!pId || !rId) return;
 
-    setSelectedHotspotId(hotspotId);
-    setIsPreviewing(true);
-    setPreviewTimeline(null);
-    
+    const requestId = ++previewRequestIdRef.current;
+    resetManualHotspotPreviewState();
+    setActivePreviewHotspotId(hotspotId);
+    setSelectedHotspotIds([hotspotId]);
+    setTopPriorityReplacementApproved(false);
+    setIsPreviewingHotspotId(hotspotId);
+
     // Don't force scroll list to top here, let the user stay where they clicked
     if (timelinePreviewRef.current) {
       timelinePreviewRef.current.scrollTop = 0;
@@ -2090,19 +4944,164 @@ setItinerary((prev) => {
       const preview = await ItineraryService.previewAddHotspot(
         pId,
         rId,
-        hotspotId
+        hotspotId,
+        anchor
+          ? {
+            anchorType: anchor.anchorType,
+            anchorIndex: anchor.anchorIndex,
+          }
+          : undefined,
+        {
+          allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+          selectedHotspotIds: [hotspotId],
+        },
       );
-      // The backend returns { newHotspot, otherConflicts, fullTimeline }
-      setPreviewTimeline(preview.fullTimeline || []);
+
+      if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
+
+      const fullTimeline = Array.isArray(preview?.fullTimeline) ? [...preview.fullTimeline] : [];
+      const hasSelectedAttraction = fullTimeline.some((seg: any) => {
+        const type = String(seg?.type || '').toLowerCase();
+        const locId = Number(seg?.locationId || seg?.hotspot_ID || 0);
+        return type === 'attraction' && locId === Number(hotspotId);
+      });
+
+      if (!hasSelectedAttraction && preview?.newHotspot) {
+        fullTimeline.push(preview.newHotspot);
+      }
+
+      // The backend returns { newHotspot, otherConflicts, fullTimeline, allInsertionSlots }.
+      const previewResolution = {
+        ...(preview?.resolution || {}),
+        anchorPreference: preview?.anchorPreference || null,
+        newHotspot: preview?.newHotspot || null,
+        allInsertionSlots: preview?.allInsertionSlots || [],
+        slotInsights: preview?.resolution?.slotInsights || [],
+      };
+      setManualPreviewState({
+        ...preview,
+        fullTimeline,
+        manualInsertionFit:
+          preview?.manualInsertionFit
+          || previewResolution?.manualInsertionFit
+          || preview?.resolution?.manualInsertionFit
+          || null,
+      });
+      setPreviewTimelinesByHotspot((prev) => ({
+        ...prev,
+        [hotspotId]: fullTimeline,
+      }));
+      setPreviewResolutionsByHotspot((prev) => ({
+        ...prev,
+        [hotspotId]: previewResolution,
+      }));
+      setGroupPreviewTimeline(fullTimeline);
+      setGroupPreviewResolution(previewResolution);
+      setTempModalTimeline(fullTimeline);
+      if (options?.allowTopPriorityRemoval === true) {
+        setForceReplacementApprovedByHotspot((prev) => ({
+          ...prev,
+          [hotspotId]: true,
+        }));
+        setTopPriorityReplacementApproved(true);
+      }
+
+      if (preview?.anchorPreference?.honored === false) {
+        const requestedIndex = preview?.anchorPreference?.requested?.anchorIndex;
+        const resolvedIndex = preview?.anchorPreference?.resolved?.anchorIndex;
+        const resolvedTimeRange = preview?.anchorPreference?.resolved?.timeRange;
+        toast.info(
+          `Preferred anchor ${requestedIndex} moved to ${resolvedIndex}${resolvedTimeRange ? ` (${resolvedTimeRange})` : ''} due to timing constraints.`
+        );
+      }
     } catch (e: any) {
+      if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
       console.error("Failed to preview hotspot", e);
       toast.error(e?.message || "Failed to preview hotspot");
+      setActivePreviewHotspotId(null);
+      setSelectedHotspotIds([]);
     } finally {
-      setIsPreviewing(false);
+      if (requestId === previewRequestIdRef.current) {
+        setIsPreviewingHotspotId(null);
+      }
     }
   };
 
-  const handleAddHotspot = async (hotspotId: number) => {
+  const handleRemovePreviewHotspot = async (hotspotId: number) => {
+    if (Number(activePreviewHotspotId || 0) !== Number(hotspotId)) return;
+    previewRequestIdRef.current += 1;
+    resetManualHotspotPreviewState();
+    setActivePreviewHotspotId(null);
+    setSelectedHotspotIds([]);
+  };
+
+  const handleConfirmPriorityReplacement = async () => {
+    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
+    if (!targetHotspotId) return;
+
+    const needsReplacementApproval =
+      (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0);
+
+    if (needsReplacementApproval) {
+      await handlePreviewHotspot(targetHotspotId, {
+        allowTopPriorityRemoval: true,
+        selectedHotspotIds,
+      });
+
+      setForceReplacementApprovedByHotspot((prev) => ({
+        ...prev,
+        [targetHotspotId]: true,
+      }));
+      setTopPriorityReplacementApproved(true);
+      return;
+    }
+
+    setForceReplacementApprovedByHotspot((prev) => ({
+      ...prev,
+      [targetHotspotId]: true,
+    }));
+    setTopPriorityReplacementApproved(true);
+  };
+
+  const handleCancelPriorityReplacement = async () => {
+    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
+    if (!targetHotspotId) return;
+    await handleRemovePreviewHotspot(targetHotspotId);
+  };
+
+  const handleBuildMatrixAndPreviewAgain = async () => {
+    const candidateId = Number(activePreviewHotspotId || 0);
+    const planId = Number(addHotspotModal.planId || 0);
+    const routeId = Number(addHotspotModal.routeId || 0);
+
+    if (!planId || !routeId || !candidateId) {
+      toast.error('Missing plan, route, or hotspot.');
+      return;
+    }
+
+    setIsBuildingMatrix(true);
+    try {
+      const result: any = await ItineraryService.buildMissingManualHotspotMatrix(planId, routeId, candidateId);
+      if (!result?.success) {
+        toast.error(result?.message || 'Matrix build failed.');
+        return;
+      }
+
+      toast.success('Matrix data built. Rebuilding preview...');
+      resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
+      await handlePreviewHotspot(candidateId, { forceRefresh: true, source: 'AFTER_MATRIX_BUILD' });
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Matrix build failed.');
+    } finally {
+      setIsBuildingMatrix(false);
+    }
+  };
+
+  const handleAddHotspot = async () => {
     if (readOnly) {
       console.log('Cannot add hotspot in read-only mode');
       return;
@@ -2112,68 +5111,283 @@ setItinerary((prev) => {
       return;
     }
 
-    // Check for conflicts in preview
-    const hasConflicts = previewTimeline?.some(seg => seg.isConflict);
-    if (hasConflicts) {
-      const confirm = window.confirm("This addition will cause timing conflicts (some places may be closed). Do you want to continue?");
-      if (!confirm) return;
+    const getCurrentPreviewCandidateId = (): number => {
+      const fit =
+        (activePreviewResolution as any)?.manualInsertionFit
+        || (manualPreviewState as any)?.manualInsertionFit
+        || (activePreviewResolution as any)?.resolution?.manualInsertionFit
+        || null;
+      return Number(
+        fit?.selectedHotspotId
+        || fit?.hotspotId
+        || activePreviewHotspotId
+        || 0,
+      );
+    };
+
+    const candidateId = getCurrentPreviewCandidateId();
+    if (!candidateId) {
+      toast.error('Please preview one hotspot first.');
+      return;
+    }
+
+    const unresolvedPriorityReplacement = (() => {
+      const resolution = groupPreviewResolution || activePreviewResolution;
+      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
+        ? resolution.removedTopPriorityHotspots.length
+        : 0;
+      const needsReplacementApproval = removedTopPriorityCount > 0;
+      return needsReplacementApproval && topPriorityReplacementApproved !== true;
+    })();
+
+    if (unresolvedPriorityReplacement) {
+      toast.error("Confirm the priority replacement in the temp timeline before adding this hotspot.");
+      return;
+    }
+
+    const previewValidation = (groupPreviewResolution || activePreviewResolution)?.validation || null;
+    const forceConflictInsertion =
+      previewValidation?.readyToApply === false
+      && previewValidation?.requiresPriorityConfirmation !== true;
+
+    const hasConflicts = selectedPreviewSegments.some((seg: any) => seg?.isConflict === true);
+    if (!forceConflictInsertion && hasConflicts) {
+      toast.error("Selected hotspot still has timing conflicts in the proposed timeline.");
+      return;
+    }
+
+    const alreadyAddedIds = new Set<number>([
+      ...Array.from(currentRouteAttractionHotspotIds || []).map((id: number) => Number(id)),
+      ...Array.from(addedInModalHotspotIds || []).map((id: number) => Number(id)),
+    ]);
+    if (alreadyAddedIds.has(candidateId)) {
+      toast.info('This hotspot is already added.');
+      return;
     }
 
     setIsAddingHotspot(true);
+    setIsApplyingPreviewHotspot(true);
     try {
-      await ItineraryService.addManualHotspot(
+      const affectedRouteId = addHotspotModal.routeId;
+      const matrixFit =
+        (activePreviewResolution as any)?.manualInsertionFit
+        || (groupPreviewResolution as any)?.manualInsertionFit
+        || (activePreviewResolution as any)?.resolution?.manualInsertionFit
+        || (groupPreviewResolution as any)?.resolution?.manualInsertionFit
+        || null;
+      const applyHotspotIds = [candidateId];
+
+      const bestSlot = matrixFit?.bestSlot || null;
+      const matrixPreferredSlot = (
+        matrixFit?.chosenSlotSource === 'BEST_FIT'
+        && bestSlot
+        && Number(bestSlot?.fromHotspotId || 0) > 0
+        && Number(bestSlot?.toHotspotId || 0) > 0
+      )
+        ? {
+            fromHotspotId: Number(bestSlot.fromHotspotId),
+            toHotspotId: Number(bestSlot.toHotspotId),
+            slotIndex: Number.isFinite(Number(bestSlot?.slotIndex)) ? Number(bestSlot.slotIndex) : 0,
+            source: 'BEST_FIT' as const,
+          }
+        : undefined;
+
+      console.log('[ManualHotspotApply][payload]', {
+        selectedHotspotIds,
+        activeRouteHotspotIds: Array.from(currentRouteAttractionHotspotIds),
+        previewCandidateId: candidateId,
+        applyHotspotIds,
+        matrixPreferredSlot,
+      });
+
+      const addResult: any = await ItineraryService.applyManualHotspots(
         addHotspotModal.planId,
         addHotspotModal.routeId,
-        hotspotId
+        applyHotspotIds,
+        selectedHotspotAnchor
+          ? {
+              anchorType: selectedHotspotAnchor.anchorType,
+              anchorIndex: selectedHotspotAnchor.anchorIndex,
+            }
+          : undefined,
+        {
+          allowTopPriorityRemoval: topPriorityReplacementApproved === true,
+          forceConflictInsertion,
+          matrixPreferredSlot,
+        },
       );
 
-      toast.success("Hotspot added successfully");
+      if (addResult?.code === 'MANUAL_HOTSPOT_ALREADY_EXISTS_IN_ROUTE' || addResult?.alreadyExists === true) {
+        toast.info('This hotspot is already added.');
+        setAddedInModalHotspotIds((prev) => {
+          const next = new Set(prev);
+          next.add(candidateId);
+          return next;
+        });
+        setAvailableHotspots((prev) => prev.map((row) => (
+          Number(row?.id || 0) === candidateId
+            ? {
+                ...row,
+                alreadyAdded: true,
+                availabilityStatus: 'ACTIVE_THIS_ROUTE',
+                actionDisabled: true,
+                buttonLabel: 'Added',
+              }
+            : row
+        )));
+        resetManualHotspotPreviewState();
+        setActivePreviewHotspotId(null);
+        return;
+      }
 
-      // Close modal and inline
-      setAddHotspotModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        locationId: null,
-        locationName: "",
+      if (addResult?.success === false || addResult?.inserted === false) {
+        toast.error(addResult?.message || addResult?.reason || "Failed to add selected hotspots at this position");
+        return;
+      }
+
+      if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_LOW_PRIORITY_REMOVAL') {
+        toast.success('Added hotspot by removing lower-priority stops on this route');
+      } else if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_MATRIX_SLOT') {
+        toast.success('Added hotspot using best route-fit slot');
+      } else if (addResult?.resolution?.forceConflictInsertionApplied === true) {
+        toast.success('Hotspot added successfully.');
+      } else {
+        toast.success('Hotspot added successfully.');
+      }
+
+      setAddedInModalHotspotIds((prev) => {
+        const next = new Set(prev);
+        next.add(candidateId);
+        return next;
       });
-      setExpandedAddHotspotDayId(null);
-      setHotspotSearchQuery("");
-      setPreviewTimeline(null);
-      setSelectedHotspotId(null);
+      setAvailableHotspots((prev) => prev.map((row) => (
+        Number(row?.id || 0) === candidateId
+          ? {
+              ...row,
+              alreadyAdded: true,
+              availabilityStatus: 'ACTIVE_THIS_ROUTE',
+              actionDisabled: true,
+              buttonLabel: 'Added',
+            }
+          : row
+      )));
 
-      // Reload itinerary data
+      // Show rebuild button for the day where a manual hotspot was added.
+      if (affectedRouteId) {
+        setRouteNeedsRebuild(affectedRouteId);
+      }
+
+      // Keep modal open for sequential add flow.
+      resetManualHotspotPreviewState();
+      setActivePreviewHotspotId(null);
+
+      // Reload itinerary data in background while modal stays open.
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
+
+      if (addHotspotModal.routeId) {
+        ItineraryService.getAvailableHotspots(addHotspotModal.routeId)
+          .then((rows) => setAvailableHotspots(normalizeAvailableHotspots(rows as AvailableHotspot[])))
+          .catch(() => {
+            // Local optimistic update already applied; silent background sync failure.
+          });
+      }
     } catch (e: any) {
       console.error("Failed to add hotspot", e);
-      toast.error(e?.message || "Failed to add hotspot");
+      const rawMessage = String(e?.message || '').trim();
+      let backendCode = '';
+      let backendMessage = '';
+
+      try {
+        // api(...) throws Error with response text appended after status text.
+        const jsonStart = rawMessage.indexOf('{');
+        if (jsonStart >= 0) {
+          const payload = JSON.parse(rawMessage.slice(jsonStart));
+          backendCode = String(payload?.code || payload?.error?.code || '').trim();
+          backendMessage = String(payload?.message || payload?.error?.message || '').trim();
+        }
+      } catch {
+        // Fall through to generic extraction.
+      }
+
+      const fallbackFromStatus = (() => {
+        if (rawMessage.includes(' 409 ')) return 'Conflict while applying hotspot.';
+        if (rawMessage.includes(' 422 ')) return 'Validation failed while applying hotspot.';
+        return '';
+      })();
+
+      const displayMessage = [backendCode, backendMessage || fallbackFromStatus]
+        .filter((v) => String(v || '').trim().length > 0)
+        .join(': ')
+        || rawMessage
+        || 'Failed to add hotspot';
+
+      if (backendCode === 'MANUAL_HOTSPOT_ALREADY_EXISTS_IN_ROUTE') {
+        toast.info('This hotspot is already added.');
+        setAddedInModalHotspotIds((prev) => {
+          const next = new Set(prev);
+          next.add(candidateId);
+          return next;
+        });
+        return;
+      }
+
+      toast.error(displayMessage);
     } finally {
       setIsAddingHotspot(false);
+      setIsApplyingPreviewHotspot(false);
     }
   };
 
+  const toImgSrc = (path: string | null | undefined): string | undefined => {
+    if (!path || !path.trim()) return undefined;
+    if (path.startsWith('http')) return path;
+    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
+    return `${apiBase}${path}`;
+  };
+
   const openGalleryModal = (images: string[], title: string) => {
+    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
+    const resolved = images
+      .filter(img => img && img.trim() !== '')
+      .map(img => img.startsWith('http') ? img : `${apiBase}${img}`);
+    setGalleryActiveIdx(0);
     setGalleryModal({
       open: true,
-      images: images.filter(img => img && img.trim() !== ''),
+      images: resolved,
       title,
     });
   };
 
-  const openHotelSelectionModal = (
-    planId: number,
-    routeId: number,
-    routeDate: string,
-    cityCode: string,
-    cityName: string
+  const applyArrivalPolicyDecision = (
+    policy: HotelArrivalPolicyResponse,
+    context: {
+      planId: number;
+      routeId: number;
+      routeDate: string;
+      cityCode: string;
+      cityName: string;
+    },
   ) => {
+    if (!policy.shouldOpenHotelSearch) {
+      if (policy.message) {
+        toast.info(policy.message);
+      }
+      return;
+    }
+
+    if (policy.hotelFlowAction === 'DIRECT_SIGHTSEEING' && policy.deferHotelToEndOfDay) {
+      toast.info('Arrival policy: sightseeing first, hotel check-in later in the day.');
+    } else if (policy.hotelFlowAction === 'DIRECT_HOTEL' && policy.goToHotelImmediately) {
+      toast.info('Arrival policy: proceed to hotel first.');
+    }
+
     // ⚡ Lazy-load hotel details when modal opens (not on initial page load)
     ensureHotelDetailsLoaded();
 
@@ -2184,13 +5398,184 @@ setItinerary((prev) => {
 
     setHotelSelectionModal({
       open: true,
+      planId: context.planId,
+      routeId: context.routeId,
+      routeDate: context.routeDate,
+      cityCode: context.cityCode,
+      cityName: context.cityName,
+      checkInDate: policy.effectiveCheckInDate,
+      checkOutDate: policy.effectiveCheckOutDate,
+    });
+  };
+
+  const resolveArrivalPolicyForArrivalTimeChange = async (
+    request: HotelArrivalPolicyRequest,
+  ) => {
+    setIsResolvingArrivalPolicy(true);
+    try {
+      const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+      setLatestArrivalPolicy(policy);
+
+      if (policy.requiresPreviousDayBillingConfirmation) {
+        const normalizedRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
+        const routeDate = new Date(`${normalizedRouteDate}T00:00:00`);
+        const previousDay = new Date(routeDate);
+        previousDay.setDate(previousDay.getDate() - 1);
+
+        const formatDate = (d: Date) => {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+
+        setArrivalPolicyConfirmModal({
+          open: true,
+          arrivalDate: formatDate(routeDate),
+          previousDayDate: formatDate(previousDay),
+          request,
+        });
+        return;
+      }
+
+      if (policy.message) {
+        toast.info(policy.message);
+      }
+    } catch (e: any) {
+      console.error('Failed to resolve arrival hotel policy from arrival-time change', e);
+      toast.error(e?.message || 'Failed to resolve hotel arrival policy');
+    } finally {
+      setIsResolvingArrivalPolicy(false);
+    }
+  };
+
+  const handleArrivalDateTimeChange = async (newArrivalDateTime: string) => {
+    setGuestDetails((prev) => ({
+      ...prev,
+      arrivalDateTime: newArrivalDateTime,
+    }));
+
+    if (!newArrivalDateTime || !itinerary?.planId || !itinerary?.days?.length) {
+      return;
+    }
+
+    const normalizeArrivalDateTime = (input: string): string | null => {
+      const directParsed = new Date(input);
+      if (!Number.isNaN(directParsed.getTime())) {
+        return directParsed.toISOString();
+      }
+
+      const m = input
+        .trim()
+        .match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+      if (!m) {
+        return null;
+      }
+
+      const day = Number(m[1]);
+      const month = Number(m[2]);
+      const year = Number(m[3]);
+      let hour = Number(m[4]);
+      const minute = Number(m[5]);
+      const ampm = (m[6] || '').toUpperCase();
+
+      if (ampm === 'PM' && hour < 12) hour += 12;
+      if (ampm === 'AM' && hour === 12) hour = 0;
+
+      const parsed = new Date(year, month - 1, day, hour, minute, 0);
+      if (Number.isNaN(parsed.getTime())) {
+        return null;
+      }
+      return parsed.toISOString();
+    };
+
+    const normalizedArrivalDateTime = normalizeArrivalDateTime(newArrivalDateTime);
+    if (!normalizedArrivalDateTime) {
+      return;
+    }
+
+    const firstDay = itinerary.days[0];
+    if (!firstDay?.date || !firstDay?.id) {
+      return;
+    }
+
+    const request: HotelArrivalPolicyRequest = {
+      itineraryPlanId: itinerary.planId,
+      itineraryRouteId: firstDay.id,
+      routeDayNumber: firstDay.dayNumber || 1,
+      routeDate: firstDay.date,
+      arrivalDateTime: normalizedArrivalDateTime,
+      arrivalCityName: guestDetails.arrivalPlace || firstDay.departure || '',
+      routeSourceCityName: firstDay.departure || '',
+      nightStayCityName: firstDay.arrival || '',
+      previousDayBillingDecisionProvided: false,
+      previousDayBillingConfirmed: false,
+    };
+
+    await resolveArrivalPolicyForArrivalTimeChange(request);
+  };
+
+  const openHotelSelectionModal = async (
+    planId: number,
+    routeId: number,
+    routeDate: string,
+    cityCode: string,
+    cityName: string
+  ) => {
+    const routeDay = itinerary?.days?.find((d) => Number(d.id) === Number(routeId));
+    const currentRouteStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || '');
+    const currentDecisionKey = buildArrivalPolicyDecisionKey(routeId, routeDate, currentRouteStartTimeHms);
+    const isDay1EarlyArrival =
+      Number(routeDay?.dayNumber || 0) === 1 &&
+      isEarlyMorningTime(currentRouteStartTimeHms);
+
+    if (
+      isDay1EarlyArrival &&
+      itinerary?.planId &&
+      currentDecisionKey !== lastArrivalPolicyDecisionKey
+    ) {
+      const request: HotelArrivalPolicyRequest = {
+        itineraryPlanId: itinerary.planId,
+        itineraryRouteId: routeId,
+        routeDayNumber: routeDay?.dayNumber || 1,
+        routeDate,
+        arrivalDateTime: normalizeDateToYmd(routeDate)
+          ? `${normalizeDateToYmd(routeDate)}T${currentRouteStartTimeHms}`
+          : undefined,
+        arrivalCityName: routeDay?.departure || cityName || '',
+        routeSourceCityName: routeDay?.departure || cityName || '',
+        nightStayCityName: routeDay?.arrival || cityName || '',
+        previousDayBillingDecisionProvided: false,
+        previousDayBillingConfirmed: false,
+      };
+
+      await resolveArrivalPolicyForArrivalTimeChange(request);
+      return;
+    }
+
+    const policyToApply: HotelArrivalPolicyResponse =
+      latestArrivalPolicy ||
+      {
+        resolutionStatus: 'RESOLVED',
+        arrivalWindow: 'NON_ARRIVAL_DAY',
+        requiresPreviousDayBillingConfirmation: false,
+        shouldOpenHotelSearch: true,
+        hotelSearchMode: 'SAME_DAY',
+        hotelFlowAction: 'DIRECT_SIGHTSEEING',
+        deferHotelToEndOfDay: true,
+        goToHotelImmediately: false,
+        effectiveCheckInDate: routeDate,
+        effectiveCheckOutDate: routeDate,
+        sameCityArrival: true,
+        normalizationApplied: false,
+      };
+
+    applyArrivalPolicyDecision(policyToApply, {
       planId,
       routeId,
       routeDate,
       cityCode,
       cityName,
-      checkInDate: routeDate,
-      checkOutDate: routeDate, // This will be set properly by calculating next day
     });
   };
 
@@ -2230,7 +5615,7 @@ setItinerary((prev) => {
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2265,10 +5650,14 @@ setItinerary((prev) => {
 
       // Store hotel details for TBO confirmation (ALL hotel selections)
       // Calculate checkout date (next day after check-in)
-      const checkInDate = new Date(hotelSelectionModal.routeDate);
-      const checkOutDate = new Date(checkInDate);
-      checkOutDate.setDate(checkOutDate.getDate() + 1);
-      
+      const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
+      const checkOutDate = new Date(
+        hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate,
+      );
+      if (!hotelSelectionModal.checkOutDate) {
+        checkOutDate.setDate(checkOutDate.getDate() + 1);
+      }
+
       // Format dates to YYYY-MM-DD
       const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -2276,7 +5665,7 @@ setItinerary((prev) => {
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
       };
-      
+
       // Store ALL selected hotels with provider info (multi-provider support)
       setSelectedHotelBookings(prev => ({
         ...prev,
@@ -2287,7 +5676,7 @@ setItinerary((prev) => {
           // Only fallback to hotelCode if bookingCode is not available
           bookingCode: hotel.bookingCode || hotel.hotelCode,
           roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
-          netAmount: hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
+          netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
           hotelName: hotel.hotelName,
           checkInDate: formatDate(checkInDate),
           checkOutDate: formatDate(checkOutDate),
@@ -2295,8 +5684,9 @@ setItinerary((prev) => {
         }
       }));
       setPrebookData(null);
+      prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
-      
+
       console.log('DEBUG: Hotel selected and stored', {
         routeId: hotelSelectionModal.routeId,
         hotelCode: hotel.hotelCode,
@@ -2327,7 +5717,7 @@ setItinerary((prev) => {
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
           ItineraryService.getDetails(quoteId),
-          ItineraryService.getHotelDetails(quoteId),
+          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
@@ -2342,22 +5732,35 @@ setItinerary((prev) => {
   };
 
   const openVideoModal = (videoUrl: string, title: string) => {
+    // Convert YouTube watch URLs to embed URLs
+    let embedUrl = videoUrl;
+    const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+    if (ytMatch) {
+      embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    }
     setVideoModal({
       open: true,
-      videoUrl,
+      videoUrl: embedUrl,
       title,
     });
   };
 
   const openConfirmQuotationModal = async () => {
+    if (isOpeningConfirmQuotation) {
+      return;
+    }
+
     if (!itinerary?.planId) {
       toast.error('Plan ID not found');
       return;
     }
 
+    setIsOpeningConfirmQuotation(true);
     setConfirmQuotationModal(true);
     setPrebookData(null);
+    prebookDataRef.current = null;
     setHasAcceptedUpdatedPrice(false);
+    setConfirmOccupanciesTemplate(null);
     setFormErrors({});
     // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
     setAdditionalAdults([]);
@@ -2371,18 +5774,18 @@ setItinerary((prev) => {
 
       // Check wallet balance and get plan details
       const planDetails = await api(`itineraries/edit/${itinerary.planId}`, { method: 'GET' });
-      
+
       // ✅ FIX: Set agent_id from planDetails - try multiple possible field names
-      let agentId = planDetails?.plan?.agent_ID 
-                 || planDetails?.plan?.agent_id 
-                 || planDetails?.agent_ID 
-                 || planDetails?.agent_id
-                 || customerInfo?.agent_id;
-      
+      let agentId = planDetails?.plan?.agent_ID
+        || planDetails?.plan?.agent_id
+        || planDetails?.agent_ID
+        || planDetails?.agent_id
+        || customerInfo?.agent_id;
+
       console.log('🔍 [openConfirmQuotationModal] planDetails:', planDetails);
       console.log('🔍 [openConfirmQuotationModal] customerInfo:', customerInfo);
       console.log('🔍 [openConfirmQuotationModal] agentId resolved to:', agentId);
-      
+
       if (agentId) {
         try {
           const walletData = await ItineraryService.checkWalletBalance(agentId);
@@ -2407,9 +5810,17 @@ setItinerary((prev) => {
         return;
       }
 
+      let modalNationalityForSession = confirmDefaultNationality;
+
       // Prefill arrival and departure details from plan
       if (planDetails?.plan) {
         const plan = planDetails.plan;
+        const modalNationality = resolveConfirmNationality(
+          plan,
+          guestDetails.nationality || confirmDefaultNationality || 'IN',
+        );
+        modalNationalityForSession = modalNationality;
+        setConfirmDefaultNationality(modalNationality);
         const formatDateTime = (dateTime: string) => {
           if (!dateTime) return '';
           const date = new Date(dateTime);
@@ -2425,15 +5836,227 @@ setItinerary((prev) => {
 
         setGuestDetails(prev => ({
           ...prev,
+          nationality: modalNationality,
           arrivalDateTime: plan.trip_start_date_and_time ? formatDateTime(plan.trip_start_date_and_time) : '',
           arrivalPlace: plan.arrival_location || '',
           departureDateTime: plan.trip_end_date_and_time ? formatDateTime(plan.trip_end_date_and_time) : '',
           departurePlace: plan.departure_location || '',
         }));
       }
+
+      let occupanciesTemplateFromPlan: Array<{ adults: number; children: number; childrenAges: number[] }> | null = null;
+      const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
+      if (travellersFromPlan.length > 0) {
+        const sortedTravellers = [...travellersFromPlan].sort(
+          (a: any, b: any) => Number(a?.traveller_details_ID || 0) - Number(b?.traveller_details_ID || 0),
+        );
+        const adults = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 1);
+        const children = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 2);
+        const infants = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 3);
+
+        const toPrefillPassenger = (title: string, traveller: any): AdditionalPassenger => {
+          const ageNum = Number(traveller?.traveller_age);
+          return {
+            title,
+            name: '',
+            age: Number.isFinite(ageNum) ? String(Math.trunc(ageNum)) : '',
+            nationality: modalNationalityForSession,
+            panNo: '',
+            passportNo: '',
+          };
+        };
+
+        // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
+        setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
+        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
+        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
+
+        const template = buildOccupanciesFromTravellers(
+          travellersFromPlan,
+          Number(itinerary?.roomCount || 1),
+        );
+        occupanciesTemplateFromPlan = template;
+        setConfirmOccupanciesTemplate(template);
+      }
+
+      // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
+      // The recommended tab shows a cheapest-per-route hotel for each day. If the user
+      // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
+      // so the confirm modal and prebook reflect exactly what the user sees.
+      let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      if (hotelDetails?.hotels?.length) {
+        const preferredGroupType =
+          activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
+
+        const persistedSelections: typeof selectedHotelBookings = {};
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType))
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (Number(h?.itineraryPlanHotelDetailsId || 0) <= 0) return;
+
+            const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+            const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+            const checkOutDate = routeDay
+              ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+              : '';
+
+            persistedSelections[routeId] = {
+              provider: String(h.provider || 'tbo').toLowerCase(),
+              hotelCode: String(h.hotelCode || h.hotelId || h.bookingCode || ''),
+              bookingCode: String(h.bookingCode || h.hotelCode || h.hotelId || ''),
+              roomType: h.roomType || 'Standard',
+              netAmount: Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0),
+              hotelName: h.hotelName,
+              checkInDate,
+              checkOutDate,
+              searchInitiatedAt: new Date().toISOString(),
+              groupType: preferredGroupType,
+            };
+          });
+
+        if (Object.keys(persistedSelections).length > 0) {
+          // ✅ User's in-session selection wins over persisted DB value — only fill routes
+          // that the user has NOT explicitly selected in this session.
+          const mergedPersisted: typeof persistedSelections = {};
+          Object.entries(persistedSelections).forEach(([routeId, val]) => {
+            if (!selectedHotelBookings[Number(routeId)]) {
+              mergedPersisted[Number(routeId)] = val;
+            }
+          });
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
+          setSelectedHotelBookings(prev => ({ ...prev, ...mergedPersisted }));
+        }
+
+        const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
+        hotelDetails.hotels
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+          .forEach((h: any) => {
+            const routeId = Number(h.itineraryRouteId || 0);
+            if (!routeId) return;
+            if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
+            routeBuckets.get(routeId)!.push(h);
+          });
+
+        const autoSelections: typeof selectedHotelBookings = {};
+        routeBuckets.forEach((rows, routeId) => {
+          if (selectedHotelsForPrebook[routeId]) return; // already explicitly chosen (session or persisted)
+
+          const cheapest = rows.reduce((best, curr) => {
+            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
+            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
+            return currTotal < bestTotal ? curr : best;
+          });
+
+          const hasHotelIdentity = Boolean(
+            String(cheapest.hotelCode || '').trim() ||
+            Number(cheapest.hotelId || 0) > 0 ||
+            String(cheapest.bookingCode || '').trim() ||
+            String((cheapest as any).searchReference || '').trim() ||
+            String(cheapest.hotelName || '').trim(),
+          );
+          if (!hasHotelIdentity) return;
+
+          const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+          const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
+            : '';
+
+          autoSelections[routeId] = {
+            provider: String(cheapest.provider || 'tbo').toLowerCase(),
+            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || cheapest.bookingCode || ''),
+            bookingCode: String(cheapest.bookingCode || cheapest.hotelCode || cheapest.hotelId || ''),
+            roomType: cheapest.roomType || 'Standard',
+            netAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+            hotelName: cheapest.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+            groupType: preferredGroupType,
+          };
+        });
+
+        if (Object.keys(autoSelections).length > 0) {
+          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...autoSelections };
+          setSelectedHotelBookings(prev => ({ ...prev, ...autoSelections }));
+        }
+      }
+
+      // ── Prebook only user-explicitly-selected TBO hotels ──
+      // Non-TBO hotels are shown in the review modal but are not sent to the TBO prebook API.
+
+      const prebookOccupancies =
+        occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
+          ? occupanciesTemplateFromPlan
+          : confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? confirmOccupanciesTemplate
+          : buildTboOccupancies(
+              Number(itinerary?.roomCount || 1),
+              Math.max(Number(itinerary?.adults || 1), 1),
+              [],
+            );
+
+      const prebookHotelBookings: any[] = Object.entries(selectedHotelsForPrebook)
+        .filter(([, hotelData]) => String((hotelData as any)?.provider || '').trim().toLowerCase() === 'tbo')
+        .map(([routeId, hotelData]) => ({
+          occupancies: prebookOccupancies,
+          provider: hotelData.provider,
+          routeId: parseInt(routeId, 10),
+          hotelCode: hotelData.hotelCode,
+          hotelName: hotelData.hotelName,
+          bookingCode: hotelData.bookingCode,
+          roomType: hotelData.roomType,
+          checkInDate: hotelData.checkInDate,
+          checkOutDate: hotelData.checkOutDate,
+          numberOfRooms: Number(itinerary?.roomCount || 1),
+          guestNationality: modalNationalityForSession,
+          netAmount: Number(hotelData.netAmount || 0),
+          searchInitiatedAt: hotelData.searchInitiatedAt,
+          passengers: [],
+        }));
+
+      if (prebookHotelBookings.length > 0) {
+        const staleHotel = prebookHotelBookings.find((booking) => {
+          if (!booking.searchInitiatedAt) return false;
+          const parsed = new Date(String(booking.searchInitiatedAt));
+          if (Number.isNaN(parsed.getTime())) return true;
+          return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+        });
+
+        if (staleHotel) {
+          toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
+          setConfirmQuotationModal(false);
+          return;
+        }
+
+        const clientIp = await fetch('https://api.ipify.org?format=json')
+          .then((res) => res.json())
+          .then((data) => data.ip)
+          .catch(() => '192.168.1.1');
+
+        setIsPrebooking(true);
+        try {
+          const prebookResp = await ItineraryService.prebookHotels({
+            itinerary_plan_ID: itinerary.planId,
+            hotel_bookings: prebookHotelBookings,
+            endUserIp: clientIp,
+          });
+          const normalizedPrebook = prebookResp?.data || prebookResp;
+          prebookDataRef.current = normalizedPrebook;
+          setPrebookData(normalizedPrebook);
+        } catch (prebookErr) {
+          toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
+        } finally {
+          setIsPrebooking(false);
+        }
+      }
     } catch (e: any) {
       console.error('Failed to load customer info', e);
       toast.error(e?.message || 'Failed to load customer information');
+    } finally {
+      setIsOpeningConfirmQuotation(false);
     }
   };
 
@@ -2460,8 +6083,8 @@ setItinerary((prev) => {
       nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
     }
 
-    if (!isValidPassengerName(guestDetails.name)) {
-      nextErrors['primary-name'] = 'Primary guest name must be 2-25 characters and contain only letters, spaces, apostrophe or hyphen.';
+    if (!validateNameParts(guestDetails.name)) {
+      nextErrors['primary-name'] = 'Primary guest first name/last name must each be 2-25 valid characters.';
     }
 
     if (!isValidIsoNationality(guestDetails.nationality)) {
@@ -2472,6 +6095,23 @@ setItinerary((prev) => {
     if (!Number.isFinite(primaryAge) || primaryAge <= 0) {
       nextErrors['primary-age'] = 'Primary guest age must be a valid number.';
     }
+
+    const sanitizeAdditionalPassengers = (list: AdditionalPassenger[]) =>
+      list
+        .map((item) => ({
+          ...item,
+          title: String(item.title || '').trim(),
+          name: String(item.name || '').trim(),
+          age: String(item.age || '').trim(),
+          nationality: String(item.nationality || '').trim().toUpperCase(),
+          panNo: String(item.panNo || '').trim().toUpperCase(),
+          passportNo: String(item.passportNo || '').trim().toUpperCase(),
+        }))
+        .filter((item) => item.title || item.name || item.age || item.nationality || item.panNo || item.passportNo);
+
+    const normalizedAdditionalAdults = sanitizeAdditionalPassengers(additionalAdults);
+    const normalizedAdditionalChildren = sanitizeAdditionalPassengers(additionalChildren);
+    const normalizedAdditionalInfants = sanitizeAdditionalPassengers(additionalInfants);
 
     const validateAdditionalPassengers = (
       list: AdditionalPassenger[],
@@ -2492,8 +6132,8 @@ setItinerary((prev) => {
         }
         if (!item.name.trim()) {
           nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
-        } else if (!isValidPassengerName(item.name)) {
-          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name must be 2-25 valid characters.`;
+        } else if (!validateNameParts(item.name)) {
+          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} first/last name must each be 2-25 valid characters.`;
         }
         if (!item.nationality.trim()) {
           nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
@@ -2504,6 +6144,9 @@ setItinerary((prev) => {
         if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
           nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
         }
+        if (item.panNo && !isValidPan(item.panNo)) {
+          nextErrors[`${label}-${index}-panNo`] = `${label} ${index + 1} PAN must be valid format (example: ABCDE1234F).`;
+        }
       });
     };
 
@@ -2511,13 +6154,14 @@ setItinerary((prev) => {
     const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
     const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
-    validateAdditionalPassengers(additionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(additionalChildren, 'child', expectedChildren, 2, 11);
-    validateAdditionalPassengers(additionalInfants, 'infant', expectedInfants, 0, 5);
+    validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+    validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
+    validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
 
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors);
-      toast.error('Please fix guest details before confirming quotation.');
+      const firstError = Object.values(nextErrors)[0];
+      toast.error(firstError || 'Please fix guest details before confirming quotation.');
       return;
     }
 
@@ -2526,37 +6170,80 @@ setItinerary((prev) => {
 
     try {
       let autoSelectedHotels = { ...selectedHotelBookings };
+      const selectedProvidersForConfirm = Array.from(
+        new Set(
+          Object.values(autoSelectedHotels)
+            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
+      const preferredProviderForConfirm =
+        selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
+      const skippedRouteIdsForConfirm: number[] = [];
 
       if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
+        const toAutoSelection = (hotelRow: any, routeId: number) => {
+          const routeDay = itinerary?.days?.find((d) => d.id === routeId);
+          const checkInDate = routeDay?.date || '';
+          const checkOutDate = routeDay
+            ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            : '';
+
+          return {
+            provider: String(hotelRow?.provider || 'tbo').trim().toLowerCase(),
+            hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            bookingCode: String(hotelRow?.bookingCode || hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            roomType: hotelRow?.roomType || 'Standard',
+            netAmount: Number(hotelRow?.totalHotelCost || 0) + Number(hotelRow?.totalHotelTaxAmount || 0),
+            hotelName: hotelRow?.hotelName,
+            checkInDate,
+            checkOutDate,
+            searchInitiatedAt: new Date().toISOString(),
+          };
+        };
+
         routesWithHotels.forEach((routeId: number) => {
+          const routeHotels = hotelDetails.hotels.filter(
+            (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
+          );
+          const persistedRouteSelection = routeHotels.find(
+            (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
+          );
+
+          // Persisted backend selection is treated as source of truth for provider/day mapping.
+          if (persistedRouteSelection) {
+            autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
+            return;
+          }
+
           if (!autoSelectedHotels[routeId]) {
-            const firstHotelForRoute = hotelDetails.hotels.find(
-              (h: any) => h.itineraryRouteId === routeId && h.groupType === 1
-            );
+            const firstHotelForRoute = preferredProviderForConfirm
+              ? routeHotels.find(
+                  (h: any) =>
+                    String(h?.provider || '')
+                      .trim()
+                      .toLowerCase() === preferredProviderForConfirm,
+                )
+              : routeHotels[0];
+
+            if (!firstHotelForRoute && preferredProviderForConfirm && routeHotels.length > 0) {
+              skippedRouteIdsForConfirm.push(routeId);
+            }
 
             if (firstHotelForRoute) {
-              const routeDay = itinerary?.days?.find((d) => d.id === routeId);
-              const checkInDate = routeDay?.date || '';
-              const checkOutDate = routeDay
-                ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                : '';
-
-              autoSelectedHotels[routeId] = {
-                provider: firstHotelForRoute.provider || 'tbo',
-                hotelCode: String(firstHotelForRoute.hotelCode || firstHotelForRoute.hotelId),
-                bookingCode: firstHotelForRoute.bookingCode || String(firstHotelForRoute.hotelId),
-                roomType: firstHotelForRoute.roomType || 'Standard',
-                netAmount: firstHotelForRoute.totalHotelCost || 0,
-                hotelName: firstHotelForRoute.hotelName,
-                checkInDate,
-                checkOutDate,
-                searchInitiatedAt: new Date().toISOString(),
-              };
+              autoSelectedHotels[routeId] = toAutoSelection(firstHotelForRoute, routeId);
             }
           }
         });
+
+        if (skippedRouteIdsForConfirm.length > 0) {
+          toast.error(
+            `Please select ${preferredProviderForConfirm.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForConfirm.join(', ')}.`,
+          );
+          return;
+        }
       }
 
       const primaryName = normalizeNameParts(guestDetails.name);
@@ -2570,13 +6257,13 @@ setItinerary((prev) => {
           paxType: 1,
           leadPassenger: true,
           age: Number(guestDetails.age),
-          panNo: guestDetails.panNo || undefined,
+          panNo: undefined,
           passportNo: guestDetails.passportNo || undefined,
           passportIssueDate: undefined,
           passportExpDate: undefined,
           phoneNo: guestDetails.contactNo,
         },
-        ...additionalAdults.map((adult) => {
+        ...normalizedAdditionalAdults.map((adult) => {
           const name = normalizeNameParts(adult.name);
           return {
             title: adult.title,
@@ -2594,7 +6281,7 @@ setItinerary((prev) => {
             phoneNo: guestDetails.contactNo,
           };
         }),
-        ...additionalChildren.map((child) => {
+        ...normalizedAdditionalChildren.map((child) => {
           const name = normalizeNameParts(child.name);
           return {
             title: child.title,
@@ -2605,14 +6292,14 @@ setItinerary((prev) => {
             paxType: 2,
             leadPassenger: false,
             age: Number(child.age),
-            panNo: child.panNo || undefined,
+            panNo: undefined,
             passportNo: child.passportNo || undefined,
             passportIssueDate: undefined,
             passportExpDate: undefined,
             phoneNo: guestDetails.contactNo,
           };
         }),
-        ...additionalInfants.map((infant) => {
+        ...normalizedAdditionalInfants.map((infant) => {
           const name = normalizeNameParts(infant.name);
           return {
             title: infant.title,
@@ -2623,7 +6310,7 @@ setItinerary((prev) => {
             paxType: 3,
             leadPassenger: false,
             age: Number(infant.age),
-            panNo: infant.panNo || undefined,
+            panNo: undefined,
             passportNo: infant.passportNo || undefined,
             passportIssueDate: undefined,
             passportExpDate: undefined,
@@ -2632,31 +6319,68 @@ setItinerary((prev) => {
         }),
       ];
 
-      const childAgesForBooking = [
-        ...additionalChildren.map((c) => Number(c.age)),
-      ].filter((age) => Number.isFinite(age) && age >= 0 && age <= 11);
+      // Child ages must be locked from plan/search template to avoid mismatch with TBO
+      const childAgesForBooking = (
+        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+              Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
+            )
+          : normalizedAdditionalChildren.map((c) => Number(c.age))
+      ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11);
 
-      const occupanciesForBooking = buildTboOccupancies(
-        Number(itinerary.roomCount || 1),
-        Math.max(Number(itinerary.adults || 1), 1),
-        childAgesForBooking,
-      );
+      const occupanciesForBooking =
+        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+          ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
+          : buildTboOccupancies(
+              Number(itinerary.roomCount || 1),
+              Math.max(Number(itinerary.adults || 1), 1),
+              childAgesForBooking,
+            );
+
+      const bookingGuestNationality = (
+        guestDetails.nationality ||
+        confirmDefaultNationality ||
+        'IN'
+      )
+        .trim()
+        .toUpperCase();
 
       const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
         occupancies: occupanciesForBooking,
-        provider: hotelData.provider,
+        provider: inferHotelProvider(hotelData),
         routeId: parseInt(routeId, 10),
         hotelCode: hotelData.hotelCode,
+        hotelName: hotelData.hotelName,
         bookingCode: hotelData.bookingCode,
         roomType: hotelData.roomType,
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary.roomCount || 1),
-        guestNationality: guestDetails.nationality,
+        guestNationality: bookingGuestNationality,
         netAmount: Number(hotelData.netAmount || 0),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         passengers,
       }));
+
+      const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
+      const nonTboRouteIds = hotelBookings
+        .filter((booking) => booking.provider !== 'tbo')
+        .map((booking) => Number(booking.routeId))
+        .filter((id) => Number.isFinite(id));
+
+      if (tboCount > 0 && nonTboRouteIds.length > 0) {
+        const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
+        const shouldContinueWithMixedProviders = window.confirm(
+          `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
+        );
+        if (!shouldContinueWithMixedProviders) {
+          toast.error(
+            `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`,
+          );
+          return;
+        }
+        toast.warning('Proceeding with mixed-provider booking as confirmed.');
+      }
 
       if (hotelBookings.length === 0) {
         toast.error('No hotels selected for booking. Please select hotels and retry.');
@@ -2686,41 +6410,18 @@ setItinerary((prev) => {
         .then((data) => data.ip)
         .catch(() => '192.168.1.1');
 
-      if (!prebookData) {
-        setIsPrebooking(true);
-        try {
-          const prebookResponse = await ItineraryService.prebookHotels({
-            itinerary_plan_ID: itinerary.planId,
-            hotel_bookings: hotelBookings,
-            endUserIp: clientIp,
-          });
-          const normalizedPrebook = prebookResponse?.data || prebookResponse;
-          setPrebookData(normalizedPrebook);
-
-          const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-          const prebookTotal = Number(
-            normalizedPrebook?.updatedTotalPrice ||
-              normalizedPrebook?.finalPrice ||
-              normalizedPrebook?.totalAmount ||
-              0
-          );
-
-          if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
-            toast.warning('Prebook returned an updated price. Please review and confirm updated price to continue.');
-            return;
-          }
-        } catch (prebookError) {
-          toast.error(getSafeErrorMessage(prebookError, 'Failed to prebook selected hotels.'));
-          return;
-        } finally {
-          setIsPrebooking(false);
-        }
-        // After first successful prebook, return and let modal display for user review
+      const effectivePrebookData = prebookDataRef.current || prebookData;
+      const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      if (hasTboBookings && !effectivePrebookData) {
+        toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
       }
 
       const prebookTotal = Number(
-        prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0
+        effectivePrebookData?.updatedTotalPrice ||
+        effectivePrebookData?.finalPrice ||
+        effectivePrebookData?.totalAmount ||
+        0,
       );
       const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
       if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
@@ -2728,9 +6429,9 @@ setItinerary((prev) => {
         return;
       }
 
-      // TBO Certification: Require acknowledgement of prebook details before final booking
+      // Require acknowledgement of review details before final booking
       if (!hasAcceptedUpdatedPrice) {
-        toast.warning('Please review and acknowledge the prebook details before final booking confirmation.');
+        toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
         return;
       }
 
@@ -2749,7 +6450,20 @@ setItinerary((prev) => {
         return;
       }
 
-      await ItineraryService.confirmQuotation({
+      const hotelBookingsWithPrebookContext = hotelBookings.map((booking) => {
+        const matchingPrebook = prebookHotelEntries.find(
+          (item: any) =>
+            Number(item?.routeId) === Number(booking.routeId) &&
+            String(item?.hotelCode || '') === String(booking.hotelCode || ''),
+        );
+
+        return {
+          ...booking,
+          prebookContext: matchingPrebook?.prebookContext,
+        };
+      });
+
+      const confirmPayload = {
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
         primary_guest_salutation: guestDetails.salutation,
@@ -2758,12 +6472,12 @@ setItinerary((prev) => {
         primary_guest_age: guestDetails.age,
         primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
         primary_guest_email_id: guestDetails.emailId,
-        adult_name: additionalAdults.map(a => a.name),
-        adult_age: additionalAdults.map(a => a.age),
-        child_name: additionalChildren.map(c => c.name),
-        child_age: additionalChildren.map(c => c.age),
-        infant_name: additionalInfants.map(i => i.name),
-        infant_age: additionalInfants.map(i => i.age),
+        adult_name: normalizedAdditionalAdults.map(a => a.name),
+        adult_age: normalizedAdditionalAdults.map(a => a.age),
+        child_name: normalizedAdditionalChildren.map(c => c.name),
+        child_age: normalizedAdditionalChildren.map(c => c.age),
+        infant_name: normalizedAdditionalInfants.map(i => i.name),
+        infant_age: normalizedAdditionalInfants.map(i => i.age),
         arrival_date_time: guestDetails.arrivalDateTime,
         arrival_place: guestDetails.arrivalPlace,
         arrival_flight_details: guestDetails.arrivalFlightDetails,
@@ -2772,10 +6486,13 @@ setItinerary((prev) => {
         departure_flight_details: guestDetails.departureFlightDetails,
         price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
         hotel_group_type: selectedGroupType,
-        hotel_bookings: hotelBookings.length > 0 ? hotelBookings : undefined,
+        hotel_bookings: hotelBookingsWithPrebookContext.length > 0 ? hotelBookingsWithPrebookContext : undefined,
         primaryGuest,
         endUserIp: clientIp,
-      });
+      };
+
+      console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
+      await ItineraryService.confirmQuotation(confirmPayload);
 
       toast.success('Quotation confirmed successfully!');
       setConfirmQuotationModal(false);
@@ -2792,7 +6509,7 @@ setItinerary((prev) => {
         name: '',
         contactNo: '',
         age: '',
-        nationality: 'IN',
+        nationality: confirmDefaultNationality,
         panNo: '',
         passportNo: '',
         alternativeContactNo: '',
@@ -2808,6 +6525,7 @@ setItinerary((prev) => {
       setAdditionalChildren([]);
       setAdditionalInfants([]);
       setPrebookData(null);
+      prebookDataRef.current = null;
       setHasAcceptedUpdatedPrice(false);
       setFormErrors({});
       setSelectedHotelBookings({});
@@ -2820,827 +6538,1026 @@ setItinerary((prev) => {
     }
   };
 
-  if (loading) {
+  useEffect(() => {
+    if (!pendingScrollDayNumber) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const dayElement = document.getElementById(`itinerary-day-${pendingScrollDayNumber}`);
+      if (dayElement) {
+        dayElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      setPendingScrollDayNumber(null);
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [itinerary, pendingScrollDayNumber]);
+
+  useEffect(() => {
+    return () => {
+      stopRouteTimeProgress();
+    };
+  }, [stopRouteTimeProgress]);
+
+  const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
+
+  if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
     return (
       <div className="w-full max-w-full flex justify-center items-center py-16">
-        <p className="text-sm text-[#6c6c6c]">Loading itinerary details…</p>
+        <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <p>
+            {isApplyingRouteTimeUpdate
+              ? "Updating itinerary and hotel results..."
+              : shouldShowHotels
+              ? "Loading itinerary details and hotel names..."
+              : "Loading itinerary details..."}
+          </p>
+        </div>
       </div>
     );
   }
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
-  return null;
-}
+    return null;
+  }
 
-if (error || !itinerary) {
-  return (
-    <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
-      <p className="text-sm text-red-600">
-        {error || "Itinerary details not found"}
-      </p>
-      {itinerary?.planId && (
-        <Link to={`/create-itinerary?id=${itinerary.planId}`}>
-          <Button
-            variant="outline"
-            className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Route List
-          </Button>
-        </Link>
-      )}
-    </div>
-  );
-}
+  if (error || !itinerary) {
+    return (
+      <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
+        <p className="text-sm text-red-600">
+          {error || "Itinerary details not found"}
+        </p>
+        {itinerary?.planId && (
+          <Link to={`/create-itinerary?id=${itinerary.planId}`}>
+            <Button
+              variant="outline"
+              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Route List
+            </Button>
+          </Link>
+        )}
+      </div>
+    );
+  }
 
   const backToListHref = itinerary.planId
     ? `/create-itinerary?id=${itinerary.planId}`
     : "#";
   const modifyItineraryHref = backToListHref;
+  const routeProgressPct = Math.max(0, Math.min(100, Math.round(routeTimeProgressPercent)));
+  const routeCircleRadius = 42;
+  const routeCircleCircumference = 2 * Math.PI * routeCircleRadius;
+  const routeDashOffset = routeCircleCircumference - (routeProgressPct / 100) * routeCircleCircumference;
+
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
+      {isApplyingRouteTimeUpdate && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
+          <div className="w-[340px] rounded-2xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffe9d6] text-2xl">
+              ⏱
+            </div>
+            <p className="text-sm text-slate-600">
+              Updating day timings and rebuilding itinerary
+            </p>
+            <div className="mt-5 flex flex-col items-center gap-3">
+              <div className="relative h-28 w-28">
+                <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100" role="img" aria-label="Route update progress">
+                  <circle cx="50" cy="50" r={routeCircleRadius} stroke="#e8edf4" strokeWidth="8" fill="none" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r={routeCircleRadius}
+                    stroke="#d546ab"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    fill="none"
+                    strokeDasharray={routeCircleCircumference}
+                    strokeDashoffset={routeDashOffset}
+                    style={{ transition: "stroke-dashoffset 250ms linear" }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-slate-900">
+                  {routeProgressPct}%
+                </div>
+              </div>
+
+              <div className="text-sm font-semibold text-slate-800">Updating itinerary...</div>
+              <div className="text-xs text-slate-500">Estimated ~{Math.max(1, Math.round(routeTimeEstimatedMs / 1000))}s</div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Card */}
-      <Card className="border-none shadow-none bg-white">
-        <CardContent className="pt-4 pb-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-            <h1 className="text-xl font-semibold text-[#4a4260]">
-              Tour Itinerary Plan
-            </h1>
-            <div className="flex flex-wrap gap-2">
-              <Link to={backToListHref}>
-                <Button
-                  variant="outline"
-                  className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back to List
-                </Button>
-              </Link>
-
-              {itinerary.isConfirmed && (
-                <>
-                  <Button 
-                    variant="outline"
-                    className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
-                    onClick={() => setPluckCardModal(true)}
-                  >
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Download Pluck Card
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
-                    onClick={() => setVoucherModal(true)}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Voucher Details
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                    onClick={() => setIncidentalModal(true)}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Incidental Expenses
-                  </Button>
-                  <Link to={modifyItineraryHref}>
-                    <Button 
-                      variant="outline"
-                      className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+      <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
+        <Card className="border-none shadow-none bg-white">
+          <CardContent className="pt-4 pb-0">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+              <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
+                <span>Tour Itinerary Plan</span>
+                <span className="text-[#6c6c6c]">(</span>
+                {itineraryPreference === 2 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToVehicleList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Vehicle List"
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Modify Itinerary
+                      Vehicle
+                    </button>
+                    <span className="text-[#6c6c6c]">Only</span>
+                    {vehicleStatusChip && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
+                      >
+                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {vehicleStatusChip.label}
+                      </span>
+                    )}
+                  </>
+                )}
+                {itineraryPreference === 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                    <span className="text-[#6c6c6c]">Only</span>
+                  </>
+                )}
+                {itineraryPreference !== 1 && itineraryPreference !== 2 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={scrollToVehicleList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Vehicle List"
+                    >
+                      Vehicle
+                    </button>
+                    <span className="text-[#6c6c6c]">+</span>
+                    <button
+                      type="button"
+                      onClick={scrollToHotelList}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
+                      title="Go to Hotel List"
+                    >
+                      Hotel
+                    </button>
+                    {vehicleStatusChip && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
+                      >
+                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {vehicleStatusChip.label}
+                      </span>
+                    )}
+                  </>
+                )}
+                <span className="text-[#6c6c6c]">)</span>
+              </h1>
+              <div className="flex flex-wrap gap-2">
+                <Link to={backToListHref}>
+                  <Button
+                    variant="outline"
+                    className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to List
+                  </Button>
+                </Link>
+
+                {itinerary.isConfirmed && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
+                      onClick={() => setPluckCardModal(true)}
+                    >
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Download Pluck Card
                     </Button>
-                  </Link>
-                  <Button 
-                    variant="outline"
-                    className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-                    onClick={() => { setInvoiceType('tax'); setInvoiceModal(true); }}
-                  >
-                    <Receipt className="mr-2 h-4 w-4" />
-                    Invoice Tax
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                    onClick={() => { setInvoiceType('proforma'); setInvoiceModal(true); }}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Invoice Performa
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Quote Info */}
-          <div className="flex flex-col lg:flex-row justify-between gap-4 mb-1">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-[#6c6c6c]" />
-                <span className="font-medium text-[#4a4260]">
-                  {itinerary.quoteId}
-                </span>
+                    <Button
+                      variant="outline"
+                      className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
+                      onClick={() => setVoucherModal(true)}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Voucher Details
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+                      onClick={() => setIncidentalModal(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Incidental Expenses
+                    </Button>
+                    <Link to={modifyItineraryHref}>
+                      <Button
+                        variant="outline"
+                        className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Modify Itinerary
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
+                      onClick={() => { setInvoiceType('tax'); setInvoiceModal(true); }}
+                    >
+                      <Receipt className="mr-2 h-4 w-4" />
+                      Invoice Tax
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+                      onClick={() => { setInvoiceType('proforma'); setInvoiceModal(true); }}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      Invoice Performa
+                    </Button>
+                  </>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#6c6c6c]" />
-                <span className="text-[#6c6c6c]">{itinerary.dateRange}</span>
+            </div>
+
+            {/* Quote Info — row 1 */}
+            <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
+              <div className="flex flex-wrap items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-[#d546ab]">{itinerary.quoteId}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-[#6c6c6c]" />
+                  <span className="font-medium text-[#4a4260]">{itinerary.dateRange}</span>
+                  {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+                    <span className="text-[#4a4260] font-medium">
+                      ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="text-right flex items-center gap-2 justify-end">
+                {shouldShowRebuildHotelsButton && !readOnly && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRebuildHotels}
+                    disabled={isRebuildingHotels}
+                    className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                  >
+                    {isRebuildingHotels ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Rebuilding...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Rebuild Hotels
+                      </>
+                    )}
+                  </Button>
+                )}
+                <div>
+                  <span className="text-sm text-[#6c6c6c]">Overall Trip Cost : </span>
+                  <span className="text-xl font-bold text-[#d546ab]">₹ {overallTripCostWithHotels}</span>
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-[#6c6c6c]">Overall Trip Cost :</p>
-              <p className="text-2xl font-bold text-[#d546ab]">
-                ₹ {itinerary.overallCost}
-              </p>
-            </div>
-          </div>
 
-          {/* Trip Details */}
-          <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c]">
-            <span>Room Count: {itinerary.roomCount}</span>
-            <span>Extra Bed: {itinerary.extraBed}</span>
-            <span>Child with bed: {itinerary.childWithBed}</span>
-            <span>Child without bed: {itinerary.childWithoutBed}</span>
-            <div className="ml-auto flex gap-4">
-              <span>Adults: {itinerary.adults}</span>
-              <span>Child: {itinerary.children}</span>
-              <span>Infants: {itinerary.infants}</span>
+            {/* Trip Details — row 2 (same bg) */}
+            <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
+              <span>
+                <span>Room Count </span>
+                <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span>
+              </span>
+              <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
+              <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
+              <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
+              <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap gap-4">
+                <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
+                <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
+                <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Daily Itinerary */}
-      {itinerary.days.map((day) => {
+      <div className="lg:pr-20">
+
+
+       {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
+  const addHotspotCta = day.segments.find(
+    (segment): segment is HotspotSegment => segment.type === "hotspot"
+  );
 
   return (
-    <Card key={day.id} className="border border-[#e5d9f2] bg-white">
-          <CardContent className="pt-2">
-            {/* Day Header */}
-           <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-3 px-3 py-2 bg-[#f8f5fc] rounded-lg border border-[#e5d9f2] min-h-[68px]">
-  <div className="flex items-center gap-3 min-w-0 lg:pr-[180px]">
-    <Calendar className="h-5 w-5 text-[#d546ab] shrink-0" />
-    <div className="min-w-0">
-      <div className="flex items-center gap-2 flex-wrap">
-        <h3 className="font-semibold text-[#4a4260]">
-          DAY {day.dayNumber} - {formatHeaderDate(day.date)}
-        </h3>
-        {routeNeedsRebuild === day.id && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-                if (!itinerary.planId) {
-                  toast.error("Plan ID not found");
-                  return;
-                }
-
-                handleRebuildRoute(itinerary.planId, day.id);
-              }}
-            disabled={isRebuilding}
-            className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
-          >
-            {isRebuilding ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Rebuilding...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Rebuild Route
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 text-sm text-[#6c6c6c] flex-wrap">
-        <span className="font-medium">{day.departure}</span>
-        {day.viaRoutes && day.viaRoutes.length > 0 && (
-          <>
-            <ArrowRight className="h-4 w-4 text-[#d546ab] mx-1" />
-            <span
-              className="text-[#4a4260]"
-              title={day.viaRoutes.map((v) => v.name).join(", ")}
+            
+            <Card
+              key={day.id}
+              id={`itinerary-day-${day.dayNumber}`}
+              data-day-number={day.dayNumber}
+              className="border border-[#e5d9f2] bg-white"
             >
-              {day.viaRoutes.map((v) => v.name).join(", ")}
-            </span>
-          </>
-        )}
-        <MapPin className="h-3 w-3 mx-1" />
-        <span className="font-medium">{day.arrival}</span>
+              <CardContent className="pt-2">
+
+
+
+
+             {/* Day Header */}
+<div
+  className="sticky z-20 mb-3 mx-0 rounded-lg border border-[#59b9ea] bg-white px-4 py-4"
+  style={{ top: `${Math.max(summaryStickyHeight + 8, 8)}px` }}
+>
+  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(260px,1fr)_auto_minmax(260px,1fr)] lg:items-center">
+    {/* LEFT: day/date/location */}
+    <div className="flex min-w-0 items-start gap-3">
+      <Calendar className="mt-1 h-5 w-5 shrink-0 text-[#d546ab]" />
+
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-semibold leading-6 text-[#4a4260]">
+            DAY {day.dayNumber} - {formatHeaderDate(day.date)}
+          </h3>
+
+          {routeNeedsRebuild === day.id && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
+              disabled={isRebuilding}
+              className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
+            >
+              {isRebuilding ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Rebuilding...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Rebuild Route
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#6c6c6c]">
+          <span className="font-medium">{day.departure}</span>
+
+          {day.viaRoutes && day.viaRoutes.length > 0 && (
+            <>
+              <ArrowRight className="h-4 w-4 text-[#d546ab]" />
+              <span
+                className="text-[#4a4260]"
+                title={day.viaRoutes.map((v) => v.name).join(", ")}
+              >
+                {day.viaRoutes.map((v) => v.name).join(", ")}
+              </span>
+            </>
+          )}
+
+          <MapPin className="h-3 w-3" />
+          <span className="font-medium">{day.arrival}</span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div className="flex justify-center lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2">
-    <div className="flex items-center gap-2 bg-white border border-[#e5d9f2] rounded-full px-2 py-1 shadow-sm">
-      <Popover>
-        <PopoverTrigger asChild>
-          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
-            {day.startTime}
-          </div>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <TimePickerPopover
-            value={day.startTime}
-            label="Start Time"
-            onSave={async (newTime) => {
-              await handleUpdateRouteTimesDirect(
-                itinerary.planId || 0,
-                day.id,
-                day.dayNumber,
-                newTime,
-                day.endTime
-              );
-              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-            }}
-          />
-        </PopoverContent>
-      </Popover>
+    {/* CENTER: time */}
+    <div className="flex justify-start lg:justify-center">
+      <div className="flex items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-5 py-2 shadow-sm">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#4a4260] hover:text-[#d546ab]"
+            >
+              {day.startTime}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <TimePickerPopover
+              value={day.startTime}
+              label="Start Time"
+              onSave={async (newTime) => {
+                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+                await handleUpdateRouteTimesDirect(
+                  itinerary.planId || 0,
+                  day.id,
+                  day.dayNumber,
+                  newTime,
+                  day.endTime
+                );
+              }}
+            />
+          </PopoverContent>
+        </Popover>
 
-      <ArrowRight className="h-4 w-4 text-[#d546ab]" />
+        <ArrowRight className="h-4 w-4 text-[#d546ab]" />
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <div className="px-2 py-0.5 text-sm font-medium text-[#4a4260] cursor-pointer hover:bg-[#f8f5fc] rounded transition-colors">
-            {day.endTime}
-          </div>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <TimePickerPopover
-            value={day.endTime}
-            label="End Time"
-            onSave={async (newTime) => {
-              await handleUpdateRouteTimesDirect(
-                itinerary.planId || 0,
-                day.id,
-                day.dayNumber,
-                day.startTime,
-                newTime
-              );
-              document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-            }}
-          />
-        </PopoverContent>
-      </Popover>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="text-sm font-semibold text-[#4a4260] hover:text-[#d546ab]"
+            >
+              {day.endTime}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <TimePickerPopover
+              value={day.endTime}
+              label="End Time"
+              onSave={async (newTime) => {
+                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+                await handleUpdateRouteTimesDirect(
+                  itinerary.planId || 0,
+                  day.id,
+                  day.dayNumber,
+                  day.startTime,
+                  newTime
+                );
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
     </div>
-  </div>
 
-  <div className="flex justify-center lg:justify-end lg:pl-[260px]">
-    <span className="bg-[#d546ab] text-white px-3 py-1 rounded-full font-medium whitespace-nowrap">
-      Travel: {intercityDistance}
-    </span>
+    {/* RIGHT: buttons + KM */}
+    <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+      {addHotspotCta && !readOnly && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+          onClick={() =>
+            openAddHotspotModal(
+              itinerary.planId || 0,
+              day.id,
+              addHotspotCta.locationId || 0,
+              day.arrival || "Location",
+              addHotspotCta.anchorType === "after_travel" &&
+                Number.isInteger(Number(addHotspotCta.anchorIndex))
+                ? {
+                    anchorType: "after_travel",
+                    anchorIndex: Number(addHotspotCta.anchorIndex),
+                    anchorFrom: addHotspotCta.anchorFrom,
+                    anchorTo: addHotspotCta.anchorTo,
+                    anchorTimeRange: addHotspotCta.anchorTimeRange,
+                  }
+                : null
+            )
+          }
+        >
+          Add Hotspot
+        </Button>
+      )}
+
+      <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+          onClick={() => handleAddGuideClick(day)}
+          disabled={readOnly}
+        >
+          <Plus className="mr-1 h-4 w-4" />
+          Add Guide
+          </Button>
+
+      <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
+        {intercityDistance}
+      </span>
+    </div>
   </div>
 </div>
 
- {/* Add Guide Button */}
-              <div className="flex justify-start mt-2 ml-8">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-[#d546ab] border-[#d546ab] hover:bg-[#fdf6ff]"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Guide
-                </Button>
-              </div>
-            {/* Segments */}
-            <div className="space-y-4">
-              {day.segments.map((segment, idx) => (
-                <div key={idx} className="ml-8">
-                  {segment.type === "start" && (
-                    <div className="flex items-center gap-3 mb-4">
-                      <Car className="h-5 w-5 text-[#6c6c6c]" />
-                      <div>
-                        <p className="font-medium text-[#4a4260]">
-                          {segment.title}
-                        </p>
-                        <p className="text-sm text-[#6c6c6c]">
-                          <Clock className="inline h-3 w-3 mr-1" />
-                          {segment.timeRange}
-                        </p>
-                      </div>
-                    </div>
-                  )}
 
-                  {segment.type === "travel" && (
-                    <div className={`rounded-lg p-3 mb-3 border-2 ${segment.isConflict ? 'bg-red-50 border-red-400 shadow-sm' : 'bg-[#e8f9fd] border-transparent'}`}>
-                      {segment.isConflict && (
-                        <div className="flex items-center gap-2 text-red-700 text-[11px] font-bold mb-2 bg-red-100 px-2 py-1 rounded">
-                          <AlertTriangle className="h-3 w-3" />
-                          TIMING CONFLICT: {segment.conflictReason}
-                        </div>
-                      )}
-                      <div className="flex items-start gap-3">
-                        <Car className="h-5 w-5 text-[#4ba3c3] mt-1" />
-                        <div className="flex-1">
-                          <p className="text-sm text-[#4a4260]">
-                            <span className="font-medium">Travelling from</span>{" "}
-                            <span className="text-[#d546ab]">
-                              {segment.from}
-                            </span>{" "}
-                            <span className="font-medium">to</span>{" "}
-                            <span className="text-[#d546ab]">{segment.to}</span>
-                          </p>
-                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
-                            <span>
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.timeRange}
-                            </span>
-                            <span>
-                              <MapPin className="inline h-3 w-3 mr-1" />
-                              {segment.distance}
-                            </span>
-                            <span>⏱ {segment.duration}</span>
-                          </div>
-                          {segment.note && (
-                            <p className="text-xs text-[#6c6c6c] mt-2">
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.note}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {segment.type === "attraction" && (
-                    <>
-                      <div className={`bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff] rounded-lg p-4 mb-3 border-2 ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
-                        {segment.isConflict && (
-                          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-2 rounded-md text-xs font-bold mb-3 animate-pulse">
-                            <AlertTriangle className="h-4 w-4" />
-                            <span>WARNING: {segment.conflictReason}</span>
+                {/* Segments */}
+                <div className="space-y-0">
+                  {day.segments.map((segment, idx) => (
+                    <div key={idx}>
+                      {/* Connector dots — only between real segments, never around hotspot CTAs */}
+                      {idx > 0 &&
+                        segment.type !== 'hotspot' &&
+                        day.segments[idx - 1]?.type !== 'hotspot' && (
+                          <div className="flex justify-start ml-5 my-0.5">
+                            <div className="flex flex-col items-center gap-[2px]">
+                              <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
+                              <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
+                              <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
+                            </div>
                           </div>
                         )}
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          <div className="flex flex-col gap-2 w-full sm:w-32 shrink-0">
-                            <img
-                              src={
-                                segment.image ||
-                                "https://placehold.co/120x120/e9d5f7/4a4260?text=Spot"
-                              }
-                              alt={segment.name}
-                              className="w-full h-32 object-cover rounded-lg shadow-sm"
-                            />
-                            <div className="flex flex-col gap-1.5 p-2 bg-white/60 rounded-md border border-[#e5d9f2] text-[10px] font-medium text-[#4a4260]">
-                              {segment.amount && segment.amount > 0 && (
-                                <div className="flex items-center gap-1.5">
-                                  <Ticket className="h-3 w-3 text-[#d546ab]" />
-                                  <span>₹{segment.amount.toFixed(0)}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-1.5">
-                                <Clock className="h-3 w-3 text-[#d546ab]" />
-                                <span>{segment.duration?.split(':').slice(0,2).join(':')} hrs</span>
-                              </div>
-                              {segment.timings && (
-                                <div className="flex items-center gap-1.5">
-                                  <Timer className="h-3 w-3 text-[#d546ab]" />
-                                  <span className="truncate" title={segment.timings}>{segment.timings}</span>
-                                </div>
-                              )}
-                            </div>
+                      <div className="mx-4">
+                        {segment.type === "start" && (
+                          <div className="flex items-center gap-2 py-1 text-sm text-[#6c6c6c]">
+                            <Car className="h-4 w-4 shrink-0" />
+                            <span className="font-medium text-[#4a4260]">{segment.title}</span>
+                            <Clock className="h-3 w-3 ml-1" />
+                            <span>{segment.timeRange}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-semibold text-[#4a4260] mb-2">
-                                {segment.name}
-                              </h4>
-                              <button
-                                className="text-red-500 hover:text-red-700 p-1"
-                                title="Delete Hotspot"
-                                onClick={() =>
-                                 openDeleteHotspotModal(
-                                    itinerary.planId || 0,
-                                    day.id,
-                                    segment.routeHotspotId || 0,
-                                    segment.hotspotId || 0,
-                                    segment.name
-                                  )
-                                }
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </button>
-                            </div>
-                            <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-3">
-                              {segment.description}
-                            </p>
-                            <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
-                              <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {segment.visitTime}
+                        )}
+
+
+
+                        {segment.type === "travel" && (() => {
+                          const textLabels = extractTravelFromToFromText((segment as any)?.text);
+                          const travelFromLabel = String(segment.from || textLabels.from || 'Route Start').trim();
+                          const travelToLabel = String(segment.to || textLabels.to || extractTravelToFromText((segment as any)?.text) || 'Next Stop').trim();
+                          const travelDistanceLabel = segment.distance;
+                          const showTravelDistance = Boolean(
+                            String(travelDistanceLabel || '').trim()
+                            && String(travelDistanceLabel || '').trim() !== '--'
+                          );
+
+                          return (
+                            <div className={`flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2 text-sm ${segment.isConflict ? 'bg-red-50 border border-red-400' : 'bg-[#e8f9fd]'}`}>
+                              <Car className="h-4 w-4 text-[#4ba3c3] shrink-0" />
+                              <span className="text-[#4a4260] min-w-0 flex-1">
+                                <span className="font-medium">Travelling from </span>
+                                <span className="text-[#d546ab] font-medium">{travelFromLabel}</span>
+                                <span className="font-medium"> to </span>
+                                <span className="text-[#d546ab] font-medium">{travelToLabel}</span>
                               </span>
-                              <button 
-                                className="text-[#d546ab] hover:underline flex items-center font-medium"
-                                onClick={() =>
-                                  openAddActivityModal(
-                                    itinerary.planId || 0,
-                                    day.id,
-                                    segment.routeHotspotId || 0,
-                                    segment.hotspotId || 0,
-                                    segment.name
-                                  )
-                                }
-                              >
-                                <Plus className="h-3 w-3 mr-1" />
-                                Add Activity
-                              </button>
+                              <span className="flex items-center gap-1 text-xs text-[#6c6c6c] shrink-0 flex-wrap sm:justify-end gap-x-3">
+                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{segment.timeRange}</span>
+                                {showTravelDistance && (
+                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
+                                )}
+                                <span className="flex items-center gap-1">⏱ {segment.duration}</span>
+                                {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
+                              </span>
+                              {segment.isConflict && (
+                                <span title={segment.conflictReason ?? ''}><AlertTriangle className="h-4 w-4 text-red-500 shrink-0" /></span>
+                              )}
                             </div>
-                          </div>
-                          <div className="flex flex-col gap-2 sm:ml-auto">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              title="View Gallery"
-                              onClick={() =>
-                                openGalleryModal(
-                                  segment.image ? [segment.image] : [],
-                                  segment.name
-                                )
-                              }
-                            >
-                              📷
-                            </Button>
-                            {segment.videoUrl && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                title="View Video"
-                                onClick={() =>
-                                  openVideoModal(segment.videoUrl || "", segment.name)
-                                }
-                              >
-                                🎥
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                          );
+                        })()}
 
-                      {/* Plan Own Way Alert */}
-                      {segment.planOwnWay && (
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="bg-red-500 rounded-full p-2">
-                            <Bell className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
-                            <p className="text-sm font-medium m-0">
-                              Manual Addition: This place was added manually. Timing may vary from our optimized route.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Activities List */}
-                      {segment.activities && segment.activities.length > 0 && (
-                        <div className="ml-8 mt-2 border-t border-[#e5d9f2] pt-4">
-                          <h5 className="font-semibold text-[#4a4260] mb-3">Activity</h5>
-                          <div className="space-y-3">
-                            {segment.activities.map((activity) => (
-                              <div
-                                key={activity.id}
-                                className="border-l-2 border-dashed border-[#d546ab] pl-4"
-                              >
-                                <div className="bg-white rounded-lg p-4 shadow-sm border border-[#e5d9f2]">
-                                  <div className="flex flex-col sm:flex-row gap-4">
-                                    <img
-                                      src={
-                                        activity.image ||
-                                        "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
+                        {segment.type === "attraction" && (
+                          <>
+                            <div className={`bg-white rounded-lg px-3 py-2 border ${segment.isConflict ? 'border-red-500 bg-red-50 shadow-md' : 'border-[#e5d9f2]'}`}>
+                              {segment.isConflict && (
+                                <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-md text-xs font-bold mb-2 animate-pulse">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <span>
+                                    {/forced manual insertion after user confirmation/i.test(segment.conflictReason || '')
+                                      ? 'Manual override confirmed: This stop is included, but timing may shift.'
+                                      : `Schedule note: ${segment.conflictReason || 'Timing may shift.'}`}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between">
+                                    <h4 className="font-semibold text-[#4a4260] mb-2">
+                                      {segment.name}
+                                    </h4>
+                                    <button
+                                      className="text-red-500 hover:text-red-700 p-1"
+                                      title="Delete Hotspot"
+                                      onClick={() =>
+                                        openDeleteHotspotModal(
+                                          itinerary.planId || 0,
+                                          day.id,
+                                          segment.routeHotspotId || 0,
+                                          segment.name,
+                                          segment.isManual === true,
+                                        )
                                       }
-                                      alt={activity.title}
-                                      className="w-full sm:w-36 h-24 object-cover rounded-lg"
-                                    />
-                                    <div className="flex-1">
-                                      <div className="flex items-start justify-between">
-                                        <h6 className="font-semibold text-[#4a4260] mb-2">
-                                          {activity.title}
-                                        </h6>
-                                        <button
-                                          className="text-red-500 hover:text-red-700 p-1"
-                                          title="Delete Activity"
-                                          aria-label={`Delete activity ${activity.title}`}
-                                          onClick={() =>
-                                            openDeleteActivityModal(
-                                              itinerary.planId || 0,
-                                              day.id,
-                                              activity.id,
-                                              activity.title
-                                            )
-                                          }
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                      <p className="text-sm text-[#6c6c6c] mb-3">
-                                        {activity.description}
-                                      </p>
-                                      <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
-                                        {activity.startTime && activity.endTime && (
-                                          <span className="flex items-center font-semibold text-[#d546ab]">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            {activity.startTime} – {activity.endTime}
-                                          </span>
-                                        )}
-                                        {activity.amount > 0 && (
-                                          <span className="flex items-center">
-                                            <Ticket className="h-3 w-3 mr-1" />
-                                            ₹ {activity.amount.toFixed(2)}
-                                          </span>
-                                        )}
-                                        {activity.duration && (
-                                          <span className="flex items-center">
-                                            <Clock className="h-3 w-3 mr-1" />
-                                            {activity.duration}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                      <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="h-8 w-8"
-                                        title="View Activity Gallery"
-                                        aria-label={`View gallery for ${activity.title}`}
+                                    >
+                                      <Trash2 className="h-5 w-5" />
+                                    </button>
+                                  </div>
+                                  <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
+                                    {segment.description}
+                                  </p>
+                                  <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+                                    <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      {segment.visitTime}
+                                    </span>
+                                    {segment.amount && segment.amount > 0 && (
+                                      <span className="flex items-center">
+                                        <Ticket className="h-3 w-3 mr-1" />
+                                        ₹{segment.amount.toFixed(0)}
+                                      </span>
+                                    )}
+                                    {segment.duration && (
+                                      <span className="flex items-center">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        {segment.duration}
+                                      </span>
+                                    )}
+                                    {segment.timings && (
+                                      <span className="flex items-center">
+                                        <Timer className="h-3 w-3 mr-1" />
+                                        {segment.timings}
+                                      </span>
+                                    )}
+                                    {segment.hasAvailableActivities && (
+                                      <button
+                                        className="text-[#d546ab] hover:underline flex items-center font-medium"
                                         onClick={() =>
-                                          openGalleryModal(
-                                            activity.image ? [activity.image] : [],
-                                            activity.title
+                                          openAddActivityModal(
+                                            itinerary.planId || 0,
+                                            day.id,
+                                            segment.routeHotspotId || 0,
+                                            segment.hotspotId || 0,
+                                            segment.name
                                           )
                                         }
                                       >
-                                        📷
-                                      </Button>
-                                    </div>
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add Activity
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Thumbnail with overlaid gallery/video icons — matches PHP layout */}
+                                <div className="relative flex-shrink-0 flex justify-end">
+                                  <img
+                                    src={
+                                      toImgSrc(segment.image) ||
+                                      "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
+                                    }
+                                    alt={segment.name}
+                                    className="rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"
+                                  />
+                                  {/* Icons overlaid top-right of thumbnail */}
+                                  <div className="absolute top-1 right-1 flex flex-col gap-1">
+                                    <button
+                                      title="Click to View the Images"
+                                      className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                                      onClick={() =>
+                                        openGalleryModal(
+                                          segment.galleryImages && segment.galleryImages.length > 0
+                                            ? segment.galleryImages
+                                            : segment.image ? [segment.image] : [],
+                                          segment.name
+                                        )
+                                      }
+                                    >
+                                      🖼️
+                                    </button>
+                                    {segment.videoUrl && (
+                                      <button
+                                        title="Click to View the Video"
+                                        className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                                        onClick={() =>
+                                          openVideoModal(segment.videoUrl || "", segment.name)
+                                        }
+                                      >
+                                        ▶️
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
+                            </div>
 
-                  {segment.type === "break" && (
-                    <div className="bg-[#fff3cd] rounded-lg p-3 mb-3 border border-[#ffc107]">
-                      <div className="flex items-center gap-3">
-                        <Clock className="h-5 w-5 text-[#856404]" />
-                        <div className="flex-1">
-                          <p className="text-sm text-[#4a4260]">
-                            <span className="font-medium">Expect a waiting time of approximately</span>{" "}
-                            <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
-                            <span className="font-medium">at this location</span>{" "}
-                            <span className="text-[#d546ab] font-semibold">({segment.location})</span>
-                          </p>
-                          <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
-                            <span>
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.timeRange}
-                            </span>
-                            <span>⏱ {segment.duration}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                            {/* Plan Own Way Alert */}
+                            {segment.planOwnWay && (
+                              <div className="flex items-center gap-3 mb-3">
+                                <div className="bg-red-500 rounded-full p-2">
+                                  <Bell className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
+                                  <p className="text-sm font-medium m-0">
+                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
 
-                  {segment.type === "checkin" && !readOnly && (
-                    <div className="bg-[#e8f9fd] rounded-lg p-3 mb-3 border border-[#4ba3c3]">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-6 w-6 text-[#4ba3c3]" />
-                        <div 
-                          className="flex-1 cursor-pointer hover:bg-white/50 rounded-lg p-2 -m-2 transition-colors"
-                          onClick={() => {
-                            // Get city code from hotel details if available, otherwise use default
-                            let cityCode = "1"; // Default city code
-                            const hotelForDay = hotelDetails?.hotels?.find(h => 
-                              h.itineraryRouteId === day.id
-                            );
-                            if (hotelForDay?.destination) {
-                              // Try to map destination to code or use as-is
-                              const cityMap: { [key: string]: string } = {
-                                'Delhi': '1',
-                                'Agra': '2',
-                                'Jaipur': '3',
-                                'New Delhi': '1',
-                                'Mumbai': '4',
-                                'Bangalore': '5',
-                              };
-                              cityCode = cityMap[hotelForDay.destination] || "1";
-                            }
-                            
-                            openHotelSelectionModal(
-                              itinerary.planId || 0,
-                              day.id,
-                              day.date,
-                              cityCode,
-                              day.arrival || "Hotel"
-                            );
-                          }}
-                        >
-                          <p className="text-sm font-semibold text-[#4a4260] mb-1">
-                            Check-in to {segment.hotelName}
-                          </p>
-                          {segment.hotelAddress && (
-                            <p className="text-xs text-[#6c6c6c] mb-2">
-                              {segment.hotelAddress}
-                            </p>
-                          )}
-                          {segment.time && (
-                            <p className="text-xs text-[#6c6c6c]">
-                              <Clock className="inline h-3 w-3 mr-1" />
-                              {segment.time}
-                            </p>
-                          )}
-                          <p className="text-xs text-[#d546ab] mt-2">
-                            Click to change hotel
-                          </p>
-                        </div>
-                        
-                        {/* Room Category Selection Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab] shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
-                            const confirmedHotels = hotelDetails?.hotels?.filter(h => 
-                              itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
-                            );
-                            const hotelForDay = confirmedHotels?.find(h => 
-                              h.itineraryRouteId === day.id
-                            );
-                            
-                            if (hotelForDay) {
-                              setRoomSelectionModal({
-                                open: true,
-                                itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId,
-                                itinerary_plan_id: itinerary.planId || 0,
-                                itinerary_route_id: day.id,
-                                hotel_id: hotelForDay.hotelId,
-                                group_type: hotelForDay.groupType,
-                                hotel_name: hotelForDay.hotelName || segment.hotelName,
-                              });
-                            } else {
-                              toast.error('Hotel information not available');
-                            }
-                          }}
-                          title="Select room categories"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                            {/* Activities List */}
+                            {segment.activities && segment.activities.length > 0 && (
+                              <div className="ml-0 sm:ml-8 mt-2 border-t border-[#e5d9f2] pt-4">
+                                <h5 className="font-semibold text-[#4a4260] mb-3">Activity</h5>
+                                <div className="space-y-3">
+                                  {segment.activities.map((activity) => (
+                                    <div
+                                      key={activity.id}
+                                      className="border-l-2 border-dashed border-[#d546ab] pl-4"
+                                    >
+                                      <div className="bg-white rounded-lg p-4 shadow-sm border border-[#e5d9f2]">
+                                        <div className="flex flex-col sm:flex-row gap-4">
+                                          <div className="flex-1">
+                                            <div className="flex items-start justify-between">
+                                              <h6 className="font-semibold text-[#4a4260] mb-2">
+                                                {activity.title}
+                                              </h6>
+                                              <button
+                                                className="text-red-500 hover:text-red-700 p-1"
+                                                title="Delete Activity"
+                                                aria-label={`Delete activity ${activity.title}`}
+                                                onClick={() =>
+                                                  openDeleteActivityModal(
+                                                    itinerary.planId || 0,
+                                                    day.id,
+                                                    activity.id,
+                                                    activity.title
+                                                  )
+                                                }
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                            <p className="text-sm text-[#6c6c6c] mb-3">
+                                              {activity.description}
+                                            </p>
+                                            <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
+                                              {activity.startTime && activity.endTime && (
+                                                <span className="flex items-center font-semibold text-[#d546ab]">
+                                                  <Clock className="h-3 w-3 mr-1" />
+                                                  {activity.startTime} – {activity.endTime}
+                                                </span>
+                                              )}
+                                              {activity.amount > 0 && (
+                                                <span className="flex items-center">
+                                                  <Ticket className="h-3 w-3 mr-1" />
+                                                  ₹ {activity.amount.toFixed(2)}
+                                                </span>
+                                              )}
+                                              {activity.duration && (
+                                                <span className="flex items-center">
+                                                  <Clock className="h-3 w-3 mr-1" />
+                                                  {activity.duration}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {/* Activity thumbnail with overlaid gallery icon */}
+                                          <div className="relative flex-shrink-0">
+                                            <img
+                                              src={
+                                                toImgSrc(activity.image) ||
+                                                "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
+                                              }
+                                              alt={activity.title}
+                                              className="rounded-lg object-cover w-[120px] h-[86px] sm:w-[140px] sm:h-[100px]"
+                                            />
+                                            <div className="absolute top-1 right-1 flex flex-col gap-1">
+                                              <button
+                                                title="Click to View the Images"
+                                                className="bg-white/80 hover:bg-white rounded-full p-1 shadow"
+                                                onClick={() =>
+                                                  openGalleryModal(
+                                                    activity.galleryImages && activity.galleryImages.length > 0
+                                                      ? activity.galleryImages
+                                                      : activity.image ? [activity.image] : [],
+                                                    activity.title
+                                                  )
+                                                }
+                                              >
+                                                🖼️
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
 
-                  {segment.type === "hotspot" && !readOnly && (
-                    <div className="flex flex-col gap-2 mb-3">
-                      <div className="flex items-center gap-2 text-[#d546ab]">
-                        <Plus className="h-4 w-4" />
-                        <button 
-                          className="text-sm hover:underline font-medium"
-                          onClick={() =>
-                            toggleInlineAddHotspot(
-                              day.id,
-                              segment.locationId || 0,
-                              day.arrival || "Location"
-                            )
-                          }
-                        >
-                          {segment.text}
-                        </button>
-                      </div>
-
-                      {expandedAddHotspotDayId === day.id && !readOnly && (
-                        <div className="ml-6 mt-2 p-4 bg-white rounded-xl border-2 border-dashed border-[#e5d9f2] animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-bold text-[#4a4260]">Available Places in {day.arrival || "this location"}</h4>
-                            <div className="relative w-48">
-                              <input
-                                type="text"
-                                placeholder="Search places..."
-                                className="w-full text-xs p-2 pl-8 border rounded-md focus:outline-none focus:ring-1 focus:ring-[#d546ab]"
-                                value={hotspotSearchQuery}
-                                onChange={(e) => setHotspotSearchQuery(e.target.value)}
-                              />
-                              <MapPin className="absolute left-2 top-2 h-3 w-3 text-[#6c6c6c]" />
+                        {segment.type === "break" && (
+                          <div className="bg-[#fff3cd] rounded-lg p-3 mb-3 border border-[#ffc107]">
+                            <div className="flex items-center gap-3">
+                              <Clock className="h-5 w-5 text-[#856404]" />
+                              <div className="flex-1">
+                                <p className="text-sm text-[#4a4260]">
+                                  <span className="font-medium">Expect a waiting time of approximately</span>{" "}
+                                  <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
+                                  <span className="font-medium">at this location</span>{" "}
+                                  <span className="text-[#d546ab] font-semibold">({segment.location})</span>
+                                </p>
+                                <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
+                                  <span>
+                                    <Clock className="inline h-3 w-3 mr-1" />
+                                    {segment.timeRange}
+                                  </span>
+                                  <span>⏱ {segment.duration}</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
+                        )}
 
-                          {loadingHotspots ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-6 w-6 animate-spin text-[#d546ab]" />
-                            </div>
-                          ) : filteredHotspots.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {filteredHotspots.map((h) => (
-                                <div 
-                                  key={h.id} 
-                                  className="group flex items-start gap-3 p-3 rounded-lg border border-[#e5d9f2] hover:border-[#d546ab] hover:bg-[#fdf6ff] transition-all cursor-pointer"
+                        {segment.type === "checkin" && (() => {
+                          // Get actual hotel name from API data instead of backend generic "Hotel"
+                          const hotelMeta = selectedHotelMetaByRoute.get(day.id);
+                          const actualHotelName = hotelMeta?.hotelName || segment.hotelName || "Hotel";
+                          const hotelForDay = hotelDetails?.hotels?.find(h =>
+                            h.itineraryRouteId === day.id
+                          );
+                          const hotelAddress = hotelForDay?.hotelAddress || segment.hotelAddress;
+
+                          return (
+                            <div className="bg-[#e8f9fd] rounded-lg p-3 mb-3 border border-[#4ba3c3]">
+                              <div className="flex items-center gap-3">
+                                <Building2 className="h-6 w-6 text-[#4ba3c3]" />
+                                <div
+                                  className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${readOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                                   onClick={() => {
-                                    const pId = itinerary.planId || 0;
-                                    const rId = day.id;
-                                    setAddHotspotModal({
-                                      open: true,
-                                      planId: pId,
-                                      routeId: rId,
-                                      locationId: 0,
-                                      locationName: day.arrival || "this location",
-                                    });
-                                    handlePreviewHotspot(h.id, pId, rId);
+                                    if (readOnly) return;
+                                    // Get city code from hotel details if available, otherwise use default
+                                    let cityCode = "1"; // Default city code
+                                    if (hotelForDay?.destination) {
+                                      // Try to map destination to code or use as-is
+                                      const cityMap: { [key: string]: string } = {
+                                        'Delhi': '1',
+                                        'Agra': '2',
+                                        'Jaipur': '3',
+                                        'New Delhi': '1',
+                                        'Mumbai': '4',
+                                        'Bangalore': '5',
+                                      };
+                                      cityCode = cityMap[hotelForDay.destination] || "1";
+                                    }
+
+                                    openHotelSelectionModal(
+                                      itinerary.planId || 0,
+                                      day.id,
+                                      day.date,
+                                      cityCode,
+                                      day.arrival || "Hotel"
+                                    );
                                   }}
                                 >
-                                  <div className="w-12 h-12 rounded-md bg-[#f3e8ff] flex items-center justify-center flex-shrink-0 group-hover:bg-[#d546ab] transition-colors">
-                                    <MapPin className="h-6 w-6 text-[#d546ab] group-hover:text-white" />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-sm font-bold text-[#4a4260] truncate">{h.name}</p>
-                                      <span className="text-[10px] font-bold text-[#d546ab] bg-[#fdf2f8] px-1.5 py-0.5 rounded">
-                                        {h.timeSpend}h
-                                      </span>
-                                    </div>
-                                    <p className="text-[11px] text-[#6c6c6c] line-clamp-2 mt-0.5">{h.description}</p>
-                                    <div className="flex items-center justify-between mt-2">
-                                      <span className="text-[10px] font-bold text-[#4ba3c3]">₹ {h.amount.toFixed(0)}</span>
-                                      <span className="text-[10px] font-bold text-[#d546ab] opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                                        Add to Plan <ArrowRight className="ml-1 h-2 w-2" />
-                                      </span>
-                                    </div>
-                                  </div>
+                                  <p className="text-sm font-semibold text-[#4a4260] mb-1">
+                                    Check-in to {actualHotelName}
+                                  </p>
+                                  {hotelAddress && (
+                                    <p className="text-xs text-[#6c6c6c] mb-2">
+                                      {hotelAddress}
+                                    </p>
+                                  )}
+                                  {segment.time && (
+                                    <p className="text-xs text-[#6c6c6c]">
+                                      <Clock className="inline h-3 w-3 mr-1" />
+                                      {segment.time}
+                                    </p>
+                                  )}
+                                  {!readOnly && (
+                                    <p className="text-xs text-[#d546ab] mt-2">
+                                      Click to change hotel
+                                    </p>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 text-[#6c6c6c]">
-                              <p className="text-sm">No places found matching your search.</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
-                  {segment.type === "return" && (
-                    <div className="flex items-center gap-3 text-sm text-[#6c6c6c]">
-                      <Car className="h-5 w-5" />
-                      <div>
-                        <p className="font-medium text-[#4a4260]">
-                          Return to Origin and Relax
-                        </p>
-                        <p>
-                          <Clock className="inline h-3 w-3 mr-1" />
-                          {segment.time}
-                          {segment.note && (
-                            <span className="ml-2">🔘 {segment.note}</span>
-                          )}
-                        </p>
-                      </div>
+                                {/* Room Category Selection Button */}
+                                {!readOnly && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab] shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
+                                      const confirmedHotels = hotelDetails?.hotels?.filter(h =>
+                                        itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
+                                      );
+                                      const hotelForDay = confirmedHotels?.find(h =>
+                                        h.itineraryRouteId === day.id
+                                      );
+
+                                      if (hotelForDay) {
+                                        setRoomSelectionModal({
+                                          open: true,
+                                          itinerary_plan_hotel_details_ID: hotelForDay.itineraryPlanHotelDetailsId,
+                                          itinerary_plan_id: itinerary.planId || 0,
+                                          itinerary_route_id: day.id,
+                                          hotel_id: hotelForDay.hotelId,
+                                          group_type: hotelForDay.groupType,
+                                          hotel_name: hotelForDay.hotelName || segment.hotelName,
+                                        });
+                                      } else {
+                                        toast.error('Hotel information not available');
+                                      }
+                                    }}
+                                    title="Select room categories"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {segment.type === "return" && (
+                          <div className="flex items-center gap-3 text-sm text-[#6c6c6c]">
+                            <Car className="h-5 w-5" />
+                            <div>
+                              <p className="font-medium text-[#4a4260]">
+                                Return to Origin and Relax
+                              </p>
+                              <p>
+                                <Clock className="inline h-3 w-3 mr-1" />
+                                {segment.time}
+                                {segment.note && (
+                                  <span className="ml-2">🔘 {segment.note}</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>{/* end timeline row wrapper */}
                     </div>
-                  )}
+                  ))}
+
+
                 </div>
-              ))}
-
-             
-            </div>
-          </CardContent>
-               </Card>
-      );
-    })}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
       {/* Hotel List (separate component) */}
-      {hotelDetails && (
-        <HotelList
-          hotels={hotelDetails.hotels}
-          hotelTabs={hotelDetails.hotelTabs}
-          hotelRatesVisible={hotelDetails.hotelRatesVisible}
-          onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
-          hotelAvailability={hotelDetails.hotelAvailability}
-          quoteId={quoteId!}
-          planId={itinerary.planId}
-          onRefresh={refreshHotelData}
-          onGroupTypeChange={handleHotelGroupTypeChange}
-          onGetSaveFunction={handleGetSaveFunction}
-          readOnly={readOnly}
-          onCreateVoucher={handleCreateVoucher}
-          onHotelSelectionsChange={handleHotelSelectionsChange}
-        />
+      {shouldShowHotels && loadingHotels && (
+        <div ref={hotelListRef} id="hotel-list-section">
+          <Card className="border border-[#e5d9f2] bg-white">
+            <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
+              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+              <span>Loading hotel list for all days...</span>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {shouldShowHotels && !loadingHotels && hotelDetails && (
+        <div ref={hotelListRef} id="hotel-list-section">
+          <HotelList
+            hotels={hotelDetails.hotels}
+            hotelTabs={hotelDetails.hotelTabs}
+            hotelRatesVisible={hotelDetails.hotelRatesVisible}
+            roomCount={Number(itinerary.roomCount || 1)}
+            onTotalChange={(total) => setActiveHotelListTotal(Number(total || 0))}
+            onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
+            hotelAvailability={hotelDetails.hotelAvailability}
+            quoteId={quoteId!}
+            planId={itinerary.planId}
+            onRefresh={refreshHotelData}
+            onGroupTypeChange={handleHotelGroupTypeChange}
+            onGetSaveFunction={handleGetSaveFunction}
+            readOnly={readOnly}
+            onCreateVoucher={handleCreateVoucher}
+            onCancelVoucher={handleCancelVoucherSingle}
+            onBulkCancelVouchers={handleCancelVoucherItems}
+            onHotelSelectionsChange={handleHotelSelectionsChange}
+            pagination={hotelDetails.pagination}
+            routePagination={hotelDetails.routePagination}
+            onLoadMore={handleHotelLoadMore}
+            isLoadingMore={isLoadingMoreHotels}
+            mealPlanCode={itinerary?.meal_plan_code}
+            dayDestinationFallback={
+              itinerary?.days?.reduce<Record<number, string>>((acc, day) => {
+                const fallback = String(day.arrival || day.departure || '').trim();
+                if (fallback) {
+                  acc[Number(day.dayNumber)] = fallback;
+                }
+                return acc;
+              }, {}) || {}
+            }
+          />
+        </div>
       )}
 
       {/* Vehicle List (grouped by vehicle type) */}
-      {itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
+      {shouldShowVehicles && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
         // Group vehicles by vehicleTypeId
         const vehiclesByType = new Map<number, typeof itinerary.vehicles>();
         const typeOrder: number[] = [];
-        
+
         for (const vehicle of itinerary.vehicles) {
           const typeId = vehicle.vehicleTypeId || 0;
           if (!vehiclesByType.has(typeId)) {
@@ -3657,29 +7574,81 @@ if (error || !itinerary) {
           destination: day.departure || "",
           label: `Day ${day.dayNumber} - ${day.date ? new Date(day.date).toLocaleDateString('en-GB', { month: 'short', day: '2-digit' }) : ""}`,
         })) || [];
-        
+
         return (
-          <>
+          <div ref={vehicleListRef} id="vehicle-list-section">
             {typeOrder.map((typeId) => {
               const vehiclesForType = vehiclesByType.get(typeId) || [];
               const firstVehicle = vehiclesForType[0];
               const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
-              
+
               return (
                 <VehicleList
                   key={typeId}
+                  vehicleTypeId={typeId}
                   vehicleTypeLabel={vehicleTypeLabel}
                   vehicles={vehiclesForType}
                   itineraryPlanId={itinerary.planId}
                   onRefresh={refreshVehicleData}
+                  onSelectedTotalChange={handleVehicleSelectedTotalChange}
                   dateRange={dateRange}
                   routes={routes}
                 />
               );
             })}
-          </>
+          </div>
         );
       })()}
+
+      {shouldShowVehicles && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+        <div ref={vehicleListRef} id="vehicle-list-section">
+          <Card className="border border-[#e5d9f2] bg-white">
+            <CardContent className="py-10 px-6">
+              {(vehicleBuildStatus?.status === "PENDING" ||
+                vehicleBuildStatus?.status === "PROCESSING" ||
+                !vehicleBuildStatus) && (
+                <div className="flex items-center justify-center gap-3 text-[#6c6c6c]">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+                  <span>Building vehicle list. Please wait...</span>
+                </div>
+              )}
+
+              {vehicleBuildStatus?.status === "FAILED" && (
+                <div className="flex flex-col items-center gap-3 text-center text-[#6c6c6c]">
+                  <div className="flex items-center gap-2 text-[#c53030]">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span>Vehicle build failed.</span>
+                  </div>
+                  {vehicleBuildStatus.error && (
+                    <p className="text-xs text-[#8a8a8a] max-w-[800px] break-words">
+                      {vehicleBuildStatus.error}
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={handleRetryVehicleBuild}
+                    disabled={isRetryingVehicleBuild}
+                    className="bg-[#d546ab] hover:bg-[#bb3a94]"
+                  >
+                    {isRetryingVehicleBuild ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      "Retry Vehicle Build"
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {vehicleBuildStatus?.status === "READY" && (
+                <div className="text-center text-[#6c6c6c]">No Vehicle available</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Package Includes & Overall Cost */}
       <div className="grid lg:grid-cols-2 gap-6">
@@ -3720,163 +7689,156 @@ if (error || !itinerary) {
               OVERALL COST
             </h2>
             <div className="space-y-2 text-sm">
-              {/* Hotel Costs - Itemized */}
-              {itinerary.costBreakdown.totalRoomCost !== undefined && itinerary.costBreakdown.totalRoomCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">
-                    Total Room Cost ({itinerary.costBreakdown.hotelPaxCount || 0} pax * ₹{itinerary.costBreakdown.roomCostPerPerson?.toFixed(2) || "0.00"})
-                  </span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalRoomCost.toFixed(2)}
-                  </span>
-                </div>
-              )}
+              {/* ── Hotel Cost Group ── */}
+              {shouldShowHotels && (() => {
+                const roomTotal = Number(financialTotals.hotelAmount || 0);
+                const hotelRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
+                const roomNightsLabel = `${hotelRoomNights} room-night${hotelRoomNights > 1 ? 's' : ''}`;
+
+                return (
+                  <Popover
+                    open={isRoomCostPopoverOpen && selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible}
+                    onOpenChange={(open) => {
+                      if (!open) setIsRoomCostPopoverOpen(false);
+                    }}
+                  >
+                    <PopoverTrigger asChild>
+                      <div
+                        className="flex justify-between cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault();
+                        }}
+                        onMouseEnter={() => selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && setIsRoomCostPopoverOpen(true)}
+                        onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
+                      >
+                        <div className="flex items-center">
+                          <span className="text-[#6c6c6c]">Total Hotel Cost For ({roomNightsLabel})</span>
+                          {selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && (
+                            <span className="ml-1 inline-flex h-4 w-4 items-center justify-center text-[11px] leading-none">▶️</span>
+                          )}
+                        </div>
+                        <span className="text-[#4a4260]">₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-80 bg-white border border-[#ddd5e8] shadow-lg rounded-lg p-4"
+                      align="end"
+                      onMouseEnter={() => setIsRoomCostPopoverOpen(true)}
+                      onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
+                    >
+                      <div className="space-y-2 text-sm">
+                        {Array.from(selectedHotelMetaByRoute.entries()).map(([routeId, meta]) => (
+                          <div key={routeId} className="flex justify-between text-[#6c6c6c]">
+                            <span>{meta.hotelName}{Number(meta.noOfRooms || 1) > 1 ? ` * ${Number(meta.noOfRooms)} rooms` : ''}</span>
+                            <span className="font-medium text-[#4a4260]">₹ {Number(meta.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        ))}
+                        <div className="border-t border-[#ddd5e8] pt-2 mt-2 flex justify-between font-semibold text-[#4a4260]">
+                          <span>Total Hotel Cost</span>
+                          <span>₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                );
+              })()}
               {itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Amenities Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.extraBedCost !== undefined && itinerary.costBreakdown.extraBedCost > 0 && (
+              {(Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0) && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Extra Bed Cost ({itinerary.extraBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.extraBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.extraBedCost || 0).toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.childWithBedCost !== undefined && itinerary.costBreakdown.childWithBedCost > 0 && (
+              {(Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0) && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Child With Bed Cost ({itinerary.childWithBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.childWithBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.childWithBedCost || 0).toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Child Without Bed Cost ({itinerary.childWithoutBed || 0})</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.totalHotelAmount !== undefined && itinerary.costBreakdown.totalHotelAmount > 0 && (
-                <div className="flex justify-between font-semibold">
-                  <span className="text-[#4a4260]">Total Hotel Amount</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalHotelAmount.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              
-              {/* Vehicle Costs */}
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Vehicle cost (₹)</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalVehicleCost?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Vehicle Amount</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalVehicleAmount?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              {itinerary.costBreakdown.totalVehicleQty !== undefined && itinerary.costBreakdown.totalVehicleQty > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Vehicle Quantity</span>
-                  <span className="text-[#4a4260]">
-                    {itinerary.costBreakdown.totalVehicleQty}
-                  </span>
-                </div>
-              )}
-              
-              {/* Guide/Activity Costs */}
+
+
+              {/* ── Vehicle Cost Group ── */}
+{shouldShowVehicles && computedVehicleAmount > 0 && (
+  <div className="flex justify-between">
+    <span className="text-[#6c6c6c]">
+      Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
+    </span>
+    <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
+  </div>
+)}
+
+              {/* ── Guide / Activity / Hotspot ── */}
               {itinerary.costBreakdown.totalGuideCost !== undefined && itinerary.costBreakdown.totalGuideCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Guide Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.totalHotspotCost !== undefined && itinerary.costBreakdown.totalHotspotCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Hotspot Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalHotspotCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalHotspotCost.toFixed(2)}</span>
                 </div>
               )}
               {itinerary.costBreakdown.totalActivityCost !== undefined && itinerary.costBreakdown.totalActivityCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Total Activity Cost</span>
-                  <span className="text-[#4a4260]">
-                    ₹ {itinerary.costBreakdown.totalActivityCost.toFixed(2)}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalActivityCost.toFixed(2)}</span>
                 </div>
               )}
-              
-              {/* Final Calculations */}
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">
-                  Total Additional Margin (10%)
-                </span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.additionalMargin?.toFixed(2) ?? "0.00"}
-                </span>
+              {itinerary.costBreakdown.additionalMargin !== undefined && itinerary.costBreakdown.additionalMargin > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[#6c6c6c]">Total Additional Margin (10%)</span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.additionalMargin.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* ── Total Amount ── */}
+              <div className="border-t border-[#e5d9f2] pt-3 mt-1">
+                <div className="flex justify-between font-semibold">
+                  <span className="text-[#4a4260]">Total Amount</span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.totalAmount.toFixed(2)}</span>
+                </div>
               </div>
-              <div className="flex justify-between font-semibold">
-                <span className="text-[#4a4260]">Total Amount</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.totalAmount?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="flex justify-between text-[#d546ab]">
-                <span>Coupon Discount</span>
-                <span>- ₹ {itinerary.costBreakdown.couponDiscount?.toFixed(2) ?? "0.00"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Agent Margin</span>
-                <span className="text-[#4a4260]">
-                  ₹ {itinerary.costBreakdown.agentMargin?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              
-              {/* Agent Profit Input (for user level 4) */}
-              <div className="flex justify-between items-center bg-[#faf5ff] p-2 rounded">
-                <label htmlFor="agentProfit" className="text-[#6c6c6c] font-medium">
-                  Agent Profit:
-                </label>
-                <input
-                  type="number"
-                  id="agentProfit"
-                  placeholder="0.00"
-                  className="w-32 px-2 py-1 text-sm border border-[#e5d9f2] rounded text-right"
-                  defaultValue={0}
-                  step="0.01"
-                  min="0"
-                />
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-[#6c6c6c]">Total Round Off</span>
-                <span className="text-[#4a4260]">
-                  {itinerary.costBreakdown.totalRoundOff && itinerary.costBreakdown.totalRoundOff > 0 ? "+" : ""}
-                  ₹ {itinerary.costBreakdown.totalRoundOff?.toFixed(2) ?? "0.00"}
-                </span>
-              </div>
-              <div className="border-t-2 border-[#d546ab] pt-2 mt-2">
-                <div className="flex justify-between text-lg font-bold">
+
+              {/* ── Discounts / Adjustments (only when non-zero) ── */}
+              {(itinerary.costBreakdown.couponDiscount ?? 0) > 0 && (
+                <div className="flex justify-between text-[#d546ab]">
+                  <span>Coupon Discount</span>
+                  <span>- ₹ {itinerary.costBreakdown.couponDiscount!.toFixed(2)}</span>
+                </div>
+              )}
+              {(itinerary.costBreakdown.agentMargin ?? 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[#6c6c6c]">Agent Margin</span>
+                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.agentMargin!.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* ── Net Payable ── */}
+              <div className="border-t border-[#e5d9f2] pt-2 mt-1 space-y-1">
+                <div className="flex justify-between text-[#6c6c6c]">
+                  <span>Total Round Off</span>
+                  <span>
+                    {(financialTotals.totalRoundOff ?? 0) > 0 ? "+ " : ""}₹ {financialTotals.totalRoundOff.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-base font-bold pt-1">
                   <span className="text-[#4a4260]">
-                    Net Payable to {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
+                    Net Payable To {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
                   </span>
-                  <span className="text-[#d546ab]">
-                    ₹ {itinerary.costBreakdown.netPayable?.toFixed(2) ?? "0.00"}
-                  </span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.netPayable.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -3886,51 +7848,60 @@ if (error || !itinerary) {
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 justify-center">
-        {/* Clipboard Dropdown */}
-        <div className="relative group">
-          <Button className="bg-[#8b43d1] hover:bg-[#7c37c1]">
-            Clipboard ▼
-          </Button>
-          <div className="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                setClipboardType('recommended');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>📋</span> Copy Recommended
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                setClipboardType('highlights');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>✨</span> Copy to Highlights
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-              onClick={() => {
-                setClipboardType('para');
-                setSelectedHotels(buildDefaultClipboardSelection());
-                setClipboardModal(true);
-              }}
-            >
-              <span>📝</span> Copy to Para
-            </button>
-          </div>
-        </div>
+       {/* Clipboard Dropdown */}
+{itineraryPreference === 2 ? (
+  <Button
+    className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]"
+    onClick={handleVehicleOnlyClipboardCopy}
+  >
+    Clipboard
+  </Button>
+) : (
+  <div className="relative group">
+    <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
+      Clipboard ▼
+    </Button>
+    <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+        onClick={() => {
+          setClipboardType('recommended');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>📋</span> Copy Recommended
+      </button>
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+        onClick={() => {
+          setClipboardType('highlights');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>✨</span> Copy to Highlights
+      </button>
+      <button
+        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
+        onClick={() => {
+          setClipboardType('para');
+          setSelectedHotels(buildDefaultClipboardSelection());
+          setClipboardModal(true);
+        }}
+      >
+        <span>📝</span> Copy to Para
+      </button>
+    </div>
+  </div>
+)}
 
         <Link to="/create-itinerary">
           <Button className="bg-[#28a745] hover:bg-[#218838]">
             Create Itinerary
           </Button>
         </Link>
-        
+
         <Button
           variant="outline"
           className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
@@ -3939,21 +7910,31 @@ if (error || !itinerary) {
           <Trash2 className="mr-2 h-4 w-4" />
           Modify Itinerary
         </Button>
-        
-        <Button 
+
+        <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
           onClick={openConfirmQuotationModal}
+          disabled={isOpeningConfirmQuotation}
         >
-          <Bell className="mr-2 h-4 w-4" />
-          Confirm Quotation
+          {isOpeningConfirmQuotation ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading Prebook...
+            </>
+          ) : (
+            <>
+              <Bell className="mr-2 h-4 w-4" />
+              Confirm Quotation
+            </>
+          )}
         </Button>
 
         {/* Share Dropdown */}
         <div className="relative group">
-          <Button className="bg-[#17a2b8] hover:bg-[#138496]">
+          <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">
             Share ▼
           </Button>
-          <div className="absolute left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
             <button
               className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
               onClick={() => {
@@ -3984,6 +7965,19 @@ if (error || !itinerary) {
         </div>
       </div>
 
+      <div className="buy-now">
+        <button
+          id="scrollToTopButton"
+          type="button"
+          aria-label="Back to top"
+          title="Back to top"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-12 right-3 z-[1080] inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#7367f0] text-white shadow-[0_1px_20px_1px_#ea5455] transition-shadow hover:shadow-none"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+      </div>
+
       {/* Delete Hotspot Modal */}
       <Dialog
         open={deleteHotspotModal.open}
@@ -3995,7 +7989,7 @@ if (error || !itinerary) {
           <DialogHeader>
             <DialogTitle>Delete Hotspot</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deleteHotspotModal.hotspotName}"? 
+              Are you sure you want to delete "{deleteHotspotModal.hotspotName}"?
               This will also remove all associated activities.
             </DialogDescription>
           </DialogHeader>
@@ -4010,6 +8004,7 @@ if (error || !itinerary) {
                   routeHotspotId: null,
                   hotspotId: null,
                   hotspotName: "",
+                  hotspotWasPrebuilt: false,
                 })
               }
               disabled={isDeleting}
@@ -4075,11 +8070,10 @@ if (error || !itinerary) {
                           key={activity.id}
                           type="button"
                           onClick={() => handlePreviewActivity(activity.id)}
-                          className={`w-full rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab] focus-visible:ring-offset-2 ${
-                            activityPreview?.activity?.id === activity.id
+                          className={`w-full rounded-lg border-2 p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab] focus-visible:ring-offset-2 ${activityPreview?.activity?.id === activity.id
                               ? 'border-[#d546ab] bg-[#f7edf6]'
                               : 'border-[#e5d9f2] bg-white hover:bg-[#faf7fc]'
-                          }`}
+                            }`}
                           disabled={isAddingActivity}
                         >
                           <div className="font-semibold text-[#4a4260] text-sm">
@@ -4167,23 +8161,22 @@ if (error || !itinerary) {
                     </div>
 
                     {/* ② Hotspot Impact */}
-                    <div className={`rounded-lg border-2 p-3 ${
-                      activityPreview.hasConflicts
+                    <div className={`rounded-lg border-2 p-3 ${activityPreview.hasConflicts
                         ? 'border-red-300 bg-red-50'
                         : activityPreview.proposedTiming?.willExtendHotspot
                           ? 'border-amber-300 bg-amber-50'
                           : 'border-green-300 bg-green-50'
-                    }`}>
+                      }`}>
                       <div className="text-xs font-semibold uppercase tracking-wide mb-2">
                         <span className={
                           activityPreview.hasConflicts ? 'text-red-700'
-                          : activityPreview.proposedTiming?.willExtendHotspot ? 'text-amber-700'
-                          : 'text-green-700'
+                            : activityPreview.proposedTiming?.willExtendHotspot ? 'text-amber-700'
+                              : 'text-green-700'
                         }>
                           ② Hotspot Impact — {
                             activityPreview.hasConflicts ? '⛔ Conflict'
-                            : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
-                            : '✅ Fits within window'
+                              : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
+                                : '✅ Fits within window'
                           }
                         </span>
                       </div>
@@ -4214,18 +8207,17 @@ if (error || !itinerary) {
                         <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                           {activityPreview.cascade.affectedSegments.map((seg: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-2 text-xs py-1 border-b border-amber-100 last:border-0">
-                              <span className={`shrink-0 w-16 text-center rounded px-1 py-0.5 font-medium ${
-                                seg.type === 'travel' ? 'bg-blue-100 text-blue-700'
-                                : seg.type === 'break' ? 'bg-yellow-100 text-yellow-700'
-                                : seg.type === 'hotel' ? 'bg-purple-100 text-purple-700'
-                                : seg.type === 'return' ? 'bg-gray-100 text-gray-700'
-                                : 'bg-pink-100 text-pink-700'
-                              }`}>
+                              <span className={`shrink-0 w-16 text-center rounded px-1 py-0.5 font-medium ${seg.type === 'travel' ? 'bg-blue-100 text-blue-700'
+                                  : seg.type === 'break' ? 'bg-yellow-100 text-yellow-700'
+                                    : seg.type === 'hotel' ? 'bg-purple-100 text-purple-700'
+                                      : seg.type === 'return' ? 'bg-gray-100 text-gray-700'
+                                        : 'bg-pink-100 text-pink-700'
+                                }`}>
                                 {seg.type === 'travel' ? '🚌 Travel'
-                                : seg.type === 'break' ? '⏸ Break'
-                                : seg.type === 'hotel' ? '🏨 Hotel'
-                                : seg.type === 'return' ? '🔄 Return'
-                                : '📍 Place'}
+                                  : seg.type === 'break' ? '⏸ Break'
+                                    : seg.type === 'hotel' ? '🏨 Hotel'
+                                      : seg.type === 'return' ? '🔄 Return'
+                                        : '📍 Place'}
                               </span>
                               <span className="flex-1 font-medium text-[#4a4260] truncate">{seg.name}</span>
                               <span className="shrink-0 text-[#6c6c6c] line-through">{formatPreviewTime(seg.oldStartTime)}</span>
@@ -4349,32 +8341,53 @@ if (error || !itinerary) {
       {/* Add Hotspot Modal */}
       <Dialog
         open={addHotspotModal.open}
-        onOpenChange={(open) =>
-          setAddHotspotModal({ ...addHotspotModal, open })
-        }
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddHotspotModal({
+              open: false,
+              planId: null,
+              routeId: null,
+              locationId: null,
+              locationName: "",
+            });
+            setHotspotSearchQuery("");
+            setPreviewTimelinesByHotspot({});
+            setPreviewResolutionsByHotspot({});
+            setTempModalTimeline([]);
+            setForceReplacementApprovedByHotspot({});
+            setSelectedHotspotIds([]);
+            setIsPreviewingHotspotId(null);
+            setSelectedHotspotAnchor(null);
+            return;
+          }
+
+          setAddHotspotModal({ ...addHotspotModal, open: true });
+        }}
       >
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] flex flex-col">
+        <DialogContent className="w-[96vw] sm:max-w-5xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <DialogTitle>Hotspot List</DialogTitle>
                 <DialogDescription>
-                  Select a hotspot to add to your itinerary
+                  {selectedHotspotAnchor
+                    ? `Select a hotspot to insert after ${selectedHotspotAnchor.anchorFrom || "current"} -> ${selectedHotspotAnchor.anchorTo || "next stop"}`
+                    : "Select a hotspot to add to your itinerary"}
                 </DialogDescription>
               </div>
               <input
                 type="text"
                 placeholder="Search Hotspot..."
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm w-64"
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
                 value={hotspotSearchQuery}
                 onChange={(e) => setHotspotSearchQuery(e.target.value)}
               />
             </div>
           </DialogHeader>
           <div className="py-4 flex-1 overflow-hidden flex min-h-0">
-            <div className="flex gap-4 w-full min-h-0">
+            <div className="flex flex-col lg:flex-row gap-4 w-full min-h-0">
               {/* Left Column: Hotspot List */}
-              <div ref={hotspotListRef} className={`${selectedHotspotId ? 'w-1/2' : 'w-full'} overflow-y-auto min-h-0`}>
+              <div ref={hotspotListRef} className="w-full lg:w-1/2 overflow-y-auto min-h-0">
                 {loadingHotspots ? (
                   <p className="text-sm text-[#6c6c6c] text-center py-8">
                     Loading available hotspots...
@@ -4386,199 +8399,1096 @@ if (error || !itinerary) {
                 ) : (
                   <div className="grid grid-cols-1 gap-4">
                     {filteredHotspots.map((hotspot) => (
-                      <div
-                        key={hotspot.id}
-                        data-hotspot-id={hotspot.id}
-                        className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${selectedHotspotId === hotspot.id ? 'ring-2 ring-[#d546ab]' : ''}`}
-                      >
-                        <div className="p-4">
-                          <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-semibold text-base text-[#4a4260] flex items-center gap-2">
-                              {hotspot.name}
-                              {hotspot.visitAgain && (
-                                <span className="text-[9px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded whitespace-nowrap">
-                                  Visit Again
-                                </span>
-                              )}
-                              {excludedHotspotIds.includes(hotspot.id) && (
-                                <span className="text-[9px] font-bold text-white bg-orange-500 px-2 py-0.5 rounded whitespace-nowrap">
-                                  Deleted from timeline
-                                </span>
-                              )}
-                              {selectedHotspotId === hotspot.id && (
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${
-                                  previewTimeline?.some(seg => seg.isConflict && Number(seg.locationId) === hotspot.id) 
-                                    ? 'bg-red-100 text-red-700' 
-                                    : 'bg-green-100 text-green-700'
-                                }`}>
-                                  {previewTimeline?.some(seg => seg.isConflict && Number(seg.locationId) === hotspot.id) ? 'Conflict' : 'Selected'}
-                                </span>
-                              )}
-                            </h4>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={selectedHotspotId === hotspot.id ? "outline" : "default"}
-                                className={selectedHotspotId === hotspot.id ? "border-gray-300" : "bg-[#d546ab] hover:bg-[#b93a8f] text-white"}
-                                onClick={() => handlePreviewHotspot(hotspot.id)}
-                                disabled={isPreviewing && selectedHotspotId === hotspot.id}
-                              >
-                                {isPreviewing && selectedHotspotId === hotspot.id ? (
-                                  <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Previewing...
-                                  </>
-                                ) : selectedHotspotId === hotspot.id ? (
-                                  "Refresh Preview"
-                                ) : (
-                                  "Preview"
+                      (() => {
+                        const isSelected = Number(activePreviewHotspotId || 0) === Number(hotspot.id);
+                        const hotspotId = Number(hotspot.id);
+                        const backendStatus = String(hotspot.availabilityStatus || '').trim().toUpperCase();
+                        const availabilityReason = String(hotspot.availabilityReason || '').trim().toLowerCase();
+
+                        const isDeletedFromTimeline =
+                          excludedHotspotIds.map(Number).includes(hotspotId) ||
+                          backendStatus === 'EXCLUDED_BY_ROUTE' ||
+                          availabilityReason.includes('excluded for this route') ||
+                          availabilityReason.includes('currently excluded');
+
+                        const isActuallyInCurrentTimeline =
+                          currentRouteAttractionHotspotIds.has(hotspotId) ||
+                          addedInModalHotspotIds.has(hotspotId);
+                        const isAdded =
+                          isActuallyInCurrentTimeline ||
+                          (
+                            !isDeletedFromTimeline &&
+                            (
+                              hotspot.alreadyAdded === true ||
+                              backendStatus === 'ACTIVE_THIS_ROUTE'
+                            )
+                          );
+                        const isAlsoOnOtherRoute = backendStatus === 'ACTIVE_OTHER_ROUTE';
+                        const isActionDisabled =
+                          isAdded ||
+                          (
+                            hotspot.actionDisabled === true &&
+                            !isDeletedFromTimeline
+                          );
+                        const hotspotTimeline = previewTimelinesByHotspot[hotspot.id] || [];
+                        const hasConflict = hotspotTimeline.some(
+                          (seg: any) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
+                        );
+                        const isLoadingThis = isPreviewingHotspotId === hotspot.id;
+
+                        return (
+                          <div
+                            key={hotspot.id}
+                            data-hotspot-id={hotspot.id}
+                            className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${isSelected ? 'ring-2 ring-[#d546ab]' : ''}`}
+                          >
+                            <div className="p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <h4 className="font-semibold text-base text-[#4a4260] flex items-center gap-2">
+                                  {hotspot.name}
+                                  {hotspot.visitAgain && (
+                                    <span className="text-[9px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded whitespace-nowrap">
+                                      Visit Again
+                                    </span>
+                                  )}
+                                  {isDeletedFromTimeline && (
+                                    <span className="text-[9px] font-bold text-white bg-orange-500 px-2 py-0.5 rounded whitespace-nowrap">
+                                      Deleted from timeline
+                                    </span>
+                                  )}
+                                  {isSelected && (
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${hasConflict
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-green-100 text-green-700'
+                                      }`}>
+                                      {hasConflict ? 'Conflict' : 'Selected'}
+                                    </span>
+                                  )}
+                                  {isAdded && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-green-100 text-green-700">
+                                      Added
+                                    </span>
+                                  )}
+                                  {isAlsoOnOtherRoute && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-blue-100 text-blue-800">
+                                      Also used on another day
+                                    </span>
+                                  )}
+                                </h4>
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant={isSelected ? "outline" : "default"}
+                                    className={isSelected ? "border-gray-300" : "bg-[#d546ab] hover:bg-[#b93a8f] text-white"}
+                                    onClick={() => {
+                                      if (isActionDisabled) return;
+                                      handlePreviewHotspot(hotspot.id);
+                                    }}
+                                    disabled={isLoadingThis || isActionDisabled || isBuildingMatrix || isApplyingPreviewHotspot}
+                                  >
+                                    {isLoadingThis ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Previewing...
+                                      </>
+                                    ) : isAdded ? (
+                                      "Added"
+                                    ) : isSelected ? (
+                                      "Refresh"
+                                    ) : isDeletedFromTimeline ? (
+                                      "Preview"
+                                    ) : (
+                                      hotspot.buttonLabel || "Preview"
+                                    )}
+                                  </Button>
+                                  {isSelected && !isAdded && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => handleRemovePreviewHotspot(hotspot.id)}
+                                      disabled={isLoadingThis}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                      Remove
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-2">
+                                {hotspot.description}
+                              </p>
+                              <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+                                {String(hotspot.availabilityReason || '').trim().length > 0 && (
+                                  <span className="text-[11px] text-[#4a4260]">
+                                    {hotspot.availabilityReason}
+                                  </span>
                                 )}
-                              </Button>
+                                {hotspot.amount > 0 && (
+                                  <span className="flex items-center">
+                                    <Ticket className="h-3 w-3 mr-1" />
+                                    ₹ {hotspot.amount.toFixed(2)}
+                                  </span>
+                                )}
+                                {hotspot.timeSpend > 0 && (
+                                  <span className="flex items-center">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {hotspot.timeSpend} hrs
+                                  </span>
+                                )}
+                                {hotspot.timings && (
+                                  <span className="flex items-center">
+                                    <Timer className="h-3 w-3 mr-1" />
+                                    {hotspot.timings}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-2">
-                            {hotspot.description}
-                          </p>
-                          <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                            {hotspot.amount > 0 && (
-                              <span className="flex items-center">
-                                <Ticket className="h-3 w-3 mr-1" />
-                                ₹ {hotspot.amount.toFixed(2)}
-                              </span>
-                            )}
-                            {hotspot.timeSpend > 0 && (
-                              <span className="flex items-center">
-                                <Clock className="h-3 w-3 mr-1" />
-                                {hotspot.timeSpend} hrs
-                              </span>
-                            )}
-                            {hotspot.timings && (
-                              <span className="flex items-center">
-                                <Timer className="h-3 w-3 mr-1" />
-                                {hotspot.timings}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()
                     ))}
                   </div>
                 )}
               </div>
 
               {/* Right Column: Preview */}
-              {selectedHotspotId && (
-                <div className="w-1/2 border-l pl-4 flex flex-col overflow-hidden min-h-0">
-                  <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
-                    <Clock className="h-4 w-4" />
-                    Proposed Timeline
-                  </h3>
-                  <div ref={timelinePreviewRef} className="flex-1 space-y-3 overflow-y-auto min-h-0">
-                    {isPreviewing ? (
-                      <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c]">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
-                        <p className="text-sm">Calculating best slot...</p>
+              <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-y-auto min-h-0 pr-1">
+                <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
+                  <Clock className="h-4 w-4" />
+                  Proposed Timeline
+                </h3>
+                {(selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot) && (
+                  <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
+                    <p className="text-xs text-[#6c6c6c]">
+                      {isMatrixMissingBlockedState
+                        ? 'Route-fit matrix data missing'
+                        : isMatrixBuiltButNoFeasibleSlot
+                          ? 'Matrix data built, but not on the way'
+                          : (bestInsertionSlot ? 'Best Insert Slot' : 'Requested Insert Slot')}
+                    </p>
+                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot ? (
+                      <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
+                        {bestInsertionSlot?.slot || (
+                          <>
+                            {(selectedHotspotAnchor?.anchorFrom || 'Current stop')}
+                            {' -> '}
+                            {(selectedHotspotAnchor?.anchorTo || 'Next stop')}
+                            {selectedHotspotAnchor?.anchorTimeRange ? ` (${selectedHotspotAnchor.anchorTimeRange})` : ''}
+                          </>
+                        )}
+                      </p>
+                    ) : isMatrixMissingBlockedState ? (
+                      <p className="text-sm font-semibold text-red-700 mt-0.5">
+                        Cannot preview accurate insertion until matrix data is built.
+                      </p>
+                    ) : (
+                      <p className="text-sm font-semibold text-orange-700 mt-0.5">
+                        This hotspot is off-route or backtracking for all current route segments.
+                      </p>
+                    )}
+
+                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activePreviewResolution?.anchorPreference?.honored === false && (
+                      <p className="text-xs text-amber-700 mt-1">
+                        Auto-moved away from the requested segment to the lower-detour feasible slot.
+                      </p>
+                    )}
+
+                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activeAnchorFitInsight && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            activeAnchorFitInsight.tone === 'green'
+                              ? 'bg-green-100 text-green-700'
+                              : activeAnchorFitInsight.tone === 'red'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {activeAnchorFitInsight.label}
+                        </span>
+                        {activeAnchorFitInsight.extraDistanceLabel && (
+                          <span className="text-xs font-semibold text-[#4a4260]">
+                            {activeAnchorFitInsight.extraDistanceLabel}
+                          </span>
+                        )}
+                        {activeAnchorFitInsight.anchorLegLabel && (
+                          <span className="text-xs text-[#6c6c6c]">
+                            Anchor leg: {activeAnchorFitInsight.anchorLegLabel}
+                          </span>
+                        )}
                       </div>
-                    ) : previewTimeline ? (
-                      <>
-                        {previewTimeline.map((seg, idx) => {
-                          const isSelected = seg.type === 'attraction' && Number(seg.locationId) === Number(selectedHotspotId);
+                    )}
+
+                    {isMatrixMissingBlockedState && (
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2">
+                        <p className="text-xs text-red-700 leading-4">
+                          Cannot preview this manual insertion accurately because route-fit matrix data is missing for the selected hotspot against the current route.
+                        </p>
+                        {activePreviewHotspotId ? (
+                          <Button
+                            type="button"
+                            className="mt-2 bg-[#d546ab] hover:bg-[#b93a8f] text-white"
+                            disabled={isBuildingMatrix || isPreviewingHotspotId === activePreviewHotspotId || isApplyingPreviewHotspot}
+                            onClick={handleBuildMatrixAndPreviewAgain}
+                          >
+                            {isBuildingMatrix ? 'Building matrix...' : 'Build Matrix & Preview Again'}
+                          </Button>
+                        ) : null}
+                        {String(matrixBuildSuggestion?.command || '').trim().length > 0 && (
+                          <p className="text-[11px] text-red-800 font-mono mt-2 break-all">
+                            {String(matrixBuildSuggestion.command)}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {isMatrixBuiltButNoFeasibleSlot && (
+                      <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 p-2">
+                        <p className="text-xs text-orange-700 leading-4">
+                          Matrix data exists for this hotspot, but it falls off-route or requires backtracking for all current route segments.
+                        </p>
+                        {Array.isArray(safeMatrixSlots) && safeMatrixSlots.length > 0 && (
+                          <div className="mt-2 text-xs text-orange-700">
+                            <p className="font-semibold text-orange-800 mb-1">Insertion attempts:</p>
+                            <ul className="space-y-1 pl-3">
+                              {safeMatrixSlots.slice(0, 5).map((slot: any, idx: number) => (
+                                <li key={idx} className="list-disc">
+                                  {slot.fromName} → {slot.toName}:{' '}
+                                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${routeFitBadgeClass(slot.routeFitType)}`}>
+                                    {slot.label || slot.routeFitType}
+                                  </span>
+                                </li>
+                              ))}
+                              {safeMatrixSlots.length > 5 && (
+                                <li className="text-orange-600">+{safeMatrixSlots.length - 5} more</li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {!pendingPriorityReplacementHotspotId && (
+                  <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
+                      <div className="p-3 rounded-xl border border-red-200 bg-red-50 shadow-sm">
+                        <p className="text-sm font-bold text-red-800">Selected hotspot does not fit the rebuilt slot</p>
+                        <p className="text-xs text-red-700 mt-1 leading-4 line-clamp-2">
+                          {activePreviewValidation?.reason || "The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot."}
+                        </p>
+                        {selectedHotspotAnchor ? (
+                          <p className="text-xs text-red-700 mt-2 leading-4">
+                            Attempted insertion slot:{' '}
+                            <span className="font-semibold">
+                              {(selectedHotspotAnchor.anchorFrom || 'Current stop')}
+                              {' -> '}
+                              {(selectedHotspotAnchor.anchorTo || 'Next stop')}
+                            </span>
+                            {selectedHotspotAnchor.anchorTimeRange ? ` (${selectedHotspotAnchor.anchorTimeRange})` : ''}
+                          </p>
+                        ) : null}
+                        {Array.isArray(activePreviewResolution?.unscheduledManualHotspots)
+                        && activePreviewResolution.unscheduledManualHotspots.length > 0 ? (
+                          <div className="mt-2 text-xs text-red-700 leading-4">
+                            <p className="font-semibold text-red-800">Could not schedule:</p>
+                            <ul className="mt-1 list-disc pl-4 space-y-1">
+                              {activePreviewResolution.unscheduledManualHotspots
+                                .slice(0, 3)
+                                .map((row: any, idx: number) => (
+                                  <li key={`unscheduled-manual-${Number(row?.id || 0)}-${idx}`}>
+                                    <span className="font-semibold">{row?.name || `Hotspot ${row?.id || ''}`}</span>
+                                    {row?.reason ? `: ${row.reason}` : ''}
+                                  </li>
+                                ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                        {(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
+                          && activePreviewResolution.removedOptionalHotspots.length > 0)
+                        || (Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
+                          && activePreviewResolution.removedTopPriorityHotspots.length > 0) ? (
+                          <div className="mt-2 text-xs text-red-700 leading-4">
+                            <p className="font-semibold text-red-800">Removed while trying to fit:</p>
+                            <p className="mt-1 font-medium">
+                              {[
+                                ...(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
+                                  ? activePreviewResolution.removedOptionalHotspots
+                                  : []),
+                                ...(Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
+                                  ? activePreviewResolution.removedTopPriorityHotspots
+                                  : []),
+                              ]
+                                .map((row: any) => row?.name)
+                                .filter(Boolean)
+                                .join(', ')}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-red-700 mt-2 leading-4">
+                            No more removable optional hotspots are available in this slot.
+                          </p>
+                        )}
+                        <p className="text-xs text-red-700 mt-1 font-medium leading-4">
+                          Use confirm below to insert it as conflict.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {Array.isArray(activePreviewResolution?.removedOptionalHotspots) && activePreviewResolution.removedOptionalHotspots.length > 0 ? (
+                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
+                        <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
+                        <p className="text-xs text-amber-700 mt-1 leading-4">
+                          To fit your selected hotspot(s), these optional hotspots will be removed:
+                        </p>
+                        <p className="text-xs text-amber-800 mt-1 font-semibold leading-4 line-clamp-2">
+                          {activePreviewResolution.removedOptionalHotspots
+                            .map((row: any) => row?.name)
+                            .filter(Boolean)
+                            .join(', ')}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+                <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
+                  {isPreviewingHotspotId ? (
+                    <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
+                      <p className="text-sm">Calculating selected slot...</p>
+                    </div>
+                  ) : null}
+
+                  {effectivePreviewTimeline.length > 0 ? (
+                    <>
+                      {/* Rescheduling Applied Banner */}
+                      {manualInsertionFit?.rescheduleApplied === true && (
+                        <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
+                          <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
+                          <p className="text-xs text-blue-800 mt-1">
+                            Route-fit is feasible. Timeline rows below B have been shifted forward accordingly.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Day End Overflow — only show if no resolved removal plan replaces it */}
+                      {manualInsertionFit?.exceedsDayEnd === true &&
+                        (manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved !== true && (
+                        <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
+                          <p className="font-semibold text-amber-900">⚠ Timeline exceeds day end.</p>
+                          <p className="text-xs text-amber-800 mt-1">
+                            Final hotel check-in would exceed day end by {manualInsertionFit?.dayOverflowMinutes || 0} minutes.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Low-priority removal plan — resolved case */}
+                      {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
+                        <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
+                          <p className="font-semibold text-orange-900">Overflow resolved by removing lower-priority hotspots.</p>
+                          <p className="text-xs text-orange-700 mt-1 leading-4">
+                            To fit this manual hotspot and keep hotel check-in before 8:00 PM, these lower-priority hotspots will be removed:
+                          </p>
+                          {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
+                            (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
+                            <ul className="mt-2 space-y-1">
+                              {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row: any, ri: number) => (
+                                <li key={ri} className="text-xs text-orange-900 leading-4">
+                                  <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
+                                  {row?.priority ? <span className="ml-1 text-orange-700">(P{row.priority})</span> : null}
+                                  {row?.reason ? <span className="text-orange-700"> {'—'} {row.reason}</span> : null}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <p className="text-xs text-orange-800 mt-2 font-medium leading-4">
+                            The preview below already shows the final resolved timeline after these stops are removed.
+                          </p>
+                          {import.meta.env.DEV && resolvedRemovalTimelineLeak && (
+                            <p className="text-xs text-red-700 mt-2 font-semibold leading-4">
+                              BUG: resolved-removal timeline still contains planned removals.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {effectivePreviewTimeline.map((seg: any, idx: number) => {
+                        const isUserSelected = seg?.isUserSelectedPreview === true;
+                        const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
+                        const hotspotId = Number(seg?.locationId || seg?.hotspot_ID || seg?.hotspotId || selectedId || 0);
+                        const hotspotMeta = previewHotspotMetaById.get(hotspotId) || null;
+                        const activityVisitTime = seg?.visitTime || seg?.timeRange || hotspotMeta?.visitTime || null;
+                        const activityDuration = seg?.duration || hotspotMeta?.duration || null;
+                        const activityTimings = seg?.timings || hotspotMeta?.timings || null;
+                        const activityPriority = Number.isFinite(Number(seg?.priority))
+                          ? Number(seg.priority)
+                          : (Number.isFinite(Number(hotspotMeta?.priority)) ? Number(hotspotMeta?.priority) : null);
+                        
+                        // ✅ FIX: Manual hotspots should display as "Manual / P4", never P0
+                        const computedPriorityLabel = (): string | null => {
+                          const isManual = seg?.planOwnWay === true || seg?.isManual === true;
+                          const priority = activityPriority;
+                          
+                          if (isManual) {
+                            return "Manual / P4";
+                          }
+                          
+                          if (priority !== null && priority > 0) {
+                            return `P${priority}`;
+                          }
+                          
+                          return null;
+                        };
+                        
+                        const priorityLabel = computedPriorityLabel();
+
+                        // ✅ FIX: Handle waiting/break synthetic segments
+                        const isWaitingSegment = seg?.type === 'waiting' || seg?.isSyntheticWaiting === true;
+                        const travelToLabel = String(
+                          seg?.toName
+                          || seg?.displayToName
+                          || seg?.to
+                          || extractTravelToFromText(seg?.text || seg?.name)
+                          || '',
+                        ).trim();
+                        const displaySegmentText = String(seg?.type || '').toLowerCase() === 'travel'
+                          ? (travelToLabel ? `Travel to ${travelToLabel}` : (seg?.text || seg?.name || 'Travel'))
+                          : (seg?.text || seg?.name || '');
+                        const selectedConflictByMatrix =
+                          isUserSelected
+                          && seg?.isMatrixPositioned === true
+                          && (seg?.isConflict === true || String(seg?.conflictReason || '').length > 0);
+                        const displayTimeRange = selectedConflictByMatrix
+                          ? 'Needs reschedule'
+                          : (seg?.timeRange || '--');
+                        
+                        // ✅ FIX: Handle hotel check-in zero-duration segments
+                        const isZeroDurationHotel = seg?.isZeroDurationHotel === true || 
+                          (seg?.type === 'hotel' && seg?.timeRange && seg.timeRange.split(' - ').length === 2 && 
+                           seg.timeRange.split(' - ')[0].trim() === seg.timeRange.split(' - ')[1].trim());
+                        
+                        // If waiting segment, render a distinct waiting block
+                        if (isWaitingSegment) {
                           return (
-                            <div 
-                              key={idx} 
-                              data-selected={isSelected ? "true" : "false"}
-                              className={`p-3 rounded-lg border-2 transition-all ${
-                                seg.isConflict 
-                                  ? 'bg-red-50 border-red-300 shadow-sm' 
-                                  : isSelected
-                                    ? 'bg-green-50 border-green-500 ring-2 ring-green-200 shadow-md scale-[1.02]'
-                                    : 'bg-gray-50 border-gray-200 opacity-80'
-                              }`}
+                            <div
+                              key={`${idx}-waiting`}
+                              className="p-3 rounded-lg border-2 border-orange-200 bg-orange-50 transition-all"
                             >
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
-                                    seg.type === 'travel' ? 'bg-blue-100 text-blue-700' : 
-                                    seg.type === 'hotspot' ? 'bg-purple-100 text-purple-700' : 
-                                    'bg-gray-200 text-gray-700'
-                                  }`}>
-                                    {seg.type}
+                              <div className="flex justify-between items-start mb-1 gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-orange-200 text-orange-800">
+                                    ⏳ waiting
                                   </span>
                                   <span className="text-xs font-bold text-[#4a4260]">
-                                    {seg.timeRange}
+                                    {seg?.timeRange || '--'}
                                   </span>
                                 </div>
-                                {seg.isConflict ? (
+                              </div>
+                              <p className="text-sm font-bold text-orange-700">{seg?.text || 'Waiting'}</p>
+                              {seg?.reason && (
+                                <p className="text-xs text-orange-600 mt-1">{seg.reason}</p>
+                              )}
+                              {seg?.gapMinutes > 0 && (
+                                <p className="text-xs text-orange-500 mt-1">
+                                  Gap: {Math.floor(seg.gapMinutes / 60) > 0 ? `${Math.floor(seg.gapMinutes / 60)}h ` : ''}{seg.gapMinutes % 60}min
+                                </p>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={`${idx}-${seg?.type}-${seg?.text || ''}`}
+                            data-selected={isUserSelected ? "true" : "false"}
+                            className={`p-3 rounded-lg border-2 transition-all ${seg?.isConflict
+                                ? 'bg-red-50 border-red-300 shadow-sm'
+                                : isUserSelected
+                                  ? 'bg-green-50 border-green-500 ring-2 ring-green-200 shadow-md scale-[1.02]'
+                                  : 'bg-gray-50 border-gray-200 opacity-90'
+                              }`}
+                          >
+                            <div className="flex justify-between items-start mb-1 gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${seg?.type === 'travel' ? 'bg-blue-100 text-blue-700'
+                                    : seg?.type === 'attraction' ? 'bg-green-100 text-green-700'
+                                      : 'bg-gray-200 text-gray-700'
+                                  }`}>
+                                  {seg?.type || 'item'}
+                                </span>
+                                <span className="text-xs font-bold text-[#4a4260]">
+                                  {displayTimeRange}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {seg?.isConflict ? (
                                   <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded">
                                     <AlertTriangle className="h-3 w-3" />
                                     Conflict
                                   </span>
-                                ) : isSelected ? (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase bg-green-100 px-2 py-0.5 rounded animate-pulse">
+                                ) : isUserSelected ? (
+                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase bg-green-100 px-2 py-0.5 rounded">
                                     <Plus className="h-3 w-3" />
                                     New
                                   </span>
                                 ) : null}
+
+                                {isUserSelected && selectedId > 0 && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleRemovePreviewHotspot(selectedId)}
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Remove
+                                  </Button>
+                                )}
                               </div>
-                              <p className={`text-sm font-bold ${isSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
-                                {seg.text}
-                              </p>
-                              {seg.isConflict && (
-                                <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
-                                  <p className="text-xs text-red-600 font-medium leading-tight">
-                                    {seg.conflictReason}
-                                  </p>
-                                </div>
-                              )}
                             </div>
-                          );
-                        })}
-                        <div className="pt-4 sticky bottom-0 bg-white">
-                          <Button 
-                            className="w-full bg-green-600 hover:bg-green-700 text-white shadow-lg"
-                            onClick={() => handleAddHotspot(selectedHotspotId)}
-                            disabled={isAddingHotspot}
-                          >
-                            {isAddingHotspot ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Adding...
-                              </>
-                            ) : (
-                              "Confirm Add to Itinerary"
+
+                            <p className={`text-sm font-bold ${isUserSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
+                              {/* ✅ FIX: Hotel zero-duration shows check-in label, not "Hotel Stay 8:00 PM - 8:00 PM" */}
+                              {isZeroDurationHotel ? (
+                                <>Check-in at Hotel <span className="text-purple-600">{seg?.timeRange?.split(' - ')[0]}</span></>
+                              ) : (
+                                displaySegmentText
+                              )}
+                            </p>
+
+                            {/* Display distance and duration for matrix split travel rows */}
+                            {seg?.isMatrixSplitTravel === true && (
+                              <div className="mt-2 text-xs text-gray-600 space-y-0.5">
+                                {(seg?.fromName || seg?.toName) && (
+                                  <p>Route leg: {seg?.fromName || 'A'} → {seg?.toName || 'B'}</p>
+                                )}
+                                {seg?.matrixDistanceKm != null && (
+                                  <p>Distance: {Number(seg.matrixDistanceKm).toFixed(1)} km</p>
+                                )}
+                                {seg?.matrixDurationMin != null && (
+                                  <p>Duration: {Math.max(1, Math.round(Number(seg.matrixDurationMin)))} min</p>
+                                )}
+                              </div>
                             )}
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c] border-2 border-dashed rounded-lg">
-                        <p className="text-sm">Select a hotspot to see the preview</p>
+
+                            {isUserSelected && String(seg?.type || '').toLowerCase() === 'attraction' && (
+                              <div className="mt-3 space-y-2">
+                                {/* ── manualInsertionFit: Best slot panel ── */}
+                                {!matrixRequiresBuild && effectiveFitSlot && (
+                                  <div className="border border-blue-200 bg-blue-50 p-3 rounded-lg text-sm">
+                                    <p className="font-bold text-blue-900 text-[11px] mb-1.5 uppercase tracking-wide">Best insertion slot</p>
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-semibold text-gray-800 truncate">
+                                          {effectiveFitSlot.fromName} → {effectiveFitSlot.toName}
+                                        </p>
+                                        {effectiveFitSlot.roadDetourKm != null && (
+                                          <p className="text-[10px] text-gray-600 mt-0.5">
+                                            Extra distance: +{Number(effectiveFitSlot.roadDetourKm).toFixed(1)} km
+                                          </p>
+                                        )}
+                                        {effectiveFitSlot.finalDecisionReason && (
+                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">Final reason: {effectiveFitSlot.finalDecisionReason}</p>
+                                        )}
+                                        {!effectiveFitSlot.finalDecisionReason && effectiveFitSlot.decisionReason && (
+                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">{effectiveFitSlot.decisionReason}</p>
+                                        )}
+                                      </div>
+                                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${routeFitBadgeClass(effectiveFitSlot.routeFitType)}`}>
+                                        {effectiveFitSlot.displayLabel || effectiveFitSlot.label}
+                                      </span>
+                                    </div>
+                                    {effectiveFitSlot?.distanceComparisonNote && (
+                                      <p className="text-[10px] text-blue-700 mt-1">Note: {effectiveFitSlot.distanceComparisonNote}</p>
+                                    )}
+                                    {/* Requested slot if different */}
+                                    {matrixFit?.requestedSlot && matrixFit.requestedSlot.routeFitType === 'MATRIX_UNAVAILABLE' && (
+                                      <div className="mt-2 pt-2 border-t border-blue-200">
+                                        <p className="text-[10px] font-semibold text-gray-500 mb-0.5">Requested slot:</p>
+                                        <p className="text-[10px] text-gray-600">
+                                          {matrixFit.requestedSlot.fromName} → {matrixFit.requestedSlot.toName}
+                                        </p>
+                                        <span className="text-[10px] text-gray-400 italic">{matrixFit.requestedSlot.label}</span>
+                                      </div>
+                                    )}
+                                    {matrixFit?.warning && (
+                                      <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1">
+                                        ⚠ {matrixFit.warning}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Inserted hotspot route summary */}
+                                {seg?.matrixFit?.routeLegSummary && (
+                                  <div className="border border-emerald-200 bg-emerald-50 p-3 rounded-lg text-xs text-emerald-900 space-y-1">
+                                    <p className="font-semibold">Route summary:</p>
+                                    <p>
+                                      {effectiveFitSlot?.fromName || seg?.matrixFit?.fromName || 'A'} → {seg?.text || seg?.name || 'Inserted hotspot'}:{' '}
+                                      {seg?.matrixFit?.routeLegSummary?.acDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.acDistanceKm).toFixed(1)} km` : '--'}
+                                      {' / '}
+                                      {seg?.matrixFit?.routeLegSummary?.acDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.acDurationMin)))} min` : '--'}
+                                    </p>
+                                    <p>
+                                      {seg?.text || seg?.name || 'Inserted hotspot'} → {effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B'}:{' '}
+                                      {seg?.matrixFit?.routeLegSummary?.cbDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.cbDistanceKm).toFixed(1)} km` : '--'}
+                                      {' / '}
+                                      {seg?.matrixFit?.routeLegSummary?.cbDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.cbDurationMin)))} min` : '--'}
+                                    </p>
+                                    <p>
+                                      Via total: {seg?.matrixFit?.routeLegSummary?.viaDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.viaDistanceKm).toFixed(1)} km` : '--'}
+                                    </p>
+                                    <p>
+                                      Direct: {seg?.matrixFit?.routeLegSummary?.directDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.directDistanceKm).toFixed(1)} km` : '--'}
+                                    </p>
+                                    <p>
+                                      Extra: +{seg?.matrixFit?.routeLegSummary?.extraDistanceKm != null ? Number(Math.max(0, Number(seg.matrixFit.routeLegSummary.extraDistanceKm))).toFixed(1) : '--'} km
+                                    </p>
+                                    {seg?.matrixFit?.distanceComparisonNote && (
+                                      <p className="text-emerald-800">Note: {seg.matrixFit.distanceComparisonNote}</p>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Show all insertion slots */}
+                                {normalizedInsertionSlots.length > 0 && (
+                                  <div className="border border-purple-200 bg-purple-50 p-3 rounded-lg text-sm space-y-2">
+                                    <p className="font-bold text-purple-900 text-xs">
+                                      All insertion attempts ({normalizedInsertionSlots.length}):
+                                    </p>
+                                    {normalizedInsertionSlots.map((slotOption: any, slotIdx: number) => {
+                                      const isBest = slotOption?.selectedAsBest === true || slotOption?.isBest === true;
+                                      const fits = slotOption?.fitsOverall !== false;
+                                      const fitLabel: string = slotOption.displayLabel || slotOption.routeFitLabel || slotOption.label || slotOption.routeFitType || (fits ? 'On route' : 'Off route');
+                                      const badgeClass: string = routeFitBadgeClass(slotOption.routeFitType);
+
+                                      const detourKm: number | null = slotOption?.roadDetourKm != null
+                                        ? Number(slotOption.roadDetourKm)
+                                        : (slotOption?.distanceDelta != null ? Number(slotOption.distanceDelta) : null);
+                                      const displayDetourKm: number | null = detourKm != null
+                                        ? Math.max(0, Number.isFinite(detourKm) ? detourKm : 0)
+                                        : null;
+                                      const abKm: number | null = slotOption?.abOsrmDistanceKm != null
+                                        ? Number(slotOption.abOsrmDistanceKm)
+                                        : null;
+                                      const viaKm: number | null = slotOption?.insertedRouteDistanceKm != null
+                                        ? Number(slotOption.insertedRouteDistanceKm)
+                                        : null;
+
+                                      return (
+                                        <div
+                                          key={slotIdx}
+                                          className={`rounded-lg border px-3 py-2 ${
+                                            isBest
+                                              ? 'border-green-400 bg-green-50'
+                                              : fits
+                                                ? 'border-gray-200 bg-white'
+                                                : 'border-red-200 bg-red-50 opacity-80'
+                                          }`}
+                                        >
+                                          {/* Slot header */}
+                                          <div className="flex items-start justify-between gap-2">
+                                            <span className={`text-xs font-semibold flex-1 truncate ${isBest ? 'text-green-800' : 'text-gray-800'}`}>
+                                              {isBest ? '⭐ ' : `${slotIdx + 1}. `}
+                                              {slotOption?.fromName} → {slotOption?.toName}
+                                            </span>
+                                            <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeClass}`}>
+                                              {fitLabel}
+                                            </span>
+                                          </div>
+
+                                          {(abKm != null || viaKm != null || detourKm != null) && (
+                                            <div className="mt-1.5 grid grid-cols-3 gap-x-2 text-[10px] text-gray-600 bg-gray-50 rounded px-2 py-1">
+                                              {abKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">A→B direct</span>
+                                                  <span className="font-semibold text-gray-700">{abKm.toFixed(1)} km</span>
+                                                </div>
+                                              )}
+                                              {viaKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">Via hotspot</span>
+                                                  <span className="font-semibold text-gray-700">{viaKm.toFixed(1)} km</span>
+                                                </div>
+                                              )}
+                                              {displayDetourKm != null && (
+                                                <div>
+                                                  <span className="block text-gray-400">Extra</span>
+                                                  <span className={`font-bold ${displayDetourKm <= 0.5 ? 'text-green-600' : displayDetourKm <= 5 ? 'text-yellow-700' : 'text-red-600'}`}>
+                                                    +{displayDetourKm.toFixed(1)} km
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+
+                                          {slotOption?.distanceComparisonNote && (
+                                            <p className="mt-0.5 text-[10px] text-blue-700">Note: {slotOption.distanceComparisonNote}</p>
+                                          )}
+
+                                          {/* Decision reason */}
+                                          {slotOption?.routeDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-gray-500 italic">{slotOption.routeDecisionReason}</p>
+                                          )}
+
+                                          {slotOption?.timingDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-gray-500 italic">Timing reason: {slotOption.timingDecisionReason}</p>
+                                          )}
+
+                                          {slotOption?.finalDecisionReason && (
+                                            <p className={`mt-0.5 text-[10px] italic ${isBest ? 'text-green-700' : 'text-gray-700'}`}>
+                                              {isBest ? 'Final reason: ' : 'Why not selected: '}
+                                              {slotOption.finalDecisionReason}
+                                            </p>
+                                          )}
+
+                                          {!slotOption?.prioritySafe && slotOption?.priorityDecisionReason && (
+                                            <p className="mt-0.5 text-[10px] text-red-700 italic">Priority reason: {slotOption.priorityDecisionReason}</p>
+                                          )}
+
+                                          {/* Best badge */}
+                                          {isBest && (
+                                            <p className="mt-1 text-[10px] font-semibold text-green-700">✓ Best available slot</p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Show current insertion status on the inserted hotspot row */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-green-100 text-green-700">
+                                    Inserted hotspot
+                                  </span>
+                                  {!matrixRequiresBuild && activeAnchorFitInsight?.label && (
+                                    <span
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                        activeAnchorFitInsight.tone === 'green'
+                                          ? 'bg-green-100 text-green-700'
+                                          : activeAnchorFitInsight.tone === 'red'
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-amber-100 text-amber-700'
+                                      }`}
+                                    >
+                                      {activeAnchorFitInsight.insertedLabel || activeAnchorFitInsight.label}
+                                    </span>
+                                  )}
+                                  {!matrixRequiresBuild && activeAnchorFitInsight?.anchorLegLabel && (
+                                    <span className="text-[10px] text-gray-500">
+                                      Between: {activeAnchorFitInsight.anchorLegLabel}
+                                    </span>
+                                  )}
+                                  {activeAnchorFitInsight?.extraDistanceLabel && (
+                                    <span className="text-[11px] font-semibold text-[#4a4260]">
+                                      Extra distance: {activeAnchorFitInsight.extraDistanceLabel}
+                                    </span>
+                                  )}
+                                  {String((seg as any)?.timeRange || '').trim() && (
+                                    <span className="text-[11px] font-semibold text-[#4a4260]">
+                                      Timing: {String((seg as any)?.timeRange || '').trim()}
+                                    </span>
+                                  )}
+                                  {(activeAnchorFitInsight as any)?.reason && (
+                                    <span className="w-full text-[10px] text-gray-500 italic">{(activeAnchorFitInsight as any).reason}</span>
+                                  )}
+                                </div>
+
+                                {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
+                                {pendingPriorityReplacementHotspotId && Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots) && pendingPriorityResolution.removedTopPriorityHotspots.length > 0 && (
+                                  <div ref={priorityConfirmRef} className="mt-3 p-3 rounded-xl border border-red-200 bg-red-50">
+                                    {(() => {
+                                      const removedPriorityRows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
+                                        ? pendingPriorityResolution.removedTopPriorityHotspots : [];
+                                      const affectedPriorityRows = Array.isArray(pendingPriorityResolution?.topPriorityAffected)
+                                        ? pendingPriorityResolution.topPriorityAffected : [];
+                                      const sourceRows = removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows;
+                                      const affectedPriorityHotspots = sourceRows
+                                        .map((row: any) => {
+                                          const id = Number(row?.id ?? row?.hotspotId ?? row?.hotspot_id ?? 0);
+                                          const name = String(row?.name || row?.hotspot_name || row?.hotspotName || '').trim();
+                                          if (name) return name;
+                                          if (id > 0) return `Hotspot #${id}`;
+                                          return '';
+                                        })
+                                        .filter(Boolean);
+                                      const affectedPriorityLabel = affectedPriorityHotspots.length > 0
+                                        ? affectedPriorityHotspots.join(', ') : 'one or more priority hotspots';
+                                      const pluralSuffix = affectedPriorityHotspots.length === 1 ? '' : 's';
+                                      return (
+                                        <div className="flex items-start gap-2 mb-3">
+                                          <div className="h-7 w-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
+                                            <AlertTriangle className="h-3.5 w-3.5" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-bold text-red-700">Reschedule Priority Hotspot{pluralSuffix}?</p>
+                                            <p className="text-xs text-red-700 mt-1 leading-5">
+                                              Adding this hotspot requires moving these priority hotspot{pluralSuffix} from the current slot:
+                                              <span className="font-semibold"> {affectedPriorityLabel}</span>.
+                                              {' '}No hotspot is deleted. The timeline will be reshuffled and following items will be rescheduled.
+                                            </p>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <Button
+                                        size="sm"
+                                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                                        onClick={handleConfirmPriorityReplacement}
+                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                                      >
+                                        Confirm Reschedule
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                                        onClick={handleCancelPriorityReplacement}
+                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {String(seg?.type || '').toLowerCase() === 'attraction' && (
+                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+                                {priorityLabel !== null && (
+                                  <span className="flex items-center font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                                    Priority: {priorityLabel}
+                                  </span>
+                                )}
+                                {activityVisitTime && (
+                                  <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {activityVisitTime}
+                                  </span>
+                                )}
+                                {activityDuration && (
+                                  <span className="flex items-center">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    {activityDuration}
+                                  </span>
+                                )}
+                                {activityTimings && (
+                                  <span className="flex items-center">
+                                    <Timer className="h-3 w-3 mr-1" />
+                                    {activityTimings}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {seg?.isConflict && (
+                              <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
+                                <p className="text-xs text-red-600 font-medium leading-tight">
+                                  {/forced manual insertion after user confirmation/i.test(String(seg?.conflictReason || ''))
+                                    ? 'Manual override confirmed. This stop will be included; exact timing may shift.'
+                                    : seg?.conflictReason}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <div className="pt-4 sticky bottom-0 bg-white">
+                        {(() => {
+                          const forceConflictMode =
+                            activePreviewValidation?.readyToApply === false
+                            && activePreviewValidation?.requiresPriorityConfirmation !== true
+                            && !matrixApplyBlocked;
+                          return (
+                        <Button
+                          className={`w-full text-white shadow-lg ${forceConflictMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          onClick={handleAddHotspot}
+                          disabled={
+                            isApplyingPreviewHotspot
+                            || isBuildingMatrix
+                            || !activePreviewHotspotId
+                            || isCurrentPreviewAlreadyAdded
+                            || matrixApplyBlocked
+                            || activePreviewValidation?.readyToApply === false
+                          }
+                        >
+                          {isApplyingPreviewHotspot ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Adding Hotspot...
+                            </>
+                          ) : (
+                            isCurrentPreviewAlreadyAdded
+                              ? 'Added'
+                              : isBuildingMatrix
+                              ? 'Building matrix...'
+                              : isMatrixMissingBlockedState
+                              ? 'Build matrix data first'
+                              : isMatrixBuiltButNoFeasibleSlot
+                              ? 'Cannot Add - Off Route'
+                              : matrixApplyBlocked
+                              ? 'Cannot Apply'
+                              : forceConflictMode
+                              ? 'Confirm Force Add (Conflict)'
+                              : 'Confirm Add Hotspot'
+                          )}
+                        </Button>
+                          );
+                        })()}
                       </div>
-                    )}
-                  </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c] border-2 border-dashed rounded-lg">
+                      <p className="text-sm">No timeline available for this route.</p>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() =>
+              onClick={() => {
+                previewRequestIdRef.current += 1;
                 setAddHotspotModal({
                   open: false,
                   planId: null,
                   routeId: null,
                   locationId: null,
                   locationName: "",
-                })
-              }
-              disabled={isAddingHotspot}
+                });
+                setHotspotSearchQuery("");
+                resetManualHotspotPreviewState();
+                setActivePreviewHotspotId(null);
+                setAddedInModalHotspotIds(new Set());
+                setSelectedHotspotAnchor(null);
+              }}
+              disabled={isApplyingPreviewHotspot || isBuildingMatrix}
             >
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ArrivalHotelDecisionModal
+        open={arrivalPolicyConfirmModal.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setArrivalPolicyConfirmModal({
+              open: false,
+              arrivalDate: '',
+              previousDayDate: '',
+              request: null,
+            });
+          }
+        }}
+        arrivalDate={arrivalPolicyConfirmModal.arrivalDate}
+        previousDayDate={arrivalPolicyConfirmModal.previousDayDate}
+        isLoading={isResolvingArrivalPolicy || isApplyingRouteTimeUpdate}
+        onConfirmPreviousDayBilling={async () => {
+          if (!arrivalPolicyConfirmModal.request) {
+            return;
+          }
+
+          const request = arrivalPolicyConfirmModal.request;
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
+
+          setArrivalPolicyConfirmModal({
+            open: false,
+            arrivalDate: '',
+            previousDayDate: '',
+            request: null,
+          });
+
+          if (pendingRouteTimeUpdate) {
+            // Triggered by a Day-1 route time change – proceed with the PATCH
+            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
+            setPendingRouteTimeUpdate(null);
+            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: true,
+            });
+            if (decisionKey) {
+              setLastArrivalPolicyDecisionKey(decisionKey);
+            }
+            return;
+          }
+
+          const persisted = await persistArrivalPolicyDecision(
+            request,
+            true,
+          );
+
+          if (!persisted) {
+            const nextRequest: HotelArrivalPolicyRequest = {
+              ...request,
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: true,
+            };
+            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+            return;
+          }
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+        }}
+        onDeclinePreviousDayBilling={async () => {
+          if (!arrivalPolicyConfirmModal.request) {
+            return;
+          }
+
+          const request = arrivalPolicyConfirmModal.request;
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
+
+          setArrivalPolicyConfirmModal({
+            open: false,
+            arrivalDate: '',
+            previousDayDate: '',
+            request: null,
+          });
+
+          if (pendingRouteTimeUpdate) {
+            // User declined previous-day billing – still apply the route time change
+            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
+            setPendingRouteTimeUpdate(null);
+            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: false,
+            });
+            if (decisionKey) {
+              setLastArrivalPolicyDecisionKey(decisionKey);
+            }
+            return;
+          }
+
+          const persisted = await persistArrivalPolicyDecision(
+            request,
+            false,
+          );
+
+          if (!persisted) {
+            const nextRequest: HotelArrivalPolicyRequest = {
+              ...request,
+              previousDayBillingDecisionProvided: true,
+              previousDayBillingConfirmed: false,
+            };
+            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
+            return;
+          }
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+        }}
+      />
 
       {/* Hotel Search Modal - NEW Real-Time Search */}
       <HotelSearchModal
@@ -4646,15 +9556,53 @@ if (error || !itinerary) {
                 No images available
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {galleryModal.images.map((img, idx) => (
+              <div className="flex flex-col gap-3">
+                {/* Main image */}
+                <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ height: 340 }}>
                   <img
-                    key={idx}
-                    src={img}
-                    alt={`${galleryModal.title} ${idx + 1}`}
-                    className="w-full h-auto rounded-lg object-cover"
+                    src={galleryModal.images[galleryActiveIdx]}
+                    alt={`${galleryModal.title} ${galleryActiveIdx + 1}`}
+                    className="w-full h-full object-contain"
                   />
-                ))}
+                  {galleryModal.images.length > 1 && (
+                    <>
+                      <button
+                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
+                        onClick={() => setGalleryActiveIdx(i => (i - 1 + galleryModal.images.length) % galleryModal.images.length)}
+                      >
+                        &#8249;
+                      </button>
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
+                        onClick={() => setGalleryActiveIdx(i => (i + 1) % galleryModal.images.length)}
+                      >
+                        &#8250;
+                      </button>
+                      <span className="absolute bottom-2 right-3 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+                        {galleryActiveIdx + 1} / {galleryModal.images.length}
+                      </span>
+                    </>
+                  )}
+                </div>
+                {/* Thumbnails */}
+                {galleryModal.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {galleryModal.images.map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setGalleryActiveIdx(idx)}
+                        className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${idx === galleryActiveIdx ? 'border-[#d546ab]' : 'border-transparent'
+                          }`}
+                      >
+                        <img
+                          src={img}
+                          alt={`Thumb ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -4710,7 +9658,10 @@ if (error || !itinerary) {
       </Dialog>
 
       {/* Clipboard Modal */}
-      <Dialog open={clipboardModal} onOpenChange={setClipboardModal}>
+      <Dialog
+  open={itineraryPreference === 2 ? false : clipboardModal}
+  onOpenChange={itineraryPreference === 2 ? undefined : setClipboardModal}
+>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -4719,38 +9670,38 @@ if (error || !itinerary) {
               {clipboardType === 'para' && 'Recommended Hotel for Para'}
             </DialogTitle>
             <DialogDescription>
-  Select recommended options to copy to clipboard
-</DialogDescription>
+              Select recommended options to copy to clipboard
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-3">
-  {!paraRecommendations.length ? (
-    <p className="text-sm text-[#6c6c6c] text-center py-8">
-      No hotel information available
-    </p>
-  ) : (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {paraRecommendations.map((item, idx) => {
-        const key = `para-${idx}`;
-        return (
-          <div key={key} className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id={`para-${key}`}
-              className="h-6 w-6 cursor-pointer accent-[#5f259f] border-[#5f259f]"
-              checked={selectedHotels[key] || false}
-              onChange={(e) =>
-                setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
-              }
-            />
-            <label htmlFor={`para-${key}`} className="text-xl text-[#d546ab] font-medium cursor-pointer">
-              {item.label}
-            </label>
+            {!paraRecommendations.length ? (
+              <p className="text-sm text-[#6c6c6c] text-center py-8">
+                No hotel information available
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {paraRecommendations.map((item, idx) => {
+                  const key = `para-${idx}`;
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id={`para-${key}`}
+                        className="h-6 w-6 cursor-pointer accent-[#5f259f] border-[#5f259f]"
+                        checked={selectedHotels[key] || false}
+                        onChange={(e) =>
+                          setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
+                        }
+                      />
+                      <label htmlFor={`para-${key}`} className="text-xl text-[#d546ab] font-medium cursor-pointer">
+                        {item.label}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        );
-      })}
-    </div>
-  )}
-</div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => {
               setClipboardModal(false);
@@ -4760,56 +9711,62 @@ if (error || !itinerary) {
             </Button>
             <Button
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-             onClick={async () => {
-  const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
+              onClick={async () => {
+                const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
 
-  if (selectedCount === 0) {
-    toast.error(
-      clipboardType === "para"
-        ? "Please select at least one recommendation"
-        : "Please select at least one hotel"
-    );
-    return;
-  }
+                if (selectedCount === 0) {
+                  toast.error(
+                    clipboardType === "para"
+                      ? "Please select at least one recommendation"
+                      : "Please select at least one hotel"
+                  );
+                  return;
+                }
 
-  if (!hotelDetails || !itinerary) return;
+                if (!hotelDetails || !itinerary) return;
 
-  try {
-    const selectedGroups = getSelectedClipboardGroups(clipboardType);
-    const groupTypes = selectedGroups.map((group) => group.groupType);
+                try {
+                  const selectedGroups = getSelectedClipboardGroups(clipboardType);
+                  const groupTypes = selectedGroups.map((group) => group.groupType);
 
-    const { html, plainText } = await ItineraryService.getClipboardContent(
-      itinerary.quoteId,
-      clipboardType,
-      groupTypes,
-    );
+                  const { html, plainText } = await ItineraryService.getClipboardContent(
+                    itinerary.quoteId,
+                    clipboardType,
+                    groupTypes,
+                  );
 
-    if (!html || !plainText) {
-      toast.error("Failed to prepare clipboard content");
-      return;
-    }
+                  if (!html || !plainText) {
+                    toast.error("Failed to prepare clipboard content");
+                    return;
+                  }
 
-    // Keep backend structure, but use the already-rendered hotel HTML from frontend state
-    // so clipboard hotels match what user sees without relying on backend hotel section.
-    const localClipboard = buildClipboardHtml(clipboardType);
-    const renderedHotelsHtml = extractHotelSectionFromHtml(localClipboard.html);
-    const mergedHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
-    const mergedPlainText = htmlToPlainText(mergedHtml);
+                  // Keep backend structure, but use the already-rendered hotel HTML from frontend state
+                  // so clipboard hotels match what user sees without relying on backend hotel section.
+                  const localClipboard = buildClipboardHtml(clipboardType);
+                  const renderedHotelsHtml =
+                    localClipboard.hotelSectionsHtml ||
+                    extractHotelSectionFromHtml(localClipboard.html);
+                  const mergedWithHotelsHtml = mergeClipboardWithRenderedHotels(html, renderedHotelsHtml);
+                  const mergedHtml = mergeClipboardWithRenderedCost(
+                    mergedWithHotelsHtml,
+                    localClipboard.costSectionHtml || "",
+                  );
+                  const mergedPlainText = htmlToPlainText(mergedHtml);
 
-    await copyHtmlToClipboard(mergedHtml, mergedPlainText)
-      .then(() => {
-        toast.success("Formatted clipboard content copied!");
-        setClipboardModal(false);
-        setSelectedHotels({});
-      })
-      .catch(() => {
-        toast.error("Failed to copy clipboard content");
-      });
-  } catch (error) {
-    console.error("Failed to fetch clipboard content", error);
-    toast.error("Failed to prepare clipboard content");
-  }
-}}
+                  await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+                    .then(() => {
+                      toast.success("Formatted clipboard content copied!");
+                      setClipboardModal(false);
+                      setSelectedHotels({});
+                    })
+                    .catch(() => {
+                      toast.error("Failed to copy clipboard content");
+                    });
+                } catch (error) {
+                  console.error("Failed to fetch clipboard content", error);
+                  toast.error("Failed to prepare clipboard content");
+                }
+              }}
             >
               Copy Clipboard
             </Button>
@@ -4859,7 +9816,7 @@ if (error || !itinerary) {
               onClick={() => {
                 const emailInput = document.getElementById('share-email-input') as HTMLInputElement;
                 const messageInput = document.getElementById('share-email-message') as HTMLTextAreaElement;
-                
+
                 if (!emailInput?.value) {
                   toast.error('Please enter recipient email');
                   return;
@@ -4870,7 +9827,7 @@ if (error || !itinerary) {
                   `${messageInput?.value || 'Please find the itinerary details below:'}\n\n` +
                   `Itinerary Link: ${window.location.href}`
                 );
-                
+
                 window.open(`mailto:${emailInput.value}?subject=${subject}&body=${body}`, '_blank');
                 toast.success('Email client opened!');
                 setShareModal(false);
@@ -4907,13 +9864,12 @@ if (error || !itinerary) {
               allHotspotsPreviewModal.data.hotspots.map((hotspotPreview: any, idx: number) => (
                 <Card
                   key={hotspotPreview.routeHotspotId}
-                  className={`border-2 ${
-                    hotspotPreview.isAlreadyAdded
+                  className={`border-2 ${hotspotPreview.isAlreadyAdded
                       ? 'border-gray-300 bg-gray-50'
                       : hotspotPreview.hasConflicts
-                      ? 'border-red-500 bg-red-50'
-                      : 'border-green-500 bg-green-50'
-                  }`}
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-green-500 bg-green-50'
+                    }`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">
@@ -4925,19 +9881,18 @@ if (error || !itinerary) {
                               : `Hotspot #${idx + 1}`}
                           </h4>
                           <span
-                            className={`text-xs font-bold px-2 py-1 rounded-full ${
-                              hotspotPreview.isAlreadyAdded
+                            className={`text-xs font-bold px-2 py-1 rounded-full ${hotspotPreview.isAlreadyAdded
                                 ? 'bg-gray-300 text-gray-700'
                                 : hotspotPreview.hasConflicts
-                                ? 'bg-red-300 text-red-700'
-                                : 'bg-green-300 text-green-700'
-                            }`}
+                                  ? 'bg-red-300 text-red-700'
+                                  : 'bg-green-300 text-green-700'
+                              }`}
                           >
                             {hotspotPreview.isAlreadyAdded
                               ? 'Already Added'
                               : hotspotPreview.hasConflicts
-                              ? 'Conflict'
-                              : 'Fits'}
+                                ? 'Conflict'
+                                : 'Fits'}
                           </span>
                         </div>
 
@@ -4980,10 +9935,10 @@ if (error || !itinerary) {
                               </div>
                               {hotspotPreview.proposedTiming
                                 .willExtendHotspot && (
-                                <div className="text-amber-700 font-medium">
-                                  ⚠️ Will extend hotspot end time
-                                </div>
-                              )}
+                                  <div className="text-amber-700 font-medium">
+                                    ⚠️ Will extend hotspot end time
+                                  </div>
+                                )}
                             </div>
                           )}
 
@@ -5039,7 +9994,7 @@ if (error || !itinerary) {
 
       {/* Confirm Quotation Modal */}
       <Dialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[96vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Guest Details</DialogTitle>
             <DialogDescription>
@@ -5068,19 +10023,467 @@ if (error || !itinerary) {
               </div>
             )}
 
+            <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
+                <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
+              </div>
+              <div className="flex justify-between text-sm gap-4">
+                <span className="text-[#6c6c6c]">Passenger Mix:</span>
+                <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
+              </div>
+              <div className="pt-2 border-t border-[#e6e6e6]">
+                <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
+                <div className="space-y-1">
+                  {confirmOccupancyPreview.map((room, index) => {
+                    const roomMix = [
+                      room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
+                      room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
+                    ].filter(Boolean).join(', ');
+
+                    return (
+                      <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
+                        <span className="text-[#6c6c6c]">Room {index + 1}:</span>
+                        <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {(Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Child and infant details entered below are sent in the final booking API payload. Review names, ages, and nationality before confirming.
+                </p>
+              </div>
+            )}
+
+            {(isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
+              <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+                <div>
+                  <p className="text-sm font-medium text-[#4a4260]">Fetching latest prebook details...</p>
+                  <p className="text-xs text-[#6c6c6c]">Loading updated price, amenities, rate conditions, and inclusions.</p>
+                </div>
+              </div>
+            )}
+
+            {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
+                <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
+                {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                  const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                  const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                  const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                  const hotelInclusions = resolvePrebookInclusions(detailRow);
+                  const hotelMealType = resolvePrebookMealPlan(detailRow);
+                  const hotelCancellation = normalizeCancellationPolicyItems(
+                    detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                  );
+
+                  return (
+                    <details key={`ntbo-only-${hotel?.routeId ?? index}`} className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                            <p className="text-xs text-[#6c6c6c]">
+                              Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                              {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                            </p>
+                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                          </div>
+                          <div className="text-sm text-left md:text-right">
+                            <p className="text-[#6c6c6c]">Selected Price</p>
+                            <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                        {hotelMealType ? (
+                          <p className="text-xs text-[#6c6c6c]">
+                            Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                          </p>
+                        ) : null}
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                          <div className="mt-2">
+                            {hotelCancellation.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelCancellation.map((item, idx) => (
+                                  <li key={`ntbo-only-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                          <div className="mt-2">
+                            {hotelRateConditions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelRateConditions.map((item, idx) => (
+                                  <li key={`ntbo-only-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                          <div className="mt-2">
+                            {hotelAmenities.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelAmenities.map((item, idx) => (
+                                  <li key={`ntbo-only-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No amenities available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                          <div className="mt-2">
+                            {hotelInclusions.length > 0 ? (
+                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                {hotelInclusions.map((item, idx) => (
+                                  <li key={`ntbo-only-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                            )}
+                          </div>
+                        </details>
+
+                        <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                          Policies and rate conditions are managed by the provider. TBO prebook is not applicable.
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })}
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the selected hotel details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
+
+            {prebookData && (
+              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="font-semibold text-[#4a4260]">
+                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[#6c6c6c]">Hotels Prebooked (TBO)</p>
+                    <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
+                  </div>
+                </div>
+
+                {prebookHotelEntries.map((hotel: any, index: number) => {
+                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
+                  const hotelAmenities = normalizePrebookItems(hotel?.amenities);
+                  const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
+                  const hotelInclusions = resolvePrebookInclusions(hotel);
+                  const hotelMealType = resolvePrebookMealPlan(hotel);
+                  const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
+                  const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
+                  const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
+                  const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+
+                  return (
+                    <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
+                      <summary className="cursor-pointer list-none">
+                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                          </div>
+                          <div className="text-sm text-left md:text-right">
+                            <p className="text-[#6c6c6c]">Updated Final Price</p>
+                            <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
+                          </div>
+                        </div>
+                      </summary>
+
+                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                        <div>
+                          <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || '-'}</p>
+                          {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                          {hotelMealType ? (
+                            <p className="text-xs text-[#6c6c6c]">
+                              Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                            </p>
+                          ) : null}
+                        </div>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                        <div className="mt-2">
+                          {hotelCancellation.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelCancellation.map((item, idx) => (
+                                <li key={`hotel-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No cancellation policy returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Room Promotion ({hotelPromotions.length})</summary>
+                        <div className="mt-2">
+                          {hotelPromotions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelPromotions.map((item, idx) => (
+                                <li key={`hotel-promo-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No room promotion returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                        <div className="mt-2">
+                          {hotelRateConditions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelRateConditions.map((item, idx) => (
+                                <li key={`hotel-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                        <div className="mt-2">
+                          {hotelAmenities.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelAmenities.map((item, idx) => (
+                                <li key={`hotel-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No amenities returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                        <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                        <div className="mt-2">
+                          {hotelInclusions.length > 0 ? (
+                            <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                              {hotelInclusions.map((item, idx) => (
+                                <li key={`hotel-inclusion-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-[#4a4260]">No inclusions returned</p>
+                          )}
+                        </div>
+                      </details>
+
+                      <div>
+                        <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
+                        {hotelSupplements.length > 0 ? (
+                          <SupplementDisplay supplements={hotelSupplements} showHeading={false} />
+                        ) : hotelMandatorySupplements.length > 0 ? (
+                          <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                            {hotelMandatorySupplements.map((item, idx) => (
+                              <li key={`hotel-supplement-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
+                        )}
+                      </div>
+                      </div>
+                    </details>
+                  );
+                })}
+
+                {nonTboSelectedHotelEntries.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
+                    {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                      const detailRow = (hotel?.matchedHotelRow || hotel) as any;
+                      const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
+                      const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
+                      const hotelInclusions = resolvePrebookInclusions(detailRow);
+                      const hotelMealType = resolvePrebookMealPlan(detailRow);
+                      const hotelCancellation = normalizeCancellationPolicyItems(
+                        detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
+                      );
+
+                      return (
+                        <details
+                          key={`non-tbo-hotel-${hotel?.routeId ?? index}`}
+                          className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3"
+                        >
+                          <summary className="cursor-pointer list-none">
+                            <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
+                                  {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
+                                </p>
+                                <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+                              </div>
+                              <div className="text-sm text-left md:text-right">
+                                <p className="text-[#6c6c6c]">Selected Price</p>
+                                <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
+                              </div>
+                            </div>
+                          </summary>
+
+                          <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
+                            <div>
+                              <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || detailRow?.hotelCode || '-'}</p>
+                              {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                              {hotelMealType ? (
+                                <p className="text-xs text-[#6c6c6c]">
+                                  Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
+                                </p>
+                              ) : null}
+                            </div>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
+                              <div className="mt-2">
+                                {hotelCancellation.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelCancellation.map((item, idx) => (
+                                      <li key={`non-tbo-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
+                              <div className="mt-2">
+                                {hotelRateConditions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelRateConditions.map((item, idx) => (
+                                      <li key={`non-tbo-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No rate conditions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
+                              <div className="mt-2">
+                                {hotelAmenities.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelAmenities.map((item, idx) => (
+                                      <li key={`non-tbo-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No amenities available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
+                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
+                              <div className="mt-2">
+                                {hotelInclusions.length > 0 ? (
+                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
+                                    {hotelInclusions.map((item, idx) => (
+                                      <li key={`non-tbo-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-[#4a4260]">No inclusions available</p>
+                                )}
+                              </div>
+                            </details>
+
+                            <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
+                              This hotel is managed outside TBO. Details shown here come from the selected provider record.
+                            </p>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {hasPrebookPriceChanged && (
+                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
+                  </p>
+                )}
+
+                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>I have reviewed the inclusions, amenities, rate conditions, cancellation policy, room promotion, and additional charge details before final booking confirmation.</span>
+                </label>
+              </div>
+            )}
+
             {/* Primary Guest Details */}
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Primary Guest Details - Adult 1</h3>
-              
-              <div className="grid grid-cols-4 gap-3">
-                <div className="col-span-1">
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-1">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Salutation
                   </label>
                   <select
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     value={guestDetails.salutation}
-                    onChange={(e) => setGuestDetails({...guestDetails, salutation: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, salutation: e.target.value })}
                   >
                     <option value="Mr">Mr</option>
                     <option value="Ms">Ms</option>
@@ -5091,7 +10494,7 @@ if (error || !itinerary) {
                   </select>
                 </div>
 
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Name <span className="text-red-500">*</span>
                   </label>
@@ -5101,7 +10504,7 @@ if (error || !itinerary) {
                     placeholder="Enter the Name"
                     value={guestDetails.name}
                     onChange={(e) => {
-                      setGuestDetails({...guestDetails, name: e.target.value});
+                      setGuestDetails({ ...guestDetails, name: e.target.value });
                       setFormErrors((prev) => {
                         const next = { ...prev };
                         delete next['primary-name'];
@@ -5112,7 +10515,7 @@ if (error || !itinerary) {
                   {formErrors['primary-name'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-name']}</p>}
                 </div>
 
-                <div className="col-span-1">
+                <div className="sm:col-span-1">
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Age
                   </label>
@@ -5121,13 +10524,13 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Age"
                     value={guestDetails.age}
-                    onChange={(e) => setGuestDetails({...guestDetails, age: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, age: e.target.value })}
                   />
                   {formErrors['primary-age'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-age']}</p>}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Primary Contact No. <span className="text-red-500">*</span>
@@ -5138,7 +10541,7 @@ if (error || !itinerary) {
                     placeholder="Enter the Contact No"
                     value={guestDetails.contactNo}
                     onChange={(e) => {
-                      setGuestDetails({...guestDetails, contactNo: e.target.value});
+                      setGuestDetails({ ...guestDetails, contactNo: e.target.value });
                       setFormErrors((prev) => {
                         const next = { ...prev };
                         delete next['primary-contactNo'];
@@ -5158,29 +10561,24 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Enter the Alternative Contact No"
                     value={guestDetails.alternativeContactNo}
-                    onChange={(e) => setGuestDetails({...guestDetails, alternativeContactNo: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, alternativeContactNo: e.target.value })}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Nationality <span className="text-red-500">*</span>
+                    <span className="ml-1 text-[10px] text-[#8b43d1] font-normal">(locked from search)</span>
                   </label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                     placeholder="IN"
                     value={guestDetails.nationality}
-                    onChange={(e) => {
-                      setGuestDetails({...guestDetails, nationality: e.target.value.toUpperCase()});
-                      setFormErrors((prev) => {
-                        const next = { ...prev };
-                        delete next['primary-nationality'];
-                        return next;
-                      });
-                    }}
+                    readOnly
+                    title="Nationality is locked from itinerary search and cannot be changed at booking time"
                   />
                   {formErrors['primary-nationality'] && <p className="text-[11px] text-red-600 mt-1">{formErrors['primary-nationality']}</p>}
                 </div>
@@ -5193,7 +10591,7 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="ABCDE1234F"
                     value={guestDetails.panNo}
-                    onChange={(e) => setGuestDetails({...guestDetails, panNo: e.target.value.toUpperCase()})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, panNo: e.target.value.toUpperCase() })}
                   />
                 </div>
                 <div>
@@ -5205,7 +10603,7 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Passport number"
                     value={guestDetails.passportNo}
-                    onChange={(e) => setGuestDetails({...guestDetails, passportNo: e.target.value.toUpperCase()})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, passportNo: e.target.value.toUpperCase() })}
                   />
                 </div>
               </div>
@@ -5219,7 +10617,7 @@ if (error || !itinerary) {
                   className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                   placeholder="Enter the Email ID"
                   value={guestDetails.emailId}
-                  onChange={(e) => setGuestDetails({...guestDetails, emailId: e.target.value})}
+                  onChange={(e) => setGuestDetails({ ...guestDetails, emailId: e.target.value })}
                 />
               </div>
 
@@ -5240,8 +10638,8 @@ if (error || !itinerary) {
                 {formErrors['count-adult'] && <p className="text-[11px] text-red-600">{formErrors['count-adult']}</p>}
                 {additionalAdults.map((adult, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -5257,7 +10655,7 @@ if (error || !itinerary) {
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Adult {index + 2} Name</label>
                         <input
                           type="text"
@@ -5271,7 +10669,7 @@ if (error || !itinerary) {
                           }}
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
                         <input
                           type="text"
@@ -5285,21 +10683,18 @@ if (error || !itinerary) {
                           }}
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
                         <input
                           type="text"
-                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed"
                           placeholder="IN"
                           value={adult.nationality}
-                          onChange={(e) => {
-                            const next = [...additionalAdults];
-                            next[index].nationality = e.target.value.toUpperCase();
-                            setAdditionalAdults(next);
-                          }}
+                          readOnly
+                          title="Nationality is locked from itinerary search"
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button
                           type="button"
                           variant="ghost"
@@ -5311,7 +10706,7 @@ if (error || !itinerary) {
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         type="text"
                         className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -5335,6 +10730,17 @@ if (error || !itinerary) {
                         }}
                       />
                     </div>
+                    {(getPassengerFieldError('adult', index, 'title') ||
+                      getPassengerFieldError('adult', index, 'name') ||
+                      getPassengerFieldError('adult', index, 'age') ||
+                      getPassengerFieldError('adult', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('adult', index, 'title') ||
+                          getPassengerFieldError('adult', index, 'name') ||
+                          getPassengerFieldError('adult', index, 'age') ||
+                          getPassengerFieldError('adult', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -5347,7 +10753,7 @@ if (error || !itinerary) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalChildren([...additionalChildren, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Child
@@ -5356,8 +10762,8 @@ if (error || !itinerary) {
                 {formErrors['count-child'] && <p className="text-[11px] text-red-600">{formErrors['count-child']}</p>}
                 {additionalChildren.map((child, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -5373,28 +10779,46 @@ if (error || !itinerary) {
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Child {index + 1} Name</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={child.name} onChange={(e) => { const next = [...additionalChildren]; next[index].name = e.target.value; setAdditionalChildren(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={child.age} onChange={(e) => { const next = [...additionalChildren]; next[index].age = e.target.value; setAdditionalChildren(next); }} />
+                        <input
+                          type="text"
+                          className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]"
+                          placeholder="Age"
+                          value={child.age}
+                          readOnly
+                          title="Child age is locked from itinerary/search and cannot be changed at booking time"
+                        />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={child.nationality} onChange={(e) => { const next = [...additionalChildren]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={child.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalChildren(additionalChildren.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={child.panNo} onChange={(e) => { const next = [...additionalChildren]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={child.passportNo} onChange={(e) => { const next = [...additionalChildren]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalChildren(next); }} />
                     </div>
+                    {(getPassengerFieldError('child', index, 'title') ||
+                      getPassengerFieldError('child', index, 'name') ||
+                      getPassengerFieldError('child', index, 'age') ||
+                      getPassengerFieldError('child', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('child', index, 'title') ||
+                          getPassengerFieldError('child', index, 'name') ||
+                          getPassengerFieldError('child', index, 'age') ||
+                          getPassengerFieldError('child', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -5407,7 +10831,7 @@ if (error || !itinerary) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Miss')])}
+                    onClick={() => setAdditionalInfants([...additionalInfants, defaultPassenger('Ms')])}
                     className="h-8 px-2 text-xs border-[#e5d9f2] text-[#8b43d1] hover:bg-[#f8f4ff]"
                   >
                     <Plus className="w-3 h-3 mr-1" /> Add Infant
@@ -5416,8 +10840,8 @@ if (error || !itinerary) {
                 {formErrors['count-infant'] && <p className="text-[11px] text-red-600">{formErrors['count-infant']}</p>}
                 {additionalInfants.map((infant, index) => (
                   <div key={index} className="space-y-2 rounded-lg border border-[#f0e6fb] p-3">
-                    <div className="grid grid-cols-12 gap-2 items-end">
-                      <div className="col-span-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Title</label>
                         <select
                           className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg"
@@ -5433,28 +10857,39 @@ if (error || !itinerary) {
                           ))}
                         </select>
                       </div>
-                      <div className="col-span-5">
+                      <div className="sm:col-span-5">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Infant {index + 1} Name</label>
                         <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Name" value={infant.name} onChange={(e) => { const next = [...additionalInfants]; next[index].name = e.target.value; setAdditionalInfants(next); }} />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Age</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Age" value={infant.age} onChange={(e) => { const next = [...additionalInfants]; next[index].age = e.target.value; setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#6c6c6c]" placeholder="Age" value={infant.age} readOnly title="Infant age is locked from itinerary/search and cannot be changed at booking time" />
                       </div>
-                      <div className="col-span-2">
+                      <div className="sm:col-span-2">
                         <label className="text-[10px] font-medium text-[#4a4260] mb-1 block">Nationality</label>
-                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="IN" value={infant.nationality} onChange={(e) => { const next = [...additionalInfants]; next[index].nationality = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
+                        <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg bg-[#f9f7fc] text-[#4a4260] cursor-not-allowed" placeholder="IN" value={infant.nationality} readOnly title="Nationality is locked from itinerary search" />
                       </div>
-                      <div className="col-span-1">
+                      <div className="sm:col-span-1">
                         <Button type="button" variant="ghost" size="sm" onClick={() => setAdditionalInfants(additionalInfants.filter((_, i) => i !== index))} className="h-9 w-full text-red-500 hover:text-red-700 hover:bg-red-50">
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="PAN (Optional)" value={infant.panNo} onChange={(e) => { const next = [...additionalInfants]; next[index].panNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                       <input type="text" className="w-full px-2 py-1.5 text-sm border border-[#e5d9f2] rounded-lg" placeholder="Passport No (Optional)" value={infant.passportNo} onChange={(e) => { const next = [...additionalInfants]; next[index].passportNo = e.target.value.toUpperCase(); setAdditionalInfants(next); }} />
                     </div>
+                    {(getPassengerFieldError('infant', index, 'title') ||
+                      getPassengerFieldError('infant', index, 'name') ||
+                      getPassengerFieldError('infant', index, 'age') ||
+                      getPassengerFieldError('infant', index, 'nationality')) && (
+                      <p className="text-[11px] text-red-600">
+                        {getPassengerFieldError('infant', index, 'title') ||
+                          getPassengerFieldError('infant', index, 'name') ||
+                          getPassengerFieldError('infant', index, 'age') ||
+                          getPassengerFieldError('infant', index, 'nationality')}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -5463,8 +10898,8 @@ if (error || !itinerary) {
             {/* Arrival Details */}
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Arrival Details</h3>
-              
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Date & Time
@@ -5474,7 +10909,9 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="12-12-2025 9:00 AM"
                     value={guestDetails.arrivalDateTime}
-                    onChange={(e) => setGuestDetails({...guestDetails, arrivalDateTime: e.target.value})}
+                    onChange={(e) => {
+                      void handleArrivalDateTimeChange(e.target.value);
+                    }}
                   />
                 </div>
 
@@ -5487,7 +10924,7 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Chennai International Airport"
                     value={guestDetails.arrivalPlace}
-                    onChange={(e) => setGuestDetails({...guestDetails, arrivalPlace: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, arrivalPlace: e.target.value })}
                   />
                 </div>
               </div>
@@ -5501,7 +10938,7 @@ if (error || !itinerary) {
                   rows={2}
                   placeholder="Enter the Flight Details"
                   value={guestDetails.arrivalFlightDetails}
-                  onChange={(e) => setGuestDetails({...guestDetails, arrivalFlightDetails: e.target.value})}
+                  onChange={(e) => setGuestDetails({ ...guestDetails, arrivalFlightDetails: e.target.value })}
                 />
               </div>
             </div>
@@ -5509,8 +10946,8 @@ if (error || !itinerary) {
             {/* Departure Details */}
             <div className="space-y-3">
               <h3 className="font-semibold text-[#4a4260]">Departure Details</h3>
-              
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-[#4a4260] mb-1 block">
                     Date & Time
@@ -5520,7 +10957,7 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="19-12-2025 4:00 PM"
                     value={guestDetails.departureDateTime}
-                    onChange={(e) => setGuestDetails({...guestDetails, departureDateTime: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, departureDateTime: e.target.value })}
                   />
                 </div>
 
@@ -5533,7 +10970,7 @@ if (error || !itinerary) {
                     className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
                     placeholder="Trivandrum, Domestic Airport"
                     value={guestDetails.departurePlace}
-                    onChange={(e) => setGuestDetails({...guestDetails, departurePlace: e.target.value})}
+                    onChange={(e) => setGuestDetails({ ...guestDetails, departurePlace: e.target.value })}
                   />
                 </div>
               </div>
@@ -5547,107 +10984,15 @@ if (error || !itinerary) {
                   rows={2}
                   placeholder="Enter the Flight Details"
                   value={guestDetails.departureFlightDetails}
-                  onChange={(e) => setGuestDetails({...guestDetails, departureFlightDetails: e.target.value})}
+                  onChange={(e) => setGuestDetails({ ...guestDetails, departureFlightDetails: e.target.value })}
                 />
               </div>
             </div>
-
-            {prebookData && (
-              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
-                    <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[#6c6c6c]">Cancellation Policy</p>
-                    {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).length > 0 ? (
-                      <ul className="font-medium text-[#4a4260] whitespace-pre-wrap list-disc pl-5 space-y-1">
-                        {normalizePrebookItems(prebookData.cancellationPolicy || prebookData.cancellationPoliciesText).map((item, idx) => (
-                          <li key={`cancelPolicy-${idx}`}>{item}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="font-medium text-[#4a4260] whitespace-pre-wrap">No cancellation policy returned</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Room Promotion</p>
-                  {normalizePrebookItems(prebookData.roomPromotion).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1">
-                      {normalizePrebookItems(prebookData.roomPromotion).map((item, idx) => (
-                        <li key={`roomPromotion-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No room promotion returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Rate Conditions</p>
-                  {normalizePrebookItems(prebookData.rateConditions).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.rateConditions).map((item, idx) => (
-                        <li key={`rateCondition-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No rate conditions returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Mandatory Supplements & Additional Charges</p>
-                  {prebookData?.normalizedSupplements && prebookData.normalizedSupplements.length > 0 ? (
-                    <SupplementDisplay supplements={prebookData.normalizedSupplements} showHeading={false} />
-                  ) : normalizePrebookItems(prebookData.mandatorySupplements).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.mandatorySupplements).map((item, idx) => (
-                        <li key={`supplement-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No mandatory supplements returned</p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-[#6c6c6c] text-sm">Package Inclusions</p>
-                  {normalizePrebookItems(prebookData.inclusions).length > 0 ? (
-                    <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                      {normalizePrebookItems(prebookData.inclusions).map((item, idx) => (
-                        <li key={`inclusion-${idx}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-[#4a4260]">No inclusions returned</p>
-                  )}
-                </div>
-
-                {hasPrebookPriceChanged && (
-                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
-                  </p>
-                )}
-
-                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={hasAcceptedUpdatedPrice}
-                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                  />
-                  <span>I have reviewed the inclusions, rate conditions, and room promotion details before final booking confirmation.</span>
-                </label>
-              </div>
-            )}
           </div>
 
           <DialogFooter className="gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setConfirmQuotationModal(false);
                 setGuestDetails({
@@ -5655,7 +11000,7 @@ if (error || !itinerary) {
                   name: '',
                   contactNo: '',
                   age: '',
-                  nationality: 'IN',
+                  nationality: confirmDefaultNationality,
                   panNo: '',
                   passportNo: '',
                   alternativeContactNo: '',
@@ -5683,7 +11028,7 @@ if (error || !itinerary) {
               onClick={handleConfirmQuotation}
               disabled={isConfirmingQuotation || isPrebooking}
             >
-              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : prebookData ? 'Confirm Booking' : 'Run Prebook & Continue'}
+              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -5691,20 +11036,20 @@ if (error || !itinerary) {
 
       {itinerary?.planId && (
         <>
-          <VoucherDetailsModal 
-            isOpen={voucherModal} 
-            onClose={() => setVoucherModal(false)} 
-            itineraryPlanId={itinerary.planId} 
+          <VoucherDetailsModal
+            isOpen={voucherModal}
+            onClose={() => setVoucherModal(false)}
+            itineraryPlanId={itinerary.planId}
           />
-          <PluckCardModal 
-            isOpen={pluckCardModal} 
-            onClose={() => setPluckCardModal(false)} 
-            itineraryPlanId={itinerary.planId} 
+          <PluckCardModal
+            isOpen={pluckCardModal}
+            onClose={() => setPluckCardModal(false)}
+            itineraryPlanId={itinerary.planId}
           />
-          <InvoiceModal 
-            isOpen={invoiceModal} 
-            onClose={() => setInvoiceModal(false)} 
-            itineraryPlanId={itinerary.planId} 
+          <InvoiceModal
+            isOpen={invoiceModal}
+            onClose={() => setInvoiceModal(false)}
+            itineraryPlanId={itinerary.planId}
             type={invoiceType}
           />
           <IncidentalExpensesModal
@@ -5745,3 +11090,5 @@ if (error || !itinerary) {
     </div>
   );
 };
+
+export default ItineraryDetails;

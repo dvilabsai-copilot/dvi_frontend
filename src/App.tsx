@@ -26,6 +26,7 @@ import "./App.css";
 import NotFound from "./pages/NotFound";
 import { AccountsLedger } from "./pages/accounts/AccountsLedger";
 import Hotels from "./pages/Hotels";
+import AxisroomsHotelsPage from "./pages/AxisroomsHotels";
 import Login from "./pages/Login";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
@@ -50,6 +51,8 @@ import GuideFormPage from "./pages/guide/GuideFormPage";
 import GuidePreview from "./pages/guide/GuidePreview";
 import ActivityPreviewPage from "./pages/activity/ActivityPreviewPage";
 import LocationsPage from "./pages/locations/LocationsPage";
+import BetweenHotspotsPage from "./pages/locations/BetweenHotspotsPage";
+import TollChargePage from "./pages/locations/TollChargePage";
 import LocationsPreviewPage from "./pages/locations/LocationsPreviewPage";
 import StaffListPage from "./pages/staff/StaffListPage";
 import StaffFormPage from "./pages/staff/StaffFormPage";
@@ -60,6 +63,8 @@ import AgentPreviewPage from "./pages/agent/AgentPreviewPage";
 import Profile from "./pages/agent/Profile";
 import WalletHistory from "./pages/agent/WalletHistory";
 import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import DownloadPackages from "./pages/agent/DownloadPackages";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -145,6 +150,14 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route
+                  path="/download-packages"
+                  element={
+                    <MainLayout>
+                      <DownloadPackages />
+                    </MainLayout>
+                  }
+                />
             <Route
               path="/latest-itinerary"
               element={
@@ -235,6 +248,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <Hotels />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/hotels/axisrooms"
+              element={
+                <MainLayout>
+                  <AxisroomsHotelsPage />
                 </MainLayout>
               }
             />
@@ -573,6 +594,14 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route
+              path="/payments/success"
+              element={
+                <MainLayout>
+                  <PaymentSuccess />
+                </MainLayout>
+              }
+            />
 
             {/* Guide */}
             <Route
@@ -624,6 +653,24 @@ const App = () => (
               element={
                 <MainLayout>
                   <LocationsPage />
+                </MainLayout>
+              }
+            />
+
+            <Route
+              path="/locations/between-hotspots"
+              element={
+                <MainLayout>
+                  <BetweenHotspotsPage />
+                </MainLayout>
+              }
+            />
+
+            <Route
+              path="/toll-charge"
+              element={
+                <MainLayout>
+                  <TollChargePage />
                 </MainLayout>
               }
             />

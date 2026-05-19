@@ -21,12 +21,24 @@ import { toast } from "sonner";
 /*                             Time-picker helpers                             */
 /* -------------------------------------------------------------------------- */
 
+
 type OpeningSlot = { start: string; end: string }; // "hh:mm AM" (12-hr)
 type OpeningDay = {
   is24Hours?: boolean;
   closed24Hours?: boolean;
   timeSlots: OpeningSlot[];
 };
+
+type SpecialOpeningDate = {
+  id: number;
+  date: string;
+  isClosed: boolean;
+  start: string;
+  end: string;
+  note: string;
+};
+
+
 
 const HOURS_12 = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
@@ -233,12 +245,48 @@ export default function HotspotForm() {
   const [hotspotTypeInput, setHotspotTypeInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
   const [locationOpen, setLocationOpen] = useState(false);
-  const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
+const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    loadOptions();
-  }, []);
+const [specialOpeningDates, setSpecialOpeningDates] = useState<SpecialOpeningDate[]>([]);
+const [showSpecialDateForm, setShowSpecialDateForm] = useState(false);
+const [specialDateForm, setSpecialDateForm] = useState({
+  date: "",
+  isClosed: false,
+  start: "",
+  end: "",
+  note: "",
+});
+
+const specialOpeningDatesStorageKey = `hotspot_special_opening_dates_${id || "new"}`;
+
+useEffect(() => {
+  const savedSpecialDates = localStorage.getItem(specialOpeningDatesStorageKey);
+
+  if (!savedSpecialDates) {
+    return;
+  }
+
+  try {
+    const parsedSpecialDates = JSON.parse(savedSpecialDates);
+
+    if (Array.isArray(parsedSpecialDates)) {
+      setSpecialOpeningDates(parsedSpecialDates);
+    }
+  } catch {
+    setSpecialOpeningDates([]);
+  }
+}, [specialOpeningDatesStorageKey]);
+
+useEffect(() => {
+  localStorage.setItem(specialOpeningDatesStorageKey, JSON.stringify(specialOpeningDates));
+}, [specialOpeningDates, specialOpeningDatesStorageKey]);
+
+useEffect(() => {
+  loadOptions();
+}, []);
+
+
   useEffect(() => {
     if (isEdit && id) loadEdit(id);
   }, [id, isEdit]);
@@ -418,12 +466,90 @@ export default function HotspotForm() {
     setLocationOpen(false);
   }
 
-  function removeLocation(v: string) {
-    setForm((prev) => ({
-      ...prev,
-      locations: (prev.locations || []).filter((x) => x !== v),
-    }));
+
+ function removeLocation(v: string) {
+  setForm((prev) => ({
+    ...prev,
+    locations: (prev.locations || []).filter((x) => x !== v),
+  }));
+}
+
+function formatSpecialDateForDisplay(value: string) {
+  if (!value) return "";
+
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function handleSaveSpecialDate() {
+  if (!specialDateForm.date.trim()) {
+    toast.error("Please select special date");
+    return;
   }
+
+  if (!specialDateForm.isClosed && (!specialDateForm.start || !specialDateForm.end)) {
+    toast.error("Please select start and end time");
+    return;
+  }
+
+  const alreadyExists = specialOpeningDates.some(
+    (item) => item.date === specialDateForm.date
+  );
+
+  if (alreadyExists) {
+    toast.error("Special timing already added for this date");
+    return;
+  }
+
+  setSpecialOpeningDates((prev) => [
+    ...prev,
+    {
+      id: Date.now(),
+      date: specialDateForm.date,
+      isClosed: specialDateForm.isClosed,
+      start: specialDateForm.isClosed ? "" : specialDateForm.start,
+      end: specialDateForm.isClosed ? "" : specialDateForm.end,
+      note: specialDateForm.note.trim(),
+    },
+  ]);
+
+  setSpecialDateForm({
+    date: "",
+    isClosed: false,
+    start: "",
+    end: "",
+    note: "",
+  });
+
+  setShowSpecialDateForm(false);
+  toast.success("Special date timing added successfully");
+}
+
+function handleCancelSpecialDate() {
+  setSpecialDateForm({
+    date: "",
+    isClosed: false,
+    start: "",
+    end: "",
+    note: "",
+  });
+
+  setShowSpecialDateForm(false);
+}
+
+function handleDeleteSpecialDate(id: number) {
+  setSpecialOpeningDates((prev) => prev.filter((item) => item.id !== id));
+  toast.success("Special date timing removed successfully");
+}
+
 
   return (
     <div className="p-6">
@@ -961,7 +1087,212 @@ export default function HotspotForm() {
                 </div>
               );
             })}
+
+
+                  </div>
+        </div>
+
+        {/* ---------------------- Monthly Calendar / Special Date Timings ---------------------- */}
+        <div className="bg-white rounded-lg border p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-primary">
+              Monthly Calendar / Special Date Timings
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Select a particular date and set custom opening timing or mark it closed for that date.
+            </p>
           </div>
+
+          <div className="overflow-hidden rounded-lg border">
+            <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 px-4 py-3 text-sm">
+              <div className="col-span-3">DATE</div>
+              <div className="col-span-2">STATUS</div>
+              <div className="col-span-3">TIMING</div>
+              <div className="col-span-3">NOTE</div>
+              <div className="col-span-1 text-center">ACTION</div>
+            </div>
+
+            <div className="divide-y">
+              {specialOpeningDates.length > 0 ? (
+                specialOpeningDates.map((item) => (
+                  <div
+                    key={item.id}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-4 items-center"
+                  >
+                    <div className="md:col-span-3 flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center text-muted-foreground">
+                        📅
+                      </div>
+                      <span className="font-semibold text-sm">
+                        {formatSpecialDateForDisplay(item.date)}
+                      </span>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          item.isClosed
+                            ? "bg-red-50 text-red-600"
+                            : "bg-green-50 text-green-600"
+                        }`}
+                      >
+                        {item.isClosed ? "Closed" : "Open"}
+                      </span>
+                    </div>
+
+                    <div className="md:col-span-3 text-sm text-muted-foreground">
+                      {item.isClosed ? "Full day closed" : `${item.start} TO ${item.end}`}
+                    </div>
+
+                    <div className="md:col-span-3 text-sm text-muted-foreground">
+                      {item.note || "-"}
+                    </div>
+
+                    <div className="md:col-span-1 flex md:justify-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSpecialDate(item.id)}
+                        className="text-muted-foreground hover:text-red-500"
+                        title="Delete special date"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No special date timings added yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!showSpecialDateForm && (
+            <Button
+              type="button"
+              onClick={() => setShowSpecialDateForm(true)}
+              className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
+            >
+              + Add Special Date
+            </Button>
+          )}
+
+          {showSpecialDateForm && (
+            <div className="rounded-lg border bg-white p-5 space-y-4">
+              {specialDateForm.date && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="font-semibold">
+                    {formatSpecialDateForDisplay(specialDateForm.date)}
+                  </span>
+                  <span className="rounded bg-muted px-2 py-1 text-[10px] font-semibold uppercase">
+                    Date Override
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-base font-semibold">Add Special Date Timing</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This date-wise timing will override normal weekly opening hours.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="special-date">Select Date</Label>
+                  <Input
+                    id="special-date"
+                    type="date"
+                    value={specialDateForm.date}
+                    onChange={(e) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        date: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="flex items-end gap-3">
+                  <Switch
+                    checked={specialDateForm.isClosed}
+                    onCheckedChange={(checked) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        isClosed: checked,
+                        start: checked ? "" : prev.start,
+                        end: checked ? "" : prev.end,
+                      }))
+                    }
+                  />
+                  <span className="pb-2 text-sm font-medium">Closed Full Day</span>
+                </div>
+
+                <div>
+                  <Label>Start Time</Label>
+                  <TimePickerField
+                    value={specialDateForm.start}
+                    onChange={(value) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        start: value,
+                      }))
+                    }
+                    disabled={specialDateForm.isClosed}
+                  />
+                </div>
+
+                <div>
+                  <Label>End Time</Label>
+                  <TimePickerField
+                    value={specialDateForm.end}
+                    onChange={(value) =>
+                      setSpecialDateForm((prev) => ({
+                        ...prev,
+                        end: value,
+                      }))
+                    }
+                    disabled={specialDateForm.isClosed}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="special-date-note">Reason / Note</Label>
+                <Textarea
+                  id="special-date-note"
+                  value={specialDateForm.note}
+                  onChange={(e) =>
+                    setSpecialDateForm((prev) => ({
+                      ...prev,
+                      note: e.target.value,
+                    }))
+                  }
+                  placeholder="Example: Special temple timing, festival closure, maintenance..."
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  onClick={handleSaveSpecialDate}
+                  className="bg-gradient-to-r from-fuchsia-500 to-pink-500 text-white hover:opacity-90"
+                >
+                  Save
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCancelSpecialDate}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between">
@@ -972,6 +1303,8 @@ export default function HotspotForm() {
             {isEdit ? "Update" : "Save"}
           </Button>
         </div>
+
+
       </form>
     </div>
   );

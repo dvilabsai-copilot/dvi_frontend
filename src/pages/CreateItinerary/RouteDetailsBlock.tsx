@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -16,10 +15,8 @@ import {
   AutoSuggestSelect,
   AutoSuggestOption,
 } from "@/components/AutoSuggestSelect";
-import {
-  LocationOption,
-  fetchLocations,
-} from "@/services/itineraryDropdownsMock";
+import { LocationOption } from "@/services/itineraryDropdownsMock";
+import { locationsApi } from "@/services/locations";
 
 type ViaRouteItem = {
   itinerary_via_location_ID: number;
@@ -35,7 +32,7 @@ type RouteDetailRow = {
   via: string;
   via_routes?: ViaRouteItem[];
   no_of_km?: number | string;
-  directVisit:  "Yes" | "No";
+  directVisit: "Yes" | "No";
 };
 
 type ValidationErrors = {
@@ -63,6 +60,33 @@ type RouteDetailsBlockProps = {
   hideIntercityKm?: boolean;
 };
 
+async function fetchStoredDestinationLocations(
+  source: string,
+  options?: {
+    dayNo?: number;
+    totalNoOfDays?: number;
+    departureLocation?: string;
+  }
+): Promise<LocationOption[]> {
+  const data = await locationsApi.list({
+    itineraryMode: true,
+    type: "destination",
+    source,
+    dayNo: options?.dayNo,
+    totalNoOfDays: options?.totalNoOfDays,
+    departureLocation: options?.departureLocation,
+  });
+
+  return (data?.rows || [])
+    .map((row, index) => {
+      const name = String(row.destination_location || "").trim();
+      return {
+        id: index + 1,
+        name,
+      };
+    })
+    .filter((item) => item.name);
+}
 export const RouteDetailsBlock = ({
   routeDetails,
   setRouteDetails,
@@ -130,11 +154,21 @@ export const RouteDetailsBlock = ({
 
       (async () => {
         try {
-          const destLocations = await fetchLocations("destination", row.source, {
-            dayNo: row.day,
-            totalNoOfDays: routeDetails.length,
-            departureLocation,
-          });
+         const data = await locationsApi.list({
+  itineraryMode: true,
+  type: "destination",
+  source: row.source,
+  dayNo: row.day,
+  totalNoOfDays: routeDetails.length,
+  departureLocation,
+});
+
+const destLocations = data.rows
+  .map((item, index) => ({
+    id: index + 1,
+    name: String(item.destination_location || "").trim(),
+  }))
+  .filter((item) => item.name);
 
           const opts: AutoSuggestOption[] = destLocations.map((loc) => ({
             value: loc.name,
@@ -183,6 +217,22 @@ export const RouteDetailsBlock = ({
 
   void onRefreshRouteDistance?.(updatedRow);
 }, [routeDetails.length, departureLocationObj?.name]);
+
+  useEffect(() => {
+    const hasInvalidDirectVisit = routeDetails.some((row) => {
+      const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+      return hasViaRoutes && row.directVisit === "Yes";
+    });
+
+    if (!hasInvalidDirectVisit) return;
+
+    setRouteDetails((prev) =>
+      prev.map((row) => {
+        const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+        return hasViaRoutes ? { ...row, directVisit: "No" } : row;
+      })
+    );
+  }, [routeDetails, setRouteDetails]);
 
   const parseDDMMYYYY = (value: string): Date | null => {
     if (!value) return null;
@@ -252,7 +302,7 @@ export const RouteDetailsBlock = ({
     via: "",
     via_routes: [],
     no_of_km: 0,
-    directVisit: "Yes",
+    directVisit: "No",
   },
 ];
       }
@@ -281,7 +331,7 @@ export const RouteDetailsBlock = ({
   via: "",
   via_routes: [],
   no_of_km: 0,
-  directVisit: "Yes",
+  directVisit: "No",
 });
 
       return updated;
@@ -295,14 +345,15 @@ export const RouteDetailsBlock = ({
   const firstRouteNextError = validationErrors?.firstRouteNext;
 
   return (
-    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
+    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none overflow-visible">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-[#4a4260]">
           Route Details
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0">
-        <Table>
+      <CardContent className="pt-0 overflow-visible pb-24">
+  <div className="w-full overflow-visible">
+    <table className="w-full caption-bottom text-sm overflow-visible">
           <TableHeader>
             <TableRow className="bg-[#faf1ff]">
   <TableHead className="text-xs text-[#4a4260] w-[80px]">DAY</TableHead>
@@ -331,6 +382,7 @@ export const RouteDetailsBlock = ({
              const isFirstRow = idx === 0;
 const isLastRow = idx === routeDetails.length - 1;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
+const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
 
               // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
@@ -357,7 +409,11 @@ const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
               }
 
               return (
-                <TableRow key={idx}>
+  <TableRow
+    key={idx}
+    className="overflow-visible"
+    style={{ position: "relative", zIndex: routeDetails.length - idx }}
+  >
   <TableCell>{`DAY ${row.day}`}</TableCell>
 
   <TableCell>
@@ -397,9 +453,11 @@ const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
   </TableCell>
 
   <TableCell
-    data-field={isFirstRow ? "firstRouteNext" : undefined}
-    className={isFirstRow && firstRouteNextError ? "align-top" : ""}
-  >
+  data-field={isFirstRow ? "firstRouteNext" : undefined}
+  className={`relative overflow-visible ${
+    isFirstRow && firstRouteNextError ? "align-top" : ""
+  }`}
+>
     <div
       id={`next-destination-${idx}`}
       className={
@@ -502,32 +560,41 @@ const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 )}
 
 <TableCell className="text-center">
-  <button
-    type="button"
-    aria-pressed={row.directVisit === "Yes"}
-    className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""}`}
-    title={row.directVisit === "Yes" ? "Active" : "Inactive"}
-   onClick={() =>
-  setRouteDetails((prev) =>
-    prev.map((r, i) =>
-      i === idx
-        ? {
-            ...r,
-            directVisit: r.directVisit === "Yes" ? "No" : "No",
-          }
-        : r
-    )
-  )
-}
+  <span
+    className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
+    title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
   >
-    <span className="hotel-toggle-knob"></span>
-  </button>
+    <button
+      type="button"
+      aria-pressed={row.directVisit === "Yes"}
+      aria-disabled={hasViaRoutes}
+      disabled={hasViaRoutes}
+      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""} ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
+      title={!hasViaRoutes ? (row.directVisit === "Yes" ? "Active" : "Inactive") : undefined}
+      onClick={() => {
+        if (hasViaRoutes) return;
+        setRouteDetails((prev) =>
+          prev.map((r, i) =>
+            i === idx
+              ? {
+                  ...r,
+                  directVisit: r.directVisit === "Yes" ? "No" : "Yes",
+                }
+              : r
+          )
+        );
+      }}
+    >
+      <span className="hotel-toggle-knob"></span>
+    </button>
+  </span>
 </TableCell>
 </TableRow>
               );
             })}
           </TableBody>
-        </Table>
+        </table>
+        </div>
 
         <Button
           ref={addDayButtonRef}

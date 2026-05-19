@@ -13,6 +13,16 @@ export type LocationOption = {
   name: string;
 };
 
+export type MealPlanOption = {
+  id: string;
+  label: string;
+  code: string;
+  description?: string;
+  includesBreakfast: number;
+  includesLunch: number;
+  includesDinner: number;
+};
+
 /**
  * Normalizes any simple-option-like payload into { id, label }[]
  * Supports shapes like:
@@ -177,6 +187,33 @@ export async function fetchNationalities(): Promise<SimpleOption[]> {
 
 export async function fetchFoodPreferences(): Promise<SimpleOption[]> {
   return fetchSimple("/food-preferences");
+}
+
+export async function fetchMealPlans(): Promise<MealPlanOption[]> {
+  const res = await api("/itinerary-dropdowns/meal-plans", {
+    method: "GET",
+    auth: true,
+  });
+
+  if (!Array.isArray(res)) return [];
+
+  return res
+    .map((item: any): MealPlanOption | null => {
+      const code = String(item?.code ?? item?.id ?? "").trim().toUpperCase();
+      const label = String(item?.label ?? code).trim();
+      if (!code || !label) return null;
+
+      return {
+        id: code,
+        code,
+        label,
+        description: String(item?.description ?? "").trim() || undefined,
+        includesBreakfast: Number(item?.includesBreakfast ?? 0) ? 1 : 0,
+        includesLunch: Number(item?.includesLunch ?? 0) ? 1 : 0,
+        includesDinner: Number(item?.includesDinner ?? 0) ? 1 : 0,
+      };
+    })
+    .filter((x): x is MealPlanOption => x !== null);
 }
 
 export async function fetchVehicleTypes(): Promise<SimpleOption[]> {

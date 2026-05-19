@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { RouteDetailsBlock } from '@/pages/CreateItinerary/RouteDetailsBlock';
+import { api } from '@/lib/api';
 
 interface DayDetail {
   dayNo: number;
@@ -31,6 +32,7 @@ interface RouteData {
 interface RouteResponse {
   success: boolean;
   no_routes_found?: boolean;
+  no_matching_routes_found?: boolean;
   no_routes_message?: string;
   routes?: RouteData[];
 }
@@ -64,7 +66,37 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [noRoutesMessage, setNoRoutesMessage] = useState<string | null>(null);
+  const [noRoutesDialogOpen, setNoRoutesDialogOpen] = useState(false);
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
+
+  const buildBlankRouteDetails = (): any[] => {
+    const totalDays = Math.max(Number(noOfDays || 1), 1);
+    const [d, m, y] = String(startDate || '').split('/').map((v) => Number(v));
+    const start = !Number.isNaN(d) && !Number.isNaN(m) && !Number.isNaN(y)
+      ? new Date(y, m - 1, d)
+      : new Date();
+
+    const rows: any[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const dt = new Date(start);
+      dt.setDate(start.getDate() + i);
+      const date = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${dt.getFullYear()}`;
+
+      rows.push({
+        id: i + 1,
+        day: i + 1,
+        date,
+        source: i === 0 ? arrivalLocation : '',
+        next: i === totalDays - 1 ? departureLocation : '',
+        via: '',
+        via_routes: [],
+        directVisit: 'No',
+        no_of_km: 0,
+      });
+    }
+
+    return rows;
+  };
 
   useEffect(() => {
     if (arrivalLocation && departureLocation && noOfDays && startDate && endDate) {
@@ -79,28 +111,16 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
     setRoutes([]);
 
     try {
-      const response = await fetch(
-        'http://127.0.0.1:4006/api/v1/itineraries/default-route-suggestions/v2',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            _no_of_route_days: noOfDays,
-            _arrival_location: arrivalLocation,
-            _departure_location: departureLocation,
-            _formattedStartDate: startDate,
-            _formattedEndDate: endDate,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch routes: ${response.statusText}`);
-      }
-
-      const data: RouteResponse = await response.json();
+      const data = await api('/itineraries/default-route-suggestions/v2', {
+  method: 'POST',
+  body: {
+    _no_of_route_days: noOfDays,
+    _arrival_location: arrivalLocation,
+    _departure_location: departureLocation,
+    _formattedStartDate: startDate,
+    _formattedEndDate: endDate,
+  },
+}) as RouteResponse;
 
       if (data.success && data.routes && data.routes.length > 0) {
         setRoutes(data.routes);
@@ -123,10 +143,9 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
         setNoRoutesMessage(
           data.no_routes_message || 'No routes available for this location.',
         );
-        // Trigger callback to auto-switch to Customize mode
-        if (onNoRoutesFound) {
-          onNoRoutesFound();
-        }
+        setNoRoutesDialogOpen(true);
+        // PHP parity: when no default routes are found, switch to Customize with clean rows.
+        setRouteDetails?.(buildBlankRouteDetails());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
@@ -157,9 +176,21 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
 
   // No routes found - show modal alert
   if (noRoutesMessage) {
+    const handleCloseNoRoutesModal = () => {
+      setNoRoutesDialogOpen(false);
+      if (onNoRoutesFound) {
+        onNoRoutesFound();
+      }
+    };
+
     return (
       <>
-        <Dialog open={true} onOpenChange={() => {}}>
+        <Dialog open={noRoutesDialogOpen} onOpenChange={(open) => {
+          setNoRoutesDialogOpen(open);
+          if (!open && onNoRoutesFound) {
+            onNoRoutesFound();
+          }
+        }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <div className="flex justify-center mb-4">
@@ -180,7 +211,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
             </div>
             <DialogFooter className="mt-6">
               <Button 
-                onClick={() => {}} 
+                onClick={handleCloseNoRoutesModal}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
                 Close

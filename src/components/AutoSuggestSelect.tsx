@@ -29,6 +29,7 @@ type AutoSuggestSelectProps = {
   disabled?: boolean;
   readOnly?: boolean;
   scrollToValue?: string;
+  openOnFocus?: boolean;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -47,6 +48,7 @@ export const AutoSuggestSelect = forwardRef<
       disabled = false,
       readOnly = false,
       scrollToValue,
+      openOnFocus = true,
     },
     ref
   ) => {
@@ -76,11 +78,18 @@ export const AutoSuggestSelect = forwardRef<
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    return options.filter(
-      (opt) =>
-        opt.label.toLowerCase().includes(q) ||
-        opt.value.toLowerCase().includes(q)
-    );
+    
+    // Support searching by individual words (e.g., "arab" in "United Arab Emirates")
+    const searchTerms = q.split(/\s+/).filter(Boolean);
+    
+    return options.filter((opt) => {
+      const label = opt.label.toLowerCase();
+      const value = opt.value.toLowerCase();
+      const combined = `${label} ${value}`.toLowerCase();
+      
+      // Check if all search terms are found in label, value, or combined
+      return searchTerms.every(term => combined.includes(term));
+    });
   }, [options, query]);
 
   useEffect(() => {
@@ -255,8 +264,8 @@ useEffect(() => {
         onClick={openDropdown}
         onKeyDown={handleTriggerKeyDown}
         onFocus={() => {
-          // When tabbing into the field, open suggestions (unless disabled)
-          if (!open && !disabled && !readOnly) openDropdown();
+          // Allow consumers to control whether focus should auto-open options.
+          if (openOnFocus && !open && !disabled && !readOnly) openDropdown();
         }}
       >
         <span className={triggerText ? "" : "text-muted-foreground"}>

@@ -11,18 +11,31 @@ export type HotelSearchResult = {
   price: number;
   currency?: string;
   roomTypes?: Array<{
-    roomTypeName: string;
+    roomTypeName?: string;
     roomCode: string;
-    maxOccupancy: number;
+    maxOccupancy?: number;
     roomName?: string;
   }>;
   facilities?: string[];
+  amenities?: string[];
+  inclusions?: string[];
+  rateConditions?: any[];
+  mealPlan?: string;
   images?: string[];
   availableRooms?: number;
   // API-specific fields
   bookingCode?: string;
+  searchReference?: string;
   totalCost?: number;
   totalRoomCost?: number;
+  netAmount?: number;
+  totalFare?: number;
+  supplementSummary?: {
+    hasSupplements: boolean;
+    supplementCount: number;
+    atPropertyChargeCount: number;
+    requiresReview: boolean;
+  };
 };
 
 interface UseHotelSearchOptions {
@@ -38,6 +51,22 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const normalizeStringList = (value: any): string[] => {
+    if (!value) {
+      return [];
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [String(value).trim()].filter(Boolean);
+  };
 
   const search = useCallback(
     async (
@@ -145,6 +174,32 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
           const mapBookingCode = (hotel: any): HotelSearchResult => ({
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
+            inclusions: normalizeStringList(
+              hotel.inclusions ??
+              hotel.Inclusions ??
+              hotel.inclusion ??
+              hotel.Inclusion ??
+              hotel?.rooms?.[0]?.inclusion ??
+              hotel?.rooms?.[0]?.Inclusion ??
+              hotel?.Rooms?.[0]?.Inclusion ??
+              hotel?.Rooms?.[0]?.inclusion,
+            ),
+            amenities: normalizeStringList(
+              hotel.amenities ?? hotel.Amenities ?? hotel.amenity ?? hotel.Amenity,
+            ),
+            rateConditions: normalizeStringList(
+              hotel.rateConditions ?? hotel.RateConditions ?? hotel.rateCondition ?? hotel.RateCondition,
+            ),
+            mealPlan:
+              hotel.mealPlan ||
+              hotel.MealPlan ||
+              hotel.mealType ||
+              hotel.MealType ||
+              hotel.meal_type ||
+              hotel?.rooms?.[0]?.mealType ||
+              hotel?.rooms?.[0]?.MealType ||
+              hotel?.Rooms?.[0]?.MealType ||
+              hotel?.Rooms?.[0]?.mealType,
             // Provider field comes from backend (tbo, ResAvenue, etc.)
           });
 
