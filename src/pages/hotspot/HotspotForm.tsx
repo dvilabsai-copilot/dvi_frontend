@@ -227,6 +227,7 @@ export default function HotspotForm() {
     longitude: "",
     videoUrl: "",
     locations: [],
+    toLocations: [],
     galleryImages: [],
     parkingCharges: {},
     openingHours: DAYS.reduce(
@@ -244,7 +245,10 @@ export default function HotspotForm() {
   const [loading, setLoading] = useState(false);
   const [hotspotTypeInput, setHotspotTypeInput] = useState("");
   const [locationInput, setLocationInput] = useState("");
-  const [locationOpen, setLocationOpen] = useState(false);
+const [locationOpen, setLocationOpen] = useState(false);
+
+const [toLocationInput, setToLocationInput] = useState("");
+const [toLocationOpen, setToLocationOpen] = useState(false);
 const [pendingGalleryFiles, setPendingGalleryFiles] = useState<File[]>([]);
 const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -329,6 +333,7 @@ useEffect(() => {
         longitude: p.hotspot_longitude ?? "",
         videoUrl: p.hotspot_video_url ?? "",
         locations: p.hotspot_location_list ?? [],
+        toLocations: p.hotspot_to_location_list ?? [],
         galleryImages: (p.gallery || []).map(
           (g) => `${hotspotService.fileBase()}/uploads/hotspot_gallery/${g.name}`
         ),
@@ -444,33 +449,62 @@ useEffect(() => {
   );
 
   const locationOptionsFiltered = useMemo(() => {
-    const selected = new Set((form.locations || []).map((x) => x.toLowerCase()));
-    const query = locationInput.trim().toLowerCase();
-    return options.locations
-      .filter((loc) => !selected.has(loc.toLowerCase()))
-      .filter((loc) => (!query ? true : loc.toLowerCase().includes(query)))
-      .slice(0, 12);
-  }, [options.locations, form.locations, locationInput]);
+  const selected = new Set((form.locations || []).map((x) => x.toLowerCase()));
+  const query = locationInput.trim().toLowerCase();
+  return options.locations
+    .filter((loc) => !selected.has(loc.toLowerCase()))
+    .filter((loc) => (!query ? true : loc.toLowerCase().includes(query)))
+    .slice(0, 12);
+}, [options.locations, form.locations, locationInput]);
 
-  function addLocation(raw: string) {
-    const v = raw.trim();
-    if (!v) return;
-    setForm((prev) => {
-      const next = prev.locations || [];
-      if (next.some((x) => x.toLowerCase() === v.toLowerCase())) {
-        return prev;
-      }
-      return { ...prev, locations: [...next, v] };
-    });
-    setLocationInput("");
-    setLocationOpen(false);
-  }
+const toLocationOptionsFiltered = useMemo(() => {
+  const selected = new Set((form.toLocations || []).map((x) => x.toLowerCase()));
+  const query = toLocationInput.trim().toLowerCase();
+  return options.locations
+    .filter((loc) => !selected.has(loc.toLowerCase()))
+    .filter((loc) => (!query ? true : loc.toLowerCase().includes(query)))
+    .slice(0, 12);
+}, [options.locations, form.toLocations, toLocationInput]);
 
+function addLocation(raw: string) {
+  const v = raw.trim();
+  if (!v) return;
+  setForm((prev) => {
+    const next = prev.locations || [];
+    if (next.some((x) => x.toLowerCase() === v.toLowerCase())) {
+      return prev;
+    }
+    return { ...prev, locations: [...next, v] };
+  });
+  setLocationInput("");
+  setLocationOpen(false);
+}
 
- function removeLocation(v: string) {
+function removeLocation(v: string) {
   setForm((prev) => ({
     ...prev,
     locations: (prev.locations || []).filter((x) => x !== v),
+  }));
+}
+
+function addToLocation(raw: string) {
+  const v = raw.trim();
+  if (!v) return;
+  setForm((prev) => {
+    const next = prev.toLocations || [];
+    if (next.some((x) => x.toLowerCase() === v.toLowerCase())) {
+      return prev;
+    }
+    return { ...prev, toLocations: [...next, v] };
+  });
+  setToLocationInput("");
+  setToLocationOpen(false);
+}
+
+function removeToLocation(v: string) {
+  setForm((prev) => ({
+    ...prev,
+    toLocations: (prev.toLocations || []).filter((x) => x !== v),
   }));
 }
 
@@ -852,6 +886,83 @@ function handleDeleteSpecialDate(id: number) {
             )}
           </div>
 
+<div>
+  <Label>Hotspot To Location</Label>
+
+  <div className="rounded-md border p-3 space-y-3">
+    <div className="flex flex-wrap gap-2">
+      {(form.toLocations || []).map((loc) => (
+        <span
+          key={loc}
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
+        >
+          {loc}
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => removeToLocation(loc)}
+            aria-label={`Remove ${loc}`}
+          >
+            x
+          </button>
+        </span>
+      ))}
+    </div>
+
+    <div className="relative">
+      <Input
+        id="hotspotToLocation"
+        value={toLocationInput}
+        onFocus={() => setToLocationOpen(true)}
+        onChange={(e) => {
+          setToLocationInput(e.target.value);
+          setToLocationOpen(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            addToLocation(toLocationInput.replace(/,+$/g, ""));
+          }
+          if (
+            e.key === "Backspace" &&
+            !toLocationInput &&
+            (form.toLocations || []).length
+          ) {
+            const last = (form.toLocations || [])[form.toLocations!.length - 1];
+            if (last) removeToLocation(last);
+          }
+        }}
+        placeholder="Type to search locations and press Enter to add"
+      />
+
+      {toLocationOpen && toLocationOptionsFiltered.length > 0 && (
+        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-white p-1 shadow-md">
+          {toLocationOptionsFiltered.map((loc) => (
+            <button
+              key={loc}
+              type="button"
+              onClick={() => addToLocation(loc)}
+              className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+            >
+              {loc}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+
+    <div className="flex justify-end">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => addToLocation(toLocationInput)}
+      >
+        Add Location
+      </Button>
+    </div>
+  </div>
+</div>
           {/* Row 7: Gallery | Video URL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

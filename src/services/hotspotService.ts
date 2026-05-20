@@ -44,6 +44,7 @@ type FormGetResponse = {
     hotspot_latitude?: string | null;
     hotspot_longitude?: string | null;
     hotspot_location_list?: string[];
+    hotspot_to_location_list?: string[];
     gallery: Array<{ id?: number | string; name: string; delete?: boolean }>;
     parkingCharges: Array<{ id?: number | string; vehicleTypeId: number; charge: number }>;
     operatingHours?: Record<
@@ -54,6 +55,7 @@ type FormGetResponse = {
   options: {
     hotspotTypes: string[];
     locations: string[];
+    toLocations: string[];
     vehicleTypes: Array<{ id: number; name: string }>;
   };
 };
@@ -88,6 +90,7 @@ export type HotspotFormData = {
   longitude: string;
   videoUrl: string;
   locations: string[];
+  toLocations: string[];
   /** Simple mode: array of URLs or filenames (we’ll extract the filename) */
   galleryImages: string[];
   /** Advanced mode (edit): send objects to preserve IDs and deletes */
@@ -310,6 +313,7 @@ export const hotspotService = {
       hotspot_latitude: lat,
       hotspot_longitude: lng,
       hotspot_location_list: form.locations ?? [],
+      hotspot_to_location_list: form.toLocations ?? [],
 
       // child tables
       operatingHours,     // -> dvi_hotspot_timing (backend reads this; now "HH:mm")
