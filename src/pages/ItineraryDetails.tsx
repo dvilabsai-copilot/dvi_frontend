@@ -1154,6 +1154,32 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       );
     }
 
+    if (activePreviewTimeline.length > 0) {
+      const orderedTimeline = enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline));
+      const insertedIndex = orderedTimeline.findIndex((row: any) => Number(
+        row?.selectedHotspotId
+        ?? row?.locationId
+        ?? row?.hotspotId
+        ?? row?.hotspot_ID
+        ?? row?.hotspot_id
+        ?? 0,
+      ) === Number(selectedHotspotId || 0));
+
+      console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row: any, index: number) => ({
+        index,
+        type: String(row?.type || '').toLowerCase(),
+        text: String(row?.text || row?.name || ''),
+        hotspotId: Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0) || null,
+        previewOrder: Number(row?.matrixPreviewOrder ?? row?.previewOrder ?? -1),
+      })));
+      console.log('[ManualHotspotModal] inserted_hotspot_position', {
+        selectedHotspotId: Number(selectedHotspotId || 0),
+        index: insertedIndex,
+      });
+
+      return orderedTimeline;
+    }
+
     const activeAttractionCount = activePreviewTimeline.filter(
       (seg: any) => String(seg?.type || '').toLowerCase() === 'attraction',
     ).length;
@@ -1176,7 +1202,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     );
 
     if (activePreviewTimeline.length > 0 && !useMergedBaselineDuringPriorityConfirm && !shouldMergeBaselineForMatrix) {
-      return enforceHotelOrderingSafety(applyBestSlotOrdering(activePreviewTimeline));
+      return enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline));
     }
 
     const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
@@ -4953,15 +4979,11 @@ const vehicleOnlyHtml = html
       }
 
       const fullTimeline = Array.isArray(preview?.fullTimeline) ? [...preview.fullTimeline] : [];
-      const hasSelectedAttraction = fullTimeline.some((seg: any) => {
-        const type = String(seg?.type || '').toLowerCase();
-        const locId = Number(seg?.locationId || seg?.hotspot_ID || 0);
-        return type === 'attraction' && locId === Number(hotspotId);
+      console.log('[ManualHotspotModal] received_timeline', {
+        hotspotId: Number(hotspotId),
+        segments: fullTimeline.length,
+        hasPreviewOrder: fullTimeline.some((seg: any) => Number.isFinite(Number(seg?.matrixPreviewOrder ?? seg?.previewOrder))),
       });
-
-      if (!hasSelectedAttraction && preview?.newHotspot) {
-        fullTimeline.push(preview.newHotspot);
-      }
 
       // The backend returns { newHotspot, otherConflicts, fullTimeline, allInsertionSlots }.
       const previewResolution = {
