@@ -156,10 +156,27 @@ export async function fetchAgents(
   const qs = travelExpertId
     ? `?travelExpertId=${encodeURIComponent(String(travelExpertId))}`
     : "";
-  return api(`${AGENTS_BASE_PATH}${qs}`, {
+
+  const agents = await api(`${AGENTS_BASE_PATH}${qs}`, {
     method: "GET",
     auth: true,
   });
+
+  const uniqueAgents = Array.from(
+    new Map(
+      (agents || [])
+        .filter((agent: AgentOption) => String(agent.name || "").trim())
+        .map((agent: AgentOption) => [
+          String(agent.name || "").trim().toLowerCase(),
+          {
+            ...agent,
+            name: String(agent.name || "").trim(),
+          },
+        ])
+    ).values()
+  );
+
+  return uniqueAgents as AgentOption[];
 }
 
 // 5) Payment modes
@@ -175,6 +192,6 @@ export async function postPayment(payload: PayPayload): Promise<void> {
   await api(`${ACCOUNTS_BASE_PATH}/pay`, {
     method: "POST",
     auth: true,
-    body: payload,
+body: JSON.stringify(payload),
   });
 }
