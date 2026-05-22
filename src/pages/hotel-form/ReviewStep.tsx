@@ -65,13 +65,24 @@ async function downloadExcel(headers: string[], rows: string[][], filename: stri
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
+
+
 function fmtDate(d: any) {
   const raw = d ?? "";
   if (!raw) return "-";
+
   try {
     const dt = new Date(raw);
     if (isNaN(dt.getTime())) return String(raw);
-    return dt.toLocaleDateString();
+
+    return dt.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   } catch {
     return String(raw);
   }
@@ -85,7 +96,12 @@ async function httpFallback(
   ctx?: ApiCtx
 ) {
   const base = ctx?.API_BASE_URL || "";
-  const tok = ctx?.token?.() || "";
+  const tok =
+  ctx?.token?.() ||
+  localStorage.getItem("token") ||
+  localStorage.getItem("accessToken") ||
+  localStorage.getItem("authToken") ||
+  "";
   const r = await fetch(`${base}${path}`, {
     method,
     headers: {
@@ -147,21 +163,31 @@ export default function ReviewStep({
   const saveMut = useMutation({
     mutationFn: async (data: ReviewForm) => {
       // 🔧 IMPORTANT: status must be 1 (active). We send it explicitly.
-      const payload = {
-        hotel_id: Number(hotelId),
-        rating: Number(data.hotel_rating || 0),
-        description: data.review_description,
-        status: 1, // <-- fixed (was implicitly 0 on server default)
-      };
+const ratingValue = data.hotel_rating || "";
 
+const descriptionValue = data.review_description || "";
+
+const payload = {
+  hotel_id: Number(hotelId),
+  hotelId: Number(hotelId),
+
+  rating: String(ratingValue),
+  hotel_rating: String(ratingValue),
+  review_rating: String(ratingValue),
+
+  description: String(descriptionValue),
+  hotel_description: String(descriptionValue),
+  review_description: String(descriptionValue),
+  feedback: String(descriptionValue),
+
+  status: 1,
+};
       // If editing → PATCH the review by id, else create
       if (editingId != null) {
         const body = payload;
         const patchPaths = [
-          `/api/v1/hotels/${hotelId}/reviews/${editingId}`,
-          `/api/v1/hotels/${hotelId}/feedback/${editingId}`,
-          `/api/v1/hotels/reviews/${editingId}`,
-        ];
+  `/api/v1/hotels/${hotelId}/reviews/${editingId}`,
+];
         let lastErr: any;
         for (const p of patchPaths) {
           try {
@@ -176,10 +202,8 @@ export default function ReviewStep({
 
       // Create (POST)
       const createPaths = [
-        `/api/v1/hotels/${hotelId}/reviews`,
-        `/api/v1/hotels/${hotelId}/feedback`,
-        `/api/v1/hotels/reviews`,
-      ];
+  `/api/v1/hotels/${hotelId}/reviews`,
+];
       let lastErr: any;
       for (const p of createPaths) {
         try {
@@ -204,10 +228,8 @@ export default function ReviewStep({
   const deleteMut = useMutation({
     mutationFn: async (reviewId: number) => {
       const delPaths = [
-        `/api/v1/hotels/${hotelId}/reviews/${reviewId}`,
-        `/api/v1/hotels/${hotelId}/feedback/${reviewId}`,
-        `/api/v1/hotels/reviews/${reviewId}`,
-      ];
+  `/api/v1/hotels/${hotelId}/reviews/${reviewId}`,
+];
       let lastErr: any;
       for (const p of delPaths) {
         try {
@@ -249,53 +271,82 @@ export default function ReviewStep({
   };
 
   // 🔧 Map actual API fields (hotel_review_id, hotel_rating, hotel_description, createdon)
-  const tableRows: Row[] = useMemo(() => {
-    const arr = (reviewsRaw || []) as any[];
-    const mapped = arr.map((r: any, i: number) => {
-      const reviewId =
-        r.hotel_review_id ?? r.review_id ?? r.id ?? r.pk ?? (i + 1);
-      const rating =
-        r.hotel_rating ?? r.rating ?? r.rate ?? r.stars ?? r.score ?? "-";
-      const description =
-        r.hotel_description ??
-        r.description ??
-        r.review_description ??
-        r.comment ??
-        "-";
-      const created =
-        r.createdon ??
-        r.created_on ??
-        r.createdAt ??
-        r.created_at ??
-        r.createdDate ??
-        r.updatedon ??
-        r.updated_on ??
-        r.updatedAt ??
-        r.updated_at ??
-        null;
+const tableRows: Row[] = useMemo(() => {
+  const raw: any = reviewsRaw;
 
-      return {
-        id: i + 1,
-        reviewId: Number(reviewId),
-        rating: normalizeCell(rating),
-        description: normalizeCell(description),
-        createdOn: fmtDate(created),
-        _raw: r,
-      };
-    });
+  const arr = Array.isArray(raw)
+    ? raw
+    : raw?.data ?? raw?.items ?? raw?.reviews ?? raw?.result ?? [];
 
-    const q = search.trim().toLowerCase();
-    const filtered = q
-      ? mapped.filter((r) =>
-          [String(r.id), r.rating, r.description, r.createdOn]
-            .join(" ")
-            .toLowerCase()
-            .includes(q)
-        )
-      : mapped;
+  console.log("FIRST REVIEW OBJECT:", arr?.[0]);
 
-    return filtered;
-  }, [reviewsRaw, search]);
+  const mapped = arr.map((r: any, i: number) => {
+    const reviewId =
+      r.hotel_review_id ??
+      r.hotelReviewId ??
+      r.review_id ??
+      r.reviewId ??
+      r.id ??
+      r.pk ??
+      i + 1;
+
+    const rating =
+      r.hotel_rating ??
+      r.hotelRating ??
+      r.review_rating ??
+      r.reviewRating ??
+      r.rating ??
+      r.rate ??
+      r.stars ??
+      r.score ??
+      "";
+
+    const description =
+      r.hotel_description ??
+      r.hotelDescription ??
+      r.review_description ??
+      r.reviewDescription ??
+      r.description ??
+      r.feedback ??
+      r.comment ??
+      r.review ??
+      "";
+
+    const created =
+      r.createdon ??
+      r.createdOn ??
+      r.created_on ??
+      r.createdAt ??
+      r.created_at ??
+      r.createdDate ??
+      r.updatedon ??
+      r.updatedOn ??
+      r.updated_on ??
+      r.updatedAt ??
+      r.updated_at ??
+      null;
+
+    return {
+      id: i + 1,
+      reviewId: Number(reviewId),
+      rating: normalizeCell(rating),
+      description: normalizeCell(description),
+      createdOn: fmtDate(created),
+      _raw: r,
+    };
+  });
+
+  const q = search.trim().toLowerCase();
+
+  return q
+    ? mapped.filter((r) =>
+        [String(r.id), r.rating, r.description, r.createdOn]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      )
+    : mapped;
+}, [reviewsRaw, search]);
 
   const total = tableRows.length;
   const totalPages = Math.max(1, Math.ceil(total / entries));
@@ -311,32 +362,56 @@ export default function ReviewStep({
   const csvDisabled = total === 0;
 
   // === Actions (Edit/Delete) ===
-  function onEditRow(row: Row) {
-    // Prefill the form (mimics show_RATING_FORM)
-    const raw = row._raw || {};
-    const rating =
-      raw.hotel_rating ?? raw.rating ?? raw.rate ?? raw.stars ?? raw.score ?? "";
-    const desc =
-      raw.hotel_description ??
-      raw.description ??
-      raw.review_description ??
-      raw.comment ??
-      "";
-    setValue("hotel_rating", String(rating ?? ""));
-    setValue("review_description", String(desc ?? ""));
-    setEditingId(row.reviewId);
-    try {
-      document.querySelector(".rv-card .rv-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    } catch {}
-  }
+function onEditRow(row: Row) {
+  setFormError("");
+  const raw = row._raw || {};
+
+   const rating =
+    raw.hotel_rating ??
+    raw.rating ??
+    row.rating ??
+    "";
+
+  const desc =
+    raw.hotel_description ??
+    raw.description ??
+    row.description ??
+    "";
+
+  const cleanRating = String(rating || "").replace(/★/g, "").trim();
+
+  setValue("hotel_rating", cleanRating, {
+    shouldDirty: true,
+    shouldTouch: true,
+    shouldValidate: true,
+  });
+
+  setValue("review_description", String(desc || ""), {
+    shouldDirty: true,
+    shouldTouch: true,
+    shouldValidate: true,
+  });
+
+  setEditingId(row.reviewId);
+
+  document
+    .querySelector(".rv-form")
+    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
   function onDeleteRow(row: Row) {
-    if (deleteMut.isPending) return;
-    const ok = confirm("Delete this review?");
-    if (!ok) return;
-    deleteMut.mutate(row.reviewId);
+  if (deleteMut.isPending) return;
+
+  if (!row.reviewId || Number.isNaN(row.reviewId)) {
+    setFormError("Cannot delete: review id missing from API response.");
+    return;
   }
 
+  const ok = confirm("Delete this review?");
+  if (!ok) return;
+
+  deleteMut.mutate(row.reviewId);
+}
   return (
     <>
       {/* Wizard step title */}

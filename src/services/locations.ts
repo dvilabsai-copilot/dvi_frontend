@@ -1,6 +1,6 @@
 // FILE: src/services/locations.ts
 import { api } from "@/lib/api";
-
+import { fetchLocations as fetchItineraryLocations } from "@/services/itineraryDropdownsMock";
 export type LocationRow = {
   location_ID: number;
   source_location: string;
@@ -20,6 +20,70 @@ export type LocationRow = {
   location_description?: string | null;
 };
 
+export type BetweenHotspotsRow = {
+  between_hotspot_id: number | string;
+  between_hotspot_name: string;
+  between_hotspot_location: string;
+  route_fit_type: string;
+  road_detour_km: number | string;
+  road_detour_ratio: number | string;
+  candidate_distance_from_ab_route_meters: number | string;
+  route_decision_reason: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsHotspotSummary = {
+  id?: number | string;
+  hotspot_id?: number | string;
+  hotspotId?: number | string;
+  hotspot_name?: string;
+  hotspotName?: string;
+  name?: string;
+  location?: string;
+  city?: string;
+  source_location?: string;
+  source_location_city?: string;
+  destination_location?: string;
+  destination_location_city?: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsLocationContext = {
+  source_location?: string;
+  source_location_city?: string;
+  destination_location?: string;
+  destination_location_city?: string;
+  [key: string]: unknown;
+};
+
+export type BetweenHotspotsResponse = {
+  total: number;
+  page: number;
+  pageSize: number;
+  rows: BetweenHotspotsRow[];
+  sourceHotspot?: BetweenHotspotsHotspotSummary;
+  destinationHotspot?: BetweenHotspotsHotspotSummary;
+  locationContext?: BetweenHotspotsLocationContext;
+};
+
+export type BetweenHotspotsFilterLocation = {
+  locationId: number | string;
+  locationName: string;
+};
+
+export type BetweenHotspotsFilterHotspot = {
+  hotspotId: number | string;
+  hotspotName: string;
+  locationId?: number | string;
+  locationName?: string;
+};
+
+export type BetweenHotspotsFiltersResponse = {
+  locations: BetweenHotspotsFilterLocation[];
+  sourceHotspots: BetweenHotspotsFilterHotspot[];
+  destinationHotspots: BetweenHotspotsFilterHotspot[];
+};
+
 /** Source-only payload for creating a new location (Add Location modal) */
 export type CreateLocationPayload = {
   source_location: string;
@@ -33,6 +97,37 @@ export type TollRow = {
   vehicle_type_id: number;
   vehicle_type_name: string;
   toll_charge: number;
+};
+
+export type ViaRouteRow = {
+  count: string;
+  via_route_location_ID: number;
+  location_id: number;
+  via_route_location: string;
+  via_route_location_lattitude: string;
+  via_route_location_longitude: string;
+  via_route_location_city: string;
+  via_route_location_state: string;
+  distance_from_source_to_via_route: string;
+  duration_from_source_to_via_route: string;
+  modify: string;
+};
+
+export type SuggestedRouteRow = {
+  count: string;
+  routes: string;
+  no_of_nights: string;
+  route_details: string;
+  modify: string;
+};
+
+export type ItineraryLocationQuery = {
+  itineraryMode?: boolean;
+  type?: "source" | "destination";
+  source?: string;
+  dayNo?: number;
+  totalNoOfDays?: number;
+  departureLocation?: string;
 };
 
 /* -----------------------------
@@ -73,6 +168,20 @@ function uniqueCaseInsensitive(values: string[]) {
   return result;
 }
 
+function normalizeDurationText(raw: any) {
+  const duration = asStr(raw?.duration_text ?? raw?.duration).trim();
+  if (duration) return duration;
+
+  const source = asStr(raw?.source_location).trim().toLowerCase();
+  const destination = asStr(raw?.destination_location).trim().toLowerCase();
+  const distance = asNum(raw?.distance_km ?? raw?.distance);
+
+  if (source && destination && source === destination && distance === 0) {
+    return "0 hours 0 mins";
+  }
+
+  return "";
+}
 /** Normalize one raw row from backend (PHP/Nest) into LocationRow expected by UI */
 function toLocationRow(raw: any): LocationRow {
   // Handle alternate keys + common typos ("lattitude")
@@ -90,8 +199,7 @@ function toLocationRow(raw: any): LocationRow {
     raw.destination_location_lattitude;
   const dstLng = raw.destination_longitude ?? raw.destination_location_longitude;
 
-  const distance = raw.distance_km ?? raw.distance;
-  const duration = raw.duration_text ?? raw.duration;
+   const distance = raw.distance_km ?? raw.distance;
 
   return {
     location_ID: asNum(raw.location_ID ?? raw.id),
@@ -108,7 +216,7 @@ function toLocationRow(raw: any): LocationRow {
     destination_longitude: asStr(dstLng),
 
     distance_km: asNum(distance),
-    duration_text: asStr(duration),
+    duration_text: normalizeDurationText(raw),
     location_description:
       raw.location_description === undefined ? null : raw.location_description,
   };
@@ -117,32 +225,415 @@ function toLocationRow(raw: any): LocationRow {
 /* -----------------------------
    Public API
 ------------------------------ */
+
+async function fetchItineraryOrderedLocations(args: ItineraryLocationQuery) {
+  const params = new URLSearchParams();
+
+  params.set("type", args.type || "source");
+
+  if (args.type === "destination" && args.source) {
+    params.set("source", args.source);
+
+    if (args.dayNo != null) {
+      params.set("day_no", String(args.dayNo));
+    }
+
+    if (args.totalNoOfDays != null) {
+      params.set("total_no_of_days", String(args.totalNoOfDays));
+    }
+
+    if (args.departureLocation) {
+      params.set("departure_location", args.departureLocation);
+    }
+  }
+
+  const data = await api(`/itinerary-dropdowns/locations?${params.toString()}`) as any;
+
+  const rawList = Array.isArray(data) ? data : [];
+
+  return rawList
+    .map((item: any, index: number) => {
+      const name =
+        asStr(item?.name) ||
+        asStr(item?.location_name) ||
+        asStr(item?.source_location) ||
+        asStr(item?.destination_location);
+
+      return {
+        id: Number(item?.id ?? item?.location_id ?? index + 1),
+        name: name.trim(),
+      };
+    })
+    .filter((item) => item.name);
+}
+
 export const locationsApi = {
   async list(params: {
-    source?: string;
-    destination?: string;
+  source?: string;
+  destination?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  itineraryMode?: boolean;
+  type?: "source" | "destination";
+  dayNo?: number;
+  totalNoOfDays?: number;
+  departureLocation?: string;
+}) {
+  if (params?.itineraryMode) {
+    const items = await fetchItineraryOrderedLocations({
+      itineraryMode: true,
+      type: params.type || "source",
+      source: params.source,
+      dayNo: params.dayNo,
+      totalNoOfDays: params.totalNoOfDays,
+      departureLocation: params.departureLocation,
+    });
+
+    const rows = items.map((item, index) => ({
+      location_ID: index + 1,
+      source_location: params.type === "source" ? item.name : asStr(params.source),
+      source_city: "",
+      source_state: "",
+      source_latitude: "",
+      source_longitude: "",
+      destination_location: params.type === "destination" ? item.name : "",
+      destination_city: "",
+      destination_state: "",
+      destination_latitude: "",
+      destination_longitude: "",
+      distance_km: 0,
+      duration_text: "",
+      location_description: null,
+    }));
+
+    return {
+      rows,
+      total: rows.length,
+      page: 1,
+      pageSize: rows.length || 10,
+    };
+  }
+
+  const data = (await api(`/locations${qs(params)}`)) as any;
+  const rows = Array.isArray(data?.rows) ? data.rows.map(toLocationRow) : [];
+  return {
+    rows,
+    total: Number(data?.total ?? rows.length),
+    page: Number(data?.page ?? params?.page ?? 1),
+    pageSize: Number(data?.pageSize ?? params?.pageSize ?? 10),
+  };
+},
+
+  async betweenHotspots(params: {
+    locationId?: number;
+    sourceHotspotId: number;
+    destinationHotspotId: number;
+    onlyUsable?: boolean;
     search?: string;
     page?: number;
     pageSize?: number;
   }) {
-    const data = (await api(`/locations${qs(params)}`)) as any;
-    const rows = Array.isArray(data?.rows) ? data.rows.map(toLocationRow) : [];
+    const data = (await api(`/locations/between-hotspots${qs({
+      locationId: params.locationId,
+      sourceHotspotId: params.sourceHotspotId,
+      destinationHotspotId: params.destinationHotspotId,
+      onlyUsable: params.onlyUsable,
+      search: params.search,
+      page: params.page,
+      pageSize: params.pageSize,
+    })}`)) as any;
+
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+
     return {
-      rows,
       total: Number(data?.total ?? rows.length),
-      page: Number(data?.page ?? params?.page ?? 1),
-      pageSize: Number(data?.pageSize ?? params?.pageSize ?? 10),
-    };
+      page: Number(data?.page ?? params.page ?? 1),
+      pageSize: Number(data?.pageSize ?? params.pageSize ?? 50),
+      rows,
+      sourceHotspot: data?.sourceHotspot ?? data?.source_hotspot ?? null,
+      destinationHotspot: data?.destinationHotspot ?? data?.destination_hotspot ?? null,
+      locationContext: data?.locationContext ?? data?.location_context ?? null,
+    } as BetweenHotspotsResponse;
   },
 
-  async dropdowns() {
-    const data = (await api(`/locations/dropdowns`)) as any;
+  async betweenHotspotsFilters(params: {
+    locationId?: number;
+    sourceHotspotId?: number;
+    onlyUsable?: boolean;
+    search?: string;
+  } = {}) {
+    const data = (await api(`/locations/between-hotspots/filters${qs({
+      locationId: params.locationId,
+      sourceHotspotId: params.sourceHotspotId,
+      onlyUsable: params.onlyUsable,
+      search: params.search,
+    })}`)) as any;
+
     return {
-      sources: Array.isArray(data?.sources) ? data.sources.map(asStr) : [],
-      destinations: Array.isArray(data?.destinations) ? data.destinations.map(asStr) : [],
+      locations: Array.isArray(data?.locations) ? data.locations : [],
+      sourceHotspots: Array.isArray(data?.sourceHotspots)
+        ? data.sourceHotspots
+        : Array.isArray(data?.source_hotspots)
+        ? data.source_hotspots
+        : [],
+      destinationHotspots: Array.isArray(data?.destinationHotspots)
+        ? data.destinationHotspots
+        : Array.isArray(data?.destination_hotspots)
+        ? data.destination_hotspots
+        : [],
+    } as BetweenHotspotsFiltersResponse;
+  },
+
+    async dropdowns(params?: ItineraryLocationQuery) {
+  if (params?.itineraryMode) {
+    const sourceItems = await fetchItineraryOrderedLocations({
+      itineraryMode: true,
+      type: "source",
+    });
+
+    const destinationItems =
+      params?.source?.trim()
+        ? await fetchItineraryOrderedLocations({
+            itineraryMode: true,
+            type: "destination",
+            source: params.source.trim(),
+            dayNo: params.dayNo,
+            totalNoOfDays: params.totalNoOfDays,
+            departureLocation: params.departureLocation,
+          })
+        : [];
+
+    return {
+      sources: uniqueCaseInsensitive(sourceItems.map((item) => item.name)),
+      destinations: uniqueCaseInsensitive(destinationItems.map((item) => item.name)),
+    };
+  }
+
+  const data = (await api(`/locations/dropdowns${qs({ source: params?.source })}`)) as any;
+
+  return {
+    sources: uniqueCaseInsensitive(Array.isArray(data?.sources) ? data.sources.map((item: any) => asStr(item)) : []),
+    destinations: uniqueCaseInsensitive(
+      Array.isArray(data?.destinations) ? data.destinations.map((item: any) => asStr(item)) : []
+    ),
+  };
+},
+
+  async searchSources(phrase: string) {
+  const normalized = asStr(phrase).trim().toLowerCase();
+
+  const { sources } = await this.dropdowns({
+    itineraryMode: true,
+    type: "source",
+  });
+
+  if (!normalized) {
+    return uniqueCaseInsensitive(sources);
+  }
+
+  return uniqueCaseInsensitive(
+    sources.filter((item) => asStr(item).toLowerCase().includes(normalized))
+  );
+},
+
+  async searchDestinations(
+  phrase: string,
+  source?: string,
+  options?: {
+    dayNo?: number;
+    totalNoOfDays?: number;
+    departureLocation?: string;
+  }
+) {
+  const normalized = asStr(phrase).trim().toLowerCase();
+  const sourceValue = asStr(source).trim();
+
+  if (!sourceValue) return [];
+
+  const data = await this.list({
+    itineraryMode: true,
+    type: "destination",
+    source: sourceValue,
+    dayNo: options?.dayNo,
+    totalNoOfDays: options?.totalNoOfDays,
+    departureLocation: options?.departureLocation,
+  });
+
+  const pool = data.rows
+    .map((row) => asStr(row.destination_location))
+    .filter(Boolean);
+
+  const uniquePool = uniqueCaseInsensitive(pool);
+
+  if (!normalized) {
+    return uniquePool;
+  }
+
+  return uniquePool.filter((item) =>
+    asStr(item).toLowerCase().includes(normalized)
+  );
+},
+
+   async getRouteSuggestions(source: string, currentDestination?: string) {
+    const sourceValue = asStr(source).trim();
+    const currentDestinationValue = asStr(currentDestination).trim().toLowerCase();
+
+    if (!sourceValue) return [];
+
+    const data = await this.list({
+      source: sourceValue,
+      page: 1,
+      pageSize: 200,
+    });
+
+    return uniqueCaseInsensitive(
+      data.rows
+        .map((row) => asStr(row.destination_location))
+        .filter(
+          (destination) =>
+            destination &&
+            destination.toLowerCase() !== currentDestinationValue
+        )
+    );
+  },
+
+    async getViaRoutes(id: number) {
+    const data = (await api(`/locations/${id}/via-routes`)) as any;
+    return {
+      data: Array.isArray(data?.data) ? data.data : [],
     };
   },
 
+  async lookupViaRoutePlace(id: number, place: string) {
+    const data = (await api(`/locations/${id}/via-routes/place-details${qs({ place })}`)) as any;
+    return {
+      found: Boolean(data?.found),
+      data: data?.data
+        ? {
+            via_route_location: asStr(data.data.via_route_location),
+            via_route_location_city: asStr(data.data.via_route_location_city),
+            via_route_location_state: asStr(data.data.via_route_location_state),
+            via_route_location_lattitude: asStr(data.data.via_route_location_lattitude),
+            via_route_location_longitude: asStr(data.data.via_route_location_longitude),
+            distance_from_source_location: asStr(data.data.distance_from_source_location),
+            duration_from_source_location: asStr(data.data.duration_from_source_location),
+          }
+        : null,
+    };
+  },
+
+    async addViaRoute(
+    id: number,
+    payload: {
+      via_route_location: string;
+      via_route_location_lattitude?: string;
+      via_route_location_longitude?: string;
+      via_route_location_city?: string;
+      via_route_location_state?: string;
+      distance_from_source_location?: string;
+      duration_from_source_location?: string;
+    }
+  ) {
+    const data = (await api(`/locations/${id}/via-routes`, {
+      method: "POST",
+      body: payload,
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+    async updateViaRoute(
+    id: number,
+    viaRouteId: number,
+    payload: {
+      via_route_location: string;
+      via_route_location_lattitude?: string;
+      via_route_location_longitude?: string;
+      via_route_location_city?: string;
+      via_route_location_state?: string;
+    }
+  ) {
+    const data = (await api(`/locations/${id}/via-routes/${viaRouteId}`, {
+      method: "PATCH",
+      body: payload,
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+  async deleteViaRoute(id: number, viaRouteId: number) {
+    const data = (await api(`/locations/${id}/via-routes/${viaRouteId}`, {
+      method: "DELETE",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+  async getSuggestedRoutes(id: number) {
+    const data = (await api(`/locations/${id}/suggested-routes`)) as any;
+    return {
+      data: Array.isArray(data?.data) ? data.data : [],
+    };
+  },
+
+  async addSuggestedRoute(
+  id: number,
+  payload: {
+    routes: string;
+    no_of_nights?: string;
+    route_details?: string;
+  }
+) {
+  const data = (await api(`/locations/${id}/suggested-routes`, {
+    method: "POST",
+    body: payload,
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
+
+async updateSuggestedRoute(
+  id: number,
+  suggestedRouteId: number,
+  payload: {
+    routes?: string;
+    no_of_nights?: string;
+    route_details?: string;
+  }
+) {
+  const data = (await api(`/locations/${id}/suggested-routes/${suggestedRouteId}`, {
+    method: "PATCH",
+    body: payload,
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
+
+async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
+  const data = (await api(`/locations/${id}/suggested-routes/${suggestedRouteId}`, {
+    method: "DELETE",
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    data: Array.isArray(data?.data) ? data.data : [],
+  };
+},
   async create(payload: CreateLocationPayload) {
     const data = (await api(`/locations`, { method: "POST", body: payload })) as any;
     return toLocationRow(data);
@@ -164,8 +655,40 @@ export const locationsApi = {
     return toLocationRow(data);
   },
 
-  async remove(id: number) {
-    await api(`/locations/${id}`, { method: "DELETE" });
+  async deleteLocationName(location: string) {
+  const data = (await api(`/locations/location-name${qs({ location })}`, {
+    method: "DELETE",
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    deletedLocation: asStr(data?.deletedLocation),
+    deletedCount: asNum(data?.deletedCount),
+  };
+},
+
+   async remove(id: number) {
+    const data = (await api(`/locations/${id}`, {
+      method: "DELETE",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      row: data?.row ? toLocationRow(data.row) : null,
+    };
+  },
+
+ 
+
+  async restore(id: number) {
+    const data = (await api(`/locations/${id}/restore`, {
+      method: "PATCH",
+    })) as any;
+
+    return {
+      ok: Boolean(data?.ok),
+      row: data?.row ? toLocationRow(data.row) : null,
+    };
   },
 
   async tolls(id: number) {

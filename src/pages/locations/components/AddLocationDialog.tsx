@@ -19,6 +19,7 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
     source_latitude: "",
     source_longitude: "",
   });
+  const [saving, setSaving] = useState(false);
 
     const parseLatLngPair = (value: string) => {
     const match = String(value || "")
@@ -54,15 +55,22 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = () => {
-    onSubmit(form);
-    setForm({
-      source_location: "",
-      source_city: "",
-      source_state: "",
-      source_latitude: "",
-      source_longitude: "",
-    });
+    const handleSubmit = async () => {
+    try {
+      setSaving(true);
+
+      await onSubmit(form);
+
+      setForm({
+        source_location: "",
+        source_city: "",
+        source_state: "",
+        source_latitude: "",
+        source_longitude: "",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -132,10 +140,12 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
         </div>
 
         <DialogFooter className="flex justify-between pt-4">
-          <Button variant="outline" onClick={onClose}>
+                    <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit}>Save</Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

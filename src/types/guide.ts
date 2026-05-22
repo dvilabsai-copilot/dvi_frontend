@@ -6,9 +6,10 @@ export interface GuideAvailableSlot {
 }
 
 export const GUIDE_SLOTS: GuideAvailableSlot[] = [
-  { id: "slot1", label: "Slot 1: 9 AM to 1 PM" },
-  { id: "slot2", label: "Slot 2: 9 AM to 4 PM" },
-  { id: "slot3", label: "Slot 3: 6 PM to 9 PM" },
+  { id: "slot1", label: "Slot 1: 8 AM to 1 PM" },
+  { id: "slot2", label: "Slot 2: 1 PM to 6 PM" },
+  { id: "slot3", label: "Slot 3: 8 AM to 6 PM" },
+  { id: "slot4", label: "Slot 4: 6 PM to 9 PM" },
 ];
 
 export interface GuideBankDetails {
@@ -32,16 +33,19 @@ export interface GuidePricebook {
     slot1: number;
     slot2: number;
     slot3: number;
+    slot4: number;
   };
   pax6to14: {
     slot1: number;
     slot2: number;
     slot3: number;
+    slot4: number;
   };
   pax15to40: {
     slot1: number;
     slot2: number;
     slot3: number;
+    slot4: number;
   };
 }
 

@@ -167,8 +167,12 @@ export type DailyMomentCharge = {
   charge_amount: number;
 };
 
-// Vite-style base URL (same pattern as accountsLedgerApi)
-const API_BASE_URL = (import.meta as any).env?.VITE_API_DVI_BASE_URL
+// Vite-style base URL with localhost fallback for local parity testing
+const API_BASE_URL = (
+  (import.meta as any).env?.VITE_API_DVI_BASE_URL || "http://localhost:4006"
+)
+  .toString()
+  .replace(/\/+$/, "");
 
 // 🔐 Helper: attach JWT from localStorage (same idea as other secured APIs)
 function getAuthHeaders(): Record<string, string> {
@@ -317,4 +321,359 @@ async function safeReadText(res: Response): Promise<string> {
   } catch {
     return "";
   }
+}
+
+// ─── Day-View types ───────────────────────────────────────────────────────────
+
+export type DayViewHotspot = {
+  serial_no: number;
+  confirmed_route_hotspot_ID: number;
+  route_hotspot_ID: number;
+  itinerary_plan_ID: number;
+  itinerary_route_ID: number;
+  hotspot_ID: number;
+  item_type: number; // 4=hotspot,6=hotel,7=travel
+  hotspot_name: string;
+  hotspot_location: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  duration_label: string;
+  driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
+  driver_not_visited_description: string | null;
+  guide_hotspot_status: number;
+  guide_not_visited_description: string | null;
+  activities?: DayViewActivity[];
+};
+
+export type DayViewActivity = {
+  confirmed_route_activity_ID: number;
+  route_activity_ID: number;
+  route_hotspot_ID: number;
+  hotspot_ID: number;
+  activity_ID: number;
+  activity_title: string;
+  driver_activity_status: number;
+  driver_not_visited_description: string | null;
+  guide_activity_status: number;
+  guide_not_visited_description: string | null;
+};
+
+export type DayViewGuide = {
+  confirmed_route_guide_ID: number;
+  guide_id: number;
+  guide_name: string;
+  guide_type: number;
+  driver_guide_status: number;
+  driver_not_visited_description: string | null;
+};
+
+export type DayViewDay = {
+  day_number: number;
+  itinerary_route_ID: number;
+  confirmed_itinerary_route_ID?: number;
+  route_date: string; // DD-MM-YYYY
+  from_location: string;
+  to_location: string;
+  km: {
+    opening_km: string;
+    closing_km: string;
+    opening_speedmeter_image?: string | null;
+    closing_speedmeter_image?: string | null;
+    running_km: number;
+    completed: boolean;
+  };
+  trip_type: TripType;
+  arrival_flight_details: string;
+  departure_flight_details: string;
+  hotel_name: string;
+  vehicle_type_title: string;
+  vendor_name: string;
+  meal_plan: string;
+  vehicle_no: string;
+  driver_name: string;
+  driver_mobile: string;
+  agent_name: string;
+  special_remarks: string;
+  wholeday_guide: DayViewGuide | null;
+  guides: DayViewGuide[];
+  hotspots: DayViewHotspot[];
+};
+
+export type DayViewPlan = {
+  itinerary_plan_ID: number;
+  quote_id: string;
+  trip_start_date: string;
+  trip_end_date: string;
+  no_of_days: number;
+  no_of_nights: number;
+  arrival_location: string;
+  departure_location: string;
+  guest_name: string;
+  guest_mobile: string;
+  guest_email: string;
+  travel_expert_name: string;
+  travel_expert_mobile: string;
+  travel_expert_email: string;
+  days: DayViewDay[];
+};
+
+// ─── Day-View fetch ───────────────────────────────────────────────────────────
+
+export async function fetchDayView(planId: number): Promise<DayViewPlan> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/day-view/${planId}`;
+  const res = await fetch(url, { headers: { ...getAuthHeaders() } });
+  if (!res.ok) {
+    throw new Error(`Failed to load day view: ${res.status} ${await safeReadText(res)}`);
+  }
+  return res.json();
+}
+
+// ─── Hotspot status update ────────────────────────────────────────────────────
+
+export async function updateHotspotStatus(payload: {
+  confirmedRouteHotspotId: number;
+  status: number;
+  description?: string;
+  perspective?: "driver" | "guide";
+}): Promise<void> {
+  const endpoint = payload.perspective === "guide" ? "guide-hotspot-status" : "hotspot-status";
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/${endpoint}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      confirmedRouteHotspotId: payload.confirmedRouteHotspotId,
+      status: payload.status,
+      description: payload.description ?? "",
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to update hotspot status: ${res.status}`);
+}
+
+export async function updateActivityStatus(payload: {
+  confirmedRouteActivityId: number;
+  status: number;
+  description?: string;
+  perspective?: "driver" | "guide";
+}): Promise<void> {
+  const endpoint = payload.perspective === "guide" ? "guide-activity-status" : "activity-status";
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/${endpoint}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify({
+      confirmedRouteActivityId: payload.confirmedRouteActivityId,
+      status: payload.status,
+      description: payload.description ?? "",
+    }),
+  });
+  if (!res.ok) throw new Error(`Failed to update activity status: ${res.status}`);
+}
+
+// ─── Guide status update ──────────────────────────────────────────────────────
+
+export async function updateGuideStatus(payload: {
+  confirmedRouteGuideId: number;
+  status: number;
+  description?: string;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/guide-status`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Failed to update guide status: ${res.status}`);
+}
+
+export async function updateWholedayGuideStatus(payload: {
+  confirmedItineraryRouteId: number;
+  status: number;
+  description?: string;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/wholeday-guide-status`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Failed to update wholeday guide status: ${res.status}`);
+}
+
+// ─── Delete charge ────────────────────────────────────────────────────────────
+
+export async function deleteDailyMomentCharge(driverChargeId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/charges/${driverChargeId}`;
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Failed to delete charge: ${res.status}`);
+}
+
+// ─── Driver rating CRUD ───────────────────────────────────────────────────────
+
+export async function upsertDriverRating(payload: {
+  driverFeedbackId?: number;
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  customerRating: number;
+  feedbackDescription?: string;
+}): Promise<{ driver_feedback_ID: number }> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-ratings`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Failed to save driver rating: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteDriverRating(driverFeedbackId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-ratings/${driverFeedbackId}`;
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Failed to delete driver rating: ${res.status}`);
+}
+
+export async function fetchDriverRatings(itineraryPlanId: number): Promise<any[]> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-ratings?itineraryPlanId=${itineraryPlanId}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Failed to fetch driver ratings: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGuideRatings(itineraryPlanId: number): Promise<any[]> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/guide-ratings?itineraryPlanId=${itineraryPlanId}`;
+  const res = await fetch(url, { headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Failed to fetch guide ratings: ${res.status}`);
+  return res.json();
+}
+
+// ─── Guide rating ─────────────────────────────────────────────────────────────
+
+export async function upsertGuideRating(payload: {
+  guideReviewId?: number;
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  guideId?: number;
+  guideRating: number;
+  guideDescription?: string;
+}): Promise<{ guide_review_id: number }> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/guide-ratings`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Failed to save guide rating: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteGuideRating(guideReviewId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/guide-ratings/${guideReviewId}`;
+  const res = await fetch(url, { method: "DELETE", headers: getAuthHeaders() });
+  if (!res.ok) throw new Error(`Failed to delete guide rating: ${res.status}`);
+}
+
+// ─── Kilometer ────────────────────────────────────────────────────────────────
+
+export async function saveOpeningKm(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  startingKilometer: string;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/kilometer/opening`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(text || `Failed to save opening KM: ${res.status}`);
+  }
+}
+
+export async function saveClosingKm(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  closingKilometer: string;
+}): Promise<void> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/kilometer/closing`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(text || `Failed to save closing KM: ${res.status}`);
+  }
+}
+
+export async function uploadDayImages(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  files: File[];
+  createdby?: number;
+}): Promise<{ count: number; files: string[]; ids: number[] }> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/day-images`;
+  const fd = new FormData();
+  fd.append('itineraryPlanId', String(payload.itineraryPlanId));
+  fd.append('itineraryRouteId', String(payload.itineraryRouteId));
+  if (payload.createdby != null) fd.append('createdby', String(payload.createdby));
+  payload.files.forEach((f) => fd.append('images', f));
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...getAuthHeaders() }, // no Content-Type — browser sets multipart boundary
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(text || `Failed to upload images: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function uploadOpeningSpeedometerImage(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  file: File;
+}): Promise<{ file: string }> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/kilometer/opening-image`;
+  const fd = new FormData();
+  fd.append("itineraryPlanId", String(payload.itineraryPlanId));
+  fd.append("itineraryRouteId", String(payload.itineraryRouteId));
+  fd.append("image", payload.file);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(text || `Failed to upload opening speedometer image: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function uploadClosingSpeedometerImage(payload: {
+  itineraryPlanId: number;
+  itineraryRouteId: number;
+  file: File;
+}): Promise<{ file: string }> {
+  const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/kilometer/closing-image`;
+  const fd = new FormData();
+  fd.append("itineraryPlanId", String(payload.itineraryPlanId));
+  fd.append("itineraryRouteId", String(payload.itineraryRouteId));
+  fd.append("image", payload.file);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { ...getAuthHeaders() },
+    body: fd,
+  });
+  if (!res.ok) {
+    const text = await safeReadText(res);
+    throw new Error(text || `Failed to upload closing speedometer image: ${res.status}`);
+  }
+  return res.json();
 }

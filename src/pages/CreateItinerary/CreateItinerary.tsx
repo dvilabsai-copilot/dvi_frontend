@@ -1,28 +1,34 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { getToken } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentOption, fetchAgents } from "@/services/accountsManagerApi";
 import {
-  fetchLocations,
   fetchItineraryTypes,
   fetchTravelTypes,
   fetchEntryTicketOptions,
   fetchGuideOptions,
   fetchNationalities,
   fetchFoodPreferences,
+  fetchMealPlans,
   fetchEligibleVehicleTypes,
   fetchHotelCategories,
   fetchHotelFacilities,
   LocationOption,
+  MealPlanOption,
   SimpleOption,
 } from "@/services/itineraryDropdownsMock";
+
+import { locationsApi } from "@/services/locations";
 import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
 import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
 import { ViaRouteDialog } from "./ViaRouteDialog";
 import { DefaultRoutesSuggestions } from "@/components/DefaultRoutesSuggestions";
+import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
+import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 
 import {
   toDDMMYYYY,
@@ -32,8 +38,9 @@ import {
   calculateNights,
 } from "./helpers/itineraryUtils";
 import { SaveRouteConfirmDialog } from "./helpers/SaveRouteConfirmDialog";
-import { useRoomsAndTravellers } from "./helpers/useRoomsAndTravellers";
+import { useRoomsAndTravellers, RoomRow as TravellerRoomRow } from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
+import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
 
 // ----------------- types -----------------
 
@@ -59,6 +66,21 @@ function safeTimeFromISO(iso?: string | null, fallback = ""): string {
   return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
 }
 
+function safeDateFromISO(iso?: string | null, fallback = ""): string {
+  if (!iso) return fallback;
+
+  const raw = String(iso).trim();
+  const ymdMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (ymdMatch) {
+    const [, year, month, day] = ymdMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return fallback;
+  return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
 
 function csvToStringArray(v: unknown): string[] {
   if (!v) return [];
@@ -72,6 +94,144 @@ function csvToNumberArray(v: unknown): number[] {
   return csvToStringArray(v)
     .map((s) => Number(s))
     .filter((n) => Number.isFinite(n));
+}
+
+function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption[]): string {
+  const codeFromPlan = typeof plan?.meal_plan_code === "string" ? plan.meal_plan_code.trim() : "";
+  if (codeFromPlan) {
+    const matchedByCode = (mealPlans || []).find((mp) => mp.code === codeFromPlan);
+    return matchedByCode?.code || codeFromPlan;
+  }
+
+  const breakfast = Number(plan?.meal_plan_breakfast ?? 0) ? 1 : 0;
+  const lunch = Number(plan?.meal_plan_lunch ?? 0) ? 1 : 0;
+  const dinner = Number(plan?.meal_plan_dinner ?? 0) ? 1 : 0;
+  const hasExplicitFlags = breakfast === 1 || lunch === 1 || dinner === 1;
+
+  if (!hasExplicitFlags) return "__ALL__";
+
+  const matchedByFlags = (mealPlans || []).find(
+    (mp) =>
+      Number(mp.includesBreakfast) === breakfast &&
+      Number(mp.includesLunch) === lunch &&
+      Number(mp.includesDinner) === dinner,
+  );
+
+  return matchedByFlags?.code || "__ALL__";
+}
+
+function mapPhpBedTypeToUiValue(bedType: unknown): "Without Bed" | "With Bed" {
+  return Number(bedType) === 2 ? "With Bed" : "Without Bed";
+}
+
+function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
+  if (!Array.isArray(travellers) || travellers.length === 0) {
+    return [
+      {
+        id: 1,
+        roomCount: 1,
+        adults: 1,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      },
+    ];
+  }
+
+  const roomMap = new Map<number, TravellerRoomRow>();
+
+  const getRoom = (roomId: number) => {
+    if (!roomMap.has(roomId)) {
+      roomMap.set(roomId, {
+        id: roomId,
+        roomCount: 0,
+        adults: 0,
+        children: 0,
+        infants: 0,
+        childrenDetails: [],
+      });
+    }
+    return roomMap.get(roomId)!;
+  };
+
+  for (const t of travellers) {
+    const roomId = Number(t?.room_id ?? 0);
+    if (roomId <= 0) continue;
+
+    const room = getRoom(roomId);
+    const type = Number(t?.traveller_type ?? 0);
+
+    if (type === 1) {
+      room.adults += 1;
+      continue;
+    }
+
+    if (type === 2) {
+      room.children += 1;
+      room.childrenDetails.push({
+        age:
+          t?.traveller_age !== null &&
+          t?.traveller_age !== undefined &&
+          String(t.traveller_age).trim() !== "" &&
+          !Number.isNaN(Number(t.traveller_age))
+            ? Number(t.traveller_age)
+            : "",
+        bedType: mapPhpBedTypeToUiValue(t?.child_bed_type),
+      });
+      continue;
+    }
+
+    if (type === 3) {
+      room.infants += 1;
+    }
+  }
+
+  const rooms = Array.from(roomMap.values()).sort((a, b) => a.id - b.id);
+  const totalRoomCount = rooms.length || 1;
+
+  return rooms.map((room) => ({
+    ...room,
+    roomCount: totalRoomCount,
+  }));
+}
+
+function buildRoomsFromPlanSummary(plan: any): TravellerRoomRow[] {
+  const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
+  const totalAdults = Math.max(Number(plan?.total_adult ?? 1) || 1, 1);
+  const totalChildren = Math.max(Number(plan?.total_children ?? 0) || 0, 0);
+  const totalInfants = Math.max(Number(plan?.total_infants ?? 0) || 0, 0);
+  const childrenWithBed = Math.max(Number(plan?.total_child_with_bed ?? 0) || 0, 0);
+  const childrenWithoutBed = Math.max(Number(plan?.total_child_without_bed ?? 0) || 0, 0);
+
+  const rooms: TravellerRoomRow[] = Array.from({ length: roomCount }, (_, idx) => ({
+    id: idx + 1,
+    roomCount,
+    adults: 0,
+    children: 0,
+    infants: 0,
+    childrenDetails: [],
+  }));
+
+  for (let i = 0; i < totalAdults; i++) {
+    rooms[i % roomCount].adults += 1;
+  }
+
+  for (let i = 0; i < totalChildren; i++) {
+    const room = rooms[i % roomCount];
+    room.children += 1;
+    const isWithoutBed = i < childrenWithoutBed;
+    const isWithBed = i >= childrenWithoutBed && i < childrenWithoutBed + childrenWithBed;
+    room.childrenDetails.push({
+      age: "",
+      bedType: isWithoutBed ? "Without Bed" : isWithBed ? "With Bed" : "Without Bed",
+    });
+  }
+
+  for (let i = 0; i < totalInfants; i++) {
+    rooms[i % roomCount].infants += 1;
+  }
+
+  return rooms;
 }
 
 
@@ -121,7 +281,45 @@ function addDaysToDDMMYYYY(value: string, daysToAdd: number): string {
   return formatDDMMYYYY(next);
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function getLoggedInUserContext(): { role: number | null; agentId: number | null } {
+  const token = getToken();
+  if (!token) return { role: null, agentId: null };
+
+  const user = parseJwt(token);
+  const role = Number(user?.role);
+  const rawAgentId = user?.agentId ?? user?.id ?? user?.agent_ID ?? null;
+  const agentId = Number(rawAgentId);
+
+  return {
+    role: Number.isFinite(role) ? role : null,
+    agentId: Number.isFinite(agentId) && agentId > 0 ? agentId : null,
+  };
+}
+
 // ----------------- main component ------------
+
+async function fetchStoredSourceLocations(): Promise<LocationOption[]> {
+  const data = await locationsApi.dropdowns({
+    itineraryMode: true,
+    type: "source",
+  });
+
+  return (data?.sources || []).map((name, index) => ({
+    id: index + 1,
+    name: String(name).trim(),
+  }));
+}
 
 export const CreateItinerary = () => {
   const [searchParams] = useSearchParams();
@@ -130,6 +328,9 @@ export const CreateItinerary = () => {
   const { toast } = useToast();
 
   const itineraryPlanId = id && !Number.isNaN(Number(id)) ? Number(id) : null;
+  const loggedInUser = getLoggedInUserContext();
+  const isAgentLogin = loggedInUser.role === 4;
+  const loggedInAgentId = loggedInUser.agentId;
 
   // agents / dropdown data
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -140,6 +341,7 @@ export const CreateItinerary = () => {
   const [guideOptions, setGuideOptions] = useState<SimpleOption[]>([]);
   const [nationalities, setNationalities] = useState<SimpleOption[]>([]);
   const [foodPreferences, setFoodPreferences] = useState<SimpleOption[]>([]);
+  const [mealPlanOptions, setMealPlanOptions] = useState<MealPlanOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
   const [hotelCategoryOptions, setHotelCategoryOptions] = useState<SimpleOption[]>([]);
@@ -161,13 +363,14 @@ export const CreateItinerary = () => {
   const [guideRequired, setGuideRequired] = useState("");
   const [nationality, setNationality] = useState("");
   const [foodPreference, setFoodPreference] = useState(""); // ✅ store option id string
+  const [mealPlanCode, setMealPlanCode] = useState<string>("__ALL__");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
   // ✅ Start/End time used to build trip_start_date and trip_end_date payload
-  const [startTime, setStartTime] = useState<string>("12:00");
-  const [endTime, setEndTime] = useState<string>("12:00");
+  const [startTime, setStartTime] = useState<string>("08:00");
+  const [endTime, setEndTime] = useState<string>("20:00");
 
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
@@ -213,12 +416,81 @@ export const CreateItinerary = () => {
 
   const [showRouteConfirm, setShowRouteConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any | null>(null);
+  const [saveProgressPercent, setSaveProgressPercent] = useState(0);
+  const [activeSaveType, setActiveSaveType] = useState<
+    "itineary_basic_info" | "itineary_basic_info_with_optimized_route" | null
+  >(null);
+  const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
+  const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
+  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
+  const [arrivalPolicyDecision, setArrivalPolicyDecision] = useState<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
+  const arrivalPolicyDecisionRef = useRef<{
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }>({
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  });
+  const [arrivalPolicyModal, setArrivalPolicyModal] = useState<{
+    open: boolean;
+    arrivalDate: string;
+    previousDayDate: string;
+    request: HotelArrivalPolicyRequest | null;
+  }>({
+    open: false,
+    arrivalDate: "",
+    previousDayDate: "",
+    request: null,
+  });
 
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
     useState(false);
+  const defaultRouteWarningShownRef = useRef(false);
+
+  const saveProgressTimerRef = useRef<number | null>(null);
+
+  const applyArrivalPolicyDecision = (decision: {
+    previousDayBillingDecisionProvided: boolean;
+    previousDayBillingConfirmed: boolean;
+  }) => {
+    arrivalPolicyDecisionRef.current = decision;
+    setArrivalPolicyDecision(decision);
+  };
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+  const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
+
+  useEffect(() => {
+    if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
+      setAgentId(loggedInAgentId);
+    }
+  }, [itineraryPlanId, isAgentLogin, loggedInAgentId]);
+
+  const stopSaveProgress = () => {
+    if (saveProgressTimerRef.current !== null) {
+      window.clearInterval(saveProgressTimerRef.current);
+      saveProgressTimerRef.current = null;
+    }
+  };
+
+  const startSaveProgress = (estimatedMs: number) => {
+    stopSaveProgress();
+    setSaveProgressPercent(1);
+    const startedAt = Date.now();
+
+    saveProgressTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt;
+      const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
+      setSaveProgressPercent(Math.min(95, Math.max(1, pct)));
+    }, 220);
+  };
 
   // ----------------- effects -----------------
 
@@ -291,6 +563,12 @@ useEffect(() => {
   vehicles,
 ]);
 
+useEffect(() => {
+  return () => {
+    stopSaveProgress();
+  };
+}, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -304,22 +582,28 @@ useEffect(() => {
           guideRes,
           nationalityRes,
           foodRes,
+          mealPlansRes,
           hotelCatRes,
           hotelFacilityRes,
         ] = await Promise.all([
           fetchAgents(),
-          fetchLocations("source"),
+          fetchStoredSourceLocations(),
           fetchItineraryTypes(),
           fetchTravelTypes(),
           fetchEntryTicketOptions(),
           fetchGuideOptions(),
           fetchNationalities(),
           fetchFoodPreferences(),
+          fetchMealPlans(),
           fetchHotelCategories(),
           fetchHotelFacilities(),
         ]);
 
-        setAgents(agentsRes);
+        setAgents(
+          isAgentLogin && loggedInAgentId
+            ? agentsRes.filter((a) => Number(a.id) === Number(loggedInAgentId))
+            : agentsRes
+        );
         setLocations(locationsRes);
         setItineraryTypes(itineraryTypesRes);
         setTravelTypes(travelTypesRes);
@@ -327,6 +611,7 @@ useEffect(() => {
         setGuideOptions(guideRes);
         setNationalities(nationalityRes);
         setFoodPreferences(foodRes);
+        setMealPlanOptions(mealPlansRes);
         setHotelCategoryOptions(hotelCatRes);
         setHotelFacilityOptions(hotelFacilityRes);
 
@@ -345,12 +630,12 @@ useEffect(() => {
             // ✅ DB fields are trip_start_date_and_time / trip_end_date_and_time
             setTripStartDate(
               p.trip_start_date_and_time
-                ? toDDMMYYYY(new Date(p.trip_start_date_and_time))
+                ? safeDateFromISO(p.trip_start_date_and_time)
                 : ""
             );
             setTripEndDate(
               p.trip_end_date_and_time
-                ? toDDMMYYYY(new Date(p.trip_end_date_and_time))
+                ? safeDateFromISO(p.trip_end_date_and_time)
                 : ""
             );
 
@@ -387,6 +672,8 @@ useEffect(() => {
             // ✅ foodPreference state holds option id
             setFoodPreference(p.food_type != null ? String(p.food_type) : "");
 
+            setMealPlanCode(resolveMealPlanCodeFromPlan(p, mealPlansRes || []));
+
 
 
             setSpecialInstructions(p.special_instructions ?? "");
@@ -400,7 +687,7 @@ useEffect(() => {
     id: idx + 1,
     day: r.no_of_days ?? idx + 1,
     date: r.itinerary_route_date
-      ? toDDMMYYYY(new Date(r.itinerary_route_date))
+      ? safeDateFromISO(r.itinerary_route_date)
       : "",
     source: r.location_name ?? "",
     next: r.next_visiting_location ?? "",
@@ -432,6 +719,13 @@ useEffect(() => {
                 }))
               );
             }
+
+            if (Array.isArray(existing.travellers) && existing.travellers.length) {
+              setRooms(buildRoomsFromTravellers(existing.travellers));
+            } else {
+              // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
+              setRooms(buildRoomsFromPlanSummary(p));
+            }
           }
         }
       } catch (err) {
@@ -440,7 +734,132 @@ useEffect(() => {
         setLoading(false);
       }
     })();
-  }, [itineraryPlanId, setRouteDetails]);
+  }, [itineraryPlanId, setRouteDetails, setRooms]);
+
+  useEffect(() => {
+    if (itineraryPlanId) return;
+    if (!arrivalLocation || !departureLocation || !tripStartDate || !tripEndDate) return;
+
+    const dayCount = calculateDaysBetweenDates(tripStartDate, tripEndDate);
+    const key = `${arrivalLocation.trim().toLowerCase()}|${departureLocation
+      .trim()
+      .toLowerCase()}|${dayCount}`;
+
+    if (templateAppliedKey === key) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const match = await ItineraryService.getReusableTemplateMatch(
+          arrivalLocation,
+          departureLocation,
+          dayCount,
+        );
+
+        if (cancelled) return;
+
+        if (!match?.found || !match?.template) {
+          setTemplateAppliedKey(key);
+          return;
+        }
+
+        const template = match.template;
+        const plan = template?.plan;
+
+        if (plan) {
+          setItineraryPreference(
+            plan.itinerary_preference === 2
+              ? "vehicle"
+              : plan.itinerary_preference === 1
+              ? "hotel"
+              : "both",
+          );
+
+          setItineraryTypeSelect(
+            plan.itinerary_type != null ? String(plan.itinerary_type) : "",
+          );
+          setArrivalType(plan.arrival_type != null ? String(plan.arrival_type) : "");
+          setDepartureType(plan.departure_type != null ? String(plan.departure_type) : "");
+          setEntryTicketRequired(
+            plan.entry_ticket_required != null
+              ? String(plan.entry_ticket_required)
+              : "",
+          );
+          setGuideRequired(
+            plan.guide_for_itinerary != null ? String(plan.guide_for_itinerary) : "",
+          );
+          setNationality(plan.nationality != null ? String(plan.nationality) : "");
+          setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
+          setMealPlanCode(resolveMealPlanCodeFromPlan(plan, mealPlanOptions || []));
+          setBudget(plan.expecting_budget ?? "");
+          setSpecialInstructions(plan.special_instructions ?? "");
+          setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
+          setSelectedHotelFacilityIds(csvToStringArray(plan.hotel_facilities));
+        }
+
+        if (Array.isArray(template?.routes) && template.routes.length) {
+          setRouteDetails(
+            template.routes.map((r: any, idx: number): RouteRow => ({
+              id: idx + 1,
+              day: r.no_of_days ?? idx + 1,
+              // Keep template route sequence, but always align dates to the user's selected trip start date.
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
+              source: r.location_name ?? "",
+              next: r.next_visiting_location ?? "",
+              via: r.via_route ?? "",
+              via_routes: Array.isArray(r.via_routes)
+                ? r.via_routes.map((vr: any) => ({
+                    itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+                    itinerary_via_location_name: String(vr.itinerary_via_location_name),
+                  }))
+                : [],
+              no_of_km:
+                r.no_of_km !== undefined &&
+                r.no_of_km !== null &&
+                String(r.no_of_km).trim() !== ""
+                  ? Number(r.no_of_km)
+                  : 0,
+              directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
+            })),
+          );
+        }
+
+        if (Array.isArray(template?.vehicles) && template.vehicles.length) {
+          setVehicles(
+            template.vehicles.map((v: any, idx: number): VehicleRow => ({
+              id: idx + 1,
+              type: v.vehicle_type_id ? String(v.vehicle_type_id) : "",
+              count: v.vehicle_count ?? 1,
+            })),
+          );
+        }
+
+        setTemplateAppliedKey(key);
+        toast({
+          title: "Template loaded",
+          description: "Applied saved itinerary template for this route and duration.",
+        });
+      } catch (error) {
+        console.error("Failed to load matching itinerary template", error);
+        if (!cancelled) setTemplateAppliedKey(key);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    itineraryPlanId,
+    arrivalLocation,
+    departureLocation,
+    tripStartDate,
+    tripEndDate,
+    templateAppliedKey,
+    toast,
+    setRouteDetails,
+    mealPlanOptions,
+  ]);
 
   // Auto-open route suggestions modal when itinerary type is "Default"
   useEffect(() => {
@@ -448,18 +867,37 @@ useEffect(() => {
       const selectedType = itineraryTypes.find(
         (t) => t.id === itineraryTypeSelect
       );
+      const isDefaultType = selectedType?.label?.trim().toLowerCase() === "default";
+
+      if (!isDefaultType) {
+        defaultRouteWarningShownRef.current = false;
+        return;
+      }
 
       // Check if the selected type is "Default"
-      if (selectedType?.label === "Default") {
-        // Check if we have required fields
-        if (
-          arrivalLocation &&
-          departureLocation &&
-          tripStartDate &&
-          tripEndDate
-        ) {
-          const noOfDays = routeDetails.length || 1;
+      if (isDefaultType) {
+        const hasRequiredBasicDetails =
+          Boolean(arrivalLocation) &&
+          Boolean(departureLocation) &&
+          Boolean(tripStartDate) &&
+          Boolean(tripEndDate);
+
+        if (hasRequiredBasicDetails) {
+          defaultRouteWarningShownRef.current = false;
           setShowDefaultRouteSuggestions(true);
+        } else {
+          setShowDefaultRouteSuggestions(false);
+
+          // PHP parity: warn once until user changes type or completes required fields.
+          if (!defaultRouteWarningShownRef.current) {
+            toast({
+              title: "Warning !!!",
+              description:
+                "Please Fill the basic itinerary details to proceed with the default Route Suggestions",
+              variant: "destructive",
+            });
+            defaultRouteWarningShownRef.current = true;
+          }
         }
       }
     }
@@ -570,7 +1008,7 @@ const addDay = () => {
           via: "",
           via_routes: [],
           no_of_km: 0,
-          directVisit: "Yes" as const,
+          directVisit: "No" as const,
         },
       ];
 
@@ -599,7 +1037,7 @@ const addDay = () => {
         via: "",
         via_routes: [],
         no_of_km: 0,
-        directVisit: "Yes" as const,
+        directVisit: "No" as const,
       },
     ];
 
@@ -615,7 +1053,9 @@ const addDay = () => {
   const validateBeforeSave = (): boolean => {
     const errors: ValidationErrors = {};
 
-    if (!agentId) errors.agentId = "Please select an Agent";
+    if (!agentId && !(isAgentLogin && loggedInAgentId)) {
+      errors.agentId = "Please select an Agent";
+    }
     if (!arrivalLocation) errors.arrivalLocation = "Please select Arrival";
     if (!departureLocation) errors.departureLocation = "Please select Departure";
     if (!tripStartDate) errors.tripStartDate = "Please select Trip Start Date";
@@ -766,6 +1206,11 @@ const buildPayload = () => {
       ? 2
       : 3;
 
+  const resolvedAgentId =
+    isAgentLogin && loggedInAgentId
+      ? Number(loggedInAgentId)
+      : ((agentId as number) ?? 0);
+
   const itinerary_preference =
     itineraryPreference === "vehicle"
       ? 2
@@ -802,6 +1247,12 @@ const buildPayload = () => {
       : [];
 
   const food_type_id = resolveOptionId(foodPreference, foodPreferences);
+  const normalizedMealPlanCode = mealPlanCode === "__ALL__" ? "" : mealPlanCode;
+  const selectedMealPlan = mealPlanOptions.find((p) => p.code === normalizedMealPlanCode);
+  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 0) ? 1 : 0;
+  const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
+  const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
+  const meal_plan_code = normalizedMealPlanCode || selectedMealPlan?.code || undefined;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
@@ -818,7 +1269,7 @@ const buildPayload = () => {
 
   // ✅ base plan without id
   const planBase: any = {
-    agent_id: (agentId as number) ?? 0,
+    agent_id: resolvedAgentId,
     staff_id: 0,
     location_id: 0,
 
@@ -849,6 +1300,10 @@ const buildPayload = () => {
     nationality: nationality ? Number(nationality) : 0,
 
     food_type: food_type_id,
+    meal_plan_code,
+    meal_plan_breakfast,
+    meal_plan_lunch,
+    meal_plan_dinner,
 
     adult_count: totalAdults,
     child_count: totalChildren,
@@ -876,18 +1331,152 @@ const buildPayload = () => {
           }))
         : [],
     travellers: travellerRows,
+    previousDayBillingDecisionProvided:
+      arrivalPolicyDecision.previousDayBillingDecisionProvided,
+    previousDayBillingConfirmed:
+      arrivalPolicyDecision.previousDayBillingConfirmed,
   };
 
   return payload;
 };
 
-  const handleSaveClick = () => {
+const toYMD = (ddmmyyyy: string): string => {
+  const dt = parseDDMMYYYY(ddmmyyyy);
+  if (!dt) return "";
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const buildArrivalPolicyRequest = (): HotelArrivalPolicyRequest | null => {
+  const routeDate = toYMD(tripStartDate);
+  if (!routeDate || !startTime) return null;
+
+  const firstRoute = routeDetails[0];
+  return {
+    routeDayNumber: 1,
+    routeDate,
+    arrivalDateTime: toISOFromDDMMYYYYAndTime(tripStartDate, startTime),
+    arrivalCityName: arrivalLocation || firstRoute?.source || "",
+    routeSourceCityName: firstRoute?.source || arrivalLocation || "",
+    nightStayCityName: firstRoute?.next || departureLocation || "",
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  };
+};
+
+const getArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
+  if (!request?.routeDate || !request?.arrivalDateTime) {
+    return null;
+  }
+
+  const arrivalTimeHms = request.arrivalDateTime.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return null;
+  }
+
+  return `${request.routeDate}|${arrivalTimeHms}`;
+};
+
+const isEarlyArrivalPolicyRequest = (request: HotelArrivalPolicyRequest | null) => {
+  const arrivalTimeHms = request?.arrivalDateTime?.includes("T")
+    ? request.arrivalDateTime.split("T")[1]?.slice(0, 8) || ""
+    : "";
+
+  if (!arrivalTimeHms) {
+    return false;
+  }
+
+  const [hours, minutes, seconds] = arrivalTimeHms.split(":").map((value) => Number(value || 0));
+  const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+  return totalSeconds >= 3600 && totalSeconds < 28800;
+};
+
+const openArrivalPolicyDecisionModal = (request: HotelArrivalPolicyRequest) => {
+  const routeDate = request.routeDate || "";
+  const currentDate = routeDate ? new Date(`${routeDate}T00:00:00`) : new Date();
+  const previousDay = new Date(currentDate);
+  previousDay.setDate(previousDay.getDate() - 1);
+
+  const formatDate = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  setArrivalPolicyModal({
+    open: true,
+    arrivalDate: formatDate(currentDate),
+    previousDayDate: formatDate(previousDay),
+    request,
+  });
+};
+
+const runArrivalPolicyGate = async (
+  request: HotelArrivalPolicyRequest,
+): Promise<boolean> => {
+  setIsResolvingArrivalPolicy(true);
+  try {
+    const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+    if (policy.requiresPreviousDayBillingConfirmation) {
+      openArrivalPolicyDecisionModal(request);
+      return false;
+    }
+    return true;
+  } catch (e: any) {
+    console.error("Failed to resolve arrival policy in create itinerary", e);
+    toast({
+      title: "Arrival policy failed",
+      description: e?.message || "Unable to evaluate arrival policy before saving.",
+      variant: "destructive",
+    });
+    return false;
+  } finally {
+    setIsResolvingArrivalPolicy(false);
+  }
+};
+
+const continueToRouteConfirmation = () => {
+  setShowRouteConfirm(true);
+};
+
+  const handleSaveClick = async () => {
     const ok = validateBeforeSave();
     if (!ok) return;
 
+    applyArrivalPolicyDecision({
+      previousDayBillingDecisionProvided: false,
+      previousDayBillingConfirmed: false,
+    });
+
     const payload = buildPayload();
     setPendingPayload(payload);
-    setShowRouteConfirm(true);
+
+    const request = buildArrivalPolicyRequest();
+    if (!request) {
+      continueToRouteConfirmation();
+      return;
+    }
+
+    const currentDecisionKey = getArrivalPolicyDecisionKey(request);
+    if (
+      isEarlyArrivalPolicyRequest(request) &&
+      currentDecisionKey &&
+      currentDecisionKey === lastArrivalPolicyDecisionKey
+    ) {
+      continueToRouteConfirmation();
+      return;
+    }
+
+    const canProceed = await runArrivalPolicyGate(request);
+    if (!canProceed) return;
+
+    continueToRouteConfirmation();
   };
 
   const handleConfirmClose = () => {
@@ -900,12 +1489,27 @@ const handleSaveWithType = async (
 ) => {
   try {
     setIsSaving(true);
+    setActiveSaveType(type);
 
     const basePayload = pendingPayload ?? buildPayload();
+    const decision = arrivalPolicyDecisionRef.current;
+    const finalPayload = {
+      ...basePayload,
+      previousDayBillingDecisionProvided:
+        decision.previousDayBillingDecisionProvided,
+      previousDayBillingConfirmed:
+        decision.previousDayBillingConfirmed,
+    };
+    const dayCount = Math.max(1, Number(finalPayload?.plan?.no_of_days ?? 1));
+    const estimatedMs = getEstimatedSaveMs(dayCount, type);
+    setEstimatedSaveMs(estimatedMs);
+    startSaveProgress(estimatedMs);
+
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(basePayload, type);
+    const res = await ItineraryService.create(finalPayload, type);
+    setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
     const rawPlanId =
@@ -922,12 +1526,20 @@ const handleSaveWithType = async (
       res?.quoteId && typeof res.quoteId === "string"
         ? res.quoteId
         : null;
+    const vehicleBuildProcessing =
+      String(res?.vehicleBuildStatus || "").toUpperCase() === "PROCESSING";
 
     toast({
       title: isUpdate ? "Itinerary updated" : "Itinerary created",
-      description: isUpdate
-        ? "The itinerary has been updated successfully."
-        : "The itinerary has been created successfully.",
+      description: `${
+        isUpdate
+          ? "The itinerary has been updated successfully."
+          : "The itinerary has been created successfully."
+      }${
+        vehicleBuildProcessing
+          ? " Vehicle list is being prepared in the background."
+          : ""
+      }`,
     });
 
     setShowRouteConfirm(false);
@@ -950,7 +1562,9 @@ const handleSaveWithType = async (
       variant: "destructive",
     });
   } finally {
+    stopSaveProgress();
     setIsSaving(false);
+    setActiveSaveType(null);
   }
 };
 
@@ -971,6 +1585,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
+        isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
         locations={locations}
         arrivalLocation={arrivalLocation}
         setArrivalLocation={setArrivalLocation}
@@ -1004,6 +1619,9 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         foodPreferences={foodPreferences}
         foodPreference={foodPreference}
         setFoodPreference={setFoodPreference}
+        mealPlanOptions={mealPlanOptions}
+        mealPlanCode={mealPlanCode}
+        setMealPlanCode={setMealPlanCode}
         tripStartDate={tripStartDate}
         setTripStartDate={setTripStartDate}
         tripEndDate={tripEndDate}
@@ -1051,6 +1669,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
             routeDetails={routeDetails}
             setRouteDetails={setRouteDetails}
             onOpenViaRoutes={openViaRoutes}
+            onDeleteDay={deleteDay}
           />
         ) : (
                    <RouteDetailsBlock
@@ -1104,9 +1723,96 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
       <SaveRouteConfirmDialog
         open={showRouteConfirm}
         isSaving={isSaving}
+        progressPercent={saveProgressPercent}
+        estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}
+        dayCount={Math.max(1, Number(pendingPayload?.plan?.no_of_days ?? noOfDays ?? 1))}
+        saveType={activeSaveType}
         onClose={handleConfirmClose}
         onSaveSameRoute={() => handleSaveWithType("itineary_basic_info")}
         onOptimizeRoute={() => handleSaveWithType("itineary_basic_info_with_optimized_route")}
+      />
+
+      <ArrivalHotelDecisionModal
+        open={arrivalPolicyModal.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setArrivalPolicyModal({
+              open: false,
+              arrivalDate: "",
+              previousDayDate: "",
+              request: null,
+            });
+          }
+        }}
+        arrivalDate={arrivalPolicyModal.arrivalDate}
+        previousDayDate={arrivalPolicyModal.previousDayDate}
+        isLoading={isResolvingArrivalPolicy}
+        onConfirmPreviousDayBilling={async () => {
+          if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
+          const canProceed = await runArrivalPolicyGate({
+            ...arrivalPolicyModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          });
+          if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: true,
+          } : prev);
+
+          setArrivalPolicyModal({
+            open: false,
+            arrivalDate: "",
+            previousDayDate: "",
+            request: null,
+          });
+          continueToRouteConfirmation();
+        }}
+        onDeclinePreviousDayBilling={async () => {
+          if (!arrivalPolicyModal.request) return;
+          const decisionKey = getArrivalPolicyDecisionKey(arrivalPolicyModal.request);
+          const canProceed = await runArrivalPolicyGate({
+            ...arrivalPolicyModal.request,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          });
+          if (!canProceed) return;
+
+          if (decisionKey) {
+            setLastArrivalPolicyDecisionKey(decisionKey);
+          }
+
+          applyArrivalPolicyDecision({
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          });
+
+          setPendingPayload((prev: any) => prev ? {
+            ...prev,
+            previousDayBillingDecisionProvided: true,
+            previousDayBillingConfirmed: false,
+          } : prev);
+
+          setArrivalPolicyModal({
+            open: false,
+            arrivalDate: "",
+            previousDayDate: "",
+            request: null,
+          });
+          continueToRouteConfirmation();
+        }}
       />
 
       <ViaRouteDialog

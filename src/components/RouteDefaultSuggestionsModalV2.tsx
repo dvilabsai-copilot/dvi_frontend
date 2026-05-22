@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/table';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { api } from '@/lib/api';
+import { AutoSuggestSelect, AutoSuggestOption } from '@/components/AutoSuggestSelect';
 
 interface DayDetail {
   dayNo: number;
@@ -63,12 +65,22 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [noRoutesMessage, setNoRoutesMessage] = useState<string | null>(null);
+  const [selectedRouteValue, setSelectedRouteValue] = useState('route-0');
+  const routeOptions: AutoSuggestOption[] = routes.map((route, idx) => ({
+    value: `route-${idx}`,
+    label: route.routeName,
+  }));
 
   React.useEffect(() => {
     if (isOpen && arrivalLocation && departureLocation) {
       fetchRoutes();
     }
   }, [isOpen, arrivalLocation, departureLocation, noOfDays, startDate, endDate]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    setSelectedRouteValue('route-0');
+  }, [isOpen, routes.length]);
 
   const fetchRoutes = async () => {
     setLoading(true);
@@ -77,28 +89,16 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
     setRoutes([]);
 
     try {
-      const response = await fetch(
-        'http://127.0.0.1:4006/api/v1/itineraries/default-route-suggestions/v2',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            _no_of_route_days: noOfDays,
-            _arrival_location: arrivalLocation,
-            _departure_location: departureLocation,
-            _formattedStartDate: startDate,
-            _formattedEndDate: endDate,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch routes: ${response.statusText}`);
-      }
-
-      const data: RouteResponse = await response.json();
+      const data = await api('/itineraries/default-route-suggestions/v2', {
+  method: 'POST',
+  body: {
+    _no_of_route_days: noOfDays,
+    _arrival_location: arrivalLocation,
+    _departure_location: departureLocation,
+    _formattedStartDate: startDate,
+    _formattedEndDate: endDate,
+  },
+}) as RouteResponse;
 
       if (data.success && data.routes && data.routes.length > 0) {
         setRoutes(data.routes);
@@ -161,7 +161,18 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
           )}
 
           {routes.length > 0 && (
-            <Tabs defaultValue={`route-0`} className="w-full">
+            <Tabs value={selectedRouteValue} onValueChange={setSelectedRouteValue} className="w-full">
+              <div className="mb-4 w-full max-w-sm">
+                <label className="mb-2 block text-sm font-medium text-gray-700">Choose Route</label>
+                <AutoSuggestSelect
+                  mode="single"
+                  value={selectedRouteValue}
+                  onChange={(value) => setSelectedRouteValue(String(value || 'route-0'))}
+                  options={routeOptions}
+                  placeholder="Select a route"
+                />
+              </div>
+
               {/* Tabs List */}
               <TabsList className="grid w-full gap-2 mb-6 bg-gray-100 p-2 rounded-lg overflow-x-auto flex-wrap">
                 {routes.map((route, idx) => (

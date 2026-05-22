@@ -1,9 +1,12 @@
 // FILE: src/pages/guide/GuideFormPage.tsx
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  ChevronRight,
+  ChevronRight,Copy,
+  FileSpreadsheet,
+  FileText,
+  ChevronDown,
   Eye,
   EyeOff,
   Star,
@@ -69,6 +72,221 @@ const STEPS = [
   { id: 4, label: "Guide Preview" },
 ];
 
+/* ------------------------------------------------------------------
+   SlotMultiSelect — Select2-style multi-select for Guide Available Slots
+   Keyboard: ↓/↑ navigate, Enter/Space toggle, Backspace remove last chip,
+             Escape close, Tab close (blur)
+-------------------------------------------------------------------*/
+interface SlotMultiSelectProps {
+  options: { id: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  hasError?: boolean;
+  placeholder?: string;
+}
+
+function SlotMultiSelect({
+  options,
+  selected,
+  onChange,
+  hasError,
+  placeholder = "Choose Slot Type",
+}: SlotMultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Close on outside click / focus-out
+  useEffect(() => {
+    function handlePointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setFocusedIndex(-1);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (!open || focusedIndex < 0 || !listRef.current) return;
+    const item = listRef.current.querySelectorAll<HTMLLIElement>("li")[focusedIndex];
+    item?.scrollIntoView({ block: "nearest" });
+  }, [focusedIndex, open]);
+
+  // Reset focus highlight when dropdown opens
+  useEffect(() => {
+    if (open) setFocusedIndex(-1);
+  }, [open]);
+
+  // When a selection changes while open, clamp focusedIndex to remaining list size
+  useEffect(() => {
+    if (!open) return;
+    const unselectedCount = options.filter((o) => !selected.includes(o.id)).length;
+    setFocusedIndex((i) => (i >= unselectedCount ? Math.max(0, unselectedCount - 1) : i));
+  }, [selected, open, options]);
+
+  function toggleOption(id: string) {
+    if (selected.includes(id)) {
+      onChange(selected.filter((s) => s !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  }
+
+  function removeChip(id: string) {
+    onChange(selected.filter((s) => s !== id));
+    setOpen(true);   // reopen dropdown immediately so removed option reappears
+    setFocusedIndex(-1);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const unselected = options.filter((o) => !selected.includes(o.id));
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else {
+          setFocusedIndex((i) => Math.min(i + 1, unselected.length - 1));
+        }
+        break;
+
+      case "ArrowUp":
+        e.preventDefault();
+        if (open) {
+          setFocusedIndex((i) => Math.max(i - 1, 0));
+        }
+        break;
+
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (!open) {
+          setOpen(true);
+          setFocusedIndex(0);
+        } else if (focusedIndex >= 0 && focusedIndex < unselected.length) {
+          toggleOption(unselected[focusedIndex].id);
+        }
+        break;
+
+      case "Backspace":
+      case "Delete":
+        if (selected.length > 0) {
+          onChange(selected.slice(0, -1));
+          setOpen(true);   // show dropdown with the now-removed option
+          setFocusedIndex(-1);
+        }
+        break;
+
+      case "Tab":
+      case "Escape":
+        setOpen(false);
+        setFocusedIndex(-1);
+        break;
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger box */}
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-activedescendant={focusedIndex >= 0 ? `slot-opt-${options.filter((o) => !selected.includes(o.id))[focusedIndex]?.id}` : undefined}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onClick={() => {
+          setOpen((v) => !v);
+          if (!open) setFocusedIndex(-1);
+        }}
+        className={cn(
+          "flex min-h-[38px] w-full cursor-pointer flex-wrap items-center gap-1 rounded-md border bg-white px-3 py-1.5 text-sm shadow-sm transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-primary",
+          hasError ? "border-red-500" : "border-input",
+          open && "ring-1 ring-primary border-primary",
+        )}
+      >
+        {selected.length === 0 && (
+          <span className="text-muted-foreground">{placeholder}</span>
+        )}
+        {selected.map((id) => {
+          const opt = options.find((o) => o.id === id);
+          return (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs font-medium text-white"
+            >
+              {opt?.label ?? id}
+              <button
+                type="button"
+                aria-label={`Remove ${opt?.label}`}
+                tabIndex={-1}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  removeChip(id);
+                }}
+                className="ml-0.5 rounded-full hover:bg-white/20 focus:outline-none"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        })}
+        <ChevronDown
+          className={cn(
+            "ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150",
+            open && "rotate-180",
+          )}
+        />
+      </div>
+
+      {/* Dropdown — only shows unselected options */}
+      {open && (() => {
+        const unselected = options.filter((o) => !selected.includes(o.id));
+        if (unselected.length === 0) return null;
+        return (
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-multiselectable="true"
+            className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-white shadow-md"
+          >
+            {unselected.map((opt, idx) => {
+              const isFocused = focusedIndex === idx;
+              return (
+                <li
+                  key={opt.id}
+                  id={`slot-opt-${opt.id}`}
+                  role="option"
+                  aria-selected={false}
+                  onPointerDown={(e) => {
+                    e.preventDefault(); // prevent blur on trigger
+                    e.stopPropagation(); // prevent click bubbling to trigger's onClick
+                    setFocusedIndex(idx);
+                    toggleOption(opt.id);
+                    setOpen(true); // keep dropdown open — remaining options stay visible
+                  }}
+                  onPointerEnter={() => setFocusedIndex(idx)}
+                  className={cn(
+                    "flex cursor-pointer select-none items-center px-3 py-2 text-sm transition-colors",
+                    isFocused ? "bg-primary text-white" : "text-gray-800 hover:bg-primary/10",
+                  )}
+                >
+                  {opt.label}
+                </li>
+              );
+            })}
+          </ul>
+        );
+      })()}
+    </div>
+  );
+}
+
 const defaultBankDetails: GuideBankDetails = {
   bankName: "",
   branchName: "",
@@ -83,16 +301,13 @@ const defaultPreferredFor: GuidePreferredFor = {
   itinerary: false,
 };
 
-const makeDefaultPricebook = (): GuidePricebook => {
-  const today = new Date();
-  return {
-    startDate: format(today, "yyyy-MM-dd"),
-    endDate: format(addYears(today, 1), "yyyy-MM-dd"),
-    pax1to5: { slot1: 0, slot2: 0, slot3: 0 },
-    pax6to14: { slot1: 0, slot2: 0, slot3: 0 },
-    pax15to40: { slot1: 0, slot2: 0, slot3: 0 },
-  };
-};
+const makeDefaultPricebook = (): GuidePricebook => ({
+  startDate: "",
+  endDate: "",
+  pax1to5: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+  pax6to14: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+  pax15to40: { slot1: 0, slot2: 0, slot3: 0, slot4: 0 },
+});
 
 const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePricebook => {
   const fallback = makeDefaultPricebook();
@@ -100,8 +315,8 @@ const withDefaultPricebookDates = (value?: GuidePricebook | null): GuidePriceboo
   return {
     ...fallback,
     ...incoming,
-    startDate: incoming.startDate?.trim() ? incoming.startDate : fallback.startDate,
-    endDate: incoming.endDate?.trim() ? incoming.endDate : fallback.endDate,
+    startDate: incoming.startDate?.trim() ? incoming.startDate : "",
+    endDate: incoming.endDate?.trim() ? incoming.endDate : "",
     pax1to5: { ...fallback.pax1to5, ...(incoming.pax1to5 ?? {}) },
     pax6to14: { ...fallback.pax6to14, ...(incoming.pax6to14 ?? {}) },
     pax15to40: { ...fallback.pax15to40, ...(incoming.pax15to40 ?? {}) },
@@ -156,11 +371,35 @@ export default function GuideFormPage() {
   // Pricebook state
   const [pricebook, setPricebook] = useState<GuidePricebook>(makeDefaultPricebook);
 
+  // Pricebook price inputs — always empty (no pre-fill from DB, matching PHP)
+  const [priceInputs, setPriceInputs] = useState({
+    pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
+    pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
+    pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
+  });
+
+  // Pricebook display rows (fetched from backend for the per-day table)
+  const [pricebookDisplayRows, setPricebookDisplayRows] = useState<any[]>([]);
+
   // Reviews state
   const [reviews, setReviews] = useState<GuideReview[]>([]);
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+const [searchReview, setSearchReview] = useState("");
+  const [emailDuplicateError, setEmailDuplicateError] = useState(false);
+
+  // Field-level validation errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  // Refs for focusing errored fields
+  const nameRef = useRef<HTMLInputElement>(null);
+  const primaryMobileRef = useRef<HTMLInputElement>(null);
+  const alternativeMobileRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const emergencyMobileRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const aadharRef = useRef<HTMLInputElement>(null);
 
   /* ------------------------------------------------------------------
      Dynamic dropdown option state
@@ -177,6 +416,7 @@ export default function GuideFormPage() {
   const pendingStateRef = useRef<string>("");
   const pendingCityRef = useRef<string>("");
   const topSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const originalEmailRef = useRef<string>("");
   const selectedDob = useMemo(() => toPickerDate(dateOfBirth), [dateOfBirth]);
 
   const showTopSuccess = (message: string) => {
@@ -207,6 +447,24 @@ export default function GuideFormPage() {
     setActivityPlaces((prev) => prev.filter((x) => x !== id));
     setActiveActivityToken((prev) => (prev === id ? null : prev));
   };
+
+  // Fetch pricebook display rows whenever guide id + dates are set
+  const fetchPricebookDisplay = useCallback(async () => {
+    if (!id || !pricebook.startDate || !pricebook.endDate) {
+      setPricebookDisplayRows([]);
+      return;
+    }
+    try {
+      const rows = await GuideAPI.getPricebook(Number(id), pricebook.startDate, pricebook.endDate);
+      setPricebookDisplayRows(rows);
+    } catch {
+      // silently ignore — display table stays empty
+    }
+  }, [id, pricebook.startDate, pricebook.endDate]);
+
+  useEffect(() => {
+    fetchPricebookDisplay();
+  }, [fetchPricebookDisplay]);
 
   const handleHotspotControlKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if ((e.key === "Backspace" || e.key === "Delete") && hotspotPlaces.length > 0) {
@@ -449,6 +707,7 @@ export default function GuideFormPage() {
             setPrimaryMobile(guide.primaryMobile);
             setAlternativeMobile(guide.alternativeMobile);
             setEmail(guide.email);
+            originalEmailRef.current = guide.email || "";
             setEmergencyMobile(guide.emergencyMobile);
             setPassword(guide.password);
             setRole(String(guide.role ?? "")); // keep as string id
@@ -497,55 +756,117 @@ export default function GuideFormPage() {
     if (match) setGstPercentage(String(match.id));
   }, [gstPercentage, gstPercentOptions]);
 
+  const handleEmailBlur = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || isEdit) return;
+    try {
+      const result = await api("/guides/ajax/check-guide-email", {
+        method: "POST",
+        body: JSON.stringify({
+          guide_email_id: trimmedEmail,
+          old_guide_email_id: originalEmailRef.current,
+        }),
+      });
+      if (!result?.success) {
+        setEmailDuplicateError(true);
+        setFieldErrors((prev) => ({ ...prev, email: "Email Address already Exists" }));
+      } else {
+        setEmailDuplicateError(false);
+        setFieldErrors((prev) => { const next = { ...prev }; delete next.email; return next; });
+      }
+    } catch {
+      // ignore network errors during blur check
+    }
+  };
+
+  const setFieldError = (field: string, msg: string, ref?: React.RefObject<HTMLInputElement | null>) => {
+    setFieldErrors((prev) => ({ ...prev, [field]: msg }));
+    ref?.current?.focus();
+    ref?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const clearFieldError = (field: string) =>
+    setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
+
   const handleSaveBasicInfo = async () => {
+    // Run all validations, collect first error to focus
+    const errors: Record<string, string> = {};
+    let firstRef: React.RefObject<HTMLInputElement | null> | null = null;
+
     if (!name.trim()) {
-      toast.error("Guide Name Required");
-      return;
+      errors.name = "Guide Name is required";
+      if (!firstRef) firstRef = nameRef;
     }
     if (!gender) {
-      toast.error("Guide Gender Required");
-      return;
+      errors.gender = "Gender is required";
     }
     if (!primaryMobile.trim()) {
-      toast.error("Guide Primart Mobile no Required");
-      return;
+      errors.primaryMobile = "Primary Mobile Number is required";
+      if (!firstRef) firstRef = primaryMobileRef;
+    } else if (!/^\d{10}$/.test(primaryMobile.trim())) {
+      errors.primaryMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = primaryMobileRef;
+    }
+    if (alternativeMobile && !/^\d{10}$/.test(alternativeMobile.trim())) {
+      errors.alternativeMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = alternativeMobileRef;
     }
     if (!email.trim()) {
-      toast.error("Email ID Required");
-      return;
+      errors.email = "Email ID is required";
+      if (!firstRef) firstRef = emailRef;
+    } else if (emailDuplicateError) {
+      errors.email = "Email Address already Exists";
+      if (!firstRef) firstRef = emailRef;
     }
     if (emergencyMobile && emergencyMobile.trim() === primaryMobile.trim()) {
-      toast.error("Emeregency mobile number and primary mobile number should not be same");
-      return;
-    }
-    if (!role) {
-      toast.error("Role Required");
-      return;
+      errors.emergencyMobile = "Emergency mobile number and primary mobile number should not be same";
+      if (!firstRef) firstRef = emergencyMobileRef;
+    } else if (emergencyMobile && !/^\d{10}$/.test(emergencyMobile.trim())) {
+      errors.emergencyMobile = "Please enter a valid 10-digit number";
+      if (!firstRef) firstRef = emergencyMobileRef;
     }
     if (!isEdit && !password.trim()) {
-      toast.error("Password Required");
-      return;
+      errors.password = "Password is required";
+      if (!firstRef) firstRef = passwordRef;
+    }
+    if (!role) {
+      errors.role = "Role is required";
     }
     if (!languageProficiency) {
-      toast.error("Language Proficiency Required");
-      return;
+      errors.languageProficiency = "Language Proficiency is required";
+    }
+    if (aadharCardNo && !/^\d{12}$/.test(aadharCardNo.trim())) {
+      errors.aadharCardNo = "Please enter a valid 12-digit Aadhar number";
+      if (!firstRef) firstRef = aadharRef;
+    }
+    if (!gstType) {
+      errors.gstType = "GST Type is required";
+    }
+    if (!gstPercentage) {
+      errors.gstPercentage = "GST% is required";
     }
     if (availableSlots.length === 0) {
-      toast.error("Guide Slot Required");
-      return;
+      errors.availableSlots = "At least one slot is required";
     }
     if (preferredFor.hotspot && hotspotPlaces.length === 0) {
-      toast.error("Hotspot Place Required");
-      return;
+      errors.hotspotPlaces = "Hotspot Place is required";
     }
     if (preferredFor.activity && activityPlaces.length === 0) {
-      toast.error("Activity Required");
+      errors.activityPlaces = "Activity is required";
+    }
+    if (bankDetails.accountNumber && bankDetails.confirmAccountNumber &&
+        bankDetails.accountNumber !== bankDetails.confirmAccountNumber) {
+      errors.confirmAccountNumber = "Account number and confirm account number should be same";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      firstRef?.current?.focus();
+      firstRef?.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    if (bankDetails.accountNumber && bankDetails.confirmAccountNumber && bankDetails.accountNumber !== bankDetails.confirmAccountNumber) {
-      toast.error("Account number and confirm account number should be same");
-      return;
-    }
+
+    setFieldErrors({});
 
     setLoading(true);
     try {
@@ -609,9 +930,20 @@ export default function GuideFormPage() {
     }
     setLoading(true);
     try {
-      await GuideAPI.updatePricebook(Number(id), pricebook);
+      await GuideAPI.updatePricebook(Number(id), {
+        startDate: pricebook.startDate,
+        endDate: pricebook.endDate,
+        priceInputs,
+      });
+      // Clear inputs (PHP behavior: clears all .amount fields after submit)
+      setPriceInputs({
+        pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
+        pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
+        pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
+      });
+      // Refresh the per-day display table
+      await fetchPricebookDisplay();
       toast.success("Guide Price Book Details Updated Successfully");
-      setCurrentStep(3);
     } catch {
       toast.error("Unable to Update Guide Price Book Details");
     } finally {
@@ -691,11 +1023,63 @@ export default function GuideFormPage() {
     setNewRating(Number(review.rating || 0));
     setNewFeedback(review.description || "");
   };
+const handleCopyReviews = async () => {
+  const text = filteredReviews
+    .map(
+      (r, i) =>
+        `${i + 1}. Rating: ${r.rating} | Description: ${r.description} | Created: ${r.createdOn}`
+    )
+    .join("\n");
+
+  await navigator.clipboard.writeText(text);
+
+  toast.success("Copied Successfully");
+};
+
+const handleDownloadCSV = () => {
+  const headers = ["S.NO", "RATING", "DESCRIPTION", "CREATED ON"];
+
+  const rows = filteredReviews.map((r, i) => [
+    i + 1,
+    r.rating,
+    r.description,
+    r.createdOn,
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map((e) => e.join(","))
+    .join("\n");
+
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "guide_reviews.csv";
+
+  link.click();
+
+  toast.success("CSV Downloaded");
+};
+
+const handleDownloadExcel = () => {
+  handleDownloadCSV();
+
+  toast.success("Excel Downloaded");
+};
 
   const handleConfirm = async () => {
     toast.success("Guide saved successfully");
     navigate("/guide");
   };
+
+  const filteredReviews = reviews.filter((review) =>
+  review.description
+    ?.toLowerCase()
+    .includes(searchReview.toLowerCase())
+);
 
   const renderStars = (count: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -812,7 +1196,13 @@ export default function GuideFormPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label>Guide Name *</Label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input
+                    ref={nameRef}
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); clearFieldError("name"); }}
+                    className={fieldErrors.name ? "border-red-500 focus-visible:ring-red-400" : ""}
+                  />
+                  {fieldErrors.name && <p className="mt-1 text-xs text-red-500">{fieldErrors.name}</p>}
                 </div>
                 <div>
                   <Label>Date of Birth</Label>
@@ -859,8 +1249,8 @@ export default function GuideFormPage() {
 
                 <div>
                   <Label>Gender *</Label>
-                  <Select value={gender} onValueChange={setGender}>
-                    <SelectTrigger>
+                  <Select value={gender} onValueChange={(v) => { setGender(v); clearFieldError("gender"); }}>
+                    <SelectTrigger className={fieldErrors.gender ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Gender" />
                     </SelectTrigger>
                     <SelectContent>
@@ -871,45 +1261,68 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gender && <p className="mt-1 text-xs text-red-500">{fieldErrors.gender}</p>}
                 </div>
                 <div>
                   <Label>Primary Mobile Number *</Label>
                   <Input
+                    ref={primaryMobileRef}
                     value={primaryMobile}
-                    onChange={(e) => setPrimaryMobile(e.target.value)}
+                    maxLength={10}
+                    onChange={(e) => { setPrimaryMobile(e.target.value); clearFieldError("primaryMobile"); }}
+                    className={fieldErrors.primaryMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.primaryMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.primaryMobile}</p>}
                 </div>
                 <div>
                   <Label>Alternative Mobile Number</Label>
                   <Input
+                    ref={alternativeMobileRef}
                     value={alternativeMobile}
-                    onChange={(e) => setAlternativeMobile(e.target.value)}
+                    maxLength={10}
+                    onChange={(e) => { setAlternativeMobile(e.target.value); clearFieldError("alternativeMobile"); }}
+                    className={fieldErrors.alternativeMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.alternativeMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.alternativeMobile}</p>}
                 </div>
 
                 <div>
                   <Label>Email ID *</Label>
                   <Input
+                    ref={emailRef}
                     type="email"
                     value={email}
                     readOnly={isEdit}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (emailDuplicateError) setEmailDuplicateError(false);
+                      clearFieldError("email");
+                    }}
+                    onBlur={handleEmailBlur}
+                    className={fieldErrors.email ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
                 </div>
                 <div>
                   <Label>Emergency Mobile Number</Label>
                   <Input
+                    ref={emergencyMobileRef}
                     value={emergencyMobile}
-                    onChange={(e) => setEmergencyMobile(e.target.value)}
+                    maxLength={10}
+                    onChange={(e) => { setEmergencyMobile(e.target.value); clearFieldError("emergencyMobile"); }}
+                    className={fieldErrors.emergencyMobile ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.emergencyMobile && <p className="mt-1 text-xs text-red-500">{fieldErrors.emergencyMobile}</p>}
                 </div>
                 <div>
                   <Label>Password *</Label>
                   <div className="relative">
                     <Input
+                      ref={passwordRef}
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); clearFieldError("password"); }}
+                      className={fieldErrors.password ? "border-red-500 focus-visible:ring-red-400" : ""}
                     />
                     <button
                       type="button"
@@ -923,12 +1336,13 @@ export default function GuideFormPage() {
                       )}
                     </button>
                   </div>
+                  {fieldErrors.password && <p className="mt-1 text-xs text-red-500">{fieldErrors.password}</p>}
                 </div>
 
                 <div>
                   <Label>Role *</Label>
-                  <Select value={role} onValueChange={setRole}>
-                    <SelectTrigger>
+                  <Select value={role} onValueChange={(v) => { setRole(v); clearFieldError("role"); }}>
+                    <SelectTrigger className={fieldErrors.role ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -939,21 +1353,26 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.role && <p className="mt-1 text-xs text-red-500">{fieldErrors.role}</p>}
                 </div>
                 <div>
                   <Label>Aadhar Card No</Label>
                   <Input
+                    ref={aadharRef}
                     value={aadharCardNo}
-                    onChange={(e) => setAadharCardNo(e.target.value)}
+                    maxLength={12}
+                    onChange={(e) => { setAadharCardNo(e.target.value); clearFieldError("aadharCardNo"); }}
+                    className={fieldErrors.aadharCardNo ? "border-red-500 focus-visible:ring-red-400" : ""}
                   />
+                  {fieldErrors.aadharCardNo && <p className="mt-1 text-xs text-red-500">{fieldErrors.aadharCardNo}</p>}
                 </div>
                 <div>
                   <Label>Language Proficiency *</Label>
                   <Select
                     value={languageProficiency}
-                    onValueChange={setLanguageProficiency}
+                    onValueChange={(v) => { setLanguageProficiency(v); clearFieldError("languageProficiency"); }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={fieldErrors.languageProficiency ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select Language" />
                     </SelectTrigger>
                     <SelectContent>
@@ -964,6 +1383,7 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.languageProficiency && <p className="mt-1 text-xs text-red-500">{fieldErrors.languageProficiency}</p>}
                 </div>
 
                 <div>
@@ -1034,8 +1454,8 @@ export default function GuideFormPage() {
                 </div>
                 <div>
                   <Label>GST Type *</Label>
-                  <Select value={gstType} onValueChange={setGstType}>
-                    <SelectTrigger>
+                  <Select value={gstType} onValueChange={(v) => { setGstType(v); clearFieldError("gstType"); }}>
+                    <SelectTrigger className={fieldErrors.gstType ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select GST Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1046,11 +1466,12 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gstType && <p className="mt-1 text-xs text-red-500">{fieldErrors.gstType}</p>}
                 </div>
                 <div>
                   <Label>GST% *</Label>
-                  <Select value={gstPercentage} onValueChange={setGstPercentage}>
-                    <SelectTrigger>
+                  <Select value={gstPercentage} onValueChange={(v) => { setGstPercentage(v); clearFieldError("gstPercentage"); }}>
+                    <SelectTrigger className={fieldErrors.gstPercentage ? "border-red-500" : ""}>
                       <SelectValue placeholder="Select GST%" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1061,31 +1482,23 @@ export default function GuideFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.gstPercentage && <p className="mt-1 text-xs text-red-500">{fieldErrors.gstPercentage}</p>}
                 </div>
               </div>
 
               {/* Available Slots */}
               <div>
                 <Label className="mb-2 block">Guide Available Slots *</Label>
-                <div className="flex flex-wrap gap-6">
-                  {GUIDE_SLOTS.map((slot) => (
-                    <div key={slot.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`guide-slot-${slot.id}`}
-                        checked={availableSlots.includes(slot.id)}
-                        onCheckedChange={(checked) => {
-                          setAvailableSlots((prev) => {
-                            if (checked) {
-                              return prev.includes(slot.id) ? prev : [...prev, slot.id];
-                            }
-                            return prev.filter((s) => s !== slot.id);
-                          });
-                        }}
-                      />
-                      <Label htmlFor={`guide-slot-${slot.id}`}>{slot.label}</Label>
-                    </div>
-                  ))}
-                </div>
+                <SlotMultiSelect
+                  options={GUIDE_SLOTS}
+                  selected={availableSlots}
+                  hasError={!!fieldErrors.availableSlots}
+                  onChange={(next) => {
+                    setAvailableSlots(next);
+                    if (next.length > 0) clearFieldError("availableSlots");
+                  }}
+                />
+                {fieldErrors.availableSlots && <p className="mt-1 text-xs text-red-500">{fieldErrors.availableSlots}</p>}
               </div>
 
               {/* Divider with star */}
@@ -1139,13 +1552,13 @@ export default function GuideFormPage() {
                     <Label>Confirm Account Number</Label>
                     <Input
                       value={bankDetails.confirmAccountNumber}
-                      onChange={(e) =>
-                        setBankDetails((prev) => ({
-                          ...prev,
-                          confirmAccountNumber: e.target.value,
-                        }))
-                      }
+                      onChange={(e) => {
+                        setBankDetails((prev) => ({ ...prev, confirmAccountNumber: e.target.value }));
+                        clearFieldError("confirmAccountNumber");
+                      }}
+                      className={fieldErrors.confirmAccountNumber ? "border-red-500 focus-visible:ring-red-400" : ""}
                     />
+                    {fieldErrors.confirmAccountNumber && <p className="mt-1 text-xs text-red-500">{fieldErrors.confirmAccountNumber}</p>}
                   </div>
                 </div>
               </div>
@@ -1203,7 +1616,9 @@ export default function GuideFormPage() {
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          className={cn("min-h-10 h-auto w-full rounded-md border px-3 py-2 text-left",
+                            fieldErrors.hotspotPlaces ? "border-red-500" : "border-input"
+                          )}
                           onKeyDown={handleHotspotControlKeyDown}
                           onClick={() => setActiveHotspotToken(null)}
                         >
@@ -1275,6 +1690,7 @@ export default function GuideFormPage() {
                                   removeHotspotToken(val);
                                 } else {
                                   setHotspotPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                  clearFieldError("hotspotPlaces");
                                 }
                               }}
                             >
@@ -1284,6 +1700,7 @@ export default function GuideFormPage() {
                         })}
                       </PopoverContent>
                     </Popover>
+                    {fieldErrors.hotspotPlaces && <p className="mt-1 text-xs text-red-500">{fieldErrors.hotspotPlaces}</p>}
                   </div>
                 )}
 
@@ -1294,7 +1711,9 @@ export default function GuideFormPage() {
                       <PopoverTrigger asChild>
                         <button
                           type="button"
-                          className="min-h-10 h-auto w-full rounded-md border border-input bg-background px-3 py-2 text-left"
+                          className={cn("min-h-10 h-auto w-full rounded-md border px-3 py-2 text-left",
+                            fieldErrors.activityPlaces ? "border-red-500" : "border-input"
+                          )}
                           onKeyDown={handleActivityControlKeyDown}
                           onClick={() => setActiveActivityToken(null)}
                         >
@@ -1366,6 +1785,7 @@ export default function GuideFormPage() {
                                   removeActivityToken(val);
                                 } else {
                                   setActivityPlaces((prev) => (prev.includes(val) ? prev : [...prev, val]));
+                                  clearFieldError("activityPlaces");
                                 }
                               }}
                             >
@@ -1375,6 +1795,7 @@ export default function GuideFormPage() {
                         })}
                       </PopoverContent>
                     </Popover>
+                    {fieldErrors.activityPlaces && <p className="mt-1 text-xs text-red-500">{fieldErrors.activityPlaces}</p>}
                   </div>
                 )}
 
@@ -1406,24 +1827,69 @@ export default function GuideFormPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Guide Cost Details</h3>
                 <div className="flex items-center gap-3">
-                  <Input
-                    type="date"
-                    placeholder="Start Date"
-                    value={pricebook.startDate}
-                    onChange={(e) =>
-                      setPricebook((prev) => ({ ...prev, startDate: e.target.value }))
-                    }
-                    className="w-36"
-                  />
-                  <Input
-                    type="date"
-                    placeholder="End date"
-                    value={pricebook.endDate}
-                    onChange={(e) =>
-                      setPricebook((prev) => ({ ...prev, endDate: e.target.value }))
-                    }
-                    className="w-36"
-                  />
+
+
+                 <Flatpickr
+  value={pricebook.startDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    const newStart = format(selected, "yyyy-MM-dd");
+
+    setPricebook((prev) => ({
+      ...prev,
+      startDate: newStart,
+      endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="Start Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+<Flatpickr
+  value={pricebook.endDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+    minDate: pricebook.startDate || undefined,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    setPricebook((prev) => ({
+      ...prev,
+      endDate: format(selected, "yyyy-MM-dd"),
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="End Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+
                   <Button
                     onClick={handleUpdatePricebook}
                     disabled={loading}
@@ -1434,290 +1900,476 @@ export default function GuideFormPage() {
                 </div>
               </div>
 
-              {/* Price Grid */}
-              <div className="space-y-6">
+              {/* Price Input Grid — always empty, no pre-fill (PHP parity) */}
+              <div className="space-y-4">
                 {/* 1-5 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">1-5 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax1to5.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax1to5: { ...prev.pax1to5, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax1_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot3: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax1_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax1_slot4: e.target.value }))}
                     />
                   </div>
                 </div>
+                <hr className="my-1" />
 
                 {/* 6-14 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">6-14 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax6to14.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax6to14: { ...prev.pax6to14, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax2_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot3: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax2_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax2_slot4: e.target.value }))}
                     />
                   </div>
                 </div>
+                <hr className="my-1" />
 
                 {/* 15-40 Pax */}
-                <div className="grid grid-cols-4 gap-4 items-end">
+                <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
                     <p className="font-semibold">15-40 Pax</p>
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 1: 9 AM to 1 PM</p>
+                    <p className="text-sm text-pink-500">Slot 1: 8 AM to 1 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot1 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot1: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot1}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot1: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 2: 9 AM to 4 PM</p>
+                    <p className="text-sm text-pink-500">Slot 2: 1 PM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot2 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot2: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot2}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot2: e.target.value }))}
                     />
                   </div>
                   <div>
-                    <p className="text-sm text-pink-500">Slot 3: 6 PM to 9 PM</p>
+                    <p className="text-sm text-pink-500">Slot 3: 8 AM to 6 PM</p>
                     <Input
                       placeholder="Enter Price"
                       type="number"
-                      value={pricebook.pax15to40.slot3 || ""}
-                      onChange={(e) =>
-                        setPricebook((prev) => ({
-                          ...prev,
-                          pax15to40: { ...prev.pax15to40, slot3: Number(e.target.value) },
-                        }))
-                      }
+                      value={priceInputs.pax3_slot3}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot3: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm text-pink-500">Slot 4: 6 PM to 9 PM</p>
+                    <Input
+                      placeholder="Enter Price"
+                      type="number"
+                      value={priceInputs.pax3_slot4}
+                      onChange={(e) => setPriceInputs((p) => ({ ...p, pax3_slot4: e.target.value }))}
                     />
                   </div>
                 </div>
               </div>
+
+              {/* Per-day pricebook display table (auto-loaded when dates are selected) */}
+              {pricebook.startDate && pricebook.endDate && (() => {
+                // Build list of dates in range
+                const dayList: { label: string; year: string; month: string; dayNum: number }[] = [];
+                const sd = new Date(pricebook.startDate + "T00:00:00Z");
+                const ed = new Date(pricebook.endDate + "T00:00:00Z");
+                for (let cur = new Date(sd); cur <= ed; cur.setUTCDate(cur.getUTCDate() + 1)) {
+                  const dt = new Date(cur);
+                  dayList.push({
+                    label: dt.toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }),
+                    year: String(dt.getUTCFullYear()),
+                    month: dt.toLocaleString("en-US", { month: "long", timeZone: "UTC" }),
+                    dayNum: dt.getUTCDate(),
+                  });
+                }
+
+                const PAX_LABELS = ["1-5 Pax", "6-14 Pax", "15-40 Pax"];
+                const SLOT_LABELS = ["8AM-1PM", "1PM-6PM", "8AM-6PM", "6PM-9PM"];
+
+                const getPrice = (paxIdx: number, slotIdx: number, year: string, month: string, dayNum: number) => {
+                  const row = pricebookDisplayRows.find(
+                    (r: any) =>
+                      Number(r.pax_count) === paxIdx &&
+                      Number(r.slot_type) === slotIdx &&
+                      String(r.year) === year &&
+                      String(r.month) === month
+                  );
+                  if (!row) return null;
+                  const val = row[`day_${dayNum}`];
+                  return val !== null && val !== undefined && String(val).trim() !== "" ? Number(val) : null;
+                };
+
+                return (
+                  <div className="mt-6">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">Current Price Schedule</h4>
+                    <div className="overflow-x-auto rounded-lg border">
+                      <table className="border-collapse text-xs w-auto">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-purple-700 via-pink-600 to-fuchsia-500 text-white uppercase tracking-wide">
+                            <th className="p-2 border border-purple-500/40 whitespace-nowrap bg-gray-700 text-white">Pax Count</th>
+                            <th className="p-2 border border-purple-500/40 whitespace-nowrap bg-gray-700 text-white">Slot Type</th>
+                            {dayList.map((d) => (
+                              <th key={d.label} className="p-2 border border-purple-500/40 whitespace-nowrap">
+                                {d.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {([1, 2, 3] as const).flatMap((pax) =>
+                            ([1, 2, 3, 4] as const).map((slot) => (
+                              <tr key={`${pax}-${slot}`} className="even:bg-white odd:bg-gray-50">
+                                <td className="p-2 border border-gray-200 font-medium text-purple-700 whitespace-nowrap bg-gray-100">
+                                  {PAX_LABELS[pax - 1]}
+                                </td>
+                                <td className="p-2 border border-gray-200 whitespace-nowrap bg-gray-100">
+                                  {SLOT_LABELS[slot - 1]}
+                                </td>
+                                {dayList.map((d) => {
+                                  const price = getPrice(pax, slot, d.year, d.month, d.dayNum);
+                                  return (
+                                    <td key={d.label} className="p-2 border border-gray-200 text-center whitespace-nowrap">
+                                      {price !== null
+                                        ? <span className="text-gray-800">₹ {price.toFixed(2)}</span>
+                                        : <span className="text-gray-400">No Price</span>}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex justify-between pt-4">
                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
+
+                <div className="flex gap-2">
                 <Button
-                  onClick={handleUpdatePricebook}
-                  disabled={loading}
+                  onClick={() => setCurrentStep(3)}
                   className="bg-gradient-to-r from-primary to-pink-500"
                 >
-                  {loading ? "Saving..." : "Update & Continue"}
+                  Continue →
                 </Button>
+              </div>
+
               </div>
             </div>
           )}
+
 
           {/* STEP 3: Feedback & Review */}
-          {currentStep === 3 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: Add Review */}
-              <div className="bg-white border rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold text-pink-500">Rating</h3>
-                <Select value={String(newRating)} onValueChange={(v) => setNewRating(Number(v))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Rating" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((r) => (
-                      <SelectItem key={r} value={String(r)}>
-                        {r} Star{r > 1 ? "s" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+{currentStep === 3 && (
+  <div className="mx-auto max-w-[929px] space-y-4">
+    <h2 className="text-[18px] font-semibold text-primary">
+      Review & Feedback
+    </h2>
 
-                <p className="text-sm text-gray-500">All reviews are from genuine customers</p>
+    <div className="grid grid-cols-[224px_1fr] gap-6 items-start">
+      {/* Left: Rating */}
+      <div className="h-[413px] w-[224px] rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
+        <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+          Rating
+        </h3>
 
-                <div>
-                  <Label>Feedback *</Label>
-                  <textarea
-                    className="w-full border rounded-lg p-3 min-h-[120px]"
-                    value={newFeedback}
-                    onChange={(e) => setNewFeedback(e.target.value)}
-                    placeholder="Enter feedback..."
-                  />
-                </div>
+<select
+  value={newRating || ""}
+  onChange={(e) => setNewRating(Number(e.target.value))}
+  className="h-[44px] w-full rounded-xl border border-[#eadcff] bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-purple-200"
+>
+  <option value="">Select Rating</option>
+  <option value="5">5</option>
+  <option value="4">4</option>
+  <option value="3">3</option>
+  <option value="2">2</option>
+  <option value="1">1</option>
+</select>
 
-                <Button
-                  onClick={handleAddReview}
-                  className="bg-gradient-to-r from-primary to-pink-500"
-                >
-                  {editingReviewId ? "Update" : "Save"}
-                </Button>
-                {editingReviewId && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setEditingReviewId(null);
-                      setNewRating(0);
-                      setNewFeedback("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
 
-              {/* Right: Reviews List */}
-              <div className="bg-white border rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold">List of Reviews</h3>
+        <p className="my-4 text-[13px] leading-5 text-[#8a86a3]">
+          All reviews are from genuine customers
+        </p>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>S.NO</TableHead>
-                      <TableHead>RATING</TableHead>
-                      <TableHead>DESCRIPTION</TableHead>
-                      <TableHead>CREATED ON</TableHead>
-                      <TableHead>ACTION</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reviews.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center">
-                          No reviews yet
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      reviews.map((review, idx) => (
-                        <TableRow key={review.id}>
-                          <TableCell>{idx + 1}</TableCell>
-                          <TableCell>
-                            <div className="flex">{renderStars(review.rating)}</div>
-                          </TableCell>
-                          <TableCell>{review.description}</TableCell>
-                          <TableCell>{review.createdOn}</TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button size="sm" variant="ghost" onClick={() => handleEditReview(review)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteReview(review.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+        <Label className="text-[13px] font-semibold text-[#1f2937]">
+          Feedback <span className="text-red-500">*</span>
+        </Label>
 
-              {/* Buttons */}
-              <div className="col-span-full flex justify-between pt-4">
-                <Button variant="secondary" onClick={() => setCurrentStep(2)}>
-                  Back
-                </Button>
-                <Button
-                  onClick={() => setCurrentStep(4)}
-                  className="bg-gradient-to-r from-primary to-pink-500"
-                >
-                  Skip and Continue
-                </Button>
-              </div>
-            </div>
-          )}
+        <textarea
+          className="mt-3 h-[120px] w-full resize-none rounded-xl border border-[#eadcff] px-3 py-2 text-[14px] outline-none focus:ring-1 focus:ring-primary"
+          value={newFeedback}
+          onChange={(e) => setNewFeedback(e.target.value)}
+          placeholder="Enter feedback..."
+        />
+
+        <div className="mt-3 flex justify-end gap-3">
+  <Button
+    type="button"
+    variant="secondary"
+    onClick={() => {
+      setEditingReviewId(null);
+      setNewRating(0);
+      setNewFeedback("");
+    }}
+    className="h-[38px] rounded-xl px-5 text-[14px]"
+  >
+    Cancel
+  </Button>
+
+  <Button
+    type="button"
+    onClick={handleAddReview}
+    className="h-[38px] rounded-xl bg-gradient-to-r from-primary to-pink-500 px-5 text-[14px]"
+  >
+    {editingReviewId ? "Update" : "Save"}
+  </Button>
+</div>
+
+
+      </div>
+
+      {/* Right: Reviews List */}
+      <div className="h-[413px] min-w-0 rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
+        <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+          List of Reviews
+        </h3>
+
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-[15px]">Show</span>
+          <select className="h-[40px] w-[74px] rounded-xl border border-[#eadcff] bg-white px-3">
+            <option>10</option>
+            <option>25</option>
+            <option>50</option>
+          </select>
+          <span className="text-[15px]">entries</span>
+        </div>
+
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-[15px]">Search:</span>
+
+          <Input
+            className="h-[42px] w-[220px] rounded-xl border-[#eadcff] text-[14px]"
+            value={searchReview}
+            onChange={(e) => setSearchReview(e.target.value)}
+          />
+
+          <Button
+            variant="outline"
+            onClick={handleCopyReviews}
+            className="h-[42px] min-w-[92px] rounded-xl border-[#7c5cff] text-[#4f46e5]"
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadExcel}
+            className="h-[42px] min-w-[92px] rounded-xl border-green-500 text-green-600"
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadCSV}
+            className="h-[42px] min-w-[84px] rounded-xl border-gray-300 text-gray-600"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-[#eadcff]">
+          <Table className="w-full text-[13px]">
+            <TableHeader className="bg-[#fbf7ff]">
+              <TableRow>
+                <TableHead className="w-[75px] px-3 py-2 font-semibold">
+                  S.NO ↕
+                </TableHead>
+                <TableHead className="w-[95px] px-3 py-2 font-semibold">
+                  RATING ↕
+                </TableHead>
+                <TableHead className="w-[135px] px-3 py-2 font-semibold">
+                  DESCRIPTION ↕
+                </TableHead>
+                <TableHead className="w-[166px] whitespace-nowrap px-3 py-2 font-semibold">
+                  CREATED ON ↕
+                </TableHead>
+                <TableHead className="w-[103px] whitespace-nowrap px-3 py-2 text-center font-semibold">
+                  ACTIONS ↕
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {filteredReviews.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-gray-500">
+                    No data available in table
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReviews.map((review, idx) => (
+                  <TableRow key={review.id}>
+                    <TableCell className="px-3 py-2">{idx + 1}</TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      <div className="flex gap-0.5">
+                        {renderStars(review.rating)}
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      {review.description}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap px-3 py-2">
+                      {review.createdOn}
+                    </TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      <div className="flex justify-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => handleEditReview(review)}
+                          className="h-8 w-8 rounded-lg border-[#eadcff]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                       <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          const confirmed = window.confirm("Delete this review?");
+                          if (!confirmed) return;
+                          handleDeleteReview(review.id);
+                        }}
+                        className="h-8 w-8 rounded-lg border-[#eadcff]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-[14px] text-gray-500">
+            Showing {filteredReviews.length > 0 ? 1 : 0} to {filteredReviews.length} of{" "}
+            {filteredReviews.length} entries
+          </p>
+
+          <div className="flex gap-2">
+            <Button variant="outline" disabled className="h-[40px]">
+              Previous
+            </Button>
+            <Button variant="outline" disabled className="h-[40px]">
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between border-t pt-4">
+      <Button variant="secondary" onClick={() => setCurrentStep(2)}>
+        Back
+      </Button>
+
+      <Button
+        onClick={() => setCurrentStep(4)}
+        className="bg-gradient-to-r from-primary to-pink-500"
+      >
+        Skip and Continue
+      </Button>
+    </div>
+  </div>
+)}
+
 
           {/* STEP 4: Preview */}
           {currentStep === 4 && (

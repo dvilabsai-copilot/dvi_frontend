@@ -1,6 +1,29 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { AgentAPI } from "@/services/agentService";
+import { paymentService } from "@/services/paymentService";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+import { getToken } from "@/lib/api";
+import { DashboardService } from "@/services/dashboard";
+import { SubscriptionRenewalModal } from "@/components/SubscriptionRenewalModal";
 
-type PaymentStatus = "Free" | "Paid";
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+type PaymentStatus = "Free" | "Paid" | "Pending" | "Failed";
 
 interface Subscription {
   id: number;
@@ -12,56 +35,25 @@ interface Subscription {
   paymentStatus: PaymentStatus;
 }
 
-const mockSubscriptions: Subscription[] = [
-  {
-    id: 1,
-    planName: "start",
-    amount: 0,
-    startDate: "2026-02-10",
-    endDate: "2027-02-10",
-    transactionId: "--",
-    paymentStatus: "Free",
-  },
-  {
-    id: 2,
-    planName: "Plan Validity Extension",
-    amount: 0,
-    startDate: "2024-12-20",
-    endDate: "2025-12-20",
-    transactionId: "--",
-    paymentStatus: "Free",
-  },
-  {
-    id: 3,
-    planName: "Premium",
-    amount: 1000,
-    startDate: "2024-08-07",
-    endDate: "2024-11-05",
-    transactionId: "pay_Ohu2ZpMJbV3U2S",
-    paymentStatus: "Paid",
-  },
-  {
-    id: 4,
-    planName: "Starter Plus",
-    amount: 1500,
-    startDate: "2025-01-10",
-    endDate: "2025-04-10",
-    transactionId: "pay_ABC123XYZ789",
-    paymentStatus: "Paid",
-  },
-  {
-    id: 5,
-    planName: "Free Renewal",
-    amount: 0,
-    startDate: "2025-05-01",
-    endDate: "2025-06-01",
-    transactionId: "--",
-    paymentStatus: "Free",
-  },
-];
+function parseJwt(token: string) {
+  try {
+    return JSON.parse(atob(token.split(".")[1]));
+  } catch {
+    return null;
+  }
+}
+
+function getAgentId() {
+  const token = getToken();
+  const user = token ? parseJwt(token) : null;
+  return Number(user?.agentId || user?.id || user?.agent_ID || 0);
+}
 
 const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("en-GB", {
+  if (!date) return "--";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -76,13 +68,53 @@ const formatAmount = (amount: number) => {
 };
 
 export default function SubscriptionHistory() {
+  const navigate = useNavigate();
+  const { openCheckout } = useRazorpayCheckout();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [entriesPerPage, setEntriesPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isPaying, setIsPaying] = useState(false);
+  const [activePlanId, setActivePlanId] = useState<number | null>(null);
+  const [renewalModalOpen, setRenewalModalOpen] = useState(false);
+  const [activeAgentSubscribedPlanId, setActiveAgentSubscribedPlanId] = useState<number | undefined>();
+
+  const loadSubscriptions = async () => {
+    const agentId = getAgentId();
+    if (!agentId) {
+      throw new Error("Agent id not found");
+    }
+
+    const rows = await AgentAPI.getSubscriptions(agentId);
+    const normalized: Subscription[] = rows.map((s) => ({
+      id: Number(s.id),
+      planName: s.subscriptionTitle || "Free",
+      amount: Number(s.amount || 0),
+      startDate: s.validityStart,
+      endDate: s.validityEnd,
+      transactionId: s.transactionId || "--",
+      paymentStatus: (s.paymentStatus as PaymentStatus) || "Free",
+    }));
+
+    setSubscriptions(normalized);
+
+    try {
+      const stats = await DashboardService.getStats();
+      const planId = Number((stats as any)?.planId || 0);
+      const subscribedPlanId = Number((stats as any)?.subscribedPlanId || 0);
+      setActivePlanId(planId > 0 ? planId : null);
+      setActiveAgentSubscribedPlanId(subscribedPlanId > 0 ? subscribedPlanId : undefined);
+    } catch {
+      setActivePlanId(null);
+      setActiveAgentSubscribedPlanId(undefined);
+    }
+  };
 
   useEffect(() => {
-    setSubscriptions(mockSubscriptions);
+    loadSubscriptions().catch((error) => {
+      console.error(error);
+      toast.error("Unable to load subscription history");
+    });
   }, []);
 
   const filteredSubscriptions = useMemo(() => {
@@ -125,8 +157,66 @@ export default function SubscriptionHistory() {
     filteredSubscriptions.length
   );
 
+  const onRenewLatest = () => {
+    if (!activePlanId) {
+      toast.error("No subscription found for renewal");
+      return;
+    }
+    setRenewalModalOpen(true);
+  };
+
+  const onPlanSelected = async (plan: any, agentSubscribedPlanId?: number) => {
+    try {
+      setIsPaying(true);
+      const order = await withTimeout(
+        paymentService.createSubscriptionRenewalOrder(
+          plan.agent_subscription_plan_ID,
+          agentSubscribedPlanId
+        ),
+        20000,
+        "Create order request timed out. Please try again.",
+      );
+
+      await openCheckout({
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        orderId: order.orderId,
+        name: "DVI Holidays",
+        description: "Subscription Renewal",
+        onSuccess: async (response) => {
+          await withTimeout(
+            paymentService.confirmSubscriptionRenewal(response),
+            20000,
+            "Subscription confirmation timed out. Please refresh and check subscription history.",
+          );
+          await loadSubscriptions();
+          navigate(`/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(order.orderId)}`);
+        },
+        onFailure: (error) => {
+          console.error(error);
+          toast.error("Subscription confirmation failed");
+        },
+        onDismiss: () => {
+          toast.error("Payment cancelled");
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error("Unable to start subscription renewal");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   return (
     <div className="w-full p-4 md:p-8">
+      <div className="mb-4 flex justify-end">
+        <Button onClick={onRenewLatest} disabled={isPaying || subscriptions.length === 0}>
+          {isPaying ? "Processing..." : "Renew Subscription"}
+        </Button>
+      </div>
+
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="p-5 md:p-8">
           <h2 className="mb-6 text-[24px] font-medium text-slate-700">
@@ -200,7 +290,7 @@ export default function SubscriptionHistory() {
                 {paginatedSubscriptions.length > 0 ? (
                   paginatedSubscriptions.map((sub, index) => (
                     <tr
-                      key={sub.id}
+                      key={`${sub.id}-${index}`}
                       className="border-t border-gray-200 hover:bg-gray-50"
                     >
                       <td className="px-4 py-4 text-base text-gray-700">
@@ -226,7 +316,11 @@ export default function SubscriptionHistory() {
                           className={`inline-flex min-w-[68px] justify-center rounded-md px-3 py-1 text-sm font-medium ${
                             sub.paymentStatus === "Paid"
                               ? "bg-green-100 text-green-700"
-                              : "bg-orange-100 text-orange-600"
+                              : sub.paymentStatus === "Pending"
+                                ? "bg-orange-100 text-orange-600"
+                                : sub.paymentStatus === "Failed"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-slate-100 text-slate-700"
                           }`}
                         >
                           {sub.paymentStatus}
@@ -284,6 +378,15 @@ export default function SubscriptionHistory() {
           </div>
         </div>
       </div>
+
+      <SubscriptionRenewalModal
+        open={renewalModalOpen}
+        onOpenChange={setRenewalModalOpen}
+        currentPlanId={activePlanId ?? undefined}
+        agentSubscribedPlanId={activeAgentSubscribedPlanId}
+        onSelectPlan={onPlanSelected}
+        isLoading={isPaying}
+      />
     </div>
   );
 }

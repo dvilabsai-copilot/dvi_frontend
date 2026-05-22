@@ -10,6 +10,29 @@ import { HotelPriceBookTab } from "./HotelPriceBookTab";
 import { HotelReviewTab } from "./HotelReviewTab";
 import { HotelPreviewTab } from "./HotelPreviewTab";
 
+type HotelBasicInfoFormData = Partial<Hotel> & {
+  id?: number | string;
+  name?: string;
+  place?: string;
+  status?: string;
+  mobile?: string[];
+  email?: string[];
+  category?: string;
+  powerBackup?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  pincode?: string;
+  hotelCode?: string;
+  hotelMarginPercent?: number;
+  hotelMarginGstType?: string;
+  hotelMarginGstPercent?: string;
+  latitude?: string;
+  longitude?: string;
+  hotspotStatus?: string;
+  address?: string;
+};
+
 type TabId = 1 | 2 | 3 | 4 | 5 | 6;
 
 const TABS = [
@@ -27,58 +50,85 @@ export const HotelFormPage = () => {
   const isEditMode = id !== "new";
   
   const [activeTab, setActiveTab] = useState<TabId>(1);
-  const [hotelId, setHotelId] = useState<number | null>(isEditMode && id ? parseInt(id) : null);
-  const [hotelData, setHotelData] = useState<Partial<Hotel>>({});
+  const [hotelId, setHotelId] = useState<number | null>(
+  isEditMode && id ? Number(id) : null
+);
+  const [hotelData, setHotelData] = useState<HotelBasicInfoFormData>({});
   const [loading, setLoading] = useState(false);
 
   // In edit mode, all tabs enabled. In create mode, only Tab 1 until saved
   const tabsEnabled = isEditMode || hotelId !== null;
 
+
   useEffect(() => {
-    if (isEditMode && id) {
-      const loadHotel = async () => {
-        setLoading(true);
-        const hotel = await getHotel(parseInt(id));
+  if (isEditMode && id) {
+    const loadHotel = async () => {
+      setLoading(true);
+
+      try {
+        const hotel = await getHotel(Number(id) as any);
+
         if (hotel) {
-          setHotelData(hotel);
-          setHotelId(hotel.id);
+          const normalizedHotel = hotel as unknown as HotelBasicInfoFormData;
+
+          setHotelData(normalizedHotel);
+          setHotelId(Number(normalizedHotel.id || id));
         }
+      } catch (error) {
+        console.error("Error loading hotel:", error);
+      } finally {
         setLoading(false);
-      };
-      loadHotel();
-    }
-  }, [id, isEditMode]);
-
-  const handleBasicInfoSave = async (data: Partial<Hotel>) => {
-    setLoading(true);
-    try {
-      if (hotelId) {
-        // Update existing
-        await updateHotel(hotelId, data);
-        setHotelData({ ...hotelData, ...data });
-      } else {
-        // Create new
-        const newHotel = await createHotel(data);
-        setHotelId(newHotel.id);
-        setHotelData(newHotel);
-        // Navigate to edit URL so subsequent saves use PUT
-        navigate(`/hotels/${newHotel.id}/edit`, { replace: true });
       }
-      // Move to next tab
-      setActiveTab(2);
-    } catch (error) {
-      console.error("Error saving hotel:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
+    loadHotel();
+  }
+}, [id, isEditMode]);
+
+const handleBasicInfoSave = async (data: HotelBasicInfoFormData) => {
+  setLoading(true);
+
+  try {
+    if (hotelId) {
+      await updateHotel(hotelId as any, data as any);
+
+      setHotelData({
+        ...hotelData,
+        ...data,
+        id: String(hotelId),
+      });
+    } else {
+      const newHotel = await createHotel(data as any);
+
+      const normalizedHotel = newHotel as unknown as HotelBasicInfoFormData & {
+        id?: number | string;
+      };
+
+      const nextHotelId = Number(normalizedHotel.id);
+
+      if (!nextHotelId) {
+        throw new Error("Hotel created but hotel id missing");
+      }
+
+      setHotelId(nextHotelId);
+      setHotelData(normalizedHotel);
+
+      navigate(`/hotels/${nextHotelId}/edit`, { replace: true });
+    }
+
+    setActiveTab(2);
+  } catch (error) {
+    console.error("Error saving hotel:", error);
+  } finally {
+    setLoading(false);
+  }
+};
   const canNavigateToTab = (tabId: TabId) => {
     if (tabId === 1) return true;
     return tabsEnabled;
   };
 
-  if (loading && isEditMode && !hotelData.id) {
+  if (loading && isEditMode && !Number(hotelData.id || hotelId || 0)) {
     return (
       <div className="p-8">
         <div className="text-center">Loading hotel data...</div>

@@ -159,7 +159,6 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   useEffect(() => {
     if (vendorId) {
       fetchData();
-      fetchDropdowns();
     }
   }, [vendorId]);
 
@@ -171,6 +170,24 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
         api(`/vendors/${vendorId}/outstation-km-limits`),
         api(`/vendors/${vendorId}/local-km-limits`),
       ]);
+
+      const vendorTypeMap = new Map<string, Option>();
+      (dc as any[]).forEach((r: any) => {
+        const id = String(r.vehicle_type_id ?? "");
+        if (!id) return;
+        if (!vendorTypeMap.has(id)) {
+          vendorTypeMap.set(id, {
+            id,
+            label: String(r.vehicle_type_title ?? r.vehicle_type_name ?? id),
+          });
+        }
+      });
+      const vendorTypeOptions = Array.from(vendorTypeMap.values());
+      if (vendorTypeOptions.length > 0) {
+        setVehicleTypeOptions(vendorTypeOptions);
+      } else {
+        await fetchDropdowns();
+      }
 
       setDriverCostRows((dc as any[]).map(r => ({
         id: Number(r.vendor_vehicle_type_ID),
@@ -212,7 +229,13 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const fetchDropdowns = async () => {
     try {
       const vtRes = await api("/dropdowns/vehicle-types");
-      setVehicleTypeOptions(vtRes as Option[]);
+      const items = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+      setVehicleTypeOptions(
+        items.map((v) => ({
+          id: String(v.id ?? v.vehicle_type_id ?? ""),
+          label: String(v.label ?? v.vehicle_type_title ?? v.name ?? ""),
+        }))
+      );
     } catch (e) {
       console.error("Failed to fetch dropdowns", e);
     }

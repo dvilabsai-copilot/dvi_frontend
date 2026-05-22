@@ -8,6 +8,61 @@ export type ItinerarySaveType =
 
 export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
 
+export type VehicleBuildStatusResponse = {
+  planId: number;
+  status: "PENDING" | "PROCESSING" | "READY" | "FAILED";
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  updatedAt?: string | null;
+  error?: string | null;
+  source?: "memory" | "derived";
+};
+
+export type HotelArrivalPolicyRequest = {
+  itineraryPlanId?: number;
+  itineraryRouteId?: number;
+  routeDayNumber?: number;
+  routeDate?: string;
+  arrivalDateTime?: string;
+  arrivalCityName?: string;
+  routeSourceCityName?: string;
+  nightStayCityName?: string;
+  arrivalCityId?: number;
+  routeSourceCityId?: number;
+  nightStayCityId?: number;
+  previousDayBillingDecisionProvided?: boolean;
+  previousDayBillingConfirmed?: boolean;
+};
+
+export type HotelArrivalPolicyResponse = {
+  resolutionStatus: string;
+  arrivalWindow: string;
+  requiresPreviousDayBillingConfirmation: boolean;
+  shouldOpenHotelSearch: boolean;
+  hotelSearchMode: "SAME_DAY" | "PREVIOUS_DAY";
+  hotelFlowAction: "DIRECT_HOTEL" | "DIRECT_SIGHTSEEING";
+  deferHotelToEndOfDay: boolean;
+  goToHotelImmediately: boolean;
+  effectiveCheckInDate: string;
+  effectiveCheckOutDate: string;
+  sameCityArrival: boolean;
+  normalizationApplied: boolean;
+  message?: string;
+  debug?: Record<string, unknown>;
+};
+
+export type HotspotAnchorPayload = {
+  anchorType?: "after_travel";
+  anchorIndex?: number;
+};
+
+export type MatrixPreferredSlotPayload = {
+  fromHotspotId?: number;
+  toHotspotId?: number;
+  slotIndex?: number;
+  source?: "BEST_FIT";
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -45,6 +100,28 @@ export const ItineraryService = {
 
   async getOne(id: number) {
     return api(`itineraries/edit/${id}`, {
+      method: "GET",
+    });
+  },
+
+  async saveReusableTemplate(planId: number, templateName?: string) {
+    return api("itineraries/templates/save", {
+      method: "POST",
+      body: { planId, templateName },
+    });
+  },
+
+  async getReusableTemplateMatch(
+    sourceLocation: string,
+    destinationLocation: string,
+    dayCount: number,
+  ) {
+    const qs = new URLSearchParams();
+    qs.set("sourceLocation", sourceLocation);
+    qs.set("destinationLocation", destinationLocation);
+    qs.set("dayCount", String(dayCount));
+
+    return api(`itineraries/templates/match?${qs.toString()}`, {
       method: "GET",
     });
   },
@@ -99,13 +176,82 @@ export const ItineraryService = {
       : `itineraries/details/${encodeURIComponent(quoteId)}`;
     return api(url, {
       method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
   },
 
-  async getHotelDetails(quoteId: string) {
-    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}`, {
+  async getVehicleBuildStatus(planId: number) {
+    return api(`itineraries/vehicles/build-status/${planId}`, {
       method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    }) as Promise<VehicleBuildStatusResponse>;
+  },
+
+  async triggerVehicleBuildAsync(planId: number) {
+    return api(`itineraries/vehicles/rebuild-async/${planId}`, {
+      method: "POST",
+    }) as Promise<VehicleBuildStatusResponse>;
+  },
+
+  async getHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+    itineraryRouteId?: number,
+  ) {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set("page", String(page));
+    if (pageSize && pageSize > 0) qs.set("pageSize", String(pageSize));
+    if (groupType && groupType > 0) qs.set("groupType", String(groupType));
+    if (itineraryRouteId && itineraryRouteId > 0) qs.set("itineraryRouteId", String(itineraryRouteId));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
+  },
+
+  async rebuildHotelDetails(
+    quoteId: string,
+    page?: number,
+    pageSize?: number,
+    groupType?: number,
+  ) {
+    const qs = new URLSearchParams();
+    if (page && page > 0) qs.set('page', String(page));
+    if (pageSize && pageSize > 0) qs.set('pageSize', String(pageSize));
+    if (groupType && groupType > 0) qs.set('groupType', String(groupType));
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+
+    return api(`itineraries/hotel_details/${encodeURIComponent(quoteId)}/rebuild${suffix}`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
+  },
+
+  async resolveHotelArrivalPolicy(payload: HotelArrivalPolicyRequest) {
+    return api("itineraries/hotel-arrival-policy", {
+      method: "POST",
+      body: payload,
+    }) as Promise<HotelArrivalPolicyResponse>;
   },
 
   async getClipboardContent(
@@ -191,6 +337,12 @@ export const ItineraryService = {
     });
   },
 
+  async rebuildRouteHotspots(planId: number, routeId: number) {
+    return api(`itineraries/${planId}/routes/${routeId}/rebuild-hotspots`, {
+      method: "POST",
+    });
+  },
+
   async getAvailableActivities(hotspotId: number) {
     return api(`itineraries/activities/available/${hotspotId}`, {
       method: "GET",
@@ -216,6 +368,40 @@ export const ItineraryService = {
     activityId: number;
   }) {
     return api(`itineraries/activities/preview-all-hotspots`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async smartPreviewActivity(
+    planId: number,
+    data: {
+      routeId: number;
+      activityId: number;
+      gapIndex?: number;
+      hotspotId?: number;
+      routeHotspotId?: number;
+      mode?: "preview" | "applyPreview";
+    },
+  ) {
+    return api(`itineraries/${planId}/activity/smart-preview`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async smartInsertActivity(
+    planId: number,
+    data: {
+      routeId: number;
+      activityId: number;
+      gapIndex: number;
+      hotspotId?: number;
+      routeHotspotId?: number;
+      allowTopPriorityRemoval?: boolean;
+    },
+  ) {
+    return api(`itineraries/${planId}/activity/smart-insert`, {
       method: "POST",
       body: data,
     });
@@ -251,6 +437,18 @@ export const ItineraryService = {
     });
   },
 
+  async getAvailableHotspotsForAnchor(data: {
+    planId: number;
+    routeId: number;
+    anchorType: "after_travel";
+    anchorIndex: number;
+  }) {
+    return api("itineraries/hotspots/available-for-anchor", {
+      method: "POST",
+      body: data,
+    });
+  },
+
   async addHotspot(planId: number, routeId: number, hotspotId: number) {
     return api("itineraries/hotspots/add", {
       method: "POST",
@@ -258,17 +456,80 @@ export const ItineraryService = {
     });
   },
 
-  async previewAddHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api("itineraries/hotspots/preview-add", {
+  async previewAddHotspot(
+    planId: number,
+    routeId: number,
+    hotspotId: number,
+    anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+      selectedHotspotIds?: number[];
+    },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspot/preview`, {
       method: "POST",
-      body: { planId, routeId, hotspotId },
+      body: {
+        routeId,
+        hotspotId,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+        selectedHotspotIds: Array.isArray(options?.selectedHotspotIds)
+          ? options?.selectedHotspotIds
+          : undefined,
+      },
     });
   },
 
-  async addManualHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api("itineraries/hotspots/add", {
+  async addManualHotspot(
+    planId: number,
+    routeId: number,
+    hotspotId: number,
+    anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+    },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspot`, {
       method: "POST",
-      body: { planId, routeId, hotspotId },
+      body: {
+        routeId,
+        hotspotId,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+      },
+    });
+  },
+
+  async applyManualHotspots(
+    planId: number,
+    routeId: number,
+    hotspotIds: number[],
+    anchor?: HotspotAnchorPayload,
+    options?: {
+      allowTopPriorityRemoval?: boolean;
+      forceConflictInsertion?: boolean;
+      matrixPreferredSlot?: MatrixPreferredSlotPayload;
+    },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspots/apply`, {
+      method: "POST",
+      body: {
+        routeId,
+        hotspotIds,
+        anchorType: anchor?.anchorType,
+        anchorIndex: anchor?.anchorIndex,
+        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
+        forceConflictInsertion: options?.forceConflictInsertion === true,
+        matrixPreferredSlot: options?.matrixPreferredSlot,
+      },
+    });
+  },
+
+  async buildMissingManualHotspotMatrix(planId: number, routeId: number, candidateHotspotId: number) {
+    return api(`itineraries/${planId}/routes/${routeId}/manual-hotspots/${candidateHotspotId}/build-matrix`, {
+      method: "POST",
     });
   },
 
@@ -278,10 +539,24 @@ export const ItineraryService = {
     });
   },
 
-  async updateRouteTimes(planId: number, routeId: number, startTime: string, endTime: string) {
+  async updateRouteTimes(
+    planId: number,
+    routeId: number,
+    startTime: string,
+    endTime: string,
+    options?: {
+      previousDayBillingDecisionProvided?: boolean;
+      previousDayBillingConfirmed?: boolean;
+    },
+  ) {
     return api(`itineraries/${planId}/route/${routeId}/times`, {
       method: "PATCH",
-      body: { startTime, endTime },
+      body: {
+        startTime,
+        endTime,
+        previousDayBillingDecisionProvided: options?.previousDayBillingDecisionProvided,
+        previousDayBillingConfirmed: options?.previousDayBillingConfirmed,
+      },
     });
   },
 
@@ -313,6 +588,28 @@ export const ItineraryService = {
     return api("itineraries/vehicles/select-vendor", {
       method: "POST",
       body: { planId, vehicleTypeId, vendorEligibleId },
+    });
+  },
+
+  async selectVehicleSlab(
+    planId: number,
+    vehicleTypeId: number,
+    vendorEligibleId: number,
+    timeLimitId: number
+  ) {
+    return api("itineraries/vehicles/select-slab", {
+      method: "POST",
+      body: { planId, vehicleTypeId, vendorEligibleId, timeLimitId },
+    });
+  },
+
+  async autoSelectVehicleSlabs(
+    planId: number,
+    vehicleTypeId?: number,
+  ) {
+    return api("itineraries/vehicles/auto-select-slabs", {
+      method: "POST",
+      body: { planId, vehicleTypeId },
     });
   },
 
@@ -383,6 +680,7 @@ export const ItineraryService = {
       routeId: number;
       provider: string; // "TBO" | "ResAvenue" | "HOBSE"
       hotelCode: string;
+      hotelName?: string;
       bookingCode: string;
       roomType: string;
       checkInDate: string;
@@ -406,6 +704,7 @@ export const ItineraryService = {
         passportExpDate?: string;
         phoneNo?: string;
       }>;
+      prebookContext?: any;
     }>;
     // ✅ NEW: Primary guest fallback (used by backend if lead passenger missing)
     primaryGuest?: {
@@ -428,6 +727,7 @@ export const ItineraryService = {
       routeId: number;
       provider: string;
       hotelCode: string;
+      hotelName?: string;
       bookingCode: string;
       roomType: string;
       checkInDate: string;
@@ -497,7 +797,7 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && value !== null) {
         queryParams.append(key, String(value));
       }
     });
@@ -522,7 +822,7 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && value !== null) {
         queryParams.append(key, String(value));
       }
     });
@@ -541,7 +841,7 @@ export const ItineraryService = {
     const queryParams = new URLSearchParams();
     
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== '') {
+      if (value !== undefined && value !== null) {
         queryParams.append(key, String(value));
       }
     });
