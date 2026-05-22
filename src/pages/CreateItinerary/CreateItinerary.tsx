@@ -1669,6 +1669,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
             routeDetails={routeDetails}
             setRouteDetails={setRouteDetails}
             onOpenViaRoutes={openViaRoutes}
+            onDeleteDay={deleteDay}
           />
         ) : (
                    <RouteDetailsBlock
