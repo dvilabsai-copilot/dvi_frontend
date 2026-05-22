@@ -192,7 +192,6 @@ export async function postPayment(payload: PayPayload): Promise<void> {
   await api(`${ACCOUNTS_BASE_PATH}/pay`, {
     method: "POST",
     auth: true,
-// body: JSON.stringify(payload),
-body: payload,
+body: JSON.stringify(payload),
   });
 }
