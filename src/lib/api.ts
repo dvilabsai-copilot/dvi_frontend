@@ -34,7 +34,7 @@ type ApiOptions = {
   method?: string;
   auth?: boolean; // default true
   headers?: Record<string, string>;
-  body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
+  body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
   cache?: RequestCache; // fetch cache option for cache-busting
 };
 
