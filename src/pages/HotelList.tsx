@@ -767,8 +767,8 @@ export const HotelList: React.FC<HotelListProps> = ({
         });
       
       return Array.from(hotelsByRoute.values()).sort((a, b) => {
-        const dayA = parseInt(a.day?.replace(/\D/g, '') || '0');
-        const dayB = parseInt(b.day?.replace(/\D/g, '') || '0');
+        const dayA = parseInt(String(a.day ?? '').replace(/\D/g, '') || '0');
+        const dayB = parseInt(String(b.day ?? '').replace(/\D/g, '') || '0');
         return dayA - dayB;
       });
     }
@@ -820,8 +820,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
 
     return displayHotels.sort((a, b) => {
-      const dayA = parseInt(a.day?.replace(/\D/g, '') || '0');
-      const dayB = parseInt(b.day?.replace(/\D/g, '') || '0');
+      const dayA = parseInt(String(a.day ?? '').replace(/\D/g, '') || '0');
+      const dayB = parseInt(String(b.day ?? '').replace(/\D/g, '') || '0');
       if (dayA !== dayB) return dayA - dayB;
       const dateA = String(a.date || '');
       const dateB = String(b.date || '');
@@ -1577,7 +1577,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                   hotelEmail: '',
                                   hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
                                   routeDates: [routeDate],
-                                  dayNumbers: [parseInt(hotel.day?.replace('Day ', '') || '0')],
+                                  dayNumbers: [parseInt(String(hotel.day ?? '').replace('Day ', '') || '0')],
                                   hotelDetailsIds: [hotel.itineraryPlanHotelDetailsId || 0]
                                 });
                               }}
