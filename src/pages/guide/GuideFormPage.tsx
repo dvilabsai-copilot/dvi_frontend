@@ -1827,31 +1827,69 @@ const handleDownloadExcel = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Guide Cost Details</h3>
                 <div className="flex items-center gap-3">
-                  <Input
-                    type="date"
-                    placeholder="Start Date"
-                    value={pricebook.startDate}
-                    onChange={(e) => {
-                      const newStart = e.target.value;
-                      setPricebook((prev) => ({
-                        ...prev,
-                        startDate: newStart,
-                        // clear end date if it's now before the new start date
-                        endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
-                      }));
-                    }}
-                    className="w-36"
-                  />
-                  <Input
-                    type="date"
-                    placeholder="End date"
-                    value={pricebook.endDate}
-                    min={pricebook.startDate || undefined}
-                    onChange={(e) =>
-                      setPricebook((prev) => ({ ...prev, endDate: e.target.value }))
-                    }
-                    className="w-36"
-                  />
+
+
+                 <Flatpickr
+  value={pricebook.startDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    const newStart = format(selected, "yyyy-MM-dd");
+
+    setPricebook((prev) => ({
+      ...prev,
+      startDate: newStart,
+      endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="Start Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+<Flatpickr
+  value={pricebook.endDate}
+  options={{
+    dateFormat: "Y-m-d",
+    altInput: true,
+    altFormat: "d/m/Y",
+    allowInput: false,
+    minDate: pricebook.startDate || undefined,
+  }}
+  onChange={(dates) => {
+    const selected = dates?.[0];
+    if (!selected) return;
+
+    setPricebook((prev) => ({
+      ...prev,
+      endDate: format(selected, "yyyy-MM-dd"),
+    }));
+  }}
+  render={({ ...props }, ref) => (
+    <Input
+      {...props}
+      ref={ref as React.Ref<HTMLInputElement>}
+      placeholder="End Date"
+      className="w-36 cursor-pointer"
+      readOnly
+    />
+  )}
+/>
+
+
                   <Button
                     onClick={handleUpdatePricebook}
                     disabled={loading}
@@ -2081,250 +2119,257 @@ const handleDownloadExcel = () => {
                 <Button variant="secondary" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
+
                 <div className="flex gap-2">
-                  <Button
-                    onClick={handleUpdatePricebook}
-                    disabled={loading}
-                    className="bg-gradient-to-r from-primary to-pink-500"
-                  >
-                    {loading ? "Saving..." : "Update"}
-                  </Button>
-                  <Button
-                    onClick={() => setCurrentStep(3)}
-                    className="bg-gradient-to-r from-primary to-pink-500"
-                  >
-                    Continue →
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => setCurrentStep(3)}
+                  className="bg-gradient-to-r from-primary to-pink-500"
+                >
+                  Continue →
+                </Button>
+              </div>
+
               </div>
             </div>
           )}
 
+
           {/* STEP 3: Feedback & Review */}
-          {currentStep === 3 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: Add Review */}
-              <div className="bg-white border rounded-lg p-6 space-y-4">
-                <h3 className="text-lg font-semibold text-pink-500">Rating</h3>
-                <Select value={String(newRating)} onValueChange={(v) => setNewRating(Number(v))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Rating" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((r) => (
-                      <SelectItem key={r} value={String(r)}>
-                        {r} Star{r > 1 ? "s" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+{currentStep === 3 && (
+  <div className="mx-auto max-w-[929px] space-y-4">
+    <h2 className="text-[18px] font-semibold text-primary">
+      Review & Feedback
+    </h2>
 
-                <p className="text-sm text-gray-500">All reviews are from genuine customers</p>
+    <div className="grid grid-cols-[224px_1fr] gap-6 items-start">
+      {/* Left: Rating */}
+      <div className="h-[413px] w-[224px] rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
+        <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+          Rating
+        </h3>
 
-                <div>
-                  <Label>Feedback *</Label>
-                  <textarea
-                    className="w-full border rounded-lg p-3 min-h-[120px]"
-                    value={newFeedback}
-                    onChange={(e) => setNewFeedback(e.target.value)}
-                    placeholder="Enter feedback..."
-                  />
-                </div>
-
-                <Button
-                  onClick={handleAddReview}
-                  className="bg-gradient-to-r from-primary to-pink-500"
-                >
-                  {editingReviewId ? "Update" : "Save"}
-                </Button>
-                {editingReviewId && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setEditingReviewId(null);
-                      setNewRating(0);
-                      setNewFeedback("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
-              </div>
-
-
-
-              {/* Right: Reviews List */}
-<div className="bg-white border rounded-lg p-6 min-h-[520px]">
-  <h3 className="text-[18px] font-semibold mb-6">
-    List of Reviews
-  </h3>
-
-  {/* Toolbar */}
-  <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-    
-    {/* Left Controls */}
-    <div className="flex flex-wrap items-center gap-4">
-      <div className="flex items-center gap-2">
-        <span className="text-[15px]">Show</span>
-
-        <select className="h-10 w-[90px] rounded-md border border-gray-300 bg-white px-3">
-          <option>10</option>
-          <option>25</option>
-          <option>50</option>
-        </select>
-
-        <span className="text-[15px]">entries</span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span className="text-[15px]">Search:</span>
-
-       <Input
-  className="w-[220px]"
-  value={searchReview}
-  onChange={(e) => setSearchReview(e.target.value)}
-  placeholder="Search reviews"
-/>
-      </div>
-    </div>
-
-    {/* Right Buttons */}
-    <div className="flex flex-wrap items-center gap-3">
-      <Button
-  variant="outline"
-  onClick={handleCopyReviews}
-  className="border-violet-500 text-violet-600"
+<select
+  value={newRating || ""}
+  onChange={(e) => setNewRating(Number(e.target.value))}
+  className="h-[44px] w-full rounded-xl border border-[#eadcff] bg-white px-3 text-[14px] outline-none focus:ring-2 focus:ring-purple-200"
 >
-  <Copy className="h-4 w-4 mr-2" />
-  Copy
-</Button>
+  <option value="">Select Rating</option>
+  <option value="5">5</option>
+  <option value="4">4</option>
+  <option value="3">3</option>
+  <option value="2">2</option>
+  <option value="1">1</option>
+</select>
 
-      <Button
-  variant="outline"
-  onClick={handleDownloadExcel}
-  className="border-green-500 text-green-600"
->
-  <FileSpreadsheet className="h-4 w-4 mr-2" />
-  Excel
-</Button>
 
-     <Button
-  variant="outline"
-  onClick={handleDownloadCSV}
->
-  <FileText className="h-4 w-4 mr-2" />
-  CSV
-</Button>
-    </div>
-  </div>
+        <p className="my-4 text-[13px] leading-5 text-[#8a86a3]">
+          All reviews are from genuine customers
+        </p>
 
-  {/* Table */}
-  <div className="overflow-x-auto">
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>S.NO</TableHead>
-          <TableHead>RATING</TableHead>
-          <TableHead>DESCRIPTION</TableHead>
-          <TableHead>CREATED ON</TableHead>
-          <TableHead>ACTION</TableHead>
-        </TableRow>
-      </TableHeader>
+        <Label className="text-[13px] font-semibold text-[#1f2937]">
+          Feedback <span className="text-red-500">*</span>
+        </Label>
 
-      <TableBody>
-        {filteredReviews.length === 0 ? (
-          <TableRow>
-            <TableCell
-              colSpan={5}
-              className="text-center py-10 text-gray-500"
-            >
-              No data available in table
-            </TableCell>
-          </TableRow>
-        ) : (
-          filteredReviews.map((review, idx) => (
-            <TableRow key={review.id}>
-              <TableCell>{idx + 1}</TableCell>
+        <textarea
+          className="mt-3 h-[120px] w-full resize-none rounded-xl border border-[#eadcff] px-3 py-2 text-[14px] outline-none focus:ring-1 focus:ring-primary"
+          value={newFeedback}
+          onChange={(e) => setNewFeedback(e.target.value)}
+          placeholder="Enter feedback..."
+        />
 
-              <TableCell>
-                <div className="flex gap-1">
-                  {renderStars(review.rating)}
-                </div>
-              </TableCell>
+        <div className="mt-3 flex justify-end gap-3">
+  <Button
+    type="button"
+    variant="secondary"
+    onClick={() => {
+      setEditingReviewId(null);
+      setNewRating(0);
+      setNewFeedback("");
+    }}
+    className="h-[38px] rounded-xl px-5 text-[14px]"
+  >
+    Cancel
+  </Button>
 
-              <TableCell>
-                {review.description}
-              </TableCell>
-
-              <TableCell>
-                {review.createdOn}
-              </TableCell>
-
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleEditReview(review)}
-                  >
-                    <Pencil className="h-4 w-4 text-violet-600" />
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDeleteReview(review.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))
-        )}
-      </TableBody>
-    </Table>
-  </div>
-
-  {/* Footer */}
-  <div className="flex items-center justify-between mt-6">
-    <p className="text-sm text-gray-500">
-      Showing {reviews.length > 0 ? 1 : 0} to {reviews.length} of {reviews.length} entries
-    </p>
-
-    <div className="flex items-center gap-2">
-      <Button variant="outline" disabled>
-        Previous
-      </Button>
-
-      <Button
-        className="bg-gradient-to-r from-primary to-pink-500 text-white"
-      >
-        1
-      </Button>
-
-      <Button variant="outline" disabled>
-        Next
-      </Button>
-    </div>
-  </div>
+  <Button
+    type="button"
+    onClick={handleAddReview}
+    className="h-[38px] rounded-xl bg-gradient-to-r from-primary to-pink-500 px-5 text-[14px]"
+  >
+    {editingReviewId ? "Update" : "Save"}
+  </Button>
 </div>
 
 
-              {/* Buttons */}
-              <div className="col-span-full flex justify-between pt-4">
-                <Button variant="secondary" onClick={() => setCurrentStep(2)}>
-                  Back
-                </Button>
-                <Button
-                  onClick={() => setCurrentStep(4)}
-                  className="bg-gradient-to-r from-primary to-pink-500"
-                >
-                  Skip and Continue
-                </Button>
-              </div>
-            </div>
-          )}
+      </div>
+
+      {/* Right: Reviews List */}
+      <div className="h-[413px] min-w-0 rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
+        <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
+          List of Reviews
+        </h3>
+
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-[15px]">Show</span>
+          <select className="h-[40px] w-[74px] rounded-xl border border-[#eadcff] bg-white px-3">
+            <option>10</option>
+            <option>25</option>
+            <option>50</option>
+          </select>
+          <span className="text-[15px]">entries</span>
+        </div>
+
+        <div className="mb-3 flex items-center gap-3">
+          <span className="text-[15px]">Search:</span>
+
+          <Input
+            className="h-[42px] w-[220px] rounded-xl border-[#eadcff] text-[14px]"
+            value={searchReview}
+            onChange={(e) => setSearchReview(e.target.value)}
+          />
+
+          <Button
+            variant="outline"
+            onClick={handleCopyReviews}
+            className="h-[42px] min-w-[92px] rounded-xl border-[#7c5cff] text-[#4f46e5]"
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Copy
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadExcel}
+            className="h-[42px] min-w-[92px] rounded-xl border-green-500 text-green-600"
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={handleDownloadCSV}
+            className="h-[42px] min-w-[84px] rounded-xl border-gray-300 text-gray-600"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            CSV
+          </Button>
+        </div>
+
+        <div className="overflow-hidden rounded-xl border border-[#eadcff]">
+          <Table className="w-full text-[13px]">
+            <TableHeader className="bg-[#fbf7ff]">
+              <TableRow>
+                <TableHead className="w-[75px] px-3 py-2 font-semibold">
+                  S.NO ↕
+                </TableHead>
+                <TableHead className="w-[95px] px-3 py-2 font-semibold">
+                  RATING ↕
+                </TableHead>
+                <TableHead className="w-[135px] px-3 py-2 font-semibold">
+                  DESCRIPTION ↕
+                </TableHead>
+                <TableHead className="w-[166px] whitespace-nowrap px-3 py-2 font-semibold">
+                  CREATED ON ↕
+                </TableHead>
+                <TableHead className="w-[103px] whitespace-nowrap px-3 py-2 text-center font-semibold">
+                  ACTIONS ↕
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {filteredReviews.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-gray-500">
+                    No data available in table
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReviews.map((review, idx) => (
+                  <TableRow key={review.id}>
+                    <TableCell className="px-3 py-2">{idx + 1}</TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      <div className="flex gap-0.5">
+                        {renderStars(review.rating)}
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      {review.description}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap px-3 py-2">
+                      {review.createdOn}
+                    </TableCell>
+
+                    <TableCell className="px-3 py-2">
+                      <div className="flex justify-center gap-2">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          onClick={() => handleEditReview(review)}
+                          className="h-8 w-8 rounded-lg border-[#eadcff]"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+
+                       <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => {
+                          const confirmed = window.confirm("Delete this review?");
+                          if (!confirmed) return;
+                          handleDeleteReview(review.id);
+                        }}
+                        className="h-8 w-8 rounded-lg border-[#eadcff]"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-[14px] text-gray-500">
+            Showing {filteredReviews.length > 0 ? 1 : 0} to {filteredReviews.length} of{" "}
+            {filteredReviews.length} entries
+          </p>
+
+          <div className="flex gap-2">
+            <Button variant="outline" disabled className="h-[40px]">
+              Previous
+            </Button>
+            <Button variant="outline" disabled className="h-[40px]">
+              Next
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between border-t pt-4">
+      <Button variant="secondary" onClick={() => setCurrentStep(2)}>
+        Back
+      </Button>
+
+      <Button
+        onClick={() => setCurrentStep(4)}
+        className="bg-gradient-to-r from-primary to-pink-500"
+      >
+        Skip and Continue
+      </Button>
+    </div>
+  </div>
+)}
+
 
           {/* STEP 4: Preview */}
           {currentStep === 4 && (

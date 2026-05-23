@@ -1050,42 +1050,6 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
               })
             )}
 
-            {outstationStartDate && outstationEndDate && (
-              <div className="mt-5 overflow-x-auto rounded-lg border border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Vehicle Type</th>
-                      <th className="px-3 py-2 text-left">KM Limit</th>
-                      {outstationPreview.days.map((d) => (
-                        <th key={d.key} className="px-3 py-2 text-center whitespace-nowrap">{d.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    {outstationPreview.rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={Math.max(3, outstationPreview.days.length + 2)} className="px-4 py-4 text-center text-gray-500">
-                          No data found
-                        </td>
-                      </tr>
-                    ) : (
-                      outstationPreview.rows.map((r, i) => (
-                        <tr key={`${r.vehicle_type_title}-${r.kms_limit_title}-${i}`}>
-                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.vehicle_type_title}</td>
-                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.kms_limit_title}</td>
-                          {r.prices.map((p, pi) => (
-                            <td key={`${i}-${pi}`} className="px-3 py-2 border-b border-gray-100 text-center">
-                              {p == null ? "No Price" : `INR ${p.toFixed(2)}`}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
 
           {/* ========== Local Pricebook (PHP parity) ========== */}
@@ -1318,6 +1282,43 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                   </div>
                 );
               })
+            )}
+
+            {outstationStartDate && outstationEndDate && (
+              <div className="mt-5 overflow-x-auto rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Vehicle Type</th>
+                      <th className="px-3 py-2 text-left">KM Limit</th>
+                      {outstationPreview.days.map((d) => (
+                        <th key={d.key} className="px-3 py-2 text-center whitespace-nowrap">{d.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white">
+                    {outstationPreview.rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={Math.max(3, outstationPreview.days.length + 2)} className="px-4 py-4 text-center text-gray-500">
+                          No data found
+                        </td>
+                      </tr>
+                    ) : (
+                      outstationPreview.rows.map((r, i) => (
+                        <tr key={`${r.vehicle_type_title}-${r.kms_limit_title}-${i}`}>
+                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.vehicle_type_title}</td>
+                          <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.kms_limit_title}</td>
+                          {r.prices.map((p, pi) => (
+                            <td key={`${i}-${pi}`} className="px-3 py-2 border-b border-gray-100 text-center">
+                              {p == null ? "No Price" : `INR ${p.toFixed(2)}`}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 

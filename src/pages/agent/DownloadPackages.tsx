@@ -6,9 +6,10 @@ export default function DownloadPackages() {
   const [loading, setLoading] = useState(true);
 
   return (
-    <div className="w-full bg-[#fcf8ff] p-4 md:p-6">
-      <div className="bg-[#f3f3f3] p-4 md:p-6">
-        <div className="relative overflow-hidden bg-white">
+  <div className="w-full bg-[#fcf8ff] px-4 pb-4 md:px-6 md:pb-6">
+    <div className="bg-[#f3f3f3]">
+      <div className="relative h-[calc(100vh-115px)] overflow-hidden bg-white">
+
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
               <div className="text-sm font-medium text-slate-600">
@@ -20,7 +21,7 @@ export default function DownloadPackages() {
           <iframe
             src={DOWNLOAD_PACKAGES_URL}
             title="Download Packages"
-            className="h-[calc(100vh-120px)] min-h-[700px] w-full border-0 bg-white"
+            className="h-full w-full border-0 bg-white"
             loading="lazy"
             allowFullScreen
             onLoad={() => setLoading(false)}

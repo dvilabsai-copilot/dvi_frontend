@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { clearToken, getToken } from "@/lib/api";
-import { ChevronRight, Home, Menu } from "lucide-react";
+import { ChevronRight, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 interface TopbarProps {
@@ -68,17 +68,20 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
 
         <div className="flex items-center gap-3">
           <nav aria-label="breadcrumb" className="hidden sm:block">
+
             <ol className="flex items-center gap-2 text-sm">
-              <li className="flex items-center">
-                <Home className="h-4 w-4 text-muted-foreground" />
-              </li>
-              <li className="flex items-center gap-2">
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-primary">
-                  {isDownloadPackagesPage ? "Dashboard" : pageTitle}
-                </span>
-              </li>
-            </ol>
+  <li>
+   <button
+  type="button"
+  onClick={() => navigate("/")}
+  className="flex items-center gap-2 font-medium text-primary hover:underline"
+>
+  Dashboard
+  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+</button>
+  </li>
+</ol>
+
           </nav>
 
           {!isDownloadPackagesPage &&
@@ -105,21 +108,24 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
         </div>
       </div>
 
-      {!isDownloadPackagesPage && (
-        <div className="px-4 pb-3 sm:hidden">
-          <nav aria-label="breadcrumb">
-            <ol className="flex items-center gap-2 text-sm">
-              <li className="flex items-center">
-                <Home className="h-4 w-4 text-muted-foreground" />
-              </li>
-              <li className="flex items-center gap-2">
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium text-primary">{pageTitle}</span>
-              </li>
-            </ol>
-          </nav>
-        </div>
-      )}
+     {!isDownloadPackagesPage && (
+  <div className="px-4 pb-3 sm:hidden">
+    <nav aria-label="breadcrumb">
+      <ol className="flex items-center gap-2 text-sm">
+        <li>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="font-medium text-primary hover:underline"
+          >
+            Dashboard 
+          </button>
+        </li>
+      </ol>
+    </nav>
+  </div>
+)}
+
     </div>
   );
 };

@@ -48,6 +48,7 @@ interface DefaultRoutesSuggestionsProps {
   routeDetails?: any[];
   setRouteDetails?: (routes: any[]) => void;
   onOpenViaRoutes?: (row: any) => void;
+  onDeleteDay?: () => void;
 }
 
 export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> = ({
@@ -61,6 +62,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   routeDetails,
   setRouteDetails,
   onOpenViaRoutes,
+  onDeleteDay,
 }) => {
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -270,6 +272,7 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
           locations={locations || []}
           onOpenViaRoutes={onOpenViaRoutes}
           departureLocation={departureLocation}
+          onDeleteDay={onDeleteDay}
         />
       </div>
     );

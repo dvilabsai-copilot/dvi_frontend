@@ -101,6 +101,7 @@ const menuItems: MenuItem[] = [
     hasSubmenu: true,
     children: [
       { id: "locations-main", title: "Locations", path: "/locations" },
+      { id: "locations-between-hotspots", title: "Between Hotspots", path: "/locations/between-hotspots" },
       { id: "toll-charge", title: "Toll Charge", path: "/toll-charge" },
     ],
   },
