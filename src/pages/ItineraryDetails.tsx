@@ -490,6 +490,51 @@ const estimateHotelTravelMinutesFromDistance = (distanceText?: string | null): n
   return Math.max(10, estimated);
 };
 
+const parseDurationMinutesValue = (durationValue: unknown): number | null => {
+  if (durationValue == null) return null;
+  if (typeof durationValue === 'number' && Number.isFinite(durationValue) && durationValue > 0) {
+    return Math.max(1, Math.round(durationValue));
+  }
+
+  const text = String(durationValue).trim().toLowerCase();
+  if (!text) return null;
+
+  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*h/);
+  const minMatch = text.match(/(\d+(?:\.\d+)?)\s*m/);
+
+  const hours = hourMatch ? Number.parseFloat(hourMatch[1]) : 0;
+  const minutes = minMatch ? Number.parseFloat(minMatch[1]) : 0;
+  const total = (Number.isFinite(hours) ? hours * 60 : 0) + (Number.isFinite(minutes) ? minutes : 0);
+  if (total > 0) return Math.max(1, Math.round(total));
+
+  const numeric = Number.parseFloat(text.replace(/[^0-9.]/g, ''));
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.max(1, Math.round(numeric));
+};
+
+const normalizeDurationAgainstDistance = (
+  distanceValue: unknown,
+  durationValue: unknown,
+  maxPlausibleSpeedKmH = 140,
+): number | null => {
+  const distanceKm = typeof distanceValue === 'number'
+    ? (Number.isFinite(distanceValue) && distanceValue > 0 ? distanceValue : null)
+    : parseDistanceKmValue(String(distanceValue ?? ''));
+  if (distanceKm === null) return parseDurationMinutesValue(durationValue);
+
+  const baseDurationMin = parseDurationMinutesValue(durationValue);
+  if (baseDurationMin === null) {
+    return estimateHotelTravelMinutesFromDistance(`${distanceKm} km`);
+  }
+
+  const impliedSpeed = distanceKm / (baseDurationMin / 60);
+  if (Number.isFinite(impliedSpeed) && impliedSpeed <= maxPlausibleSpeedKmH) {
+    return baseDurationMin;
+  }
+
+  return estimateHotelTravelMinutesFromDistance(`${distanceKm} km`) || baseDurationMin;
+};
+
 const normalizeDateToYmd = (input?: string | null): string => {
   const raw = String(input || '').trim();
   if (!raw) return '';
@@ -901,11 +946,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const activePreviewTimeline = useMemo(() => {
     const sourceTimeline = (Array.isArray(manualPreviewState?.fullTimeline) && manualPreviewState.fullTimeline.length > 0)
       ? manualPreviewState.fullTimeline
-      : (tempModalTimeline.length > 0
-      ? tempModalTimeline
-      : (groupPreviewTimeline.length > 0
-          ? groupPreviewTimeline
-          : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : [])));
+      : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : []);
     if (!selectedHotspotId && sourceTimeline.length === 0) return [];
 
     const routeScopedRows = sourceTimeline
@@ -976,7 +1017,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       if (startDiff !== 0) return startDiff;
       return typePriority(a) - typePriority(b);
     });
-  }, [addHotspotModal.routeId, groupPreviewTimeline, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId, tempModalTimeline]);
+  }, [addHotspotModal.routeId, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId]);
 
   const activePreviewResolution = useMemo(() => {
     if (manualPreviewState) {
@@ -990,6 +1031,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const activePreviewValidation = useMemo(() => {
     return activePreviewResolution?.validation || null;
   }, [activePreviewResolution]);
+
+  const normalizedDecision = useMemo(() => {
+    return (activePreviewResolution as any)?.normalizedDecision
+      || (activePreviewResolution as any)?.resolution?.normalizedDecision
+      || (manualPreviewState as any)?.normalizedDecision
+      || null;
+  }, [activePreviewResolution, manualPreviewState]);
 
   const pendingPriorityReplacementHotspotId = useMemo(() => {
     const needsReplacementApproval = (resolution: any): boolean => {
@@ -1048,6 +1096,139 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
         - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
       ));
+    };
+
+    const prunePrematureHotelTravelLegs = (rows: any[]): any[] => {
+      if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+      const isTravel = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        return type === 'travel' || Number(row?.item_type || 0) === 3 || Number(row?.item_type || 0) === 5;
+      };
+      const isAttraction = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        return type === 'attraction' || Number(row?.item_type || 0) === 4;
+      };
+      const isHotelLike = (row: any): boolean => {
+        const type = String(row?.type || '').toLowerCase();
+        const text = String(row?.text || row?.name || '').toLowerCase();
+        return type === 'hotel' || type === 'checkin' || Number(row?.item_type || 0) === 6 || text.includes('check-in at ');
+      };
+      const normalizeLabel = (value: any): string => String(value || '')
+        .toLowerCase()
+        .replace(/^travel\s+to\s+/i, '')
+        .replace(/^check-?in\s+at\s+/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const parseStartMinutes = (value: any): number | null => {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const startPart = raw.split('-')[0]?.trim() || raw;
+        const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (!match) return null;
+        let h = Number(match[1]);
+        const m = Number(match[2]);
+        const ampm = String(match[3]).toUpperCase();
+        if (ampm === 'AM' && h === 12) h = 0;
+        if (ampm === 'PM' && h !== 12) h += 12;
+        return (h * 60) + m;
+      };
+      const parseEndMinutes = (value: any): number | null => {
+        const raw = String(value || '').trim();
+        if (!raw || !raw.includes('-')) return null;
+        const endPart = raw.split('-')[1]?.trim() || '';
+        const match = endPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+        if (!match) return null;
+        let h = Number(match[1]);
+        const m = Number(match[2]);
+        const ampm = String(match[3]).toUpperCase();
+        if (ampm === 'AM' && h === 12) h = 0;
+        if (ampm === 'PM' && h !== 12) h += 12;
+        return (h * 60) + m;
+      };
+
+      const hotelIndex = rows.findIndex((row: any) => isHotelLike(row));
+      if (hotelIndex <= 0) return rows;
+
+      const hotelRow = rows[hotelIndex];
+      const hotelNameFromCheckin = (() => {
+        const text = String(hotelRow?.text || hotelRow?.name || '').trim();
+        const match = text.match(/check-?in\s+at\s+(.+)/i);
+        return String(match?.[1] || '').trim();
+      })();
+      const hotelLabel = normalizeLabel(hotelNameFromCheckin || hotelRow?.toName || hotelRow?.name || 'hotel');
+      const hotelStart = parseStartMinutes(hotelRow?.timeRange);
+
+      const lastAttractionBeforeHotel = (() => {
+        for (let i = hotelIndex - 1; i >= 0; i -= 1) {
+          if (isAttraction(rows[i])) return i;
+        }
+        return -1;
+      })();
+
+      const hotelTravelCandidates = rows
+        .map((row: any, index: number) => ({ row, index }))
+        .filter(({ row, index }) => {
+          if (index >= hotelIndex || !isTravel(row)) return false;
+          const target = normalizeLabel(row?.toName || row?.to || row?.text || row?.name);
+          return target === hotelLabel;
+        });
+
+      if (hotelTravelCandidates.length <= 1) return rows;
+
+      const keepIndex = (() => {
+        const explicitMatrixHotelLeg = hotelTravelCandidates.find(({ row }) => (
+          row?.isMatrixSplitTravel === true
+          && String(row?.matrixTravelLeg || '').toUpperCase() === 'C_TO_B'
+        ));
+        if (explicitMatrixHotelLeg) {
+          return explicitMatrixHotelLeg.index;
+        }
+
+        const valid = hotelTravelCandidates
+          .map(({ row, index }) => {
+            const endMin = parseEndMinutes(row?.timeRange);
+            return { index, endMin };
+          })
+          .filter((entry) => hotelStart !== null && entry.endMin !== null && entry.endMin <= hotelStart);
+
+        if (valid.length > 0) {
+          return valid.sort((a, b) => Number(b.endMin || 0) - Number(a.endMin || 0))[0].index;
+        }
+
+        return hotelTravelCandidates[hotelTravelCandidates.length - 1].index;
+      })();
+
+      const dropSet = new Set<number>();
+      for (const { index } of hotelTravelCandidates) {
+        if (index !== keepIndex) dropSet.add(index);
+        if (index < lastAttractionBeforeHotel && index !== keepIndex) dropSet.add(index);
+      }
+
+      const filteredRows = dropSet.size === 0
+        ? rows
+        : rows.filter((_: any, index: number) => !dropSet.has(index));
+
+      // When we keep computed C->B leg, align hotel/check-in to the travel end in preview.
+      const retainedTravel = filteredRows.find((row: any, index: number) => (
+        isTravel(row)
+        && normalizeLabel(row?.toName || row?.to || row?.text || row?.name) === hotelLabel
+        && index < filteredRows.findIndex((candidate: any) => isHotelLike(candidate))
+      ));
+      const retainedRange = String(retainedTravel?.timeRange || '').trim();
+      const retainedEndText = retainedRange.includes(' - ')
+        ? String(retainedRange.split(' - ')[1] || '').trim()
+        : '';
+
+      if (!retainedEndText) return filteredRows;
+
+      return filteredRows.map((row: any) => {
+        if (!isHotelLike(row)) return row;
+        return {
+          ...row,
+          timeRange: `${retainedEndText} - ${retainedEndText}`,
+        };
+      });
     };
 
     const applyBestSlotOrdering = (rows: any[]): any[] => {
@@ -1155,13 +1336,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     };
 
     if (backendResolvedTimeline && activePreviewTimeline.length > 0) {
-      return enforceHotelOrderingSafety(
-        sortByPreviewOrder(removePlannedRemovalRows(activePreviewTimeline)),
+      return prunePrematureHotelTravelLegs(
+        enforceHotelOrderingSafety(
+          sortByPreviewOrder(removePlannedRemovalRows(activePreviewTimeline)),
+        ),
       );
     }
 
     if (activePreviewTimeline.length > 0) {
-      const orderedTimeline = enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline));
+      const orderedTimeline = prunePrematureHotelTravelLegs(
+        enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline)),
+      );
       const insertedIndex = orderedTimeline.findIndex((row: any) => Number(
         row?.selectedHotspotId
         ?? row?.locationId
@@ -1255,6 +1440,64 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       || null;
   }, [activePreviewResolution, groupPreviewResolution]);
 
+  const destinationHotelDisplayName = useMemo(() => {
+    const sanitize = (raw: unknown): string => {
+      const value = String(raw || '').trim();
+      if (!value) return '';
+      const lower = value.toLowerCase();
+      if (lower === 'hotel' || lower === 'no hotels available' || lower === 'hotel / route start') {
+        return '';
+      }
+      return value;
+    };
+
+    const routeId = Number(addHotspotModal.routeId || 0);
+    const routeDay = itinerary?.days?.find((day) => Number(day?.id) === routeId);
+    const routeCheckin = Array.isArray(routeDay?.segments)
+      ? [...routeDay!.segments].reverse().find((segment: any) => String(segment?.type || '').toLowerCase() === 'checkin')
+      : null;
+    const routeCheckinName = sanitize((routeCheckin as any)?.hotelName);
+    if (routeCheckinName) return routeCheckinName;
+
+    const selectedRouteHotelName = sanitize(
+      (hotelDetails?.hotels || [])
+        .filter((hotel: any) => Number(hotel?.itineraryRouteId) === routeId)
+        .filter((hotel: any) => Number(hotel?.itineraryPlanHotelDetailsId || 0) > 0)
+        .sort((a: any, b: any) => Number(b?.itineraryPlanHotelDetailsId || 0) - Number(a?.itineraryPlanHotelDetailsId || 0))
+        .map((hotel: any) => hotel?.hotelName)
+        .find((name: any) => sanitize(name).length > 0)
+    );
+    if (selectedRouteHotelName) return selectedRouteHotelName;
+
+    const fitName = sanitize((matrixFit as any)?.destinationHotelName);
+    if (fitName) return fitName;
+
+    const hotelDetailsName = sanitize(
+      hotelDetails?.hotels?.find((hotel: any) => Number(hotel?.itineraryRouteId) === routeId)?.hotelName
+    );
+    if (hotelDetailsName) return hotelDetailsName;
+
+    const previewRows = Array.isArray(effectivePreviewTimeline)
+      ? [...(effectivePreviewTimeline as any[])].reverse()
+      : [];
+    for (const row of previewRows) {
+      const type = String(row?.type || '').toLowerCase();
+      if (type !== 'hotel' && type !== 'checkin' && Number(row?.item_type) !== 6) {
+        continue;
+      }
+
+      const rowName = sanitize(row?.hotelName || row?.toName || row?.to);
+      if (rowName) return rowName;
+
+      const rowText = String(row?.text || '').trim();
+      const match = rowText.match(/check-?in\s+(?:to|at)\s+(.+)/i);
+      const parsed = sanitize(match?.[1] || '');
+      if (parsed) return parsed;
+    }
+
+    return '';
+  }, [addHotspotModal.routeId, effectivePreviewTimeline, hotelDetails?.hotels, itinerary?.days, matrixFit]);
+
   const matrixRequiresBuild = useMemo(() => {
     if (!matrixFit) return false;
     if (matrixFit?.destinationInsertionMode === true) return false;
@@ -1315,6 +1558,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
 
   const previewValidationReasonText = useMemo(() => {
+    if (normalizedDecision?.primaryMessage) {
+      return String(normalizedDecision.primaryMessage);
+    }
     const reason = String(activePreviewValidation?.reason || '').toUpperCase();
     if (reason === 'NO_FEASIBLE_ROUTE_SLOT') {
       return 'Matrix data exists, but this hotspot is off-route or backtracking for all current route segments.';
@@ -1325,10 +1571,20 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (reason === 'OSRM_ROUTE_CHECK_FAILED') {
       return 'OSRM route validation failed while checking the source-city route anchor.';
     }
-    return activePreviewValidation?.reason || 'The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot.';
-  }, [activePreviewValidation]);
+    const baseReason = activePreviewValidation?.reason || 'The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot.';
+    const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim();
+    if (!destinationHotelDisplayName || !matrixDestinationName) {
+      return baseReason;
+    }
+    const escapedDestinationName = matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return String(baseReason).replace(new RegExp(escapedDestinationName, 'gi'), destinationHotelDisplayName);
+  }, [activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision]);
 
   const matrixApplyBlocked = useMemo(() => {
+    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
+    if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY' || decisionStatus === 'MATRIX_UNAVAILABLE') {
+      return true;
+    }
     if (!matrixFit) return false;
     if (matrixFit?.destinationInsertionMode === true) {
       return matrixFit?.canApply === false;
@@ -1337,9 +1593,74 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       isMatrixMissingBlockedState
       || isMatrixBuiltButNoFeasibleSlot
       || matrixFit?.canApply === false
-      || !hasValidChosenMatrixSlot
     );
-  }, [hasValidChosenMatrixSlot, isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit]);
+  }, [isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit, normalizedDecision]);
+
+  const decisionStatus = useMemo(() => {
+    return String(normalizedDecision?.decisionStatus || '').toUpperCase();
+  }, [normalizedDecision]);
+
+  const confirmActionConfig = useMemo(() => {
+    if (decisionStatus === 'MATRIX_UNAVAILABLE') {
+      return { label: 'Build Matrix First', disabled: true };
+    }
+    if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY') {
+      return { label: 'Cannot Add', disabled: true };
+    }
+    if (decisionStatus === 'OFF_ROUTE' || decisionStatus === 'BACKTRACK') {
+      return { label: 'Cannot Add - Off Route', disabled: true };
+    }
+    if (decisionStatus === 'NEEDS_RESCHEDULE') {
+      return { label: 'Add with Reschedule', disabled: false };
+    }
+    return { label: 'Confirm Add Hotspot', disabled: false };
+  }, [decisionStatus]);
+
+  const insertionDecisionSummary = useMemo(() => {
+    if (!activePreviewHotspotId || !matrixFit) return null;
+    const canProceedWithReschedule = (
+      activePreviewValidation?.readyToApply === false
+      && activePreviewValidation?.requiresPriorityConfirmation !== true
+      && !matrixApplyBlocked
+    );
+    if (matrixRequiresBuild || isMatrixMissingBlockedState) {
+      return {
+        willInsert: false,
+        text: 'Will not be inserted: route-fit matrix is missing.',
+      };
+    }
+    if (isMatrixBuiltButNoFeasibleSlot) {
+      return {
+        willInsert: false,
+        text: 'Will not be inserted: hotspot is off-route/backtracking for current route.',
+      };
+    }
+    if (canProceedWithReschedule) {
+      return {
+        willInsert: true,
+        text: 'Can be inserted with reschedule. Timeline will be recalculated.',
+      };
+    }
+    if (matrixApplyBlocked || activePreviewValidation?.readyToApply === false) {
+      return {
+        willInsert: false,
+        text: 'Will not be inserted: current preview is not ready to apply.',
+      };
+    }
+    return {
+      willInsert: true,
+      text: 'Will be inserted when you click Add hotspot.',
+    };
+  }, [
+    activePreviewHotspotId,
+    activePreviewValidation?.readyToApply,
+    activePreviewValidation?.requiresPriorityConfirmation,
+    isMatrixBuiltButNoFeasibleSlot,
+    isMatrixMissingBlockedState,
+    matrixApplyBlocked,
+    matrixFit,
+    matrixRequiresBuild,
+  ]);
 
   const resolvedRemovalTimelineLeak = useMemo(() => {
     const resolved = (matrixFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true;
@@ -1408,12 +1729,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       case 'MINOR_DETOUR': return 'bg-amber-100 text-amber-700';
       case 'BACKTRACK':   return 'bg-orange-100 text-orange-700';
       case 'OFF_ROUTE':   return 'bg-red-100 text-red-700';
+      case 'DESTINATION_SIDE_INSERTION': return 'bg-blue-100 text-blue-700';
       case 'MATRIX_UNAVAILABLE': return 'bg-gray-100 text-gray-600';
       default:            return 'bg-gray-100 text-gray-500';
     }
   };
 
   const normalizedInsertionSlots = useMemo(() => {
+    const isDestinationSidePreview =
+      (matrixFit as any)?.destinationInsertionMode === true
+      || String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase() === 'DESTINATION_CITY';
+
     const rawSlots = Array.isArray(matrixFit?.allSlotResults) && matrixFit.allSlotResults.length > 0
       ? matrixFit.allSlotResults
       : (Array.isArray(activePreviewResolution?.slotInsights)
@@ -1442,8 +1768,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       let label = '';
       if (type === 'attraction') {
         label = String(seg?.text || seg?.name || '').trim();
-      } else if (type === 'hotel') {
-        label = 'Hotel';
+      } else if (type === 'hotel' || type === 'checkin') {
+        label = String(seg?.hotelName || seg?.toName || '').trim() || destinationHotelDisplayName || 'Hotel';
       }
 
       if (!label) continue;
@@ -1456,10 +1782,23 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     return rawSlots.map((slot: any, index: number) => {
       const fromName = slot?.fromName || stopNames[index] || `Stop ${index + 1}`;
-      const toName = slot?.toName || stopNames[index + 1] || 'Destination';
+      const rawToName = String(slot?.toName || stopNames[index + 1] || 'Destination').trim();
+      const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
+      const toName = (
+        isDestinationSidePreview
+        && destinationHotelDisplayName
+        && (
+          /^hotel$/i.test(rawToName)
+          || (matrixDestinationName.length > 0 && rawToName.toLowerCase() === matrixDestinationName)
+          || Number(slot?.destinationHotelId || 0) > 0
+        )
+      )
+        ? destinationHotelDisplayName
+        : rawToName;
 
       // ── From manualInsertionFit.allSlotResults ──
       const routeFitType: string = slot?.routeFitType || '';
+      const routeFitStatus: string = String(slot?.routeFitStatus || routeFitType || '').toUpperCase();
       const routeFitLabel: string = slot?.label || '';
       const routeFitDisplayLabel: string = slot?.displayLabel || routeFitLabel;
       const routeFitShortLabel: string = slot?.shortLabel || routeFitDisplayLabel || routeFitLabel;
@@ -1475,10 +1814,18 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       const prioritySafe: boolean = slot?.prioritySafe !== false;
 
       // Legacy fallback fields
-      const directKm: number = Number(slot?.directKm ?? slot?.abOsrmDistanceKm ?? 0);
+      const metricsSource = String(slot?.routeMetrics?.source || 'NONE').toUpperCase();
+      const hasTrustedMetrics = metricsSource === 'MATRIX_CACHE';
+      const directKmRaw = hasTrustedMetrics ? slot?.routeMetrics?.directKm : null;
+      const viaKmRaw = hasTrustedMetrics ? slot?.routeMetrics?.viaKm : null;
+      const extraKmRaw = hasTrustedMetrics ? slot?.routeMetrics?.extraKm : null;
+      const directKm: number = Number(directKmRaw ?? slot?.directKm ?? slot?.abOsrmDistanceKm ?? 0);
       const distanceDeltaRaw: number = roadDetourKm != null ? roadDetourKm : Number(slot?.distanceDelta || 0);
       const distanceDelta: number = Math.max(0, Number.isFinite(distanceDeltaRaw) ? distanceDeltaRaw : 0);
-      const viaKm: number = Number(slot?.insertedRouteDistanceKm ?? slot?.viaKm ?? (directKm + distanceDelta));
+      const viaKm: number = Number(viaKmRaw ?? slot?.insertedRouteDistanceKm ?? slot?.viaKm ?? (directKm + distanceDelta));
+      const normalizedDisplayLabel = (routeFitStatus === 'MATRIX_UNAVAILABLE' || routeFitStatus === 'NO_ROUTE_DATA')
+        ? 'Route data unavailable for this slot'
+        : routeFitDisplayLabel;
 
       const isFeasibleType = routeFitType === 'ON_ROUTE' || routeFitType === 'MINOR_DETOUR';
       const fitsOverall: boolean = routeFitType
@@ -1497,8 +1844,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         viaKm,
         distanceDelta,
         routeFitType,
+        routeFitStatus,
         routeFitLabel,
-        displayLabel: routeFitDisplayLabel,
+        displayLabel: normalizedDisplayLabel,
         shortLabel: routeFitShortLabel,
         roadDetourKm,
         isZeroExtraDetour,
@@ -1518,9 +1866,25 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         selectedAsBest: matrixRequiresBuild ? false : (slot?.selectedAsBest === true || isBest),
         attempted: slot?.attempted === true || true,
         timingReason: timingDecisionReason || slot?.timingReason || slot?.reason || routeDecisionReason || null,
+        routeMetrics: {
+          directKm: hasTrustedMetrics ? Number(directKmRaw ?? directKm) : null,
+          viaKm: hasTrustedMetrics ? Number(viaKmRaw ?? viaKm) : null,
+          extraKm: hasTrustedMetrics ? Number(extraKmRaw ?? distanceDelta) : null,
+          source: metricsSource,
+        },
       };
     });
-  }, [activePreviewResolution, effectivePreviewTimeline, selectedHotspotAnchor, selectedHotspotId, matrixFit, matrixRequiresBuild, safeMatrixSlots]);
+  }, [
+    activePreviewResolution,
+    effectivePreviewTimeline,
+    selectedHotspotAnchor,
+    selectedHotspotId,
+    matrixFit,
+    matrixRequiresBuild,
+    safeMatrixSlots,
+    destinationHotelDisplayName,
+    manualPreviewState?.manualInsertionFit?.hotspotCityContext,
+  ]);
   // ─────────────────────────────────────────────────────────────────────────────
 
   const activeAnchorFitInsight = useMemo(() => {
@@ -1544,23 +1908,46 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     if (sourceSlot) {
       const fitType: string = sourceSlot.routeFitType || '';
+      const fitTypeUpper = String(fitType || '').toUpperCase();
+      const sourceLabelText = String(sourceSlot.displayLabel || sourceSlot.label || '').toLowerCase();
+      const sourceFinalReasonText = String(sourceSlot.finalDecisionReason || '').toLowerCase();
+      const sourceNoRouteTagged = sourceLabelText.includes('no route data')
+        || sourceFinalReasonText.includes('no route data');
+      const hasRouteDataForSlot = (
+        sourceSlot?.routePossible !== false
+        && fitTypeUpper !== 'UNKNOWN'
+        && fitTypeUpper !== 'MATRIX_UNAVAILABLE'
+        && !sourceNoRouteTagged
+      );
       const label: string = sourceSlot.displayLabel || sourceSlot.label || fitType;
       const detour: number | null = sourceSlot.roadDetourKm != null ? Number(sourceSlot.roadDetourKm) : null;
+      const isDestinationSidePreview = String((manualPreviewState as any)?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase() === 'DESTINATION_CITY';
+      const rawToName = String(sourceSlot?.toName || '').trim();
+      const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
+      const resolvedToName = (
+        isDestinationSidePreview
+        && destinationHotelDisplayName
+        && (
+          /^hotel$/i.test(rawToName)
+          || (matrixDestinationName.length > 0 && rawToName.toLowerCase() === matrixDestinationName)
+          || Number(sourceSlot?.destinationHotelId || 0) > 0
+        )
+      ) ? destinationHotelDisplayName : rawToName;
       const tone = fitType === 'ON_ROUTE' || fitType === 'MINOR_DETOUR'
         ? 'green' as const
         : fitType === 'BACKTRACK'
           ? 'amber' as const
           : 'red' as const;
       const hasNamedAnchors = String(sourceSlot?.fromName || '').trim().length > 0
-        && String(sourceSlot?.toName || '').trim().length > 0;
-      const between = hasNamedAnchors ? `${sourceSlot.fromName} → ${sourceSlot.toName}` : null;
-      const extraLabel = detour != null ? `+${detour.toFixed(1)} km` : null;
+        && String(resolvedToName || '').trim().length > 0;
+      const between = hasNamedAnchors ? `${sourceSlot.fromName} → ${resolvedToName}` : null;
+      const extraLabel = hasRouteDataForSlot && detour != null ? `+${detour.toFixed(1)} km` : null;
       return {
         label,
-        tone,
+        tone: hasRouteDataForSlot ? tone : ('red' as const),
         extraDistanceLabel: extraLabel,
         anchorLegLabel: between,
-        insertedLabel: label,
+        insertedLabel: hasRouteDataForSlot ? label : 'No route data',
         reason: sourceSlot.decisionReason || null,
         source: (matrixFit as any)?.chosenSlotSource || null,
         warning: (matrixFit as any)?.warning || null,
@@ -1618,7 +2005,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       insertedLabel: 'Inserted (distance unavailable)',
       reason: null,
     };
-  }, [addHotspotModal.routeId, activePreviewResolution, matrixRequiresBuild, normalizedInsertionSlots, selectedHotspotId, matrixFit]);
+  }, [
+    addHotspotModal.routeId,
+    activePreviewResolution,
+    matrixRequiresBuild,
+    normalizedInsertionSlots,
+    selectedHotspotId,
+    matrixFit,
+    destinationHotelDisplayName,
+    manualPreviewState?.manualInsertionFit?.hotspotCityContext,
+  ]);
 
 
   const bestInsertionSlot = useMemo(() => {
@@ -1799,6 +2195,43 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       const aClosed = aTimingText.length === 0 || aTimingText === 'no timings available';
       const bClosed = bTimingText.length === 0 || bTimingText === 'no timings available';
 
+      const isDeletedFromTimeline = (h: AvailableHotspot): boolean => {
+        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
+        const availabilityReason = String(h.availabilityReason || '').trim().toLowerCase();
+        return (
+          backendStatus === 'EXCLUDED_BY_ROUTE'
+          || availabilityReason.includes('excluded for this route')
+          || availabilityReason.includes('currently excluded')
+        );
+      };
+
+      const isAddedInCurrentRoute = (h: AvailableHotspot): boolean => {
+        const deletedFromTimeline = isDeletedFromTimeline(h);
+        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
+        return (
+          !deletedFromTimeline
+          && (h.alreadyAdded === true || backendStatus === 'ACTIVE_THIS_ROUTE')
+        );
+      };
+
+      const canPreview = (h: AvailableHotspot): boolean => {
+        const deletedFromTimeline = isDeletedFromTimeline(h);
+        const added = isAddedInCurrentRoute(h);
+        const disabled = added || (h.actionDisabled === true && !deletedFromTimeline);
+        const timingText = String(h.timings || '').trim().toLowerCase();
+        const closed = timingText.length === 0 || timingText === 'no timings available';
+        return !disabled && !closed;
+      };
+
+      const aPreview = canPreview(a);
+      const bPreview = canPreview(b);
+
+      const aAdded = isAddedInCurrentRoute(a);
+      const bAdded = isAddedInCurrentRoute(b);
+      if (aAdded !== bAdded) return aAdded ? 1 : -1;
+
+      if (aPreview !== bPreview) return aPreview ? -1 : 1;
+
       if (aClosed !== bClosed) return aClosed ? 1 : -1;
       // visitAgain (already visited) goes to the bottom
       if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
@@ -1853,18 +2286,28 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [manualPreviewState?.manualInsertionFit?.hotspotCityContext, activePreviewHotspot, deriveHotspotCityContext]);
 
   const destinationInsertionSlotLabel = useMemo(() => {
-    const preferred = String(
+    const preferredRaw = String(
       matrixFit?.chosenSlot?.attemptedSlotLabel
       || matrixFit?.bestSlot?.attemptedSlotLabel
       || (selectedHotspotAnchor as any)?.slot
       || ''
     ).trim();
+    const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim();
+    const escapedDestinationName = matrixDestinationName
+      ? matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      : '';
+    const preferred = preferredRaw
+      .replace(/^Will\s+be\s+inserted\s+/i, '')
+      .replace(/^Insert\s+after\s+/i, 'After ')
+      .replace(/->\s*Hotel(\b|$)/i, destinationHotelDisplayName ? `-> ${destinationHotelDisplayName}` : '-> Hotel')
+      .replace(escapedDestinationName ? new RegExp(escapedDestinationName, 'gi') : /$^/, destinationHotelDisplayName || matrixDestinationName)
+      .trim();
     if (preferred.length > 0) return preferred;
     if (selectedPreviewCityContext === 'DESTINATION_CITY') {
-      return `Will be inserted after reaching ${destinationCityLabel}`;
+      return `After reaching ${destinationCityLabel}`;
     }
     return '';
-  }, [matrixFit, selectedHotspotAnchor, selectedPreviewCityContext, destinationCityLabel]);
+  }, [matrixFit, selectedHotspotAnchor, selectedPreviewCityContext, destinationCityLabel, destinationHotelDisplayName]);
 
   const hotspotListRows = useMemo(() => {
     if (!routeIsDifferentCity) {
@@ -4525,6 +4968,14 @@ const vehicleOnlyHtml = html
     }
   };
 
+  const dayHasManualInserts = (day: any): boolean => {
+    const segments = Array.isArray(day?.segments) ? day.segments : [];
+    return segments.some((seg: any) => (
+      String(seg?.type || '').toLowerCase() === 'attraction'
+      && (seg?.planOwnWay === true || seg?.isManual === true)
+    ));
+  };
+
   const applyRouteTimePatch = async (
     planId: number,
     routeId: number,
@@ -5222,9 +5673,7 @@ const vehicleOnlyHtml = html
         ...prev,
         [hotspotId]: previewResolution,
       }));
-      setGroupPreviewTimeline(fullTimeline);
       setGroupPreviewResolution(previewResolution);
-      setTempModalTimeline(fullTimeline);
       if (options?.allowTopPriorityRemoval === true) {
         setForceReplacementApprovedByHotspot((prev) => ({
           ...prev,
@@ -7143,7 +7592,7 @@ const vehicleOnlyHtml = html
             DAY {day.dayNumber} - {formatHeaderDate(day.date)}
           </h3>
 
-          {routeNeedsRebuild === day.id && (
+          {(routeNeedsRebuild === day.id || dayHasManualInserts(day)) && (
             <Button
               size="sm"
               variant="outline"
@@ -7330,7 +7779,10 @@ const vehicleOnlyHtml = html
                         {segment.type === "travel" && (() => {
                           const textLabels = extractTravelFromToFromText((segment as any)?.text);
                           const travelFromLabel = String(segment.from || textLabels.from || 'Route Start').trim();
-                          const travelToLabel = String(segment.to || textLabels.to || extractTravelToFromText((segment as any)?.text) || 'Next Stop').trim();
+                          const travelToRawLabel = String(segment.to || textLabels.to || extractTravelToFromText((segment as any)?.text) || 'Next Stop').trim();
+                          const travelToLabel = /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
+                            ? destinationHotelDisplayName
+                            : travelToRawLabel;
                           const travelDistanceLabel = segment.distance;
                           const showTravelDistance = Boolean(
                             String(travelDistanceLabel || '').trim()
@@ -8614,7 +9066,7 @@ const vehicleOnlyHtml = html
                 <DialogTitle>Hotspot List</DialogTitle>
                 <DialogDescription>
                   {selectedPreviewCityContext === 'DESTINATION_CITY'
-                    ? `Will be inserted after reaching ${destinationCityLabel}`
+                    ? `Destination-side slot: after reaching ${destinationCityLabel}`
                     : (selectedHotspotAnchor
                       ? `Select a hotspot to insert after ${selectedHotspotAnchor.anchorFrom || "current"} -> ${selectedHotspotAnchor.anchorTo || "next stop"}`
                       : "Select a hotspot to add to your itinerary")}
@@ -8907,7 +9359,7 @@ const vehicleOnlyHtml = html
                       <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
                         {bestInsertionSlot?.slot || (
                           selectedPreviewCityContext === 'DESTINATION_CITY'
-                            ? (destinationInsertionSlotLabel || 'Computing best slot...')
+                            ? ((destinationInsertionSlotLabel || '').replace(/^Will\s+be\s+inserted\s+/i, '') || 'Computing best slot...')
                             : 'Computing best slot...'
                         )}
                       </p>
@@ -8918,6 +9370,16 @@ const vehicleOnlyHtml = html
                     ) : (
                       <p className="text-sm font-semibold text-orange-700 mt-0.5">
                         This hotspot is off-route or backtracking for all current route segments.
+                      </p>
+                    )}
+
+                    {insertionDecisionSummary && (
+                      <p
+                        className={`mt-2 text-xs font-semibold ${
+                          insertionDecisionSummary.willInsert ? 'text-green-700' : 'text-red-700'
+                        }`}
+                      >
+                        {insertionDecisionSummary.text}
                       </p>
                     )}
 
@@ -8987,7 +9449,14 @@ const vehicleOnlyHtml = html
                             <ul className="space-y-1 pl-3">
                               {safeMatrixSlots.slice(0, 5).map((slot: any, idx: number) => (
                                 <li key={idx} className="list-disc">
-                                  {slot.fromName} → {slot.toName}:{' '}
+                                  {slot.fromName} → {((
+                                    /^hotel$/i.test(String(slot.toName || '').trim())
+                                    || (
+                                      String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                      && String(slot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                    )
+                                    || Number((slot as any)?.destinationHotelId || 0) > 0
+                                  ) && destinationHotelDisplayName) ? destinationHotelDisplayName : slot.toName}:{' '}
                                   <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${routeFitBadgeClass(slot.routeFitType)}`}>
                                     {slot.label || slot.routeFitType}
                                   </span>
@@ -9020,7 +9489,7 @@ const vehicleOnlyHtml = html
                             Attempted insertion slot:{' '}
                             <span className="font-semibold">
                               {selectedPreviewCityContext === 'DESTINATION_CITY'
-                                ? destinationInsertionSlotLabel
+                                ? ((destinationInsertionSlotLabel || '').replace(/^Will\s+be\s+inserted\s+/i, ''))
                                 : `${selectedHotspotAnchor.anchorFrom || 'Current stop'} -> ${selectedHotspotAnchor.anchorTo || 'Next stop'}`}
                             </span>
                             {selectedPreviewCityContext !== 'DESTINATION_CITY' && selectedHotspotAnchor.anchorTimeRange ? ` (${selectedHotspotAnchor.anchorTimeRange})` : ''}
@@ -9158,10 +9627,14 @@ const vehicleOnlyHtml = html
 
                       {effectivePreviewTimeline.map((seg: any, idx: number) => {
                         const isUserSelected = seg?.isUserSelectedPreview === true;
+                        const isConflictSegment = seg?.isConflict === true;
                         const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
                         const hotspotId = Number(seg?.locationId || seg?.hotspot_ID || seg?.hotspotId || selectedId || 0);
-                        const hotspotMeta = previewHotspotMetaById.get(hotspotId) || null;
-                        const activityVisitTime = seg?.visitTime || seg?.timeRange || hotspotMeta?.visitTime || null;
+                        const selectedPreviewHotspotMeta = previewHotspotMetaById.get(Number(selectedHotspotId || 0)) || null;
+                        const hotspotMeta = previewHotspotMetaById.get(hotspotId) || selectedPreviewHotspotMeta || null;
+                        const activityVisitTime = isConflictSegment
+                          ? 'Needs reschedule'
+                          : (seg?.visitTime || seg?.timeRange || hotspotMeta?.visitTime || null);
                         const activityDuration = seg?.duration || hotspotMeta?.duration || null;
                         const activityTimings = seg?.timings || hotspotMeta?.timings || null;
                         const activityPriority = Number.isFinite(Number(seg?.priority))
@@ -9185,6 +9658,15 @@ const vehicleOnlyHtml = html
                         };
 
                         const priorityLabel = computedPriorityLabel();
+                        const previewRouteId = Number(addHotspotModal.routeId || 0);
+                        const hotelMetaForDay = selectedHotelMetaByRoute.get(previewRouteId);
+                        const actualHotelName = String(
+                          hotelMetaForDay?.hotelName
+                          || seg?.hotelName
+                          || seg?.toName
+                          || seg?.to
+                          || 'Hotel'
+                        ).trim();
 
                         // ✅ FIX: Handle waiting/break synthetic segments
                         const isWaitingSegment = seg?.type === 'waiting' || seg?.isSyntheticWaiting === true;
@@ -9195,14 +9677,229 @@ const vehicleOnlyHtml = html
                           || extractTravelToFromText(seg?.text || seg?.name)
                           || '',
                         ).trim();
+                        const resolvedTravelToLabel = /\bhotel\b/i.test(travelToLabel)
+                          ? (destinationHotelDisplayName || actualHotelName || travelToLabel)
+                          : travelToLabel;
                         const displaySegmentText = String(seg?.type || '').toLowerCase() === 'travel'
-                          ? (travelToLabel ? `Travel to ${travelToLabel}` : (seg?.text || seg?.name || 'Travel'))
+                          ? (resolvedTravelToLabel ? `Travel to ${resolvedTravelToLabel}` : (seg?.text || seg?.name || 'Travel'))
                           : (seg?.text || seg?.name || '');
 
                         // ✅ FIX: Handle hotel check-in zero-duration segments
                         const isZeroDurationHotel = seg?.isZeroDurationHotel === true ||
                           (seg?.type === 'hotel' && seg?.timeRange && seg.timeRange.split(' - ').length === 2 &&
                            seg.timeRange.split(' - ')[0].trim() === seg.timeRange.split(' - ')[1].trim());
+
+                        const getTimeRangeDurationMinutes = (range: string): number | null => {
+                          const start = parseDisplayMinutes(range, 'start');
+                          const end = parseDisplayMinutes(range, 'end');
+                          if (start == null || end == null) return null;
+                          let delta = end - start;
+                          if (delta < 0) delta += 24 * 60;
+                          return delta > 0 ? delta : null;
+                        };
+                        const parseDurationMinutesText = (value: unknown): number | null => {
+                          const raw = String(value || '').trim();
+                          if (!raw) return null;
+                          const h = raw.match(/(\d+)\s*(?:hour|hours|hr|hrs|h)/i);
+                          const m = raw.match(/(\d+)\s*(?:min|mins|m)/i);
+                          if (!h && !m) return null;
+                          const total = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+                          return Number.isFinite(total) && total > 0 ? total : null;
+                        };
+
+                        const timingOverride = (() => {
+                          const currentType = String(seg?.type || '').toLowerCase();
+                          if (currentType !== 'travel' && currentType !== 'hotel') return null;
+
+                          let conflictIdx = -1;
+                          for (let p = idx - 1; p >= 0; p -= 1) {
+                            const cand = effectivePreviewTimeline[p];
+                            if (cand?.isConflict === true && String(cand?.type || '').toLowerCase() === 'attraction') {
+                              conflictIdx = p;
+                              break;
+                            }
+                          }
+                          if (conflictIdx < 0) return null;
+
+                          const conflictSeg = effectivePreviewTimeline[conflictIdx];
+
+                          let prevTravelForConflict: any = null;
+                          for (let p = conflictIdx - 1; p >= 0; p -= 1) {
+                            const cand = effectivePreviewTimeline[p];
+                            if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
+                              prevTravelForConflict = cand;
+                              break;
+                            }
+                          }
+                          const arrivalMinutes = parseDisplayMinutes(String(prevTravelForConflict?.timeRange || ''), 'end');
+
+                          const conflictHotspotId = Number(
+                            conflictSeg?.locationId
+                            || conflictSeg?.hotspot_ID
+                            || conflictSeg?.hotspotId
+                            || conflictSeg?.selectedHotspotId
+                            || selectedHotspotId
+                            || 0
+                          );
+                          const conflictHotspotMeta = previewHotspotMetaById.get(conflictHotspotId)
+                            || previewHotspotMetaById.get(Number(selectedHotspotId || 0))
+                            || null;
+                          const conflictDurationText = conflictSeg?.duration || conflictHotspotMeta?.duration || null;
+                          const stayMinutes = parseDurationMinutesText(conflictDurationText)
+                            ?? (() => {
+                              const fallback = Number(
+                                conflictSeg?.durationMin
+                                ?? conflictSeg?.matrixFit?.insertedStopDurationMin
+                                ?? conflictSeg?.matrixFit?.stopDurationMin
+                                ?? conflictSeg?.matrixFit?.visitDurationMin
+                                ?? conflictSeg?.matrixFit?.attractionDurationMin
+                                ?? 0
+                              );
+                              return Number.isFinite(fallback) && fallback > 0 ? Math.max(1, Math.round(fallback)) : null;
+                            })();
+
+                          if (arrivalMinutes == null || stayMinutes == null) return null;
+                          const leaveMinutes = arrivalMinutes + stayMinutes;
+
+                          let firstTravelIdx = -1;
+                          for (let n = conflictIdx + 1; n < effectivePreviewTimeline.length; n += 1) {
+                            const cand = effectivePreviewTimeline[n];
+                            if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
+                              firstTravelIdx = n;
+                              break;
+                            }
+                          }
+                          if (firstTravelIdx < 0) return null;
+
+                          const firstTravelSeg = effectivePreviewTimeline[firstTravelIdx];
+                          const firstTravelStart = parseDisplayMinutes(String(firstTravelSeg?.timeRange || ''), 'start');
+                          const firstTravelDuration = getTimeRangeDurationMinutes(String(firstTravelSeg?.timeRange || ''));
+                          if (firstTravelStart == null || firstTravelDuration == null || leaveMinutes <= firstTravelStart) {
+                            return null;
+                          }
+                          const firstTravelNewStart = leaveMinutes;
+                          const firstTravelNewEnd = firstTravelNewStart + firstTravelDuration;
+
+                          if (currentType === 'travel' && idx === firstTravelIdx) {
+                            return {
+                              timeRange: `${formatMinutesToDisplay(firstTravelNewStart)} - ${formatMinutesToDisplay(firstTravelNewEnd)}`,
+                            };
+                          }
+
+                          if (currentType === 'hotel') {
+                            let firstHotelIdx = -1;
+                            for (let n = firstTravelIdx + 1; n < effectivePreviewTimeline.length; n += 1) {
+                              const cand = effectivePreviewTimeline[n];
+                              if (String(cand?.type || '').toLowerCase() === 'hotel') {
+                                firstHotelIdx = n;
+                                break;
+                              }
+                            }
+                            if (firstHotelIdx === idx) {
+                              const newCheckIn = formatMinutesToDisplay(firstTravelNewEnd);
+                              return {
+                                timeRange: `${newCheckIn} - ${newCheckIn}`,
+                              };
+                            }
+                          }
+
+                          return null;
+                        })();
+
+                        const normalizedMatrixDurationMin = seg?.isMatrixSplitTravel === true
+                          ? normalizeDurationAgainstDistance(seg?.matrixDistanceKm, seg?.matrixDurationMin)
+                          : null;
+                        const matrixStartMinutes = seg?.isMatrixSplitTravel === true
+                          ? parseDisplayMinutes(seg?.timeRange, 'start')
+                          : null;
+                        const matrixEndMinutes = seg?.isMatrixSplitTravel === true
+                          ? parseDisplayMinutes(seg?.timeRange, 'end')
+                          : null;
+                        const matrixHasRange = matrixStartMinutes !== null && matrixEndMinutes !== null && matrixEndMinutes >= matrixStartMinutes;
+                        const matrixRangeDuration = matrixHasRange ? Math.max(1, matrixEndMinutes - matrixStartMinutes) : null;
+                        const effectiveSegTimeRangeRaw = seg?.isMatrixSplitTravel === true
+                          && normalizedMatrixDurationMin !== null
+                          && matrixStartMinutes !== null
+                          && matrixRangeDuration !== null
+                          && matrixRangeDuration !== normalizedMatrixDurationMin
+                          ? `${formatMinutesToDisplay(matrixStartMinutes)} - ${formatMinutesToDisplay(matrixStartMinutes + normalizedMatrixDurationMin)}`
+                          : (timingOverride?.timeRange || seg?.timeRange || '--');
+                        const effectiveSegTimeRange = isConflictSegment && String(seg?.type || '').toLowerCase() === 'attraction'
+                          ? 'Needs reschedule'
+                          : effectiveSegTimeRangeRaw;
+                        const isTravelSegment = String(seg?.type || '').toLowerCase() === 'travel';
+                        const previewTravelDistanceLabel = (() => {
+                          if (!isTravelSegment) return '';
+
+                          const rawDistance = String(seg?.distance || seg?.hotspot_travelling_distance || '').trim();
+                          if (rawDistance && rawDistance !== '--') {
+                            return /km/i.test(rawDistance) ? rawDistance : `${rawDistance} KM`;
+                          }
+
+                          const numericDistance = [
+                            Number(seg?.matrixDistanceKm || 0),
+                            Number(seg?.distanceKm || 0),
+                            Number(seg?.travelDistanceKm || 0),
+                          ].find((value) => Number.isFinite(value) && value > 0) || 0;
+
+                          return numericDistance > 0 ? `${numericDistance.toFixed(2)} KM` : '';
+                        })();
+                        const previewTravelDurationLabel = (() => {
+                          if (!isTravelSegment) return '';
+                          if (String(seg?.duration || '').trim()) return String(seg.duration).trim();
+                          if (normalizedMatrixDurationMin != null) {
+                            return `${Math.max(1, Math.round(Number(normalizedMatrixDurationMin)))} Min`;
+                          }
+                          return '';
+                        })();
+                        const selectedSlotFitTypeUpper = String(
+                          effectiveFitSlot?.routeFitType
+                          || seg?.matrixFit?.routeFitType
+                          || ''
+                        ).toUpperCase();
+                        const selectedSlotLabelText = String(
+                          effectiveFitSlot?.displayLabel
+                          || effectiveFitSlot?.label
+                          || seg?.matrixFit?.displayLabel
+                          || seg?.matrixFit?.label
+                          || ''
+                        ).toLowerCase();
+                        const selectedSlotFinalReasonText = String(
+                          effectiveFitSlot?.finalDecisionReason
+                          || seg?.matrixFit?.finalDecisionReason
+                          || ''
+                        ).toLowerCase();
+                        const selectedSlotNoRouteTagged = selectedSlotLabelText.includes('no route data')
+                          || selectedSlotFinalReasonText.includes('no route data')
+                          || selectedSlotLabelText.includes('route data unavailable')
+                          || selectedSlotFinalReasonText.includes('route-fit data unavailable');
+                        const selectedSlotRouteFitStatus = String(
+                          (effectiveFitSlot as any)?.routeFitStatus
+                          || (seg?.matrixFit as any)?.routeFitStatus
+                          || selectedSlotFitTypeUpper
+                          || ''
+                        ).toUpperCase();
+                        const selectedSlotMetricsSource = String(
+                          (effectiveFitSlot as any)?.routeMetrics?.source
+                          || (seg?.matrixFit as any)?.routeMetrics?.source
+                          || 'NONE'
+                        ).toUpperCase();
+                        const shouldSuppressRouteMetrics = (
+                          selectedSlotNoRouteTagged
+                          || selectedSlotFitTypeUpper === 'UNKNOWN'
+                          || selectedSlotFitTypeUpper === 'MATRIX_UNAVAILABLE'
+                          || selectedSlotRouteFitStatus === 'NO_ROUTE_DATA'
+                          || selectedSlotRouteFitStatus === 'MATRIX_UNAVAILABLE'
+                          || selectedSlotMetricsSource !== 'MATRIX_CACHE'
+                        );
+                        const selectedSlotHasRouteData = (
+                          (!selectedSlotFitTypeUpper || (
+                            selectedSlotFitTypeUpper !== 'UNKNOWN'
+                            && selectedSlotFitTypeUpper !== 'MATRIX_UNAVAILABLE'
+                          ))
+                          && ((effectiveFitSlot as any)?.routePossible ?? seg?.matrixFit?.routePossible) !== false
+                          && !shouldSuppressRouteMetrics
+                        );
 
                         // If waiting segment, render a distinct waiting block
                         if (isWaitingSegment) {
@@ -9217,7 +9914,7 @@ const vehicleOnlyHtml = html
                                     ⏳ waiting
                                   </span>
                                   <span className="text-xs font-bold text-[#4a4260]">
-                                    {seg?.timeRange || '--'}
+                                    {effectiveSegTimeRange}
                                   </span>
                                 </div>
                               </div>
@@ -9254,7 +9951,7 @@ const vehicleOnlyHtml = html
                                   {seg?.type || 'item'}
                                 </span>
                                 <span className="text-xs font-bold text-[#4a4260]">
-                                  {seg?.timeRange || '--'}
+                                  {effectiveSegTimeRange}
                                 </span>
                               </div>
 
@@ -9288,11 +9985,23 @@ const vehicleOnlyHtml = html
                             <p className={`text-sm font-bold ${isUserSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
                               {/* ✅ FIX: Hotel zero-duration shows check-in label, not "Hotel Stay 8:00 PM - 8:00 PM" */}
                               {isZeroDurationHotel ? (
-                                <>Check-in at Hotel <span className="text-purple-600">{seg?.timeRange?.split(' - ')[0]}</span></>
+                                <>Check-in at {actualHotelName} <span className="text-purple-600">{effectiveSegTimeRange?.split(' - ')[0]}</span></>
                               ) : (
                                 displaySegmentText
                               )}
                             </p>
+
+                            {isTravelSegment && (
+                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6c6c6c]">
+                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{effectiveSegTimeRange}</span>
+                                {previewTravelDistanceLabel && (
+                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{previewTravelDistanceLabel}</span>
+                                )}
+                                {previewTravelDurationLabel && (
+                                  <span className="flex items-center gap-1">⏱ {previewTravelDurationLabel}</span>
+                                )}
+                              </div>
+                            )}
 
                             {/* Display distance and duration for matrix split travel rows */}
                             {seg?.isMatrixSplitTravel === true && (
@@ -9303,8 +10012,8 @@ const vehicleOnlyHtml = html
                                 {seg?.matrixDistanceKm != null && (
                                   <p>Distance: {Number(seg.matrixDistanceKm).toFixed(1)} km</p>
                                 )}
-                                {seg?.matrixDurationMin != null && (
-                                  <p>Duration: {Math.max(1, Math.round(Number(seg.matrixDurationMin)))} min</p>
+                                {normalizedMatrixDurationMin != null && (
+                                  <p>Duration: {Math.max(1, Math.round(Number(normalizedMatrixDurationMin)))} min</p>
                                 )}
                               </div>
                             )}
@@ -9318,9 +10027,16 @@ const vehicleOnlyHtml = html
                                     <div className="flex items-start gap-2">
                                       <div className="flex-1 min-w-0">
                                         <p className="text-xs font-semibold text-gray-800 truncate">
-                                          {effectiveFitSlot.fromName} → {effectiveFitSlot.toName}
+                                          {effectiveFitSlot.fromName} → {((
+                                            /^hotel$/i.test(String(effectiveFitSlot.toName || '').trim())
+                                            || (
+                                              String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                              && String(effectiveFitSlot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                            )
+                                            || Number((effectiveFitSlot as any)?.destinationHotelId || 0) > 0
+                                          ) && destinationHotelDisplayName) ? destinationHotelDisplayName : effectiveFitSlot.toName}
                                         </p>
-                                        {effectiveFitSlot.roadDetourKm != null && (
+                                        {selectedSlotHasRouteData && effectiveFitSlot.roadDetourKm != null && (
                                           <p className="text-[10px] text-gray-600 mt-0.5">
                                             Extra distance: +{Number(effectiveFitSlot.roadDetourKm).toFixed(1)} km
                                           </p>
@@ -9344,7 +10060,14 @@ const vehicleOnlyHtml = html
                                       <div className="mt-2 pt-2 border-t border-blue-200">
                                         <p className="text-[10px] font-semibold text-gray-500 mb-0.5">Requested slot:</p>
                                         <p className="text-[10px] text-gray-600">
-                                          {matrixFit.requestedSlot.fromName} → {matrixFit.requestedSlot.toName}
+                                          {matrixFit.requestedSlot.fromName} → {((
+                                            /^hotel$/i.test(String(matrixFit.requestedSlot.toName || '').trim())
+                                            || (
+                                              String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                              && String(matrixFit.requestedSlot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                            )
+                                            || Number((matrixFit.requestedSlot as any)?.destinationHotelId || 0) > 0
+                                          ) && destinationHotelDisplayName) ? destinationHotelDisplayName : matrixFit.requestedSlot.toName}
                                         </p>
                                         <span className="text-[10px] text-gray-400 italic">{matrixFit.requestedSlot.label}</span>
                                       </div>
@@ -9358,7 +10081,7 @@ const vehicleOnlyHtml = html
                                 )}
 
                                 {/* Inserted hotspot route summary */}
-                                {seg?.matrixFit?.routeLegSummary && (
+                                {seg?.matrixFit?.routeLegSummary && selectedSlotHasRouteData && (
                                   <div className="border border-emerald-200 bg-emerald-50 p-3 rounded-lg text-xs text-emerald-900 space-y-1">
                                     <p className="font-semibold">Route summary:</p>
                                     <p>
@@ -9368,7 +10091,16 @@ const vehicleOnlyHtml = html
                                       {seg?.matrixFit?.routeLegSummary?.acDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.acDurationMin)))} min` : '--'}
                                     </p>
                                     <p>
-                                      {seg?.text || seg?.name || 'Inserted hotspot'} → {effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B'}:{' '}
+                                      {seg?.text || seg?.name || 'Inserted hotspot'} → {((
+                                        /^hotel$/i.test(String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim())
+                                        || (
+                                          String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                          && String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                        )
+                                        || Number((effectiveFitSlot as any)?.destinationHotelId || 0) > 0
+                                      ) && destinationHotelDisplayName)
+                                        ? destinationHotelDisplayName
+                                        : (effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B')}:{' '}
                                       {seg?.matrixFit?.routeLegSummary?.cbDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.cbDistanceKm).toFixed(1)} km` : '--'}
                                       {' / '}
                                       {seg?.matrixFit?.routeLegSummary?.cbDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.cbDurationMin)))} min` : '--'}
@@ -9397,6 +10129,24 @@ const vehicleOnlyHtml = html
                                     {normalizedInsertionSlots.map((slotOption: any, slotIdx: number) => {
                                       const isBest = slotOption?.selectedAsBest === true || slotOption?.isBest === true;
                                       const fits = slotOption?.fitsOverall !== false;
+                                      const routeFitTypeUpper = String(slotOption?.routeFitType || '').toUpperCase();
+                                      const routeFitStatusUpper = String(slotOption?.routeFitStatus || routeFitTypeUpper || '').toUpperCase();
+                                      const slotLabelText = String(slotOption?.displayLabel || slotOption?.label || '').toLowerCase();
+                                      const slotFinalReasonText = String(slotOption?.finalDecisionReason || '').toLowerCase();
+                                      const slotNoRouteTagged = slotLabelText.includes('no route data')
+                                        || slotFinalReasonText.includes('no route data')
+                                        || slotLabelText.includes('route data unavailable')
+                                        || slotFinalReasonText.includes('route-fit data unavailable');
+                                      const routeMetricsSource = String(slotOption?.routeMetrics?.source || 'NONE').toUpperCase();
+                                      const slotHasRouteData = (
+                                        slotOption?.routePossible !== false
+                                        && routeFitTypeUpper !== 'UNKNOWN'
+                                        && routeFitTypeUpper !== 'MATRIX_UNAVAILABLE'
+                                        && routeFitStatusUpper !== 'NO_ROUTE_DATA'
+                                        && routeFitStatusUpper !== 'MATRIX_UNAVAILABLE'
+                                        && routeMetricsSource === 'MATRIX_CACHE'
+                                        && !slotNoRouteTagged
+                                      );
                                       const fitLabel: string = slotOption.displayLabel || slotOption.routeFitLabel || slotOption.label || slotOption.routeFitType || (fits ? 'On route' : 'Off route');
                                       const badgeClass: string = routeFitBadgeClass(slotOption.routeFitType);
 
@@ -9412,6 +10162,8 @@ const vehicleOnlyHtml = html
                                       const viaKm: number | null = slotOption?.insertedRouteDistanceKm != null
                                         ? Number(slotOption.insertedRouteDistanceKm)
                                         : null;
+                                      const showDistanceBreakdown = slotHasRouteData && (abKm != null || viaKm != null || detourKm != null);
+                                      const showBestBadge = isBest && slotHasRouteData;
 
                                       return (
                                         <div
@@ -9428,14 +10180,21 @@ const vehicleOnlyHtml = html
                                           <div className="flex items-start justify-between gap-2">
                                             <span className={`text-xs font-semibold flex-1 truncate ${isBest ? 'text-green-800' : 'text-gray-800'}`}>
                                               {isBest ? '⭐ ' : `${slotIdx + 1}. `}
-                                              {slotOption?.fromName} → {slotOption?.toName}
+                                              {slotOption?.fromName} → {((
+                                                /^hotel$/i.test(String(slotOption?.toName || '').trim())
+                                                || (
+                                                  String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                                  && String(slotOption?.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                                )
+                                                || Number((slotOption as any)?.destinationHotelId || 0) > 0
+                                              ) && destinationHotelDisplayName) ? destinationHotelDisplayName : slotOption?.toName}
                                             </span>
                                             <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeClass}`}>
                                               {fitLabel}
                                             </span>
                                           </div>
 
-                                          {(abKm != null || viaKm != null || detourKm != null) && (
+                                          {showDistanceBreakdown && (
                                             <div className="mt-1.5 grid grid-cols-3 gap-x-2 text-[10px] text-gray-600 bg-gray-50 rounded px-2 py-1">
                                               {abKm != null && (
                                                 <div>
@@ -9460,7 +10219,7 @@ const vehicleOnlyHtml = html
                                             </div>
                                           )}
 
-                                          {slotOption?.distanceComparisonNote && (
+                                          {slotHasRouteData && slotOption?.distanceComparisonNote && (
                                             <p className="mt-0.5 text-[10px] text-blue-700">Note: {slotOption.distanceComparisonNote}</p>
                                           )}
 
@@ -9474,8 +10233,8 @@ const vehicleOnlyHtml = html
                                           )}
 
                                           {slotOption?.finalDecisionReason && (
-                                            <p className={`mt-0.5 text-[10px] italic ${isBest ? 'text-green-700' : 'text-gray-700'}`}>
-                                              {isBest ? 'Final reason: ' : 'Why not selected: '}
+                                            <p className={`mt-0.5 text-[10px] italic ${showBestBadge ? 'text-green-700' : 'text-gray-700'}`}>
+                                              {showBestBadge ? 'Final reason: ' : 'Why not selected: '}
                                               {slotOption.finalDecisionReason}
                                             </p>
                                           )}
@@ -9485,7 +10244,7 @@ const vehicleOnlyHtml = html
                                           )}
 
                                           {/* Best badge */}
-                                          {isBest && (
+                                          {showBestBadge && (
                                             <p className="mt-1 text-[10px] font-semibold text-green-700">✓ Best available slot</p>
                                           )}
                                         </div>
@@ -9517,14 +10276,14 @@ const vehicleOnlyHtml = html
                                       Between: {activeAnchorFitInsight.anchorLegLabel}
                                     </span>
                                   )}
-                                  {activeAnchorFitInsight?.extraDistanceLabel && (
+                                  {selectedSlotHasRouteData && activeAnchorFitInsight?.extraDistanceLabel && (
                                     <span className="text-[11px] font-semibold text-[#4a4260]">
                                       Extra distance: {activeAnchorFitInsight.extraDistanceLabel}
                                     </span>
                                   )}
-                                  {String((seg as any)?.timeRange || '').trim() && (
+                                  {selectedSlotHasRouteData && String(effectiveSegTimeRange || '').trim() && (
                                     <span className="text-[11px] font-semibold text-[#4a4260]">
-                                      Timing: {String((seg as any)?.timeRange || '').trim()}
+                                      Timing: {String(effectiveSegTimeRange || '').trim()}
                                     </span>
                                   )}
                                   {(activeAnchorFitInsight as any)?.reason && (
@@ -9628,6 +10387,144 @@ const vehicleOnlyHtml = html
                                     ? 'Manual override confirmed. This stop will be included; exact timing may shift.'
                                     : seg?.conflictReason}
                                 </p>
+                                {(() => {
+                                  const parseDurationMinutes = (value: unknown): number | null => {
+                                    const raw = String(value || '').trim();
+                                    if (!raw) return null;
+                                    const h = raw.match(/(\d+)\s*(?:hour|hours|hr|hrs|h)/i);
+                                    const m = raw.match(/(\d+)\s*(?:min|mins|m)/i);
+                                    if (!h && !m) return null;
+                                    const minutes = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+                                    return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
+                                  };
+                                  const getTimeRangeDurationMinutes = (range: string): number | null => {
+                                    const start = parseDisplayMinutes(range, 'start');
+                                    const end = parseDisplayMinutes(range, 'end');
+                                    if (start == null || end == null) return null;
+                                    let delta = end - start;
+                                    if (delta < 0) delta += 24 * 60;
+                                    return delta > 0 ? delta : null;
+                                  };
+                                  const formatMinutesLabel = (minutes: number): string => {
+                                    const safeMinutes = Math.max(1, Math.round(minutes));
+                                    const hours = Math.floor(safeMinutes / 60);
+                                    const mins = safeMinutes % 60;
+                                    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+                                    if (hours > 0) return `${hours}h`;
+                                    return `${mins}m`;
+                                  };
+
+                                  const prevSeg = idx > 0 ? effectivePreviewTimeline[idx - 1] : null;
+                                  const nextSeg = idx + 1 < effectivePreviewTimeline.length ? effectivePreviewTimeline[idx + 1] : null;
+                                  const prevSegType = String(prevSeg?.type || '').toLowerCase();
+                                  const nextSegType = String(nextSeg?.type || '').toLowerCase();
+
+                                  let nearestPrevTravel: any = null;
+                                  for (let p = idx - 1; p >= 0; p -= 1) {
+                                    const cand = effectivePreviewTimeline[p];
+                                    if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
+                                      nearestPrevTravel = cand;
+                                      break;
+                                    }
+                                  }
+
+                                  let nearestNextTravel: any = null;
+                                  for (let n = idx + 1; n < effectivePreviewTimeline.length; n += 1) {
+                                    const cand = effectivePreviewTimeline[n];
+                                    if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
+                                      nearestNextTravel = cand;
+                                      break;
+                                    }
+                                  }
+
+                                  const arrivalMinutesFromPrev = (prevSegType === 'travel'
+                                    ? parseDisplayMinutes(String(prevSeg?.timeRange || ''), 'end')
+                                    : null)
+                                    ?? parseDisplayMinutes(String(nearestPrevTravel?.timeRange || ''), 'end');
+                                  const nextTravelStartMinutes = parseDisplayMinutes(
+                                    String(nextSeg?.timeRange || nearestNextTravel?.timeRange || ''),
+                                    'start'
+                                  );
+
+                                  const stayMinutesFromText = parseDurationMinutes(activityDuration);
+                                  const stayMinutesFromMeta = Number(
+                                    seg?.durationMin
+                                    ?? seg?.matrixFit?.insertedStopDurationMin
+                                    ?? seg?.matrixFit?.stopDurationMin
+                                    ?? seg?.matrixFit?.visitDurationMin
+                                    ?? seg?.matrixFit?.attractionDurationMin
+                                    ?? 0
+                                  );
+                                  let stayMinutes = stayMinutesFromText
+                                    ?? (Number.isFinite(stayMinutesFromMeta) && stayMinutesFromMeta > 0
+                                      ? Math.max(1, Math.round(stayMinutesFromMeta))
+                                      : null);
+                                  if (stayMinutes == null && arrivalMinutesFromPrev != null && nextTravelStartMinutes != null && nextTravelStartMinutes > arrivalMinutesFromPrev) {
+                                    stayMinutes = Math.max(1, Math.round(nextTravelStartMinutes - arrivalMinutesFromPrev));
+                                  }
+
+                                  let arrivalMinutes = arrivalMinutesFromPrev;
+                                  if (arrivalMinutes == null && nextTravelStartMinutes != null && stayMinutes != null) {
+                                    arrivalMinutes = nextTravelStartMinutes - stayMinutes;
+                                  }
+
+                                  const stayLabel = String(activityDuration || '').trim() || (stayMinutes != null ? formatMinutesLabel(stayMinutes) : '');
+                                  const departureMinutes = arrivalMinutes != null && stayMinutes != null
+                                    ? arrivalMinutes + stayMinutes
+                                    : null;
+
+                                  const nextTravelTo = nextSegType === 'travel'
+                                    ? String(nextSeg?.toName || nextSeg?.to || '').trim()
+                                    : String(nearestNextTravel?.toName || nearestNextTravel?.to || '').trim();
+                                  const nextTravelRange = nextSegType === 'travel'
+                                    ? String(nextSeg?.timeRange || '').trim()
+                                    : String(nearestNextTravel?.timeRange || '').trim();
+                                  const nextTravelDurationMinutes = getTimeRangeDurationMinutes(nextTravelRange);
+                                  const hasTravelTimingConflict = (
+                                    departureMinutes != null
+                                    && nextTravelStartMinutes != null
+                                    && departureMinutes > nextTravelStartMinutes
+                                  );
+                                  const effectiveTravelStartMinutes = hasTravelTimingConflict
+                                    ? departureMinutes
+                                    : nextTravelStartMinutes;
+                                  const effectiveTravelEndMinutes = (
+                                    effectiveTravelStartMinutes != null
+                                    && nextTravelDurationMinutes != null
+                                  )
+                                    ? effectiveTravelStartMinutes + nextTravelDurationMinutes
+                                    : null;
+                                  const effectiveTravelRange = (
+                                    effectiveTravelStartMinutes != null
+                                    && effectiveTravelEndMinutes != null
+                                  )
+                                    ? `${formatMinutesToDisplay(effectiveTravelStartMinutes)} - ${formatMinutesToDisplay(effectiveTravelEndMinutes)}`
+                                    : nextTravelRange;
+
+                                  if (arrivalMinutes == null && !stayLabel && !nextTravelTo && !nextTravelRange) {
+                                    return null;
+                                  }
+
+                                  return (
+                                    <div className="mt-1.5 space-y-1 text-[11px] text-red-700">
+                                      <p>
+                                        Proposed arrival after anchor travel:{' '}
+                                        {arrivalMinutes != null ? formatMinutesToDisplay(arrivalMinutes) : 'before the next onward leg'}
+                                      </p>
+                                      <p>
+                                        Planned stay at hotspot: {stayLabel || 'as configured for this hotspot'}
+                                        {departureMinutes != null ? ` (leave around ${formatMinutesToDisplay(departureMinutes)})` : ''}
+                                      </p>
+                                      {(nextTravelTo || nextTravelRange) && (
+                                        <p>
+                                          Then travel to {nextTravelTo || 'hotel'}
+                                          {effectiveTravelRange ? ` (${effectiveTravelRange})` : ''}
+                                          {hasTravelTimingConflict ? ' after reschedule' : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>
@@ -9640,6 +10537,7 @@ const vehicleOnlyHtml = html
                             activePreviewValidation?.readyToApply === false
                             && activePreviewValidation?.requiresPriorityConfirmation !== true
                             && !matrixApplyBlocked;
+                          const effectiveDecisionBlocked = confirmActionConfig.disabled && !forceConflictMode;
                           const blockForValidation =
                             activePreviewValidation?.readyToApply === false && !forceConflictMode;
                           return (
@@ -9652,6 +10550,7 @@ const vehicleOnlyHtml = html
                             || !activePreviewHotspotId
                             || isCurrentPreviewAlreadyAdded
                             || matrixApplyBlocked
+                            || effectiveDecisionBlocked
                             || blockForValidation
                           }
                         >
@@ -9673,7 +10572,7 @@ const vehicleOnlyHtml = html
                               ? 'Cannot Apply'
                               : forceConflictMode
                               ? 'Confirm Force Add (Conflict)'
-                              : 'Confirm Add Hotspot'
+                              : confirmActionConfig.label
                           )}
                         </Button>
                           );
