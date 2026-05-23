@@ -207,6 +207,8 @@ export default function PriceBookStep({
   const [availRoomId, setAvailRoomId] = useState<number | null>(null);
   const [availStartDate, setAvailStartDate] = useState<string>("");
   const [availEndDate, setAvailEndDate] = useState<string>("");
+  const availStartRef = useRef<HTMLInputElement | null>(null);
+  const availEndRef = useRef<HTMLInputElement | null>(null);
   const [availFreeRooms, setAvailFreeRooms] = useState<string>("");
   const [availError, setAvailError] = useState<string>("");
   const [availSuccess, setAvailSuccess] = useState<string>("");
@@ -1026,22 +1028,52 @@ export default function PriceBookStep({
           </h5>
 
           <div className="flex items-center gap-2">
-            <input
-              ref={mealStartRef}
-              type="date"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="Start Date"
-              value={mealStartDate}
-              onChange={(e) => setMealStartDate(e.target.value)}
-            />
-            <input
-              ref={mealEndRef}
-              type="date"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="End Date"
-              value={mealEndDate}
-              onChange={(e) => setMealEndDate(e.target.value)}
-            />
+<div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    mealStartRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
+    placeholder="Start Date"
+    value={mealStartDate}
+  />
+
+  <input
+    ref={mealStartRef}
+    type="date"
+    value={mealStartDate}
+    onChange={(e) => setMealStartDate(e.target.value)}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
+<div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    mealEndRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
+    placeholder="End Date"
+    value={mealEndDate}
+  />
+
+  <input
+    ref={mealEndRef}
+    type="date"
+    value={mealEndDate}
+    onChange={(e) => setMealEndDate(e.target.value)}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
             <button
               type="button"
               onClick={() => {
@@ -1167,22 +1199,52 @@ export default function PriceBookStep({
           </h5>
 
           <div className="flex items-center gap-2">
-            <input
-              ref={amenitiesStartRef}
-              type="date"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="Start Date"
-              value={amenitiesStartDate}
-              onChange={(e) => setAmenitiesStartDate(e.target.value)}
-            />
-            <input
-              ref={amenitiesEndRef}
-              type="date"
-              className="border rounded-lg px-3 py-2 text-sm"
-              placeholder="End Date"
-              value={amenitiesEndDate}
-              onChange={(e) => setAmenitiesEndDate(e.target.value)}
-            />
+
+            <div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    amenitiesStartRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
+    placeholder="Start Date"
+    value={amenitiesStartDate}
+  />
+  <input
+    ref={amenitiesStartRef}
+    type="date"
+    value={amenitiesStartDate}
+    onChange={(e) => setAmenitiesStartDate(e.target.value)}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
+
+<div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    amenitiesEndRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="border rounded-lg px-3 py-2 text-sm cursor-pointer"
+    placeholder="End Date"
+    value={amenitiesEndDate}
+  />
+  <input
+    ref={amenitiesEndRef}
+    type="date"
+    value={amenitiesEndDate}
+    onChange={(e) => setAmenitiesEndDate(e.target.value)}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
             <button
               type="button"
               onClick={() => {
@@ -1319,34 +1381,65 @@ export default function PriceBookStep({
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <input
-                  ref={roomStartRef}
-                  type="date"
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    roomStartDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
-                  }`}
-                  placeholder="Start Date"
-                  value={roomStartDate}
-                  onChange={(e) => {
-                    setRoomStartDate(e.target.value);
-                    if (roomStartDateError) setRoomStartDateError("");
-                    if (roomDateValidationMessage) setRoomDateValidationMessage("");
-                  }}
-                />
-                <input
-                  ref={roomEndRef}
-                  type="date"
-                  className={`rounded-lg px-3 py-2 text-sm ${
-                    roomEndDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
-                  }`}
-                  placeholder="End Date"
-                  value={roomEndDate}
-                  onChange={(e) => {
-                    setRoomEndDate(e.target.value);
-                    if (roomEndDateError) setRoomEndDateError("");
-                    if (roomDateValidationMessage) setRoomDateValidationMessage("");
-                  }}
-                />
+                
+           <div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    roomStartRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className={`rounded-lg px-3 py-2 text-sm cursor-pointer ${
+      roomStartDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
+    }`}
+    placeholder="Start Date"
+    value={roomStartDate}
+  />
+  <input
+    ref={roomStartRef}
+    type="date"
+    value={roomStartDate}
+    onChange={(e) => {
+      setRoomStartDate(e.target.value);
+      if (roomStartDateError) setRoomStartDateError("");
+      if (roomDateValidationMessage) setRoomDateValidationMessage("");
+    }}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
+
+<div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    roomEndRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className={`rounded-lg px-3 py-2 text-sm cursor-pointer ${
+      roomEndDateError ? "border border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border"
+    }`}
+    placeholder="End Date"
+    value={roomEndDate}
+  />
+  <input
+    ref={roomEndRef}
+    type="date"
+    value={roomEndDate}
+    onChange={(e) => {
+      setRoomEndDate(e.target.value);
+      if (roomEndDateError) setRoomEndDateError("");
+      if (roomDateValidationMessage) setRoomDateValidationMessage("");
+    }}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
+
               </div>
               {roomDateValidationMessage && (
                 <div className="mt-1 text-sm text-red-600">{roomDateValidationMessage}</div>
@@ -1556,18 +1649,58 @@ export default function PriceBookStep({
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Availability</h5>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <input
-              type="date"
-              className="rounded-lg px-3 py-2 text-sm border"
-              value={availStartDate}
-              onChange={(e) => { setAvailStartDate(e.target.value); setAvailError(""); setAvailSuccess(""); }}
-            />
-            <input
-              type="date"
-              className="rounded-lg px-3 py-2 text-sm border"
-              value={availEndDate}
-              onChange={(e) => { setAvailEndDate(e.target.value); setAvailError(""); setAvailSuccess(""); }}
-            />
+            <div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    availStartRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="rounded-lg px-3 py-2 text-sm border cursor-pointer"
+    placeholder="Start Date"
+    value={availStartDate}
+  />
+  <input
+    ref={availStartRef}
+    type="date"
+    value={availStartDate}
+    onChange={(e) => {
+      setAvailStartDate(e.target.value);
+      setAvailError("");
+      setAvailSuccess("");
+    }}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
+            <div
+  className="relative"
+  onMouseDown={(e) => {
+    e.preventDefault();
+    availEndRef.current?.showPicker?.();
+  }}
+>
+  <input
+    type="text"
+    readOnly
+    className="rounded-lg px-3 py-2 text-sm border cursor-pointer"
+    placeholder="End Date"
+    value={availEndDate}
+  />
+  <input
+    ref={availEndRef}
+    type="date"
+    value={availEndDate}
+    onChange={(e) => {
+      setAvailEndDate(e.target.value);
+      setAvailError("");
+      setAvailSuccess("");
+    }}
+    className="absolute inset-0 opacity-0 pointer-events-none"
+  />
+</div>
             <button
               type="button"
               onClick={() => {
