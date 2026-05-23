@@ -1,14 +1,32 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { ItineraryService } from '@/services/itinerary';
 import { ConfirmedItineraryDetails } from './ConfirmedItineraryDetails';
-import * as ItineraryDetailsModule from './ItineraryDetails';
 import { Loader2 } from 'lucide-react';
 
-// Resilient component resolution with HMR/module cache fallback
-const ItineraryDetailsComponent =
-  (ItineraryDetailsModule as any)?.ItineraryDetails ||
-  (ItineraryDetailsModule as any)?.default;
+const ItineraryDetailsLazy = React.lazy(async () => {
+  const mod: any = await import('./ItineraryDetails');
+  const Resolved = mod?.ItineraryDetails || mod?.default;
+
+  if (!Resolved) {
+    console.error('ItineraryDetailsRouter: failed to resolve ItineraryDetails export from lazy import', {
+      keys: Object.keys(mod || {}),
+    });
+
+    return {
+      default: () => (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-red-600 font-semibold">Unable to load itinerary details component.</p>
+            <p className="text-sm text-gray-600 mt-1">Please refresh this page once.</p>
+          </div>
+        </div>
+      ),
+    };
+  }
+
+  return { default: Resolved };
+});
 
 /**
  * Smart router that checks if itinerary is confirmed
@@ -71,15 +89,49 @@ export const ItineraryDetailsRouter: React.FC = () => {
 
   // Confirmed itinerary route
   if (location.pathname.startsWith('/confirmed-itinerary/')) {
+    if (!ConfirmedItineraryDetails) {
+      console.error('ItineraryDetailsRouter: ConfirmedItineraryDetails component is undefined');
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-red-600 font-semibold">Unable to load confirmed itinerary component.</p>
+        </div>
+      );
+    }
     return <ConfirmedItineraryDetails confirmedPlanId={Number(id)} />;
   }
 
   // Error state - default to edit mode
   if (error) {
     console.warn('Error checking confirmation status, loading in edit mode:', error);
-    return <ItineraryDetailsComponent readOnly={false} />;
+    return (
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-[#4ba3c3]" />
+              <p className="text-gray-600">Loading itinerary...</p>
+            </div>
+          </div>
+        }
+      >
+        <ItineraryDetailsLazy readOnly={false} />
+      </Suspense>
+    );
   }
 
   // Normal itinerary route
-  return <ItineraryDetailsComponent readOnly={isConfirmed} />;
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-[#4ba3c3]" />
+            <p className="text-gray-600">Loading itinerary...</p>
+          </div>
+        </div>
+      }
+    >
+      <ItineraryDetailsLazy readOnly={isConfirmed} />
+    </Suspense>
+  );
 };
