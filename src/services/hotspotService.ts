@@ -231,12 +231,22 @@ export const hotspotService = {
     // Build gallery payload (names; upload endpoint inserts rows)
     const gallery = buildGalleryPayload(form);
 
-    // Parking charges (keep zeros; filter only invalid ids/NaN)
-    const parkingCharges = Object.entries(form.parkingCharges ?? {})
-      .map(([k, charge]) => ({ vehicleTypeId: Number(k), charge: Number(charge) }))
-      .filter(
-        (x) => Number.isFinite(x.vehicleTypeId) && x.vehicleTypeId > 0 && Number.isFinite(x.charge) && x.charge >= 0
-      );
+    // Parking charges may arrive either as the form-state object
+    // { [vehicleTypeId]: charge } or as an already-normalized array.
+    const parkingChargesSource = Array.isArray(form.parkingCharges)
+      ? form.parkingCharges.map((row) => ({
+          id: row?.id,
+          vehicleTypeId: Number(row?.vehicleTypeId),
+          charge: Number(row?.charge),
+        }))
+      : Object.entries(form.parkingCharges ?? {}).map(([k, charge]) => ({
+          vehicleTypeId: Number(k),
+          charge: Number(charge),
+        }));
+
+    const parkingCharges = parkingChargesSource.filter(
+      (x) => Number.isFinite(x.vehicleTypeId) && x.vehicleTypeId > 0 && Number.isFinite(x.charge) && x.charge >= 0
+    );
 
     // sanitize coords
     const lat = (form.latitude ?? "").toString().trim() || null;

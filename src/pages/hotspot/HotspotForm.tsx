@@ -405,22 +405,7 @@ useEffect(() => {
     try {
       setLoading(true);
 
-      // Convert parkingCharges object { [vehicleTypeId]: charge } -> array [{vehicleTypeId, charge}]
-      const parkingChargesArray = Object.entries(form.parkingCharges ?? {}).map(
-        ([vehicleTypeId, charge]) => ({
-          vehicleTypeId: Number(vehicleTypeId),
-          charge: Number(charge ?? 0),
-        })
-      );
-
-      // Build payload aligned to backend
-      const payload = {
-        ...form,
-        parkingCharges: parkingChargesArray,
-        // ensure operatingHours stays as is
-      };
-
-      const saved = await hotspotService.saveHotspot(payload as any);
+      const saved = await hotspotService.saveHotspot(form as any);
 
       const hotspotIdForUpload = Number(form.id ?? saved.id);
       if (pendingGalleryFiles.length > 0 && hotspotIdForUpload > 0) {
