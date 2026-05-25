@@ -33,6 +33,7 @@ export interface DayWisePricingItem {
   totalKms: number; // Total KM per day
   rentalCharges: number;
   tollCharges: number;
+  tollBreakupText?: string[];
   parkingCharges: number;
   driverCharges: number;
   permitCharges: number;
@@ -81,6 +82,7 @@ export interface ItineraryVehicleRow {
     hoursLimit: number;
     kmLimit: number;
   }>;
+  localTrip?: boolean;
   dayWisePricing?: DayWisePricingItem[];
   // PHP summary panel fields
   totalDays?: number;
@@ -206,23 +208,18 @@ const getVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
   return getVehicleGrandTotal(vehicle);
 };
 
-const roundHoursByHalfRule = (minutes: number): number => {
-  if (!Number.isFinite(minutes) || minutes <= 0) return 0;
-  const hours = minutes / 60;
-  return Math.floor(hours + 0.5);
-};
-
 const formatTotalTime = (day: DayWisePricingItem): string => {
-  const pickupDropMinutes =
-    Number(day.pickupDurationMinutes ?? 0) + Number(day.dropDurationMinutes ?? 0);
-  const travelSightseeingMinutes =
-    Number(day.travelDurationMinutes ?? 0) + Number(day.sightseeingDurationMinutes ?? 0);
+  const computedTotalMinutes =
+    Number(day.totalDurationMinutes ?? 0) ||
+    (
+      Number(day.pickupDurationMinutes ?? 0) +
+      Number(day.travelDurationMinutes ?? 0) +
+      Number(day.dropDurationMinutes ?? 0)
+    );
 
-  const roundedPickupDropHours = roundHoursByHalfRule(pickupDropMinutes);
-  const roundedTravelSightseeingHours = roundHoursByHalfRule(travelSightseeingMinutes);
-  const roundedTotalHours = roundedPickupDropHours + roundedTravelSightseeingHours;
+  const safeTotalMinutes = Math.max(0, Math.round(computedTotalMinutes));
 
-  if (roundedTotalHours <= 0) {
+  if (safeTotalMinutes <= 0) {
     const slabHours = Number(day.slabHoursLimit ?? 0);
     const extraHours = Number(day.extraHourCount ?? 0);
     const fallbackHours = slabHours + extraHours;
@@ -230,7 +227,33 @@ const formatTotalTime = (day: DayWisePricingItem): string => {
     return "-";
   }
 
-  return `${roundedTotalHours} HRS`;
+  const hours = Math.floor(safeTotalMinutes / 60);
+  const minutes = safeTotalMinutes % 60;
+
+  if (minutes === 0) {
+    return `${hours} HRS`;
+  }
+
+  return `${hours} HRS ${minutes} MIN`;
+};
+
+const formatMinutesDuration = (value?: number): string => {
+  const safeTotalMinutes = Math.max(0, Math.round(Number(value ?? 0)));
+  if (safeTotalMinutes <= 0) return "-";
+  const hours = Math.floor(safeTotalMinutes / 60);
+  const minutes = safeTotalMinutes % 60;
+  if (minutes === 0) return `${hours} HRS`;
+  return `${hours} HRS ${minutes} MIN`;
+};
+
+const splitDurationLines = (formattedDuration: string): string[] => {
+  const text = String(formattedDuration || "").trim();
+  if (!text || text === "-") return ["-"];
+
+  const parts = text.match(/\d+\s+HRS|\d+\s+MIN/gi) || [];
+  if (parts.length) return parts;
+
+  return [text];
 };
 
 const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; datePart: string } => {
@@ -327,15 +350,20 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               <div style="font-weight:600;">${escapeHtml(dp.slabTitle || '-')}</div>
             </td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;">${escapeHtml(dp.route)}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.pickupKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;line-height:1.2;white-space:nowrap;">
+              <div>Pickup KM: ${Number(dp.pickupKms ?? 0).toFixed(2)} KM</div>
+              <div>Pickup Time: ${escapeHtml(formatMinutesDuration(dp.pickupDurationMinutes))}</div>
+              <div>Drop KM: ${Number(dp.dropKms ?? 0).toFixed(2)} KM</div>
+              <div>Drop Time: ${escapeHtml(formatMinutesDuration(dp.dropDurationMinutes))}</div>
+            </td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.dropKms ?? 0).toFixed(2)} KM</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">${splitDurationLines(formatMinutesDuration(dp.travelDurationMinutes)).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.extraKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
@@ -394,7 +422,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
           : null,
         ["TOTAL USED KM", Number(vehicle.totalUsedKm ?? 0).toFixed(0)],
         [
-          "TOTAL ALLOWED OUTSTATION KM",
+          vehicle.localTrip ? "TOTAL ALLOWED LOCAL KM" : "TOTAL ALLOWED OUTSTATION KM",
           `${vehicle.totalAllowedKm != null && vehicle.totalDays ? `${Math.round((vehicle.totalAllowedKm) / vehicle.totalDays)} * ${vehicle.totalDays}` : (vehicle.totalAllowedKm ?? 0)} = ${Number(vehicle.totalAllowedKm ?? 0).toFixed(0)}`,
         ],
         (vehicle.extraKms ?? 0) > 0
@@ -464,10 +492,10 @@ const totalRows = [
               <tr style="background:#e9dff5;color:#334155;">
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-weight:700;white-space:nowrap;">Date</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-weight:700;">Route</th>
-                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Pickup KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-weight:700;white-space:nowrap;">Pickup / Drop</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Travel KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;">Sightseeing<br/>KM</th>
-                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Drop KM</th>
+                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;"><span style="line-height:1.1;display:inline-block;">Running<br/>Time</span></th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;"><span style="line-height:1.1;display:inline-block;">Extra KM<br/>Charge</span></th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
@@ -864,10 +892,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                   <tr className="bg-purple-100">
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Date</th>
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700">Route</th>
-                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Pickup KM</th>
+                                    <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Pickup / Drop</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Sightseeing<br />KM</span></th>
-                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Drop KM</th>
+                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Running<br />Time</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Extra KM<br />Charge</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
@@ -892,15 +920,29 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                         <div className="font-semibold">SLAB: {dp.slabTitle || "-"}</div>
                                       </td>
                                       <td className="border border-gray-300 py-1 px-1 text-gray-600 leading-5 break-words">{dp.route}</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.pickupKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-gray-700 font-semibold whitespace-nowrap leading-tight">
+                                        <div>Pickup KM: {(dp.pickupKms ?? 0).toFixed(2)} KM</div>
+                                        <div>Pickup Time: {formatMinutesDuration(dp.pickupDurationMinutes)}</div>
+                                        <div>Drop KM: {(dp.dropKms ?? 0).toFixed(2)} KM</div>
+                                        <div>Drop Time: {formatMinutesDuration(dp.dropDurationMinutes)}</div>
+                                      </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.travelKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.dropKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap leading-tight">
+                                        {splitDurationLines(formatMinutesDuration(dp.travelDurationMinutes)).map((line, lineIndex) => (
+                                          <div key={lineIndex}>{line}</div>
+                                        ))}
+                                      </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.extraKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.tollCharges)}</td>
+                                      <td
+                                        className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap cursor-help"
+                                        title={dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : undefined}
+                                      >
+                                        {formatCurrencyINR(dp.tollCharges)}
+                                      </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.parkingCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
@@ -998,7 +1040,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
                                   </tr>
                                   <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL ALLOWED OUTSTATION KM</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{v.localTrip ? 'TOTAL ALLOWED LOCAL KM' : 'TOTAL ALLOWED OUTSTATION KM'}</td>
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
                                       {v.totalAllowedKm != null && v.totalDays
                                         ? `${Math.round((v.totalAllowedKm) / (v.totalDays))} * ${v.totalDays}`
