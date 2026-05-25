@@ -17,6 +17,7 @@ export interface DayWisePricingItem {
   date: string; // "2025-12-26"
   dayLabel: string; // "Day 1 | 26 Dec 2025"
   route: string; // "Chennai → Mahabalipuram"
+  travelType?: string;
   timeLimitId?: number;
   slabTitle?: string;
   slabHoursLimit?: number;
@@ -35,6 +36,7 @@ export interface DayWisePricingItem {
   tollCharges: number;
   tollBreakupText?: string[];
   parkingCharges: number;
+  parkingBreakupText?: string[];
   driverCharges: number;
   permitCharges: number;
   extraHourCount: number;
@@ -256,6 +258,14 @@ const splitDurationLines = (formattedDuration: string): string[] => {
   return [text];
 };
 
+const isOutstationDay = (day: DayWisePricingItem): boolean =>
+  String(day.travelType || '').toLowerCase() === 'outstation';
+
+const getRentalCellLines = (day: DayWisePricingItem): string[] => {
+  const amount = formatCurrencyINR(Number(day.rentalCharges || 0));
+  return isOutstationDay(day) ? ['Outstation', amount] : [amount];
+};
+
 const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; datePart: string } => {
   const [dayPartRaw, datePartRaw] = String(dayLabel || "").split("|");
   return {
@@ -362,9 +372,9 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.extraKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
+              <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
+              <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraHourCharges))}</td>
@@ -391,10 +401,10 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         (Number(vehicle.extraKmCharge ?? 0) > 0)
           ? ["Extra KM Charges", formatCurrencyINR(vehicle.extraKmCharge)]
           : null,
-        ["6AM Charges (D)", formatCurrencyINR(vehicle.before6amDriver)],
-        ["6AM Charges (V)", formatCurrencyINR(vehicle.before6amVendor)],
-        ["8PM Charges (D)", formatCurrencyINR(vehicle.after8pmDriver)],
-        ["8PM Charges (V)", formatCurrencyINR(vehicle.after8pmVendor)],
+        ["Before 6 AM Charges (D)", formatCurrencyINR(vehicle.before6amDriver)],
+        ["Before 6 AM Charges (V)", formatCurrencyINR(vehicle.before6amVendor)],
+        ["After 8 PM Charges (D)", formatCurrencyINR(vehicle.after8pmDriver)],
+        ["After 8 PM Charges (V)", formatCurrencyINR(vehicle.after8pmVendor)],
       ]
         .filter(Boolean)
         .map(
@@ -936,14 +946,23 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.extraKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.rentalCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap leading-tight">
+                                        {getRentalCellLines(dp).map((line, lineIndex) => (
+                                          <div key={lineIndex}>{line}</div>
+                                        ))}
+                                      </td>
                                       <td
                                         className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap cursor-help"
                                         title={dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : undefined}
                                       >
                                         {formatCurrencyINR(dp.tollCharges)}
                                       </td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.parkingCharges)}</td>
+                                        <td
+                                          className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap cursor-help"
+                                          title={dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : undefined}
+                                        >
+                                          {formatCurrencyINR(dp.parkingCharges)}
+                                        </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraHourCharges)}</td>
@@ -985,10 +1004,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     ...(Number(v.extraKmCharge ?? 0) > 0
                                       ? [{ label: 'Extra KM Charges', value: formatCurrencyINR(v.extraKmCharge) }]
                                       : []),
-                                    { label: '6AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
-                                    { label: '6AM Charges (V)', value: formatCurrencyINR(v.before6amVendor) },
-                                    { label: '8PM Charges (D)', value: formatCurrencyINR(v.after8pmDriver) },
-                                    { label: '8PM Charges (V)', value: formatCurrencyINR(v.after8pmVendor) },
+                                    { label: 'Before 6 AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
+                                    { label: 'Before 6 AM Charges (V)', value: formatCurrencyINR(v.before6amVendor) },
+                                    { label: 'After 8 PM Charges (D)', value: formatCurrencyINR(v.after8pmDriver) },
+                                    { label: 'After 8 PM Charges (V)', value: formatCurrencyINR(v.after8pmVendor) },
                                   ].map(({ label, value }) => (
                                     <tr key={label}>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{label}</td>
