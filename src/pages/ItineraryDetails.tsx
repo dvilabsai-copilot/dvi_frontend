@@ -2102,6 +2102,41 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return ids;
   }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
 
+  const currentRouteManualHotspotIds = useMemo(() => {
+    const routeId = Number(addHotspotModal.routeId || 0);
+    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
+    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
+    const ids = new Set<number>();
+    const excludedSet = new Set(excludedHotspotIds.map(Number));
+    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
+      const routeSeg = seg as any;
+      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
+      // Skip deleted/excluded rows
+      if (
+        routeSeg?.isDeleted === true ||
+        routeSeg?.deleted === true ||
+        routeSeg?.isExcluded === true ||
+        routeSeg?.excluded === true ||
+        routeSeg?.removed === true ||
+        routeSeg?.deletedAt != null ||
+        routeSeg?.deleted_at != null ||
+        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
+        String(routeSeg?.status || '').toLowerCase() === 'excluded'
+      ) {
+        continue;
+      }
+      const isManual = routeSeg?.planOwnWay === true || routeSeg?.isManual === true;
+      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
+      if (Number.isFinite(id) && id > 0 && isManual && !excludedSet.has(id)) {
+        ids.add(id);
+      }
+    }
+    for (const id of addedInModalHotspotIds) {
+      ids.add(Number(id));
+    }
+    return ids;
+  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds, addedInModalHotspotIds]);
+
   const isCurrentPreviewAlreadyAdded = useMemo(() => {
     const id = Number(activePreviewHotspotId || 0);
     if (!id) return false;
@@ -2223,19 +2258,22 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         return !disabled && !closed;
       };
 
-      const aPreview = canPreview(a);
-      const bPreview = canPreview(b);
+      const getSortRank = (h: AvailableHotspot): number => {
+        if (canPreview(h)) return 1; // Group 1: Previewable (available to add)
+        const added = isAddedInCurrentRoute(h);
+        if (added && currentRouteManualHotspotIds.has(h.id)) return 2; // Group 2: Manually added on this route
+        return 3; // Group 3: Closed or Auto-added / Prebuilt
+      };
 
-      const aAdded = isAddedInCurrentRoute(a);
-      const bAdded = isAddedInCurrentRoute(b);
-      if (aAdded !== bAdded) return aAdded ? 1 : -1;
+      const rankA = getSortRank(a);
+      const rankB = getSortRank(b);
 
-      if (aPreview !== bPreview) return aPreview ? -1 : 1;
+      if (rankA !== rankB) return rankA - rankB;
 
       if (aClosed !== bClosed) return aClosed ? 1 : -1;
       // visitAgain (already visited) goes to the bottom
       if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
-      // Within same visitAgain group: lower priority number = more important = shown first
+      // Within same group: lower priority number = more important = shown first
       // Treat 0 as unset (worst) so it never floats above real P1-P18
       const normP = (p: any) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
       const pa = normP((a as any).priority);
@@ -9291,6 +9329,26 @@ const vehicleOnlyHtml = html
                                         >
                                           <Trash2 className="h-4 w-4 mr-1" />
                                           Remove
+                                        </Button>
+                                      )}
+                                      {isAdded && currentRouteManualHotspotIds.has(hotspot.id) && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                          onClick={() =>
+                                            openDeleteHotspotModal(
+                                              addHotspotModal.planId || itinerary?.planId || 0,
+                                              addHotspotModal.routeId || 0,
+                                              hotspot.id,
+                                              hotspot.name,
+                                              true // isManualHotspot = true
+                                            )
+                                          }
+                                          disabled={isLoadingThis}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-1" />
+                                          Delete
                                         </Button>
                                       )}
                                     </div>
