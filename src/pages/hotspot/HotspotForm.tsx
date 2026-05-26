@@ -886,83 +886,11 @@ function handleDeleteSpecialDate(id: number) {
             )}
           </div>
 
-<div>
-  <Label>Hotspot To Location</Label>
 
-  <div className="rounded-md border p-3 space-y-3">
-    <div className="flex flex-wrap gap-2">
-      {(form.toLocations || []).map((loc) => (
-        <span
-          key={loc}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs"
-        >
-          {loc}
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => removeToLocation(loc)}
-            aria-label={`Remove ${loc}`}
-          >
-            x
-          </button>
-        </span>
-      ))}
-    </div>
 
-    <div className="relative">
-      <Input
-        id="hotspotToLocation"
-        value={toLocationInput}
-        onFocus={() => setToLocationOpen(true)}
-        onChange={(e) => {
-          setToLocationInput(e.target.value);
-          setToLocationOpen(true);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === ",") {
-            e.preventDefault();
-            addToLocation(toLocationInput.replace(/,+$/g, ""));
-          }
-          if (
-            e.key === "Backspace" &&
-            !toLocationInput &&
-            (form.toLocations || []).length
-          ) {
-            const last = (form.toLocations || [])[form.toLocations!.length - 1];
-            if (last) removeToLocation(last);
-          }
-        }}
-        placeholder="Type to search locations and press Enter to add"
-      />
+{/* Hotspot To Location removed */}
 
-      {toLocationOpen && toLocationOptionsFiltered.length > 0 && (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-white p-1 shadow-md">
-          {toLocationOptionsFiltered.map((loc) => (
-            <button
-              key={loc}
-              type="button"
-              onClick={() => addToLocation(loc)}
-              className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
-            >
-              {loc}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
 
-    <div className="flex justify-end">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => addToLocation(toLocationInput)}
-      >
-        Add Location
-      </Button>
-    </div>
-  </div>
-</div>
           {/* Row 7: Gallery | Video URL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
