@@ -159,76 +159,92 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
   }
 
   async function loadList() {
-    const sourceValue = source.trim();
-    const destinationValue = destination.trim();
-    const sourceLower = sourceValue.toLowerCase();
-    const sameLocationSelected =
-      Boolean(sourceValue) &&
-      Boolean(destinationValue) &&
-      sourceLower === destinationValue.toLowerCase();
+  const sourceValue = source.trim();
+  const destinationValue = destination.trim();
+  const sourceLower = sourceValue.toLowerCase();
+  const sameLocationSelected =
+    Boolean(sourceValue) &&
+    Boolean(destinationValue) &&
+    sourceLower === destinationValue.toLowerCase();
 
-    if (!sameLocationSelected) {
-      const data = await locationsApi.list({
-        page,
-        pageSize,
-        source,
-        destination,
-        search: debouncedSearch,
-      });
+  if (!sameLocationSelected) {
+    const data = await locationsApi.list({
+      page,
+      pageSize,
+      source,
+      destination,
+      search: debouncedSearch,
+    });
 
-      const normalized = Array.isArray(data?.rows) ? data.rows : [];
-      setRows(normalized);
-      setTotal(Number(data?.total ?? normalized.length));
-      return;
-    }
+    const normalized = Array.isArray(data?.rows) ? data.rows : [];
+    setRows(normalized);
+    setTotal(Number(data?.total ?? normalized.length));
+    return;
+  }
 
-    const sourceOnlyPageSize = 200;
-    const firstPage = await locationsApi.list({
-      page: 1,
+  const exactData = await locationsApi.list({
+    page,
+    pageSize,
+    source: sourceValue,
+    destination: destinationValue,
+    search: debouncedSearch,
+  });
+
+  const exactRows = Array.isArray(exactData?.rows) ? exactData.rows : [];
+
+  if (exactRows.length || Number(exactData?.total ?? 0) > 0) {
+    setRows(exactRows);
+    setTotal(Number(exactData?.total ?? exactRows.length));
+    return;
+  }
+
+  const sourceOnlyPageSize = 200;
+  const firstPage = await locationsApi.list({
+    page: 1,
+    pageSize: sourceOnlyPageSize,
+    source: sourceValue,
+    destination: "",
+    search: debouncedSearch,
+  });
+
+  const firstRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
+  const backendTotal = Number(firstPage?.total ?? firstRows.length);
+  const backendTotalPages = Math.max(1, Math.ceil(backendTotal / sourceOnlyPageSize));
+
+  let allRows = [...firstRows];
+
+  for (let nextPage = 2; nextPage <= backendTotalPages; nextPage += 1) {
+    const nextData = await locationsApi.list({
+      page: nextPage,
       pageSize: sourceOnlyPageSize,
       source: sourceValue,
       destination: "",
       search: debouncedSearch,
     });
 
-    const firstRows = Array.isArray(firstPage?.rows) ? firstPage.rows : [];
-    const backendTotal = Number(firstPage?.total ?? firstRows.length);
-    const backendTotalPages = Math.max(1, Math.ceil(backendTotal / sourceOnlyPageSize));
-
-    let allRows = [...firstRows];
-
-    for (let nextPage = 2; nextPage <= backendTotalPages; nextPage += 1) {
-      const nextData = await locationsApi.list({
-        page: nextPage,
-        pageSize: sourceOnlyPageSize,
-        source: sourceValue,
-        destination: "",
-        search: debouncedSearch,
-      });
-
-      const nextRows = Array.isArray(nextData?.rows) ? nextData.rows : [];
-      if (!nextRows.length) break;
-      allRows = allRows.concat(nextRows);
-    }
-
-    const sameLocationRows = allRows.filter((row) => {
-      const rowSource = row.source_location.trim().toLowerCase();
-      const rowDestination = row.destination_location.trim().toLowerCase();
-      const distance = Number(row.distance_km || 0);
-
-      return (
-        rowSource === sourceLower &&
-        rowDestination === sourceLower &&
-        distance >= MIN_SAME_LOCATION_DISTANCE_KM
-      );
-    });
-
-    const startIndex = (page - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-
-    setRows(sameLocationRows.slice(startIndex, endIndex));
-    setTotal(sameLocationRows.length);
+    const nextRows = Array.isArray(nextData?.rows) ? nextData.rows : [];
+    if (!nextRows.length) break;
+    allRows = allRows.concat(nextRows);
   }
+
+  const sameLocationRows = allRows.filter((row) => {
+    const rowSource = row.source_location.trim().toLowerCase();
+    const rowDestination = row.destination_location.trim().toLowerCase();
+    const distance = Number(row.distance_km || 0);
+
+    return (
+      rowSource === sourceLower &&
+      rowDestination === sourceLower &&
+      distance >= MIN_SAME_LOCATION_DISTANCE_KM
+    );
+  });
+
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  setRows(sameLocationRows.slice(startIndex, endIndex));
+  setTotal(sameLocationRows.length);
+}
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
