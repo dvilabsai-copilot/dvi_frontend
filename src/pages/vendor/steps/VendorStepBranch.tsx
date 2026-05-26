@@ -49,6 +49,7 @@ export const VendorStepBranch: React.FC<Props> = ({
   onDeleteBranch,
 }) => {
   const inputErrorClass = "border-red-400 focus-visible:ring-red-300";
+const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof BranchForm, string>>>>({});
 
   const [dropdowns, setDropdowns] = useState<Record<number, BranchDropdownState>>(
     {}
@@ -150,7 +151,10 @@ export const VendorStepBranch: React.FC<Props> = ({
       <CardContent className="space-y-6">
         {branches.map((b, idx) => {
           const dd = dropdowns[idx] || { states: [], cities: [] };
-          const e = fieldErrors[idx] || {};
+          const e = {
+  ...(fieldErrors[idx] || {}),
+  ...(liveErrors[idx] || {}),
+};
           return (
             <div
               key={idx}
@@ -199,28 +203,56 @@ export const VendorStepBranch: React.FC<Props> = ({
                 </div>
                 <div>
                   <Label>Email ID *</Label>
-                  <Input
-                    className={e.email ? inputErrorClass : ""}
-                    value={b.email}
-                    onChange={(event) => {
-                      updateBranch(idx, { email: event.target.value });
-                      onClearFieldError?.(idx, "email");
-                    }}
-                    placeholder="Email ID"
-                  />
+                 <Input
+  className={e.email ? inputErrorClass : ""}
+  value={b.email}
+  onChange={(event) => {
+    const value = event.target.value;
+
+    updateBranch(idx, { email: value });
+
+    setLiveErrors((p) => ({
+      ...p,
+      [idx]: {
+        ...(p[idx] || {}),
+        email: !value.trim()
+          ? "This value is required."
+          : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+            ? "Please enter a valid email address."
+            : "",
+      },
+    }));
+
+    onClearFieldError?.(idx, "email");
+  }}
+  placeholder="Email ID"
+/>
                   {e.email ? <p className="text-xs text-red-600">{e.email}</p> : null}
                 </div>
                 <div>
                   <Label>Primary Mobile Number *</Label>
-                  <Input
-                    className={e.primaryMobile ? inputErrorClass : ""}
-                    value={b.primaryMobile}
-                    onChange={(event) => {
-                      updateBranch(idx, { primaryMobile: event.target.value });
-                      onClearFieldError?.(idx, "primaryMobile");
-                    }}
-                    placeholder="Primary Mobile Number"
-                  />
+                 <Input
+  className={e.primaryMobile ? inputErrorClass : ""}
+  value={b.primaryMobile}
+  onChange={(event) => {
+    const value = event.target.value.replace(/\D/g, "").slice(0, 10);
+
+    updateBranch(idx, { primaryMobile: value });
+
+    setLiveErrors((p) => ({
+      ...p,
+      [idx]: {
+        ...(p[idx] || {}),
+        primaryMobile: /^[6-9]\d{9}$/.test(value)
+          ? ""
+          : "Primary mobile number must be 10 digits and start with 6, 7, 8, or 9.",
+      },
+    }));
+
+    onClearFieldError?.(idx, "primaryMobile");
+  }}
+  placeholder="Primary Mobile Number"
+/>
                   {e.primaryMobile ? <p className="text-xs text-red-600">{e.primaryMobile}</p> : null}
                 </div>
               </div>
@@ -229,14 +261,27 @@ export const VendorStepBranch: React.FC<Props> = ({
                 <div>
                   <Label>Alternative Mobile Number *</Label>
                   <Input
-                    className={e.altMobile ? inputErrorClass : ""}
-                    value={b.altMobile}
-                    onChange={(event) => {
-                      updateBranch(idx, { altMobile: event.target.value });
-                      onClearFieldError?.(idx, "altMobile");
-                    }}
-                    placeholder="Alternative Mobile Number"
-                  />
+  className={e.altMobile ? inputErrorClass : ""}
+  value={b.altMobile}
+  onChange={(event) => {
+    const value = event.target.value.replace(/\D/g, "").slice(0, 10);
+
+    updateBranch(idx, { altMobile: value });
+
+    setLiveErrors((p) => ({
+      ...p,
+      [idx]: {
+        ...(p[idx] || {}),
+        altMobile: /^[6-9]\d{9}$/.test(value)
+          ? ""
+          : "Alternative mobile number must be 10 digits and start with 6, 7, 8, or 9.",
+      },
+    }));
+
+    onClearFieldError?.(idx, "altMobile");
+  }}
+  placeholder="Alternative Mobile Number"
+/>
                   {e.altMobile ? <p className="text-xs text-red-600">{e.altMobile}</p> : null}
                 </div>
                 <div>
@@ -317,14 +362,27 @@ export const VendorStepBranch: React.FC<Props> = ({
                 <div>
                   <Label>Pincode *</Label>
                   <Input
-                    className={e.pincode ? inputErrorClass : ""}
-                    value={b.pincode}
-                    onChange={(event) => {
-                      updateBranch(idx, { pincode: event.target.value });
-                      onClearFieldError?.(idx, "pincode");
-                    }}
-                    placeholder="Pincode"
-                  />
+  className={e.pincode ? inputErrorClass : ""}
+  value={b.pincode}
+  onChange={(event) => {
+    const value = event.target.value.replace(/\D/g, "").slice(0, 6);
+
+    updateBranch(idx, { pincode: value });
+
+    setLiveErrors((p) => ({
+      ...p,
+      [idx]: {
+        ...(p[idx] || {}),
+        pincode: /^[1-9]\d{5}$/.test(value)
+          ? ""
+          : "Pincode must be 6 digits and cannot start with 0.",
+      },
+    }));
+
+    onClearFieldError?.(idx, "pincode");
+  }}
+  placeholder="Pincode"
+/>
                   {e.pincode ? <p className="text-xs text-red-600">{e.pincode}</p> : null}
                 </div>
                 <div>
