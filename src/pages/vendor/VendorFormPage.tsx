@@ -315,27 +315,71 @@ export default function VendorFormPage() {
 
   const isFilled = (value?: string) => Boolean(String(value ?? "").trim());
 
+const isEmail = (value?: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
+
+const isValidMobile = (value?: string) =>
+  /^[6-9]\d{9}$/.test(String(value ?? "").trim());
+
+const isValidPincode = (value?: string) =>
+  /^[1-9]\d{5}$/.test(String(value ?? "").trim());
+
+const isPercent = (value?: string) => {
+  const text = String(value ?? "").trim();
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) return false;
+  const num = Number(text);
+  return num >= 0 && num <= 100;
+};
+
   const validateBasicInfo = (): boolean => {
     const errors: BasicInfoErrors = {};
 
     if (!isFilled(basicInfo.vendorName)) errors.vendorName = "This value is required.";
-    if (!isFilled(basicInfo.email)) errors.email = "This value is required.";
-    if (!isFilled(basicInfo.primaryMobile)) errors.primaryMobile = "This value is required.";
-    if (!isFilled(basicInfo.altMobile)) errors.altMobile = "This value is required.";
+
+    if (!isFilled(basicInfo.email)) {
+  errors.email = "This value is required.";
+} else if (!isEmail(basicInfo.email)) {
+  errors.email = "Please enter a valid email address.";
+}
+
+if (!isFilled(basicInfo.primaryMobile)) {
+  errors.primaryMobile = "This value is required.";
+} else if (!isValidMobile(basicInfo.primaryMobile)) {
+  errors.primaryMobile = "Primary mobile number must be 10 digits and start with 6, 7, 8, or 9.";
+}
+
+if (!isFilled(basicInfo.altMobile)) {
+  errors.altMobile = "This value is required.";
+} else if (!isValidMobile(basicInfo.altMobile)) {
+  errors.altMobile = "Alternative mobile number must be 10 digits and start with 6, 7, 8, or 9.";
+}
+
     if (!isFilled(basicInfo.countryId)) errors.countryId = "This value is required.";
     if (!isFilled(basicInfo.stateId)) errors.stateId = "This value is required.";
     if (!isFilled(basicInfo.cityId)) errors.cityId = "This value is required.";
-    if (!isFilled(basicInfo.pincode)) errors.pincode = "This value is required.";
+    if (!isFilled(basicInfo.pincode)) {
+  errors.pincode = "This value is required.";
+} else if (!isValidPincode(basicInfo.pincode)) {
+  errors.pincode = "Pincode must be 6 digits and cannot start with 0.";
+}
     if (!isFilled(basicInfo.username)) errors.username = "This value is required.";
     if (!isEdit && !isFilled(basicInfo.password)) errors.password = "This value is required.";
     if (!isFilled(basicInfo.roleId)) errors.roleId = "This value is required.";
-    if (!isFilled(basicInfo.marginPercent)) errors.marginPercent = "This value is required.";
+    if (!isFilled(basicInfo.marginPercent)) {
+  errors.marginPercent = "This value is required.";
+} else if (!isPercent(basicInfo.marginPercent)) {
+  errors.marginPercent = "Vendor margin must be a number between 0 and 100.";
+}
     if (!isFilled(basicInfo.marginGstType)) errors.marginGstType = "This value is required.";
     if (!isFilled(basicInfo.marginGstPercent)) errors.marginGstPercent = "This value is required.";
     if (!isFilled(basicInfo.address)) errors.address = "This value is required.";
     if (!isFilled(basicInfo.invoiceCompanyName)) errors.invoiceCompanyName = "This value is required.";
     if (!isFilled(basicInfo.invoiceAddress)) errors.invoiceAddress = "This value is required.";
-    if (!isFilled(basicInfo.invoicePincode)) errors.invoicePincode = "This value is required.";
+    if (!isFilled(basicInfo.invoicePincode)) {
+  errors.invoicePincode = "This value is required.";
+} else if (!isValidPincode(basicInfo.invoicePincode)) {
+  errors.invoicePincode = "Pincode must be 6 digits and cannot start with 0.";
+}
     if (!isFilled(basicInfo.invoiceGstin)) errors.invoiceGstin = "This value is required.";
     if (!isFilled(basicInfo.invoicePan)) errors.invoicePan = "This value is required.";
     if (!isFilled(basicInfo.invoiceContactNo)) errors.invoiceContactNo = "This value is required.";
