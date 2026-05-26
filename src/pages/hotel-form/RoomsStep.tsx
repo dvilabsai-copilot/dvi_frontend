@@ -311,6 +311,7 @@ export default function RoomsStep({
   const [validationError, setValidationError] = useState<string>("");
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
 
   const defaultRow: RoomForm = {
     room_type: "",
@@ -582,9 +583,15 @@ export default function RoomsStep({
       ];
     });
 
-  const removeRow = (i: number) =>
-    setRows((p) => (p.length === 1 ? p : p.filter((_, idx) => idx !== i)));
+  const removeRow = (i: number) => {
+  setRows((p) =>
+    p.length === 1
+      ? [{ ...(defaultRow as any), room_ref_code: generateRoomRefCode(hotelId ?? "", 1) } as RoomForm]
+      : p.filter((_, idx) => idx !== i)
+  );
 
+  setDeleteIndex(null);
+};
   const validateRows = (items: RoomForm[]) => {
     for (let i = 0; i < items.length; i += 1) {
       const row: any = items[i];
@@ -871,9 +878,8 @@ export default function RoomsStep({
               </h6>
               <button
                 type="button"
-                onClick={() => removeRow(idx)}
+                onClick={() => setDeleteIndex(idx)}
                 className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 disabled:opacity-50"
-                disabled={rows.length === 1}
               >
                 Delete
               </button>
@@ -1142,6 +1148,47 @@ export default function RoomsStep({
           {statusMessage}
         </div>
       )}
+{deleteIndex !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[420px] rounded-lg bg-white px-8 py-7 text-center shadow-xl">
+      <h2 className="text-2xl font-semibold text-gray-600">
+        Confirmation Alert?
+      </h2>
+
+      <div className="my-4 text-5xl text-gray-500">🗑️</div>
+
+      <p className="text-base text-gray-600">
+        Are you sure? want to delete this room{" "}
+        <strong>
+          "{(rows[deleteIndex] as any)?.room_title || "ROOM"}"
+        </strong>
+      </p>
+
+      <p className="mt-1 text-base text-gray-600">
+        This action cannot be undone.
+      </p>
+
+      <div className="mt-7 flex justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setDeleteIndex(null)}
+          className="rounded-md border border-purple-700 px-7 py-2 text-purple-700"
+        >
+          Close
+        </button>
+
+        <button
+          type="button"
+          onClick={() => removeRow(deleteIndex)}
+          className="rounded-md bg-red-500 px-7 py-2 text-white"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
       <div className="flex items-center justify-between mt-8">
         <button

@@ -56,6 +56,13 @@ export type HotspotAnchorPayload = {
   anchorIndex?: number;
 };
 
+export type MatrixPreferredSlotPayload = {
+  fromHotspotId?: number;
+  toHotspotId?: number;
+  slotIndex?: number;
+  source?: "BEST_FIT";
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -503,6 +510,7 @@ export const ItineraryService = {
     options?: {
       allowTopPriorityRemoval?: boolean;
       forceConflictInsertion?: boolean;
+      matrixPreferredSlot?: MatrixPreferredSlotPayload;
     },
   ) {
     return api(`itineraries/${planId}/manual-hotspots/apply`, {
@@ -514,7 +522,14 @@ export const ItineraryService = {
         anchorIndex: anchor?.anchorIndex,
         allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
         forceConflictInsertion: options?.forceConflictInsertion === true,
+        matrixPreferredSlot: options?.matrixPreferredSlot,
       },
+    });
+  },
+
+  async buildMissingManualHotspotMatrix(planId: number, routeId: number, candidateHotspotId: number) {
+    return api(`itineraries/${planId}/routes/${routeId}/manual-hotspots/${candidateHotspotId}/build-matrix`, {
+      method: "POST",
     });
   },
 

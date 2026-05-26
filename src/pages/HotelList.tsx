@@ -57,6 +57,26 @@ type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }) => void;
+  onCancelVoucher?: (hotelData: {
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }) => void | Promise<void>;
+  onBulkCancelVouchers?: (hotels: Array<{
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }>) => void | Promise<void>;
   // ✅ NEW: Callback when total selected hotel amount changes
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
@@ -290,6 +310,8 @@ export const HotelList: React.FC<HotelListProps> = ({
   onGetSaveFunction,
   readOnly = false, // ✅ NEW: Default to edit mode
   onCreateVoucher, // ✅ NEW: Callback for voucher creation
+  onCancelVoucher,
+  onBulkCancelVouchers,
   onTotalChange, // ✅ NEW: Callback for total amount changes
   roomCount = 1,
   onHotelSelectionsChange, // ✅ NEW: Callback for selections
@@ -562,6 +584,16 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // ✅ NEW: Hotel search query for expanded row
   const [hotelSearchQuery, setHotelSearchQuery] = useState<string>("");
+  const [selectedVoucherRows, setSelectedVoucherRows] = useState<Record<string, {
+    routeId: number;
+    hotelId: number;
+    hotelName: string;
+    hotelEmail: string;
+    hotelStateCity: string;
+    routeDates: string[];
+    dayNumbers: number[];
+    hotelDetailsIds: number[];
+  }>>({});
 
   // Initialise active tab from backend groups
   useEffect(() => {
@@ -828,6 +860,24 @@ export const HotelList: React.FC<HotelListProps> = ({
       return dateA.localeCompare(dateB);
     });
   }, [localHotels, activeGroupType, selectedByGroup, userSelectedByStay, readOnly, roomCount]);
+
+  useEffect(() => {
+    if (!readOnly) {
+      if (Object.keys(selectedVoucherRows).length > 0) {
+        setSelectedVoucherRows({});
+      }
+      return;
+    }
+
+    const validKeys = new Set(currentHotelRows.map((h) => getStayKey(h)));
+    setSelectedVoucherRows((prev) => {
+      const next: typeof prev = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        if (validKeys.has(key)) next[key] = value;
+      });
+      return next;
+    });
+  }, [readOnly, currentHotelRows]);
 
   const routeDestinationFallback = useMemo(() => {
     const map: Record<number, string> = {};
@@ -1379,6 +1429,16 @@ export const HotelList: React.FC<HotelListProps> = ({
 
           {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
+            {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="text-xs"
+                onClick={() => onBulkCancelVouchers(Object.values(selectedVoucherRows))}
+              >
+                Cancel Selected ({Object.keys(selectedVoucherRows).length})
+              </Button>
+            )}
             <span className="text-xs font-medium text-[#5d5f65]">Display Rates</span>
             <label className={styles["switch-label"]}>
               <input
@@ -1506,6 +1566,17 @@ export const HotelList: React.FC<HotelListProps> = ({
                   (hotel.totalHotelTaxAmount ?? 0);
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel);
+                const routeDate = hotel.date || new Date().toISOString().split('T')[0];
+                const rowVoucherPayload = {
+                  routeId: Number(hotel.itineraryRouteId || 0),
+                  hotelId: Number(hotel.hotelId || 0),
+                  hotelName: String(hotel.hotelName || ''),
+                  hotelEmail: '',
+                  hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
+                  routeDates: [routeDate],
+                  dayNumbers: [parseInt(hotel.day?.replace('Day ', '') || '0')],
+                  hotelDetailsIds: [Number(hotel.itineraryPlanHotelDetailsId || 0)],
+                };
 
                 return (
                   <React.Fragment key={rowKey}>
@@ -1549,9 +1620,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                           {formatCurrency(rowTotal)}
                         </td>
                       )}
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between">
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between gap-2">
                         <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
-                        {readOnly && onCreateVoucher && hotel.hotelId && hotel.hotelName && (
+                        {readOnly && hotel.hotelId && hotel.hotelName && (
                           hotel.voucherCancelled ? (
                             <Button
                               size="sm"

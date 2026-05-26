@@ -1,5 +1,6 @@
 // FILE: src/pages/hotel-form/AmenitiesStep.tsx
 import React, { useRef, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AmenityRow } from "./HotelForm";
 
@@ -26,7 +27,8 @@ export default function AmenitiesStep({
   const initialRowsRef = useRef<any[]>([]);
   const [validationError, setValidationError] = useState<string>("");
   const [statusMessage, setStatusMessage] = useState<string>("");
-  const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
+const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
+const [deleteAmenityIndex, setDeleteAmenityIndex] = useState<number | null>(null);
 
   const availabilityOptions = [
     { id: 1, name: "24/7" },
@@ -230,7 +232,7 @@ export default function AmenitiesStep({
                 </h6>
                 <button
                   type="button"
-                  onClick={() => removeRow(idx)}
+                  onClick={() => setDeleteAmenityIndex(idx)}
                   className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 disabled:opacity-50"
                   disabled={rows.length === 1}
                 >
@@ -300,6 +302,51 @@ export default function AmenitiesStep({
                         onChange={(e) => handleChange(idx, "available_end_time", e.target.value)}
                       />
                     </div>
+
+{deleteAmenityIndex !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[420px] rounded-xl bg-white p-6 text-center shadow-xl">
+      <h2 className="text-2xl font-semibold text-[#5f5a6f]">
+        Confirmation Alert?
+      </h2>
+
+      <Trash2 className="mx-auto mt-5 h-14 w-14 text-gray-500" />
+
+      <p className="mt-5 text-base text-[#706b80]">
+        Are you sure? want to delete this amenities{" "}
+        <b>
+          "{rows[deleteAmenityIndex]?.amenities_title || "this amenity"}"
+        </b>
+      </p>
+
+      <p className="text-base text-[#706b80]">
+        This action cannot be undone.
+      </p>
+
+      <div className="mt-8 flex justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setDeleteAmenityIndex(null)}
+          className="h-11 rounded-lg border border-purple-700 px-8 text-purple-800"
+        >
+          Close
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            removeRow(deleteAmenityIndex);
+            setDeleteAmenityIndex(null);
+          }}
+          className="h-11 rounded-lg bg-red-500 px-8 text-white"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
                   </>
                 )}
 
@@ -342,7 +389,7 @@ export default function AmenitiesStep({
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-8">
+            <div className="flex items-center justify-between mt-8">
         <button type="button" onClick={onPrev} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300">
           Back
         </button>
@@ -365,6 +412,48 @@ export default function AmenitiesStep({
           Update & Continue
         </button>
       </div>
+
+      {deleteAmenityIndex !== null && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40">
+          <div className="w-[420px] rounded-xl bg-white p-6 text-center shadow-xl">
+            <h2 className="text-2xl font-semibold text-[#5f5a6f]">
+              Confirmation Alert?
+            </h2>
+
+            <Trash2 className="mx-auto mt-5 h-14 w-14 text-gray-500" />
+
+            <p className="mt-5 text-base text-[#706b80]">
+              Are you sure? want to delete this amenities{" "}
+              <b>"{rows[deleteAmenityIndex]?.amenities_title || "this amenity"}"</b>
+            </p>
+
+            <p className="text-base text-[#706b80]">
+              This action cannot be undone.
+            </p>
+
+            <div className="mt-8 flex justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setDeleteAmenityIndex(null)}
+                className="h-11 rounded-lg border border-purple-700 px-8 text-purple-800"
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  removeRow(deleteAmenityIndex);
+                  setDeleteAmenityIndex(null);
+                }}
+                className="h-11 rounded-lg bg-red-500 px-8 text-white"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -44,6 +44,7 @@ type FormGetResponse = {
     hotspot_latitude?: string | null;
     hotspot_longitude?: string | null;
     hotspot_location_list?: string[];
+    hotspot_to_location_list?: string[];
     gallery: Array<{ id?: number | string; name: string; delete?: boolean }>;
     parkingCharges: Array<{ id?: number | string; vehicleTypeId: number; charge: number }>;
     operatingHours?: Record<
@@ -54,6 +55,7 @@ type FormGetResponse = {
   options: {
     hotspotTypes: string[];
     locations: string[];
+    toLocations: string[];
     vehicleTypes: Array<{ id: number; name: string }>;
   };
 };
@@ -88,6 +90,7 @@ export type HotspotFormData = {
   longitude: string;
   videoUrl: string;
   locations: string[];
+  toLocations: string[];
   /** Simple mode: array of URLs or filenames (we’ll extract the filename) */
   galleryImages: string[];
   /** Advanced mode (edit): send objects to preserve IDs and deletes */
@@ -228,12 +231,22 @@ export const hotspotService = {
     // Build gallery payload (names; upload endpoint inserts rows)
     const gallery = buildGalleryPayload(form);
 
-    // Parking charges (keep zeros; filter only invalid ids/NaN)
-    const parkingCharges = Object.entries(form.parkingCharges ?? {})
-      .map(([k, charge]) => ({ vehicleTypeId: Number(k), charge: Number(charge) }))
-      .filter(
-        (x) => Number.isFinite(x.vehicleTypeId) && x.vehicleTypeId > 0 && Number.isFinite(x.charge) && x.charge >= 0
-      );
+    // Parking charges may arrive either as the form-state object
+    // { [vehicleTypeId]: charge } or as an already-normalized array.
+    const parkingChargesSource = Array.isArray(form.parkingCharges)
+      ? form.parkingCharges.map((row) => ({
+          id: row?.id,
+          vehicleTypeId: Number(row?.vehicleTypeId),
+          charge: Number(row?.charge),
+        }))
+      : Object.entries(form.parkingCharges ?? {}).map(([k, charge]) => ({
+          vehicleTypeId: Number(k),
+          charge: Number(charge),
+        }));
+
+    const parkingCharges = parkingChargesSource.filter(
+      (x) => Number.isFinite(x.vehicleTypeId) && x.vehicleTypeId > 0 && Number.isFinite(x.charge) && x.charge >= 0
+    );
 
     // sanitize coords
     const lat = (form.latitude ?? "").toString().trim() || null;
@@ -310,6 +323,7 @@ export const hotspotService = {
       hotspot_latitude: lat,
       hotspot_longitude: lng,
       hotspot_location_list: form.locations ?? [],
+      hotspot_to_location_list: form.toLocations ?? [],
 
       // child tables
       operatingHours,     // -> dvi_hotspot_timing (backend reads this; now "HH:mm")

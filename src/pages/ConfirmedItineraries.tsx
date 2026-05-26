@@ -24,6 +24,7 @@ function formatToDDMMYYYY(date: Date | undefined) {
 
 interface ConfirmedItinerary {
   itinerary_plan_ID: number;
+  confirmed_itinerary_plan_ID?: number | null;
   booking_quote_id: string;
   agent_name: string;
   primary_customer_name: string;
