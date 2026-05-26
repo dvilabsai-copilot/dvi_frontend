@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { Option } from "../vendorFormTypes";
+import { toast } from "sonner";
 
 type Props = {
   vendorId?: number;
@@ -94,6 +95,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>("driverCost");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
 
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
@@ -171,23 +173,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
         api(`/vendors/${vendorId}/local-km-limits`),
       ]);
 
-      const vendorTypeMap = new Map<string, Option>();
-      (dc as any[]).forEach((r: any) => {
-        const id = String(r.vehicle_type_id ?? "");
-        if (!id) return;
-        if (!vendorTypeMap.has(id)) {
-          vendorTypeMap.set(id, {
-            id,
-            label: String(r.vehicle_type_title ?? r.vehicle_type_name ?? id),
-          });
-        }
-      });
-      const vendorTypeOptions = Array.from(vendorTypeMap.values());
-      if (vendorTypeOptions.length > 0) {
-        setVehicleTypeOptions(vendorTypeOptions);
-      } else {
-        await fetchDropdowns();
-      }
+  await fetchDropdowns();
 
       setDriverCostRows((dc as any[]).map(r => ({
         id: Number(r.vendor_vehicle_type_ID),
@@ -229,12 +215,27 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const fetchDropdowns = async () => {
     try {
       const vtRes = await api("/dropdowns/vehicle-types");
-      const items = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+      const items = (
+  (vtRes as any)?.items ??
+  (vtRes as any)?.data ??
+  (vtRes as any)?.result ??
+  vtRes ??
+  []
+) as any[];
       setVehicleTypeOptions(
-        items.map((v) => ({
-          id: String(v.id ?? v.vehicle_type_id ?? ""),
-          label: String(v.label ?? v.vehicle_type_title ?? v.name ?? ""),
-        }))
+        items
+  .map((v) => ({
+    id: String(v.id ?? v.vehicle_type_id ?? v.value ?? ""),
+    label: String(
+      v.label ??
+        v.vehicle_type_title ??
+        v.vehicle_type_name ??
+        v.name ??
+        v.title ??
+        ""
+    ),
+  }))
+  .filter((v) => v.id && v.label)
       );
     } catch (e) {
       console.error("Failed to fetch dropdowns", e);
@@ -344,18 +345,25 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     setDriverFieldErrors({});
     setSaving(true);
     try {
-      await api(`/vendors/${vendorId}/vehicle-type-costs`, {
-        method: "POST",
-        body: JSON.stringify({
-          vehicle_type_id: Number(driverFormVehicleType),
-          driver_bhatta: Number(driverFormFields.driverBhatta),
-          food_cost: Number(driverFormFields.foodCost),
-          accommodation_cost: Number(driverFormFields.accommodationCost),
-          extra_cost: Number(driverFormFields.extraCost),
-          morning_charges: Number(driverFormFields.morningCharges),
-          evening_charges: Number(driverFormFields.eveningCharges),
-        }),
-      });
+     const payload = {
+  vehicle_type_id: Number(driverFormVehicleType),
+  driver_bhatta: Number(driverFormFields.driverBhatta),
+  food_cost: Number(driverFormFields.foodCost),
+  accommodation_cost: Number(driverFormFields.accommodationCost),
+  extra_cost: Number(driverFormFields.extraCost),
+  morning_charges: Number(driverFormFields.morningCharges),
+  evening_charges: Number(driverFormFields.eveningCharges),
+};
+
+await api(
+  editingDriverRow
+    ? `/vendors/${vendorId}/vehicle-type-costs/${editingDriverRow.id}`
+    : `/vendors/${vendorId}/vehicle-type-costs`,
+  {
+    method: editingDriverRow ? "PATCH" : "POST",
+    body: JSON.stringify(payload),
+  }
+);
       await fetchData();
       setDriverFieldErrors({});
       setShowDriverCostModal(false);
@@ -366,12 +374,27 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     }
   };
 
-  const handleDeleteDriverCost = async (rowId: number) => {
-    // Backend doesn't have delete yet, but we can just re-save with 0 or ignore
-    // For now, just UI delete
-    setDriverCostRows((prev) => prev.filter((row) => row.id !== rowId));
-  };
+const handleDeleteDriverCost = async (rowId: number) => {
+  setSaving(true);
 
+  try {
+    if (vendorId) {
+      await api(`/vendors/${vendorId}/vehicle-type-costs/${rowId}`, {
+        method: "DELETE",
+      });
+    }
+
+    setDriverCostRows((prev) => prev.filter((row) => row.id !== rowId));
+    toast.success("Deleted successfully");
+  } catch (e) {
+    console.error("Failed to delete driver cost", e);
+
+    // Keep UI delete working even if backend DELETE route is missing
+      toast.error("Delete failed. Backend API is not deleting this record.");
+  } finally {
+    setSaving(false);
+  }
+};
   // ============================================================
   // Outstation KM modal handlers
   // ============================================================
@@ -673,7 +696,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
                           size="sm"
                           className="h-7 px-3 text-xs text-red-600 border-red-200"
                           type="button"
-                          onClick={() => handleDeleteDriverCost(row.id)}
+                          onClick={() => setDeleteDriverCostId(row.id)}
                         >
                           Delete
                         </Button>
@@ -1472,7 +1495,49 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+
+        
+           </Dialog>
+
+      {deleteDriverCostId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+            <h2 className="text-xl font-semibold text-gray-700">
+              Are you sure?
+            </h2>
+
+            <p className="mt-3 text-sm text-gray-600">
+              Do you really want to delete this record?
+            </p>
+            <p className="text-sm text-gray-600">
+              This process cannot be undone.
+            </p>
+
+            <div className="mt-6 flex justify-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDeleteDriverCostId(null)}
+              >
+                Close
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-red-500 text-white hover:bg-red-600"
+                onClick={async () => {
+                  await handleDeleteDriverCost(deleteDriverCostId);
+                  setDeleteDriverCostId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };
