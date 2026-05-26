@@ -799,8 +799,8 @@ export const HotelList: React.FC<HotelListProps> = ({
         });
       
       return Array.from(hotelsByRoute.values()).sort((a, b) => {
-        const dayA = parseInt(a.day?.replace(/\D/g, '') || '0');
-        const dayB = parseInt(b.day?.replace(/\D/g, '') || '0');
+        const dayA = parseInt(String(a.day ?? '').replace(/\D/g, '') || '0');
+        const dayB = parseInt(String(b.day ?? '').replace(/\D/g, '') || '0');
         return dayA - dayB;
       });
     }
@@ -852,8 +852,8 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
 
     return displayHotels.sort((a, b) => {
-      const dayA = parseInt(a.day?.replace(/\D/g, '') || '0');
-      const dayB = parseInt(b.day?.replace(/\D/g, '') || '0');
+      const dayA = parseInt(String(a.day ?? '').replace(/\D/g, '') || '0');
+      const dayB = parseInt(String(b.day ?? '').replace(/\D/g, '') || '0');
       if (dayA !== dayB) return dayA - dayB;
       const dateA = String(a.date || '');
       const dateB = String(b.date || '');
@@ -1633,46 +1633,28 @@ export const HotelList: React.FC<HotelListProps> = ({
                               Voucher Cancelled
                             </Button>
                           ) : (
-                            <div className="flex items-center gap-2">
-                              {onBulkCancelVouchers && (
-                                <input
-                                  type="checkbox"
-                                  checked={!!selectedVoucherRows[rowKey]}
-                                  onChange={(e) => {
-                                    const checked = e.target.checked;
-                                    setSelectedVoucherRows((prev) => {
-                                      const next = { ...prev };
-                                      if (checked) {
-                                        next[rowKey] = rowVoucherPayload;
-                                      } else {
-                                        delete next[rowKey];
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="accent-[#d546ab] cursor-pointer w-4 h-4"
-                                  title="Select for bulk cancellation"
-                                />
-                              )}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="ml-2 border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff] text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (onCancelVoucher) {
-                                    onCancelVoucher(rowVoucherPayload);
-                                    return;
-                                  }
-                                  if (onCreateVoucher) {
-                                    onCreateVoucher(rowVoucherPayload);
-                                  }
-                                }}
-                              >
-                                Cancel Voucher
-                              </Button>
-                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="ml-2 border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff] text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Ensure we have a valid date, fallback to today's date if missing
+                                const routeDate = hotel.date || new Date().toISOString().split('T')[0];
+                                onCreateVoucher({
+                                  routeId: hotel.itineraryRouteId,
+                                  hotelId: hotel.hotelId!,
+                                  hotelName: hotel.hotelName!,
+                                  hotelEmail: '',
+                                  hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
+                                  routeDates: [routeDate],
+                                  dayNumbers: [parseInt(String(hotel.day ?? '').replace('Day ', '') || '0')],
+                                  hotelDetailsIds: [hotel.itineraryPlanHotelDetailsId || 0]
+                                });
+                              }}
+                            >
+                              Cancel Voucher
+                            </Button>
                           )
                         )}
                       </td>

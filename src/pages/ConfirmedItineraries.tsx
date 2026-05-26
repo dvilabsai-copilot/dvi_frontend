@@ -142,7 +142,7 @@ export const ConfirmedItineraries: React.FC = () => {
     fetchItineraries();
   };
 
-  const handleClear = () => {
+   const handleClear = () => {
     setFilters({
       startDate: '',
       endDate: '',
@@ -156,6 +156,17 @@ export const ConfirmedItineraries: React.FC = () => {
     setCurrentPage(1);
     // Fetch will be triggered by useEffect
     setTimeout(fetchItineraries, 0);
+  };
+
+  const openLatestItineraryTicket = (itinerary: ConfirmedItinerary) => {
+    const latestTicketId =
+      itinerary.booking_quote_id || String(itinerary.itinerary_plan_ID);
+
+    const latestTicketUrl = `${window.location.origin}/itinerary-details/${encodeURIComponent(
+      latestTicketId
+    )}`;
+
+    window.open(latestTicketUrl, '_blank', 'noopener,noreferrer');
   };
 
   const formatDate = (dateString: string) => {
@@ -423,16 +434,21 @@ export const ConfirmedItineraries: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1">
-                              <Link to={`/confirmed-itinerary/${itinerary.confirmed_itinerary_plan_ID ?? itinerary.itinerary_plan_ID}`}>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  title="View Details"
-                                >
-                                  <Eye className="h-4 w-4 text-[#d546ab]" />
-                                </Button>
-                              </Link>
+<Link to={`/confirmed-itinerary/${itinerary.itinerary_plan_ID}`}>
+  <Button
+    size="sm"
+    variant="ghost"
+    className="h-8 w-8 p-0"
+    title="View Latest Itinerary Ticket"
+    onClick={(event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openLatestItineraryTicket(itinerary);
+    }}
+  >
+    <Eye className="h-4 w-4 text-[#d546ab]" />
+  </Button>
+</Link>
                               <Button
                                 size="sm"
                                 variant="ghost"
