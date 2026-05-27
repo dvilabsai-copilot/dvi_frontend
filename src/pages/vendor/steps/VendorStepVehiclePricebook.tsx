@@ -575,20 +575,20 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         return acc;
       }, {});
 
-      for (const [branchId, rows] of Object.entries(groupedByBranch)) {
-        await api(`/vendors/${vendorId}/vehicle-extra-costs`, {
-          method: "POST",
-          body: JSON.stringify({
-            vendor_branch_id: Number(branchId),
-            vehicle_type_id: rows.map((r) => Number(r.vehicle_type_id)),
-            vehicle_type_title: rows.map((r) => r.vehicle_type_title),
-            extra_km_charge: rows.map((r) => Number(r.extra_km_charge || 0)),
-            extra_hour_charge: rows.map((r) => Number(r.extra_hour_charge || 0)),
-            early_morning_charges: rows.map((r) => Number(r.early_morning_charges || 0)),
-            evening_charges: rows.map((r) => Number(r.evening_charges || 0)),
-          }),
-        });
-      }
+     for (const [branchId, rows] of Object.entries(groupedByBranch) as [string, any[]][]) {
+  await api(`/vendors/${vendorId}/vehicle-extra-costs`, {
+    method: "POST",
+    body: JSON.stringify({
+      vendor_branch_id: Number(branchId),
+      vehicle_type_id: rows.map((r: any) => Number(r.vehicle_type_id)),
+      vehicle_type_title: rows.map((r: any) => r.vehicle_type_title),
+      extra_km_charge: rows.map((r: any) => Number(r.extra_km_charge || 0)),
+      extra_hour_charge: rows.map((r: any) => Number(r.extra_hour_charge || 0)),
+      early_morning_charges: rows.map((r: any) => Number(r.early_morning_charges || 0)),
+      evening_charges: rows.map((r: any) => Number(r.evening_charges || 0)),
+    }),
+  });
+}
       await fetchData();
     } catch (e) {
       console.error("Failed to update vehicle extra costs", e);
@@ -855,9 +855,15 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
               <div className="space-y-1">
                 <Label>Vendor Margin %</Label>
                 <Input
-                  value={vendorMarginPercent}
-                  onChange={(e) => setVendorMarginPercent(e.target.value)}
-                />
+                    value={vendorMarginPercent}
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      if (/^\d{0,3}(\.\d{0,2})?$/.test(value) && Number(value || 0) <= 100) {
+                        setVendorMarginPercent(value);
+                      }
+                    }}
+                  />
               </div>
 
               <div className="space-y-1">
@@ -994,7 +1000,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                 No vehicles found for this branch.
               </p>
             ) : (
-              Object.entries(groupedExtraRows).map(([branchKey, rows], idx) => {
+              (Object.entries(groupedExtraRows) as [string, any[]][]).map(([branchKey, rows], idx) => {
                 const branchName = rows[0]?.vendor_branch_name || `Branch #${idx + 1}`;
                 return (
                   <div key={branchKey} className="mb-5">
@@ -1104,7 +1110,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
             {Object.entries(groupedLocalRows).length === 0 ? (
               <p className="text-sm text-gray-500">No local pricebook base rows found.</p>
             ) : (
-              Object.entries(groupedLocalRows).map(([branchKey, rows], idx) => {
+             (Object.entries(groupedLocalRows) as [string, any[]][]).map(([branchKey, rows], idx) => {
                 const branchName = rows[0]?.vendor_branch_name || `Branch #${idx + 1}`;
                 return (
                   <div key={branchKey} className="mb-6 rounded-lg border border-gray-200 p-4">
@@ -1239,7 +1245,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
             {Object.entries(groupedOutstationRows).length === 0 ? (
               <p className="text-sm text-gray-500">No outstation pricebook base rows found.</p>
             ) : (
-              Object.entries(groupedOutstationRows).map(([branchKey, rows], idx) => {
+              (Object.entries(groupedOutstationRows) as [string, any[]][]).map(([branchKey, rows], idx) => {
                 const branchName = rows[0]?.vendor_branch_name || `Branch #${idx + 1}`;
                 return (
                   <div key={branchKey} className="mb-6 rounded-lg border border-gray-200 p-4">
