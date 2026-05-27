@@ -592,6 +592,52 @@ const handleDeleteDriverCost = async (rowId: number) => {
     </thead>
   );
 
+    const getVehicleTypeLabel = (row: DriverCostRow) =>
+    vehicleTypeOptions.find((o) => o.id === row.vehicleType)?.label ||
+    row.vehicleType;
+
+  const driverCostExportRows = filteredDriverCostRows.map((row, index) => ({
+    "S.NO": index + 1,
+    "VEHICLE TYPE": getVehicleTypeLabel(row),
+    "DRIVER BHATTA(₹)": row.driverBhatta,
+    "FOOD COST(₹)": row.foodCost,
+    "ACCOMODATION COST(₹)": row.accommodationCost,
+    "EXTRA COST(₹)": row.extraCost,
+    "MORNING CHARGES(₹)": row.morningCharges,
+    "EVENING CHARGES(₹)": row.eveningCharges,
+  }));
+
+  const handleCopyDriverCost = async () => {
+    const text = driverCostExportRows
+      .map((row) => Object.values(row).join("\t"))
+      .join("\n");
+
+    await navigator.clipboard.writeText(text);
+    toast.success("Copied successfully");
+  };
+
+  const handleDownloadDriverCostCsv = () => {
+    const headers = Object.keys(driverCostExportRows[0] || {});
+    const csv = [
+      headers.join(","),
+      ...driverCostExportRows.map((row) =>
+        headers
+          .map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`)
+          .join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+
+    a.href = url;
+    a.download = "vehicle-type-driver-cost.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
+
   // ============================================================
   // MAIN RENDER
   // ============================================================
@@ -734,30 +780,35 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 {driverCostRows.length} entries
               </span>
               <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                >
-                  Copy
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                >
-                  Excel
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                >
-                  CSV
-                </Button>
+
+              <Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleCopyDriverCost}
+>
+  Copy
+</Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleDownloadDriverCostCsv}
+>
+  Excel
+</Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleDownloadDriverCostCsv}
+>
+  CSV
+</Button>
+
               </div>
             </div>
           </div>
