@@ -96,6 +96,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
+  const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
 
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
@@ -457,9 +458,23 @@ const handleDeleteDriverCost = async (rowId: number) => {
     }
   };
 
-  const handleDeleteOutstation = (rowId: number) => {
+  const handleDeleteOutstation = async (rowId: number) => {
+  if (!vendorId) return;
+
+  setSaving(true);
+
+  try {
+    await api(`/vendors/${vendorId}/outstation-km-limits/${rowId}`, {
+      method: "DELETE",
+    });
+
     setOutstationRows((prev) => prev.filter((row) => row.id !== rowId));
-  };
+  } catch (e) {
+    console.error("Failed to delete outstation limit", e);
+  } finally {
+    setSaving(false);
+  }
+};
 
   // ============================================================
   // Local KM modal handlers
@@ -894,7 +909,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
                           size="sm"
                           className="h-7 px-3 text-xs text-red-600 border-red-200"
                           type="button"
-                          onClick={() => handleDeleteOutstation(row.id)}
+                          onClick={() => setDeleteOutstationId(row.id)}
                         >
                           Delete
                         </Button>
@@ -1037,7 +1052,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
                           size="sm"
                           className="h-7 px-3 text-xs text-red-600 border-red-200"
                           type="button"
-                          onClick={() => handleDeleteLocal(row.id)}
+                          onClick={() => setDeleteOutstationId(row.id)}
                         >
                           Delete
                         </Button>
@@ -1581,6 +1596,33 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 onClick={async () => {
                   await handleDeleteDriverCost(deleteDriverCostId);
                   setDeleteDriverCostId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>        
+      )}
+    
+      {deleteOutstationId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+            <h2 className="text-xl font-semibold text-gray-700">Are you sure?</h2>
+            <p className="mt-3 text-sm text-gray-600">Do you really want to delete this record?</p>
+            <p className="text-sm text-gray-600">This process cannot be undone.</p>
+
+            <div className="mt-6 flex justify-center gap-3">
+              <Button type="button" variant="secondary" onClick={() => setDeleteOutstationId(null)}>
+                Close
+              </Button>
+              <Button
+                type="button"
+                className="bg-red-500 text-white hover:bg-red-600"
+                onClick={() => {
+                  handleDeleteOutstation(deleteOutstationId);
+                  setDeleteOutstationId(null);
                 }}
               >
                 Delete
