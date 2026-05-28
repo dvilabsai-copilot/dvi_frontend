@@ -266,6 +266,20 @@ const getRentalCellLines = (day: DayWisePricingItem): string[] => {
   return isOutstationDay(day) ? ['Outstation', amount] : [amount];
 };
 
+const getSlabDisplayText = (day: DayWisePricingItem): string => {
+  const slabTitle = String(day.slabTitle || "-").trim();
+
+  if (!slabTitle || slabTitle === "-") {
+    return "-";
+  }
+
+  const cleanSlabTitle = slabTitle.replace(/^SLAB:\s*/i, "");
+
+  return isOutstationDay(day)
+    ? cleanSlabTitle
+    : `SLAB: ${cleanSlabTitle}`;
+};
+
 const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; datePart: string } => {
   const [dayPartRaw, datePartRaw] = String(dayLabel || "").split("|");
   return {
@@ -321,7 +335,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   routes,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
-  const [expandedVendorIndex, setExpandedVendorIndex] = useState<number | null>(null);
+  const [expandedVendorEligibleId, setExpandedVendorEligibleId] = useState<number | string | null>(null);
   const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -332,9 +346,22 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     vendorName: string;
   } | null>(null);
   const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
-  const [isAutoSelectingSlabs, setIsAutoSelectingSlabs] = useState(false);
-  const autoSlabSyncKeysRef = useRef<Set<string>>(new Set());
   const [copiedVendorIndex, setCopiedVendorIndex] = useState<number | null>(null);
+  const vehicleIdentitySignature = useMemo(
+    () =>
+      vehicles
+        .map(
+          (v) =>
+            `${v.vehicleTypeId || 0}:${v.vendorEligibleId || 0}:${v.totalAmount || ""}:${v.dayWisePricing?.map((d) => d.totalKms).join("|") || ""}`
+        )
+        .join(","),
+    [vehicles]
+  );
+
+  useEffect(() => {
+    setExpandedVendorEligibleId(null);
+    setHoveredTotalAmountIndex(null);
+  }, [vehicleIdentitySignature]);
 
   const escapeHtml = (value: unknown) =>
     String(value ?? "")
@@ -647,42 +674,6 @@ const totalRows = [
     setCarouselIndex((prev) => (prev === vehicles.length - 1 ? 0 : prev + 1));
   };
 
-  useEffect(() => {
-    if (!itineraryPlanId || !vehicleTypeId || vehicles.length === 0) return;
-
-    const syncKey = `${itineraryPlanId}_${vehicleTypeId}`;
-    if (autoSlabSyncKeysRef.current.has(syncKey)) return;
-
-    autoSlabSyncKeysRef.current.add(syncKey);
-    let cancelled = false;
-
-    (async () => {
-      try {
-        setIsAutoSelectingSlabs(true);
-        const result = await ItineraryService.autoSelectVehicleSlabs(itineraryPlanId, vehicleTypeId);
-        const updatedCount = Number((result as any)?.updatedCount || 0);
-        if (!cancelled && updatedCount > 0) {
-          toast.success(`Auto-selected slab for ${updatedCount} vendor option(s)`);
-          onRefresh?.();
-        }
-      } catch (error) {
-        console.error(`[${vehicleTypeLabel}] Failed to auto-select slabs:`, error);
-        if (!cancelled) {
-          toast.error("Failed to auto-select slabs");
-        }
-      } finally {
-        if (!cancelled) {
-          setIsAutoSelectingSlabs(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [itineraryPlanId, vehicleTypeId, vehicles.length, onRefresh, vehicleTypeLabel]);
-
-
   const sortedVehicles = useMemo(() => {
   return [...vehicles].sort((a, b) => {
     const aAmount = getVehicleDisplayAmount(a);
@@ -749,9 +740,12 @@ const totalRows = [
           </thead>
           <tbody>
             {sortedVehicles.map((v, index) => {
-
-             const radioId = `vehicle_${index}`;
-const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
+              const rowKey =
+                v.vendorEligibleId != null
+                  ? `eligible-${v.vendorEligibleId}`
+                  : `type-${vehicleTypeId ?? vehicleTypeLabel}-index-${index}`;
+              const radioId = `vehicle_${vehicleTypeId ?? "type"}_${v.vendorEligibleId ?? index}`;
+              const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
 
 const subtotalVehicle = getVehicleSubtotal(v);
 const gstPercentage = getVehicleGstPercentage(v);
@@ -763,12 +757,14 @@ const marginServiceTax = getVehicleMarginServiceTaxAmount(v);
 const calculatedGrandTotal = getVehicleGrandTotal(v);
 const displayTotalAmount = getVehicleDisplayAmount(v);
 
-const isExpanded = expandedVendorIndex === index;
+const isExpanded = expandedVendorEligibleId === rowKey;
 const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
               return (
-                <React.Fragment key={index}>
+                <React.Fragment key={rowKey}>
                   <tr
-                    onClick={() => setExpandedVendorIndex(expandedVendorIndex === index ? null : index)}
+                    onClick={() =>
+                      setExpandedVendorEligibleId((prev) => (prev === rowKey ? null : rowKey))
+                    }
                     className="border-b border-gray-100 hover:bg-purple-50 transition-colors cursor-pointer"
                   >
                     <td className="py-3 px-3">
@@ -859,12 +855,6 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <h6 className="text-sm font-semibold text-gray-900">Day-wise Pricing Breakdown</h6>
                               <div className="flex items-center gap-2">
-                                {isAutoSelectingSlabs && (
-                                  <span className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-700">
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    Auto selecting slab...
-                                  </span>
-                                )}
                                 <Button
                                   type="button"
                                   variant="outline"
@@ -927,7 +917,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                         <div>{dayPart || dp.dayLabel}</div>
                                         {datePart ? <div>{datePart}</div> : null}
                                         <div className="font-semibold">Time: {formatTotalTime(dp)}</div>
-                                        <div className="font-semibold">SLAB: {dp.slabTitle || "-"}</div>
+                                        <div className="font-semibold">{getSlabDisplayText(dp)}</div>
                                       </td>
                                       <td className="border border-gray-300 py-1 px-1 text-gray-600 leading-5 break-words">{dp.route}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-gray-700 font-semibold whitespace-nowrap leading-tight">
