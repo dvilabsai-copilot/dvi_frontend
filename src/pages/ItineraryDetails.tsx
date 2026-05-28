@@ -2602,6 +2602,13 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
     Record<number, { totalAmount: number; totalQty: number }>
   >({});
+  const activeVehicleTypeIds = useMemo(() => {
+    return new Set(
+      (itinerary?.vehicles || [])
+        .map((v) => Number(v.vehicleTypeId || 0))
+        .filter(Boolean)
+    );
+  }, [itinerary?.vehicles]);
   const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
   const summaryStickyRef = useRef<HTMLDivElement | null>(null);
   const hotelListRef = useRef<HTMLDivElement | null>(null);
@@ -2633,6 +2640,24 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   useEffect(() => {
     setSelectedVehicleTotalsByType({});
   }, [itinerary?.quoteId]);
+
+  useEffect(() => {
+    setSelectedVehicleTotalsByType((prev) => {
+      const next: Record<number, { totalAmount: number; totalQty: number }> = {};
+      for (const [rawTypeId, value] of Object.entries(prev)) {
+        const typeId = Number(rawTypeId);
+        if (activeVehicleTypeIds.has(typeId)) {
+          next[typeId] = value;
+        }
+      }
+
+      if (Object.keys(next).length === Object.keys(prev).length) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [activeVehicleTypeIds]);
 
   const scrollToSection = (el: HTMLDivElement | null) => {
     if (!el) return;
@@ -2667,38 +2692,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
-  const vehicleStatusChip = useMemo(() => {
-    if (!shouldShowVehicles) return null;
-
-    const status = String(vehicleBuildStatus?.status || "").toUpperCase() as VehicleBuildState | "";
-    if (!status) return null;
-
-    if (status === "PROCESSING" || status === "PENDING") {
-      return {
-        status,
-        label: "Vehicle Processing",
-        className: "border-[#d546ab]/30 bg-[#fdf2fb] text-[#9f2d7d]",
-      };
-    }
-
-    if (status === "FAILED") {
-      return {
-        status,
-        label: "Vehicle Failed",
-        className: "border-[#f2c7c7] bg-[#fff5f5] text-[#b83232]",
-      };
-    }
-
-    if (status === "READY") {
-      return {
-        status,
-        label: "Vehicle Ready",
-        className: "border-[#c8ead7] bg-[#f0fff6] text-[#1f7a4d]",
-      };
-    }
-
-    return null;
-  }, [shouldShowVehicles, vehicleBuildStatus?.status]);
+ 
 
   const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
     if (!quoteId || isLoadingMoreHotels) return;
@@ -4493,6 +4487,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
     try {
       const detailsRes = await ItineraryService.getDetails(quoteId);
+      console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
+        vehicleCount: Array.isArray((detailsRes as any)?.vehicles) ? (detailsRes as any).vehicles.length : 0,
+        vehicles: ((detailsRes as any)?.vehicles || []).map((v: any) => ({
+          vehicleTypeName: v.vehicleTypeName,
+          vendorEligibleId: v.vendorEligibleId,
+          totals: v.dayWisePricing?.map((d: any) => d.totalKms),
+          totalAmount: v.totalAmount,
+        })),
+      });
       setItinerary(detailsRes as ItineraryDetailsResponse);
     } catch (e: any) {
       console.error("Failed to refresh vehicle data", e);
@@ -4533,8 +4536,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
   useEffect(() => {
     const planId = Number(itinerary?.planId || 0);
-    const hasVehicleRows = Array.isArray(itinerary?.vehicles) && itinerary.vehicles.length > 0;
-    if (!shouldShowVehicles || !planId || hasVehicleRows) {
+    if (!shouldShowVehicles || !planId) {
       return;
     }
 
@@ -4555,7 +4557,9 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return;
       }
 
-      timerId = window.setTimeout(poll, 3000);
+      if (state === "PENDING" || state === "PROCESSING") {
+        timerId = window.setTimeout(poll, 3000);
+      }
     };
 
     poll();
@@ -4564,7 +4568,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       disposed = true;
       if (timerId) window.clearTimeout(timerId);
     };
-  }, [itinerary?.planId, itinerary?.vehicles, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
+  }, [itinerary?.planId, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
 
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
@@ -7413,17 +7417,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                     >
                       Vehicle
                     </button>
-                    <span className="text-[#6c6c6c]">Only</span>
-                    {vehicleStatusChip && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
-                      >
-                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        )}
-                        {vehicleStatusChip.label}
-                      </span>
-                    )}
+                    <span className="text-[#6c6c6c]">Only</span>                   
                   </>
                 )}
                 {itineraryPreference === 1 && (
@@ -7458,16 +7452,6 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                     >
                       Hotel
                     </button>
-                    {vehicleStatusChip && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${vehicleStatusChip.className}`}
-                      >
-                        {(vehicleStatusChip.status === "PROCESSING" || vehicleStatusChip.status === "PENDING") && (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        )}
-                        {vehicleStatusChip.label}
-                      </span>
-                    )}
                   </>
                 )}
                 <span className="text-[#6c6c6c]">)</span>
