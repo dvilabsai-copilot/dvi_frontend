@@ -4058,19 +4058,29 @@ const vehicleOnlyHtml = html
   const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
   const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
-  const inferHotelProvider = (entry: any): 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' => {
-    const provider = String(entry?.provider || '')
-      .trim()
-      .toLowerCase();
-    if (provider === 'tbo' || provider === 'resavenue' || provider === 'hobse' || provider === 'axisrooms') {
-      return provider;
-    }
+  type HotelProvider = 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' | 'staah';
 
-    const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
-    if (bookingCode.includes('!TB!')) return 'tbo';
+const inferHotelProvider = (entry: any): HotelProvider => {
+  const provider = String(entry?.provider || '')
+    .trim()
+    .toLowerCase();
 
-    return 'tbo';
-  };
+  if (
+    provider === 'tbo' ||
+    provider === 'resavenue' ||
+    provider === 'hobse' ||
+    provider === 'axisrooms' ||
+    provider === 'staah'
+  ) {
+    return provider;
+  }
+
+  const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
+  if (bookingCode.includes('!TB!')) return 'tbo';
+  if (bookingCode.startsWith('STAAH-')) return 'staah';
+
+  return 'tbo';
+};
   const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
     const explicitIso2 = String(
       plan?.nationality_iso2 ||
@@ -7141,6 +7151,8 @@ const vehicleOnlyHtml = html
 
       const effectivePrebookData = prebookDataRef.current || prebookData;
       const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      console.log('hasTboBookings', hasTboBookings);
+      console.log(hotelBookings,'hotelBookings');
       if (hasTboBookings && !effectivePrebookData) {
         toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
