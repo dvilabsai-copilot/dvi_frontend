@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { paymentService } from "@/services/paymentService";
 import { ItineraryService } from "@/services/itinerary";
+import { fetchVehicleAvailability } from "@/services/vehicle-availability";
 import { toast } from "sonner";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 
@@ -43,7 +44,92 @@ const confirmedDashboardTabs: { key: ConfirmedDashboardTab; label: string }[] = 
   { key: "cancellation", label: "Cancellation" },
 ];
 
+type LiveVehicleStatusTab = "onRoute" | "upcoming" | "idle" | "inService";
+
+type LiveVehicleStatusRow = {
+  booking_id: string;
+  start_date: string;
+  end_date: string;
+  vendor_name: string;
+  branch_name: string;
+  vehicle_name: string;
+  driver_name: string;
+  driver_no: string;
+};
+
+const liveVehicleStatusTabs: { key: LiveVehicleStatusTab; label: string }[] = [
+  { key: "onRoute", label: "On Route Vehicle" },
+  { key: "upcoming", label: "Upcoming Vehicle" },
+  { key: "idle", label: "Idle Vehicle" },
+  { key: "inService", label: "In Service Vehicle" },
+];
+
+const toDashboardYmd = (date: Date) => {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const normalizeLiveVehicleStatusRow = (row: any): LiveVehicleStatusRow => {
+  return {
+    booking_id: String(
+      row.booking_id ||
+      row.booking_quote_id ||
+      row.quote_id ||
+      row.quoteId ||
+      row.itineraryQuoteId ||
+      "-"
+    ),
+    start_date: String(row.start_date || row.arrival_date || row.startDate || ""),
+    end_date: String(row.end_date || row.departure_date || row.endDate || ""),
+    vendor_name: String(row.vendor_name || row.vendor || row.vendorName || "-"),
+    branch_name: String(row.branch_name || row.vendor_branch || row.vendorBranch || "-"),
+    vehicle_name: String(
+      row.vehicle_name ||
+      row.vehicle_no ||
+      row.vehicleNo ||
+      row.registration_number ||
+      row.registrationNumber ||
+      row.vehicle_type_title ||
+      row.vehicleTypeTitle ||
+      "-"
+    ),
+    driver_name: String(row.driver_name || row.driverName || "-"),
+    driver_no: String(row.driver_no || row.driver_mobile || row.driverMobile || row.driver_phone || "-"),
+  };
+};
+
 const DASHBOARD_CONFIRMED_FETCH_LIMIT = 5000;
+
+const isLiveVehicleOnRoute = (row: LiveVehicleStatusRow) => {
+  const startDate = getDateOnly(row.start_date);
+  const endDate = getDateOnly(row.end_date);
+
+  if (!startDate || !endDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return startDate <= today && endDate >= today;
+};
+
+const isLiveVehicleUpcoming = (row: LiveVehicleStatusRow) => {
+  const startDate = getDateOnly(row.start_date);
+  if (!startDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return startDate > today;
+};
+
+const hasLiveVehicleAssignment = (row: LiveVehicleStatusRow) => {
+  return (
+    row.vendor_name !== "-" ||
+    row.vehicle_name !== "-" ||
+    row.driver_name !== "-" ||
+    row.driver_no !== "-"
+  );
+};
 
 
 const formatDashboardDate = (value: string) => {
@@ -139,6 +225,14 @@ const [agentWiseSearch, setAgentWiseSearch] = useState("");
 const [agentWiseEntries, setAgentWiseEntries] = useState(5);
 const [agentWisePage, setAgentWisePage] = useState(1);
 const [agentWiseTotal, setAgentWiseTotal] = useState(0);
+
+const [liveVehicleRows, setLiveVehicleRows] = useState<LiveVehicleStatusRow[]>([]);
+const [liveVehicleLoading, setLiveVehicleLoading] = useState(false);
+const [liveVehicleSearch, setLiveVehicleSearch] = useState("");
+const [liveVehicleEntries, setLiveVehicleEntries] = useState(5);
+const [liveVehiclePage, setLiveVehiclePage] = useState(1);
+const [liveVehicleTotal, setLiveVehicleTotal] = useState(0);
+const [liveVehicleActiveTab, setLiveVehicleActiveTab] = useState<LiveVehicleStatusTab>("onRoute");
   
   
   // Payment states
@@ -385,6 +479,128 @@ useEffect(() => {
   isVendor,
   isGuide,
 ]);
+
+
+useEffect(() => {
+  if (isAgent || isAccounts || isVendor || isGuide) return;
+
+  const fetchLiveVehicleStatus = async () => {
+    try {
+      setLiveVehicleLoading(true);
+
+      if (liveVehicleActiveTab === "idle" || liveVehicleActiveTab === "inService") {
+        const todayYmd = toDashboardYmd(new Date());
+
+        const availability = await fetchVehicleAvailability({
+          dateFrom: todayYmd,
+          dateTo: todayYmd,
+        });
+
+        const availabilityRows = Array.isArray(availability?.rows) ? availability.rows : [];
+
+        const mappedRows: LiveVehicleStatusRow[] = availabilityRows
+          .map((vehicleRow: any) => {
+            const todayCell = Array.isArray(vehicleRow.cells)
+              ? vehicleRow.cells.find((cell: any) => cell.date === todayYmd)
+              : null;
+
+            return {
+              booking_id: String(todayCell?.itineraryQuoteId || "-"),
+              start_date: todayYmd,
+              end_date: todayYmd,
+              vendor_name: String(vehicleRow.vendorName || "-"),
+              branch_name: "-",
+              vehicle_name: String(
+                vehicleRow.registrationNumber ||
+                vehicleRow.vehicleTypeTitle ||
+                "-"
+              ),
+              driver_name: todayCell?.driverId ? `Driver #${todayCell.driverId}` : "-",
+              driver_no: "-",
+              isWithinTrip: Boolean(todayCell?.isWithinTrip),
+              isVehicleAssigned: Boolean(todayCell?.isVehicleAssigned),
+              hasDriver: Boolean(todayCell?.hasDriver),
+            } as LiveVehicleStatusRow & {
+              isWithinTrip: boolean;
+              isVehicleAssigned: boolean;
+              hasDriver: boolean;
+            };
+          })
+          .filter((row: any) => {
+            if (liveVehicleActiveTab === "idle") {
+              return !row.isWithinTrip && !row.isVehicleAssigned && !row.hasDriver;
+            }
+
+            return row.isWithinTrip || row.isVehicleAssigned || row.hasDriver;
+          })
+          .filter((row) => {
+            const search = liveVehicleSearch.trim().toLowerCase();
+            if (!search) return true;
+
+            return Object.values(row).join(" ").toLowerCase().includes(search);
+          });
+
+        const pageRows = mappedRows.slice(
+          (liveVehiclePage - 1) * liveVehicleEntries,
+          liveVehiclePage * liveVehicleEntries
+        );
+
+        setLiveVehicleRows(pageRows);
+        setLiveVehicleTotal(mappedRows.length);
+        return;
+      }
+
+      const response = await ItineraryService.getConfirmedItineraries({
+        draw: 1,
+        start: 0,
+        length: DASHBOARD_CONFIRMED_FETCH_LIMIT,
+        search_value: liveVehicleSearch.trim(),
+      });
+
+      const rows = Array.isArray(response?.data)
+        ? response.data.map(normalizeLiveVehicleStatusRow)
+        : [];
+
+      const filteredRows = rows.filter((row) => {
+        if (liveVehicleActiveTab === "upcoming") {
+          return isLiveVehicleUpcoming(row);
+        }
+
+        if (liveVehicleActiveTab === "onRoute") {
+          return isLiveVehicleOnRoute(row);
+        }
+
+        return true;
+      });
+
+      const pageRows = filteredRows.slice(
+        (liveVehiclePage - 1) * liveVehicleEntries,
+        liveVehiclePage * liveVehicleEntries
+      );
+
+      setLiveVehicleRows(pageRows);
+      setLiveVehicleTotal(filteredRows.length);
+    } catch (error: any) {
+      console.error("Failed to fetch live vehicle status:", error);
+      setLiveVehicleRows([]);
+      setLiveVehicleTotal(0);
+    } finally {
+      setLiveVehicleLoading(false);
+    }
+  };
+
+  fetchLiveVehicleStatus();
+}, [
+  liveVehiclePage,
+  liveVehicleEntries,
+  liveVehicleSearch,
+  liveVehicleActiveTab,
+  isAgent,
+  isAccounts,
+  isVendor,
+  isGuide,
+]);
+
 
   if (loading) {
     return (
@@ -802,6 +1018,11 @@ const agentWiseTotalPages = Math.max(1, Math.ceil(agentWiseTotal / agentWiseEntr
 const agentWiseStartEntry =
   agentWiseTotal === 0 ? 0 : (agentWisePage - 1) * agentWiseEntries + 1;
 const agentWiseEndEntry = Math.min(agentWisePage * agentWiseEntries, agentWiseTotal);
+
+const liveVehicleTotalPages = Math.max(1, Math.ceil(liveVehicleTotal / liveVehicleEntries));
+const liveVehicleStartEntry =
+  liveVehicleTotal === 0 ? 0 : (liveVehiclePage - 1) * liveVehicleEntries + 1;
+const liveVehicleEndEntry = Math.min(liveVehiclePage * liveVehicleEntries, liveVehicleTotal);
 
 return (
     <div className="p-8 space-y-6">
@@ -1579,6 +1800,238 @@ return (
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">No performer data available</p>
           )}
+                </Card>
+      </div>
+
+      {/* Live Vehicle Status */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-slate-700">
+          Live Vehicle Status
+        </h2>
+
+        <Card className="overflow-hidden border-none bg-white shadow-md">
+          <div className="border-b border-gray-200">
+            <div className="flex flex-wrap">
+              {liveVehicleStatusTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setLiveVehicleActiveTab(tab.key);
+                    setLiveVehiclePage(1);
+                  }}
+                  className={`px-7 py-4 text-base font-medium border-b-2 transition-colors ${
+                    liveVehicleActiveTab === tab.key
+                      ? "text-pink-600 border-pink-600"
+                      : "text-gray-600 border-transparent hover:text-pink-600"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3 text-gray-600">
+                <span>Show</span>
+
+                <select
+                  value={liveVehicleEntries}
+                  onChange={(e) => {
+                    setLiveVehicleEntries(Number(e.target.value));
+                    setLiveVehiclePage(1);
+                  }}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 outline-none focus:border-pink-500"
+                >
+                  {[5, 10, 25, 50].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label htmlFor="live-vehicle-search" className="text-gray-600">
+                  Search:
+                </label>
+
+                <Input
+                  id="live-vehicle-search"
+                  value={liveVehicleSearch}
+                  onChange={(e) => {
+                    setLiveVehicleSearch(e.target.value);
+                    setLiveVehiclePage(1);
+                  }}
+                  className="w-full md:w-[280px]"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1250px] border-collapse">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      S.NO
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Booking ID
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Start Date
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      End Date
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Vendor
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Branch
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Vehicle
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Driver
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Driver No
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {liveVehicleLoading ? (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                        Loading live vehicle status...
+                      </td>
+                    </tr>
+                  ) : liveVehicleRows.length > 0 ? (
+                    liveVehicleRows.map((row, index) => (
+                      <tr
+                        key={`${liveVehicleActiveTab}-${row.booking_id}-${index}`}
+                        className="border-b border-gray-100 hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-4 text-gray-700">
+                          {(liveVehiclePage - 1) * liveVehicleEntries + index + 1}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          {row.booking_id && row.booking_id !== "-" ? (
+                            <Link
+                              to={`/itinerary-details/${encodeURIComponent(row.booking_id)}`}
+                              className="font-medium text-pink-600 hover:underline"
+                            >
+                              {row.booking_id}
+                            </Link>
+                          ) : (
+                            <span className="text-gray-700">-</span>
+                          )}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {formatDashboardDate(row.start_date)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {formatDashboardDate(row.end_date)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {row.vendor_name || "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {row.branch_name || "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {row.vehicle_name || "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {row.driver_name || "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {row.driver_no || "-"}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                        No data available in table
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-gray-500">
+                Showing {liveVehicleStartEntry} to {liveVehicleEndEntry} of {liveVehicleTotal} entries
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={liveVehiclePage <= 1}
+                  onClick={() => setLiveVehiclePage((prev) => Math.max(1, prev - 1))}
+                >
+                  Previous
+                </Button>
+
+                {Array.from({ length: Math.min(5, liveVehicleTotalPages) }, (_, index) => {
+                  const pageNumber = index + 1;
+
+                  return (
+                    <Button
+                      key={pageNumber}
+                      type="button"
+                      variant={liveVehiclePage === pageNumber ? "default" : "secondary"}
+                      onClick={() => setLiveVehiclePage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </Button>
+                  );
+                })}
+
+                {liveVehicleTotalPages > 5 && (
+                  <>
+                    <span className="px-2 text-gray-500">...</span>
+                    <Button
+                      type="button"
+                      variant={liveVehiclePage === liveVehicleTotalPages ? "default" : "secondary"}
+                      onClick={() => setLiveVehiclePage(liveVehicleTotalPages)}
+                    >
+                      {liveVehicleTotalPages}
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={liveVehiclePage >= liveVehicleTotalPages}
+                  onClick={() =>
+                    setLiveVehiclePage((prev) => Math.min(liveVehicleTotalPages, prev + 1))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
         </Card>
       </div>
     </div>
