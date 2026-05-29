@@ -820,23 +820,29 @@ export const ItineraryService = {
   },
 
   async getCancelledItineraries(params: {
-    draw?: number;
-    start?: number;
-    length?: number;
-    agent_id?: number;
-  }) {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        queryParams.append(key, String(value));
-      }
-    });
+  draw?: number;
+  start?: number;
+  length?: number;
+  agent_id?: number;
+  search_value?: string;
+}) {
+  const queryParams = new URLSearchParams();
+  
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
 
-    return api(`itineraries/cancelled?${queryParams.toString()}`, {
-      method: "GET",
-    });
-  },
+    if (key === "search_value") {
+      queryParams.append("search[value]", String(value));
+      return;
+    }
+
+    queryParams.append(key, String(value));
+  });
+
+  return api(`itineraries/cancelled?${queryParams.toString()}`, {
+    method: "GET",
+  });
+},
 
   async getAccountsItineraries(params: {
     draw?: number;
