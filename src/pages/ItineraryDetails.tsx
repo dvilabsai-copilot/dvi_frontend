@@ -6955,8 +6955,9 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
           );
 
-          // Persisted backend selection is treated as source of truth for provider/day mapping.
-          if (persistedRouteSelection) {
+          // Never overwrite an explicit in-memory user selection for this route.
+          // Persisted backend selection should only backfill missing routes.
+          if (!autoSelectedHotels[routeId] && persistedRouteSelection) {
             autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
             return;
           }
