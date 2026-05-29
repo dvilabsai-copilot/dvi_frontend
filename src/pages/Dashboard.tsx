@@ -23,15 +23,27 @@ function parseJwt(token: string) {
   }
 }
 
+type ConfirmedDashboardTab = "overall" | "upcoming" | "ongoing" | "cancellation";
+
 type ConfirmedDashboardItinerary = {
   itinerary_plan_ID: number;
   booking_quote_id: string;
+  agent_name: string;
   arrival_location: string;
   departure_location: string;
   arrival_date: string;
   departure_date: string;
+  primary_customer_name: string;
 };
 
+const confirmedDashboardTabs: { key: ConfirmedDashboardTab; label: string }[] = [
+  { key: "overall", label: "Overall" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "ongoing", label: "Ongoing" },
+  { key: "cancellation", label: "Cancellation" },
+];
+
+const DASHBOARD_CONFIRMED_FETCH_LIMIT = 5000;
 
 
 const formatDashboardDate = (value: string) => {
@@ -50,14 +62,53 @@ const formatDashboardDate = (value: string) => {
   });
 };
 
+const getDateOnly = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const isUpcomingDashboardItinerary = (row: ConfirmedDashboardItinerary) => {
+  const startDate = getDateOnly(row.arrival_date);
+  if (!startDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return startDate > today;
+};
+
+const isOngoingDashboardItinerary = (row: ConfirmedDashboardItinerary) => {
+  const startDate = getDateOnly(row.arrival_date);
+  const endDate = getDateOnly(row.departure_date);
+
+  if (!startDate || !endDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return startDate <= today && endDate >= today;
+};
+
 const normalizeConfirmedItinerary = (row: any): ConfirmedDashboardItinerary => {
   return {
-    itinerary_plan_ID: Number(row.itinerary_plan_ID || row.id || 0),
+    itinerary_plan_ID: Number(row.itinerary_plan_ID || row.confirmed_itinerary_plan_ID || row.id || 0),
     booking_quote_id: String(row.booking_quote_id || row.quote_id || row.quoteId || "-"),
+    agent_name: String(row.agent_name || row.agentName || row.created_by_name || "-"),
     arrival_location: String(row.arrival_location || row.source || row.source_location || "-"),
     departure_location: String(row.departure_location || row.destination || row.destination_location || "-"),
     arrival_date: String(row.arrival_date || row.start_date || row.startDate || ""),
     departure_date: String(row.departure_date || row.end_date || row.endDate || ""),
+    primary_customer_name: String(
+      row.primary_customer_name ||
+      row.guest_name ||
+      row.customer_name ||
+      row.customerName ||
+      row.guestName ||
+      "-"
+    ),
   };
 };
 
@@ -80,6 +131,14 @@ const [confirmedSearch, setConfirmedSearch] = useState("");
 const [confirmedEntries, setConfirmedEntries] = useState(5);
 const [confirmedPage, setConfirmedPage] = useState(1);
 const [confirmedTotal, setConfirmedTotal] = useState(0);
+const [confirmedActiveTab, setConfirmedActiveTab] = useState<ConfirmedDashboardTab>("overall");
+
+const [agentWiseItineraries, setAgentWiseItineraries] = useState<ConfirmedDashboardItinerary[]>([]);
+const [agentWiseLoading, setAgentWiseLoading] = useState(false);
+const [agentWiseSearch, setAgentWiseSearch] = useState("");
+const [agentWiseEntries, setAgentWiseEntries] = useState(5);
+const [agentWisePage, setAgentWisePage] = useState(1);
+const [agentWiseTotal, setAgentWiseTotal] = useState(0);
   
   
   // Payment states
@@ -212,19 +271,58 @@ useEffect(() => {
     try {
       setConfirmedLoading(true);
 
-      const start = (confirmedPage - 1) * confirmedEntries;
+      if (confirmedActiveTab === "cancellation") {
+        const response = await ItineraryService.getCancelledItineraries({
+          draw: 1,
+          start: 0,
+          length: DASHBOARD_CONFIRMED_FETCH_LIMIT,
+          search_value: confirmedSearch.trim(),
+        });
+
+        const rows = Array.isArray(response?.data)
+          ? response.data.map(normalizeConfirmedItinerary)
+          : [];
+
+        const pageRows = rows.slice(
+          (confirmedPage - 1) * confirmedEntries,
+          confirmedPage * confirmedEntries
+        );
+
+        setConfirmedItineraries(pageRows);
+        setConfirmedTotal(rows.length);
+        return;
+      }
 
       const response = await ItineraryService.getConfirmedItineraries({
-        draw: confirmedPage,
-        start,
-        length: confirmedEntries,
+        draw: 1,
+        start: 0,
+        length: DASHBOARD_CONFIRMED_FETCH_LIMIT,
         search_value: confirmedSearch.trim(),
       });
 
-      const rows = Array.isArray(response?.data) ? response.data : [];
+      const rows = Array.isArray(response?.data)
+        ? response.data.map(normalizeConfirmedItinerary)
+        : [];
 
-      setConfirmedItineraries(rows.map(normalizeConfirmedItinerary));
-      setConfirmedTotal(Number(response?.recordsFiltered || response?.recordsTotal || rows.length));
+      const filteredRows = rows.filter((row) => {
+        if (confirmedActiveTab === "upcoming") {
+          return isUpcomingDashboardItinerary(row);
+        }
+
+        if (confirmedActiveTab === "ongoing") {
+          return isOngoingDashboardItinerary(row);
+        }
+
+        return true;
+      });
+
+      const pageRows = filteredRows.slice(
+        (confirmedPage - 1) * confirmedEntries,
+        confirmedPage * confirmedEntries
+      );
+
+      setConfirmedItineraries(pageRows);
+      setConfirmedTotal(filteredRows.length);
     } catch (error: any) {
       console.error("Failed to fetch confirmed itinerary list:", error);
       setConfirmedItineraries([]);
@@ -235,7 +333,58 @@ useEffect(() => {
   };
 
   fetchConfirmedItineraries();
-}, [confirmedPage, confirmedEntries, confirmedSearch, isAgent, isAccounts, isVendor, isGuide]);
+}, [
+  confirmedPage,
+  confirmedEntries,
+  confirmedSearch,
+  confirmedActiveTab,
+  isAgent,
+  isAccounts,
+  isVendor,
+  isGuide,
+]);
+
+useEffect(() => {
+  if (isAgent || isAccounts || isVendor || isGuide) return;
+
+  const fetchAgentWiseConfirmedItineraries = async () => {
+    try {
+      setAgentWiseLoading(true);
+
+      const start = (agentWisePage - 1) * agentWiseEntries;
+
+      const response = await ItineraryService.getConfirmedItineraries({
+        draw: agentWisePage,
+        start,
+        length: agentWiseEntries,
+        search_value: agentWiseSearch.trim(),
+      });
+
+      const rows = Array.isArray(response?.data)
+        ? response.data.map(normalizeConfirmedItinerary)
+        : [];
+
+      setAgentWiseItineraries(rows);
+      setAgentWiseTotal(Number(response?.recordsFiltered || response?.recordsTotal || rows.length));
+    } catch (error: any) {
+      console.error("Failed to fetch agents wise confirmed itinerary list:", error);
+      setAgentWiseItineraries([]);
+      setAgentWiseTotal(0);
+    } finally {
+      setAgentWiseLoading(false);
+    }
+  };
+
+  fetchAgentWiseConfirmedItineraries();
+}, [
+  agentWisePage,
+  agentWiseEntries,
+  agentWiseSearch,
+  isAgent,
+  isAccounts,
+  isVendor,
+  isGuide,
+]);
 
   if (loading) {
     return (
@@ -649,6 +798,11 @@ const confirmedStartEntry =
   confirmedTotal === 0 ? 0 : (confirmedPage - 1) * confirmedEntries + 1;
 const confirmedEndEntry = Math.min(confirmedPage * confirmedEntries, confirmedTotal);
 
+const agentWiseTotalPages = Math.max(1, Math.ceil(agentWiseTotal / agentWiseEntries));
+const agentWiseStartEntry =
+  agentWiseTotal === 0 ? 0 : (agentWisePage - 1) * agentWiseEntries + 1;
+const agentWiseEndEntry = Math.min(agentWisePage * agentWiseEntries, agentWiseTotal);
+
 return (
     <div className="p-8 space-y-6">
       {/* Welcome Section */}
@@ -952,10 +1106,26 @@ return (
 
         <Card className="overflow-hidden border-none bg-white shadow-md">
           <div className="border-b border-gray-200">
-            <button className="px-7 py-4 text-base font-medium text-pink-600 border-b-2 border-pink-600">
-              Overall
-            </button>
-          </div>
+  <div className="flex flex-wrap">
+    {confirmedDashboardTabs.map((tab) => (
+      <button
+        key={tab.key}
+        type="button"
+        onClick={() => {
+          setConfirmedActiveTab(tab.key);
+          setConfirmedPage(1);
+        }}
+        className={`px-7 py-4 text-base font-medium border-b-2 transition-colors ${
+          confirmedActiveTab === tab.key
+            ? "text-pink-600 border-pink-600"
+            : "text-gray-600 border-transparent hover:text-pink-600"
+        }`}
+      >
+        {tab.label}
+      </button>
+    ))}
+  </div>
+</div>
 
           <div className="p-6">
             <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1014,15 +1184,18 @@ return (
                       Start Date
                     </th>
                     <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
-                      End Date
-                    </th>
+  End Date
+</th>
+<th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+  Guest Name
+</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {confirmedLoading ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         Loading confirmed itineraries...
                       </td>
                     </tr>
@@ -1058,14 +1231,18 @@ return (
     {formatDashboardDate(itinerary.arrival_date)}
   </td>
 
-  <td className="whitespace-nowrap px-4 py-4 text-gray-700">
-    {formatDashboardDate(itinerary.departure_date)}
-  </td>
+<td className="whitespace-nowrap px-4 py-4 text-gray-700">
+  {formatDashboardDate(itinerary.departure_date)}
+</td>
+
+<td className="whitespace-nowrap px-4 py-4 text-gray-700">
+  {itinerary.primary_customer_name || "-"}
+</td>
 </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         No confirmed itineraries found
                       </td>
                     </tr>
@@ -1123,6 +1300,205 @@ return (
                   disabled={confirmedPage >= confirmedTotalPages}
                   onClick={() =>
                     setConfirmedPage((prev) => Math.min(confirmedTotalPages, prev + 1))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </div>
+                </Card>
+      </div>
+
+      {/* Agents wise Confirmed Itinerary */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-slate-700">
+          Agents wise Confirmed Itinerary
+        </h2>
+
+        <Card className="overflow-hidden border-none bg-white shadow-md">
+          <div className="p-6">
+            <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3 text-gray-600">
+                <span>Show</span>
+
+                <select
+                  value={agentWiseEntries}
+                  onChange={(e) => {
+                    setAgentWiseEntries(Number(e.target.value));
+                    setAgentWisePage(1);
+                  }}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 outline-none focus:border-pink-500"
+                >
+                  {[5, 10, 25, 50].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label htmlFor="agent-wise-confirmed-search" className="text-gray-600">
+                  Search:
+                </label>
+
+                <Input
+                  id="agent-wise-confirmed-search"
+                  value={agentWiseSearch}
+                  onChange={(e) => {
+                    setAgentWiseSearch(e.target.value);
+                    setAgentWisePage(1);
+                  }}
+                  className="w-full md:w-[280px]"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px] border-collapse">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      S.NO
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Quote ID
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Agent
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Source
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Destination
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Start Date
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      End Date
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Guest Name
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {agentWiseLoading ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        Loading agents wise confirmed itineraries...
+                      </td>
+                    </tr>
+                  ) : agentWiseItineraries.length > 0 ? (
+                    agentWiseItineraries.map((itinerary, index) => (
+                      <tr
+                        key={`agent-wise-${itinerary.itinerary_plan_ID}-${itinerary.booking_quote_id}`}
+                        className="border-b border-gray-100 hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-4 text-gray-700">
+                          {(agentWisePage - 1) * agentWiseEntries + index + 1}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <Link
+                            to={`/itinerary-details/${encodeURIComponent(itinerary.booking_quote_id)}`}
+                            className="font-medium text-pink-600 hover:underline"
+                          >
+                            {itinerary.booking_quote_id}
+                          </Link>
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {itinerary.agent_name || "-"}
+                        </td>
+
+                        <td className="px-4 py-4 text-gray-700">
+                          {itinerary.arrival_location || "-"}
+                        </td>
+
+                        <td className="px-4 py-4 text-gray-700">
+                          {itinerary.departure_location || "-"}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {formatDashboardDate(itinerary.arrival_date)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {formatDashboardDate(itinerary.departure_date)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                          {itinerary.primary_customer_name || "-"}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No agents wise confirmed itineraries found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-gray-500">
+                Showing {agentWiseStartEntry} to {agentWiseEndEntry} of {agentWiseTotal} entries
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={agentWisePage <= 1}
+                  onClick={() => setAgentWisePage((prev) => Math.max(1, prev - 1))}
+                >
+                  Previous
+                </Button>
+
+                {Array.from({ length: Math.min(5, agentWiseTotalPages) }, (_, index) => {
+                  const pageNumber = index + 1;
+
+                  return (
+                    <Button
+                      key={pageNumber}
+                      type="button"
+                      variant={agentWisePage === pageNumber ? "default" : "secondary"}
+                      onClick={() => setAgentWisePage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </Button>
+                  );
+                })}
+
+                {agentWiseTotalPages > 5 && (
+                  <>
+                    <span className="px-2 text-gray-500">...</span>
+                    <Button
+                      type="button"
+                      variant={agentWisePage === agentWiseTotalPages ? "default" : "secondary"}
+                      onClick={() => setAgentWisePage(agentWiseTotalPages)}
+                    >
+                      {agentWiseTotalPages}
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={agentWisePage >= agentWiseTotalPages}
+                  onClick={() =>
+                    setAgentWisePage((prev) => Math.min(agentWiseTotalPages, prev + 1))
                   }
                 >
                   Next
