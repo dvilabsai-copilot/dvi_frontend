@@ -784,28 +784,34 @@ export const ItineraryService = {
   },
 
   async getConfirmedItineraries(params: {
-    draw?: number;
-    start?: number;
-    length?: number;
-    start_date?: string;
-    end_date?: string;
-    source_location?: string;
-    destination_location?: string;
-    agent_id?: number;
-    staff_id?: number;
-  }) {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        queryParams.append(key, String(value));
-      }
-    });
+  draw?: number;
+  start?: number;
+  length?: number;
+  start_date?: string;
+  end_date?: string;
+  source_location?: string;
+  destination_location?: string;
+  agent_id?: number;
+  staff_id?: number;
+  search_value?: string;
+}) {
+  const queryParams = new URLSearchParams();
 
-    return api(`itineraries/confirmed?${queryParams.toString()}`, {
-      method: "GET",
-    });
-  },
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+
+    if (key === "search_value") {
+      queryParams.append("search[value]", String(value));
+      return;
+    }
+
+    queryParams.append(key, String(value));
+  });
+
+  return api(`itineraries/confirmed?${queryParams.toString()}`, {
+    method: "GET",
+  });
+},
 
   async getConfirmedItineraryDetails(id: string) {
     return api(`itineraries/confirmed/${id}`, {

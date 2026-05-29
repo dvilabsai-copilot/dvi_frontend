@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { paymentService } from "@/services/paymentService";
+import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 
@@ -22,12 +23,64 @@ function parseJwt(token: string) {
   }
 }
 
+type ConfirmedDashboardItinerary = {
+  itinerary_plan_ID: number;
+  booking_quote_id: string;
+  arrival_location: string;
+  departure_location: string;
+  arrival_date: string;
+  departure_date: string;
+};
+
+
+
+const formatDashboardDate = (value: string) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+const normalizeConfirmedItinerary = (row: any): ConfirmedDashboardItinerary => {
+  return {
+    itinerary_plan_ID: Number(row.itinerary_plan_ID || row.id || 0),
+    booking_quote_id: String(row.booking_quote_id || row.quote_id || row.quoteId || "-"),
+    arrival_location: String(row.arrival_location || row.source || row.source_location || "-"),
+    departure_location: String(row.departure_location || row.destination || row.destination_location || "-"),
+    arrival_date: String(row.arrival_date || row.start_date || row.startDate || ""),
+    departure_date: String(row.departure_date || row.end_date || row.endDate || ""),
+  };
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
-  const [dashboardData, setDashboardData] = useState<DashboardStats | AgentDashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [dashboardData, setDashboardData] = useState<
+  | DashboardStats
+  | AgentDashboardStats
+  | AccountsDashboardStats
+  | VendorDashboardStats
+  | null
+>(null);
+const [loading, setLoading] = useState(true);
+
+const [confirmedItineraries, setConfirmedItineraries] = useState<ConfirmedDashboardItinerary[]>([]);
+const [confirmedLoading, setConfirmedLoading] = useState(false);
+const [confirmedSearch, setConfirmedSearch] = useState("");
+const [confirmedEntries, setConfirmedEntries] = useState(5);
+const [confirmedPage, setConfirmedPage] = useState(1);
+const [confirmedTotal, setConfirmedTotal] = useState(0);
+  
   
   // Payment states
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
@@ -137,20 +190,52 @@ export default function Dashboard() {
   }, [api]);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        const data = await DashboardService.getStats();
-        setDashboardData(data);
-      } catch (error) {
-        console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const data = await DashboardService.getStats();
+      setDashboardData(data);
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchDashboardData();
-  }, []);
+  fetchDashboardData();
+}, []);
+
+useEffect(() => {
+  if (isAgent || isAccounts || isVendor || isGuide) return;
+
+  const fetchConfirmedItineraries = async () => {
+    try {
+      setConfirmedLoading(true);
+
+      const start = (confirmedPage - 1) * confirmedEntries;
+
+      const response = await ItineraryService.getConfirmedItineraries({
+        draw: confirmedPage,
+        start,
+        length: confirmedEntries,
+        search_value: confirmedSearch.trim(),
+      });
+
+      const rows = Array.isArray(response?.data) ? response.data : [];
+
+      setConfirmedItineraries(rows.map(normalizeConfirmedItinerary));
+      setConfirmedTotal(Number(response?.recordsFiltered || response?.recordsTotal || rows.length));
+    } catch (error: any) {
+      console.error("Failed to fetch confirmed itinerary list:", error);
+      setConfirmedItineraries([]);
+      setConfirmedTotal(0);
+    } finally {
+      setConfirmedLoading(false);
+    }
+  };
+
+  fetchConfirmedItineraries();
+}, [confirmedPage, confirmedEntries, confirmedSearch, isAgent, isAccounts, isVendor, isGuide]);
 
   if (loading) {
     return (
@@ -559,7 +644,12 @@ export default function Dashboard() {
 
   const adminData = dashboardData as DashboardStats;
 
-  return (
+const confirmedTotalPages = Math.max(1, Math.ceil(confirmedTotal / confirmedEntries));
+const confirmedStartEntry =
+  confirmedTotal === 0 ? 0 : (confirmedPage - 1) * confirmedEntries + 1;
+const confirmedEndEntry = Math.min(confirmedPage * confirmedEntries, confirmedTotal);
+
+return (
     <div className="p-8 space-y-6">
       {/* Welcome Section */}
       <div className="space-y-2">
@@ -850,6 +940,195 @@ export default function Dashboard() {
               <p className="text-sm text-muted-foreground">Cancelled Booking</p>
             </div>
             <div className="text-6xl">📆</div>
+          </div>
+        </Card>
+      </div>
+
+            {/* Confirmed Itinerary List */}
+      <div className="space-y-4">
+        <h2 className="text-2xl font-semibold text-slate-700">
+          Confirmed Itinerary List
+        </h2>
+
+        <Card className="overflow-hidden border-none bg-white shadow-md">
+          <div className="border-b border-gray-200">
+            <button className="px-7 py-4 text-base font-medium text-pink-600 border-b-2 border-pink-600">
+              Overall
+            </button>
+          </div>
+
+          <div className="p-6">
+            <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3 text-gray-600">
+                <span>Show</span>
+                <select
+                  value={confirmedEntries}
+                  onChange={(e) => {
+                    setConfirmedEntries(Number(e.target.value));
+                    setConfirmedPage(1);
+                  }}
+                  className="rounded-md border border-gray-300 bg-white px-3 py-2 outline-none focus:border-pink-500"
+                >
+                  {[5, 10, 25, 50].map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </select>
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label htmlFor="confirmed-search" className="text-gray-600">
+                  Search:
+                </label>
+                <Input
+                  id="confirmed-search"
+                  value={confirmedSearch}
+                  onChange={(e) => {
+                    setConfirmedSearch(e.target.value);
+                    setConfirmedPage(1);
+                  }}
+                  className="w-full md:w-[280px]"
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1050px] border-collapse">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      S.NO
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Quote ID
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Source
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Destination
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      Start Date
+                    </th>
+                    <th className="whitespace-nowrap px-4 py-4 text-left text-sm font-semibold uppercase tracking-widest text-gray-600">
+                      End Date
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {confirmedLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        Loading confirmed itineraries...
+                      </td>
+                    </tr>
+                  ) : confirmedItineraries.length > 0 ? (
+                    confirmedItineraries.map((itinerary, index) => (
+                      <tr
+                    
+  key={`${itinerary.itinerary_plan_ID}-${itinerary.booking_quote_id}`}
+  className="border-b border-gray-100 hover:bg-slate-50"
+>
+  <td className="px-4 py-4 text-gray-700">
+    {(confirmedPage - 1) * confirmedEntries + index + 1}
+  </td>
+
+  <td className="px-4 py-4">
+    <Link
+      to={`/itinerary-details/${encodeURIComponent(itinerary.booking_quote_id)}`}
+      className="font-medium text-pink-600 hover:underline"
+    >
+      {itinerary.booking_quote_id}
+    </Link>
+  </td>
+
+  <td className="px-4 py-4 text-gray-700">
+    {itinerary.arrival_location || "-"}
+  </td>
+
+  <td className="px-4 py-4 text-gray-700">
+    {itinerary.departure_location || "-"}
+  </td>
+
+  <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+    {formatDashboardDate(itinerary.arrival_date)}
+  </td>
+
+  <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+    {formatDashboardDate(itinerary.departure_date)}
+  </td>
+</tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        No confirmed itineraries found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <p className="text-sm text-gray-500">
+                Showing {confirmedStartEntry} to {confirmedEndEntry} of {confirmedTotal} entries
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={confirmedPage <= 1}
+                  onClick={() => setConfirmedPage((prev) => Math.max(1, prev - 1))}
+                >
+                  Previous
+                </Button>
+
+                {Array.from({ length: Math.min(5, confirmedTotalPages) }, (_, index) => {
+                  const pageNumber = index + 1;
+
+                  return (
+                    <Button
+                      key={pageNumber}
+                      type="button"
+                      variant={confirmedPage === pageNumber ? "default" : "secondary"}
+                      onClick={() => setConfirmedPage(pageNumber)}
+                    >
+                      {pageNumber}
+                    </Button>
+                  );
+                })}
+
+                {confirmedTotalPages > 5 && (
+                  <>
+                    <span className="px-2 text-gray-500">...</span>
+                    <Button
+                      type="button"
+                      variant={confirmedPage === confirmedTotalPages ? "default" : "secondary"}
+                      onClick={() => setConfirmedPage(confirmedTotalPages)}
+                    >
+                      {confirmedTotalPages}
+                    </Button>
+                  </>
+                )}
+
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={confirmedPage >= confirmedTotalPages}
+                  onClick={() =>
+                    setConfirmedPage((prev) => Math.min(confirmedTotalPages, prev + 1))
+                  }
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
