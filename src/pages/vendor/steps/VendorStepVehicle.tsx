@@ -137,6 +137,7 @@ ownerEmailId:"",
 ownerAddress:"",
 ownerPincode:"",
 country:"",
+vehicleOrigin:"",
 state:"",
 city:"",
 chassisNumber:"",
@@ -630,6 +631,7 @@ ownerEmailId:v.owner_email_id || "",
 ownerAddress:v.owner_address || "",
 ownerPincode:v.owner_pincode || "",
 country:String(v.owner_country || ""),
+vehicleOrigin:String(v.vehicle_origin || v.owner_origin || ""),
 state:String(v.owner_state || ""),
 city:String(v.owner_city || ""),
 chassisNumber:v.chassis_number || "",
@@ -690,6 +692,7 @@ owner_email_id:vehicleForm.ownerEmailId,
 owner_address:vehicleForm.ownerAddress,
 owner_pincode:vehicleForm.ownerPincode,
 owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
+vehicle_origin:vehicleForm.vehicleOrigin || null,
 owner_state:vehicleForm.state,
 owner_city:vehicleForm.city,
 chassis_number:vehicleForm.chassisNumber,
@@ -995,6 +998,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
 
   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Registration Number</label>
       <input
         value={vehicleForm.registrationNumber}
         onChange={(e)=>handleFieldChange("registrationNumber",e.target.value)}
@@ -1005,6 +1009,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Registration Date</label>
       <DatePickerField
         value={vehicleForm.registrationDate}
         onChange={(value)=>handleFieldChange("registrationDate",value)}
@@ -1015,6 +1020,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Engine Number</label>
       <input
         value={vehicleForm.engineNumber}
         onChange={(e)=>handleFieldChange("engineNumber",e.target.value)}
@@ -1025,6 +1031,16 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Vehicle Expiry Date</label>
+      <DatePickerField
+        value={vehicleForm.vehicleExpiryDate}
+        onChange={(value)=>handleFieldChange("vehicleExpiryDate",value)}
+        placeholder="Vehicle Expiry Date"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Vehicle Type</label>
       <select
         value={vehicleForm.vehicleType}
         onChange={(e)=>handleFieldChange("vehicleType",e.target.value)}
@@ -1039,6 +1055,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Owner Name</label>
       <input
         value={vehicleForm.ownerName}
         onChange={(e)=>handleFieldChange("ownerName",e.target.value)}
@@ -1049,6 +1066,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Owner Contact Number</label>
       <input
         value={vehicleForm.ownerContactNumber}
         onChange={(e)=>handleFieldChange("ownerContactNumber",e.target.value)}
@@ -1059,6 +1077,37 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Owner Email ID</label>
+      <input
+        value={vehicleForm.ownerEmailId}
+        onChange={(e)=>handleFieldChange("ownerEmailId",e.target.value)}
+        placeholder="Owner Email ID"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1 md:col-span-2">
+      <label className="text-sm text-slate-600">Owner Address</label>
+      <input
+        value={vehicleForm.ownerAddress}
+        onChange={(e)=>handleFieldChange("ownerAddress",e.target.value)}
+        placeholder="Owner Address"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Owner Pincode</label>
+      <input
+        value={vehicleForm.ownerPincode}
+        onChange={(e)=>handleFieldChange("ownerPincode",e.target.value)}
+        placeholder="Owner Pincode"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Country</label>
       <select
         value={vehicleForm.country}
         onChange={(e)=>handleFieldChange("country",e.target.value)}
@@ -1073,6 +1122,17 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">Vehicle Origin</label>
+      <input
+        value={vehicleForm.vehicleOrigin}
+        onChange={(e)=>handleFieldChange("vehicleOrigin",e.target.value)}
+        placeholder="Vehicle Origin"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">State</label>
       <select
         value={vehicleForm.state}
         onChange={(e)=>handleFieldChange("state",e.target.value)}
@@ -1087,6 +1147,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     </div>
 
     <div className="space-y-1">
+      <label className="text-sm text-slate-600">City</label>
       <select
         value={vehicleForm.city}
         onChange={(e)=>handleFieldChange("city",e.target.value)}
@@ -1098,6 +1159,123 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
         ))}
       </select>
       {vehicleFormErrors.city ? <p className="text-xs text-red-600">{vehicleFormErrors.city}</p> : null}
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Chassis Number</label>
+      <input
+        value={vehicleForm.chassisNumber}
+        onChange={(e)=>handleFieldChange("chassisNumber",e.target.value)}
+        placeholder="Chassis Number"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Fuel Type</label>
+      <select
+        value={vehicleForm.fuelType}
+        onChange={(e)=>handleFieldChange("fuelType",e.target.value)}
+        className="w-full rounded border px-3 py-2"
+      >
+        <option value="">Choose Fuel Type</option>
+        <option value="1">Petrol</option>
+        <option value="2">Diesel</option>
+        <option value="3">CNG</option>
+        <option value="4">Electric</option>
+        <option value="5">Hybrid</option>
+      </select>
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Extra KM Charge</label>
+      <input
+        type="number"
+        value={vehicleForm.extraKmCharge}
+        onChange={(e)=>handleFieldChange("extraKmCharge",e.target.value)}
+        placeholder="Extra KM Charge"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Early Morning Charges</label>
+      <input
+        type="number"
+        value={vehicleForm.earlyMorningCharges}
+        onChange={(e)=>handleFieldChange("earlyMorningCharges",e.target.value)}
+        placeholder="Early Morning Charges"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Evening Charges</label>
+      <input
+        type="number"
+        value={vehicleForm.eveningCharges}
+        onChange={(e)=>handleFieldChange("eveningCharges",e.target.value)}
+        placeholder="Evening Charges"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1 md:col-span-2">
+      <label className="text-sm text-slate-600">Vehicle Video URL</label>
+      <input
+        value={vehicleForm.vehicleVideoUrl}
+        onChange={(e)=>handleFieldChange("vehicleVideoUrl",e.target.value)}
+        placeholder="Vehicle Video URL"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Insurance Policy Number</label>
+      <input
+        value={vehicleForm.insurancePolicyNumber}
+        onChange={(e)=>handleFieldChange("insurancePolicyNumber",e.target.value)}
+        placeholder="Insurance Policy Number"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Insurance Start Date</label>
+      <DatePickerField
+        value={vehicleForm.insuranceStartDate}
+        onChange={(value)=>handleFieldChange("insuranceStartDate",value)}
+        placeholder="Insurance Start Date"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Insurance End Date</label>
+      <DatePickerField
+        value={vehicleForm.insuranceEndDate}
+        onChange={(value)=>handleFieldChange("insuranceEndDate",value)}
+        placeholder="Insurance End Date"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">Insurance Contact Number</label>
+      <input
+        value={vehicleForm.insuranceContactNumber}
+        onChange={(e)=>handleFieldChange("insuranceContactNumber",e.target.value)}
+        placeholder="Insurance Contact Number"
+        className="w-full rounded border px-3 py-2"
+      />
+    </div>
+
+    <div className="space-y-1">
+      <label className="text-sm text-slate-600">RTO Code</label>
+      <input
+        value={vehicleForm.rtoCode}
+        onChange={(e)=>handleFieldChange("rtoCode",e.target.value)}
+        placeholder="RTO Code"
+        className="w-full rounded border px-3 py-2"
+      />
     </div>
   </div>
 
