@@ -5,7 +5,14 @@ import { Carousel, CarouselContent, CarouselItem, CarouselApi } from "@/componen
 import { Link, useNavigate } from "react-router-dom";
 import Autoplay from "embla-carousel-autoplay";
 import { useState, useEffect } from "react";
-import { DashboardService, DashboardStats, AgentDashboardStats, AccountsDashboardStats, VendorDashboardStats } from "@/services/dashboard";
+import {
+  DashboardService,
+  DashboardStats,
+  AgentDashboardStats,
+  AccountsDashboardStats,
+  VendorDashboardStats,
+  MostVisitedHotelRow,
+} from "@/services/dashboard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -99,6 +106,40 @@ const normalizeLiveVehicleStatusRow = (row: any): LiveVehicleStatusRow => {
 };
 
 const DASHBOARD_CONFIRMED_FETCH_LIMIT = 5000;
+
+const normalizeMostVisitedHotel = (row: any): MostVisitedHotelRow => {
+  return {
+    hotel_name: String(
+      row.hotel_name ||
+      row.hotelName ||
+      row.name ||
+      row.hotel ||
+      "-"
+    ),
+    hotel_location: String(
+      row.hotel_location ||
+      row.location ||
+      row.place ||
+      row.city ||
+      "-"
+    ),
+    visit_count: Number(
+      row.visit_count ||
+      row.visitCount ||
+      row.total_visits ||
+      row.totalVisits ||
+      row.count ||
+      0
+    ),
+    visit_percentage: Number(
+      row.visit_percentage ||
+      row.visitPercentage ||
+      row.percentage ||
+      row.percent ||
+      0
+    ),
+  };
+};
 
 const isLiveVehicleOnRoute = (row: LiveVehicleStatusRow) => {
   const startDate = getDateOnly(row.start_date);
@@ -198,6 +239,77 @@ const normalizeConfirmedItinerary = (row: any): ConfirmedDashboardItinerary => {
   };
 };
 
+const extractHotelNamesFromConfirmedRow = (row: any): { hotel_name: string; hotel_location: string }[] => {
+  const hotels: { hotel_name: string; hotel_location: string }[] = [];
+
+  const pushHotel = (name: any, location: any) => {
+    const hotelName = String(name || "").trim();
+    if (!hotelName || hotelName === "-") return;
+
+    hotels.push({
+      hotel_name: hotelName,
+      hotel_location: String(location || row.arrival_location || row.destination || row.departure_location || "-"),
+    });
+  };
+
+  pushHotel(row.hotel_name, row.hotel_location);
+  pushHotel(row.selected_hotel_name, row.selected_hotel_location);
+  pushHotel(row.recommended_hotel_name, row.recommended_hotel_location);
+
+  if (Array.isArray(row.hotels)) {
+    row.hotels.forEach((hotel: any) => {
+      pushHotel(
+        hotel.hotel_name || hotel.name || hotel.title,
+        hotel.hotel_location || hotel.location || hotel.city || hotel.place
+      );
+    });
+  }
+
+  if (Array.isArray(row.recommended_hotels)) {
+    row.recommended_hotels.forEach((hotel: any) => {
+      pushHotel(
+        hotel.hotel_name || hotel.name || hotel.title,
+        hotel.hotel_location || hotel.location || hotel.city || hotel.place
+      );
+    });
+  }
+
+  return hotels;
+};
+
+const buildMostVisitedHotelsFromConfirmedRows = (rows: any[]): MostVisitedHotelRow[] => {
+  const hotelMap = new Map<string, MostVisitedHotelRow>();
+
+  rows.forEach((row) => {
+    extractHotelNamesFromConfirmedRow(row).forEach((hotel) => {
+      const key = `${hotel.hotel_name.toLowerCase()}__${hotel.hotel_location.toLowerCase()}`;
+      const existing = hotelMap.get(key);
+
+      if (existing) {
+        existing.visit_count += 1;
+      } else {
+        hotelMap.set(key, {
+          hotel_name: hotel.hotel_name,
+          hotel_location: hotel.hotel_location,
+          visit_count: 1,
+          visit_percentage: 0,
+        });
+      }
+    });
+  });
+
+  const sortedRows = Array.from(hotelMap.values())
+    .sort((a, b) => b.visit_count - a.visit_count)
+    .slice(0, 5);
+
+  const totalVisits = sortedRows.reduce((sum, row) => sum + row.visit_count, 0);
+
+  return sortedRows.map((row) => ({
+    ...row,
+    visit_percentage: totalVisits > 0 ? Math.round((row.visit_count / totalVisits) * 100) : 0,
+  }));
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [api, setApi] = useState<CarouselApi>();
@@ -233,6 +345,10 @@ const [liveVehicleEntries, setLiveVehicleEntries] = useState(5);
 const [liveVehiclePage, setLiveVehiclePage] = useState(1);
 const [liveVehicleTotal, setLiveVehicleTotal] = useState(0);
 const [liveVehicleActiveTab, setLiveVehicleActiveTab] = useState<LiveVehicleStatusTab>("onRoute");
+
+const [mostVisitedHotels, setMostVisitedHotels] = useState<MostVisitedHotelRow[]>([]);
+const [mostVisitedHotelsLoading, setMostVisitedHotelsLoading] = useState(false);
+const [mostVisitedHotelsYear, setMostVisitedHotelsYear] = useState(new Date().getFullYear());
   
   
   // Payment states
@@ -602,6 +718,26 @@ useEffect(() => {
 ]);
 
 
+useEffect(() => {
+  if (isAgent || isAccounts || isVendor || isGuide) return;
+
+  const fetchMostVisitedHotels = async () => {
+    try {
+      setMostVisitedHotelsLoading(true);
+
+      const rows = await DashboardService.getMostVisitedHotels(mostVisitedHotelsYear);
+
+      setMostVisitedHotels(Array.isArray(rows) ? rows.slice(0, 5) : []);
+    } catch (error) {
+      console.error("Failed to fetch most visited hotels:", error);
+      setMostVisitedHotels([]);
+    } finally {
+      setMostVisitedHotelsLoading(false);
+    }
+  };
+
+  fetchMostVisitedHotels();
+}, [mostVisitedHotelsYear, isAgent, isAccounts, isVendor, isGuide]);
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -2032,8 +2168,98 @@ return (
               </div>
             </div>
           </div>
-        </Card>
+                </Card>
       </div>
+
+      {/* Most Visited Hotels */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <Card className="border-none bg-white p-7 shadow-md">
+    <div className="mb-11 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h2 className="text-xl font-semibold leading-tight text-slate-700">
+          Most Visited Hotels
+        </h2>
+        <p className="mt-1 text-sm text-gray-400">
+          Top 5 Picks by Visitors
+        </p>
+      </div>
+
+      <Input
+        type="number"
+        value={mostVisitedHotelsYear}
+        onChange={(e) => {
+          const value = Number(e.target.value);
+          if (Number.isFinite(value)) {
+            setMostVisitedHotelsYear(value);
+          }
+        }}
+        className="h-12 w-full rounded-lg border-gray-200 text-base sm:w-[220px]"
+      />
     </div>
+
+    <div className="space-y-6">
+      {mostVisitedHotelsLoading ? (
+        <p className="py-12 text-center text-gray-500">
+          Loading most visited hotels...
+        </p>
+      ) : mostVisitedHotels.length > 0 ? (
+        mostVisitedHotels.map((hotel, index) => {
+          const percentage = Math.max(
+            0,
+            Math.min(100, Number(hotel.visit_percentage || 0))
+          );
+
+          return (
+<div
+  key={`${hotel.hotel_name}-${hotel.hotel_location}-${index}`}
+  className="grid grid-cols-[42px_minmax(0,1fr)_minmax(120px,180px)_42px] items-center gap-4"
+>
+              <div className="flex h-10 w-10 items-center justify-center rounded-md text-3xl leading-none">
+                🏨
+              </div>
+
+              <div className="min-w-0">
+                <p
+                  className={`truncate text-base font-semibold uppercase text-slate-600 ${
+                    index === 0 && (!hotel.hotel_name || hotel.hotel_name === "-")
+                      ? "opacity-0"
+                      : ""
+                  }`}
+                >
+                  {hotel.hotel_name || "-"}
+                </p>
+                <p
+                  className={`truncate text-sm text-gray-400 ${
+                    index === 0 && (!hotel.hotel_location || hotel.hotel_location === "-")
+                      ? "opacity-0"
+                      : ""
+                  }`}
+                >
+                  {hotel.hotel_location || "-"}
+                </p>
+              </div>
+
+              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+  <div
+    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-pink-500"
+    style={{ width: `${percentage}%` }}
+  />
+</div>
+
+              <p className="text-right text-base text-gray-400">
+                {percentage}%
+              </p>
+            </div>
+          );
+        })
+      ) : (
+        <p className="py-12 text-center text-gray-500">
+          No hotel visit data available
+        </p>
+      )}
+    </div>
+  </Card>
+</div>
+</div>
   );
 }
