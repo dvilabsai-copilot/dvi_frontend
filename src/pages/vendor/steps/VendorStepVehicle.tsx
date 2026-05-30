@@ -655,9 +655,18 @@ setVehicleFormErrors({});
 
 };
 
+
 const handleSaveVehicle=async()=>{
 
-if(!vendorId || !selectedBranchId) return;
+if(!vendorId){
+alert("Vendor id missing. Please save Basic Info first.");
+return;
+}
+
+if(!selectedBranchId){
+alert("Branch id missing. Please select branch first.");
+return;
+}
 
 const errors:VehicleFormErrors={};
 if(!String(vehicleForm.registrationNumber ?? "").trim()) errors.registrationNumber="This value is required.";
@@ -672,43 +681,54 @@ if(!String(vehicleForm.city ?? "").trim()) errors.city="This value is required."
 
 if(Object.keys(errors).length>0){
 setVehicleFormErrors(errors);
+alert("Please fill all required vehicle details.");
 return;
 }
 
 setVehicleFormErrors({});
-
 setSaving(true);
 
 try{
 
 const payload={
-vendor_branch_id:selectedBranchId,
-vehicle_type_id:vehicleForm.vehicleType ? Number(vehicleForm.vehicleType) : null,
-registration_number:vehicleForm.registrationNumber,
-registration_date:vehicleForm.registrationDate ? new Date(vehicleForm.registrationDate) : null,
-engine_number:vehicleForm.engineNumber,
-owner_name:vehicleForm.ownerName,
-owner_contact_no:vehicleForm.ownerContactNumber,
-owner_email_id:vehicleForm.ownerEmailId,
-owner_address:vehicleForm.ownerAddress,
-owner_pincode:vehicleForm.ownerPincode,
+vendor_branch_id:Number(selectedBranchId),
+vehicle_type_id:Number(vehicleForm.vehicleType),
+
+registration_number:String(vehicleForm.registrationNumber || "").trim(),
+registration_date:vehicleForm.registrationDate || null,
+engine_number:String(vehicleForm.engineNumber || "").trim(),
+
+owner_name:String(vehicleForm.ownerName || "").trim(),
+owner_contact_no:String(vehicleForm.ownerContactNumber || "").trim(),
+owner_email_id:String(vehicleForm.ownerEmailId || "").trim(),
+owner_address:String(vehicleForm.ownerAddress || "").trim(),
+owner_pincode:String(vehicleForm.ownerPincode || "").trim(),
+
 owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
-vehicle_origin:vehicleForm.vehicleOrigin || null,
-owner_state:vehicleForm.state,
-owner_city:vehicleForm.city,
-chassis_number:vehicleForm.chassisNumber,
-vehicle_fc_expiry_date:vehicleForm.vehicleExpiryDate ? new Date(vehicleForm.vehicleExpiryDate) : null,
+vehicle_origin:String(vehicleForm.vehicleOrigin || "").trim(),
+
+owner_state:vehicleForm.state ? Number(vehicleForm.state) : null,
+owner_city:vehicleForm.city ? Number(vehicleForm.city) : null,
+
+chassis_number:String(vehicleForm.chassisNumber || "").trim(),
+vehicle_fc_expiry_date:vehicleForm.vehicleExpiryDate || null,
+
 fuel_type:vehicleForm.fuelType ? Number(vehicleForm.fuelType) : null,
 extra_km_charge:vehicleForm.extraKmCharge ? Number(vehicleForm.extraKmCharge) : 0,
 early_morning_charges:vehicleForm.earlyMorningCharges ? Number(vehicleForm.earlyMorningCharges) : 0,
 evening_charges:vehicleForm.eveningCharges ? Number(vehicleForm.eveningCharges) : 0,
-vehicle_video_url:vehicleForm.vehicleVideoUrl,
-insurance_policy_number:vehicleForm.insurancePolicyNumber,
-insurance_start_date:vehicleForm.insuranceStartDate ? new Date(vehicleForm.insuranceStartDate) : null,
-insurance_end_date:vehicleForm.insuranceEndDate ? new Date(vehicleForm.insuranceEndDate) : null,
-insurance_contact_no:vehicleForm.insuranceContactNumber,
-RTO_code:vehicleForm.rtoCode,
+
+vehicle_video_url:String(vehicleForm.vehicleVideoUrl || "").trim(),
+insurance_policy_number:String(vehicleForm.insurancePolicyNumber || "").trim(),
+insurance_start_date:vehicleForm.insuranceStartDate || null,
+insurance_end_date:vehicleForm.insuranceEndDate || null,
+insurance_contact_no:String(vehicleForm.insuranceContactNumber || "").trim(),
+RTO_code:String(vehicleForm.rtoCode || "").trim(),
+
+status:1,
 };
+
+console.log("SAVE VEHICLE PAYLOAD", payload);
 
 if(editingVehicleId){
 await api(`/vendors/vehicles/${editingVehicleId}`,{
@@ -723,19 +743,29 @@ body:JSON.stringify(payload),
 }
 
 await fetchVehicles();
+
+alert(editingVehicleId ? "Vehicle updated successfully" : "Vehicle saved successfully");
+
 setIsAddMode(false);
 setIsVehicleListOpen(true);
 setEditingVehicleId(null);
 setVehicleForm(emptyVehicleForm);
 setVehicleFormErrors({});
 
-}catch(e){
+}catch(e:any){
 console.error("Failed to save vehicle",e);
+
+alert(
+e?.message ||
+e?.response?.data?.message ||
+"Vehicle save failed. Please check backend terminal error."
+);
 }finally{
 setSaving(false);
 }
 
 };
+
 
 
 const handleToggleVehicleStatus=async(row:VehicleRow)=>{
@@ -1324,14 +1354,15 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       Back
     </button>
 
-    <button
-      type="button"
-      onClick={handleSaveVehicle}
-      disabled={saving || !vendorId || !selectedBranchId}
-      className="rounded bg-violet-500 px-6 py-2 text-white"
-    >
-      {saving ? "Saving..." : editingVehicleId ? "Update Vehicle" : "Save Vehicle"}
-    </button>
+   <button
+  type="button"
+  onClick={handleSaveVehicle}
+  disabled={saving}
+  className="rounded bg-violet-500 px-6 py-2 text-white disabled:opacity-60"
+>
+  {saving ? "Saving..." : editingVehicleId ? "Update Vehicle" : "Save Vehicle"}
+</button>
+
   </div>
 </div>
 )}
