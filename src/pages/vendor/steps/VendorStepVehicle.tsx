@@ -107,6 +107,7 @@ const [vehicleRows,setVehicleRows]=useState<VehicleRow[]>([]);
 const [search,setSearch]=useState("");
 
 const [isVehicleListOpen,setIsVehicleListOpen]=useState(true);
+const [deleteVehicleId,setDeleteVehicleId]=useState<number|null>(null);
 
 const [loading,setLoading]=useState(false);
 
@@ -507,7 +508,7 @@ const data=(await api(
 
 const mapped:VehicleRow[]=(data || []).map((v:any)=>({
 
-id:Number(v.vehicle_id),
+id:Number(v.vehicle_id ?? v.id ?? v.vendor_vehicle_id ?? 0),
 
 regNo:v.registration_number || "",
 
@@ -618,7 +619,7 @@ const v=row._full;
 
 if(!v) return;
 
-setEditingVehicleId(v.vehicle_id);
+setEditingVehicleId(Number(v.vehicle_id ?? row.id ?? 0));
 
 setVehicleForm({
 vehicleType:String(v.vehicle_type_id || ""),
@@ -736,6 +737,7 @@ setSaving(false);
 
 };
 
+
 const handleToggleVehicleStatus=async(row:VehicleRow)=>{
 if(statusUpdatingId===row.id) return;
 
@@ -758,6 +760,32 @@ statusLabel:nextStatus===1 ? "Active" : "Inactive",
 console.error("Failed to toggle vehicle status",e);
 }finally{
 setStatusUpdatingId(null);
+}
+};
+
+const handleDeleteVehicle=async(rowId:number|null)=>{
+if(!rowId){
+alert("Invalid vehicle id");
+return;
+}
+
+setSaving(true);
+
+try{
+await api(`/vendors/vehicles/${rowId}`,{
+method:"DELETE",
+});
+
+setVehicleRows(prev=>prev.filter(row=>row.id!==rowId));
+setDeleteVehicleId(null);
+
+await fetchVehicles();
+
+}catch(e){
+console.error("Failed to delete vehicle",e);
+alert("Vehicle delete failed");
+}finally{
+setSaving(false);
 }
 };
 
@@ -807,6 +835,7 @@ return (
 </div>
 
 {!isAddMode ? (
+  isVehicleListOpen ? (
 <>
 <div className="flex justify-between items-center">
 
@@ -823,6 +852,7 @@ Vehicle List in{" "}
 <div className="flex gap-3">
 
 <button
+type="button"
 onClick={handleCloseVehicleList}
 className="bg-red-50 text-red-400 px-4 py-2 rounded"
 >
@@ -920,12 +950,13 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
               ✎
             </button>
 
-            <button
-              type="button"
-              className="text-[22px] text-red-400 leading-none"
-            >
-              🗑
-            </button>
+           <button
+  type="button"
+  onClick={()=>setDeleteVehicleId(row.id)}
+  className="text-[22px] text-red-400 leading-none"
+>
+  🗑
+</button>
           </div>
         </td>
 
@@ -990,6 +1021,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   </div>
 </div>
 </>
+) : null
 ) : (
 <div className="rounded-xl border border-slate-200 p-6 space-y-4">
   <h3 className="text-lg font-semibold text-slate-800">
@@ -1300,6 +1332,48 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     >
       {saving ? "Saving..." : editingVehicleId ? "Update Vehicle" : "Save Vehicle"}
     </button>
+  </div>
+</div>
+)}
+
+{deleteVehicleId !== null && (
+<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+  <div className="w-[380px] rounded-xl bg-white px-7 py-6 text-center shadow-xl">
+    <div className="mb-4 text-[42px] text-slate-500">
+      🗑
+    </div>
+
+    <h2 className="text-[22px] font-semibold text-slate-700">
+      Are you sure?
+    </h2>
+
+    <p className="mt-3 text-[15px] text-slate-500">
+      Do you really want to delete this vehicle?
+    </p>
+
+    <p className="text-[15px] text-slate-500">
+      This process cannot be undone.
+    </p>
+
+    <div className="mt-6 flex justify-center gap-3">
+      <button
+        type="button"
+        disabled={saving}
+        onClick={()=>setDeleteVehicleId(null)}
+        className="rounded bg-slate-200 px-5 py-2 text-slate-700"
+      >
+        Close
+      </button>
+
+      <button
+        type="button"
+        disabled={saving}
+        onClick={()=>handleDeleteVehicle(deleteVehicleId)}
+        className="rounded bg-red-500 px-5 py-2 text-white hover:bg-red-600 disabled:opacity-60"
+      >
+        {saving ? "Deleting..." : "Delete"}
+      </button>
+    </div>
   </div>
 </div>
 )}
