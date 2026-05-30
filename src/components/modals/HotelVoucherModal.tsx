@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import {
 } from '@/services/hotelVoucher';
 import { AddHotelCancellationPolicyModal } from './AddHotelCancellationPolicyModal';
 import { toast } from 'sonner';
-import { Trash2, Plus, Loader2 } from 'lucide-react';
+import { Trash2, Plus, Loader2, Bold, Italic, Underline, List, ListOrdered, Eraser } from 'lucide-react';
 
 interface HotelVoucherModalProps {
   open: boolean;
@@ -64,6 +64,46 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddPolicyModal, setShowAddPolicyModal] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
+  const decodeHtml = (html: string) => {
+    if (!html) return '';
+
+    let decoded = html;
+
+    for (let i = 0; i < 5; i++) {
+      const txt = document.createElement('textarea');
+      txt.innerHTML = decoded;
+      const next = txt.value;
+
+      if (next === decoded) break;
+      decoded = next;
+    }
+
+    return decoded;
+  };
+  const syncEditorFromVoucherTerms = () => {
+    if (!editorRef.current || isEditorFocused) return;
+    const decoded = decodeHtml(voucherTerms);
+    if (editorRef.current.innerHTML !== decoded) {
+      editorRef.current.innerHTML = decoded;
+    }
+  };
+
+  const applyEditorCommand = (
+    command:
+      | 'bold'
+      | 'italic'
+      | 'underline'
+      | 'insertUnorderedList'
+      | 'insertOrderedList'
+      | 'removeFormat',
+  ) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(command);
+    setVoucherTerms(editorRef.current.innerHTML);
+  };
 
   // Format dates for display
   const formatDateString = (dates: string[]) => {
@@ -84,6 +124,12 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
       loadVoucherData();
     }
   }, [open, itineraryPlanId, hotelId]);
+
+  useEffect(() => {
+    if (open && !isLoading) {
+      syncEditorFromVoucherTerms();
+    }
+  }, [open, isLoading, voucherTerms, isEditorFocused]);
 
   const loadVoucherData = async () => {
     setIsLoading(true);
@@ -321,16 +367,48 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
 
                   {/* Hotel Voucher Terms */}
                   <div className="md:col-span-2">
-                    <Label htmlFor="voucherTerms" className="text-sm font-medium text-[#4a4260]">
+                    <Label className="text-sm font-medium text-[#4a4260]">
                       Hotel Voucher Terms and Condition <span className="text-red-500">*</span>
                     </Label>
-                    <textarea
-                      id="voucherTerms"
-                      value={voucherTerms}
-                      onChange={(e) => setVoucherTerms(e.target.value)}
-                      className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab] min-h-[120px]"
-                      required
-                    />
+                    <p className="mt-2 text-xs text-[#4a4260]">
+                      Edit formatted voucher terms directly. Formatting will be saved with the voucher.
+                    </p>
+                    <div className="mt-2 rounded-lg border border-gray-300 bg-white overflow-hidden">
+                      <div className="flex gap-1 border-b bg-gray-50 p-2">
+                        <button type="button" onClick={() => applyEditorCommand('bold')} className="rounded p-2 hover:bg-gray-100" title="Bold">
+                          <Bold className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                        <button type="button" onClick={() => applyEditorCommand('italic')} className="rounded p-2 hover:bg-gray-100" title="Italic">
+                          <Italic className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                        <button type="button" onClick={() => applyEditorCommand('underline')} className="rounded p-2 hover:bg-gray-100" title="Underline">
+                          <Underline className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                        <button type="button" onClick={() => applyEditorCommand('insertUnorderedList')} className="rounded p-2 hover:bg-gray-100" title="Bullet List">
+                          <List className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                        <button type="button" onClick={() => applyEditorCommand('insertOrderedList')} className="rounded p-2 hover:bg-gray-100" title="Number List">
+                          <ListOrdered className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                        <button type="button" onClick={() => applyEditorCommand('removeFormat')} className="rounded p-2 hover:bg-gray-100" title="Clear Format">
+                          <Eraser className="h-4 w-4 text-[#4a4260]" />
+                        </button>
+                      </div>
+                      <div
+                        ref={editorRef}
+                        contentEditable
+                        suppressContentEditableWarning
+                        className="min-h-[180px] max-h-[260px] overflow-y-auto px-4 py-3 text-sm text-[#1f1b3f] focus:outline-none"
+                        onFocus={() => setIsEditorFocused(true)}
+                        onBlur={() => {
+                          setIsEditorFocused(false);
+                          setVoucherTerms(editorRef.current?.innerHTML || '');
+                        }}
+                        onInput={() => {
+                          setVoucherTerms(editorRef.current?.innerHTML || '');
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
