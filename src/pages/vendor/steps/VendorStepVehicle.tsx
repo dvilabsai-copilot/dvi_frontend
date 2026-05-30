@@ -138,7 +138,6 @@ ownerEmailId:"",
 ownerAddress:"",
 ownerPincode:"",
 country:"",
-vehicleOrigin:"",
 state:"",
 city:"",
 chassisNumber:"",
@@ -156,6 +155,10 @@ rtoCode:"",
 };
 
 const [vehicleForm,setVehicleForm]=useState(emptyVehicleForm);
+const [vehicleDocuments,setVehicleDocuments]=useState<File[]>([]);
+const [isUploadModalOpen,setIsUploadModalOpen]=useState(false);
+const [uploadDocumentType,setUploadDocumentType]=useState("");
+const [uploadDocumentFile,setUploadDocumentFile]=useState<File|null>(null);
 
 useEffect(() => {
 if (!vendorId) return;
@@ -189,6 +192,31 @@ value:string
 )=>{
 setVehicleForm(prev=>({...prev,[field]:value}));
 setVehicleFormErrors(prev=>({ ...prev, [field]: undefined }));
+};
+
+const handleVehicleDocumentsChange=(file:File|null)=>{
+setUploadDocumentFile(file);
+};
+
+const handleSaveVehicleDocument=()=>{
+if(!uploadDocumentType){
+alert("Please choose document type.");
+return;
+}
+
+if(!uploadDocumentFile){
+alert("Please choose file.");
+return;
+}
+
+setVehicleDocuments(prev=>[
+...prev,
+uploadDocumentFile,
+]);
+
+setUploadDocumentType("");
+setUploadDocumentFile(null);
+setIsUploadModalOpen(false);
 };
 
 useEffect(()=>{
@@ -370,6 +398,7 @@ setIsVehicleListOpen(false);
 const handleOpenAddVehicle = () => {
 setEditingVehicleId(null);
 setVehicleForm(emptyVehicleForm);
+setVehicleDocuments([]);
 setVehicleFormErrors({});
 setIsVehicleListOpen(false);
 setIsAddMode(true);
@@ -632,7 +661,6 @@ ownerEmailId:v.owner_email_id || "",
 ownerAddress:v.owner_address || "",
 ownerPincode:v.owner_pincode || "",
 country:String(v.owner_country || ""),
-vehicleOrigin:String(v.vehicle_origin || v.owner_origin || ""),
 state:String(v.owner_state || ""),
 city:String(v.owner_city || ""),
 chassisNumber:v.chassis_number || "",
@@ -693,7 +721,6 @@ owner_email_id:vehicleForm.ownerEmailId,
 owner_address:vehicleForm.ownerAddress,
 owner_pincode:vehicleForm.ownerPincode,
 owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
-vehicle_origin:vehicleForm.vehicleOrigin || null,
 owner_state:vehicleForm.state,
 owner_city:vehicleForm.city,
 chassis_number:vehicleForm.chassisNumber,
@@ -727,6 +754,7 @@ setIsAddMode(false);
 setIsVehicleListOpen(true);
 setEditingVehicleId(null);
 setVehicleForm(emptyVehicleForm);
+setVehicleDocuments([]);
 setVehicleFormErrors({});
 
 }catch(e){
@@ -1029,6 +1057,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   </h3>
 
   <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Registration Number</label>
       <input
@@ -1151,16 +1180,6 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
         ))}
       </select>
       {vehicleFormErrors.country ? <p className="text-xs text-red-600">{vehicleFormErrors.country}</p> : null}
-    </div>
-
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Vehicle Origin</label>
-      <input
-        value={vehicleForm.vehicleOrigin}
-        onChange={(e)=>handleFieldChange("vehicleOrigin",e.target.value)}
-        placeholder="Vehicle Origin"
-        className="w-full rounded border px-3 py-2"
-      />
     </div>
 
     <div className="space-y-1">
@@ -1300,7 +1319,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       />
     </div>
 
-    <div className="space-y-1">
+        <div className="space-y-1">
       <label className="text-sm text-slate-600">RTO Code</label>
       <input
         value={vehicleForm.rtoCode}
@@ -1310,6 +1329,140 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       />
     </div>
   </div>
+
+  <div className="space-y-4 pt-4">
+    <div className="flex items-center gap-4">
+      <div className="h-px flex-1 bg-slate-200" />
+      <span className="text-xl text-pink-500">☆</span>
+      <div className="h-px flex-1 bg-slate-200" />
+    </div>
+
+    <h3 className="text-[18px] font-semibold text-pink-600">
+      Upload
+    </h3>
+
+    <div className="flex min-h-[260px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+      {vehicleDocuments.length === 0 ? (
+        <>
+          <div className="mb-4 text-[72px] leading-none text-slate-100">
+            ⇧
+          </div>
+
+          <p className="mb-4 text-[18px] font-medium text-slate-600">
+            No Documents Found
+          </p>
+
+          <button
+  type="button"
+  onClick={()=>setIsUploadModalOpen(true)}
+  className="rounded-md bg-gradient-to-r from-violet-500 to-pink-500 px-5 py-3 text-sm font-semibold text-white"
+>
+  + Upload File
+</button>
+
+        </>
+      ) : (
+        <div className="w-full max-w-xl space-y-3">
+          <p className="text-[18px] font-medium text-slate-600">
+            Uploaded Documents
+          </p>
+
+          {vehicleDocuments.map((file,index)=>(
+            <div
+              key={`${file.name}-${index}`}
+              className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left"
+            >
+              <span className="truncate text-sm text-slate-700">
+                {file.name}
+              </span>
+
+              <button
+                type="button"
+                onClick={()=>{
+                  setVehicleDocuments(prev=>prev.filter((_,i)=>i!==index));
+                }}
+                className="text-sm font-semibold text-red-500"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+          <button
+  type="button"
+  onClick={()=>setIsUploadModalOpen(true)}
+  className="inline-block rounded-md bg-gradient-to-r from-violet-500 to-pink-500 px-5 py-3 text-sm font-semibold text-white"
+>
+  + Upload More
+</button>
+        </div>
+      )}
+    </div>
+  </div>
+
+{isUploadModalOpen && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[520px] rounded-lg bg-white px-14 py-12 shadow-xl">
+      <h2 className="mb-7 text-center text-[24px] font-semibold text-slate-900">
+        Document Upload
+      </h2>
+
+      <div className="mb-6 space-y-2">
+        <label className="text-sm text-slate-600">
+          Document Type <span className="text-red-500">*</span>
+        </label>
+
+        <select
+          value={uploadDocumentType}
+          onChange={(e)=>setUploadDocumentType(e.target.value)}
+          className="w-full rounded border border-slate-200 px-4 py-3 text-slate-600"
+        >
+          <option value="">Choose Type</option>
+          <option value="RC Book">RC Book</option>
+          <option value="Insurance">Insurance</option>
+          <option value="Permit">Permit</option>
+          <option value="Fitness Certificate">Fitness Certificate</option>
+          <option value="Pollution Certificate">Pollution Certificate</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div className="mb-8 space-y-2">
+        <label className="text-sm text-slate-600">
+          Upload Document <span className="text-red-500">*</span>
+        </label>
+
+        <input
+          type="file"
+          onChange={(e)=>handleVehicleDocumentsChange(e.target.files?.[0] ?? null)}
+          className="w-full rounded border border-slate-200 px-3 py-2"
+        />
+      </div>
+
+      <div className="flex justify-center gap-2">
+        <button
+          type="button"
+          onClick={()=>{
+            setIsUploadModalOpen(false);
+            setUploadDocumentType("");
+            setUploadDocumentFile(null);
+          }}
+          className="rounded border border-violet-600 px-7 py-2 font-semibold text-violet-700"
+        >
+          Close
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSaveVehicleDocument}
+          className="rounded bg-gradient-to-r from-violet-500 to-pink-500 px-7 py-2 font-semibold text-white"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
   <div className="flex justify-between">
     <button
