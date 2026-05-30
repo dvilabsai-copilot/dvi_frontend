@@ -73,10 +73,36 @@ export interface DashboardStats {
   } | null;
 }
 
+export interface MostVisitedHotelRow {
+  hotel_name: string;
+  hotel_location: string;
+  visit_count: number;
+  visit_percentage: number;
+}
+
 export const DashboardService = {
   async getStats(): Promise<DashboardStats | AgentDashboardStats> {
     return api('dashboard/stats', {
       method: 'GET',
     });
+  },
+
+
+async getMostVisitedHotels(year: number): Promise<MostVisitedHotelRow[]> {
+    const queryParams = new URLSearchParams();
+
+    queryParams.set("year", String(year));
+    queryParams.set("limit", "5");
+
+    const response: any = await api(`dashboard/most-visited-hotels?${queryParams.toString()}`, {
+      method: "GET",
+    });
+
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.items)) return response.items;
+    if (Array.isArray(response?.rows)) return response.rows;
+
+    return [];
   },
 };
