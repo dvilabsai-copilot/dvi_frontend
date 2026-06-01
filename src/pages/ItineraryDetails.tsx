@@ -599,14 +599,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     open: boolean;
     planId: number | null;
     routeId: number | null;
-    hotspotId: number | null;
+    routeHotspotId: number | null;
+    masterHotspotId: number | null;
     hotspotName: string;
     hotspotWasPrebuilt: boolean;
   }>({
     open: false,
     planId: null,
     routeId: null,
-    hotspotId: null,
+    routeHotspotId: null,
+    masterHotspotId: null,
     hotspotName: "",
     hotspotWasPrebuilt: false,
   });
@@ -3230,6 +3232,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         };
 
         const lastLabel = getSegmentAnchorLabel(lastRenderableSegment);
+        const isTailAlreadyHotelArrival =
+          !!lastRenderableSegment &&
+          (
+            lastRenderableSegment.type === 'checkin' ||
+            (
+              lastRenderableSegment.type === 'travel' &&
+              normalizeTimelineLabel(lastRenderableSegment.to || '') === normalizeTimelineLabel(currentHotelName)
+            ) ||
+            normalizeTimelineLabel(lastLabel) === 'hotel' ||
+            normalizeTimelineLabel(lastLabel) === normalizeTimelineLabel(currentHotelName)
+          );
         const lastEndMinutes = lastRenderableSegment
           ? lastRenderableSegment.type === 'attraction'
             ? parseDisplayMinutes(lastRenderableSegment.visitTime, 'end')
@@ -3249,7 +3262,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
         const dayEndMinutes = parseDisplayMinutes(day.endTime);
         const finalCheckinMinutes = dayEndMinutes ?? lastEndMinutes;
 
-        if (lastLabel && normalizeTimelineLabel(lastLabel) !== normalizeTimelineLabel(currentHotelName)) {
+        if (!isTailAlreadyHotelArrival && lastLabel && normalizeTimelineLabel(lastLabel) !== normalizeTimelineLabel(currentHotelName)) {
           if (
             lastEndMinutes !== null &&
             finalCheckinMinutes !== null &&
@@ -4898,19 +4911,19 @@ const inferHotelProvider = (entry: any): HotelProvider => {
   };
 
   const handleDeleteHotspot = async () => {
-    if (!deleteHotspotModal.planId || !deleteHotspotModal.routeId || !deleteHotspotModal.hotspotId) {
+    if (!deleteHotspotModal.planId || !deleteHotspotModal.routeId || !deleteHotspotModal.routeHotspotId) {
       return;
     }
 
     setIsDeleting(true);
     try {
-      const deletedHotspotId = Number(deleteHotspotModal.hotspotId);
+      const deletedMasterHotspotId = Number(deleteHotspotModal.masterHotspotId || 0);
       const deletedRouteId = Number(deleteHotspotModal.routeId);
 
       await ItineraryService.deleteHotspot(
         deleteHotspotModal.planId,
         deleteHotspotModal.routeId,
-        deleteHotspotModal.hotspotId
+        deleteHotspotModal.routeHotspotId
       );
 
       toast.success("Hotspot deleted successfully");
@@ -4919,14 +4932,18 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       // Remove from modal added set
       setAddedInModalHotspotIds((prev) => {
         const next = new Set(prev);
-        next.delete(deletedHotspotId);
+        if (deletedMasterHotspotId > 0) {
+          next.delete(deletedMasterHotspotId);
+        }
         return next;
       });
 
       // Add to excluded set
-      setExcludedHotspotIds((prev) =>
-        Array.from(new Set([...prev.map(Number), deletedHotspotId]))
-      );
+      if (deletedMasterHotspotId > 0) {
+        setExcludedHotspotIds((prev) =>
+          Array.from(new Set([...prev.map(Number), deletedMasterHotspotId]))
+        );
+      }
 
       // Update itinerary to remove deleted attraction segment
       setItinerary((prev) => {
@@ -4940,7 +4957,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
               segments: day.segments.filter((seg: any) => {
                 if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
                 const segHotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
-                return segHotspotId !== deletedHotspotId;
+                if (deletedMasterHotspotId <= 0) return true;
+                return segHotspotId !== deletedMasterHotspotId;
               }),
             };
           }),
@@ -4950,7 +4968,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       // Also immediately update availableHotspots if modal is already open
       setAvailableHotspots((prev) =>
         prev.map((row) =>
-          Number(row.id) === deletedHotspotId
+          Number(row.id) === deletedMasterHotspotId
             ? {
                 ...row,
                 alreadyAdded: false,
@@ -4967,7 +4985,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         open: false,
         planId: null,
         routeId: null,
-        hotspotId: null,
+        routeHotspotId: null,
+        masterHotspotId: null,
         hotspotName: "",
         hotspotWasPrebuilt: false,
       });
@@ -4995,13 +5014,31 @@ const inferHotelProvider = (entry: any): HotelProvider => {
   };
 
   const handleRebuildRoute = async (planId: number, routeId: number) => {
+    console.log('[REBUILD_ROUTE_CLICK]', {
+      quoteId,
+      planId: itinerary?.planId,
+      clickedRouteId: routeId,
+      currentDayIds: itinerary?.days?.map((d: any) => ({
+        dayNumber: d.dayNumber,
+        id: d.id,
+        needsRebuild: d.needsRebuild,
+        excludedHotspotIds: d.excludedHotspotIds,
+      })),
+    });
+    const currentRouteIds = new Set((itinerary?.days || []).map((d: any) => Number(d.id)));
+    if (!currentRouteIds.has(Number(routeId))) {
+      if (quoteId) {
+        const detailsRes = await ItineraryService.getDetails(quoteId);
+        setItinerary(detailsRes as ItineraryDetailsResponse);
+      }
+      toast.error('Itinerary changed. Please try rebuild again.');
+      return;
+    }
+
     setIsRebuilding(true);
     try {
       await ItineraryService.rebuildRoute(planId, routeId);
       toast.success("Route rebuilt successfully");
-
-      // Clear rebuild flag
-      setRouteNeedsRebuild(null);
 
       // Reload itinerary data
       if (quoteId) {
@@ -5009,8 +5046,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
           ItineraryService.getDetails(quoteId),
           shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
+        const nextItinerary = detailsRes as ItineraryDetailsResponse;
+        setItinerary(nextItinerary);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        const rebuiltDay = Array.isArray((nextItinerary as any)?.days)
+          ? (nextItinerary as any).days.find((d: any) => Number(d?.id) === Number(routeId))
+          : null;
+        if (rebuiltDay && (rebuiltDay as any).needsRebuild !== true) {
+          setRouteNeedsRebuild((prev) => (Number(prev) === Number(routeId) ? null : prev));
+        }
       }
     } catch (e: any) {
       console.error("Failed to rebuild route", e);
@@ -5222,7 +5266,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
   const openDeleteHotspotModal = (
     planId: number,
     routeId: number,
-    hotspotId: number,
+    routeHotspotId: number,
+    masterHotspotId: number,
     hotspotName: string,
     isManualHotspot: boolean = false,
   ) => {
@@ -5230,7 +5275,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       open: true,
       planId,
       routeId,
-      hotspotId,
+      routeHotspotId,
+      masterHotspotId,
       hotspotName,
       hotspotWasPrebuilt: !isManualHotspot,
     });
@@ -7622,12 +7668,21 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       <Calendar className="mt-1 h-5 w-5 shrink-0 text-[#d546ab]" />
 
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
+       <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-semibold leading-6 text-[#4a4260]">
             DAY {day.dayNumber} - {formatHeaderDate(day.date)}
           </h3>
+          {console.log('[REBUILD_BUTTON_RENDER]', {
+            quoteId,
+            planId: itinerary?.planId,
+            dayNumber: day.dayNumber,
+            dayId: day.id,
+            needsRebuild: (day as any).needsRebuild,
+            excludedHotspotIds: (day as any).excludedHotspotIds,
+            routeNeedsRebuild,
+          })}
 
-          {(routeNeedsRebuild === day.id || dayHasManualInserts(day)) && (
+          {(routeNeedsRebuild === day.id || (day as any).needsRebuild === true) && (
             <Button
               size="sm"
               variant="outline"
@@ -7875,6 +7930,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                                           itinerary.planId || 0,
                                           day.id,
                                           segment.routeHotspotId || 0,
+                                          segment.hotspotId || segment.locationId || 0,
                                           segment.name,
                                           segment.isManual === true,
                                         )
@@ -8730,7 +8786,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                   open: false,
                   planId: null,
                   routeId: null,
-                  hotspotId: null,
+                  routeHotspotId: null,
+                  masterHotspotId: null,
                   hotspotName: "",
                   hotspotWasPrebuilt: false,
                 })
@@ -9337,6 +9394,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                                             openDeleteHotspotModal(
                                               addHotspotModal.planId || itinerary?.planId || 0,
                                               addHotspotModal.routeId || 0,
+                                              (hotspot as any).routeHotspotId || hotspot.id,
                                               hotspot.id,
                                               hotspot.name,
                                               true // isManualHotspot = true
