@@ -37,9 +37,20 @@ engineNumber:string;
 vehicleType:string;
 ownerName:string;
 ownerContactNumber:string;
+ownerEmailId:string;
+ownerAddress:string;
+ownerPincode:string;
 country:string;
 state:string;
 city:string;
+chassisNumber:string;
+extraKmCharge:string;
+earlyMorningCharges:string;
+eveningCharges:string;
+vehicleVideoUrl:string;
+insurancePolicyNumber:string;
+insuranceContactNumber:string;
+rtoCode:string;
 }>;
 
 const toPickerDate=(value:string)=>{
@@ -191,7 +202,192 @@ field:keyof typeof vehicleForm,
 value:string
 )=>{
 setVehicleForm(prev=>({...prev,[field]:value}));
-setVehicleFormErrors(prev=>({ ...prev, [field]: undefined }));
+
+setVehicleFormErrors(prev=>{
+const next={...prev};
+const trimmedValue=String(value || "").trim();
+
+if(field==="registrationNumber"){
+  if(!trimmedValue){
+    next.registrationNumber="Registration number is required.";
+  }else if(!isValidRegistrationNumber(trimmedValue)){
+    next.registrationNumber="Enter valid registration number. Example: TS 09 EA 1234.";
+  }else{
+    delete next.registrationNumber;
+  }
+
+  return next;
+}
+
+if(field==="engineNumber"){
+  if(!trimmedValue){
+    next.engineNumber="Engine number is required.";
+  }else if(!isValidEngineNumber(trimmedValue)){
+    next.engineNumber="Enter valid engine number. Example: K12M1234567 or D13A-12345.";
+  }else{
+    delete next.engineNumber;
+  }
+
+  return next;
+}
+
+if(field==="ownerContactNumber"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.ownerContactNumber="Owner contact number is required.";
+  }else if(!isOnlyNumbers(trimmedValue)){
+    next.ownerContactNumber="Only numbers are allowed.";
+  }else if(!isValidIndianMobile(trimmedValue)){
+    next.ownerContactNumber="Contact number must be 10 digits and start with 6, 7, 8, or 9.";
+  }else{
+    delete next.ownerContactNumber;
+  }
+
+  return next;
+}
+
+if(field==="ownerEmailId"){
+  const trimmedValue=String(value || "").trim();
+
+  if(trimmedValue && !isValidEmail(trimmedValue)){
+    next.ownerEmailId="Enter a valid email address. Example: user@example.com";
+  }else{
+    delete next.ownerEmailId;
+  }
+
+  return next;
+}
+
+if(field==="ownerPincode"){
+  const trimmedValue=String(value || "").trim();
+
+  if(trimmedValue && !isOnlyNumbers(trimmedValue)){
+    next.ownerPincode="Only numbers are allowed.";
+  }else if(trimmedValue && !isValidIndianPincode(trimmedValue)){
+    next.ownerPincode="Pincode must be 6 digits and cannot start with 0.";
+  }else{
+    delete next.ownerPincode;
+  }
+
+  return next;
+}
+
+if(field==="chassisNumber"){
+  const trimmedValue=String(value || "").trim();
+
+  if(trimmedValue && !isValidChassisNumber(trimmedValue)){
+    next.chassisNumber="Chassis number must be 17 alphanumeric characters. Example: 1HGCM12345A654321.";
+  }else{
+    delete next.chassisNumber;
+  }
+
+  return next;
+}
+
+if(field==="extraKmCharge"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.extraKmCharge="This value is required.";
+  }else if(!isValidAmount(trimmedValue)){
+    next.extraKmCharge="This value should be a valid number.";
+  }else{
+    delete next.extraKmCharge;
+  }
+
+  return next;
+}
+
+if(field==="earlyMorningCharges"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.earlyMorningCharges="This value is required.";
+  }else if(!isValidAmount(trimmedValue)){
+    next.earlyMorningCharges="Please enter valid price.";
+  }else{
+    delete next.earlyMorningCharges;
+  }
+
+  return next;
+}
+
+if(field==="eveningCharges"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.eveningCharges="This value is required.";
+  }else if(!isValidAmount(trimmedValue)){
+    next.eveningCharges="Please enter valid price.";
+  }else{
+    delete next.eveningCharges;
+  }
+
+  return next;
+}
+
+if(field==="vehicleVideoUrl"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.vehicleVideoUrl="This value is required.";
+  }else if(!isValidUrl(trimmedValue)){
+    next.vehicleVideoUrl="Enter a valid URL.";
+  }else{
+    delete next.vehicleVideoUrl;
+  }
+
+  return next;
+}
+
+if(field==="insurancePolicyNumber"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.insurancePolicyNumber="Insurance policy number is required.";
+  }else if(!isValidInsurancePolicyNumber(trimmedValue)){
+    next.insurancePolicyNumber="Enter valid policy number. Use 6 to 30 letters/numbers, / or -.";
+  }else{
+    delete next.insurancePolicyNumber;
+  }
+
+  return next;
+}
+
+if(field==="insuranceContactNumber"){
+  const trimmedValue=String(value || "").trim();
+
+  if(!trimmedValue){
+    next.insuranceContactNumber="Insurance contact number is required.";
+  }else if(!isOnlyNumbers(trimmedValue)){
+    next.insuranceContactNumber="Only numbers are allowed.";
+  }else if(!isValidIndianMobile(trimmedValue)){
+    next.insuranceContactNumber="Contact number must be 10 digits and start with 6, 7, 8, or 9.";
+  }else{
+    delete next.insuranceContactNumber;
+  }
+
+  return next;
+}
+
+if(field==="rtoCode"){
+  const trimmedValue=String(value || "").trim().toUpperCase();
+
+  if(!trimmedValue){
+    next.rtoCode="RTO code is required.";
+  }else if(!isValidRtoCode(trimmedValue)){
+    next.rtoCode="Enter valid RTO code. Example: TS09, KA01, MH12.";
+  }else{
+    delete next.rtoCode;
+  }
+
+  return next;
+}
+
+delete next[field];
+return next;
+});
 };
 
 const handleVehicleDocumentsChange=(file:File|null)=>{
@@ -683,23 +879,223 @@ setVehicleFormErrors({});
 
 };
 
+const isOnlyNumbers=(value:string)=>{
+return /^[0-9]+$/.test(String(value || "").trim());
+};
+
+const isValidIndianMobile=(value:string)=>{
+return /^[6-9][0-9]{9}$/.test(String(value || "").trim());
+};
+
+const isValidIndianPincode=(value:string)=>{
+return /^[1-9][0-9]{5}$/.test(String(value || "").trim());
+};
+
+const isValidChassisNumber=(value:string)=>{
+return /^[A-Z0-9]{17}$/.test(String(value || "").trim().toUpperCase());
+};
+
+const isValidInsurancePolicyNumber=(value:string)=>{
+return /^[A-Z0-9/-]{6,30}$/.test(String(value || "").trim().toUpperCase());
+};
+
+const isValidRtoCode=(value:string)=>{
+return /^[A-Z]{2}[0-9]{2}$/.test(String(value || "").trim().toUpperCase());
+};
+
+const normalizeVehicleText=(value:string)=>{
+return String(value || "").trim().toUpperCase();
+};
+
+const isValidRegistrationNumber=(value:string)=>{
+const normalized=normalizeVehicleText(value).replace(/\s+/g,"");
+return /^[A-Z]{2}[0-9]{2}[A-Z]{1,2}[0-9]{4}$/.test(normalized);
+};
+
+const isValidEngineNumber=(value:string)=>{
+const normalized=normalizeVehicleText(value);
+const withoutHyphen=normalized.replace(/-/g,"");
+
+if(!/^[A-Z0-9-]+$/.test(normalized)) return false;
+if((normalized.match(/-/g) || []).length > 1) return false;
+if(withoutHyphen.length < 9 || withoutHyphen.length > 17) return false;
+
+return /^[A-Z0-9]{3,8}-?[A-Z0-9]{5,10}$/.test(normalized);
+};
+
+const isValidEmail=(value:string)=>{
+const trimmed=String(value || "").trim();
+
+if(!trimmed) return true;
+
+return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed);
+};
+
+const isValidUrl=(value:string)=>{
+if(!String(value || "").trim()) return true;
+
+try{
+new URL(String(value).trim());
+return true;
+}catch{
+return false;
+}
+};
+
+const isValidAmount=(value:string)=>{
+if(!String(value || "").trim()) return true;
+return /^\d+(\.\d{1,2})?$/.test(String(value).trim());
+};
+
 const handleSaveVehicle=async()=>{
 
-if(!vendorId || !selectedBranchId) return;
+if(!vendorId){
+alert("Vendor id missing. Please save Basic Info first.");
+return;
+}
+
+if(!selectedBranchId){
+alert("Please select a branch before saving vehicle.");
+return;
+}
 
 const errors:VehicleFormErrors={};
-if(!String(vehicleForm.registrationNumber ?? "").trim()) errors.registrationNumber="This value is required.";
-if(!String(vehicleForm.registrationDate ?? "").trim()) errors.registrationDate="This value is required.";
-if(!String(vehicleForm.engineNumber ?? "").trim()) errors.engineNumber="This value is required.";
-if(!String(vehicleForm.vehicleType ?? "").trim()) errors.vehicleType="This value is required.";
-if(!String(vehicleForm.ownerName ?? "").trim()) errors.ownerName="This value is required.";
-if(!String(vehicleForm.ownerContactNumber ?? "").trim()) errors.ownerContactNumber="This value is required.";
-if(!String(vehicleForm.country ?? "").trim()) errors.country="This value is required.";
-if(!String(vehicleForm.state ?? "").trim()) errors.state="This value is required.";
-if(!String(vehicleForm.city ?? "").trim()) errors.city="This value is required.";
+
+const registrationNumber=String(vehicleForm.registrationNumber ?? "").trim();
+
+if(!registrationNumber){
+errors.registrationNumber="Registration number is required.";
+}else if(!isValidRegistrationNumber(registrationNumber)){
+errors.registrationNumber="Enter valid registration number. Example: TS 09 EA 1234.";
+}
+
+if(!String(vehicleForm.registrationDate ?? "").trim()){
+errors.registrationDate="Registration date is required.";
+}
+
+const engineNumber=String(vehicleForm.engineNumber ?? "").trim();
+
+if(!engineNumber){
+errors.engineNumber="Engine number is required.";
+}else if(!isValidEngineNumber(engineNumber)){
+errors.engineNumber="Enter valid engine number. Example: K12M1234567 or D13A-12345.";
+}
+
+if(!String(vehicleForm.vehicleType ?? "").trim()){
+errors.vehicleType="Vehicle type is required.";
+}
+
+if(!String(vehicleForm.ownerName ?? "").trim()){
+errors.ownerName="Owner name is required.";
+}
+
+const ownerContactNumber=String(vehicleForm.ownerContactNumber ?? "").trim();
+
+if(!ownerContactNumber){
+errors.ownerContactNumber="Owner contact number is required.";
+}else if(!isOnlyNumbers(ownerContactNumber)){
+errors.ownerContactNumber="Only numbers are allowed.";
+}else if(!isValidIndianMobile(ownerContactNumber)){
+errors.ownerContactNumber="Contact number must be 10 digits and start with 6, 7, 8, or 9.";
+}
+
+const ownerEmailId=String(vehicleForm.ownerEmailId ?? "").trim();
+
+if(ownerEmailId && !isValidEmail(ownerEmailId)){
+errors.ownerEmailId="Enter a valid email address. Example: user@example.com";
+}
+
+if(!String(vehicleForm.ownerAddress ?? "").trim()){
+errors.ownerAddress="Owner address is required.";
+}
+
+const ownerPincode=String(vehicleForm.ownerPincode ?? "").trim();
+
+if(ownerPincode && !isOnlyNumbers(ownerPincode)){
+errors.ownerPincode="Only numbers are allowed.";
+}else if(ownerPincode && !isValidIndianPincode(ownerPincode)){
+errors.ownerPincode="Pincode must be 6 digits and cannot start with 0.";
+}
+
+if(!String(vehicleForm.country ?? "").trim()){
+errors.country="Country is required.";
+}
+
+if(!String(vehicleForm.state ?? "").trim()){
+errors.state="State is required.";
+}
+
+if(!String(vehicleForm.city ?? "").trim()){
+errors.city="City is required.";
+}
+
+const chassisNumber=String(vehicleForm.chassisNumber ?? "").trim();
+
+if(chassisNumber && !isValidChassisNumber(chassisNumber)){
+errors.chassisNumber="Chassis number must be 17 alphanumeric characters. Example: 1HGCM12345A654321.";
+}
+
+const extraKmCharge=String(vehicleForm.extraKmCharge ?? "").trim();
+
+if(!extraKmCharge){
+errors.extraKmCharge="This value is required.";
+}else if(!isValidAmount(extraKmCharge)){
+errors.extraKmCharge="This value should be a valid number.";
+}
+
+const earlyMorningCharges=String(vehicleForm.earlyMorningCharges ?? "").trim();
+
+if(!earlyMorningCharges){
+errors.earlyMorningCharges="This value is required.";
+}else if(!isValidAmount(earlyMorningCharges)){
+errors.earlyMorningCharges="Please enter valid price.";
+}
+
+const eveningCharges=String(vehicleForm.eveningCharges ?? "").trim();
+
+if(!eveningCharges){
+errors.eveningCharges="This value is required.";
+}else if(!isValidAmount(eveningCharges)){
+errors.eveningCharges="Please enter valid price.";
+}
+
+const vehicleVideoUrl=String(vehicleForm.vehicleVideoUrl ?? "").trim();
+
+if(!vehicleVideoUrl){
+errors.vehicleVideoUrl="This value is required.";
+}else if(!isValidUrl(vehicleVideoUrl)){
+errors.vehicleVideoUrl="Enter a valid URL.";
+}
+
+const insurancePolicyNumber=String(vehicleForm.insurancePolicyNumber ?? "").trim();
+
+if(!insurancePolicyNumber){
+errors.insurancePolicyNumber="Insurance policy number is required.";
+}else if(!isValidInsurancePolicyNumber(insurancePolicyNumber)){
+errors.insurancePolicyNumber="Enter valid policy number. Use 6 to 30 letters/numbers, / or -.";
+}
+
+const insuranceContactNumber=String(vehicleForm.insuranceContactNumber ?? "").trim();
+
+if(!insuranceContactNumber){
+errors.insuranceContactNumber="Insurance contact number is required.";
+}else if(!isOnlyNumbers(insuranceContactNumber)){
+errors.insuranceContactNumber="Only numbers are allowed.";
+}else if(!isValidIndianMobile(insuranceContactNumber)){
+errors.insuranceContactNumber="Contact number must be 10 digits and start with 6, 7, 8, or 9.";
+}
+
+const rtoCode=String(vehicleForm.rtoCode ?? "").trim().toUpperCase();
+
+if(!rtoCode){
+errors.rtoCode="RTO code is required.";
+}else if(!isValidRtoCode(rtoCode)){
+errors.rtoCode="Enter valid RTO code. Example: TS09, KA01, MH12.";
+}
 
 if(Object.keys(errors).length>0){
 setVehicleFormErrors(errors);
+alert("Please fix highlighted errors.");
 return;
 }
 
@@ -1126,45 +1522,66 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       {vehicleFormErrors.ownerName ? <p className="text-xs text-red-600">{vehicleFormErrors.ownerName}</p> : null}
     </div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Owner Contact Number</label>
-      <input
-        value={vehicleForm.ownerContactNumber}
-        onChange={(e)=>handleFieldChange("ownerContactNumber",e.target.value)}
-        placeholder="Owner Contact Number"
-        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.ownerContactNumber ? "border-red-400" : ""}`}
-      />
-      {vehicleFormErrors.ownerContactNumber ? <p className="text-xs text-red-600">{vehicleFormErrors.ownerContactNumber}</p> : null}
-    </div>
-
+<div className="space-y-1">
+  <label className="text-sm text-slate-600">Owner Contact Number</label>
+  <input
+    value={vehicleForm.ownerContactNumber}
+    onChange={(e)=>handleFieldChange("ownerContactNumber",e.target.value)}
+    placeholder="Owner Contact Number"
+      maxLength={10}
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.ownerContactNumber ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.ownerContactNumber ? (
+    <p className="text-xs text-red-600">
+      {vehicleFormErrors.ownerContactNumber}
+    </p>
+  ) : null}
+</div>
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Owner Email ID</label>
-      <input
-        value={vehicleForm.ownerEmailId}
-        onChange={(e)=>handleFieldChange("ownerEmailId",e.target.value)}
-        placeholder="Owner Email ID"
-        className="w-full rounded border px-3 py-2"
-      />
+     <input
+  value={vehicleForm.ownerEmailId}
+  onChange={(e)=>handleFieldChange("ownerEmailId",e.target.value)}
+  placeholder="Owner Email ID"
+  className={`w-full rounded border px-3 py-2 ${
+    vehicleFormErrors.ownerEmailId ? "border-red-400" : ""
+  }`}
+/>
+{vehicleFormErrors.ownerEmailId ? (
+  <p className="text-xs text-red-600">{vehicleFormErrors.ownerEmailId}</p>
+) : null}
     </div>
 
-    <div className="space-y-1 md:col-span-2">
-      <label className="text-sm text-slate-600">Owner Address</label>
-      <input
-        value={vehicleForm.ownerAddress}
-        onChange={(e)=>handleFieldChange("ownerAddress",e.target.value)}
-        placeholder="Owner Address"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
-
+   <div className="space-y-1 md:col-span-2">
+  <label className="text-sm text-slate-600">Owner Address</label>
+  <input
+    value={vehicleForm.ownerAddress}
+    onChange={(e)=>handleFieldChange("ownerAddress",e.target.value)}
+    placeholder="Owner Address"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.ownerAddress ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.ownerAddress ? (
+    <p className="text-xs text-red-600">{vehicleFormErrors.ownerAddress}</p>
+  ) : null}
+</div>
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Owner Pincode</label>
       <input
-        value={vehicleForm.ownerPincode}
-        onChange={(e)=>handleFieldChange("ownerPincode",e.target.value)}
-        placeholder="Owner Pincode"
-        className="w-full rounded border px-3 py-2"
-      />
+  value={vehicleForm.ownerPincode}
+  onChange={(e)=>handleFieldChange("ownerPincode",e.target.value)}
+  placeholder="Owner Pincode"
+  maxLength={6}
+  className={`w-full rounded border px-3 py-2 ${
+    vehicleFormErrors.ownerPincode ? "border-red-400" : ""
+  }`}
+/>
+{vehicleFormErrors.ownerPincode ? (
+  <p className="text-xs text-red-600">{vehicleFormErrors.ownerPincode}</p>
+) : null}
     </div>
 
     <div className="space-y-1">
@@ -1215,11 +1632,19 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Chassis Number</label>
       <input
-        value={vehicleForm.chassisNumber}
-        onChange={(e)=>handleFieldChange("chassisNumber",e.target.value)}
-        placeholder="Chassis Number"
-        className="w-full rounded border px-3 py-2"
-      />
+  value={vehicleForm.chassisNumber}
+  onChange={(e)=>handleFieldChange("chassisNumber",e.target.value.toUpperCase())}
+  placeholder="Chassis Number"
+  maxLength={17}
+  className={`w-full rounded border px-3 py-2 ${
+    vehicleFormErrors.chassisNumber ? "border-red-400" : ""
+  }`}
+/>
+{vehicleFormErrors.chassisNumber ? (
+  <p className="text-xs text-red-600">
+    {vehicleFormErrors.chassisNumber}
+  </p>
+) : null}
     </div>
 
     <div className="space-y-1">
@@ -1238,58 +1663,93 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       </select>
     </div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Extra KM Charge</label>
-      <input
-        type="number"
-        value={vehicleForm.extraKmCharge}
-        onChange={(e)=>handleFieldChange("extraKmCharge",e.target.value)}
-        placeholder="Extra KM Charge"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+<div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    Extra KM Charge (₹) <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.extraKmCharge}
+    onChange={(e)=>handleFieldChange("extraKmCharge",e.target.value)}
+    placeholder="Extra KM Charge"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.extraKmCharge ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.extraKmCharge ? (
+    <p className="text-xs text-red-600">{vehicleFormErrors.extraKmCharge}</p>
+  ) : null}
+</div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Early Morning Charges</label>
-      <input
-        type="number"
-        value={vehicleForm.earlyMorningCharges}
-        onChange={(e)=>handleFieldChange("earlyMorningCharges",e.target.value)}
-        placeholder="Early Morning Charges"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+<div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    Early Morning Charges (₹)(Before 6 AM) <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.earlyMorningCharges}
+    onChange={(e)=>handleFieldChange("earlyMorningCharges",e.target.value)}
+    placeholder="Early Morning Charges"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.earlyMorningCharges ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.earlyMorningCharges ? (
+    <p className="text-xs text-red-600">{vehicleFormErrors.earlyMorningCharges}</p>
+  ) : null}
+</div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Evening Charges</label>
-      <input
-        type="number"
-        value={vehicleForm.eveningCharges}
-        onChange={(e)=>handleFieldChange("eveningCharges",e.target.value)}
-        placeholder="Evening Charges"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+<div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    Evening Charges (₹)(After 8 PM) <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.eveningCharges}
+    onChange={(e)=>handleFieldChange("eveningCharges",e.target.value)}
+    placeholder="Evening Charges"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.eveningCharges ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.eveningCharges ? (
+    <p className="text-xs text-red-600">{vehicleFormErrors.eveningCharges}</p>
+  ) : null}
+</div>
 
-    <div className="space-y-1 md:col-span-2">
-      <label className="text-sm text-slate-600">Vehicle Video URL</label>
-      <input
-        value={vehicleForm.vehicleVideoUrl}
-        onChange={(e)=>handleFieldChange("vehicleVideoUrl",e.target.value)}
-        placeholder="Vehicle Video URL"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+   <div className="space-y-1 md:col-span-2">
+  <label className="text-sm text-slate-600">
+    Vehicle Video URL <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.vehicleVideoUrl}
+    onChange={(e)=>handleFieldChange("vehicleVideoUrl",e.target.value)}
+    placeholder="Enter Video url"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.vehicleVideoUrl ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.vehicleVideoUrl ? (
+    <p className="text-xs text-red-600">{vehicleFormErrors.vehicleVideoUrl}</p>
+  ) : null}
+</div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Insurance Policy Number</label>
-      <input
-        value={vehicleForm.insurancePolicyNumber}
-        onChange={(e)=>handleFieldChange("insurancePolicyNumber",e.target.value)}
-        placeholder="Insurance Policy Number"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+   <div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    Insurance Policy Number <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.insurancePolicyNumber}
+    onChange={(e)=>handleFieldChange("insurancePolicyNumber",e.target.value.toUpperCase())}
+    placeholder="Insurance Policy Number"
+    maxLength={30}
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.insurancePolicyNumber ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.insurancePolicyNumber ? (
+    <p className="text-xs text-red-600">
+      {vehicleFormErrors.insurancePolicyNumber}
+    </p>
+  ) : null}
+</div>
 
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Insurance Start Date</label>
@@ -1309,25 +1769,45 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       />
     </div>
 
-    <div className="space-y-1">
-      <label className="text-sm text-slate-600">Insurance Contact Number</label>
-      <input
-        value={vehicleForm.insuranceContactNumber}
-        onChange={(e)=>handleFieldChange("insuranceContactNumber",e.target.value)}
-        placeholder="Insurance Contact Number"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+ <div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    Insurance Contact Number <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.insuranceContactNumber}
+    onChange={(e)=>handleFieldChange("insuranceContactNumber",e.target.value)}
+    placeholder="Insurance Contact Number"
+    maxLength={10}
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.insuranceContactNumber ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.insuranceContactNumber ? (
+    <p className="text-xs text-red-600">
+      {vehicleFormErrors.insuranceContactNumber}
+    </p>
+  ) : null}
+</div>
 
-        <div className="space-y-1">
-      <label className="text-sm text-slate-600">RTO Code</label>
-      <input
-        value={vehicleForm.rtoCode}
-        onChange={(e)=>handleFieldChange("rtoCode",e.target.value)}
-        placeholder="RTO Code"
-        className="w-full rounded border px-3 py-2"
-      />
-    </div>
+       <div className="space-y-1">
+  <label className="text-sm text-slate-600">
+    RTO Code <span className="text-red-500">*</span>
+  </label>
+  <input
+    value={vehicleForm.rtoCode}
+    onChange={(e)=>handleFieldChange("rtoCode",e.target.value.toUpperCase())}
+    placeholder="RTO Code"
+    maxLength={4}
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.rtoCode ? "border-red-400" : ""
+    }`}
+  />
+  {vehicleFormErrors.rtoCode ? (
+    <p className="text-xs text-red-600">
+      {vehicleFormErrors.rtoCode}
+    </p>
+  ) : null}
+</div>
   </div>
 
   <div className="space-y-4 pt-4">
