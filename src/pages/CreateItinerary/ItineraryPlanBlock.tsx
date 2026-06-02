@@ -643,9 +643,12 @@ const handleHotelFacilityChange = (vals: string[]) => {
   </PopoverTrigger>
 
   <PopoverContent
-    align="start"
-    className="z-50 w-[calc(100vw-2rem)] max-w-[700px] p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl overflow-hidden"
-  >
+  side="bottom"
+  align="start"
+  sideOffset={8}
+  avoidCollisions={false}
+  className="z-[9999] w-[calc(100vw-2rem)] max-w-[700px] max-h-[calc(100vh-160px)] overflow-y-auto p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
+>
    <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
   <div className="space-y-2">
     <div className="text-sm font-medium text-[#4a4260]">
