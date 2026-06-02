@@ -436,36 +436,78 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         driver_evening_charges: String(dc.driver_evening_charges ?? dc.evening_charges ?? 0),
       }));
 
-      const vendorTypeMap = new Map<string, Option>();
-      (dcRes as any[]).forEach((r: any) => {
-        const id = String(r.vehicle_type_id ?? "");
-        if (!id) return;
-        if (!vendorTypeMap.has(id)) {
-          vendorTypeMap.set(id, {
-            id,
-            label: String(r.vehicle_type_title ?? r.vehicle_type_name ?? id),
-          });
-        }
-      });
-      const vendorTypeOptions = Array.from(vendorTypeMap.values());
-      if (vendorTypeOptions.length > 0) {
-        setVehicleTypeOptions(vendorTypeOptions);
-      }
+
+     const vendorTypeMap = new Map<string, Option>();
+
+(dcRes as any[]).forEach((r: any) => {
+  const title = String(
+    r.vehicle_type_title ??
+      r.vehicle_type_name ??
+      r.vehicle_title ??
+      ""
+  ).trim();
+
+  const baseVehicleTypeId = String(r.vehicle_type_id ?? "");
+  const vendorVehicleTypeId = String(r.vendor_vehicle_type_ID ?? "");
+
+  if (baseVehicleTypeId && !vendorTypeMap.has(baseVehicleTypeId)) {
+    vendorTypeMap.set(baseVehicleTypeId, {
+      id: baseVehicleTypeId,
+      label: title || baseVehicleTypeId,
+    });
+  }
+
+  if (vendorVehicleTypeId && !vendorTypeMap.has(vendorVehicleTypeId)) {
+    vendorTypeMap.set(vendorVehicleTypeId, {
+      id: vendorVehicleTypeId,
+      label: title || vendorVehicleTypeId,
+    });
+  }
+});
+
+const vendorTypeOptions = Array.from(vendorTypeMap.values()).filter(
+  (option, index, arr) =>
+    arr.findIndex((item) => item.label === option.label) === index,
+);
+
+if (vendorTypeOptions.length > 0) {
+  setVehicleTypeOptions(vendorTypeOptions);
+}
 
       setDriverCosts(dcRes as any[]);
       setEditableDriverRows(normalizedDriverRows);
-      setVehicleExtraRows(
-        (extraRes as any[]).map((r: any) => ({
-          vendor_branch_id: r.vendor_branch_id,
-          vendor_branch_name: r.vendor_branch_name,
-          vehicle_type_id: r.vehicle_type_id,
-          vehicle_type_title: r.vehicle_type_title,
-          extra_km_charge: String(r.extra_km_charge ?? 0),
-          extra_hour_charge: String(r.extra_hour_charge ?? 0),
-          early_morning_charges: String(r.early_morning_charges ?? 0),
-          evening_charges: String(r.evening_charges ?? 0),
-        })),
-      );
+     setVehicleExtraRows(
+  (extraRes as any[]).map((r: any) => {
+    const vehicleTypeId = String(
+      r.vehicle_type_id ?? r.vendor_vehicle_type_id ?? ""
+    );
+
+    const responseTitle = String(
+      r.vehicle_type_title ??
+        r.vehicle_type_name ??
+        r.vehicle_title ??
+        ""
+    ).trim();
+
+    const mappedTitle = vendorTypeMap.get(vehicleTypeId)?.label;
+
+    const vehicleTypeTitle =
+      responseTitle && !/^\d+$/.test(responseTitle)
+        ? responseTitle
+        : mappedTitle || vehicleTypeId;
+
+    return {
+      vendor_branch_id: r.vendor_branch_id,
+      vendor_branch_name: r.vendor_branch_name,
+      vehicle_type_id: r.vehicle_type_id,
+      vehicle_type_title: vehicleTypeTitle,
+      extra_km_charge: String(r.extra_km_charge ?? 0),
+      extra_hour_charge: String(r.extra_hour_charge ?? 0),
+      early_morning_charges: String(r.early_morning_charges ?? 0),
+      evening_charges: String(r.evening_charges ?? 0),
+    };
+  }),
+);
       setLocalFormRows(localRowsRes as any[]);
       setOutstationFormRows(outRowsRes as any[]);
 
@@ -1017,8 +1059,10 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
                           <div key={`extra-${row.vendor_branch_id}-${row.vehicle_type_id}`} className="grid grid-cols-12 gap-3 items-end">
                             <div className="col-span-2">
                               <Label className="text-xs">Vehicle Type</Label>
-                              <p className="text-purple-600">{row.vehicle_type_title}</p>
-                            </div>
+                              <p className="text-purple-600">
+                                {row.vehicle_type_title || row.vehicle_type_name || row.vehicle_type_id}
+                              </p>
+                                </div>
                             <div className="col-span-2">
                               <Label className="text-xs">Extra KM Charge(₹)</Label>
                               <Input
