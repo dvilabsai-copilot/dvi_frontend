@@ -396,15 +396,12 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">${splitDurationLines(formatMinutesDuration(dp.travelDurationMinutes)).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.extraKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraKmCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.extraHourCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
           </tr>
         `;
@@ -424,9 +421,6 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               `Extra Hour Charges (Rs ${Number(vehicle.extraHourRate ?? 0).toFixed(0)} * ${Number(vehicle.extraHourCount ?? 0).toFixed(0)} hrs)`,
               formatCurrencyINR(vehicle.extraHourCharge),
             ]
-          : null,
-        (Number(vehicle.extraKmCharge ?? 0) > 0)
-          ? ["Extra KM Charges", formatCurrencyINR(vehicle.extraKmCharge)]
           : null,
         ["Before 6 AM Charges (D)", formatCurrencyINR(vehicle.before6amDriver)],
         ["Before 6 AM Charges (V)", formatCurrencyINR(vehicle.before6amVendor)],
@@ -533,15 +527,12 @@ const totalRows = [
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Travel KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;">Sightseeing<br/>KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;"><span style="line-height:1.1;display:inline-block;">Running<br/>Time</span></th>
-                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra KM</th>
-                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;"><span style="line-height:1.1;display:inline-block;">Extra KM<br/>Charge</span></th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total KM</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Rental</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Toll</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Parking</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Driver</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Permit</th>
-                <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Extra Hour</th>
                 <th style="padding:3px 4px;border:1px solid #cfd4dc;text-align:right;font-weight:700;white-space:nowrap;">Total</th>
               </tr>
             </thead>
@@ -896,15 +887,12 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Travel KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Sightseeing<br />KM</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Running<br />Time</span></th>
-                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra KM</th>
-                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700"><span className="leading-tight inline-block">Extra KM<br />Charge</span></th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total KM</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Rental</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Toll</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Parking</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Driver</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Permit</th>
-                                    <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Extra Hour</th>
                                     <th className="border border-gray-300 text-right py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Total</th>
                                   </tr>
                                 </thead>
@@ -933,8 +921,6 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                           <div key={lineIndex}>{line}</div>
                                         ))}
                                       </td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.extraKms ?? 0).toFixed(2)} KM</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraKmCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap leading-tight">
                                         {getRentalCellLines(dp).map((line, lineIndex) => (
@@ -955,7 +941,6 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                         </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.extraHourCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
                                     </tr>
                                   );})}
@@ -990,9 +975,6 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                           label: `Extra Hour Charges (Rs ${Number(v.extraHourRate ?? 0).toFixed(0)} * ${Number(v.extraHourCount ?? 0).toFixed(0)} hrs)`,
                                           value: formatCurrencyINR(v.extraHourCharge),
                                         }]
-                                      : []),
-                                    ...(Number(v.extraKmCharge ?? 0) > 0
-                                      ? [{ label: 'Extra KM Charges', value: formatCurrencyINR(v.extraKmCharge) }]
                                       : []),
                                     { label: 'Before 6 AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
                                     { label: 'Before 6 AM Charges (V)', value: formatCurrencyINR(v.before6amVendor) },
