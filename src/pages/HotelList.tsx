@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AlertTriangle, Loader2, Edit } from "lucide-react";
+import { AlertTriangle, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import type {
   ItineraryHotelRow,
@@ -25,6 +25,7 @@ type HotelListProps = {
   hotels: ItineraryHotelRow[];
   hotelTabs: ItineraryHotelTab[];
   hotelRatesVisible: boolean;
+  showHotelMargins?: boolean;
   hotelAvailability?: {
     hasSupplierHotels: boolean;
     supplierHotelCount: number;
@@ -301,6 +302,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotels,
   hotelTabs,
   hotelRatesVisible,
+  showHotelMargins = false,
   hotelAvailability,
   quoteId, // ✅ Receive quoteId from parent
   planId, // ✅ Receive planId from parent
@@ -369,9 +371,62 @@ export const HotelList: React.FC<HotelListProps> = ({
   };
 
   const getHotelAmountWithRooms = (hotel: Pick<ItineraryHotelRow, 'totalHotelCost' | 'totalHotelTaxAmount' | 'noOfRooms'>): number => {
-    const baseAmount = toNumber(hotel.totalHotelCost, 0) + toNumber(hotel.totalHotelTaxAmount, 0);
+    const baseAmount = getHotelDisplayAmount(hotel);
     // API row totals are already for the effective rooming; do not multiply again.
     return baseAmount;
+  };
+
+  const getHotelBaseAmount = (hotel: any): number => {
+    return toNumber(
+      hotel?.baseHotelCost ??
+      hotel?.basePricePerNight ??
+      hotel?.baseAmount ??
+      0,
+    );
+  };
+
+  const getHotelDisplayAmount = (hotel: any): number => {
+    const directTotal = toNumber(hotel?.totalAmount ?? hotel?.totalPrice, 0);
+    if (directTotal > 0) {
+      return directTotal;
+    }
+
+    const totalHotelCost = toNumber(hotel?.totalHotelCost ?? hotel?.perNightAmount ?? hotel?.pricePerNight, 0);
+    const totalHotelTaxAmount = toNumber(hotel?.totalHotelTaxAmount ?? hotel?.taxAmount, 0);
+    const computedAmount = totalHotelCost + totalHotelTaxAmount;
+
+    if (computedAmount > 0) {
+      return computedAmount;
+    }
+
+    return totalHotelCost;
+  };
+
+  const getLowestRoomTypeAmount = (roomTypeOptions: HotelRoomDetail[]): number => {
+    if (!roomTypeOptions.length) return 0;
+
+    return roomTypeOptions.reduce((lowest, option) => {
+      const optionAmount = getHotelDisplayAmount(option);
+      if (lowest === 0) return optionAmount;
+      if (optionAmount <= 0) return lowest;
+      return optionAmount < lowest ? optionAmount : lowest;
+    }, 0);
+  };
+
+  const getLowestRoomTypeBaseAmount = (roomTypeOptions: HotelRoomDetail[]): number => {
+    if (!roomTypeOptions.length) return 0;
+
+    return roomTypeOptions.reduce((lowest, option) => {
+      const optionAmount = getHotelBaseAmount(option);
+      if (lowest === 0) return optionAmount;
+      if (optionAmount <= 0) return lowest;
+      return optionAmount < lowest ? optionAmount : lowest;
+    }, 0);
+  };
+
+  const getSelectedHotelAmount = (selectedHotel?: ItineraryHotelRow | HotelRoomDetail | null): number => {
+    if (!selectedHotel) return 0;
+    return getHotelDisplayAmount(selectedHotel);
   };
 
   const getHotelsForStay = (
@@ -558,7 +613,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
   const [selectedRoomTypeByHotel, setSelectedRoomTypeByHotel] = useState<Record<string, string>>({});
   // ✅ Track which hotel's room type dropdown is open
-  const [roomTypeDropdownOpen, setRoomTypeDropdownOpen] = useState<string | null>(null);
+  const [, setRoomTypeDropdownOpen] = useState<string | null>(null);
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -1184,10 +1239,10 @@ export const HotelList: React.FC<HotelListProps> = ({
         String((h as any).provider || '').trim().toLowerCase() === selectedProvider &&
         (
           String((h as any).bookingCode || '').trim() === selectedBookingCode ||
-          String((h as any).hotelCode || h.hotelId || '').trim() === selectedHotelCode
+        String((h as any).hotelCode || h.hotelId || '').trim() === selectedHotelCode
         ) &&
         String(h.roomType || '').trim() === String((room as any).roomTypeName || (room as any).roomType || '').trim() &&
-        Number(h.totalHotelCost || 0) === Number((normalizedRoom as any).perNightAmount || (normalizedRoom as any).totalHotelCost || 0),
+        getHotelDisplayAmount(h) === getHotelDisplayAmount(normalizedRoom),
       );
       
       if (!selectedHotel) {
@@ -1216,6 +1271,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           destination: (normalizedRoom as any).destination || '',
           noOfRooms: 1,
           date: (normalizedRoom as any).checkInDate || '',
+          totalAmount: getHotelDisplayAmount(normalizedRoom),
         } as any;
         console.warn('⚠️ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
         // Re-use the normal flow with the fallback
@@ -1245,7 +1301,7 @@ export const HotelList: React.FC<HotelListProps> = ({
               hotelCode: (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
               bookingCode: (normalizedRoom as any).bookingCode || (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
               roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-              netAmount: Number((normalizedRoom as any).totalHotelCost || (normalizedRoom as any).pricePerNight || 0),
+              netAmount: getHotelDisplayAmount(normalizedRoom),
               hotelName: (normalizedRoom as any).hotelName || '',
               checkInDate,
               checkOutDate,
@@ -1298,7 +1354,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             hotelCode: (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
             bookingCode: (normalizedRoom as any).bookingCode || (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
             roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-            netAmount: Number((normalizedRoom as any).totalHotelCost || (normalizedRoom as any).perNightAmount || (normalizedRoom as any).totalAmount || 0),
+            netAmount: getHotelDisplayAmount(normalizedRoom),
             hotelName: (normalizedRoom as any).hotelName || '',
             checkInDate,
             checkOutDate,
@@ -1618,6 +1674,11 @@ export const HotelList: React.FC<HotelListProps> = ({
                       {showRates && (
                         <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap font-bold text-[#303238]">
                           {formatCurrency(rowTotal)}
+                          {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
+                            <span className="ml-1 text-[11px] font-normal text-gray-500">
+                              ({formatCurrency(getHotelBaseAmount(hotel))})
+                            </span>
+                          )}
                         </td>
                       )}
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between gap-2">
@@ -1752,6 +1813,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const isSelected = selectedOptionKey !== '' && roomTypeOptions.some((o) => getHotelOptionKey(o) === selectedOptionKey);
+                                const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
+                                const currentHotelAmount = getHotelDisplayAmount(hotel);
+                                const startingFromAmount = getLowestRoomTypeAmount(roomTypeOptions) || currentHotelAmount;
+                                const startingFromBaseAmount = getLowestRoomTypeBaseAmount(roomTypeOptions);
+                                const priceDifference = currentHotelAmount - selectedHotelAmount;
+                                const showDifferenceBadge = !isSelected && selectedHotelAmount > 0 && currentHotelAmount > 0;
                                 const hotelData = hotel as Record<string, unknown>;
                                 const baseInclusions = pickListFromKeys(hotelData, [
                                   'inclusions',
@@ -1860,6 +1927,33 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       <p className="text-white/90 text-xs">
                                         Category: {normalizeHotelStarCategory(hotel.hotelCategory) ?? "-"}*
                                       </p>
+                                      <p className="mt-1 text-white text-xs font-semibold">
+                                        starting from {formatCurrency(startingFromAmount)}/d
+                                        {showHotelMargins && startingFromBaseAmount > 0 && (
+                                          <span className="ml-1 text-white/80 font-normal">
+                                            ({formatCurrency(startingFromBaseAmount)})
+                                          </span>
+                                        )}
+                                      </p>
+                                      {showDifferenceBadge && (
+                                        <div
+                                          className={`absolute right-3 bottom-3 inline-flex items-center gap-1 rounded px-2 py-1 text-[12px] font-bold shadow-sm ${
+                                            priceDifference >= 0
+                                              ? 'bg-white text-emerald-600'
+                                              : 'bg-white text-red-600'
+                                          }`}
+                                        >
+                                          {priceDifference >= 0 ? (
+                                            <ArrowUp className="h-3 w-3" />
+                                          ) : (
+                                            <ArrowDown className="h-3 w-3" />
+                                          )}
+                                          <span>
+                                            {priceDifference >= 0 ? '+' : '-'}
+                                            {formatCurrency(Math.abs(priceDifference))}
+                                          </span>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
 
@@ -1885,70 +1979,41 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       </div>
                                     </div>
 
-                                    {/* Room Type Display with Edit Button */}
                                     <div className="mb-3">
-                                      <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-xs font-medium text-[#4a4260]">
-                                          Room Type
-                                        </label>
-                                        {!readOnly && (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-6 w-6 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab]"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // ✅ Toggle room type dropdown for this hotel
-                                              setRoomTypeDropdownOpen(prev => prev === identKey ? null : identKey);
-                                            }}
-                                            title="Select room type"
-                                          >
-                                            <Edit className="h-3 w-3" />
-                                          </Button>
-                                        )}
-                                      </div>
-
-                                      {/* ✅ Room type dropdown – shown when Edit is clicked */}
-                                      {roomTypeDropdownOpen === identKey && roomTypeOptions.length > 1 ? (
-                                        <div className="border border-[#e5d9f2] rounded-lg overflow-hidden mt-1">
+                                      <label className="block text-xs font-medium text-[#4a4260] mb-1">
+                                        Room Type
+                                      </label>
+                                      {roomTypeOptions.length > 1 ? (
+                                        <select
+                                          className="rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+                                          value={selectedRoomTypeByHotel[identKey] || getHotelOptionKey(hotel)}
+                                          onClick={(e) => e.stopPropagation()}
+                                          onChange={(e) => {
+                                            const selectedKey = e.target.value;
+                                            const selectedOption = roomTypeOptions.find((opt) => getHotelOptionKey(opt) === selectedKey);
+                                            if (!selectedOption) return;
+                                            setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: selectedKey }));
+                                            handleChooseOrUpdateHotel(selectedOption);
+                                          }}
+                                        >
                                           {roomTypeOptions.map((opt) => {
                                             const optKey = getHotelOptionKey(opt);
-                                            const isActiveOpt = getHotelOptionKey(hotel) === optKey;
                                             return (
-                                              <button
-                                                key={optKey}
-                                                className={`w-full text-left px-3 py-2 text-xs border-b last:border-b-0 transition-colors ${
-                                                  isActiveOpt
-                                                    ? 'bg-[#f3e8ff] text-[#7c3aed] font-semibold'
-                                                    : 'bg-white hover:bg-[#fdf6ff] text-[#4a4260]'
-                                                }`}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: optKey }));
-                                                  setRoomTypeDropdownOpen(null);
-                                                  // ✅ Auto-select this hotel+room-type and close the carousel
-                                                  handleChooseOrUpdateHotel(opt);
-                                                }}
-                                              >
-                                                <span className="block font-medium">{opt.roomTypeName || opt.roomType || 'Standard'}</span>
-                                                <span className="block text-[11px] text-gray-500">{formatCurrency(opt.totalAmount)}</span>
-                                              </button>
+                                              <option key={optKey} value={optKey}>
+                                                {opt.roomTypeName || opt.roomType || 'Standard'} - {formatCurrency(opt.totalAmount)}
+                                              </option>
                                             );
                                           })}
-                                        </div>
+                                        </select>
                                       ) : (
                                         <p className="text-sm text-[#4a4260] font-medium">
                                           {hotel.roomTypeName || hotel.roomType ||
                                             (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
                                               ? hotel.availableRoomTypes[0].roomTypeTitle
                                               : 'Not Available')}
-                                          {roomTypeOptions.length > 1 && (
-                                            <span className="ml-1 text-[11px] text-[#7c3aed]">({roomTypeOptions.length} options)</span>
-                                          )}
                                         </p>
                                       )}
                                     </div>
-
                                     <div className="mb-3">
                                       <label className="block text-xs font-medium text-[#4a4260] mb-1">
                                         Meal Type
@@ -1956,28 +2021,6 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       <p className="text-sm text-[#4a4260] font-medium">
                                         {normalizeMealPlanLabel(hotel.mealPlan)}
                                       </p>
-                                    </div>
-
-                                    {/* Price Summary */}
-                                    <div className="mb-3 p-2 bg-gray-50 rounded text-xs space-y-1">
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">Rooms:</span>
-                                        <span className="font-medium">{hotel.noOfRooms ?? 1}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">Per night:</span>
-                                        <span className="font-medium">{formatCurrency(hotel.perNightAmount)}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span className="text-gray-600">Tax:</span>
-                                        <span className="font-medium">{formatCurrency(hotel.taxAmount)}</span>
-                                      </div>
-                                      <div className="flex justify-between pt-1 border-t">
-                                        <span className="font-semibold">Total:</span>
-                                        <span className="font-semibold text-[#7c3aed]">
-                                          {formatCurrency(hotel.totalAmount)}
-                                        </span>
-                                      </div>
                                     </div>
 
                                     {hasSupplementData && (
