@@ -95,9 +95,9 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>("driverCost");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
- const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
-const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
-const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
+  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
+  const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
+
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
 
@@ -546,15 +546,9 @@ const handleDeleteDriverCost = async (rowId: number) => {
     }
   };
 
- const handleDeleteLocal = async (rowId: number) => {
-  if (!vendorId) return;
-
-  await api(`/vendors/${vendorId}/local-km-limits/${rowId}`, {
-    method: "DELETE",
-  });
-
-  setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
-};
+  const handleDeleteLocal = (rowId: number) => {
+    setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
 
   // ============================================================
   // Render helpers
@@ -613,89 +607,57 @@ const handleDeleteDriverCost = async (rowId: number) => {
     </thead>
   );
 
-const getVehicleTypeLabel = (vehicleType: string) =>
-  vehicleTypeOptions.find((o) => o.id === vehicleType)?.label || vehicleType;
+    const getVehicleTypeLabel = (row: DriverCostRow) =>
+    vehicleTypeOptions.find((o) => o.id === row.vehicleType)?.label ||
+    row.vehicleType;
 
-const downloadCsv = (rows: Record<string, any>[], fileName: string) => {
-  const headers = Object.keys(rows[0] || {});
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")
-    ),
-  ].join("\n");
+  const driverCostExportRows = filteredDriverCostRows.map((row, index) => ({
+    "S.NO": index + 1,
+    "VEHICLE TYPE": getVehicleTypeLabel(row),
+    "DRIVER BHATTA(₹)": row.driverBhatta,
+    "FOOD COST(₹)": row.foodCost,
+    "ACCOMODATION COST(₹)": row.accommodationCost,
+    "EXTRA COST(₹)": row.extraCost,
+    "MORNING CHARGES(₹)": row.morningCharges,
+    "EVENING CHARGES(₹)": row.eveningCharges,
+  }));
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+  const handleCopyDriverCost = async () => {
+    const text = driverCostExportRows
+      .map((row) => Object.values(row).join("\t"))
+      .join("\n");
 
-const driverCostExportRows = filteredDriverCostRows.map((row, index) => ({
-  "S.NO": index + 1,
-  "VEHICLE TYPE": getVehicleTypeLabel(row.vehicleType),
-  "DRIVER BHATTA(₹)": row.driverBhatta,
-  "FOOD COST(₹)": row.foodCost,
-  "ACCOMODATION COST(₹)": row.accommodationCost,
-  "EXTRA COST(₹)": row.extraCost,
-  "MORNING CHARGES(₹)": row.morningCharges,
-  "EVENING CHARGES(₹)": row.eveningCharges,
-}));
+    await navigator.clipboard.writeText(text);
+    toast.success("Copied successfully");
+  };
 
-const outstationExportRows = filteredOutstationRows.map((row, index) => ({
-  "S.NO": index + 1,
-  VENDOR: vendorId ?? "-",
-  "VEHICLE TYPE": getVehicleTypeLabel(row.vehicleType),
-  TITLE: row.title,
-  LIMIT: row.limit,
-  STATUS: row.status,
-}));
+  const handleDownloadDriverCostCsv = () => {
+    const headers = Object.keys(driverCostExportRows[0] || {});
+    const csv = [
+      headers.join(","),
+      ...driverCostExportRows.map((row) =>
+        headers
+          .map((h) => `"${String((row as any)[h] ?? "").replace(/"/g, '""')}"`)
+          .join(",")
+      ),
+    ].join("\n");
 
-const localExportRows = filteredLocalRows.map((row, index) => ({
-  "S.NO": index + 1,
-  VENDOR: vendorId ?? "-",
-  "VEHICLE TYPE": getVehicleTypeLabel(row.vehicleType),
-  TITLE: row.title,
-  HOURS: row.hours,
-  KM: row.km,
-  STATUS: row.status,
-}));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
 
-const handleCopyDriverCost = async () => {
-  await navigator.clipboard.writeText(driverCostExportRows.map((row) => Object.values(row).join("\t")).join("\n"));
-  toast.success("Copied successfully");
-};
+    a.href = url;
+    a.download = "vehicle-type-driver-cost.csv";
+    a.click();
 
-const handleDownloadDriverCostCsv = () => {
-  downloadCsv(driverCostExportRows, "vehicle-type-driver-cost.csv");
-};
+    URL.revokeObjectURL(url);
+  };
 
-const handleCopyOutstation = async () => {
-  await navigator.clipboard.writeText(outstationExportRows.map((row) => Object.values(row).join("\t")).join("\n"));
-  toast.success("Copied successfully");
-};
+  // ============================================================
+  // MAIN RENDER
+  // ============================================================
 
-const handleDownloadOutstationCsv = () => {
-  downloadCsv(outstationExportRows, "outstation-km-limit.csv");
-};
-
-const handleCopyLocal = async () => {
-  await navigator.clipboard.writeText(localExportRows.map((row) => Object.values(row).join("\t")).join("\n"));
-  toast.success("Copied successfully");
-};
-
-const handleDownloadLocalCsv = () => {
-  downloadCsv(localExportRows, "local-km-limit.csv");
-};
-
-// ============================================================
-// MAIN RENDER
-// ============================================================
-
-return (
+  return (
     <Card>
       <CardHeader className="flex flex-col gap-1">
         <CardTitle className="text-pink-600 text-lg">
@@ -981,20 +943,18 @@ return (
               </span>
               <div className="flex items-center gap-2">
                 <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 px-3 text-xs"
-              onClick={handleCopyOutstation}
-              >
-                Copy
-              </Button>
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  Copy
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-8 px-3 text-xs"
-                  onClick={handleDownloadOutstationCsv}
                 >
                   Excel
                 </Button>
@@ -1003,7 +963,6 @@ return (
                   variant="outline"
                   size="sm"
                   className="h-8 px-3 text-xs"
-                  onClick={handleDownloadOutstationCsv}
                 >
                   CSV
                 </Button>
@@ -1093,7 +1052,7 @@ return (
                           size="sm"
                           className="h-7 px-3 text-xs text-red-600 border-red-200"
                           type="button"
-                          onClick={() => setDeleteLocalId(row.id)}
+                          onClick={() => setDeleteOutstationId(row.id)}
                         >
                           Delete
                         </Button>
@@ -1133,7 +1092,6 @@ return (
                   variant="outline"
                   size="sm"
                   className="h-8 px-3 text-xs"
-                  onClick={handleCopyLocal}
                 >
                   Copy
                 </Button>
@@ -1142,7 +1100,6 @@ return (
                   variant="outline"
                   size="sm"
                   className="h-8 px-3 text-xs"
-                  onClick={handleDownloadLocalCsv}
                 >
                   Excel
                 </Button>
@@ -1151,7 +1108,6 @@ return (
                   variant="outline"
                   size="sm"
                   className="h-8 px-3 text-xs"
-                  onClick={handleDownloadLocalCsv}
                 >
                   CSV
                 </Button>
@@ -1667,34 +1623,6 @@ return (
                 onClick={() => {
                   handleDeleteOutstation(deleteOutstationId);
                   setDeleteOutstationId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-     
-      {deleteLocalId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
-            <h2 className="text-xl font-semibold text-gray-700">Are you sure?</h2>
-            <p className="mt-3 text-sm text-gray-600">Do you really want to delete this record?</p>
-            <p className="text-sm text-gray-600">This process cannot be undone.</p>
-
-            <div className="mt-6 flex justify-center gap-3">
-              <Button type="button" variant="secondary" onClick={() => setDeleteLocalId(null)}>
-                Close
-              </Button>
-
-              <Button
-                type="button"
-                className="bg-red-500 text-white hover:bg-red-600"
-                onClick={async () => {
-                  await handleDeleteLocal(deleteLocalId);
-                  setDeleteLocalId(null);
                 }}
               >
                 Delete
