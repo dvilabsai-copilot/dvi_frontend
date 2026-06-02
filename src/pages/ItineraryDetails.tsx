@@ -359,6 +359,7 @@ type ItineraryDetailsResponse = {
 // response shape from /itineraries/hotel_details/:quoteId
 type ItineraryHotelDetailsResponse = {
   hotelRatesVisible: boolean;
+  showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
@@ -8305,6 +8306,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             hotels={hotelDetails.hotels}
             hotelTabs={hotelDetails.hotelTabs}
             hotelRatesVisible={hotelDetails.hotelRatesVisible}
+            showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
             roomCount={Number(itinerary.roomCount || 1)}
             onTotalChange={(total) => setActiveHotelListTotal(Number(total || 0))}
             onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}

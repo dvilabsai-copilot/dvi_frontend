@@ -9,6 +9,7 @@ interface HotelSearchResultCardProps {
   isLoading?: boolean;
   checkInDate: string;
   checkOutDate: string;
+  showHotelMargins?: boolean;
 }
 
 export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
@@ -17,6 +18,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   isLoading,
   checkInDate,
   checkOutDate,
+  showHotelMargins = false,
 }) => {
   const handleSelect = () => {
     onSelect(hotel.hotelCode, hotel.hotelName, hotel.bookingCode);
@@ -27,6 +29,17 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     .map((item) => String(item || '').replace(/<[^>]*>/g, '').trim())
     .filter(Boolean)
     .slice(0, 2);
+  const getBaseAmount = (value: unknown): number => {
+    const hotelData = value as Record<string, unknown> | null | undefined;
+    const raw = Number(
+      hotelData?.baseHotelCost ??
+      hotelData?.basePricePerNight ??
+      hotelData?.baseAmount ??
+      hotelData?.basePrice ??
+      0,
+    );
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  };
 
   // Calculate number of nights
   const checkIn = new Date(checkInDate);
@@ -34,7 +47,8 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   const nights = Math.ceil(
     (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
   );
-  const totalPrice = hotel.price * nights;
+  const startingFrom = Number(hotel.totalFare ?? hotel.price ?? 0);
+  const baseStartingFrom = getBaseAmount(hotel);
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
@@ -114,27 +128,21 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           <p className="text-xs text-[#6c6c6c] line-clamp-2">{hotel.address}</p>
         </div>
 
-        {/* Pricing Section */}
         <div className="bg-gray-50 rounded-lg p-3 mb-3">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-xs text-gray-600">Net Amount</span>
-            <span className="text-lg font-bold text-[#4ba3c3]">
-              ₹ {hotel.price.toLocaleString()}
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-xs text-gray-600 font-medium">starting from</span>
+            <span className="text-base font-bold text-[#4ba3c3]">
+              ₹ {startingFrom.toLocaleString("en-IN")}
+              {showHotelMargins && baseStartingFrom > 0 && (
+                <span className="ml-1 text-xs font-medium text-gray-500">
+                  ({`₹ ${baseStartingFrom.toLocaleString("en-IN")}`})
+                </span>
+              )}
+              <span className="text-xs font-semibold text-gray-500">/d</span>
             </span>
           </div>
-          {hotel.totalFare && Number(hotel.totalFare) !== Number(hotel.price) && (
-            <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
-              <span>Total Fare</span>
-              <span>₹ {Number(hotel.totalFare).toLocaleString()}</span>
-            </div>
-          )}
-          <div className="flex justify-between items-center pt-2 border-t border-gray-200">
-            <span className="text-xs text-gray-600">
-              {nights} night{nights !== 1 ? 's' : ''}
-            </span>
-            <span className="text-sm font-semibold text-[#4a4260]">
-              ₹ {totalPrice.toLocaleString()}
-            </span>
+          <div className="mt-1 text-[11px] text-gray-500">
+            {nights} night{nights !== 1 ? 's' : ''}
           </div>
         </div>
 
