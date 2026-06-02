@@ -110,7 +110,11 @@ export default function LocationsPage() {
     row: LocationRow | null;
     scope: "source" | "destination";
   }>({ open: false, row: null, scope: "source" });
-  const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
+const [renameLocationOpen, setRenameLocationOpen] = useState(false);
+const [renameOldName, setRenameOldName] = useState("");
+const [renameNewName, setRenameNewName] = useState("");
+const [renameDialogOptions, setRenameDialogOptions] = useState<AutoSuggestOption[]>([]);
+const [deleteLocationOpen, setDeleteLocationOpen] = useState(false);
 const [deleteLocationName, setDeleteLocationName] = useState("");
 const [deleteDialogOptions, setDeleteDialogOptions] = useState<AutoSuggestOption[]>([]);
 const [deleteSelectedOpen, setDeleteSelectedOpen] = useState(false);
@@ -246,6 +250,13 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
   setTotal(sameLocationRows.length);
 }
 
+function focusLocationRecords(sourceValue?: string, destinationValue?: string, searchValue?: string) {
+  setPage(1);
+  setSource(String(sourceValue || "").trim());
+  setDestination(String(destinationValue || "").trim());
+  setSearch(String(searchValue || "").trim());
+  setDebouncedSearch(String(searchValue || "").trim());
+}
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // client-side filter fallback (resilient if backend search is absent)
@@ -341,6 +352,19 @@ useEffect(() => {
   return () => window.cancelAnimationFrame(frameId);
 }, [deleteLocationOpen, locationOptions]);
 
+useEffect(() => {
+  if (!renameLocationOpen) {
+    setRenameDialogOptions([]);
+    return;
+  }
+
+  const frameId = window.requestAnimationFrame(() => {
+    setRenameDialogOptions(locationOptions);
+  });
+
+  return () => window.cancelAnimationFrame(frameId);
+}, [renameLocationOpen, locationOptions]);
+
   // ---------- handlers ----------
              function openModifyLocation() {
     const rowToEdit = selectedRow ?? rows[0] ?? null;
@@ -355,16 +379,10 @@ useEffect(() => {
   }
 
   function openRenameLocation() {
-    const rowToRename = selectedRow ?? rows[0] ?? null;
-
-    if (!rowToRename) {
-      toast.error("No location available to rename");
-      return;
-    }
-
-    setSelectedRow(rowToRename);
-    setRenameInfo({ open: true, row: rowToRename, scope: "source" });
-  }
+  setRenameOldName("");
+  setRenameNewName("");
+  setRenameLocationOpen(true);
+}
 
   function openDeleteLocationName() {
   setDeleteLocationName("");
@@ -413,17 +431,18 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     await openTolls(rowForTolls);
   }
     async function handleCreate(payload: CreateLocationPayload) {
-    const created = await locationsApi.create(payload);
+  const created = await locationsApi.create(payload);
 
-    toast.success("Location added");
-    setAddOpen(false);
-    setPage(1);
+  toast.success("Location added");
+  setAddOpen(false);
 
-    setRows((prev) => [created, ...prev]);
-    setTotal((prev) => prev + 1);
+  focusLocationRecords(created.source_location, created.destination_location, "");
 
-    await Promise.all([loadDropdowns(), loadList()]);
-  }
+  setRows((prev) => [created, ...prev]);
+  setTotal((prev) => prev + 1);
+
+  await loadDropdowns();
+}
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
@@ -442,20 +461,76 @@ function toggleAllDeletePopupRecords(checked: boolean) {
       return;
     }
 
-    await locationsApi.update(editRow.location_ID, payload);
-    toast.success("Location updated");
-    setEditRow(null);
-    await Promise.all([loadDropdowns(), loadList()]);
+    const updated = await locationsApi.update(editRow.location_ID, payload);
+
+toast.success("Location updated");
+setEditRow(null);
+
+focusLocationRecords(
+  updated.source_location || nextSource,
+  updated.destination_location || nextDestination,
+  ""
+);
+
+await loadDropdowns();
   }
 
   async function handleRename(new_name: string) {
-    const { row, scope } = renameInfo;
-    if (!row) return;
-    await locationsApi.modifyName(row.location_ID, scope, new_name);
-    toast.success("Location name updated");
-    setRenameInfo({ open: false, row: null, scope: "source" });
-    await Promise.all([loadDropdowns(), loadList()]);
+  const { row, scope } = renameInfo;
+  if (!row) return;
+
+  await locationsApi.modifyName(row.location_ID, scope, new_name);
+
+  toast.success("Location name updated");
+  setRenameInfo({ open: false, row: null, scope: "source" });
+
+  focusLocationRecords("", "", new_name);
+
+  await loadDropdowns();
+}
+
+  async function handleUpdateLocationName() {
+  const oldName = renameOldName.trim();
+  const newName = renameNewName.trim();
+
+  if (!oldName) {
+    toast.error("Please select the existing location name");
+    return;
   }
+
+  if (!newName) {
+    toast.error("Please enter the new location name");
+    return;
+  }
+
+  if (oldName.toLowerCase() === newName.toLowerCase()) {
+    toast.error("Old and new location names cannot be the same");
+    return;
+  }
+
+  const updatingToastId = toast.loading("Updating location name...");
+
+  try {
+    const result = await locationsApi.updateLocationName(oldName, newName, "both");
+
+    setRenameLocationOpen(false);
+    setRenameOldName("");
+    setRenameNewName("");
+    setSelectedRow(null);
+
+toast.success(
+  `Updated location name: ${result.oldName || oldName} → ${result.newName || newName} (${result.updatedCount || 0} record${Number(result.updatedCount || 0) === 1 ? "" : "s"})`,
+  { id: updatingToastId }
+);
+
+focusLocationRecords("", "", result.newName || newName);
+
+await loadDropdowns();
+  } catch (error) {
+    console.error("Error updating location name:", error);
+    toast.error("Failed to update location name", { id: updatingToastId });
+  }
+}
 
    async function handleDeleteLocationName() {
   const locationName = deleteLocationName.trim();
@@ -762,16 +837,23 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         onSubmit={(payload) => handleUpdate(payload)}
       />
 
-      {/* Modify Name */}
-      {renameInfo.open && renameInfo.row && (
-               <SimpleRenameDialog
-          open
-          title="Update Location Name"
-          currentName={renameInfo.scope === "source" ? renameInfo.row.source_location : renameInfo.row.destination_location}
-          onClose={() => setRenameInfo({ open: false, row: null, scope: "source" })}
-          onSubmit={handleRename}
-        />
-      )}
+      {/* Update Location Name */}
+<UpdateLocationNameDialog
+  open={renameLocationOpen}
+  oldName={renameOldName}
+  newName={renameNewName}
+  options={renameDialogOptions}
+  onOldNameChange={setRenameOldName}
+  onNewNameChange={setRenameNewName}
+  onClose={() => {
+    setRenameLocationOpen(false);
+    setRenameOldName("");
+    setRenameNewName("");
+  }}
+  onConfirm={handleUpdateLocationName}
+/>
+
+ 
 
       {/* Delete confirm */}
       <DeleteLocationNameDialog
@@ -829,6 +911,8 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
           hasBackendFilter={Boolean(deleteSelectedSource || deleteSelectedDestination)}
         />
       )}
+
+    
 
       {/* Toll charges */}
       {tollInfo.open && tollInfo.row && (
@@ -1091,6 +1175,78 @@ function DeleteLocationNameDialog(props: {
           </Button>
           <Button variant="destructive" onClick={onConfirm}>
             Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UpdateLocationNameDialog(props: {
+  open: boolean;
+  oldName: string;
+  newName: string;
+  options: AutoSuggestOption[];
+  onOldNameChange: (value: string) => void;
+  onNewNameChange: (value: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const {
+    open,
+    oldName,
+    newName,
+    options,
+    onOldNameChange,
+    onNewNameChange,
+    onConfirm,
+    onClose,
+  } = props;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Update Location Name</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Select the existing location name and enter the new name. This will update all matching source and destination records in the database.
+          </div>
+
+          <div>
+            <div className="text-xs mb-1">Existing Location *</div>
+            <AutoSuggestSelect
+              mode="single"
+              value={oldName}
+              onChange={(val) => onOldNameChange((val as string) || "")}
+              options={options}
+              placeholder="Choose Existing Location"
+              openOnFocus={false}
+            />
+          </div>
+
+          <div>
+            <div className="text-xs mb-1">New Location Name *</div>
+            <Input
+              value={newName}
+              onChange={(e) => onNewNameChange(e.target.value)}
+              placeholder="Enter New Location Name"
+            />
+          </div>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This will update the selected location name wherever it appears as Source Location or Destination Location.
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>
+            Update
           </Button>
         </DialogFooter>
       </DialogContent>

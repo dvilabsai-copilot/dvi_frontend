@@ -655,6 +655,29 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     return toLocationRow(data);
   },
 
+  async updateLocationName(
+  old_name: string,
+  new_name: string,
+  scope: "source" | "destination" | "both" = "both"
+) {
+  const data = (await api(`/locations/location-name`, {
+    method: "PATCH",
+    body: {
+      old_name,
+      new_name,
+      scope,
+    },
+  })) as any;
+
+  return {
+    ok: Boolean(data?.ok),
+    oldName: asStr(data?.oldName),
+    newName: asStr(data?.newName),
+    scope: asStr(data?.scope),
+    updatedCount: asNum(data?.updatedCount),
+  };
+},
+
   async deleteLocationName(location: string) {
   const data = (await api(`/locations/location-name${qs({ location })}`, {
     method: "DELETE",
