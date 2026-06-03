@@ -1,6 +1,6 @@
 // FILE: src/pages/CreateItinerary/RoomsBlock.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
@@ -10,7 +10,7 @@ import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 type RoomsBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
   rooms: RoomRow[];
-  setRooms: React.Dispatch<React.SetStateAction<RoomRow[]>>;
+setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   addRoom: () => void;
   removeRoom: (id: number) => void;
 };
@@ -56,13 +56,12 @@ export const RoomsBlock = ({
   addRoom,
   removeRoom,
 }: RoomsBlockProps) => {
-  if (!(itineraryPreference === "hotel" || itineraryPreference === "both")) {
-    return null;
-  }
-  const [targetRoomCount, setTargetRoomCount] = useState<number>(rooms.length || 1);
+  const [targetRoomCount, setTargetRoomCount] = useState<number>(
+    rooms[0]?.roomCount || rooms.length || 1
+  );
 
-    const totalRooms = rooms.length || 1;
-
+  const shouldShowRoomsBlock =
+    itineraryPreference === "hotel" || itineraryPreference === "both";
 
   const validateCombination = (
     adult: number,
@@ -157,61 +156,70 @@ export const RoomsBlock = ({
     });
   }, [rooms, setRooms]);
 
-  // sync roomCount automatically for every room
-  useEffect(() => {
-    const calculatedTotalRooms = rooms.length || 1;
+  
 
-    if (rooms.some((room) => room.roomCount !== calculatedTotalRooms)) {
-      setRooms((prev) =>
-        prev.map((room) => ({
-          ...room,
-          roomCount: calculatedTotalRooms,
-        }))
-      );
-    }
-  }, [rooms, setRooms]);
+  const normalizeMinimumPeople = (room: RoomRow, roomCount: number): RoomRow => {
+  const adults = Math.max(Number(room.adults || 0), 0);
+  const children = Math.max(Number(room.children || 0), 0);
+  const infants = Math.max(Number(room.infants || 0), 0);
+
+  const totalPeople = adults + children + infants;
+  const missingPeople = Math.max(2 - totalPeople, 0);
+
+  return {
+    ...room,
+    roomCount,
+    adults: adults + missingPeople,
+    children,
+    infants,
+    childrenDetails: Array.isArray(room.childrenDetails)
+      ? room.childrenDetails
+      : [],
+  };
+};
 
   const handleTotalRoomsChange = (value: number) => {
-    if (!Number.isFinite(value) || value < 1) value = 1;
-    if (value > MAX_ROOMS) {
-      toast({
-        title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
-        variant: "destructive",
+  if (!Number.isFinite(value) || value < 1) value = 1;
+
+  if (value > MAX_ROOMS) {
+    toast({
+      title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
+      variant: "destructive",
+    });
+    value = MAX_ROOMS;
+  }
+
+  setTargetRoomCount(value);
+
+  setRooms((prev) => {
+    const current = Array.isArray(prev) && prev.length > 0 ? [...prev] : [];
+
+    while (current.length < value) {
+      current.push({
+        id: current.length + 1,
+        adults: 2,
+        children: 0,
+        infants: 0,
+        roomCount: value,
+        childrenDetails: [],
       });
-      value = MAX_ROOMS;
     }
 
-    setRooms((prev) => {
-      const current = [...prev];
+    if (current.length > value) {
+      current.length = value;
+    }
 
-      if (value === current.length) return current;
-
-      if (value > current.length) {
-        let lastId = current.length ? current[current.length - 1].id : 0;
-        const toAdd = value - current.length;
-        for (let i = 0; i < toAdd; i++) {
-          lastId += 1;
-        current.push({
-            id: lastId,
-            adults: 1,
-            children: 0,
-            infants: 0,
-            roomCount: 1,
-            childrenDetails: [],
-          });
-        }
-        return current;
-      }
-
-      if (value < current.length) {
-        current.length = value;
-        return current;
-      }
-
-      return current;
-    });
-  };
-
+    return current.map((room, index) =>
+      normalizeMinimumPeople(
+        {
+          ...room,
+          id: index + 1,
+        },
+        value
+      )
+    );
+  });
+};
   const handleChildAgeChange = (
     roomId: number,
     childIndex: number,
@@ -250,8 +258,12 @@ export const RoomsBlock = ({
     );
   };
 
-  return (
-    <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
+  if (!shouldShowRoomsBlock) {
+  return null;
+}
+
+return (
+  <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
       {rooms.map((room, idx) => {
         const childDetails = room.childrenDetails || [];
 
@@ -316,7 +328,7 @@ export const RoomsBlock = ({
         onClick={() =>
           tryUpdateCounts(
             room,
-            Math.max(room.adults - 1, 1),
+            Math.max(room.adults - 1, 2),
             room.children,
             room.infants
           )
@@ -499,34 +511,36 @@ export const RoomsBlock = ({
     </div>
   ))}
 
-         {/* Total Rooms */}
-  <div className="flex items-center gap-2">
-    <span className="text-xs text-muted-foreground">Total</span>
+        {/* Total Rooms */}
+<div className="flex items-center gap-2">
+  <span className="text-xs text-muted-foreground">Total</span>
 
-    <Input
-      type="number"
-      min={1}
-      max={MAX_ROOMS}
-      className="w-16 h-8 bg-white"
-      value={targetRoomCount}
-      onChange={(e) => {
-        const value = Number(e.target.value);
-        const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
-        setTargetRoomCount(Math.min(safeValue, MAX_ROOMS));
-      }}
-    />
+ <Input
+  type="number"
+  min={1}
+  max={MAX_ROOMS}
+  className="w-16 h-8 bg-white"
+  value={targetRoomCount}
+  onChange={(e) => {
+    const value = Number(e.target.value);
+    const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
+    const nextRoomCount = Math.min(safeValue, MAX_ROOMS);
 
-    <Button
-      type="button"
-      variant="link"
-      className="h-8 px-0 text-primary"
-      onClick={() => handleTotalRoomsChange(targetRoomCount)}
-    >
-      <span className="inline-flex items-center text-sm">
-        <span className="mr-1">+</span> Add Rooms
-      </span>
-    </Button>
-  </div>
+    handleTotalRoomsChange(nextRoomCount);
+  }}
+/>
+
+  <Button
+    type="button"
+    variant="link"
+    className="h-8 px-0 text-primary"
+    onClick={() => handleTotalRoomsChange(targetRoomCount)}
+  >
+    <span className="inline-flex items-center text-sm">
+      <span className="mr-1">+</span> Add Rooms
+    </span>
+  </Button>
+</div>
 </div>
 </div>
   );
@@ -536,3 +550,4 @@ export const RoomsBlock = ({
     </div>
   );
 };
+

@@ -168,6 +168,8 @@ function formatDDMMYYYY(date: Date): string {
   return `${dd}/${mm}/${yy}`;
 }
 
+
+
 function findIdByLabel(
   options: SimpleOption[],
   matcher: (labelLower: string) => boolean
@@ -175,6 +177,9 @@ function findIdByLabel(
   const opt = options.find((o) => matcher(o.label.toLowerCase()));
   return opt ? String(opt.id) : undefined;
 }
+
+
+  
 
 export const ItineraryPlanBlock = ({
   itineraryPreference,
@@ -247,6 +252,8 @@ const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
 
 const tripStartDateObj = parseDDMMYYYY(tripStartDate);
 const tripEndDateObj = parseDDMMYYYY(tripEndDate);
+
+
 
 const previewRange = useMemo(() => {
   if (!tripStartDateObj) {
@@ -896,14 +903,14 @@ const handleHotelFacilityChange = (vals: string[]) => {
           </div>
         </div>
 
-        {/* ROOMS */}
-        <RoomsBlock
-          itineraryPreference={itineraryPreference}
-          rooms={rooms}
-          setRooms={setRooms}
-          addRoom={addRoom}
-          removeRoom={removeRoom}
-        />
+      {/* ROOMS */}
+<RoomsBlock
+  itineraryPreference={itineraryPreference}
+  rooms={rooms}
+  setRooms={setRooms}
+  addRoom={addRoom}
+  removeRoom={removeRoom}
+/>
 
         {/* ROW 6 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
