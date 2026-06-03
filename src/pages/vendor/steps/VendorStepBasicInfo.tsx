@@ -1,6 +1,6 @@
 // FILE: src/pages/vendor/steps/VendorStepBasicInfo.tsx
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { BasicInfoForm, Option } from "../vendorFormTypes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,78 @@ type Props = {
   onBack: () => void;
   onSaveAndNext: () => void;
 };
+
+type SearchableSelectProps = {
+  value: string;
+  placeholder: string;
+  options: Option[];
+  disabled?: boolean;
+  triggerClassName?: string;
+  onChange: (value: string) => void;
+};
+
+function SearchableSelect({
+  value,
+  placeholder,
+  options,
+  disabled = false,
+  triggerClassName = "",
+  onChange,
+}: SearchableSelectProps) {
+  const [searchText, setSearchText] = useState("");
+
+  const filteredOptions = useMemo(() => {
+    const search = searchText.trim().toLowerCase();
+
+    if (!search) {
+      return options;
+    }
+
+    return options.filter((item) =>
+      String(item.label || "").toLowerCase().includes(search)
+    );
+  }, [options, searchText]);
+
+  return (
+    <Select
+      value={value}
+      disabled={disabled}
+      onValueChange={(selectedValue) => {
+        onChange(selectedValue);
+        setSearchText("");
+      }}
+    >
+      <SelectTrigger className={triggerClassName}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+
+      <SelectContent className="max-h-80">
+        <div className="sticky top-0 z-10 bg-white p-2">
+          <Input
+            value={searchText}
+            placeholder={`Search ${placeholder.replace("Choose ", "")}`}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="h-9"
+          />
+        </div>
+
+        {filteredOptions.length > 0 ? (
+          filteredOptions.map((item) => (
+            <SelectItem key={item.id} value={item.id}>
+              {item.label}
+            </SelectItem>
+          ))
+        ) : (
+          <div className="px-3 py-2 text-sm text-gray-500">
+            No records found
+          </div>
+        )}
+      </SelectContent>
+    </Select>
+  );
+}
 
 export const VendorStepBasicInfo: React.FC<Props> = ({
   basicInfo,
@@ -149,68 +221,58 @@ setLiveErrors((p) => ({
         <div className="grid gap-4 md:grid-cols-4">
           <div>
             <Label>Country *</Label>
-            <Select
-              value={basicInfo.countryId}
-              onValueChange={(val) => {
-                setBasicInfo((p) => ({ ...p, countryId: val, stateId: "", cityId: "" }));
-                onClearFieldError?.("countryId");
-              }}
-            >
-              <SelectTrigger className={fieldErrors.countryId ? inputErrorClass : ""}>
-                <SelectValue placeholder="Choose Country" />
-              </SelectTrigger>
-              <SelectContent>
-                {countryOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+  value={basicInfo.countryId}
+  placeholder="Choose Country"
+  options={countryOptions}
+  triggerClassName={fieldErrors.countryId ? inputErrorClass : ""}
+  onChange={(value) => {
+    setBasicInfo((prev) => ({
+      ...prev,
+      countryId: value,
+      stateId: "",
+      cityId: "",
+    }));
+    onClearFieldError?.("countryId");
+  }}
+/>
             {fieldErrors.countryId ? <p className="text-xs text-red-600">{fieldErrors.countryId}</p> : null}
           </div>
           <div>
             <Label>State *</Label>
-            <Select
-              value={basicInfo.stateId}
-              onValueChange={(val) => {
-                setBasicInfo((p) => ({ ...p, stateId: val, cityId: "" }));
-                onClearFieldError?.("stateId");
-              }}
-            >
-              <SelectTrigger className={fieldErrors.stateId ? inputErrorClass : ""}>
-                <SelectValue placeholder="Choose State" />
-              </SelectTrigger>
-              <SelectContent>
-                {stateOptions.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+<SearchableSelect
+  value={basicInfo.stateId}
+  placeholder="Choose State"
+  options={stateOptions}
+  disabled={!basicInfo.countryId}
+  triggerClassName={fieldErrors.stateId ? inputErrorClass : ""}
+  onChange={(value) => {
+    setBasicInfo((prev) => ({
+      ...prev,
+      stateId: value,
+      cityId: "",
+    }));
+    onClearFieldError?.("stateId");
+  }}
+/>
             {fieldErrors.stateId ? <p className="text-xs text-red-600">{fieldErrors.stateId}</p> : null}
           </div>
           <div>
             <Label>City *</Label>
-            <Select
-              value={basicInfo.cityId}
-              onValueChange={(val) => {
-                setBasicInfo((p) => ({ ...p, cityId: val }));
-                onClearFieldError?.("cityId");
-              }}
-            >
-              <SelectTrigger className={fieldErrors.cityId ? inputErrorClass : ""}>
-                <SelectValue placeholder="Choose City" />
-              </SelectTrigger>
-              <SelectContent>
-                {cityOptions.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+           <SearchableSelect
+  value={basicInfo.cityId}
+  placeholder="Choose City"
+  options={cityOptions}
+  disabled={!basicInfo.stateId}
+  triggerClassName={fieldErrors.cityId ? inputErrorClass : ""}
+  onChange={(value) => {
+    setBasicInfo((prev) => ({
+      ...prev,
+      cityId: value,
+    }));
+    onClearFieldError?.("cityId");
+  }}
+/>
             {fieldErrors.cityId ? <p className="text-xs text-red-600">{fieldErrors.cityId}</p> : null}
           </div>
           <div>

@@ -69,6 +69,13 @@ type VendorDetailResponse = {
 type BasicInfoErrors = Partial<Record<keyof BasicInfoForm, string>>;
 type BranchErrors = Record<number, Partial<Record<keyof BranchForm, string>>>;
 
+const sortOptionsAlphabetically = (options: Option[]) =>
+  [...options].sort((a, b) =>
+    String(a.label || "").localeCompare(String(b.label || ""), undefined, {
+      sensitivity: "base",
+    })
+  );
+
 export default function VendorFormPage() {
   const navigate = useNavigate();
   const params = useParams<{ id?: string }>();
@@ -119,11 +126,13 @@ export default function VendorFormPage() {
           (gstPercentsRes as any)?.items ?? gstPercentsRes ?? [];
 
         setCountryOptions(
-          (countriesItems || []).map((c: any) => ({
-            id: String(c.id ?? c.country_id),
-            label: c.label ?? c.name ?? c.country_name,
-          }))
-        );
+  sortOptionsAlphabetically(
+    (countriesItems || []).map((c: any) => ({
+      id: String(c.id ?? c.country_id),
+      label: c.label ?? c.name ?? c.country_name,
+    }))
+  )
+);
         setRoleOptions(
           (rolesItems || []).map((r: any) => ({
             id: String(r.id ?? r.role_id),
@@ -163,12 +172,14 @@ export default function VendorFormPage() {
           `/dropdowns/states?countryId=${basicInfo.countryId}`
         );
         const statesItems = (statesRes as any)?.items ?? statesRes ?? [];
-        setStateOptions(
-          (statesItems || []).map((s: any) => ({
-            id: String(s.id ?? s.state_id),
-            label: s.label ?? s.name ?? s.state_name,
-          }))
-        );
+       setStateOptions(
+  sortOptionsAlphabetically(
+    (statesItems || []).map((s: any) => ({
+      id: String(s.id ?? s.state_id),
+      label: s.label ?? s.name ?? s.state_name,
+    }))
+  )
+);
       } catch (e) {
         console.error("Failed to load states", e);
       }
@@ -185,11 +196,13 @@ export default function VendorFormPage() {
         );
         const citiesItems = (citiesRes as any)?.items ?? citiesRes ?? [];
         setCityOptions(
-          (citiesItems || []).map((c: any) => ({
-            id: String(c.id ?? c.city_id),
-            label: c.label ?? c.name ?? c.city_name,
-          }))
-        );
+  sortOptionsAlphabetically(
+    (citiesItems || []).map((c: any) => ({
+      id: String(c.id ?? c.city_id),
+      label: c.label ?? c.name ?? c.city_name,
+    }))
+  )
+);
       } catch (e) {
         console.error("Failed to load cities", e);
       }
