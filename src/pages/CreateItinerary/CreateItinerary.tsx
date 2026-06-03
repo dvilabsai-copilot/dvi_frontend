@@ -130,7 +130,7 @@ function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
       {
         id: 1,
         roomCount: 1,
-        adults: 1,
+        adults: 2,
         children: 0,
         infants: 0,
         childrenDetails: [],
@@ -151,6 +151,7 @@ function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
         childrenDetails: [],
       });
     }
+
     return roomMap.get(roomId)!;
   };
 
@@ -189,15 +190,26 @@ function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
   const rooms = Array.from(roomMap.values()).sort((a, b) => a.id - b.id);
   const totalRoomCount = rooms.length || 1;
 
-  return rooms.map((room) => ({
-    ...room,
-    roomCount: totalRoomCount,
-  }));
-}
+  return rooms.map((room) => {
+    const totalPeople =
+      Number(room.adults || 0) +
+      Number(room.children || 0) +
+      Number(room.infants || 0);
 
+    return {
+      ...room,
+      roomCount: totalRoomCount,
+      adults: totalPeople >= 2 ? room.adults : room.adults + (2 - totalPeople),
+    };
+  });
+}
 function buildRoomsFromPlanSummary(plan: any): TravellerRoomRow[] {
-  const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
-  const totalAdults = Math.max(Number(plan?.total_adult ?? 1) || 1, 1);
+ const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
+const minimumAdultsForRooms = roomCount * 2;
+const totalAdults = Math.max(
+  Number(plan?.total_adult ?? minimumAdultsForRooms) || minimumAdultsForRooms,
+  minimumAdultsForRooms,
+);
   const totalChildren = Math.max(Number(plan?.total_children ?? 0) || 0, 0);
   const totalInfants = Math.max(Number(plan?.total_infants ?? 0) || 0, 0);
   const childrenWithBed = Math.max(Number(plan?.total_child_with_bed ?? 0) || 0, 0);
