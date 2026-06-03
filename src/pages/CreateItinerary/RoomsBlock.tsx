@@ -62,6 +62,7 @@ export const RoomsBlock = ({
 
   const shouldShowRoomsBlock =
     itineraryPreference === "hotel" || itineraryPreference === "both";
+    //const initialRoomsFixedRef = useRef(false);
 
   const validateCombination = (
     adult: number,
@@ -336,9 +337,9 @@ return (
       >
         -
       </Button>
-      <span className="px-3 text-sm select-none">
-        {room.adults}
-      </span>
+<span className="px-3 text-sm select-none">
+  {Math.max(Number(room.adults || 0), 2)}
+</span>
       <Button
         type="button"
         variant="ghost"

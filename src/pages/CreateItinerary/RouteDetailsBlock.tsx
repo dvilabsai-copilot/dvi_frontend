@@ -11,14 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { AutoSuggestOption } from "@/components/AutoSuggestSelect";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  AutoSuggestSelect,
+  type AutoSuggestOption,
+} from "@/components/AutoSuggestSelect";
 import { LocationOption } from "@/services/itineraryDropdownsMock";
 import { locationsApi } from "@/services/locations";
 
@@ -548,71 +544,88 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
           : ""
       }
     >
-<Select
-  value={safeNextDestinationValue}
-        disabled={isLastRowLocked}
-        onValueChange={async (val) => {
-          if (isLastRowLocked) return;
-          const chosen = val || "";
-          const updatedRow: RouteDetailRow = {
-            ...row,
-            next: chosen,
-            via: "",
-            via_routes: [],
-            no_of_km: 0,
+<div
+  ref={(el) => {
+    nextDestinationRefs.current[idx] = el
+      ? {
+          focus: () => {
+            const control = el.querySelector(
+              "button, input"
+            ) as HTMLElement | null;
+
+            control?.focus();
+            control?.click();
+          },
+        }
+      : null;
+  }}
+  className={`w-full max-w-[260px] ${
+    isLastRowLocked ? "pointer-events-none opacity-60" : ""
+  }`}
+>
+  <AutoSuggestSelect
+    mode="single"
+    value={safeNextDestinationValue || ""}
+    onChange={async (val) => {
+      if (isLastRowLocked) return;
+
+      const chosen = String(val || "");
+
+      const updatedRow: RouteDetailRow = {
+        ...row,
+        next: chosen,
+        via: "",
+        via_routes: [],
+        no_of_km: 0,
+      };
+
+      setRouteDetails((prev) => {
+        const updated = [...prev];
+        updated[idx] = updatedRow;
+
+        if (idx + 1 < updated.length) {
+          updated[idx + 1] = {
+            ...updated[idx + 1],
+            source: chosen,
           };
-          setRouteDetails((prev) => {
-            const updated = [...prev];
-            updated[idx] = updatedRow;
-            if (idx + 1 < updated.length) {
-              updated[idx + 1] = { ...updated[idx + 1], source: chosen };
-            }
-            return updated;
-          });
-          if (onRefreshRouteDistance) {
-            const km = await onRefreshRouteDistance(updatedRow);
-            setRouteDetails((prev) => {
-              const updated = [...prev];
-              if (
-                updated[idx].source === updatedRow.source &&
-                updated[idx].next === updatedRow.next
-              ) {
-                updated[idx] = { ...updated[idx], no_of_km: km ?? 0 };
-              }
-              return updated;
-            });
+        }
+
+        return updated;
+      });
+
+      if (onRefreshRouteDistance) {
+        const km = await onRefreshRouteDistance(updatedRow);
+
+        setRouteDetails((prev) => {
+          const updated = [...prev];
+
+          if (
+            updated[idx].source === updatedRow.source &&
+            updated[idx].next === updatedRow.next
+          ) {
+            updated[idx] = {
+              ...updated[idx],
+              no_of_km: km ?? 0,
+            };
           }
-          moveFocusToNextDestination(idx);
-        }}
-      >
-        <SelectTrigger
-          ref={(el) => {
-            nextDestinationRefs.current[idx] = el
-              ? { focus: () => el.click() }
-              : null;
-          }}
-          className={`h-9 text-sm ${
-            isLastRowLocked
-              ? "border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 opacity-60"
-              : "border-[#e5d7f6] bg-white"
-          }`}
-        >
-          <SelectValue placeholder="Next Destination" />
-        </SelectTrigger>
-        <SelectContent>
-          {safeOptions.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted-foreground">
-              {row.source ? "Loading destinations…" : "Select a source first"}
-            </div>
-          ) : (
-            safeOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))
-          )}
-        </SelectContent>
-      </Select>
+
+          return updated;
+        });
+      }
+
+      moveFocusToNextDestination(idx);
+    }}
+    options={safeOptions}
+    placeholder={
+      safeOptions.length === 0
+        ? row.source
+          ? "Loading destinations…"
+          : "Select a source first"
+        : "Next Destination"
+    }
+    disabled={isLastRowLocked}
+  />
+</div>
     </div>
     {isFirstRow && firstRouteNextError && (
       <p className="mt-1 text-xs text-red-500">
