@@ -1,11 +1,12 @@
 // REPLACE-WHOLE-FILE: src/drivers/steps/DriverStepFeedbackReview.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Copy, FileSpreadsheet, FileText, Star } from "lucide-react";
+import { Copy, FileSpreadsheet, FileText, Star,Pencil,Trash2, } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { api } from "@/lib/api";
 
 import type { DriverReview, Id } from "@/services/drivers";
 import { createDriverReview, listDriverReviews } from "@/services/drivers";
@@ -111,8 +112,9 @@ export function DriverStepFeedbackReview({
   onBack: () => void;
   onUpdateContinue: () => void;
 }) {
-  const [rating, setRating] = useState(1);
-  const [feedback, setFeedback] = useState("");
+  const [rating, setRating] = useState(0);
+const [feedback, setFeedback] = useState("");
+const [editingReviewId, setEditingReviewId] = useState<number | string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const [rows, setRows] = useState<DriverReview[]>([]);
@@ -152,35 +154,76 @@ export function DriverStepFeedbackReview({
     [filtered, pageSize]
   );
 
-  async function handleSaveFeedback() {
-    setErr(null);
+async function handleSaveFeedback() {
+  setErr(null);
 
-    if (!driverId) {
-      setErr(
-        "Please save Basic Info first (create driver) before adding feedback."
-      );
-      return;
-    }
-    if (!feedback.trim()) {
-      setErr("Feedback is required");
-      return;
-    }
-    if (!rating || rating < 1) {
-      setErr("Rating is required");
-      return;
-    }
+  if (!driverId) {
+    setErr(
+      "Please save Basic Info first (create driver) before adding feedback."
+    );
+    return;
+  }
 
+  if (!feedback.trim()) {
+    setErr("Feedback is required");
+    return;
+  }
+
+  if (!rating || rating < 1) {
+    setErr("Rating is required");
+    return;
+  }
+
+  if (editingReviewId) {
+    await api(`/drivers/reviews/${editingReviewId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        rating,
+        description: feedback.trim(),
+      }),
+    });
+  } else {
     await createDriverReview(driverId, {
       rating,
       description: feedback.trim(),
     });
-    setFeedback("");
-    setRating(1);
-    await load();
   }
 
-  async function handleCopy() {
-    const text = viewRows
+  setFeedback("");
+  setRating(1);
+  setEditingReviewId(null);
+  await load();
+}
+
+ function handleEditReview(row: DriverReview) {
+  setEditingReviewId(row.id);
+  setRating(Number(row.rating || 0));
+  setFeedback(String(row.description || ""));
+}
+
+async function handleDeleteReview(row: DriverReview) {
+  if (!row.id) {
+    alert("Invalid review id");
+    return;
+  }
+
+  const confirmed = window.confirm("Are you sure you want to delete this review?");
+  if (!confirmed) return;
+
+  try {
+    await api(`/drivers/reviews/${row.id}`, {
+      method: "DELETE",
+    });
+
+    await load();
+  } catch (error: any) {
+    console.error("Failed to delete review", error);
+    alert(error?.message || "Review delete failed");
+  }
+}
+
+async function handleCopy() {
+  const text = viewRows
       .map(
         (r, i) =>
           `${i + 1}\t${r.rating}\t${(r.description || "").replace(
@@ -224,13 +267,13 @@ export function DriverStepFeedbackReview({
           </div>
 
           <div className="mt-6 flex justify-end">
-            <Button
-              type="button"
-              className="h-11 px-10 bg-gradient-to-r from-violet-600 to-pink-500 text-white hover:opacity-95"
-              onClick={handleSaveFeedback}
-            >
-              Save
-            </Button>
+           <Button
+  type="button"
+  className="h-11 px-10 bg-gradient-to-r from-violet-600 to-pink-500 text-white hover:opacity-95"
+  onClick={handleSaveFeedback}
+>
+  {editingReviewId ? "Update" : "Save"}
+</Button>
           </div>
         </CardContent>
       </Card>
@@ -242,73 +285,78 @@ export function DriverStepFeedbackReview({
             List of Reviews
           </div>
 
-          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3 mb-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Show</span>
-              <select
-                className="h-9 px-2 border rounded-md bg-white"
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
-              >
-                {[10, 25, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-              <span>entries</span>
-            </div>
+       <div className="mb-4 flex flex-col gap-4">
+  <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex items-center gap-2 text-sm text-gray-600">
+      <span>Show</span>
+      <select
+        className="h-9 rounded-md border bg-white px-2"
+        value={pageSize}
+        onChange={(e) => setPageSize(Number(e.target.value))}
+      >
+        {[10, 25, 50, 100].map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+      <span>entries</span>
+    </div>
 
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600">Search:</span>
-                <Input
-                  className="h-9 w-[240px]"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                />
-              </div>
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-gray-600">Search:</span>
+        <Input
+          className="h-9 w-[220px]"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
 
-              <Button
-                variant="outline"
-                className="h-9 gap-2"
-                onClick={handleCopy}
-              >
-                <Copy className="h-4 w-4 " />
-                Copy
-              </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9 min-w-[96px] gap-2"
+        onClick={handleCopy}
+      >
+        <Copy className="h-4 w-4" />
+        Copy
+      </Button>
 
-              <Button
-                variant="outline"
-                className="h-9 gap-2 border-green-500 text-green-600"
-                onClick={() =>
-                  downloadFile(
-                    "driver_reviews.xls",
-                    "application/vnd.ms-excel",
-                    toExcelHTML(viewRows)
-                  )
-                }
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel
-              </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9 min-w-[96px] gap-2 border-green-500 text-green-600"
+        onClick={() =>
+          downloadFile(
+            "driver_reviews.xls",
+            "application/vnd.ms-excel",
+            toExcelHTML(viewRows)
+          )
+        }
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+        Excel
+      </Button>
 
-              <Button
-                variant="outline"
-                className="h-9 gap-2"
-                onClick={() =>
-                  downloadFile(
-                    "driver_reviews.csv",
-                    "text/csv",
-                    toCSV(viewRows)
-                  )
-                }
-              >
-                <FileText className="h-4 w-4" />
-                CSV
-              </Button>
-            </div>
-          </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-9 min-w-[96px] gap-2"
+        onClick={() =>
+          downloadFile(
+            "driver_reviews.csv",
+            "text/csv",
+            toCSV(viewRows)
+          )
+        }
+      >
+        <FileText className="h-4 w-4" />
+        CSV
+      </Button>
+    </div>
+  </div>
+</div>
 
           <div className="border rounded-lg overflow-auto">
             <table className="min-w-full text-sm">
@@ -345,7 +393,27 @@ export function DriverStepFeedbackReview({
                           ? new Date(r.createdAt).toLocaleString()
                           : ""}
                       </td>
-                      <td className="p-3 text-gray-400">--</td>
+                      <td className="p-3">
+  <div className="flex items-center gap-4">
+    <button
+      type="button"
+      onClick={() => handleEditReview(r)}
+      className="text-violet-600 hover:text-violet-800"
+      title="Edit"
+    >
+      <Pencil className="h-5 w-5" />
+    </button>
+
+    <button
+      type="button"
+      onClick={() => handleDeleteReview(r)}
+      className="text-red-500 hover:text-red-700"
+      title="Delete"
+    >
+      <Trash2 className="h-5 w-5" />
+    </button>
+  </div>
+</td>
                     </tr>
                   ))
                 )}
