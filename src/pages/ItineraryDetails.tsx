@@ -3468,10 +3468,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       .replace(/'/g, "&#039;");
   };
 
-  const formatCurrency = (value?: number | string | null) => {
-    const amount = Number(value || 0);
-    return `₹ ${amount.toFixed(2)}`;
-  };
+const formatCurrency = (value?: number | string | null) => {
+  const amount = Number(value || 0);
+
+  return `₹ ${amount.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {
@@ -4005,8 +4009,16 @@ const vehicleOnlyHtml = html
   const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
   const [confirmOccupanciesTemplate, setConfirmOccupanciesTemplate] = useState<Array<{ adults: number; children: number; childrenAges: number[] }> | null>(null);
-  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
-  const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
+ const prebookTotalAmount = Math.round(
+  Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0)
+);
+
+const roundedSelectedHotelTotal = Math.round(Number(selectedHotelTotal || 0));
+
+const hasPrebookPriceChanged =
+  prebookTotalAmount > 0 &&
+  roundedSelectedHotelTotal > 0 &&
+  prebookTotalAmount !== roundedSelectedHotelTotal;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
   const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
@@ -7210,14 +7222,20 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return;
       }
 
-      const prebookTotal = Number(
-        effectivePrebookData?.updatedTotalPrice ||
-        effectivePrebookData?.finalPrice ||
-        effectivePrebookData?.totalAmount ||
-        0,
-      );
-      const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+    const prebookTotal = Math.round(
+  Number(
+    effectivePrebookData?.updatedTotalPrice ||
+    effectivePrebookData?.finalPrice ||
+    effectivePrebookData?.totalAmount ||
+    0
+  )
+);
+
+const currentTotal = Math.round(
+  hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0)
+);
+
+if (prebookTotal > 0 && currentTotal > 0 && prebookTotal !== currentTotal && !hasAcceptedUpdatedPrice) {
         toast.warning('Accept updated prebook price before final confirmation.');
         return;
       }

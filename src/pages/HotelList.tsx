@@ -2000,9 +2000,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                                             const optKey = getHotelOptionKey(opt);
                                             return (
                                               <option key={optKey} value={optKey}>
-                                                {opt.roomTypeName || opt.roomType || 'Standard'} - {formatCurrency(opt.totalAmount)}
-                                              </option>
-                                            );
+                                            {opt.roomTypeName || opt.roomType || 'Standard'}
+                                          </option>
+                                                  );
                                           })}
                                         </select>
                                       ) : (
