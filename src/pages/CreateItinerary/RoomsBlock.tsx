@@ -54,7 +54,6 @@ export const RoomsBlock = ({
   rooms,
   setRooms,
   addRoom,
-  removeRoom,
 }: RoomsBlockProps) => {
   const [targetRoomCount, setTargetRoomCount] = useState<number>(
     rooms[0]?.roomCount || rooms.length || 1
@@ -159,25 +158,7 @@ export const RoomsBlock = ({
 
   
 
-  const normalizeMinimumPeople = (room: RoomRow, roomCount: number): RoomRow => {
-  const adults = Math.max(Number(room.adults || 0), 0);
-  const children = Math.max(Number(room.children || 0), 0);
-  const infants = Math.max(Number(room.infants || 0), 0);
 
-  const totalPeople = adults + children + infants;
-  const missingPeople = Math.max(2 - totalPeople, 0);
-
-  return {
-    ...room,
-    roomCount,
-    adults: adults + missingPeople,
-    children,
-    infants,
-    childrenDetails: Array.isArray(room.childrenDetails)
-      ? room.childrenDetails
-      : [],
-  };
-};
 
   const handleTotalRoomsChange = (value: number) => {
   if (!Number.isFinite(value) || value < 1) value = 1;
@@ -210,15 +191,14 @@ export const RoomsBlock = ({
       current.length = value;
     }
 
-    return current.map((room, index) =>
-      normalizeMinimumPeople(
-        {
-          ...room,
-          id: index + 1,
-        },
-        value
-      )
-    );
+    return current.map((room, index) => ({
+      ...room,
+      id: index + 1,
+      roomCount: value,
+      childrenDetails: Array.isArray(room.childrenDetails)
+        ? room.childrenDetails
+        : [],
+    }));
   });
 };
   const handleChildAgeChange = (
@@ -258,6 +238,28 @@ export const RoomsBlock = ({
       })
     );
   };
+
+   const handleDeleteRoomBlock = (roomId: number) => {
+  setRooms((prev) => {
+    if (!Array.isArray(prev) || prev.length <= 1) {
+      return prev;
+    }
+
+    const filteredRooms = prev.filter((room) => room.id !== roomId);
+    const nextRoomCount = filteredRooms.length || 1;
+
+    setTargetRoomCount(nextRoomCount);
+
+    return filteredRooms.map((room, index) => ({
+      ...room,
+      id: index + 1,
+      roomCount: nextRoomCount,
+      childrenDetails: Array.isArray(room.childrenDetails)
+        ? room.childrenDetails
+        : [],
+    }));
+  });
+};
 
   if (!shouldShowRoomsBlock) {
   return null;
@@ -305,16 +307,17 @@ return (
                 </div>
               </div>
 
-              {rooms.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeRoom(room.id)}
-                  className="h-7 w-7 text-[#d03265]"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
+{rooms.length > 1 && (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    onClick={() => handleDeleteRoomBlock(room.id)}
+    className="h-7 w-7 text-[#d03265]"
+  >
+    <Trash2 className="h-4 w-4" />
+  </Button>
+)}
             </div>
 
            {/* counters row */}
@@ -329,7 +332,7 @@ return (
         onClick={() =>
           tryUpdateCounts(
             room,
-            Math.max(room.adults - 1, 2),
+            Math.max(room.adults - 1, 1),
             room.children,
             room.infants
           )
@@ -338,7 +341,7 @@ return (
         -
       </Button>
 <span className="px-3 text-sm select-none">
-  {Math.max(Number(room.adults || 0), 2)}
+  {room.adults}
 </span>
       <Button
         type="button"
