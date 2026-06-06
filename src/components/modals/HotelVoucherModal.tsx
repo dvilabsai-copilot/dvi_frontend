@@ -37,6 +37,7 @@ interface HotelVoucherModalProps {
   routeDates: string[];
   dayNumbers: number[];
   hotelDetailsIds: number[];
+  initialStatus?: 'confirmed' | 'cancelled' | 'pending';
   onSuccess?: () => void;
 }
 
@@ -52,12 +53,15 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
   routeDates,
   dayNumbers,
   hotelDetailsIds,
+  initialStatus,
   onSuccess,
 }) => {
   const [confirmedBy, setConfirmedBy] = useState('');
   const [emailId, setEmailId] = useState(hotelEmail);
   const [mobileNumber, setMobileNumber] = useState('');
-  const [status, setStatus] = useState<'confirmed' | 'cancelled' | 'pending'>('cancelled');
+  const [status, setStatus] = useState<'confirmed' | 'cancelled' | 'pending'>(
+    initialStatus || 'cancelled',
+  );
   const [invoiceTo, setInvoiceTo] = useState<'gst_bill_against_dvi' | 'hotel_direct' | 'agent'>('gst_bill_against_dvi');
   const [voucherTerms, setVoucherTerms] = useState('');
   const [cancellationPolicies, setCancellationPolicies] = useState<HotelCancellationPolicy[]>([]);
@@ -123,7 +127,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
     if (open) {
       loadVoucherData();
     }
-  }, [open, itineraryPlanId, hotelId]);
+  }, [open, itineraryPlanId, hotelId, initialStatus]);
 
   useEffect(() => {
     if (open && !isLoading) {
@@ -144,10 +148,11 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
         setConfirmedBy(existingVoucher.confirmedBy);
         setEmailId(existingVoucher.emailId);
         setMobileNumber(existingVoucher.mobileNumber);
-        setStatus(existingVoucher.status);
+        setStatus(initialStatus || existingVoucher.status);
         setInvoiceTo(existingVoucher.invoiceTo);
         setVoucherTerms(existingVoucher.voucherTermsCondition);
       } else {
+        setStatus(initialStatus || 'cancelled');
         // Load default terms
         const defaultTerms = await HotelVoucherService.getDefaultVoucherTerms(itineraryPlanId);
         setVoucherTerms(defaultTerms);

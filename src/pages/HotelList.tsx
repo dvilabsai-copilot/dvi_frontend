@@ -486,8 +486,52 @@ export const HotelList: React.FC<HotelListProps> = ({
   const isPlaceholderHotel = (hotel?: Partial<ItineraryHotelRow> | null): boolean => {
     if (!hotel) return true;
     const name = String((hotel as any).hotelName || '').trim().toLowerCase();
-    const hotelId = toNumber((hotel as any).hotelId, 0);
-    return name === 'no hotels available' || hotelId <= 0;
+    const provider = String((hotel as any).provider || '').trim().toLowerCase();
+    const availabilityStatus = String((hotel as any).availabilityStatus || '').trim().toUpperCase();
+
+    return (
+      name === 'no hotels available' ||
+      name.includes('no hotel booked') ||
+      name.includes('stay arranged externally') ||
+      provider === 'external' ||
+      availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+      (hotel as any).externalStay === true
+    );
+  };
+
+  const isExternalStayRow = (hotel?: Partial<ItineraryHotelRow> | null): boolean => {
+    if (!hotel) return false;
+    const provider = String((hotel as any)?.provider || '').trim().toLowerCase();
+    const hotelName = String((hotel as any)?.hotelName || '').trim().toLowerCase();
+    const availabilityStatus = String((hotel as any)?.availabilityStatus || '').trim().toUpperCase();
+
+    return (
+      (hotel as any)?.externalStay === true ||
+      provider === 'external' ||
+      provider === 'none' ||
+      provider === 'self-arranged' ||
+      availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+      hotelName === 'no hotels available' ||
+      hotelName.includes('no hotel booked') ||
+      hotelName.includes('no hotels available') ||
+      hotelName.includes('stay arranged externally')
+    );
+  };
+
+  const getRoomTypeDisplay = (hotel: any): React.ReactNode => {
+    if (isExternalStayRow(hotel)) {
+      return <span className="text-slate-400">{hotel?.displayRoomType || '-'}</span>;
+    }
+
+    return hotel?.roomType || hotel?.roomTypeName || '-';
+  };
+
+  const getMealPlanDisplay = (hotel: any): React.ReactNode => {
+    if (isExternalStayRow(hotel)) {
+      return <span className="text-slate-400">{hotel?.displayMealPlan || '-'}</span>;
+    }
+
+    return normalizeMealPlanLabel(hotel?.mealPlan);
   };
 
   // ✅ Track selected hotel PER GROUP TYPE and PER STAY
@@ -759,6 +803,13 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // ✅ Get overall total (sum of active groupType only, as per requirements)
   const getOverallSelectedHotelTotal = (): number => {
+    if (readOnly) {
+      return localHotels.reduce(
+        (sum, hotel) => sum + getHotelAmountWithRooms(hotel),
+        0,
+      );
+    }
+
     return getActiveTabTotal();
   };
 
@@ -796,7 +847,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       selections[routeId] = {
         provider: String((hotel as any).provider || 'tbo').trim().toLowerCase(),
         hotelCode: String((hotel as any).hotelCode || (hotel as any).hotelId || '').trim(),
-        bookingCode: String((hotel as any).bookingCode || (hotel as any).hotelCode || (hotel as any).hotelId || '').trim(),
+        bookingCode: String((hotel as any).bookingCode || (hotel as any).searchReference || '').trim(),
         roomType: String((hotel as any).roomType || (hotel as any).roomTypeName || 'Standard').trim(),
         netAmount: Number((hotel as any).totalHotelCost || 0),
         hotelName: String((hotel as any).hotelName || '').trim(),
@@ -828,9 +879,10 @@ export const HotelList: React.FC<HotelListProps> = ({
       const confirmedHotels = localHotels.filter(
         (h) => toNumber(h.itineraryPlanHotelDetailsId) > 0,
       );
+      const externalDisplayHotels = localHotels.filter((h) => isExternalStayRow(h));
       const sourceHotels =
         confirmedHotels.length > 0
-          ? confirmedHotels
+          ? [...confirmedHotels, ...externalDisplayHotels]
           : (() => {
               const fallbackGroupType = toNumber(
                 activeGroupType ?? hotelTabs?.[0]?.groupType,
@@ -846,12 +898,21 @@ export const HotelList: React.FC<HotelListProps> = ({
       
       // For each route, keep only the first (confirmed) hotel
       sourceHotels.forEach(h => {
-          // Only add if this route doesn't already have a confirmed hotel
-          const routeId = toNumber(h.itineraryRouteId);
-          if (!hotelsByRoute.has(routeId)) {
-            hotelsByRoute.set(routeId, h);
-          }
-        });
+        const routeId = toNumber(h.itineraryRouteId);
+        if (!routeId) return;
+        const existing = hotelsByRoute.get(routeId);
+
+        if (!existing) {
+          hotelsByRoute.set(routeId, h);
+          return;
+        }
+
+        const existingExternal = isExternalStayRow(existing);
+        const nextExternal = isExternalStayRow(h);
+        if (existingExternal && !nextExternal) {
+          hotelsByRoute.set(routeId, h);
+        }
+      });
       
       return Array.from(hotelsByRoute.values()).sort((a, b) => {
         const dayA = parseInt(String(a.day ?? '').replace(/\D/g, '') || '0');
@@ -1299,7 +1360,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             [routeId]: {
               provider: String((normalizedRoom as any).provider || 'tbo').toLowerCase(),
               hotelCode: (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
-              bookingCode: (normalizedRoom as any).bookingCode || (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
+              bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
               roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
               netAmount: getHotelDisplayAmount(normalizedRoom),
               hotelName: (normalizedRoom as any).hotelName || '',
@@ -1352,7 +1413,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           [routeId]: {
             provider: (normalizedRoom as any).provider || 'tbo',
             hotelCode: (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
-            bookingCode: (normalizedRoom as any).bookingCode || (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
+            bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
             roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
             netAmount: getHotelDisplayAmount(normalizedRoom),
             hotelName: (normalizedRoom as any).hotelName || '',
@@ -1450,11 +1511,25 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // ✅ Notify parent when active group total changes (active groupType only)
   React.useEffect(() => {
-    if (onTotalChange && activeGroupType !== null) {
-      const total = getActiveTabTotal();
-      onTotalChange(total);
+    if (!onTotalChange) return;
+
+    if (readOnly) {
+      onTotalChange(getOverallSelectedHotelTotal());
+      return;
     }
-  }, [activeGroupType, selectedByGroup, onTotalChange, roomCount]);
+
+    if (activeGroupType !== null) {
+      onTotalChange(getActiveTabTotal());
+    }
+  }, [
+    readOnly,
+    activeGroupType,
+    selectedByGroup,
+    userSelectedByStay,
+    localHotels,
+    onTotalChange,
+    roomCount,
+  ]);
 
   // Parent selections are now synced explicitly on user choose/update action above.
 
@@ -1617,12 +1692,32 @@ export const HotelList: React.FC<HotelListProps> = ({
               {currentHotelRows.map((hotel, idx) => {
                 const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
+                const isExternalStay = isExternalStayRow(hotel);
                 const rowTotal =
                   (hotel.totalHotelCost ?? 0) +
                   (hotel.totalHotelTaxAmount ?? 0);
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel);
                 const routeDate = hotel.date || new Date().toISOString().split('T')[0];
+
+                const normalizedHotelDetailsIds = Array.isArray((hotel as any).hotelDetailsIds)
+                  ? (hotel as any).hotelDetailsIds
+                      .map((id: any) => Number(id))
+                      .filter((id: number) => Number.isFinite(id) && id > 0)
+                  : [];
+
+                const fallbackHotelDetailsId = Number(hotel.itineraryPlanHotelDetailsId || 0);
+
+                const cancelHotelDetailsIds = normalizedHotelDetailsIds.length > 0
+                  ? normalizedHotelDetailsIds
+                  : fallbackHotelDetailsId > 0
+                    ? [fallbackHotelDetailsId]
+                    : [];
+
+                const parsedDayNumber = Number(
+                  String(hotel.day || '').match(/Day\s*(\d+)/i)?.[1] || 0,
+                );
+
                 const rowVoucherPayload = {
                   routeId: Number(hotel.itineraryRouteId || 0),
                   hotelId: Number(hotel.hotelId || 0),
@@ -1630,9 +1725,18 @@ export const HotelList: React.FC<HotelListProps> = ({
                   hotelEmail: '',
                   hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
                   routeDates: [routeDate],
-                  dayNumbers: [parseInt(hotel.day?.replace('Day ', '') || '0')],
-                  hotelDetailsIds: [Number(hotel.itineraryPlanHotelDetailsId || 0)],
+                  dayNumbers: parsedDayNumber > 0 ? [parsedDayNumber] : [],
+                  hotelDetailsIds: cancelHotelDetailsIds,
                 };
+
+                const canShowHotelCancelAction =
+                  readOnly &&
+                  !isExternalStay &&
+                  Boolean(String(hotel.hotelName || '').trim()) &&
+                  (
+                    Number(rowVoucherPayload.routeId || 0) > 0 ||
+                    rowVoucherPayload.hotelDetailsIds.length > 0
+                  );
 
                 return (
                   <React.Fragment key={rowKey}>
@@ -1656,18 +1760,32 @@ export const HotelList: React.FC<HotelListProps> = ({
                         {resolvedDestination}
                       </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
-                        {hotel.hotelName
-                          ? (() => {
-                              const starCategory = normalizeHotelStarCategory(hotel.category);
-                              return starCategory
-                                ? `${hotel.hotelName} -${starCategory}*`
-                                : hotel.hotelName;
-                            })()
-                          : "-"}
+                        <div>
+                          <div>
+                            {hotel.hotelName
+                              ? (() => {
+                                  const starCategory = normalizeHotelStarCategory(hotel.category);
+                                  return starCategory
+                                    ? `${hotel.hotelName} -${starCategory}*`
+                                    : hotel.hotelName;
+                                })()
+                              : "-"}
+                          </div>
+                          {isExternalStay && (
+                            <span className="mt-1 inline-flex text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              Stay arranged externally
+                            </span>
+                          )}
+                          {isExternalStay && hotel.availabilityMessage && (
+                            <div className="text-xs text-amber-700 mt-1">
+                              {hotel.availabilityMessage}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
-                        {hotel.roomType || "-"}
-                        {effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
+                        {getRoomTypeDisplay(hotel)}
+                        {!isExternalStay && effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
                           ? ` (${effectiveRooms} Rooms)`
                           : ""}
                       </td>
@@ -1682,8 +1800,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                         </td>
                       )}
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between gap-2">
-                        <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
-                        {readOnly && hotel.hotelId && hotel.hotelName && (
+                        {isExternalStay ? (
+                          getMealPlanDisplay(hotel)
+                        ) : (
+                          <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
+                        )}
+                        {canShowHotelCancelAction && (
                           hotel.voucherCancelled ? (
                             <Button
                               size="sm"
@@ -1700,18 +1822,18 @@ export const HotelList: React.FC<HotelListProps> = ({
                               className="ml-2 border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff] text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Ensure we have a valid date, fallback to today's date if missing
-                                const routeDate = hotel.date || new Date().toISOString().split('T')[0];
-                                onCreateVoucher({
-                                  routeId: hotel.itineraryRouteId,
-                                  hotelId: hotel.hotelId!,
-                                  hotelName: hotel.hotelName!,
-                                  hotelEmail: '',
-                                  hotelStateCity: resolvedDestination === '-' ? '' : resolvedDestination,
-                                  routeDates: [routeDate],
-                                  dayNumbers: [parseInt(String(hotel.day ?? '').replace('Day ', '') || '0')],
-                                  hotelDetailsIds: [hotel.itineraryPlanHotelDetailsId || 0]
-                                });
+
+                                if (onCancelVoucher) {
+                                  void onCancelVoucher(rowVoucherPayload);
+                                  return;
+                                }
+
+                                if (onBulkCancelVouchers) {
+                                  void onBulkCancelVouchers([rowVoucherPayload]);
+                                  return;
+                                }
+
+                                toast.error('Cancel voucher action is not available');
                               }}
                             >
                               Cancel Voucher
@@ -2007,10 +2129,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         </select>
                                       ) : (
                                         <p className="text-sm text-[#4a4260] font-medium">
-                                          {hotel.roomTypeName || hotel.roomType ||
-                                            (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
-                                              ? hotel.availableRoomTypes[0].roomTypeTitle
-                                              : 'Not Available')}
+                                          {isExternalStayRow(hotel)
+                                            ? getRoomTypeDisplay(hotel)
+                                            : (hotel.roomTypeName || hotel.roomType ||
+                                              (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
+                                                ? hotel.availableRoomTypes[0].roomTypeTitle
+                                                : 'Not Available'))}
                                         </p>
                                       )}
                                     </div>
@@ -2019,7 +2143,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         Meal Type
                                       </label>
                                       <p className="text-sm text-[#4a4260] font-medium">
-                                        {normalizeMealPlanLabel(hotel.mealPlan)}
+                                        {getMealPlanDisplay(hotel)}
                                       </p>
                                     </div>
 
@@ -2168,7 +2292,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                   Hotel Total :
                 </td>
                 <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
-                  {formatCurrency(currentTabTotal)}
+                  {formatCurrency(readOnly ? getOverallSelectedHotelTotal() : currentTabTotal)}
                 </td>
                 {!showRates && (
                   <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
