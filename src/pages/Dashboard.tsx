@@ -22,6 +22,7 @@ import { ItineraryService } from "@/services/itinerary";
 import { fetchVehicleAvailability } from "@/services/vehicle-availability";
 import { toast } from "sonner";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
+import { ChevronRight, ChevronDown, MapPin, CheckCircle2 } from "lucide-react";
 
 function parseJwt(token: string) {
   try {
@@ -349,6 +350,11 @@ const [liveVehicleActiveTab, setLiveVehicleActiveTab] = useState<LiveVehicleStat
 const [mostVisitedHotels, setMostVisitedHotels] = useState<MostVisitedHotelRow[]>([]);
 const [mostVisitedHotelsLoading, setMostVisitedHotelsLoading] = useState(false);
 const [mostVisitedHotelsYear, setMostVisitedHotelsYear] = useState(new Date().getFullYear());
+const [starPerformerTab, setStarPerformerTab] = useState<
+  "Agents" | "Travel Expert" | "Guides" | "Vendors"
+>("Agents");
+
+const [openDailyMomentQuote, setOpenDailyMomentQuote] = useState<string | null>(null);
   
   
   // Payment states
@@ -776,8 +782,8 @@ useEffect(() => {
           </Button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+{/* Stats Cards */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Total Customers */}
           <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
             <div className="flex items-start gap-4">
@@ -1160,20 +1166,38 @@ const liveVehicleStartEntry =
   liveVehicleTotal === 0 ? 0 : (liveVehiclePage - 1) * liveVehicleEntries + 1;
 const liveVehicleEndEntry = Math.min(liveVehiclePage * liveVehicleEntries, liveVehicleTotal);
 
+const dailyMomentRows =
+  adminData.dailyMoment.length > 0
+    ? adminData.dailyMoment
+    : agentWiseItineraries.slice(0, 5).map((item) => ({
+        quoteId: item.booking_quote_id,
+        location: isOngoingDashboardItinerary(item) ? "Ongoing" : "Arrival",
+      }));
+
+const keepCurrentScroll = () => {
+  const currentScrollY = window.scrollY;
+  window.setTimeout(() => {
+    window.scrollTo({ top: currentScrollY, left: 0, behavior: "auto" });
+  }, 0);
+};
+
 return (
     <div className="p-8 space-y-6">
-      {/* Welcome Section */}
-      <div className="space-y-2">
-        <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-          Welcome back, Admin HII👋
-        </h3>
-        <p className="text-muted-foreground">
-          Your progress this week is Awesome. Let's keep it up and get a lot of points reward!
-        </p>
-      </div>
+     {/* Welcome + Stats + Profit Section */}
+<Card className="border-none bg-white p-8 shadow-md">
+  <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
+    <div>
+      <h3 className="mb-4 text-4xl font-bold text-slate-700">
+        Welcome back, Admin 👋🏻
+      </h3>
+
+      <p className="mb-8 max-w-[650px] text-xl leading-8 text-gray-400">
+        Your progress this week is Awesome. Let's keep it up and get
+        a lot of points reward!
+      </p>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {/* Total Agents */}
         <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
           <div className="flex items-start gap-4">
@@ -1211,44 +1235,56 @@ return (
               <p className="text-3xl font-bold text-orange-600">{adminData.stats.totalGuides}</p>
             </div>
           </div>
-        </Card>
+                </Card>
       </div>
-      {/* ... rest of the admin dashboard ... */}
+    </div>
 
-
-      {/* Profit Cards Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Last Month Profit */}
-        <Card className="p-6">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Last Month Profit</p>
-            <p className="text-xs text-muted-foreground">October 2025</p>
-            <p className="text-3xl font-bold">₹ {adminData.profit.lastMonth.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          </div>
-        </Card>
-
-        {/* Current Month Profit */}
-        <Card className="p-6">
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Current Month Profit</p>
-            <p className="text-xs text-muted-foreground">November 2025</p>
-            <div className="flex items-baseline gap-3">
-              <p className="text-3xl font-bold">₹ {adminData.profit.currentMonth.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded ${
-                adminData.profit.percentageChange >= 0 
-                  ? 'text-green-600 bg-green-50' 
-                  : 'text-red-600 bg-red-50'
-              }`}>
-                <TrendingDown className="h-3 w-3" />
-                {Math.abs(adminData.profit.percentageChange).toFixed(2)}%
-              </span>
-            </div>
-          </div>
-        </Card>
+    <div className="flex flex-col justify-center gap-10">
+      <div>
+        <p className="mb-3 text-xl font-semibold text-gray-400">
+          Last Month Profit
+        </p>
+        <p className="mb-4 text-lg text-gray-400">October 2025</p>
+        <p className="text-3xl font-bold text-slate-700">
+          ₹ {adminData.profit.lastMonth.toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div>
+        <p className="mb-3 text-xl font-semibold text-gray-400">
+          Current Month Profit
+        </p>
+        <p className="mb-4 text-lg text-gray-400">November 2025</p>
+
+        <div className="flex items-center gap-3">
+          <p className="text-3xl font-bold text-slate-700">
+            ₹ {adminData.profit.currentMonth.toLocaleString("en-IN", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </p>
+
+          <span
+            className={`rounded px-3 py-1 text-sm font-semibold ${
+              adminData.profit.percentageChange >= 0
+                ? "bg-green-50 text-green-600"
+                : "bg-red-50 text-red-500"
+            }`}
+          >
+            {adminData.profit.percentageChange >= 0 ? "↝" : "▼"}{" "}
+            {Math.abs(adminData.profit.percentageChange).toFixed(2)}%
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</Card>
+
+{/* Stats Grid */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Total Itineraries */}
         <Card className="p-6">
           <div className="flex items-center justify-between">
@@ -1454,12 +1490,162 @@ return (
           </div>
         </Card>
       </div>
+      {/* Daily Moment and Star Performers */}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {/* Daily Moment */}
+  <Card className="p-6">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-lg font-bold">Daily Moment</h3>
+      <input
+        type="date"
+        defaultValue={toDashboardYmd(new Date())}
+        className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+      />
+    </div>
+
+    <div className="space-y-5">
+    {dailyMomentRows.length > 0 ? (
+  dailyMomentRows.map((moment, index) => (
+
+
+<div key={index} className="space-y-3">
+  <div
+    onClick={() =>
+      setOpenDailyMomentQuote((prev) =>
+        prev === moment.quoteId ? null : moment.quoteId
+      )
+    }
+    className="flex items-center gap-4 p-5 rounded-xl hover:bg-secondary/70 transition-all cursor-pointer"
+  >
+    <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center">
+      <Truck className="h-6 w-6 text-muted-foreground" />
+    </div>
+
+    <div className="flex-1 min-w-0">
+      <p className="text-xl font-medium text-primary">{moment.quoteId}</p>
+      <p className="text-base text-muted-foreground">{moment.location}</p>
+    </div>
+
+    {openDailyMomentQuote === moment.quoteId ? (
+      <ChevronDown className="h-6 w-6 text-muted-foreground" />
+    ) : (
+      <ChevronRight className="h-6 w-6 text-muted-foreground" />
+    )}
+  </div>
+
+  {openDailyMomentQuote === moment.quoteId && (
+    <div className="ml-16 space-y-5 border-l border-dashed border-gray-300 pl-6">
+      <div className="flex gap-4">
+        <CheckCircle2 className="mt-1 h-6 w-6 text-green-500" />
+        <div>
+          <p className="text-base font-semibold uppercase text-green-500">
+            {confirmedItineraries.find((x) => x.booking_quote_id === moment.quoteId)
+              ?.arrival_location || "-"}
+          </p>
+          <p className="text-base text-muted-foreground">
+            {formatDashboardDate(
+              confirmedItineraries.find((x) => x.booking_quote_id === moment.quoteId)
+                ?.arrival_date || ""
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-4">
+        <MapPin className="mt-1 h-6 w-6 text-primary" />
+        <div>
+          <p className="text-base font-semibold uppercase text-muted-foreground">
+            {confirmedItineraries.find((x) => x.booking_quote_id === moment.quoteId)
+              ?.departure_location || "-"}
+          </p>
+          <p className="text-base text-muted-foreground">
+            {formatDashboardDate(
+              confirmedItineraries.find((x) => x.booking_quote_id === moment.quoteId)
+                ?.departure_date || ""
+            )}
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+        ))
+      ) : (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No itineraries for today
+        </p>
+      )}
+        </div>
+
+    <div className="pt-4 text-center">
+      <button
+        type="button"
+        onClick={() => navigate("/daily-moment-tracker")}
+        className="inline-flex items-center gap-2 text-lg font-medium text-primary hover:underline"
+      >
+        View All <ChevronRight className="h-5 w-5" />
+      </button>
+    </div>
+  </Card>
+
+ {/* Star Performers */}
+<Card className="p-8">
+  <div className="mb-4">
+    <h3 className="text-lg font-bold mb-1">Star Performers</h3>
+    <p className="text-sm text-muted-foreground">
+      Top-Rated Agents, Travel Expert, Guides and Vendors
+    </p>
+  </div>
+
+ <div className="flex gap-2 mb-4 border-b border-border">
+  {(["Agents", "Travel Expert", "Guides", "Vendors"] as const).map((tab) => (
+    <button
+      key={tab}
+      type="button"
+      onClick={() => setStarPerformerTab(tab)}
+      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+        starPerformerTab === tab
+          ? "text-primary border-primary"
+          : "text-muted-foreground border-transparent hover:text-foreground"
+      }`}
+    >
+      {tab}
+    </button>
+  ))}
+</div>
+{starPerformerTab === "Agents" && adminData.starPerformer ? (
+    <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
+      <div className="h-12 w-12 rounded-full bg-gradient-to-r from-primary to-pink-500 flex items-center justify-center flex-shrink-0">
+        <span className="text-white font-medium">
+          {adminData.starPerformer.name.charAt(0).toUpperCase()}
+        </span>
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <p className="font-medium">{adminData.starPerformer.name}</p>
+        <p className="text-sm text-muted-foreground">
+          {adminData.starPerformer.phone}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1 text-green-600 font-medium">
+        <span className="text-lg">▲</span>
+        <span>{adminData.starPerformer.performance}%</span>
+      </div>
+    </div>
+  ) : (
+    <p className="text-sm text-muted-foreground text-center py-4">
+      No {starPerformerTab} performer data available
+    </p>
+  )}
+</Card>
+</div>
 
             {/* Confirmed Itinerary List */}
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold text-slate-700">
-          Confirmed Itinerary List
-        </h2>
+     <div id="confirmed-itinerary-list" className="space-y-4">
+  <h2 className="text-2xl font-semibold text-slate-700">
+    Confirmed Itinerary List
+  </h2>
 
         <Card className="overflow-hidden border-none bg-white shadow-md">
           <div className="border-b border-gray-200">
@@ -1468,10 +1654,16 @@ return (
       <button
         key={tab.key}
         type="button"
-        onClick={() => {
-          setConfirmedActiveTab(tab.key);
-          setConfirmedPage(1);
-        }}
+ onClick={() => {
+  setConfirmedActiveTab(tab.key);
+  setConfirmedPage(1);
+
+  window.setTimeout(() => {
+    document
+      .getElementById("confirmed-itinerary-list")
+      ?.scrollIntoView({ behavior: "auto", block: "start" });
+  }, 50);
+}}
         className={`px-7 py-4 text-base font-medium border-b-2 transition-colors ${
           confirmedActiveTab === tab.key
             ? "text-pink-600 border-pink-600"
@@ -1866,80 +2058,7 @@ return (
         </Card>
       </div>
 
-      {/* Daily Moment and Star Performers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Daily Moment */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold">Daily Moment</h3>
-            <input 
-              type="date" 
-              defaultValue="2025-11-01"
-              className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div className="space-y-3">
-            {adminData.dailyMoment.length > 0 ? (
-              adminData.dailyMoment.map((moment, index) => (
-                <div key={index} className="flex items-center gap-4 p-4 bg-secondary rounded-lg hover:bg-secondary/80 transition-colors cursor-pointer">
-                  <Truck className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-primary">{moment.quoteId}</p>
-                    <p className="text-sm text-muted-foreground">{moment.location}</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No itineraries for today</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Star Performers */}
-        <Card className="p-6">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold mb-1">Star Performers</h3>
-            <p className="text-sm text-muted-foreground">
-              Top-Rated Agents, Travel Expert, Guides and Vendors
-            </p>
-          </div>
-          
-          <div className="flex gap-2 mb-4 border-b border-border">
-            <button className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary">
-              Agents
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              Travel Expert
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              Guides
-            </button>
-            <button className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-              Vendors
-            </button>
-          </div>
-
-          {adminData.starPerformer ? (
-            <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
-              <div className="h-12 w-12 rounded-full bg-gradient-to-r from-primary to-pink-500 flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-medium">{adminData.starPerformer.name.charAt(0).toUpperCase()}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium">{adminData.starPerformer.name}</p>
-                <p className="text-sm text-muted-foreground">{adminData.starPerformer.phone}</p>
-              </div>
-              <div className="flex items-center gap-1 text-green-600 font-medium">
-                <span className="text-lg">▲</span>
-                <span>{adminData.starPerformer.performance}%</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">No performer data available</p>
-          )}
-                </Card>
-      </div>
-
-      {/* Live Vehicle Status */}
+{/* Live Vehicle Status */}
       <div className="space-y-4">
         <h2 className="text-2xl font-semibold text-slate-700">
           Live Vehicle Status
