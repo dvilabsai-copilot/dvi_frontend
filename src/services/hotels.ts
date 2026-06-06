@@ -12,6 +12,8 @@ export type Hotel = {
   addressLine2?: string | null;
   city?: string | null;
   state?: string | null;
+  cityName?: string | null;
+  stateName?: string | null;
   country?: string | null;
   pinCode?: string | null;
   phone?: string | null;
@@ -91,6 +93,8 @@ function fromBackend(h: any): Hotel {
     place: h.hotel_place ?? h.place ?? null,
     city: h.hotel_city ?? h.city ?? null,
     state: h.hotel_state ?? h.state ?? null,
+    cityName: h.hotel_city_name ?? h.city_name ?? h.cityName ?? null,
+    stateName: h.hotel_state_name ?? h.state_name ?? h.stateName ?? null,
     country: h.hotel_country ?? h.country ?? null,
     pinCode: h.hotel_pincode ?? h.pinCode ?? null,
     phone: h.hotel_mobile ?? h.phone ?? null,

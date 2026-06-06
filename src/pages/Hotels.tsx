@@ -39,6 +39,11 @@ type HotelRow = {
   isActive: boolean;
 };
 
+type HotelRowBase = Omit<HotelRow, "stateName" | "cityName"> & {
+  stateDisplay?: string | null;
+  cityDisplay?: string | null;
+};
+
 type MetaOption = {
   id: string;
   name: string;
@@ -214,13 +219,37 @@ const HotelPage: React.FC = () => {
     };
   }, []);
 
+  // Fetch all cities once for display fallback labels.
+  useEffect(() => {
+    let aborted = false;
+    (async () => {
+      try {
+        const cities = await listCitiesMeta({ all: true }).catch(() => []);
+        if (aborted) return;
+
+        const cMap: Record<string, string> = {};
+        for (const c of cities || []) {
+          const id = String(c.id ?? c.city_id ?? c.cityId ?? "");
+          const name = String(c.name ?? c.city_name ?? c.cityName ?? "").trim();
+          if (id) cMap[id] = name || id;
+        }
+
+        setCityMap((prev) => ({ ...prev, ...cMap }));
+      } catch {
+        // backend names are primary; keep silent fallback
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
+  }, []);
+
   // Fetch cities when state changes (PHP-like dependent dropdown)
   useEffect(() => {
     let aborted = false;
     (async () => {
       if (!filterState) {
         setCityOptions([]);
-        setCityMap({});
         return;
       }
       try {
@@ -243,11 +272,10 @@ const HotelPage: React.FC = () => {
 
         const cMap: Record<string, string> = {};
         for (const c of normCities) cMap[c.id] = c.name || c.id;
-        setCityMap(cMap);
+        setCityMap((prev) => ({ ...prev, ...cMap }));
         setCityOptions(normCities.map((c) => ({ id: c.id, name: c.name, stateId: c.state_id })));
       } catch {
         setCityOptions([]);
-        setCityMap({});
       }
     })();
     return () => {
@@ -256,7 +284,7 @@ const HotelPage: React.FC = () => {
   }, [filterState]);
 
   // Adapter: API Hotel → UI row (without names yet)
-  const toRowBase = (h: Hotel, ix: number): Omit<HotelRow, "stateName" | "cityName"> => ({
+  const toRowBase = (h: Hotel, ix: number): HotelRowBase => ({
     id: (page - 1) * entries + ix + 1,
     backendId: String((h as any).id ?? (h as any).hotel_id ?? ""),
     name: (h as any).name ?? (h as any).hotel_name ?? "",
@@ -264,6 +292,16 @@ const HotelPage: React.FC = () => {
     axisCode: (h as any).axisrooms_property_id ?? "",
     stateId: (h as any).hotel_state ?? (h as any).state ?? null,
     cityId: (h as any).hotel_city ?? (h as any).city ?? null,
+    stateDisplay:
+      (h as any).stateName ??
+      (h as any).hotel_state_name ??
+      (h as any).state_name ??
+      null,
+    cityDisplay:
+      (h as any).cityName ??
+      (h as any).hotel_city_name ??
+      (h as any).city_name ??
+      null,
     mobile:
       (h as any).phone ??
       (h as any).hotel_mobile ??
@@ -276,13 +314,16 @@ const HotelPage: React.FC = () => {
   });
 
   // Helper: attach names using current maps
-  const withNames = (r: ReturnType<typeof toRowBase>): HotelRow => {
+  const withNames = (r: HotelRowBase): HotelRow => {
     const stateKey = r.stateId != null ? String(r.stateId) : "";
     const cityKey = r.cityId != null ? String(r.cityId) : "";
+    const stateDisplay = String(r.stateDisplay ?? "").trim();
+    const cityDisplay = String(r.cityDisplay ?? "").trim();
+    const { stateDisplay: _stateDisplay, cityDisplay: _cityDisplay, ...row } = r;
     return {
-      ...r,
-      stateName: stateMap[stateKey] ?? (stateKey || ""),
-      cityName: cityMap[cityKey] ?? (cityKey || ""),
+      ...row,
+      stateName: stateDisplay || stateMap[stateKey] || stateKey || "",
+      cityName: cityDisplay || cityMap[cityKey] || cityKey || "",
     };
   };
 
