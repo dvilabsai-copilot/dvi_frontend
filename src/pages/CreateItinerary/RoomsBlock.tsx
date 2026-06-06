@@ -157,7 +157,37 @@ export const RoomsBlock = ({
   }, [rooms, setRooms]);
 
   
+useEffect(() => {
+  setRooms((prev) => {
+    if (!Array.isArray(prev) || prev.length !== 1) {
+      return prev;
+    }
 
+    const room = prev[0];
+
+    const isInitialDefaultRoom =
+      Number(room.id) === 1 &&
+      Number(room.adults) === 1 &&
+      Number(room.children || 0) === 0 &&
+      Number(room.infants || 0) === 0 &&
+      Number(room.roomCount || 1) === 1;
+
+    if (!isInitialDefaultRoom) {
+      return prev;
+    }
+
+    return [
+      {
+        ...room,
+        adults: 2,
+        roomCount: 1,
+        childrenDetails: Array.isArray(room.childrenDetails)
+          ? room.childrenDetails
+          : [],
+      },
+    ];
+  });
+}, [setRooms]);
 
 
   const handleTotalRoomsChange = (value: number) => {
