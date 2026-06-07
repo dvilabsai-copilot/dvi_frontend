@@ -3877,6 +3877,26 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return `₹ ${amount.toFixed(2)}`;
   };
 
+  const toMoneyNumber = (value?: number | string | null): number => {
+    const amount = Number(value || 0);
+    if (!Number.isFinite(amount)) return 0;
+
+    return Number(amount.toFixed(2));
+  };
+
+  const getHotelSelectionAmount = (hotel: any): number => {
+    const directTotal = Number(hotel?.totalAmount ?? hotel?.totalPrice ?? 0);
+    if (Number.isFinite(directTotal) && directTotal > 0) {
+      return toMoneyNumber(directTotal);
+    }
+
+    const totalHotelCost = Number(hotel?.totalHotelCost ?? hotel?.perNightAmount ?? hotel?.pricePerNight ?? 0);
+    const totalHotelTaxAmount = Number(hotel?.totalHotelTaxAmount ?? hotel?.taxAmount ?? 0);
+    const computedTotal = totalHotelCost + totalHotelTaxAmount;
+
+    return toMoneyNumber(computedTotal);
+  };
+
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {
       const outlookSafeHtml = `
@@ -7223,7 +7243,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
               hotelCode: String(h.hotelCode || h.hotelId || ''),
               bookingCode: String(h.bookingCode || h.searchReference || ''),
               roomType: h.roomType || 'Standard',
-              netAmount: Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0),
+              netAmount: getHotelSelectionAmount(h),
               hotelName: h.hotelName,
               checkInDate,
               checkOutDate,
@@ -7282,7 +7302,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             hotelCode: String(cheapest.hotelCode || cheapest.hotelId || ''),
             bookingCode: String(cheapest.bookingCode || cheapest.searchReference || ''),
             roomType: cheapest.roomType || 'Standard',
-            netAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+            netAmount: getHotelSelectionAmount(cheapest),
             hotelName: cheapest.hotelName,
             checkInDate,
             checkOutDate,
@@ -7332,7 +7352,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
           checkOutDate: hotelData.checkOutDate,
           numberOfRooms: Number(itinerary?.roomCount || 1),
           guestNationality: modalNationalityForSession,
-          netAmount: Number(hotelData.netAmount || 0),
+          netAmount: toMoneyNumber(hotelData.netAmount),
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         }));
@@ -7522,7 +7542,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
             bookingCode: String(hotelRow?.bookingCode || hotelRow?.searchReference || ''),
             roomType: hotelRow?.roomType || 'Standard',
-            netAmount: Number(hotelRow?.totalHotelCost || 0) + Number(hotelRow?.totalHotelTaxAmount || 0),
+            netAmount: getHotelSelectionAmount(hotelRow),
             hotelName: hotelRow?.hotelName,
             checkInDate,
             checkOutDate,
@@ -7694,7 +7714,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary.roomCount || 1),
         guestNationality: bookingGuestNationality,
-        netAmount: Number(hotelData.netAmount || 0),
+        netAmount: toMoneyNumber(hotelData.netAmount),
         searchInitiatedAt: hotelData.searchInitiatedAt,
         isBookable: hotelData.isBookable,
         externalStay: hotelData.externalStay,

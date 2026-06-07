@@ -1,4 +1,4 @@
-// FILE: src/pages/itineraries/HotelList.tsx
+﻿// FILE: src/pages/itineraries/HotelList.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,19 +35,19 @@ type HotelListProps = {
     isPlaceholderOnly: boolean;
     message: string;
   };
-  quoteId: string; // ✅ Required: Quote ID from parent
-  planId: number; // ✅ Required: Plan ID for hotel selection
+  quoteId: string; // âœ… Required: Quote ID from parent
+  planId: number; // âœ… Required: Plan ID for hotel selection
   // Optional: in case you later wire an API to persist the toggle
   onToggleHotelRates?: (visible: boolean) => void;
   // Callback to refresh parent data after hotel update
   onRefresh?: () => void;
   // Callback when hotel group type (recommendation tab) changes
   onGroupTypeChange?: (groupType: number) => void;
-  // ✅ Callback to get save function reference (called once on mount)
+  // âœ… Callback to get save function reference (called once on mount)
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
-  // ✅ NEW: Read-only mode for confirmed itinerary
+  // âœ… NEW: Read-only mode for confirmed itinerary
   readOnly?: boolean;
-  // ✅ NEW: Callback to open hotel voucher modal
+  // âœ… NEW: Callback to open hotel voucher modal
   onCreateVoucher?: (hotelData: {
     routeId: number;
     hotelId: number;
@@ -78,10 +78,10 @@ type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>) => void | Promise<void>;
-  // ✅ NEW: Callback when total selected hotel amount changes
+  // âœ… NEW: Callback when total selected hotel amount changes
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
-  // ✅ NEW: Callback when hotel selections change (for confirm quotation payload)
+  // âœ… NEW: Callback when hotel selections change (for confirm quotation payload)
   onHotelSelectionsChange?: (selections: Record<number, {
     provider: string;
     hotelCode: string;
@@ -128,11 +128,11 @@ type HotelRoomDetail = {
   childWithoutBed?: number;
   extraBedCount?: number;
   perNightAmount?: number;
-  pricePerNight?: number; // ✅ Price from TBO API
+  pricePerNight?: number; // âœ… Price from TBO API
   taxAmount?: number;
   totalAmount?: number;
-  groupType?: number; // ✅ Tier/category from TBO API
-  [key: string]: any; // keep flexible – we only use a few fields
+  groupType?: number; // âœ… Tier/category from TBO API
+  [key: string]: any; // keep flexible â€“ we only use a few fields
 };
 
 // Normalizes supplier/raw meal text into display labels.
@@ -191,27 +191,26 @@ const MealPlanCell: React.FC<{ mealPlanText: string; selectedCode?: string | nul
       <span>{text}</span>
       {matches ? (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300" title={`Matches selected plan: ${MEAL_CODE_LABEL[selectedCode]}`}>
-          ✓ {MEAL_CODE_LABEL[selectedCode]}
+          âœ“ {MEAL_CODE_LABEL[selectedCode]}
         </span>
       ) : (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-300" title={`Selected: ${MEAL_CODE_LABEL[selectedCode] ?? selectedCode}`}>
-          ⚠ {MEAL_CODE_LABEL[selectedCode] ?? selectedCode}
+          âš  {MEAL_CODE_LABEL[selectedCode] ?? selectedCode}
         </span>
       )}
     </span>
   );
 };
 
-const formatCurrency = (value: number | undefined | null): string => {
+const toMoneyNumber = (value: number | string | undefined | null): number => {
   const num = Number(value ?? 0);
-  if (Number.isNaN(num)) return "₹ 0.00";
-  return (
-    "₹ " +
-    num.toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
-  );
+  if (!Number.isFinite(num)) return 0;
+
+  return Number(num.toFixed(2));
+};
+
+const formatCurrency = (value: number | string | undefined | null): string => {
+  return `\u20B9 ${toMoneyNumber(value).toFixed(2)}`;
 };
 
 const stripHtml = (value: string): string =>
@@ -304,19 +303,19 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
-  quoteId, // ✅ Receive quoteId from parent
-  planId, // ✅ Receive planId from parent
+  quoteId, // âœ… Receive quoteId from parent
+  planId, // âœ… Receive planId from parent
   onToggleHotelRates,
   onRefresh,
   onGroupTypeChange,
   onGetSaveFunction,
-  readOnly = false, // ✅ NEW: Default to edit mode
-  onCreateVoucher, // ✅ NEW: Callback for voucher creation
+  readOnly = false, // âœ… NEW: Default to edit mode
+  onCreateVoucher, // âœ… NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
-  onTotalChange, // ✅ NEW: Callback for total amount changes
+  onTotalChange, // âœ… NEW: Callback for total amount changes
   roomCount = 1,
-  onHotelSelectionsChange, // ✅ NEW: Callback for selections
+  onHotelSelectionsChange, // âœ… NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
   routePagination,
@@ -534,17 +533,17 @@ export const HotelList: React.FC<HotelListProps> = ({
     return normalizeMealPlanLabel(hotel?.mealPlan);
   };
 
-  // ✅ Track selected hotel PER GROUP TYPE and PER STAY
+  // âœ… Track selected hotel PER GROUP TYPE and PER STAY
   // Structure: selectedByGroup[groupType][stayKey] = selected hotel row
   // This allows separate selections for previous-day billed stays on the same route.
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
   // User override should win for a stay across all tabs (group types).
   const [userSelectedByStay, setUserSelectedByStay] = useState<Record<string, ItineraryHotelRow>>({});
 
-  // ✅ Track unsaved hotel selections (for batch save on confirm)
+  // âœ… Track unsaved hotel selections (for batch save on confirm)
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
-  // ✅ Local copy of hotels that can be updated immediately
+  // âœ… Local copy of hotels that can be updated immediately
   const [localHotels, setLocalHotels] = useState<ItineraryHotelRow[]>(hotels);
 
   // Active tab = current group_type from backend
@@ -559,12 +558,12 @@ export const HotelList: React.FC<HotelListProps> = ({
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // ✅ Track sync operation
+  const [isSyncing, setIsSyncing] = useState(false); // âœ… Track sync operation
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
 
-  // ✅ Sync local hotels with prop changes and auto-select hotels for ALL groupTypes
+  // âœ… Sync local hotels with prop changes and auto-select hotels for ALL groupTypes
   useEffect(() => {
     setLocalHotels(hotels);
 
@@ -653,10 +652,10 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
   }, [hotels]);
 
-  // ✅ Track selected room-type option key per hotel inside expanded panel
+  // âœ… Track selected room-type option key per hotel inside expanded panel
   // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
   const [selectedRoomTypeByHotel, setSelectedRoomTypeByHotel] = useState<Record<string, string>>({});
-  // ✅ Track which hotel's room type dropdown is open
+  // âœ… Track which hotel's room type dropdown is open
   const [, setRoomTypeDropdownOpen] = useState<string | null>(null);
 
   // Confirmation dialog state
@@ -667,7 +666,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     previousHotelName: string;
     newHotelName: string;
     routeDate: string;
-    groupType?: number; // ✅ NEW: The groupType (tier) of the selected hotel
+    groupType?: number; // âœ… NEW: The groupType (tier) of the selected hotel
   } | null>(null);
 
   // Room selection modal state
@@ -681,7 +680,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     hotel_name: string;
   } | null>(null);
 
-  // ✅ NEW: Hotel search query for expanded row
+  // âœ… NEW: Hotel search query for expanded row
   const [hotelSearchQuery, setHotelSearchQuery] = useState<string>("");
   const [selectedVoucherRows, setSelectedVoucherRows] = useState<Record<string, {
     routeId: number;
@@ -745,7 +744,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     setRoomDetails(updatedHotels);
   }, [hotels]);
 
-  // ✅ Get selected hotels for a specific groupType
+  // âœ… Get selected hotels for a specific groupType
   const getSelectedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
     const hotelsForGroup = localHotels.filter(
       (h) => toNumber(h.groupType) === toNumber(groupType),
@@ -789,19 +788,19 @@ export const HotelList: React.FC<HotelListProps> = ({
     });
   };
 
-  // ✅ Calculate total for a specific groupType (sum of selected hotels)
+  // âœ… Calculate total for a specific groupType (sum of selected hotels)
   const getGroupTotal = (groupType: number): number => {
     const selectedHotels = getSelectedHotelsForGroup(groupType);
     return selectedHotels.reduce((sum, h) => sum + getHotelAmountWithRooms(h), 0);
   };
 
-  // ✅ Get active tab total
+  // âœ… Get active tab total
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
     return getGroupTotal(activeGroupType);
   };
 
-  // ✅ Get overall total (sum of active groupType only, as per requirements)
+  // âœ… Get overall total (sum of active groupType only, as per requirements)
   const getOverallSelectedHotelTotal = (): number => {
     if (readOnly) {
       return localHotels.reduce(
@@ -849,7 +848,7 @@ export const HotelList: React.FC<HotelListProps> = ({
         hotelCode: String((hotel as any).hotelCode || (hotel as any).hotelId || '').trim(),
         bookingCode: String((hotel as any).bookingCode || (hotel as any).searchReference || '').trim(),
         roomType: String((hotel as any).roomType || (hotel as any).roomTypeName || 'Standard').trim(),
-        netAmount: Number((hotel as any).totalHotelCost || 0),
+        netAmount: toMoneyNumber(getHotelDisplayAmount(hotel)),
         hotelName: String((hotel as any).hotelName || '').trim(),
         checkInDate,
         checkOutDate,
@@ -873,7 +872,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   const currentHotelRows = useMemo(() => {
     if (!localHotels || !localHotels.length || activeGroupType === null) return [];
     
-    // ✅ For confirmed itineraries (readOnly mode), show ONLY ONE confirmed hotel per route
+    // âœ… For confirmed itineraries (readOnly mode), show ONLY ONE confirmed hotel per route
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
       const confirmedHotels = localHotels.filter(
@@ -1057,7 +1056,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       toNumber(activeGroupType, 0),
     );
 
-    // ✅ Sort to put selected hotel first, then remaining hotels
+    // âœ… Sort to put selected hotel first, then remaining hotels
     const selectedHotelId = hotel.hotelId;
     if (selectedHotelId) {
       uniqueHotels.sort((a, b) => {
@@ -1069,7 +1068,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       });
     }
 
-    console.log('✅ Filtered from local state:', uniqueHotels.length, 'hotels');
+    console.log('âœ… Filtered from local state:', uniqueHotels.length, 'hotels');
     
     if (uniqueHotels.length > 0) {
       setRoomDetails(uniqueHotels);
@@ -1115,16 +1114,16 @@ export const HotelList: React.FC<HotelListProps> = ({
   const handleSyncRoute = async (routeId: number) => {
     if (!quoteId) return;
     
-    // ✅ BLOCK sync when in read-only mode (confirmed itinerary)
+    // âœ… BLOCK sync when in read-only mode (confirmed itinerary)
     if (readOnly) {
-      console.log('⛔ [HotelList] Blocked handleSyncRoute - read-only mode');
+      console.log('â›” [HotelList] Blocked handleSyncRoute - read-only mode');
       return;
     }
 
-    // ✅ Check for unsaved changes and warn user
+    // âœ… Check for unsaved changes and warn user
     if (unsavedSelections.size > 0) {
       const confirmed = window.confirm(
-        `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from TBO.\n\nDo you want to continue?`
+        `âš ï¸ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from TBO.\n\nDo you want to continue?`
       );
       if (!confirmed) return;
       
@@ -1144,24 +1143,24 @@ export const HotelList: React.FC<HotelListProps> = ({
     // Save current expanded state to restore it after sync
     const currentExpandedKey = expandedRowKey;
     
-    // ✅ Show loader
+    // âœ… Show loader
     setIsSyncing(true);
     
     try {
-      // ✅ Pass clearCache: true to force backend to bypass its memory cache
+      // âœ… Pass clearCache: true to force backend to bypass its memory cache
       const response = await ItineraryService.getHotelRoomDetails(quoteId, routeId, true);
       
-      // ✅ API returns 'rooms' property, not 'roomDetails'
+      // âœ… API returns 'rooms' property, not 'roomDetails'
       const roomsRaw = response?.rooms || response?.roomDetails || [];
       const normalizedRooms: HotelRoomDetail[] = roomsRaw.map((r: any) => normalizeRoom(r));
       
-      // ✅ Deduplicate by hotelId to prevent duplicate entries
+      // âœ… Deduplicate by hotelId to prevent duplicate entries
       const uniqueRooms = Array.from(
         new Map(normalizedRooms.map((r: any) => [r.hotelId, r])).values()
       );
       
       if (uniqueRooms.length > 0) {
-        // ✅ Update cache for ALL groupTypes for this route
+        // âœ… Update cache for ALL groupTypes for this route
         const groupedByTier = new Map<number, any[]>();
         uniqueRooms.forEach((room: any) => {
           if (!groupedByTier.has(room.groupType)) {
@@ -1196,18 +1195,18 @@ export const HotelList: React.FC<HotelListProps> = ({
       console.error('Error syncing hotels:', err);
       toast.error('Failed to sync hotels');
     } finally {
-      // ✅ Hide loader
+      // âœ… Hide loader
       setIsSyncing(false);
     }
   };
 
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
   const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
-    console.log('🏨 Choose button clicked', room);
+    console.log('ðŸ¨ Choose button clicked', room);
     
-    // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
+    // âœ… BLOCK hotel selection when in read-only mode (confirmed itinerary)
     if (readOnly) {
-      console.log('⛔ [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
+      console.log('â›” [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
       return;
     }
     
@@ -1216,7 +1215,7 @@ export const HotelList: React.FC<HotelListProps> = ({
     const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
     if (!resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-      console.error('❌ Missing required fields:', {
+      console.error('âŒ Missing required fields:', {
         itineraryPlanId: resolvedPlanId,
         itineraryRouteId: resolvedRouteId,
         hotelId: resolvedHotelId,
@@ -1246,7 +1245,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       previousHotelName: currentHotel?.hotelName || "",
       newHotelName: normalizedRoom.hotelName || "",
       routeDate,
-      groupType: normalizedRoom.groupType ? Number(normalizedRoom.groupType) : undefined, // ✅ Use hotel's ORIGINAL groupType from TBO (maintains correct tier classification)
+      groupType: normalizedRoom.groupType ? Number(normalizedRoom.groupType) : undefined, // âœ… Use hotel's ORIGINAL groupType from TBO (maintains correct tier classification)
     });
     setShowConfirmDialog(true);
   };
@@ -1275,14 +1274,14 @@ export const HotelList: React.FC<HotelListProps> = ({
 
     setIsUpdatingHotel(true);
     try {
-      console.log("🏨 [HotelList] Storing hotel selection in state:", {
+      console.log("ðŸ¨ [HotelList] Storing hotel selection in state:", {
         hotelName: room.hotelName,
         hotelId: room.hotelId,
         groupType: pendingHotelAction.groupType,
         isReplacing,
       });
       
-      // ✅ Store selection by groupType and routeId
+      // âœ… Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       
@@ -1334,7 +1333,7 @@ export const HotelList: React.FC<HotelListProps> = ({
           date: (normalizedRoom as any).checkInDate || '',
           totalAmount: getHotelDisplayAmount(normalizedRoom),
         } as any;
-        console.warn('⚠️ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
+        console.warn('âš ï¸ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
         // Re-use the normal flow with the fallback
         const fallbackStayKey = getStayKey(fallbackHotel);
         setSelectedByGroup(prev => {
@@ -1362,7 +1361,7 @@ export const HotelList: React.FC<HotelListProps> = ({
               hotelCode: (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
               bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
               roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-              netAmount: getHotelDisplayAmount(normalizedRoom),
+              netAmount: toMoneyNumber(getHotelDisplayAmount(normalizedRoom)),
               hotelName: (normalizedRoom as any).hotelName || '',
               checkInDate,
               checkOutDate,
@@ -1415,7 +1414,7 @@ export const HotelList: React.FC<HotelListProps> = ({
             hotelCode: (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
             bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
             roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-            netAmount: getHotelDisplayAmount(normalizedRoom),
+            netAmount: toMoneyNumber(getHotelDisplayAmount(normalizedRoom)),
             hotelName: (normalizedRoom as any).hotelName || '',
             checkInDate,
             checkOutDate,
@@ -1430,13 +1429,13 @@ export const HotelList: React.FC<HotelListProps> = ({
       // Update selectedHotelId so selected state remains reflected in the list.
       setSelectedHotelId(Number(normalizedRoom.hotelId));
       
-      toast.success("Hotel selected! 👍", {
+      toast.success("Hotel selected! ðŸ‘", {
         description: `${normalizedRoom.hotelName} - Changes will be saved when you confirm the quotation`,
       });
       
       // Keep user on the current tier tab; auto-switching causes cross-day selection confusion.
     } catch (err) {
-      console.error("❌ [HotelList] Error selecting hotel:", err);
+      console.error("âŒ [HotelList] Error selecting hotel:", err);
       setShowConfirmDialog(false);
       setPendingHotelAction(null);
       toast.error("Failed to select hotel", {
@@ -1454,7 +1453,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       return true;
     }
 
-    console.log(`💾 Saving ${unsavedSelections.size} hotel selections to database...`);
+    console.log(`ðŸ’¾ Saving ${unsavedSelections.size} hotel selections to database...`);
     
     const savePromises: Promise<any>[] = [];
     
@@ -1465,7 +1464,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
       if (!resolvedPlanId || !resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-        console.error('❌ Skipping invalid hotel selection payload:', { selectionKey, room });
+        console.error('âŒ Skipping invalid hotel selection payload:', { selectionKey, room });
         return;
       }
       
@@ -1488,15 +1487,15 @@ export const HotelList: React.FC<HotelListProps> = ({
 
     try {
       await Promise.all(savePromises);
-      console.log("✅ All hotel selections saved successfully");
+      console.log("âœ… All hotel selections saved successfully");
       
       // Clear unsaved selections
       setUnsavedSelections(new Map());
       
-      toast.success(`✅ ${savePromises.length} hotel selection(s) saved successfully!`);
+      toast.success(`âœ… ${savePromises.length} hotel selection(s) saved successfully!`);
       return true;
     } catch (error) {
-      console.error("❌ Error saving hotel selections:", error);
+      console.error("âŒ Error saving hotel selections:", error);
       toast.error("Failed to save some hotel selections");
       return false;
     }
@@ -1509,17 +1508,17 @@ export const HotelList: React.FC<HotelListProps> = ({
     }
   }, [onGetSaveFunction]);
 
-  // ✅ Notify parent when active group total changes (active groupType only)
+  // âœ… Notify parent when active group total changes (active groupType only)
   React.useEffect(() => {
     if (!onTotalChange) return;
 
     if (readOnly) {
-      onTotalChange(getOverallSelectedHotelTotal());
+      onTotalChange(toMoneyNumber(getOverallSelectedHotelTotal()));
       return;
     }
 
     if (activeGroupType !== null) {
-      onTotalChange(getActiveTabTotal());
+      onTotalChange(toMoneyNumber(getActiveTabTotal()));
     }
   }, [
     readOnly,
@@ -1549,7 +1548,7 @@ export const HotelList: React.FC<HotelListProps> = ({
       <CardContent className="pt-2">
         {/* Header + Display Rates toggle */}
         <div className="flex justify-between items-center py-2 mb-1">
-          {/* ✅ Read-only mode: Show simple "Hotel Details (₹ total)" like PHP */}
+          {/* âœ… Read-only mode: Show simple "Hotel Details (â‚¹ total)" like PHP */}
           {readOnly ? (
             <h2 className="text-lg font-semibold text-[#4a4260]">
               Hotel Details ({formatCurrency(getOverallSelectedHotelTotal())})
@@ -1591,10 +1590,10 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         </div>
 
-        {/* ✅ Unsaved Changes Indicator */}
+        {/* âœ… Unsaved Changes Indicator */}
         {unsavedSelections.size > 0 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
-            <span className="text-amber-600 font-medium">⚠️ {unsavedSelections.size} unsaved hotel selection(s)</span>
+            <span className="text-amber-600 font-medium">âš ï¸ {unsavedSelections.size} unsaved hotel selection(s)</span>
             <span className="text-amber-600 text-sm">- Changes will be saved when you confirm the quotation</span>
           </div>
         )}
@@ -1614,8 +1613,8 @@ export const HotelList: React.FC<HotelListProps> = ({
           </div>
         )}
 
-        {/* Recommended Hotel Groups – based on real backend groups */}
-        {/* ✅ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
+        {/* Recommended Hotel Groups â€“ based on real backend groups */}
+        {/* âœ… IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
           <div className={styles["hotel-list-nav"]}>
             {hotelTabs && hotelTabs.length > 0 ? (
@@ -1693,9 +1692,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                 const rowKey = getStayKey(hotel);
                 const isExpanded = expandedRowKey === rowKey;
                 const isExternalStay = isExternalStayRow(hotel);
-                const rowTotal =
-                  (hotel.totalHotelCost ?? 0) +
-                  (hotel.totalHotelTaxAmount ?? 0);
+                const rowTotal = getHotelAmountWithRooms(hotel);
                 const resolvedDestination = getResolvedDestination(hotel);
                 const effectiveRooms = getEffectiveRoomCount(hotel);
                 const routeDate = hotel.date || new Date().toISOString().split('T')[0];
@@ -1741,7 +1738,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                 return (
                   <React.Fragment key={rowKey}>
                     {/* MAIN ROW */}
-                    {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
+                    {/* âœ… IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
                       className={`border-t ${
                         !readOnly && loadingRowKey === null ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
@@ -1852,7 +1849,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                         >
                           {loadingRowKey === rowKey ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
-                              Loading room details…
+                              Loading room detailsâ€¦
                             </div>
                           ) : roomDetails.length === 0 ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
@@ -1882,7 +1879,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       Syncing...
                                     </>
                                   ) : (
-                                    <>🔄 Sync Fresh Hotels</>
+                                    <>ðŸ”„ Sync Fresh Hotels</>
                                   )}
                                 </Button>
                               </div>
@@ -1910,7 +1907,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                   return Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
                                 });
 
-                                // ✅ Group by hotel identity (name + provider) to avoid duplicate cards
+                                // âœ… Group by hotel identity (name + provider) to avoid duplicate cards
                                 const getHotelIdentityKey = (h: any) =>
                                   `${String(h.hotelName || '').trim().toLowerCase()}|${String(h.provider || '').trim().toLowerCase()}`;
 
@@ -2083,7 +2080,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                     <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b">
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
-                                          <span className="text-[#7c3aed] text-xs">📥</span>
+                                          <span className="text-[#7c3aed] text-xs">ðŸ“¥</span>
                                         </div>
                                         <div>
                                           <p className="text-xs font-semibold text-[#4a4260]">02:00 PM</p>
@@ -2092,7 +2089,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
-                                          <span className="text-[#7c3aed] text-xs">📤</span>
+                                          <span className="text-[#7c3aed] text-xs">ðŸ“¤</span>
                                         </div>
                                         <div>
                                           <p className="text-xs font-semibold text-[#4a4260]">12:00 PM</p>
@@ -2107,7 +2104,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       </label>
                                       {roomTypeOptions.length > 1 ? (
                                         <select
-                                          className="rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+                                          className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={selectedRoomTypeByHotel[identKey] || getHotelOptionKey(hotel)}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
@@ -2122,7 +2119,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                             const optKey = getHotelOptionKey(opt);
                                             return (
                                               <option key={optKey} value={optKey}>
-                                                {opt.roomTypeName || opt.roomType || 'Standard'} - {formatCurrency(opt.totalAmount)}
+                                                {opt.roomTypeName || opt.roomType || 'Standard'}
                                               </option>
                                             );
                                           })}
@@ -2266,7 +2263,7 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >
                                       {isLoadingMore ? (
-                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading…</>
+                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loadingâ€¦</>
                                       ) : (
                                         `Load More for this day (${remaining} remaining)`
                                       )}
@@ -2386,3 +2383,4 @@ export const HotelList: React.FC<HotelListProps> = ({
     </Card>
   );
 };
+
