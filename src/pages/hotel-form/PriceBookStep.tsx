@@ -838,10 +838,25 @@ export default function PriceBookStep({
     () => (canLoadAvailView && Array.isArray(availRangeRaw?.dates) ? availRangeRaw.dates : []),
     [canLoadAvailView, availRangeRaw]
   );
-  const availViewFreeByDate = useMemo<Record<string, number | null>>(
-    () => (canLoadAvailView && availRangeRaw?.freeRooms ? availRangeRaw.freeRooms : {}),
-    [canLoadAvailView, availRangeRaw]
-  );
+  const availViewFreeByDate = useMemo<Record<string, number | null>>(() => {
+    if (!canLoadAvailView || !availRangeRaw) return {};
+
+    if (availRangeRaw.freeRooms && typeof availRangeRaw.freeRooms === "object") {
+      return availRangeRaw.freeRooms;
+    }
+
+    if (Array.isArray(availRangeRaw.items)) {
+      return availRangeRaw.items.reduce((acc: Record<string, number | null>, item: any) => {
+        if (item?.date) {
+          acc[item.date] =
+            item.free === null || item.free === undefined ? null : Number(item.free);
+        }
+        return acc;
+      }, {});
+    }
+
+    return {};
+  }, [canLoadAvailView, availRangeRaw]);
 
   const occupancyGridRows = useMemo(
     () => rangeViewOccupancyRows,
