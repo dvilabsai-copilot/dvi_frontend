@@ -3936,7 +3936,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const getPrebookPriceLabel = (hotel?: any): string => {
     return hotel && isPrebookHotelPriceChanged(hotel) ? 'Updated Final Price' : 'Final Price';
   };
-
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {
       const outlookSafeHtml = `
