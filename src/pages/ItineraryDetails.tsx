@@ -3897,6 +3897,45 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return toMoneyNumber(computedTotal);
   };
 
+  const getPrebookFinalPrice = (hotel: any): number => {
+    return toMoneyNumber(
+      hotel?.updatedTotalPrice ??
+        hotel?.finalPrice ??
+        hotel?.totalAmount ??
+        hotel?.prebookContext?.finalPrice ??
+        0,
+    );
+  };
+
+  const getPrebookSearchPrice = (hotel: any): number => {
+    return toMoneyNumber(
+      hotel?.searchPrice ??
+        hotel?.selectedSearchPrice ??
+        hotel?.selectedNetAmount ??
+        0,
+    );
+  };
+
+  const isPrebookHotelPriceChanged = (hotel: any): boolean => {
+    const searchPrice = getPrebookSearchPrice(hotel);
+    const finalPrice = getPrebookFinalPrice(hotel);
+    const numericPriceChanged =
+      searchPrice > 0 && finalPrice > 0 && Math.abs(finalPrice - searchPrice) >= 0.01;
+
+    if (typeof hotel?.isPriceChanged === 'boolean') {
+      return hotel.isPriceChanged || numericPriceChanged;
+    }
+
+    if (typeof hotel?.prebookContext?.isPriceChanged === 'boolean') {
+      return hotel.prebookContext.isPriceChanged || numericPriceChanged;
+    }
+
+    return numericPriceChanged;
+  };
+
+  const getPrebookPriceLabel = (hotel?: any): string => {
+    return hotel && isPrebookHotelPriceChanged(hotel) ? 'Updated Final Price' : 'Final Price';
+  };
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {
       const outlookSafeHtml = `
@@ -4429,17 +4468,16 @@ const vehicleOnlyHtml = html
   const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
   const [confirmOccupanciesTemplate, setConfirmOccupanciesTemplate] = useState<Array<{ adults: number; children: number; childrenAges: number[] }> | null>(null);
-  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
-  const selectedTboHotelTotal = useMemo(
-    () =>
-      Object.values(selectedHotelBookings)
-        .filter((item: any) => normalizeHotelProvider(item) === 'tbo')
-        .reduce((sum, item: any) => sum + Number(item.netAmount || 0), 0),
-    [selectedHotelBookings],
+  const prebookTotalAmount = toMoneyNumber(
+    prebookData?.updatedTotalPrice ??
+      prebookData?.finalPrice ??
+      prebookData?.totalAmount ??
+      0,
   );
-  const hasPrebookPriceChanged =
-    prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const hasPrebookPriceChanged = prebookHotelEntries.some((hotel: any) =>
+    isPrebookHotelPriceChanged(hotel),
+  );
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
   const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
     .filter(([, h]) => isSupplierBookableHotel(h) && normalizeHotelProvider(h) !== 'tbo')
@@ -7384,8 +7422,58 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             endUserIp: clientIp,
           });
           const normalizedPrebook = prebookResp?.data || prebookResp;
-          prebookDataRef.current = normalizedPrebook;
-          setPrebookData(normalizedPrebook);
+
+          const searchPriceByKey = new Map<string, number>();
+
+          prebookHotelBookings.forEach((booking: any) => {
+            const routeId = Number(booking.routeId || 0);
+            const bookingCode = String(booking.bookingCode || '').trim();
+            const hotelCode = String(booking.hotelCode || '').trim();
+            const searchPrice = toMoneyNumber(booking.netAmount);
+
+            if (routeId && bookingCode) {
+              searchPriceByKey.set(`${routeId}|booking:${bookingCode}`, searchPrice);
+            }
+
+            if (routeId && hotelCode) {
+              searchPriceByKey.set(`${routeId}|hotel:${hotelCode}`, searchPrice);
+            }
+
+            if (bookingCode) {
+              searchPriceByKey.set(`booking:${bookingCode}`, searchPrice);
+            }
+
+            if (hotelCode) {
+              searchPriceByKey.set(`hotel:${hotelCode}`, searchPrice);
+            }
+          });
+
+          const enrichedPrebook = {
+            ...normalizedPrebook,
+            hotels: Array.isArray(normalizedPrebook?.hotels)
+              ? normalizedPrebook.hotels.map((hotel: any) => {
+                  const routeId = Number(hotel?.routeId || 0);
+                  const bookingCode = String(hotel?.bookingCode || '').trim();
+                  const hotelCode = String(hotel?.hotelCode || '').trim();
+
+                  const searchPrice =
+                    searchPriceByKey.get(`${routeId}|booking:${bookingCode}`) ??
+                    searchPriceByKey.get(`${routeId}|hotel:${hotelCode}`) ??
+                    searchPriceByKey.get(`booking:${bookingCode}`) ??
+                    searchPriceByKey.get(`hotel:${hotelCode}`) ??
+                    0;
+
+                  return {
+                    ...hotel,
+                    searchPrice,
+                    selectedSearchPrice: searchPrice,
+                  };
+                })
+              : normalizedPrebook?.hotels,
+          };
+
+          prebookDataRef.current = enrichedPrebook;
+          setPrebookData(enrichedPrebook);
         } catch (prebookErr) {
           toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
         } finally {
@@ -7780,16 +7868,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return;
       }
 
-      const prebookTotal = Number(
-        effectivePrebookData?.updatedTotalPrice ||
-        effectivePrebookData?.finalPrice ||
-        effectivePrebookData?.totalAmount ||
-        0,
+      const effectivePrebookHotelEntries = Array.isArray(effectivePrebookData?.hotels)
+        ? effectivePrebookData.hotels
+        : [];
+
+      const effectiveHasPrebookPriceChanged = effectivePrebookHotelEntries.some((hotel: any) =>
+        isPrebookHotelPriceChanged(hotel),
       );
-      const currentTboTotal = hotelBookings
-        .filter((booking) => booking.provider === 'tbo')
-        .reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTboTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+
+      if (effectiveHasPrebookPriceChanged && !hasAcceptedUpdatedPrice) {
         toast.warning('Accept updated prebook price before final confirmation.');
         return;
       }
@@ -12215,9 +12302,11 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                 <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="text-[#6c6c6c]">
+                      {hasPrebookPriceChanged ? 'Updated Final Price' : 'Final Price'}
+                    </p>
                     <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                      ₹ {prebookTotalAmount.toFixed(2)}
                     </p>
                   </div>
                   <div>
@@ -12227,7 +12316,9 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                 </div>
 
                 {prebookHotelEntries.map((hotel: any, index: number) => {
-                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
+                  const hotelPrice = getPrebookFinalPrice(hotel);
+                  const hotelSearchPrice = getPrebookSearchPrice(hotel);
+                  const hotelHasPriceChanged = isPrebookHotelPriceChanged(hotel);
                   const hotelAmenities = normalizePrebookItems(hotel?.amenities);
                   const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
                   const hotelInclusions = resolvePrebookInclusions(hotel);
@@ -12246,7 +12337,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                             <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                           </div>
                           <div className="text-sm text-left md:text-right">
-                            <p className="text-[#6c6c6c]">Updated Final Price</p>
+                            <p className="text-[#6c6c6c]">{getPrebookPriceLabel(hotel)}</p>
                             <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
                           </div>
                         </div>
@@ -12256,6 +12347,11 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                         <div>
                           <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || '-'}</p>
                           {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                          {hotelSearchPrice > 0 ? (
+                            <p className="text-xs text-[#6c6c6c]">
+                              Search Price: <span className="font-medium text-[#4a4260]">₹ {hotelSearchPrice.toFixed(2)}</span>
+                            </p>
+                          ) : null}
                           {hotelMealType ? (
                             <p className="text-xs text-[#6c6c6c]">
                               Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
