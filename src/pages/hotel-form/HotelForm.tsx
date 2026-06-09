@@ -19,6 +19,7 @@ export type HotelForm = {
   hotel_city: number | string;
   hotel_postal_code: string;
   hotel_code: string;
+  resavenue_hotel_code?: string;
   hotel_margin: number | string;
   hotel_margin_gst_type: number | string;
   hotel_margin_gst_percentage: number | string;
