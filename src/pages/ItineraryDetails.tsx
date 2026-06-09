@@ -3999,14 +3999,24 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       ? "Highlights"
       : "Recommended Hotel";
 
-  const tableStyle =
-    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#000;";
+const tableStyle =
+  "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:1.25;color:#000;table-layout:fixed;width:700px;mso-table-lspace:0pt;mso-table-rspace:0pt;";
   const borderStyle = "border:1px solid #b1b1b1;";
-  const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
+ const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:top;word-break:break-word;overflow-wrap:break-word;`;
   const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
-  const centerTitleStyle =
-    "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
+ const centerTitleStyle =
+  "width:700px;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:36px;font-weight:700;text-align:center;color:#000;margin:0;padding:0;";
 
+const buildCenteredSectionTitle = (title: string, marginTop = "0px") => `
+  <table width="700" border="0" cellpadding="0" cellspacing="0"
+    style="border-collapse:collapse;width:700px;font-family:Calibri,Arial,sans-serif;color:#000;margin-top:${marginTop};">
+    <tr>
+      <td style="text-align:center;font-size:12px;font-weight:700;padding:8px 0;">
+        ${escapeHtml(title)}
+      </td>
+    </tr>
+  </table>
+`;
   const money = (value?: number | string | null) => {
     const amount = Number(value || 0);
     return Number.isFinite(amount)
@@ -4120,16 +4130,16 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           </tr>
         `;
 
-    return `
-      <div style="${centerTitleStyle}margin-top:22px;">Vehicle Details</div>
-      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
-        <tr>
-          <th style="${headerCellStyle}width:85%;">Vehicle Details</th>
-          <th style="${headerCellStyle}width:15%;">Total Amount</th>
-        </tr>
-        ${vehicleRowsHtml}
-      </table>
-    `;
+   return `
+  ${buildCenteredSectionTitle("Vehicle Details", "22px")}
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
+    <tr>
+      <th style="${headerCellStyle}width:85%;">Vehicle Details</th>
+      <th style="${headerCellStyle}width:15%;">Total Amount</th>
+    </tr>
+    ${vehicleRowsHtml}
+  </table>
+`;
   };
 
   const buildCostSectionHtml = (group: ClipboardGroup) => {
@@ -4227,58 +4237,204 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     `;
   };
 
-  const packageSectionsHtml = selectedGroups
-    .map((group, groupIndex) => {
-      const rowsHtml =
-        group.hotels.length > 0
-          ? group.hotels
-              .map((hotel, index) => {
-                return `
-                  <tr>
-                    <td style="${cellStyle}white-space:nowrap;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.destination)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(String(hotel.mealPlan || "").trim() || "CP")}
-                    </td>
-                  </tr>
-                `;
-              })
-              .join("")
-          : `
+const formatClipboardDate = (value?: string | null): string => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const isoDate = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const dmyDate = raw.match(/\d{1,2}\s+[A-Za-z]{3}\s+\d{4}/)?.[0];
+  const safeDate = isoDate || dmyDate || "";
+
+  if (!safeDate) return "";
+
+  const parsed = new Date(safeDate);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  return safeDate;
+};
+
+const getClipboardRouteForHotel = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): ItineraryDay | null => {
+  const routeId = Number(hotel.itineraryRouteId || 0);
+
+  const byRouteId =
+    itinerary.days?.find((day) => Number(day.id || 0) === routeId) || null;
+
+  if (byRouteId) return byRouteId;
+
+  return itinerary.days?.[index] || null;
+};
+
+const getClipboardHotelDayText = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): string => {
+  const routeDay = getClipboardRouteForHotel(hotel, index);
+
+  const dayNo =
+    Number(routeDay?.dayNumber || hotel.dayNumber || index + 1) || index + 1;
+
+  const dateText =
+    formatClipboardDate(routeDay?.date) ||
+    formatClipboardDate(hotel.checkInDate) ||
+    formatClipboardDate(hotel.date);
+
+  return dateText ? `Day- ${dayNo} | ${dateText}` : `Day- ${dayNo}`;
+};
+
+const getClipboardHotelDestinationText = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): string => {
+  const routeDay = getClipboardRouteForHotel(hotel, index);
+
+  return String(
+    hotel.destination ||
+      routeDay?.arrival ||
+      routeDay?.departure ||
+      "",
+  ).trim();
+};
+
+const getClipboardHotelNameText = (hotel: ItineraryHotelRow): string => {
+  const hotelName = String(hotel.hotelName || "").trim();
+  const category = String(hotel.category || "").trim();
+
+  if (!hotelName) return "No Hotels Available";
+  if (!category || category === "0") return hotelName;
+
+  return `${hotelName} - ${category}`;
+};
+
+const getClipboardRoomTypeText = (hotel: ItineraryHotelRow): string => {
+  const roomType =
+    String(hotel.displayRoomType || hotel.roomType || "").trim() || "-";
+
+  return `${roomType} - ${Math.max(Number(itinerary.roomCount || 1), 1)}`;
+};
+
+const getClipboardMealPlanText = (hotel: ItineraryHotelRow): string => {
+  const mealPlan =
+    String(hotel.displayMealPlan || hotel.mealPlan || "").trim() || "-";
+
+  return mealPlan;
+};
+
+const firstDay = itinerary.days?.[0];
+const lastDay = itinerary.days?.[itinerary.days.length - 1];
+
+const headerHtml = `
+  <table width="700" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:700px;font-family:Calibri,Arial,sans-serif;color:#000;">
+    <tr>
+      <td style="text-align:center;font-size:12px;font-weight:700;padding:8px 0;">
+        Tour Itinerary Plan
+      </td>
+    </tr>
+  </table>
+
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}margin-bottom:10px;">
+    <tr>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Start Date &amp; Time<br/>
+        <b>${escapeHtml(firstDay?.date ? formatClipboardDate(firstDay.date) : "")}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        End Date &amp; Time<br/>
+        <b>${escapeHtml(lastDay?.date ? formatClipboardDate(lastDay.date) : "")}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Quote Id<br/>
+        <b>${escapeHtml(itinerary.quoteId)}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Trip Night &amp; Day<br/>
+        <b>${escapeHtml(`${itinerary.nightCount || 0} Nights, ${itinerary.dayCount || itinerary.days?.length || 0} Days`)}</b>
+      </td>
+    </tr>
+    <tr>
+      <td style="${cellStyle}text-align:center;">
+        Entry Ticket Required<br/>
+        <b>No</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Nationality<br/>
+        <b>India</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Total Pax<br/>
+        <b>${escapeHtml(`${itinerary.adults || 0} Adult, ${itinerary.children || 0} Children, ${itinerary.infants || 0} Infant`)}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Room Count<br/>
+        <b>${escapeHtml(itinerary.roomCount || 1)}</b>
+      </td>
+    </tr>
+  </table>
+`;
+
+const packageSectionsHtml = selectedGroups
+  .map((group, groupIndex) => {
+      
+
+    const rowsHtml =
+  group.hotels.length > 0
+    ? group.hotels
+        .map((hotel, index) => {
+          return `
             <tr>
-              <td colspan="5" style="${cellStyle}text-align:center;">No hotel available</td>
+              <td style="${cellStyle}width:18%;">
+                ${escapeHtml(getClipboardHotelDayText(hotel, index))}
+              </td>
+              <td style="${cellStyle}width:22%;">
+                ${escapeHtml(getClipboardHotelDestinationText(hotel, index))}
+              </td>
+              <td style="${cellStyle}width:24%;">
+                ${escapeHtml(getClipboardHotelNameText(hotel))}
+              </td>
+              <td style="${cellStyle}width:22%;">
+                ${escapeHtml(getClipboardRoomTypeText(hotel))}
+              </td>
+              <td style="${cellStyle}width:14%;">
+                ${escapeHtml(getClipboardMealPlanText(hotel))}
+              </td>
             </tr>
           `;
+        })
+        .join("")
+    : `
+      <tr>
+        <td colspan="5" style="${cellStyle}text-align:center;">No hotel available</td>
+      </tr>
+    `;
 
-      return `
-        <div style="${centerTitleStyle}margin-top:${groupIndex === 0 ? "10px" : "34px"};">
-          ${escapeHtml(sectionTitle)} - ${groupIndex + 1}
-        </div>
+   return `
+  ${buildCenteredSectionTitle(
+    `${sectionTitle} - ${groupIndex + 1}`,
+    groupIndex === 0 ? "10px" : "34px"
+  )}
 
-        <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
-          <tr>
-            <th style="${headerCellStyle}width:20%;">Day</th>
-            <th style="${headerCellStyle}width:20%;">Destination</th>
-            <th style="${headerCellStyle}width:20%;">Hotel Name -<br/>Category</th>
-            <th style="${headerCellStyle}width:20%;">Room Type -<br/>Count</th>
-            <th style="${headerCellStyle}width:20%;">Meal Plan</th>
-          </tr>
-          ${rowsHtml}
-        </table>
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
+    <tr>
+      <th style="${headerCellStyle}width:18%;">Day</th>
+      <th style="${headerCellStyle}width:22%;">Destination</th>
+      <th style="${headerCellStyle}width:24%;">Hotel Name -<br/>Category</th>
+      <th style="${headerCellStyle}width:22%;">Room Type -<br/>Count</th>
+      <th style="${headerCellStyle}width:14%;">Meal Plan</th>
+    </tr>
+    ${rowsHtml}
+  </table>
 
-        ${buildVehicleSectionHtml()}
-        ${buildCostSectionHtml(group)}
-      `;
+  ${buildVehicleSectionHtml()}
+  ${buildCostSectionHtml(group)}
+`;
     })
     .join("");
 
@@ -4295,140 +4451,248 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     })
     .join("\n\n");
 
-  return {
-    html: packageSectionsHtml,
-    plainText,
-    packageSectionsHtml,
-  };
+return {
+  html: `${headerHtml}${packageSectionsHtml}`,
+  plainText,
+  packageSectionsHtml: `${headerHtml}${packageSectionsHtml}`,
+};
 };
 
-  const extractHotelSectionFromHtml = (html: string): string => {
-    if (!html) return "";
 
-    const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
-      return "";
-    }
-
-    const headingIndex = hotelHeadingMatch.index;
-    const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
-    if (hotelSectionStart === -1) return "";
-
-    const vehicleHeadingMatch = html.match(/Vehicle Details/i);
-    if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
-      return "";
-    }
-
-    const vehicleHeadingIndex = vehicleHeadingMatch.index;
-    const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
-    if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
-      return "";
-    }
-
-    return html.slice(hotelSectionStart, vehicleSectionStart);
-  };
-
-  const mergeClipboardWithRenderedHotels = (
-    backendHtml: string,
-    renderedHotelsHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedHotelsHtml) return backendHtml;
-
-    const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-    if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
-    const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
-    if (backendVehicleStart === -1) {
-      return backendHtml;
-    }
-
-    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
-
-    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
-    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
-    if (backendHotelStart === -1 || backendVehicleStart <= backendHotelStart) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
-
-    return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-  };
-
-  const mergeClipboardWithRenderedCost = (
-    backendHtml: string,
-    renderedCostHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedCostHtml) return backendHtml;
-
-    const backendHotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
-    if (!backendHotspotHeadingMatch || backendHotspotHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendHotspotHeadingIndex = backendHotspotHeadingMatch.index;
-    const backendHotspotStart = backendHtml.lastIndexOf("<table", backendHotspotHeadingIndex);
-    if (backendHotspotStart === -1) return backendHtml;
-
-    const roundOffIndex = backendHtml.lastIndexOf("Total Round Off", backendHotspotStart);
-    const netPayableIndex = backendHtml.lastIndexOf("Net Payable To", backendHotspotStart);
-    const totalAmountIndex = backendHtml.lastIndexOf("Total Amount", backendHotspotStart);
-    const anchorIndex = Math.max(roundOffIndex, netPayableIndex, totalAmountIndex);
-
-    if (anchorIndex === -1) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    const backendCostStart = backendHtml.lastIndexOf("<table", anchorIndex);
-    if (backendCostStart === -1 || backendCostStart >= backendHotspotStart) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-  };
-
-  const mergeClipboardWithB2BRecommendedPackages = (
+const mergeClipboardWithB2BRecommendedPackages = (
   backendHtml: string,
   renderedPackageSectionsHtml: string,
 ): string => {
-  if (!backendHtml || !renderedPackageSectionsHtml) return backendHtml;
+  if (!renderedPackageSectionsHtml) return backendHtml;
+  if (!backendHtml) return renderedPackageSectionsHtml;
 
   const hotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
+
   if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
-    return backendHtml;
+    return renderedPackageSectionsHtml;
   }
 
   const hotspotHeadingIndex = hotspotHeadingMatch.index;
   const hotspotSectionStart = backendHtml.lastIndexOf("<table", hotspotHeadingIndex);
-  if (hotspotSectionStart === -1) return backendHtml;
 
-  const recommendedHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-  const vehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-
-  const firstMiddleHeadingIndex =
-    recommendedHeadingMatch?.index !== undefined
-      ? recommendedHeadingMatch.index
-      : vehicleHeadingMatch?.index !== undefined
-        ? vehicleHeadingMatch.index
-        : -1;
-
-  if (firstMiddleHeadingIndex === -1) {
-    return `${backendHtml.slice(0, hotspotSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
+  if (hotspotSectionStart === -1) {
+    return renderedPackageSectionsHtml;
   }
 
-  const middleSectionStart = backendHtml.lastIndexOf("<table", firstMiddleHeadingIndex);
-
-  if (middleSectionStart === -1 || middleSectionStart >= hotspotSectionStart) {
-    return `${backendHtml.slice(0, hotspotSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
-  }
-
-  return `${backendHtml.slice(0, middleSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
+  return `${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
 };
 
+const makeHotspotDetailsParaStyle = (html: string): string => {
+  if (!html) return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  const hotspotTable = Array.from(doc.querySelectorAll("table")).find((table) =>
+    /Hotspot Details/i.test(table.textContent || ""),
+  );
+
+  if (!hotspotTable) return html;
+
+  const paraTableStyle =
+    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:1.25;color:#000;table-layout:fixed;width:700px;mso-table-lspace:0pt;mso-table-rspace:0pt;";
+
+  const paraBorderStyle = "border:1px solid #b1b1b1;";
+  const paraCellStyle =
+    `${paraBorderStyle}padding:6px;text-align:left;vertical-align:top;color:#000;word-break:normal;overflow-wrap:break-word;`;
+
+  const paraHeaderStyle =
+    `${paraCellStyle}background:#f2f2f2;font-weight:700;`;
+
+  const normalizeText = (value: string): string =>
+    String(value || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const getCellTextWithLines = (cell: Element): string => {
+    const clone = cell.cloneNode(true) as HTMLElement;
+
+    clone.querySelectorAll("br").forEach((br) => {
+      br.replaceWith("\n");
+    });
+
+    clone.querySelectorAll("p, div, tr").forEach((node) => {
+      node.appendChild(doc.createTextNode("\n"));
+    });
+
+    return String(clone.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+  };
+
+  const cleanDayHeading = (value: string): string => {
+    return normalizeText(value)
+      .replace(/\(\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*\)/gi, "")
+      .replace(/\s*-\s*\(?\s*\d+(?:\.\d+)?\s*KM\s*\)?/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  };
+
+  const cleanHotspotParaText = (value: string): string => {
+    const lines = String(value || "")
+      .split(/\n+/)
+      .map((line) => normalizeText(line))
+      .filter(Boolean);
+
+    const cleanedLines = lines
+      .map((line) => {
+        let text = line;
+
+        if (/^Start Your Day\b/i.test(text)) {
+          text = text
+            .replace(/^Start Your Day\s*/i, "Start your day ")
+            .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\b/gi, "")
+            .trim();
+
+          return text;
+        }
+
+        text = text.replace(
+          /^Travell?ing from\s+(.+?)\s+to\s+(.+?)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM).*$/i,
+          "Proceed $1 to $2",
+        );
+
+        text = text.replace(
+          /^Proceed\s+(.+?)\s+to\s+(.+?)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM).*$/i,
+          "Proceed $1 to $2",
+        );
+
+        text = text
+          .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\b/gi, "")
+          .replace(/\[Distance:[^\]]+\]/gi, "")
+          .replace(/\bDistance:\s*\d+(?:\.\d+)?\s*KM\b/gi, "")
+          .replace(/\bDuration:\s*[^,\]]+/gi, "")
+          .replace(/\b\d+\s*(Hours?|Hour|Mins?|Min)\s*-\s*/gi, "")
+          .replace(/^-\s*/, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+
+        if (/^Check-?in:/i.test(text)) {
+          return "";
+        }
+
+        if (/^\[?\s*Distance:/i.test(text)) {
+          return "";
+        }
+
+        return text;
+      })
+      .filter(Boolean);
+
+    return cleanedLines
+      .join(" ")
+      .replace(/\s+,/g, ",")
+      .replace(/\s+\./g, ".")
+      .replace(/,\s*,/g, ",")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  };
+
+  const hotspotCells: Element[] = [];
+  const termsCells: Element[] = [];
+
+  Array.from(hotspotTable.querySelectorAll("td, th")).forEach((cell) => {
+    const text = normalizeText(cell.textContent || "");
+
+    if (!text) return;
+
+    if (/^Day\s+\d+\s*-/i.test(text)) {
+      hotspotCells.push(cell);
+      return;
+    }
+
+    if (
+      /Terms\s*&\s*Condition/i.test(text) ||
+      /Package Includes/i.test(text) ||
+      /Rate does not include/i.test(text) ||
+      /Very Important/i.test(text) ||
+      /^IMPORTANT:/i.test(text)
+    ) {
+      termsCells.push(cell);
+    }
+  });
+
+  const hotspotRowsHtml = hotspotCells
+    .map((cell) => {
+      const textWithLines = getCellTextWithLines(cell);
+      const lines = textWithLines
+        .split(/\n+/)
+        .map((line) => normalizeText(line))
+        .filter(Boolean);
+
+      const headingLineIndex = lines.findIndex((line) =>
+        /^Day\s+\d+\s*-/i.test(line),
+      );
+
+      if (headingLineIndex === -1) return "";
+
+      const dayHeading = cleanDayHeading(lines[headingLineIndex]);
+      const paraText = cleanHotspotParaText(
+        lines.slice(headingLineIndex + 1).join("\n"),
+      );
+
+      if (!dayHeading && !paraText) return "";
+
+      return `
+        <tr>
+          <td style="${paraHeaderStyle}">
+            ${escapeHtml(dayHeading)}
+          </td>
+        </tr>
+        <tr>
+          <td style="${paraCellStyle}">
+            ${escapeHtml(paraText)}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const hotspotParaHtml = `
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="${paraTableStyle}margin-top:18px;">
+      <tr>
+        <td style="${paraHeaderStyle}text-align:center;">
+          Hotspot Details
+        </td>
+      </tr>
+      ${hotspotRowsHtml}
+    </table>
+  `;
+
+  const termsHtml = termsCells.length
+    ? `
+      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${paraTableStyle}margin-top:18px;">
+        ${termsCells
+         .map((cell) => {
+  const rawText = normalizeText(cell.textContent || "");
+  const isTitle = /Terms\s*&\s*Condition/i.test(rawText);
+
+            return `
+              <tr>
+                <td style="${isTitle ? `${paraHeaderStyle}text-align:center;` : paraCellStyle}">
+                  ${cell.innerHTML}
+                </td>
+              </tr>
+            `;
+          })
+          .join("")}
+      </table>
+    `
+    : "";
+
+  hotspotTable.outerHTML = `${hotspotParaHtml}${termsHtml}`;
+
+  return doc.body.innerHTML;
+};
 const htmlToPlainText = (html: string): string => {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -11936,9 +12200,14 @@ const mergedHtml = mergeClipboardWithB2BRecommendedPackages(
   localClipboard.packageSectionsHtml || localClipboard.html,
 );
 
-const mergedPlainText = htmlToPlainText(mergedHtml);
+const finalHtml =
+  clipboardType === "para"
+    ? makeHotspotDetailsParaStyle(mergedHtml)
+    : mergedHtml;
 
-await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+const mergedPlainText = htmlToPlainText(finalHtml);
+
+await copyHtmlToClipboard(finalHtml, mergedPlainText)
                     .then(() => {
                       toast.success("Formatted clipboard content copied!");
                       setClipboardModal(false);
