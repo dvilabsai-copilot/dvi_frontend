@@ -72,6 +72,7 @@ export default function PreviewStep({
     return {
       hotelName: S(h.hotel_name ?? h.name),
       hotelCode: S(h.hotel_code ?? h.code),
+      resavenueHotelCode: S(h.resavenue_hotel_code),
       axisRoomPropertyId: S(h.axisrooms_property_id),
       hotelMobile: S(
         h.hotel_mobile ??
@@ -298,6 +299,10 @@ export default function PreviewStep({
             <div className="pv-value">{info.hotelCode}</div>
           </div>
           <div className="pv-field">
+            <div className="pv-label">ResAvenue Hotel Code</div>
+            <div className="pv-value">{info.resavenueHotelCode}</div>
+          </div>
+          <div className="pv-field">
             <div className="pv-label">Hotel Mobile</div>
             <div className="pv-value pv-dim">{info.hotelMobile}</div>
           </div>
@@ -317,7 +322,6 @@ export default function PreviewStep({
               <div className="pv-value">-</div>
             )}
           </div>
-          <div className="pv-field pv-empty" />
           <div className="pv-field pv-empty" />
 
           {/* Row 2 */}
