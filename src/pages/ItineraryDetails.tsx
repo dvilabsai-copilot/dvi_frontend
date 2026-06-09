@@ -171,6 +171,8 @@ export type ItineraryHotelRow = {
   groupType: number;
   itineraryRouteId: number;
   day: string;
+  dayNumber?: number;
+  sortOrder?: number;
   destination: string;
   hotelId: number;
   hotelName: string;
@@ -182,7 +184,19 @@ export type ItineraryHotelRow = {
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   voucherCancelled?: boolean; // Whether voucher is cancelled
+
+  // Original draft hotel details ID. Existing cancellation API uses this.
   itineraryPlanHotelDetailsId?: number;
+
+  // Confirmed hotel details table ID, useful for display/debug/future use.
+  confirmedItineraryPlanHotelDetailsId?: number;
+
+  // Normalized IDs passed into existing cancel flow.
+  hotelDetailsIds?: number[];
+
+  // Optional explicit flag from backend.
+  canCancelVoucher?: boolean;
+
   date?: string;
   // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
   hotelCode?: string; // HOBSE hotel code
@@ -193,6 +207,12 @@ export type ItineraryHotelRow = {
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
   cancellationPolicy?: string[];
+  isBookable?: boolean;
+  externalStay?: boolean;
+  availabilityStatus?: 'AVAILABLE' | 'NO_SUPPLIER_AVAILABILITY' | 'NOT_BOOKABLE';
+  availabilityMessage?: string | null;
+  displayRoomType?: string;
+  displayMealPlan?: string;
 };
 
 export type ItineraryHotelTab = {
@@ -365,6 +385,16 @@ type ItineraryHotelDetailsResponse = {
   hotelAvailability?: HotelAvailabilityMeta;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
+};
+
+type ConfirmedHotelResponseShape = {
+  quoteId?: string;
+  planId?: number;
+  hotelRatesVisible?: boolean;
+  showHotelMargins?: boolean;
+  hotelTabs?: ItineraryHotelTab[];
+  hotels?: any[];
+  hotelAvailability?: HotelAvailabilityMeta;
 };
 
 type VehicleBuildState = "PENDING" | "PROCESSING" | "READY" | "FAILED";
@@ -580,6 +610,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
     null
   );
+  const isConfirmedItinerary =
+    Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 ||
+    itinerary?.isConfirmed === true;
+  const hotelReadOnly = readOnly || isConfirmedItinerary;
   const shouldShowHotels = (() => {
     const pref = Number(itinerary?.itineraryPreference ?? 0);
     return pref === 1 || pref === 3;
@@ -2596,6 +2630,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       checkOutDate: string;
       searchInitiatedAt?: string;
       groupType?: number;
+      isBookable?: boolean;
+      externalStay?: boolean;
+      availabilityStatus?: string;
+      availabilityMessage?: string | null;
     }
   }>({});
 
@@ -2810,6 +2848,95 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     return merged;
   }, [dedupeHotelRows]);
 
+  const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
+    if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
+      return {
+        hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
+        showHotelMargins: Boolean(payload?.showHotelMargins),
+        hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
+        hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
+        hotelAvailability: payload?.hotelAvailability,
+      };
+    }
+
+    const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
+    const totalRoutes = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
+    const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
+    const placeholderRowCount = hotels.length - supplierHotelCount;
+
+    return {
+      hotelRatesVisible: false,
+      showHotelMargins: false,
+      hotelTabs: [
+        {
+          groupType: 1,
+          label: 'Booked Hotels',
+          totalAmount: hotels.reduce(
+            (sum: number, hotel: any) =>
+              sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
+            0,
+          ),
+        },
+      ],
+      hotels,
+      hotelAvailability: {
+        hasSupplierHotels: supplierHotelCount > 0,
+        supplierHotelCount,
+        placeholderRowCount,
+        totalSearchRoutes: totalRoutes,
+        emptySearchRoutes: Math.max(totalRoutes - hotels.length, 0),
+        isPlaceholderOnly: supplierHotelCount === 0 && placeholderRowCount > 0,
+        message: supplierHotelCount > 0
+          ? 'Showing confirmed booked hotels for this itinerary.'
+          : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
+      },
+    };
+  }, [itinerary?.days]);
+
+  const loadConfirmedHotelsFromDb = useCallback(async (
+    confirmedPlanId: number,
+    alreadyLoadedPayload?: any,
+  ): Promise<ItineraryHotelDetailsResponse | null> => {
+    if (!confirmedPlanId) return null;
+
+    if (
+      alreadyLoadedPayload &&
+      Array.isArray(alreadyLoadedPayload?.hotels)
+    ) {
+      return normalizeConfirmedHotelResponse(alreadyLoadedPayload);
+    }
+
+    const confirmedRes = await ItineraryService.getConfirmedItinerary(confirmedPlanId);
+    return normalizeConfirmedHotelResponse(confirmedRes);
+  }, [normalizeConfirmedHotelResponse]);
+
+  const loadHotelDetailsForItinerary = useCallback(async (
+    quoteIdValue: string,
+    itineraryDetails: ItineraryDetailsResponse,
+  ): Promise<ItineraryHotelDetailsResponse | null> => {
+    const pref = Number(itineraryDetails.itineraryPreference ?? 3);
+    const useHotels = pref === 1 || pref === 3;
+
+    if (!useHotels) return null;
+
+    const confirmedPlanId = Number((itineraryDetails as any)?.confirmed_itinerary_plan_ID || 0);
+
+    if (confirmedPlanId > 0) {
+      console.log('[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.', {
+        quoteId: quoteIdValue,
+        confirmedPlanId,
+      });
+
+      return loadConfirmedHotelsFromDb(confirmedPlanId);
+    }
+
+    console.log('[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.', {
+      quoteId: quoteIdValue,
+    });
+
+    return fetchCompleteHotelDetails(quoteIdValue);
+  }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
+
   const selectedHotelTotal = useMemo(
     () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings]
@@ -2879,6 +3006,33 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [hotelDetails, selectedHotelBookings, activeHotelGroupType, itinerary?.roomCount]);
 
   const computedHotelCost = useMemo(() => {
+    if (hotelReadOnly) {
+      const confirmedTabTotal = Number(hotelDetails?.hotelTabs?.[0]?.totalAmount || 0);
+      if (confirmedTabTotal > 0) {
+        return confirmedTabTotal;
+      }
+
+      const confirmedRowsTotal = (hotelDetails?.hotels || [])
+        .filter((hotel: any) => !hotel?.externalStay && normalizeHotelProvider(hotel) !== 'external')
+        .reduce(
+          (sum: number, hotel: any) =>
+            sum +
+            Number(hotel?.totalHotelCost || 0) +
+            Number(hotel?.totalHotelTaxAmount || 0),
+          0,
+        );
+
+      if (confirmedRowsTotal > 0) {
+        return confirmedRowsTotal;
+      }
+
+      return Number(
+        itinerary?.costBreakdown?.totalHotelAmount ||
+        itinerary?.costBreakdown?.totalRoomCost ||
+        0,
+      );
+    }
+
     if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
     if (selectedHotelTotal > 0) return selectedHotelTotal;
 
@@ -2897,7 +3051,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     (hotelDetails?.hotels || [])
-      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
       .forEach((h) => {
         const routeId = Number(h.itineraryRouteId || 0);
         if (!routeId) return;
@@ -2924,12 +3078,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (totalFromHotelApi > 0) return totalFromHotelApi;
     return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
   }, [
+    hotelReadOnly,
     activeHotelListTotal,
     selectedHotelTotal,
     selectedHotelMetaByRoute,
     hotelDetails,
     activeHotelGroupType,
     itinerary?.costBreakdown?.totalHotelAmount,
+    itinerary?.costBreakdown?.totalRoomCost,
     itinerary?.roomCount,
   ]);
 
@@ -2956,7 +3112,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();
     hotelDetails.hotels
-      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
       .forEach((h) => {
         const routeId = Number(h.itineraryRouteId || 0);
         if (!routeId) return;
@@ -3044,6 +3200,254 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     if (selectedQty > 0) return selectedQty;
     return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
   }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty, shouldShowVehicles]);
+
+  const hotelsForDisplay = useMemo(() => {
+    const rows = Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : [];
+
+    if (!shouldShowHotels || !itinerary?.days?.length || !hotelDetails) {
+      return rows;
+    }
+
+    const activeGroupType =
+      activeHotelGroupType ??
+      hotelDetails.hotelTabs?.[0]?.groupType ??
+      rows?.[0]?.groupType ??
+      1;
+
+    // Draft mode must keep the original supplier hotel rows.
+    // Otherwise the hotel selection screen collapses to one row per day
+    // and users cannot choose from all supplier options.
+    if (!hotelReadOnly) {
+      return rows;
+    }
+
+    const normalizeText = (value: unknown): string =>
+      String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ');
+
+    const normalizeDateOnly = (value: unknown): string => {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return raw;
+      }
+
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().split('T')[0];
+      }
+
+      return raw.split('T')[0] || raw;
+    };
+
+    const formatHotelDayLabel = (day: any, index: number): string => {
+      const dayNumber = Number(day?.dayNumber || index + 1);
+      const dateOnly = normalizeDateOnly(day?.date);
+
+      return dateOnly
+        ? `Day ${dayNumber} | ${dateOnly}`
+        : `Day ${dayNumber}`;
+    };
+
+    const getHotelRouteId = (hotel: any): number =>
+      Number(
+        hotel?.itineraryRouteId ||
+        hotel?.routeId ||
+        hotel?.itinerary_route_id ||
+        0,
+      );
+
+    const getHotelDayNumber = (hotel: any): number => {
+      const explicitDayNumber = Number(
+        hotel?.dayNumber ||
+        hotel?.noOfDays ||
+        hotel?.no_of_days ||
+        0,
+      );
+
+      if (Number.isFinite(explicitDayNumber) && explicitDayNumber > 0) {
+        return explicitDayNumber;
+      }
+
+      const parsedFromText = Number(
+        String(hotel?.day || '').match(/day\s*(\d+)/i)?.[1] || 0,
+      );
+
+      return Number.isFinite(parsedFromText) && parsedFromText > 0
+        ? parsedFromText
+        : 0;
+    };
+
+    const getHotelDate = (hotel: any): string =>
+      normalizeDateOnly(
+        hotel?.date ||
+        hotel?.checkInDate ||
+        hotel?.itineraryRouteDate ||
+        hotel?.itinerary_route_date ||
+        '',
+      );
+
+    const isSameDestination = (hotel: any, day: any): boolean => {
+      const hotelDestination = normalizeText(hotel?.destination);
+      const dayDestination = normalizeText(day?.arrival || day?.departure);
+
+      if (!hotelDestination || !dayDestination) return false;
+
+      return (
+        hotelDestination === dayDestination ||
+        hotelDestination.includes(dayDestination) ||
+        dayDestination.includes(hotelDestination)
+      );
+    };
+
+    const usedHotelIndexes = new Set<number>();
+
+    const findHotelForDay = (day: any, dayIndex: number): ItineraryHotelRow | null => {
+      const routeId = Number(day?.id || 0);
+      const dayNumber = Number(day?.dayNumber || dayIndex + 1);
+      const dayDate = normalizeDateOnly(day?.date);
+
+      let matchedIndex = rows.findIndex((hotel: any, index: number) => {
+        if (usedHotelIndexes.has(index)) return false;
+        return routeId > 0 && getHotelRouteId(hotel) === routeId;
+      });
+
+      if (matchedIndex < 0) {
+        matchedIndex = rows.findIndex((hotel: any, index: number) => {
+          if (usedHotelIndexes.has(index)) return false;
+          return getHotelDayNumber(hotel) === dayNumber;
+        });
+      }
+
+      if (matchedIndex < 0) {
+        matchedIndex = rows.findIndex((hotel: any, index: number) => {
+          if (usedHotelIndexes.has(index)) return false;
+
+          const hotelDate = getHotelDate(hotel);
+          const dateMatches = Boolean(dayDate && hotelDate && dayDate === hotelDate);
+
+          return dateMatches && isSameDestination(hotel, day);
+        });
+      }
+
+      if (matchedIndex < 0) {
+        return null;
+      }
+
+      usedHotelIndexes.add(matchedIndex);
+
+      const matched = rows[matchedIndex] as any;
+
+      const itineraryPlanHotelDetailsId = Number(
+        matched?.itineraryPlanHotelDetailsId ||
+        matched?.itinerary_plan_hotel_details_ID ||
+        0,
+      );
+
+      const confirmedItineraryPlanHotelDetailsId = Number(
+        matched?.confirmedItineraryPlanHotelDetailsId ||
+        matched?.confirmed_itinerary_plan_hotel_details_ID ||
+        0,
+      );
+
+      const hotelDetailsIds = Array.isArray(matched?.hotelDetailsIds)
+        ? matched.hotelDetailsIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : itineraryPlanHotelDetailsId > 0
+          ? [itineraryPlanHotelDetailsId]
+          : [];
+
+      const voucherCancelled = matched?.voucherCancelled === true;
+
+      return {
+        ...matched,
+        groupType: Number(matched?.groupType || activeGroupType),
+        itineraryRouteId: routeId || getHotelRouteId(matched),
+        day: formatHotelDayLabel(day, dayIndex),
+        dayNumber,
+        sortOrder: dayNumber,
+        destination:
+          String(day?.arrival || day?.departure || '').trim() ||
+          matched?.destination ||
+          `Day ${dayNumber}`,
+        date: dayDate || matched?.date,
+
+        itineraryPlanHotelDetailsId,
+        confirmedItineraryPlanHotelDetailsId,
+        hotelDetailsIds,
+        voucherCancelled,
+        canCancelVoucher:
+          !voucherCancelled &&
+          (hotelDetailsIds.length > 0 || Number(routeId || 0) > 0),
+      } as ItineraryHotelRow;
+    };
+
+    const totalDays = Number(itinerary?.dayCount || itinerary?.days?.length || 0);
+
+    const orderedRows = itinerary.days
+      .filter((day: any, index: number) => {
+        const dayNumber = Number(day?.dayNumber || index + 1);
+
+        if (totalDays > 0 && dayNumber === totalDays) {
+          return rows.some((hotel: any) => {
+            const routeId = Number(day?.id || 0);
+            return (
+              getHotelRouteId(hotel) === routeId ||
+              getHotelDayNumber(hotel) === dayNumber
+            );
+          });
+        }
+
+        return true;
+      })
+      .map((day: any, index: number) => {
+        const routeId = Number(day?.id || 0);
+        const dayNumber = Number(day?.dayNumber || index + 1);
+        const dateOnly = normalizeDateOnly(day?.date);
+        const destination =
+          String(day?.arrival || day?.departure || '').trim() ||
+          `Day ${dayNumber}`;
+
+        const matchedHotel = findHotelForDay(day, index);
+
+        if (matchedHotel) {
+          return matchedHotel;
+        }
+
+        return {
+          groupType: activeGroupType,
+          itineraryRouteId: routeId,
+          day: formatHotelDayLabel(day, index),
+          dayNumber,
+          sortOrder: dayNumber,
+          destination,
+          hotelId: 0,
+          hotelName: 'No Hotels Available',
+          category: 0,
+          roomType: '',
+          mealPlan: '',
+          displayRoomType: '-',
+          displayMealPlan: '-',
+          totalHotelCost: 0,
+          totalHotelTaxAmount: 0,
+          provider: 'external',
+          isBookable: false,
+          externalStay: true,
+          availabilityStatus: 'NO_SUPPLIER_AVAILABILITY' as const,
+          availabilityMessage:
+            'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.',
+          voucherCancelled: false,
+          itineraryPlanHotelDetailsId: 0,
+          date: dateOnly,
+        } as ItineraryHotelRow;
+      });
+
+    return orderedRows;
+  }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
   const financialTotals = useMemo(() => {
     const hotelAmount = shouldShowHotels
@@ -3544,23 +3948,49 @@ const copyHtmlToClipboard = async (html: string, plainText: string) => {
       }));
   };
 
-  const buildClipboardHtml = (mode: ClipboardMode) => {
-    if (!hotelDetails || !itinerary) {
-      return { html: "", plainText: "" };
-    }
+const buildClipboardHtml = (mode: ClipboardMode) => {
+  if (!hotelDetails || !itinerary) {
+    return { html: "", plainText: "", packageSectionsHtml: "" };
+  }
 
-    const selectedGroups = getSelectedClipboardGroups(mode);
+  const selectedGroups = getSelectedClipboardGroups(mode);
 
-    if (!selectedGroups.length) {
-      return { html: "", plainText: "" };
-    }
+  if (!selectedGroups.length) {
+    return { html: "", plainText: "", packageSectionsHtml: "" };
+  }
 
-    const sectionTitle =
-      mode === "highlights"
-        ? "Highlights"
-        : mode === "recommended"
-          ? "Recommended Hotels"
-          : "Recommended Hotel";
+  const sectionTitle =
+    mode === "highlights"
+      ? "Highlights"
+      : "Recommended Hotel";
+
+const tableStyle =
+  "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:1.25;color:#000;table-layout:fixed;width:700px;mso-table-lspace:0pt;mso-table-rspace:0pt;";
+  const borderStyle = "border:1px solid #b1b1b1;";
+ const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:top;word-break:break-word;overflow-wrap:break-word;`;
+  const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
+ const centerTitleStyle =
+  "width:700px;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:36px;font-weight:700;text-align:center;color:#000;margin:0;padding:0;";
+
+const buildCenteredSectionTitle = (title: string, marginTop = "0px") => `
+  <table width="700" border="0" cellpadding="0" cellspacing="0"
+    style="border-collapse:collapse;width:700px;font-family:Calibri,Arial,sans-serif;color:#000;margin-top:${marginTop};">
+    <tr>
+      <td style="text-align:center;font-size:12px;font-weight:700;padding:8px 0;">
+        ${escapeHtml(title)}
+      </td>
+    </tr>
+  </table>
+`;
+  const money = (value?: number | string | null) => {
+    const amount = Number(value || 0);
+    return Number.isFinite(amount)
+      ? amount.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "0.00";
+  };
 
     const summaryHtml = `
     <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
@@ -3571,29 +4001,11 @@ const copyHtmlToClipboard = async (html: string, plainText: string) => {
       </tr>
     </table>
 
-    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;line-height:1.2;color:#302c6e;">
-      <tr>
-        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
-          <span style="color:#afafaf;font-weight:500;display:block;">Quote Id</span>
-          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.quoteId)}</span>
-        </td>
-        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
-          <span style="color:#afafaf;font-weight:500;display:block;">Trip Date Range</span>
-          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.dateRange)}</span>
-        </td>
-        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
-          <span style="color:#afafaf;font-weight:500;display:block;">Total Pax</span>
-          <span style="font-weight:700;display:block;">
-            ${escapeHtml(itinerary.adults)} Adult, ${escapeHtml(itinerary.children)} Children, ${escapeHtml(itinerary.infants)} Infant
-          </span>
-        </td>
-        <td width="25%" style="text-align:center;padding:3px;border:1px solid #b1b1b1;">
-          <span style="color:#afafaf;font-weight:500;display:block;">Room Count</span>
-          <span style="font-weight:700;display:block;">${escapeHtml(itinerary.roomCount)}</span>
-        </td>
-      </tr>
-    </table>
-  `;
+  const getHotelBaseAmountForGroup = (group: ClipboardGroup) => {
+    return group.hotels.reduce((sum, hotel) => {
+      const rowTotal =
+        Number(hotel.totalHotelCost || 0) +
+        Number(hotel.totalHotelTaxAmount || 0);
 
     const totalCols = clipboardRatesVisible ? 6 : 5;
 
@@ -3737,44 +4149,394 @@ const buildHighlightsHotelCostHtml = (group: ClipboardGroup) => {
 
 
     const vehicleRowsHtml =
-      shouldShowVehicles && itinerary.vehicles?.length > 0
+      itinerary.vehicles?.length > 0
         ? itinerary.vehicles
-          .map((vehicle) => {
-            return `
-              <tr>
-                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:85%;">
-                  ${escapeHtml(vehicle.vehicleTypeName || "Vehicle")} (${escapeHtml(vehicle.totalQty)}) -
-                  ${escapeHtml(vehicle.fromLabel || "")} ==> ${escapeHtml(vehicle.toLabel || "")}
-                </td>
-                <td style="border:1px solid #b1b1b1;padding:3px;font-size:13px;width:15%;">
-                  <b>${escapeHtml(formatCurrency(vehicle.totalAmount || 0))}</b>
-                </td>
-              </tr>
-            `;
-          })
-          .join("")
+            .map((vehicle) => {
+              const startDate =
+                itinerary.days?.[0]?.date ? formatHeaderDate(itinerary.days[0].date).replace(/^\w+,\s*/, "") : "";
+              const endDate =
+                itinerary.days?.[itinerary.days.length - 1]?.date
+                  ? formatHeaderDate(itinerary.days[itinerary.days.length - 1].date).replace(/^\w+,\s*/, "")
+                  : "";
+
+              const fromToText =
+                vehicle.fromLabel || vehicle.toLabel
+                  ? `${vehicle.fromLabel || ""} ==> ${vehicle.toLabel || ""}`
+                  : `${itinerary.days?.[0]?.departure || ""} ==> ${
+                      itinerary.days?.[itinerary.days.length - 1]?.arrival || ""
+                    }`;
+
+              return `
+                <tr>
+                  <td style="${cellStyle}">
+                    ${escapeHtml(vehicle.vehicleTypeName || "Vehicle")} (${escapeHtml(vehicle.totalQty || 1)}) -
+                    ${escapeHtml(fromToText)}
+                    ${startDate || endDate ? ` - ${escapeHtml(startDate)} ==> ${escapeHtml(endDate)}` : ""}
+                  </td>
+                  <td style="${cellStyle}font-weight:700;">
+                    ${escapeHtml(money(vehicle.totalAmount || 0))}
+                  </td>
+                </tr>
+              `;
+            })
+            .join("")
         : `
+          <tr>
+            <td colspan="2" style="${cellStyle}text-align:center;">No Vehicle available</td>
+          </tr>
+        `;
+
+   return `
+  ${buildCenteredSectionTitle("Vehicle Details", "22px")}
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
+    <tr>
+      <th style="${headerCellStyle}width:85%;">Vehicle Details</th>
+      <th style="${headerCellStyle}width:15%;">Total Amount</th>
+    </tr>
+    ${vehicleRowsHtml}
+  </table>
+`;
+  };
+
+  const buildCostSectionHtml = (group: ClipboardGroup) => {
+    const totals = getGroupFinancialTotals(group);
+
+    return `
+      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}margin-top:18px;">
+        ${
+          shouldShowHotels
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Total Room Cost (${escapeHtml(roomBreakdownRoomNights || 0)} * ${escapeHtml(
+                money(Number(totals.hotelAmount || 0) / Math.max(Number(roomBreakdownRoomNights || 1), 1)),
+              )})</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.hotelAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          totals.extraBedAmount > 0 || Number(itinerary.extraBed || 0) > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Extra Bed Cost (${escapeHtml(itinerary.extraBed || 0)})</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.extraBedAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          totals.childWithBedAmount > 0 || Number(itinerary.childWithBed || 0) > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Child With Bed Cost (${escapeHtml(itinerary.childWithBed || 0)})</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.childWithBedAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          totals.childWithoutBedAmount > 0 || Number(itinerary.childWithoutBed || 0) > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Child Without Bed Cost (${escapeHtml(itinerary.childWithoutBed || 0)})</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.childWithoutBedAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          shouldShowVehicles
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.vehicleAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
         <tr>
-          <td colspan="2" style="border:1px solid #b1b1b1;text-align:center;padding:3px;">
-            No Vehicle available
+          <td style="${cellStyle}font-weight:700;">Total Amount</td>
+          <td style="${cellStyle}font-weight:700;">${escapeHtml(moneyWithSymbol(totals.totalAmount))}</td>
+        </tr>
+
+        ${
+          totals.couponDiscount > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Coupon Discount</td>
+                <td style="${cellStyle}">- ${escapeHtml(moneyWithSymbol(totals.couponDiscount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        <tr>
+          <td style="${cellStyle}font-weight:700;">Total Round Off</td>
+          <td style="${cellStyle}">
+            ${totals.roundOff >= 0 ? "+ " : "- "}${escapeHtml(moneyWithSymbol(Math.abs(totals.roundOff)))}
           </td>
         </tr>
-      `;
 
-    const vehicleSectionHtml = shouldShowVehicles ? `
-    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;">
+        <tr>
+          <td style="${cellStyle}font-weight:700;">Net Payable To ${escapeHtml(
+            itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd",
+          )}</td>
+          <td style="${cellStyle}font-weight:700;">${escapeHtml(moneyWithSymbol(totals.netPayable))}</td>
+        </tr>
+      </table>
+    `;
+  };
+
+const formatClipboardDate = (value?: string | null): string => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const isoDate = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  const dmyDate = raw.match(/\d{1,2}\s+[A-Za-z]{3}\s+\d{4}/)?.[0];
+  const safeDate = isoDate || dmyDate || "";
+
+  if (!safeDate) return "";
+
+  const parsed = new Date(safeDate);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+
+  return safeDate;
+};
+
+const getClipboardRouteForHotel = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): ItineraryDay | null => {
+  const routeId = Number(hotel.itineraryRouteId || 0);
+
+  const byRouteId =
+    itinerary.days?.find((day) => Number(day.id || 0) === routeId) || null;
+
+  if (byRouteId) return byRouteId;
+
+  return itinerary.days?.[index] || null;
+};
+
+const getClipboardHotelDayText = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): string => {
+  const routeDay = getClipboardRouteForHotel(hotel, index);
+
+  const dayNo =
+    Number(routeDay?.dayNumber || hotel.dayNumber || index + 1) || index + 1;
+
+  const dateText =
+    formatClipboardDate(routeDay?.date) ||
+    formatClipboardDate(hotel.checkInDate) ||
+    formatClipboardDate(hotel.date);
+
+  return dateText ? `Day- ${dayNo} | ${dateText}` : `Day- ${dayNo}`;
+};
+
+const getClipboardHotelDestinationText = (
+  hotel: ItineraryHotelRow,
+  index: number,
+): string => {
+  const routeDay = getClipboardRouteForHotel(hotel, index);
+
+  return String(
+    hotel.destination ||
+      routeDay?.arrival ||
+      routeDay?.departure ||
+      "",
+  ).trim();
+};
+
+const getClipboardHotelNameText = (hotel: ItineraryHotelRow): string => {
+  const hotelName = String(hotel.hotelName || "").trim();
+  const category = String(hotel.category || "").trim();
+
+  if (!hotelName) return "No Hotels Available";
+  if (!category || category === "0") return hotelName;
+
+  return `${hotelName} - ${category}`;
+};
+
+const getClipboardRoomTypeText = (hotel: ItineraryHotelRow): string => {
+  const roomType =
+    String(hotel.displayRoomType || hotel.roomType || "").trim() || "-";
+
+  return `${roomType} - ${Math.max(Number(itinerary.roomCount || 1), 1)}`;
+};
+
+const getClipboardMealPlanText = (hotel: ItineraryHotelRow): string => {
+  const mealPlan =
+    String(hotel.displayMealPlan || hotel.mealPlan || "").trim() || "-";
+
+  return mealPlan;
+};
+
+const firstDay = itinerary.days?.[0];
+const lastDay = itinerary.days?.[itinerary.days.length - 1];
+
+const headerHtml = `
+  <table width="700" border="0" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:700px;font-family:Calibri,Arial,sans-serif;color:#000;">
+    <tr>
+      <td style="text-align:center;font-size:12px;font-weight:700;padding:8px 0;">
+        Tour Itinerary Plan
+      </td>
+    </tr>
+  </table>
+
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}margin-bottom:10px;">
+    <tr>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Start Date &amp; Time<br/>
+        <b>${escapeHtml(firstDay?.date ? formatClipboardDate(firstDay.date) : "")}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        End Date &amp; Time<br/>
+        <b>${escapeHtml(lastDay?.date ? formatClipboardDate(lastDay.date) : "")}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Quote Id<br/>
+        <b>${escapeHtml(itinerary.quoteId)}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;width:25%;">
+        Trip Night &amp; Day<br/>
+        <b>${escapeHtml(`${itinerary.nightCount || 0} Nights, ${itinerary.dayCount || itinerary.days?.length || 0} Days`)}</b>
+      </td>
+    </tr>
+    <tr>
+      <td style="${cellStyle}text-align:center;">
+        Entry Ticket Required<br/>
+        <b>No</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Nationality<br/>
+        <b>India</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Total Pax<br/>
+        <b>${escapeHtml(`${itinerary.adults || 0} Adult, ${itinerary.children || 0} Children, ${itinerary.infants || 0} Infant`)}</b>
+      </td>
+      <td style="${cellStyle}text-align:center;">
+        Room Count<br/>
+        <b>${escapeHtml(itinerary.roomCount || 1)}</b>
+      </td>
+    </tr>
+  </table>
+`;
+
+const packageSectionsHtml = selectedGroups
+  .map((group, groupIndex) => {
+      
+
+    const rowsHtml =
+  group.hotels.length > 0
+    ? group.hotels
+        .map((hotel, index) => {
+          return `
+            <tr>
+              <td style="${cellStyle}width:18%;">
+                ${escapeHtml(getClipboardHotelDayText(hotel, index))}
+              </td>
+              <td style="${cellStyle}width:22%;">
+                ${escapeHtml(getClipboardHotelDestinationText(hotel, index))}
+              </td>
+              <td style="${cellStyle}width:24%;">
+                ${escapeHtml(getClipboardHotelNameText(hotel))}
+              </td>
+              <td style="${cellStyle}width:22%;">
+                ${escapeHtml(getClipboardRoomTypeText(hotel))}
+              </td>
+              <td style="${cellStyle}width:14%;">
+                ${escapeHtml(getClipboardMealPlanText(hotel))}
+              </td>
+            </tr>
+          `;
+        })
+        .join("")
+    : `
       <tr>
-        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
-          Vehicle Details
-        </td>
+        <td colspan="5" style="${cellStyle}text-align:center;">No hotel available</td>
       </tr>
-      <tr>
-        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Vehicle Details</th>
-        <th style="background:#f2f2f2;text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
-      </tr>
-      ${vehicleRowsHtml}
-    </table>
-  ` : "";
+    `;
+
+   return `
+  ${buildCenteredSectionTitle(
+    `${sectionTitle} - ${groupIndex + 1}`,
+    groupIndex === 0 ? "10px" : "34px"
+  )}
+
+  <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
+    <tr>
+      <th style="${headerCellStyle}width:18%;">Day</th>
+      <th style="${headerCellStyle}width:22%;">Destination</th>
+      <th style="${headerCellStyle}width:24%;">Hotel Name -<br/>Category</th>
+      <th style="${headerCellStyle}width:22%;">Room Type -<br/>Count</th>
+      <th style="${headerCellStyle}width:14%;">Meal Plan</th>
+    </tr>
+    ${rowsHtml}
+  </table>
+
+  ${buildVehicleSectionHtml()}
+  ${buildCostSectionHtml(group)}
+`;
+    })
+    .join("");
+
+  const plainText = selectedGroups
+    .map((group, groupIndex) => {
+      const hotelLines = group.hotels
+        .map(
+          (hotel, index) =>
+            `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan || "CP"}`
+        )
+        .join("\n");
+
+      return `${sectionTitle} - ${groupIndex + 1}\n${hotelLines}`;
+    })
+    .join("\n\n");
+
+return {
+  html: `${headerHtml}${packageSectionsHtml}`,
+  plainText,
+  packageSectionsHtml: `${headerHtml}${packageSectionsHtml}`,
+};
+};
+
+
+const mergeClipboardWithB2BRecommendedPackages = (
+  backendHtml: string,
+  renderedPackageSectionsHtml: string,
+): string => {
+  if (!renderedPackageSectionsHtml) return backendHtml;
+  if (!backendHtml) return renderedPackageSectionsHtml;
+
+  const hotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
+
+  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
+    return renderedPackageSectionsHtml;
+  }
+
+  const hotspotHeadingIndex = hotspotHeadingMatch.index;
+  const hotspotSectionStart = backendHtml.lastIndexOf("<table", hotspotHeadingIndex);
+
+  if (hotspotSectionStart === -1) {
+    return renderedPackageSectionsHtml;
+  }
+
+  return `${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
+};
 
   const hotelSectionsHtml =
   mode === "highlights"
@@ -3802,69 +4564,8 @@ const buildHighlightsHotelCostHtml = (group: ClipboardGroup) => {
     const clipboardRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
     const clipboardRoomNightsLabel = `${clipboardRoomNights} room-night${clipboardRoomNights > 1 ? 's' : ''}`;
 
-    const costSectionHtml = `
-    <table width="700" border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#fff;font-family:Calibri;font-size:11px;color:#302c6e;margin-top:16px;">
-      <tr>
-        <td colspan="2" align="center" style="font-size:18px;line-height:40px;font-weight:600;">
-          Overall Cost
-        </td>
-      </tr>
-      ${shouldShowHotels ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Hotel Cost For (${escapeHtml(clipboardRoomNightsLabel)})</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.hotelAmount || 0))}</strong></td>
-      </tr>
-      ` : ""}
-      ${itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amenities Cost</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.totalAmenitiesCost || 0))}</td>
-      </tr>
-      ` : ""}
-      ${Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0 ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Extra Bed Cost (${escapeHtml(itinerary.extraBed || 0)})</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.extraBedCost || 0))}</td>
-      </tr>
-      ` : ""}
-      ${Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0 ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child With Bed Cost (${escapeHtml(itinerary.childWithBed || 0)})</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithBedCost || 0))}</td>
-      </tr>
-      ` : ""}
-      ${itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Child Without Bed Cost (${escapeHtml(itinerary.childWithoutBed || 0)})</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(itinerary.costBreakdown.childWithoutBedCost || 0))}</td>
-      </tr>
-      ` : ""}
-      ${shouldShowVehicles ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(computedVehicleAmount || 0))}</strong></td>
-      </tr>
-      ` : ""}
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Amount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.totalAmount || 0))}</strong></td>
-      </tr>
-      ${(itinerary.costBreakdown.couponDiscount ?? 0) > 0 ? `
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Coupon Discount</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">- ${escapeHtml(formatCurrency(itinerary.costBreakdown.couponDiscount || 0))}</td>
-      </tr>
-      ` : ""}
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Total Round Off</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;">${escapeHtml(formatCurrency(financialTotals.totalRoundOff || 0))}</td>
-      </tr>
-      <tr>
-        <th style="text-align:left;padding:3px;border:1px solid #b1b1b1;">Net Payable To ${escapeHtml(itinerary.costBreakdown.companyName || "DVI Holidays")}</th>
-        <td style="text-align:left;padding:3px;border:1px solid #b1b1b1;"><strong>${escapeHtml(formatCurrency(financialTotals.netPayable || 0))}</strong></td>
-      </tr>
-    </table>
-  `;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
 
     const fullHtml = `
   <div id="contentToCopy">
@@ -3907,101 +4608,202 @@ ${mode !== "highlights" ? `
           )
           .join("\n");
 
-        return `${sectionTitle} - ${group.label}\n${hotelLines}`;
+  const paraTableStyle =
+    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:12px;line-height:1.25;color:#000;table-layout:fixed;width:700px;mso-table-lspace:0pt;mso-table-rspace:0pt;";
+
+  const paraBorderStyle = "border:1px solid #b1b1b1;";
+  const paraCellStyle =
+    `${paraBorderStyle}padding:6px;text-align:left;vertical-align:top;color:#000;word-break:normal;overflow-wrap:break-word;`;
+
+  const paraHeaderStyle =
+    `${paraCellStyle}background:#f2f2f2;font-weight:700;`;
+
+  const normalizeText = (value: string): string =>
+    String(value || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const getCellTextWithLines = (cell: Element): string => {
+    const clone = cell.cloneNode(true) as HTMLElement;
+
+    clone.querySelectorAll("br").forEach((br) => {
+      br.replaceWith("\n");
+    });
+
+    clone.querySelectorAll("p, div, tr").forEach((node) => {
+      node.appendChild(doc.createTextNode("\n"));
+    });
+
+    return String(clone.textContent || "")
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n[ \t]+/g, "\n")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+  };
+
+  const cleanDayHeading = (value: string): string => {
+    return normalizeText(value)
+      .replace(/\(\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*\)/gi, "")
+      .replace(/\s*-\s*\(?\s*\d+(?:\.\d+)?\s*KM\s*\)?/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  };
+
+  const cleanHotspotParaText = (value: string): string => {
+    const lines = String(value || "")
+      .split(/\n+/)
+      .map((line) => normalizeText(line))
+      .filter(Boolean);
+
+    const cleanedLines = lines
+      .map((line) => {
+        let text = line;
+
+        if (/^Start Your Day\b/i.test(text)) {
+          text = text
+            .replace(/^Start Your Day\s*/i, "Start your day ")
+            .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\b/gi, "")
+            .trim();
+
+          return text;
+        }
+
+        text = text.replace(
+          /^Travell?ing from\s+(.+?)\s+to\s+(.+?)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM).*$/i,
+          "Proceed $1 to $2",
+        );
+
+        text = text.replace(
+          /^Proceed\s+(.+?)\s+to\s+(.+?)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM).*$/i,
+          "Proceed $1 to $2",
+        );
+
+        text = text
+          .replace(/\b\d{1,2}:\d{2}\s*(AM|PM)\s*-\s*\d{1,2}:\d{2}\s*(AM|PM)\b/gi, "")
+          .replace(/\[Distance:[^\]]+\]/gi, "")
+          .replace(/\bDistance:\s*\d+(?:\.\d+)?\s*KM\b/gi, "")
+          .replace(/\bDuration:\s*[^,\]]+/gi, "")
+          .replace(/\b\d+\s*(Hours?|Hour|Mins?|Min)\s*-\s*/gi, "")
+          .replace(/^-\s*/, "")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+
+        if (/^Check-?in:/i.test(text)) {
+          return "";
+        }
+
+        if (/^\[?\s*Distance:/i.test(text)) {
+          return "";
+        }
+
+        return text;
       })
-      .join("\n\n");
+      .filter(Boolean);
 
-    return { html: fullHtml, plainText, hotelSectionsHtml, costSectionHtml };
+    return cleanedLines
+      .join(" ")
+      .replace(/\s+,/g, ",")
+      .replace(/\s+\./g, ".")
+      .replace(/,\s*,/g, ",")
+      .replace(/\s{2,}/g, " ")
+      .trim();
   };
 
-  const extractHotelSectionFromHtml = (html: string): string => {
-    if (!html) return "";
+  const hotspotCells: Element[] = [];
+  const termsCells: Element[] = [];
 
-    const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
-      return "";
+  Array.from(hotspotTable.querySelectorAll("td, th")).forEach((cell) => {
+    const text = normalizeText(cell.textContent || "");
+
+    if (!text) return;
+
+    if (/^Day\s+\d+\s*-/i.test(text)) {
+      hotspotCells.push(cell);
+      return;
     }
 
-    const headingIndex = hotelHeadingMatch.index;
-    const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
-    if (hotelSectionStart === -1) return "";
-
-    const vehicleHeadingMatch = html.match(/Vehicle Details/i);
-    if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
-      return "";
+    if (
+      /Terms\s*&\s*Condition/i.test(text) ||
+      /Package Includes/i.test(text) ||
+      /Rate does not include/i.test(text) ||
+      /Very Important/i.test(text) ||
+      /^IMPORTANT:/i.test(text)
+    ) {
+      termsCells.push(cell);
     }
+  });
 
-    const vehicleHeadingIndex = vehicleHeadingMatch.index;
-    const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
-    if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
-      return "";
-    }
+  const hotspotRowsHtml = hotspotCells
+    .map((cell) => {
+      const textWithLines = getCellTextWithLines(cell);
+      const lines = textWithLines
+        .split(/\n+/)
+        .map((line) => normalizeText(line))
+        .filter(Boolean);
 
-    return html.slice(hotelSectionStart, vehicleSectionStart);
-  };
+      const headingLineIndex = lines.findIndex((line) =>
+        /^Day\s+\d+\s*-/i.test(line),
+      );
 
-  const mergeClipboardWithRenderedHotels = (
-    backendHtml: string,
-    renderedHotelsHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedHotelsHtml) return backendHtml;
+      if (headingLineIndex === -1) return "";
 
-    const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-    if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
+      const dayHeading = cleanDayHeading(lines[headingLineIndex]);
+      const paraText = cleanHotspotParaText(
+        lines.slice(headingLineIndex + 1).join("\n"),
+      );
 
-    const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
-    const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
-    if (backendVehicleStart === -1) {
-      return backendHtml;
-    }
+      if (!dayHeading && !paraText) return "";
 
-    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
+      return `
+        <tr>
+          <td style="${paraHeaderStyle}">
+            ${escapeHtml(dayHeading)}
+          </td>
+        </tr>
+        <tr>
+          <td style="${paraCellStyle}">
+            ${escapeHtml(paraText)}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 
-    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
-    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
-    if (backendHotelStart === -1 || backendVehicleStart <= backendHotelStart) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
+  const hotspotParaHtml = `
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="${paraTableStyle}margin-top:18px;">
+      <tr>
+        <td style="${paraHeaderStyle}text-align:center;">
+          Hotspot Details
+        </td>
+      </tr>
+      ${hotspotRowsHtml}
+    </table>
+  `;
 
-    return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-  };
+  const termsHtml = termsCells.length
+    ? `
+      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${paraTableStyle}margin-top:18px;">
+        ${termsCells
+         .map((cell) => {
+  const rawText = normalizeText(cell.textContent || "");
+  const isTitle = /Terms\s*&\s*Condition/i.test(rawText);
 
-  const mergeClipboardWithRenderedCost = (
-    backendHtml: string,
-    renderedCostHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedCostHtml) return backendHtml;
+            return `
+              <tr>
+                <td style="${isTitle ? `${paraHeaderStyle}text-align:center;` : paraCellStyle}">
+                  ${cell.innerHTML}
+                </td>
+              </tr>
+            `;
+          })
+          .join("")}
+      </table>
+    `
+    : "";
 
-    const backendHotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
-    if (!backendHotspotHeadingMatch || backendHotspotHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendHotspotHeadingIndex = backendHotspotHeadingMatch.index;
-    const backendHotspotStart = backendHtml.lastIndexOf("<table", backendHotspotHeadingIndex);
-    if (backendHotspotStart === -1) return backendHtml;
-
-    const roundOffIndex = backendHtml.lastIndexOf("Total Round Off", backendHotspotStart);
-    const netPayableIndex = backendHtml.lastIndexOf("Net Payable To", backendHotspotStart);
-    const totalAmountIndex = backendHtml.lastIndexOf("Total Amount", backendHotspotStart);
-    const anchorIndex = Math.max(roundOffIndex, netPayableIndex, totalAmountIndex);
-
-    if (anchorIndex === -1) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    const backendCostStart = backendHtml.lastIndexOf("<table", anchorIndex);
-    if (backendCostStart === -1 || backendCostStart >= backendHotspotStart) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-  };
+  hotspotTable.outerHTML = `${hotspotParaHtml}${termsHtml}`;
 
 const mergeHighlightsClipboardWithRenderedHotelVehicleCost = (
   backendHtml: string,
@@ -4444,24 +5246,32 @@ const vehicleOnlyHtml = html
   const [isOpeningConfirmQuotation, setIsOpeningConfirmQuotation] = useState(false);
   const [hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice] = useState(false);
   const [confirmOccupanciesTemplate, setConfirmOccupanciesTemplate] = useState<Array<{ adults: number; children: number; childrenAges: number[] }> | null>(null);
-  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
-  const hasPrebookPriceChanged = prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedHotelTotal) > 0.01;
+  const prebookTotalAmount = toMoneyNumber(
+    prebookData?.updatedTotalPrice ??
+      prebookData?.finalPrice ??
+      prebookData?.totalAmount ??
+      0,
+  );
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const hasPrebookPriceChanged = prebookHotelEntries.some((hotel: any) =>
+    isPrebookHotelPriceChanged(hotel),
+  );
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
   const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
-    .filter(([, h]) => String((h as any)?.provider || '').trim().toLowerCase() !== 'tbo')
+    .filter(([, h]) => isSupplierBookableHotel(h) && normalizeHotelProvider(h) !== 'tbo')
     .map(([routeId, h]: [string, any]) => {
       const routeIdNum = parseInt(routeId, 10);
-      const selectedProvider = String((h as any)?.provider || '').trim().toLowerCase();
-      const selectedBookingCode = String((h as any)?.bookingCode || '').trim();
-      const selectedHotelCode = String((h as any)?.hotelCode || '').trim();
+      const selectedProvider = normalizeHotelProvider(h);
+      const selectedBookingCode = getBookingCodeForBooking(h);
+      const selectedHotelCode = getHotelCodeForBooking(h);
       const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
       const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
-      const selectedAmount = Number((h as any)?.netAmount || 0);
+      const selectedAmount = getHotelAmountForBooking(h);
 
       const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
         Number(row?.itineraryRouteId || 0) === routeIdNum &&
-        String(row?.provider || '').trim().toLowerCase() === selectedProvider,
+        normalizeHotelProvider(row) === selectedProvider &&
+        isSupplierBookableHotel(row),
       );
 
       const matchedHotelRow =
@@ -4483,6 +5293,33 @@ const vehicleOnlyHtml = html
 
       return { routeId: routeIdNum, ...h, matchedHotelRow };
     });
+  const DEFAULT_EXTERNAL_STAY_MESSAGE =
+    'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
+
+  const externalStayEntries = useMemo(() => {
+    if (!hotelDetails?.hotels?.length) {
+      return [];
+    }
+
+    const preferredGroupType =
+      activeHotelGroupType ??
+      hotelDetails.hotelTabs?.[0]?.groupType ??
+      1;
+
+    return hotelDetails.hotels
+      .filter((row: any) =>
+        Number(row?.groupType) === Number(preferredGroupType) &&
+        !isSupplierBookableHotel(row),
+      )
+      .map((row: any) => ({
+        routeId: Number(row?.itineraryRouteId || 0),
+        destination: String(row?.destination || '').trim(),
+        day: String(row?.day || '').trim(),
+        hotelName: String(row?.hotelName || '').trim(),
+        availabilityStatus: row?.availabilityStatus || 'NO_SUPPLIER_AVAILABILITY',
+        availabilityMessage: row?.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE,
+      }));
+  }, [activeHotelGroupType, hotelDetails]);
   const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
   const confirmPassengerMix = [
     Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
@@ -4528,6 +5365,93 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
   return 'tbo';
 };
+  function normalizeHotelProvider(entry: any): string {
+    return String(entry?.provider || '').trim().toLowerCase();
+  }
+
+  function getHotelCodeForBooking(entry: any): string {
+    return String(entry?.hotelCode || entry?.hotelId || '').trim();
+  }
+
+  function getBookingCodeForBooking(entry: any): string {
+    return String(
+      entry?.bookingCode ||
+      entry?.searchReference ||
+      entry?.roomTypes?.[0]?.roomCode ||
+      '',
+    ).trim();
+  }
+
+function getHotelAmountForBooking(entry: any): number {
+  const netAmount = Number(entry?.netAmount);
+  if (Number.isFinite(netAmount) && netAmount > 0) {
+    return netAmount;
+  }
+
+  const totalHotelCost = Number(entry?.totalHotelCost || 0);
+  const totalHotelTaxAmount = Number(entry?.totalHotelTaxAmount || 0);
+  const computedAmount = totalHotelCost + totalHotelTaxAmount;
+
+  if (Number.isFinite(computedAmount) && computedAmount > 0) {
+    return computedAmount;
+  }
+
+  const price = Number(entry?.price);
+  if (Number.isFinite(price) && price > 0) {
+    return price;
+  }
+
+  return 0;
+}
+
+  function isNoHotelAvailableEntry(entry: any): boolean {
+    const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
+    const hotelCode = getHotelCodeForBooking(entry);
+    const provider = normalizeHotelProvider(entry);
+
+    return (
+      entry?.externalStay === true ||
+      entry?.isBookable === false ||
+      provider === 'external' ||
+      provider === 'none' ||
+      provider === 'self-arranged' ||
+      hotelName === 'no hotels available' ||
+      !hotelCode ||
+      hotelCode === '0'
+    );
+  }
+
+  function isSupplierBookableHotel(entry: any): boolean {
+    if (!entry || isNoHotelAvailableEntry(entry)) {
+      return false;
+    }
+
+    const provider = normalizeHotelProvider(entry);
+    const hotelCode = getHotelCodeForBooking(entry);
+    const bookingCode = getBookingCodeForBooking(entry);
+    const amount = getHotelAmountForBooking(entry);
+
+    const supportedProviders = ['tbo', 'resavenue', 'hobse', 'axisrooms', 'staah'];
+
+    if (!supportedProviders.includes(provider)) {
+      return false;
+    }
+
+    if (!hotelCode || hotelCode === '0') {
+      return false;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return false;
+    }
+
+    if (provider === 'tbo') {
+      return bookingCode.includes('!TB!');
+    }
+
+    return true;
+  }
+
   const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
     const explicitIso2 = String(
       plan?.nationality_iso2 ||
@@ -4903,6 +5827,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     routeDates: string[];
     dayNumbers: number[];
     hotelDetailsIds: number[];
+    initialStatus?: 'confirmed' | 'cancelled' | 'pending';
   } | null>(null);
 
   // Refresh hotel data after hotel update
@@ -4920,9 +5845,9 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       const useHotels = pref === 1 || pref === 3;
 
       if (useHotels) {
-        const hotelRes = await fetchCompleteHotelDetails(quoteId);
+        const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
         console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       } else {
         setHotelDetails(null);
         setActiveHotelListTotal(0);
@@ -4933,7 +5858,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     } finally {
       setLoadingHotels(false);
     }
-  }, [quoteId, fetchCompleteHotelDetails]);
+  }, [quoteId, loadHotelDetailsForItinerary]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -5072,7 +5997,10 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }) => {
-    setSelectedHotelForVoucher(hotelData);
+    setSelectedHotelForVoucher({
+      ...hotelData,
+      initialStatus: 'confirmed',
+    });
     setHotelVoucherModalOpen(true);
   }, []);
 
@@ -5146,8 +6074,12 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }) => {
-    await handleCancelVoucherItems([item]);
-  }, [handleCancelVoucherItems]);
+    setSelectedHotelForVoucher({
+      ...item,
+      initialStatus: 'cancelled',
+    });
+    setHotelVoucherModalOpen(true);
+  }, []);
 
   const handleHotelSelectionsChange = useCallback((selections: Record<number, {
     provider: string;
@@ -5205,7 +6137,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
   const shouldShowRebuildHotelsButton = useMemo(() => {
     if (!hotelDetails?.hotels?.length) return false;
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((h) => h.hotelName === 'No Hotels Available');
+    return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
 
   const handleRebuildHotels = useCallback(async () => {
@@ -5275,7 +6207,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
         let hotelRes: ItineraryHotelDetailsResponse | null = null;
         if (useHotels) {
-          hotelRes = await fetchCompleteHotelDetails(quoteId);
+          hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
         }
 
         // Only update state if component is still mounted
@@ -5313,7 +6245,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     return () => {
       isMountedRef.current = false;
     };
-  }, [quoteId, location.pathname, fetchCompleteHotelDetails]);
+  }, [quoteId, location.pathname, loadHotelDetailsForItinerary]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -5329,17 +6261,10 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
     try {
       setLoadingHotels(true);
-      let hotelRes;
+      if (!itinerary) return null;
+      const hotelRes = await loadHotelDetailsForItinerary(quoteId, itinerary);
 
-      // If confirmed itinerary is available, fetch from confirmed endpoint
-      if (itinerary?.confirmed_itinerary_plan_ID) {
-        hotelRes = await ItineraryService.getConfirmedItinerary(itinerary.confirmed_itinerary_plan_ID);
-      } else {
-        // Fallback to hotel details endpoint
-        hotelRes = await fetchCompleteHotelDetails(quoteId);
-      }
-
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       return hotelRes;
     } catch (error: any) {
       console.error("Failed to load hotel details", error);
@@ -6895,21 +7820,32 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return `${year}-${month}-${day}`;
       };
 
+      const selectedHotelPayload = {
+        provider: String(hotel.provider || 'tbo').trim().toLowerCase(),
+        hotelCode: String(hotel.hotelCode || ''),
+        bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
+        roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
+        netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
+        hotelName: hotel.hotelName,
+        checkInDate: formatDate(checkInDate),
+        checkOutDate: formatDate(checkOutDate),
+        searchInitiatedAt: new Date().toISOString(),
+      };
+
+      if (!isSupplierBookableHotel(selectedHotelPayload)) {
+        toast.error('This hotel does not have a valid live supplier booking code. Please search again and select an available room.');
+        return;
+      }
+
       // Store ALL selected hotels with provider info (multi-provider support)
       setSelectedHotelBookings(prev => ({
         ...prev,
         [hotelSelectionModal.routeId]: {
-          provider: hotel.provider || 'tbo', // Get provider from search result
-          hotelCode: hotel.hotelCode,
-          // bookingCode should come from hotel.bookingCode (mapped from search data)
-          // Only fallback to hotelCode if bookingCode is not available
-          bookingCode: hotel.bookingCode || hotel.hotelCode,
-          roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
-          netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
-          hotelName: hotel.hotelName,
-          checkInDate: formatDate(checkInDate),
-          checkOutDate: formatDate(checkOutDate),
-          searchInitiatedAt: new Date().toISOString(),
+          ...selectedHotelPayload,
+          isBookable: true,
+          externalStay: false,
+          availabilityStatus: 'AVAILABLE',
+          availabilityMessage: null,
         }
       }));
       setPrebookData(null);
@@ -7119,7 +8055,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
         const persistedSelections: typeof selectedHotelBookings = {};
         hotelDetails.hotels
-          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType))
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
           .forEach((h: any) => {
             const routeId = Number(h.itineraryRouteId || 0);
             if (!routeId) return;
@@ -7132,16 +8068,20 @@ const inferHotelProvider = (entry: any): HotelProvider => {
               : '';
 
             persistedSelections[routeId] = {
-              provider: String(h.provider || 'tbo').toLowerCase(),
-              hotelCode: String(h.hotelCode || h.hotelId || h.bookingCode || ''),
-              bookingCode: String(h.bookingCode || h.hotelCode || h.hotelId || ''),
+              provider: normalizeHotelProvider(h) || 'tbo',
+              hotelCode: String(h.hotelCode || h.hotelId || ''),
+              bookingCode: String(h.bookingCode || h.searchReference || ''),
               roomType: h.roomType || 'Standard',
-              netAmount: Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0),
+              netAmount: getHotelSelectionAmount(h),
               hotelName: h.hotelName,
               checkInDate,
               checkOutDate,
               searchInitiatedAt: new Date().toISOString(),
               groupType: preferredGroupType,
+              isBookable: true,
+              externalStay: false,
+              availabilityStatus: 'AVAILABLE',
+              availabilityMessage: null,
             };
           });
 
@@ -7160,7 +8100,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
         const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
         hotelDetails.hotels
-          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && h.hotelName !== 'No Hotels Available')
+          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
           .forEach((h: any) => {
             const routeId = Number(h.itineraryRouteId || 0);
             if (!routeId) return;
@@ -7178,14 +8118,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             return currTotal < bestTotal ? curr : best;
           });
 
-          const hasHotelIdentity = Boolean(
-            String(cheapest.hotelCode || '').trim() ||
-            Number(cheapest.hotelId || 0) > 0 ||
-            String(cheapest.bookingCode || '').trim() ||
-            String((cheapest as any).searchReference || '').trim() ||
-            String(cheapest.hotelName || '').trim(),
-          );
-          if (!hasHotelIdentity) return;
+          if (!isSupplierBookableHotel(cheapest)) return;
 
           const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
           const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
@@ -7194,16 +8127,20 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             : '';
 
           autoSelections[routeId] = {
-            provider: String(cheapest.provider || 'tbo').toLowerCase(),
-            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || cheapest.bookingCode || ''),
-            bookingCode: String(cheapest.bookingCode || cheapest.hotelCode || cheapest.hotelId || ''),
+            provider: normalizeHotelProvider(cheapest) || 'tbo',
+            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || ''),
+            bookingCode: String(cheapest.bookingCode || cheapest.searchReference || ''),
             roomType: cheapest.roomType || 'Standard',
-            netAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
+            netAmount: getHotelSelectionAmount(cheapest),
             hotelName: cheapest.hotelName,
             checkInDate,
             checkOutDate,
             searchInitiatedAt: new Date().toISOString(),
             groupType: preferredGroupType,
+            isBookable: true,
+            externalStay: false,
+            availabilityStatus: 'AVAILABLE',
+            availabilityMessage: null,
           };
         });
 
@@ -7228,7 +8165,10 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             );
 
       const prebookHotelBookings: any[] = Object.entries(selectedHotelsForPrebook)
-        .filter(([, hotelData]) => String((hotelData as any)?.provider || '').trim().toLowerCase() === 'tbo')
+        .filter(([, hotelData]) => {
+          const provider = normalizeHotelProvider(hotelData);
+          return provider === 'tbo' && isSupplierBookableHotel(hotelData);
+        })
         .map(([routeId, hotelData]) => ({
           occupancies: prebookOccupancies,
           provider: hotelData.provider,
@@ -7241,7 +8181,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
           checkOutDate: hotelData.checkOutDate,
           numberOfRooms: Number(itinerary?.roomCount || 1),
           guestNationality: modalNationalityForSession,
-          netAmount: Number(hotelData.netAmount || 0),
+          netAmount: toMoneyNumber(hotelData.netAmount),
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         }));
@@ -7273,8 +8213,58 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             endUserIp: clientIp,
           });
           const normalizedPrebook = prebookResp?.data || prebookResp;
-          prebookDataRef.current = normalizedPrebook;
-          setPrebookData(normalizedPrebook);
+
+          const searchPriceByKey = new Map<string, number>();
+
+          prebookHotelBookings.forEach((booking: any) => {
+            const routeId = Number(booking.routeId || 0);
+            const bookingCode = String(booking.bookingCode || '').trim();
+            const hotelCode = String(booking.hotelCode || '').trim();
+            const searchPrice = toMoneyNumber(booking.netAmount);
+
+            if (routeId && bookingCode) {
+              searchPriceByKey.set(`${routeId}|booking:${bookingCode}`, searchPrice);
+            }
+
+            if (routeId && hotelCode) {
+              searchPriceByKey.set(`${routeId}|hotel:${hotelCode}`, searchPrice);
+            }
+
+            if (bookingCode) {
+              searchPriceByKey.set(`booking:${bookingCode}`, searchPrice);
+            }
+
+            if (hotelCode) {
+              searchPriceByKey.set(`hotel:${hotelCode}`, searchPrice);
+            }
+          });
+
+          const enrichedPrebook = {
+            ...normalizedPrebook,
+            hotels: Array.isArray(normalizedPrebook?.hotels)
+              ? normalizedPrebook.hotels.map((hotel: any) => {
+                  const routeId = Number(hotel?.routeId || 0);
+                  const bookingCode = String(hotel?.bookingCode || '').trim();
+                  const hotelCode = String(hotel?.hotelCode || '').trim();
+
+                  const searchPrice =
+                    searchPriceByKey.get(`${routeId}|booking:${bookingCode}`) ??
+                    searchPriceByKey.get(`${routeId}|hotel:${hotelCode}`) ??
+                    searchPriceByKey.get(`booking:${bookingCode}`) ??
+                    searchPriceByKey.get(`hotel:${hotelCode}`) ??
+                    0;
+
+                  return {
+                    ...hotel,
+                    searchPrice,
+                    selectedSearchPrice: searchPrice,
+                  };
+                })
+              : normalizedPrebook?.hotels,
+          };
+
+          prebookDataRef.current = enrichedPrebook;
+          setPrebookData(enrichedPrebook);
         } catch (prebookErr) {
           toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
         } finally {
@@ -7398,6 +8388,12 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     setIsConfirmingQuotation(true);
 
     try {
+      const groupTypeValue =
+        activeHotelGroupType ??
+        Object.values(selectedHotelBookings)[0]?.groupType ??
+        hotelDetails?.hotelTabs?.[0]?.groupType ??
+        1;
+
       let autoSelectedHotels = { ...selectedHotelBookings };
       const selectedProvidersForConfirm = Array.from(
         new Set(
@@ -7421,21 +8417,27 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             : '';
 
           return {
-            provider: String(hotelRow?.provider || 'tbo').trim().toLowerCase(),
+            provider: normalizeHotelProvider(hotelRow) || 'tbo',
             hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
-            bookingCode: String(hotelRow?.bookingCode || hotelRow?.hotelCode || hotelRow?.hotelId || ''),
+            bookingCode: String(hotelRow?.bookingCode || hotelRow?.searchReference || ''),
             roomType: hotelRow?.roomType || 'Standard',
-            netAmount: Number(hotelRow?.totalHotelCost || 0) + Number(hotelRow?.totalHotelTaxAmount || 0),
+            netAmount: getHotelSelectionAmount(hotelRow),
             hotelName: hotelRow?.hotelName,
             checkInDate,
             checkOutDate,
             searchInitiatedAt: new Date().toISOString(),
+            isBookable: hotelRow?.isBookable ?? isSupplierBookableHotel(hotelRow),
+            externalStay: hotelRow?.externalStay ?? !isSupplierBookableHotel(hotelRow),
+            availabilityStatus: hotelRow?.availabilityStatus || (isSupplierBookableHotel(hotelRow) ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
+            availabilityMessage: hotelRow?.availabilityMessage || (isSupplierBookableHotel(hotelRow) ? null : DEFAULT_EXTERNAL_STAY_MESSAGE),
           };
         };
 
         routesWithHotels.forEach((routeId: number) => {
           const routeHotels = hotelDetails.hotels.filter(
-            (h: any) => h.itineraryRouteId === routeId && h.groupType === 1,
+            (h: any) =>
+              Number(h.itineraryRouteId) === Number(routeId) &&
+              Number(h.groupType) === Number(groupTypeValue),
           );
           const persistedRouteSelection = routeHotels.find(
             (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
@@ -7575,7 +8577,11 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         .trim()
         .toUpperCase();
 
-      const hotelBookings: any[] = Object.entries(autoSelectedHotels).map(([routeId, hotelData]) => ({
+      const providerBookableSelections = Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
+        isSupplierBookableHotel(hotelData),
+      );
+
+      const hotelBookings: any[] = providerBookableSelections.map(([routeId, hotelData]) => ({
         occupancies: occupanciesForBooking,
         provider: inferHotelProvider(hotelData),
         routeId: parseInt(routeId, 10),
@@ -7587,8 +8593,12 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         checkOutDate: hotelData.checkOutDate,
         numberOfRooms: Number(itinerary.roomCount || 1),
         guestNationality: bookingGuestNationality,
-        netAmount: Number(hotelData.netAmount || 0),
+        netAmount: toMoneyNumber(hotelData.netAmount),
         searchInitiatedAt: hotelData.searchInitiatedAt,
+        isBookable: hotelData.isBookable,
+        externalStay: hotelData.externalStay,
+        availabilityStatus: hotelData.availabilityStatus,
+        availabilityMessage: hotelData.availabilityMessage,
         passengers,
       }));
 
@@ -7612,8 +8622,8 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         toast.warning('Proceeding with mixed-provider booking as confirmed.');
       }
 
-      if (hotelBookings.length === 0) {
-        toast.error('No hotels selected for booking. Please select hotels and retry.');
+      if (hotelBookings.length === 0 && externalStayEntries.length === 0) {
+        toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');
         return;
       }
 
@@ -7649,14 +8659,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return;
       }
 
-      const prebookTotal = Number(
-        effectivePrebookData?.updatedTotalPrice ||
-        effectivePrebookData?.finalPrice ||
-        effectivePrebookData?.totalAmount ||
-        0,
+      const effectivePrebookHotelEntries = Array.isArray(effectivePrebookData?.hotels)
+        ? effectivePrebookData.hotels
+        : [];
+
+      const effectiveHasPrebookPriceChanged = effectivePrebookHotelEntries.some((hotel: any) =>
+        isPrebookHotelPriceChanged(hotel),
       );
-      const currentTotal = hotelBookings.reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+
+      if (effectiveHasPrebookPriceChanged && !hasAcceptedUpdatedPrice) {
         toast.warning('Accept updated prebook price before final confirmation.');
         return;
       }
@@ -7667,7 +8678,6 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         return;
       }
 
-      const groupTypeValue = Object.values(selectedHotelBookings)[0]?.groupType ?? 1;
       const selectedGroupType = String(groupTypeValue);
 
       const primaryGuest = {
@@ -7695,6 +8705,27 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         };
       });
 
+      console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
+        routeId: h.routeId,
+        provider: h.provider,
+        hotelCode: h.hotelCode,
+        hotelName: h.hotelName,
+        bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
+        bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
+        roomType: h.roomType,
+        checkInDate: h.checkInDate,
+        checkOutDate: h.checkOutDate,
+        netAmount: h.netAmount,
+      })));
+
+      const selectedHotelRouteIds = hotelBookingsWithPrebookContext
+        .map((booking: any) => Number(booking.routeId || 0))
+        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+
+      const externalStayRouteIds = externalStayEntries
+        .map((entry: any) => Number(entry.routeId || 0))
+        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+
       const confirmPayload = {
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
@@ -7718,22 +8749,55 @@ const inferHotelProvider = (entry: any): HotelProvider => {
         departure_flight_details: guestDetails.departureFlightDetails,
         price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
         hotel_group_type: selectedGroupType,
-        hotel_bookings: hotelBookingsWithPrebookContext.length > 0 ? hotelBookingsWithPrebookContext : undefined,
+        hotel_bookings: hotelBookingsWithPrebookContext,
+        selected_hotel_route_ids: selectedHotelRouteIds,
+        external_stay_route_ids: externalStayRouteIds,
         primaryGuest,
         endUserIp: clientIp,
       };
 
       console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
-      await ItineraryService.confirmQuotation(confirmPayload);
 
-      toast.success('Quotation confirmed successfully!');
+      const confirmResponse: any = await ItineraryService.confirmQuotation(confirmPayload);
+
+      toast.success(confirmResponse?.message || 'Quotation confirmed successfully!');
       setConfirmQuotationModal(false);
 
-      // Refresh data to show confirmed status and links
-      if (quoteId) {
-        const detailsRes = await ItineraryService.getDetails(quoteId);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
+      setLoadingHotels(true);
+      setActiveHotelListTotal(0);
+      setSelectedVehicleTotalsByType({});
+      setSelectedHotelBookings({});
+      setActiveHotelGroupType(null);
+
+      const confirmedPlanId = Number(confirmResponse?.confirmed_itinerary_plan_ID || 0);
+
+      if (confirmedPlanId > 0) {
+        const confirmedHotelDetailsFromResponse =
+          confirmResponse?.confirmedHotelDetails ||
+          confirmResponse?.hotelDetails ||
+          null;
+
+        const refreshedHotelDetails = await loadConfirmedHotelsFromDb(
+          confirmedPlanId,
+          confirmedHotelDetailsFromResponse,
+        );
+
+        setItinerary((prev) => {
+          if (!prev) return prev;
+
+          return {
+            ...prev,
+            confirmed_itinerary_plan_ID: confirmedPlanId,
+            isConfirmed: true,
+          };
+        });
+
+        setHotelDetails(refreshedHotelDetails as ItineraryHotelDetailsResponse | null);
+      } else {
+        console.warn('[CONFIRM_QUOTATION_NO_CONFIRMED_PLAN_ID]', confirmResponse);
       }
+
+      setLoadingHotels(false);
 
       // Reset form and selected hotels
       setGuestDetails({
@@ -7762,6 +8826,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       setFormErrors({});
       setSelectedHotelBookings({});
     } catch (e: any) {
+      setLoadingHotels(false);
       console.error('Failed to confirm quotation', e);
       toast.error(getSafeErrorMessage(e, 'Failed to confirm quotation'));
     } finally {
@@ -8027,7 +9092,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                 </div>
               </div>
               <div className="text-right flex items-center gap-2 justify-end">
-                {shouldShowRebuildHotelsButton && !readOnly && (
+                {shouldShowRebuildHotelsButton && !hotelReadOnly && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -8615,9 +9680,9 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                               <div className="flex items-center gap-3">
                                 <Building2 className="h-6 w-6 text-[#4ba3c3]" />
                                 <div
-                                  className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${readOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
+                                  className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${hotelReadOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                                   onClick={() => {
-                                    if (readOnly) return;
+                                    if (hotelReadOnly) return;
                                     // Get city code from hotel details if available, otherwise use default
                                     let cityCode = "1"; // Default city code
                                     if (hotelForDay?.destination) {
@@ -8656,7 +9721,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                                       {segment.time}
                                     </p>
                                   )}
-                                  {!readOnly && (
+                                  {!hotelReadOnly && (
                                     <p className="text-xs text-[#d546ab] mt-2">
                                       Click to change hotel
                                     </p>
@@ -8664,7 +9729,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
                                 </div>
 
                                 {/* Room Category Selection Button */}
-                                {!readOnly && (
+                                {!hotelReadOnly && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -8746,12 +9811,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       {shouldShowHotels && !loadingHotels && hotelDetails && (
         <div ref={hotelListRef} id="hotel-list-section">
           <HotelList
-            hotels={hotelDetails.hotels}
+            hotels={hotelsForDisplay}
             hotelTabs={hotelDetails.hotelTabs}
             hotelRatesVisible={hotelDetails.hotelRatesVisible}
             showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
             roomCount={Number(itinerary.roomCount || 1)}
-            onTotalChange={(total) => setActiveHotelListTotal(Number(total || 0))}
+            onTotalChange={(total) => {
+              if (hotelReadOnly) return;
+              setActiveHotelListTotal(Number(total || 0));
+            }}
             onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
             hotelAvailability={hotelDetails.hotelAvailability}
             quoteId={quoteId!}
@@ -8759,7 +9827,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
             onRefresh={refreshHotelData}
             onGroupTypeChange={handleHotelGroupTypeChange}
             onGetSaveFunction={handleGetSaveFunction}
-            readOnly={readOnly}
+            readOnly={hotelReadOnly}
             onCreateVoucher={handleCreateVoucher}
             onCancelVoucher={handleCancelVoucherSingle}
             onBulkCancelVouchers={handleCancelVoucherItems}
@@ -11569,7 +12637,19 @@ const mergedHtml =
 
 const mergedPlainText = htmlToPlainText(mergedHtml);
 
-                  await copyHtmlToClipboard(mergedHtml, mergedPlainText)
+const mergedHtml = mergeClipboardWithB2BRecommendedPackages(
+  html,
+  localClipboard.packageSectionsHtml || localClipboard.html,
+);
+
+const finalHtml =
+  clipboardType === "para"
+    ? makeHotspotDetailsParaStyle(mergedHtml)
+    : mergedHtml;
+
+const mergedPlainText = htmlToPlainText(finalHtml);
+
+await copyHtmlToClipboard(finalHtml, mergedPlainText)
                     .then(() => {
                       toast.success("Formatted clipboard content copied!");
                       setClipboardModal(false);
@@ -11887,6 +12967,45 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
               </div>
             )}
 
+            {externalStayEntries.length > 0 && (
+              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div>
+                  <h3 className="font-semibold text-amber-900">External / self-arranged stay required</h3>
+                  <p className="text-xs text-amber-800 mt-1">
+                    These city/date rows do not have supplier-bookable rooms. They will be shown in the itinerary, but they will not be sent to prebook or final supplier booking.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {externalStayEntries.map((entry: any, index: number) => (
+                    <div
+                      key={`external-stay-${entry.routeId || 'na'}-${index}`}
+                      className="rounded-md border border-amber-100 bg-white/80 px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-amber-900">
+                        Route {entry.routeId || '-'}
+                        {entry.destination ? ` · ${entry.destination}` : ''}
+                        {entry.day ? ` · ${entry.day}` : ''}
+                      </p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        {entry.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <label className="flex items-start gap-2 text-sm text-amber-900">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={hasAcceptedUpdatedPrice}
+                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
+                  />
+                  <span>
+                    I understand these hotel stays are external/self-arranged and will not be booked through supplier APIs.
+                  </span>
+                </label>
+              </div>
+            )}
+
             {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
@@ -12011,9 +13130,11 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
                 <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                   <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
+                    <p className="text-[#6c6c6c]">
+                      {hasPrebookPriceChanged ? 'Updated Final Price' : 'Final Price'}
+                    </p>
                     <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+                      ₹ {prebookTotalAmount.toFixed(2)}
                     </p>
                   </div>
                   <div>
@@ -12023,7 +13144,9 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
                 </div>
 
                 {prebookHotelEntries.map((hotel: any, index: number) => {
-                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
+                  const hotelPrice = getPrebookFinalPrice(hotel);
+                  const hotelSearchPrice = getPrebookSearchPrice(hotel);
+                  const hotelHasPriceChanged = isPrebookHotelPriceChanged(hotel);
                   const hotelAmenities = normalizePrebookItems(hotel?.amenities);
                   const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
                   const hotelInclusions = resolvePrebookInclusions(hotel);
@@ -12042,7 +13165,7 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
                             <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                           </div>
                           <div className="text-sm text-left md:text-right">
-                            <p className="text-[#6c6c6c]">Updated Final Price</p>
+                            <p className="text-[#6c6c6c]">{getPrebookPriceLabel(hotel)}</p>
                             <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
                           </div>
                         </div>
@@ -12052,6 +13175,11 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
                         <div>
                           <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || '-'}</p>
                           {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
+                          {hotelSearchPrice > 0 ? (
+                            <p className="text-xs text-[#6c6c6c]">
+                              Search Price: <span className="font-medium text-[#4a4260]">₹ {hotelSearchPrice.toFixed(2)}</span>
+                            </p>
+                          ) : null}
                           {hotelMealType ? (
                             <p className="text-xs text-[#6c6c6c]">
                               Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
@@ -12895,8 +14023,8 @@ const mergedPlainText = htmlToPlainText(mergedHtml);
               routeDates={selectedHotelForVoucher.routeDates}
               dayNumbers={selectedHotelForVoucher.dayNumbers}
               hotelDetailsIds={selectedHotelForVoucher.hotelDetailsIds}
+              initialStatus={selectedHotelForVoucher.initialStatus}
               onSuccess={() => {
-                toast.success('Hotel voucher created successfully');
                 refreshHotelData();
               }}
             />

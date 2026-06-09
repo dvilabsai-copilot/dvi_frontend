@@ -148,6 +148,14 @@ const findOptionValue = (options: any[], current: string) => {
   return normalized;
 };
 
+const asOptions = (value: any): any[] => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  if (Array.isArray(value?.rows)) return value.rows;
+  if (Array.isArray(value?.data)) return value.data;
+  return [];
+};
+
 const uiErrorMessage = (_err: any, fallback: string) => fallback;
 
 export default function BasicStep({
@@ -230,7 +238,7 @@ export default function BasicStep({
     return [`/api/v1/meta/states${q}`, `/api/v1/locations/states${q}`, `/api/v1/states${q}`];
   }, [countryId]);
 
-  const { data: states = [] } = useQuery({
+  const { data: statesRaw = [] } = useQuery({
     queryKey: ["states", countryId],
     queryFn: () => api.apiGetFirst(statesPathList).catch(() => []),
     enabled: !!countryId,
@@ -243,7 +251,7 @@ export default function BasicStep({
     return [`/api/v1/meta/cities${q}`, `/api/v1/locations/cities${q}`, `/api/v1/cities${q}`];
   }, [stateId]);
 
-  const { data: cities = [] } = useQuery({
+  const { data: citiesRaw = [] } = useQuery({
     queryKey: ["cities", stateId],
     queryFn: () => api.apiGetFirst(citiesPathList).catch(() => []),
     enabled: !!stateId,
@@ -251,25 +259,83 @@ export default function BasicStep({
 
   const watchedState = S(watch("hotel_state"));
   const watchedCity = S(watch("hotel_city"));
+  const states = useMemo(() => asOptions(statesRaw), [statesRaw]);
+  const cities = useMemo(() => asOptions(citiesRaw), [citiesRaw]);
+
+  const stateExistsInOptions = useMemo(() => {
+    const current = watchedState.trim();
+    if (!current) return false;
+    return states.some((s: any) => S(s?.id ?? s?.value ?? s).trim() === current);
+  }, [states, watchedState]);
+
+  const { data: stateByIdFallback = null } = useQuery({
+    queryKey: ["state-by-id", watchedState],
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          `/api/v1/meta/states/${watchedState}`,
+          `/api/v1/hotels/meta/states/${watchedState}`,
+        ])
+        .catch(() => null),
+    enabled: !!watchedState && !stateExistsInOptions,
+  });
+
+  const stateOptions = useMemo(() => {
+    const base = [...states];
+    const fallbackId = S(
+      (stateByIdFallback as any)?.id ?? (stateByIdFallback as any)?.value ?? ""
+    ).trim();
+    if (fallbackId && !base.some((s: any) => S(s?.id ?? s?.value ?? s).trim() === fallbackId)) {
+      base.push(stateByIdFallback);
+    }
+    return base;
+  }, [stateByIdFallback, states]);
+
+  const cityExistsInOptions = useMemo(() => {
+    const current = watchedCity.trim();
+    if (!current) return false;
+    return cities.some((c: any) => S(c?.id ?? c?.value ?? c).trim() === current);
+  }, [cities, watchedCity]);
+
+  const { data: cityByIdFallback = null } = useQuery({
+    queryKey: ["city-by-id", watchedCity],
+    queryFn: () =>
+      api
+        .apiGetFirst([
+          `/api/v1/meta/cities/${watchedCity}`,
+          `/api/v1/hotels/meta/cities/${watchedCity}`,
+        ])
+        .catch(() => null),
+    enabled: !!watchedCity && !cityExistsInOptions,
+  });
+
+  const cityOptions = useMemo(() => {
+    const base = [...cities];
+    const fallbackId = S((cityByIdFallback as any)?.id ?? (cityByIdFallback as any)?.value ?? "").trim();
+    if (fallbackId && !base.some((c: any) => S(c?.id ?? c?.value ?? c).trim() === fallbackId)) {
+      base.push(cityByIdFallback);
+    }
+    return base;
+  }, [cities, cityByIdFallback]);
 
   /* ====== FIX: re-apply saved state/city once options load (supports id or label payloads) ====== */
   useEffect(() => {
     const current = watchedState;
-    if (!current || !(states as any[]).length) return;
-    const resolved = findOptionValue(states as any[], current);
+    if (!current || !stateOptions.length) return;
+    const resolved = findOptionValue(stateOptions, current);
     if (resolved !== current) {
       setValue("hotel_state", resolved, { shouldValidate: true, shouldDirty: false });
     }
-  }, [states, watchedState, setValue]);
+  }, [stateOptions, watchedState, setValue]);
 
   useEffect(() => {
     const current = watchedCity;
-    if (!current || !(cities as any[]).length) return;
-    const resolved = findOptionValue(cities as any[], current);
+    if (!current || !(cityOptions as any[]).length) return;
+    const resolved = findOptionValue(cityOptions as any[], current);
     if (resolved !== current) {
       setValue("hotel_city", resolved, { shouldValidate: true, shouldDirty: false });
     }
-  }, [cities, watchedCity, setValue]);
+  }, [cityOptions, watchedCity, setValue]);
 
   // GST types & percentages
   const { data: gstTypes = [] } = useQuery({
@@ -364,6 +430,7 @@ export default function BasicStep({
           hotel_city: S(row.hotel_city ?? row.cityId ?? ""),
           hotel_postal_code: row.hotel_pincode ?? row.hotel_postal_code ?? row.pinCode ?? "",
           hotel_code: row.hotel_code ?? row.code ?? "",
+          resavenue_hotel_code: row.resavenue_hotel_code ?? "",
           hotel_margin: S(row.hotel_margin ?? ""),
           hotel_margin_gst_type: S(row.hotel_margin_gst_type ?? ""),
           hotel_margin_gst_percentage: S(row.hotel_margin_gst_percentage ?? ""),
@@ -474,6 +541,7 @@ export default function BasicStep({
       hotel_email_id: emailJoined,
       hotel_email: emailJoined,
       hotel_pincode: (data as any).hotel_postal_code,
+      resavenue_hotel_code: String((data as any).resavenue_hotel_code ?? "").trim() || null,
       hotel_address_1: (data as any).hotel_address,
     };
   };
@@ -688,7 +756,7 @@ export default function BasicStep({
               {...stateReg}
             >
               <option value="">Please Choose State</option>
-              {(states as any[]).map((s: any) => (
+              {stateOptions.map((s: any) => (
                 <option key={S(s.id ?? s.value ?? s)} value={S(s.id ?? s.value ?? s)}>
                   {s.name ?? s.label ?? String(s)}
                 </option>
@@ -704,7 +772,7 @@ export default function BasicStep({
               {...register("hotel_city", { required: true })}
             >
               <option value="">Please Choosen City</option>
-              {(cities as any[]).map((c: any) => (
+              {cityOptions.map((c: any) => (
                 <option key={S(c.id ?? c.value ?? c)} value={S(c.id ?? c.value ?? c)}>
                   {c.name ?? c.label ?? String(c)}
                 </option>
@@ -720,17 +788,6 @@ export default function BasicStep({
               maxLength={7}
               placeholder="Enter the Pincode"
               {...register("hotel_postal_code", { required: true })}
-            />
-          </div>
-
-          {/* Hotel Code (readOnly) */}
-          <div className="col-span-12 md:col-span-4">
-            <label className="block text-sm font-medium">Hotel Code *</label>
-            <input
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-              readOnly
-              placeholder="Enter the hotel code"
-              {...register("hotel_code", { required: true })}
             />
           </div>
 
@@ -789,6 +846,25 @@ export default function BasicStep({
               className="mt-1 w-full border rounded-lg px-3 py-2"
               placeholder="Enter the Longitude"
               {...register("hotel_longitude")}
+            />
+          </div>
+
+          <div className="col-span-12 md:col-span-3">
+            <label className="block text-sm font-medium">Hotel Code *</label>
+            <input
+              className="mt-1 w-full border rounded-lg px-3 py-2"
+              readOnly
+              placeholder="Enter the hotel code"
+              {...register("hotel_code", { required: true })}
+            />
+          </div>
+
+          <div className="col-span-12 md:col-span-3">
+            <label className="block text-sm font-medium">ResAvenue Hotel Code</label>
+            <input
+              className="mt-1 w-full border rounded-lg px-3 py-2"
+              placeholder="Enter the ResAvenue hotel code"
+              {...register("resavenue_hotel_code")}
             />
           </div>
 

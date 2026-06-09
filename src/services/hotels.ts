@@ -5,6 +5,7 @@ export type Hotel = {
   id?: string;
   name: string;
   code?: string;
+  resavenueCode?: string | null;
   axisrooms_property_id?: string | null;
   starRating?: number | null;
   description?: string | null;
@@ -70,6 +71,7 @@ function fromBackend(h: any): Hotel {
     id: String(h.hotel_id ?? h.id ?? ""),
     name: h.hotel_name ?? h.name ?? "",
     code: h.hotel_code ?? h.code ?? null,
+    resavenueCode: h.resavenue_hotel_code ?? h.resavenueCode ?? null,
     axisrooms_property_id: h.axisrooms_property_id ?? null,
 
     // numbers / misc
@@ -117,6 +119,7 @@ function toBackend(body: Partial<Hotel>): any {
   // Basic identity & codes
   if (body.name !== undefined) out.hotel_name = body.name;
   if (body.code !== undefined) out.hotel_code = body.code ?? null;
+  if (body.resavenueCode !== undefined) out.resavenue_hotel_code = body.resavenueCode ?? null;
 
   // Address & location
   if (body.addressLine1 !== undefined) out.hotel_address = body.addressLine1 ?? null;

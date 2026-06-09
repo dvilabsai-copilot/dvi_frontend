@@ -295,6 +295,12 @@ export const ItineraryService = {
   async getConfirmedItinerary(confirmedId: number) {
     return api(`itineraries/confirmed/${confirmedId}`, {
       method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      },
     });
   },
 
@@ -648,6 +654,8 @@ export const ItineraryService = {
     departure_flight_details?: string;
     price_confirmation_type: string;
     hotel_group_type?: string;
+    selected_hotel_route_ids?: number[];
+    external_stay_route_ids?: number[];
     tbo_hotels?: Array<{
       routeId: number;
       hotelCode: string;
@@ -714,6 +722,15 @@ export const ItineraryService = {
       email?: string;
     };
     endUserIp?: string;
+    confirmedHotelDetails?: {
+      quoteId?: string;
+      planId?: number;
+      hotelRatesVisible?: boolean;
+      showHotelMargins?: boolean;
+      hotelTabs?: any[];
+      hotels?: any[];
+      hotelAvailability?: any;
+    };
   }) {
     return api("itineraries/confirm-quotation", {
       method: "POST",
