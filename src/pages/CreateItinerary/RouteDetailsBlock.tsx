@@ -48,6 +48,7 @@ type RouteDetailsBlockProps = {
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
   onRefreshRouteDistance?: (row: RouteDetailRow) => Promise<number | string>;
   onDeleteDay?: () => void;
+  onDeleteRouteDay?: (deleteIdx: number) => void;
   addDay?: () => void;
 
   // optional validation from parent
@@ -94,6 +95,7 @@ export const RouteDetailsBlock = ({
   onOpenViaRoutes,
   onRefreshRouteDistance,
   onDeleteDay,
+  onDeleteRouteDay,
   addDay,
   validationErrors,
   departureLocation,
@@ -368,50 +370,108 @@ const destLocations = data.rows
     }, 50);
   };
 
+
   const handleDeleteDay = () => {
-    try {
-      if (onDeleteDay) {
-        onDeleteDay();
-        return;
-      }
-    } catch (err) {
-      console.error("Delete day callback failed. Falling back to local delete.", err);
+  try {
+    if (onDeleteDay) {
+      onDeleteDay();
+      return;
     }
+  } catch (err) {
+    console.error("Delete day callback failed. Falling back to local delete.", err);
+  }
 
-    // Fallback: delete last day locally for contexts that don't wire onDeleteDay.
-    setRouteDetails((prev) => {
-      if (prev.length <= 1) return prev;
+  // Fallback: delete last day locally for contexts that don't wire onDeleteDay.
+  setRouteDetails((prev) => {
+    if (prev.length <= 1) return prev;
 
-      return prev.slice(0, -1).map((row, index) => ({
+    return prev.slice(0, -1).map((row, index) => ({
+      ...row,
+      id: index + 1,
+      day: index + 1,
+    }));
+  });
+
+  setDestinationOptionsMap((prev) => {
+    const next: Record<number, AutoSuggestOption[]> = {};
+    Object.entries(prev).forEach(([key, value]) => {
+      const idx = Number(key);
+      if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
+        next[idx] = value;
+      }
+    });
+    return next;
+  });
+
+  setLoadedSources((prev) => {
+    const next: Record<number, string> = {};
+    Object.entries(prev).forEach(([key, value]) => {
+      const idx = Number(key);
+      if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
+        next[idx] = value;
+      }
+    });
+    return next;
+  });
+};
+
+const handleDeleteRouteDay = (deleteIdx: number) => {
+  const totalDays = routeDetails.length;
+  const isFirstTwoDays = deleteIdx === 0 || deleteIdx === 1;
+  const isLastDay = deleteIdx === totalDays - 1;
+
+  if (totalDays <= 3 || isFirstTwoDays || isLastDay) {
+    return;
+  }
+
+  setDestinationOptionsMap((prev) => {
+    const next: Record<number, AutoSuggestOption[]> = {};
+
+    Object.entries(prev).forEach(([key, value]) => {
+      const oldIdx = Number(key);
+
+      if (Number.isNaN(oldIdx)) return;
+      if (oldIdx === deleteIdx) return;
+
+      const newIdx = oldIdx > deleteIdx ? oldIdx - 1 : oldIdx;
+      next[newIdx] = value;
+    });
+
+    return next;
+  });
+
+  setLoadedSources((prev) => {
+    const next: Record<number, string> = {};
+
+    Object.entries(prev).forEach(([key, value]) => {
+      const oldIdx = Number(key);
+
+      if (Number.isNaN(oldIdx)) return;
+      if (oldIdx === deleteIdx) return;
+
+      const newIdx = oldIdx > deleteIdx ? oldIdx - 1 : oldIdx;
+      next[newIdx] = value;
+    });
+
+    return next;
+  });
+
+  if (onDeleteRouteDay) {
+    onDeleteRouteDay(deleteIdx);
+    return;
+  }
+
+  // Fallback only: used when parent does not provide date/calendar sync.
+  setRouteDetails((prev) =>
+    prev
+      .filter((_, index) => index !== deleteIdx)
+      .map((row, index) => ({
         ...row,
         id: index + 1,
         day: index + 1,
-      }));
-    });
-
-    setDestinationOptionsMap((prev) => {
-      const next: Record<number, AutoSuggestOption[]> = {};
-      Object.entries(prev).forEach(([key, value]) => {
-        const idx = Number(key);
-        if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
-          next[idx] = value;
-        }
-      });
-      return next;
-    });
-
-    setLoadedSources((prev) => {
-      const next: Record<number, string> = {};
-      Object.entries(prev).forEach(([key, value]) => {
-        const idx = Number(key);
-        if (!Number.isNaN(idx) && idx < Math.max(0, routeDetails.length - 1)) {
-          next[idx] = value;
-        }
-      });
-      return next;
-    });
-  };
-
+      }))
+  );
+};
   const firstRouteSourceError = validationErrors?.firstRouteSource;
   const firstRouteNextError = validationErrors?.firstRouteNext;
 
@@ -423,37 +483,66 @@ const destLocations = data.rows
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 overflow-visible pb-24">
-  <div className="w-full overflow-visible">
-    <table className="w-full caption-bottom text-sm overflow-visible">
-          <TableHeader>
-            <TableRow className="bg-[#faf1ff]">
-  <TableHead className="text-xs text-[#4a4260] w-[80px]">DAY</TableHead>
-  <TableHead className="text-xs text-[#4a4260] w-[140px]">DATE</TableHead>
-  <TableHead className="text-xs text-[#4a4260] w-[200px]">
-    SOURCE DESTINATION
-  </TableHead>
-  <TableHead className="text-xs text-[#4a4260] w-[280px]">
-    NEXT DESTINATION
-  </TableHead>
-  <TableHead className="text-xs text-[#4a4260] w-[100px] text-center">
-    VIA ROUTE
-  </TableHead>
-  {!hideIntercityKm && (
-    <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
-      INTERCITY KM
-    </TableHead>
-  )}
-   <TableHead className="text-xs text-[#4a4260] w-[120px] text-center">
-    DIRECT DESTINATION VISIT
-  </TableHead>
-</TableRow>
-          </TableHeader>
+  <div className="w-full overflow-x-auto overflow-y-visible">
+    <table className="w-[910px] caption-bottom text-sm overflow-visible table-fixed">
+  <colgroup>
+    <col className="w-[80px]" />
+    <col className="w-[130px]" />
+    <col className="w-[210px]" />
+    <col className="w-[270px]" />
+    <col className="w-[60px]" />
+    {!hideIntercityKm && <col className="w-[90px]" />}
+    <col className="w-[50px]" />
+    <col className="w-[20px]" />
+  </colgroup>
+
+    <TableHeader>
+      <TableRow className="bg-[#faf1ff]">
+        <TableHead className="px-2 text-xs text-[#4a4260]">
+          DAY
+        </TableHead>
+
+        <TableHead className="px-2 text-xs text-[#4a4260]">
+          DATE
+        </TableHead>
+
+        <TableHead className="px-2 text-xs text-[#4a4260]">
+          SOURCE DESTINATION
+        </TableHead>
+
+        <TableHead className="px-2 text-xs text-[#4a4260]">
+          NEXT DESTINATION
+        </TableHead>
+
+        <TableHead className="px-2 text-xs text-[#4a4260] text-center">
+          VIA ROUTE
+        </TableHead>
+
+        {!hideIntercityKm && (
+          <TableHead className="px-2 text-xs text-[#4a4260] text-center">
+            INTERCITY KM
+          </TableHead>
+        )}
+
+        <TableHead className="px-2 text-xs text-[#4a4260] text-center leading-tight">
+  DIRECT DESTINATION VISIT
+</TableHead>
+
+<TableHead className="px-1 text-xs text-[#4a4260] text-center">
+  {" "}
+</TableHead>
+      </TableRow>
+    </TableHeader>
           <TableBody>
             {routeDetails.map((row, idx) => {
              const isFirstRow = idx === 0;
+const isSecondRow = idx === 1;
 const isLastRow = idx === routeDetails.length - 1;
 const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
 const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
+
+const canDeleteThisRouteDay =
+  routeDetails.length > 3 && !isFirstRow && !isSecondRow && !isLastRow;
 
               // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
@@ -492,9 +581,9 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
     className="overflow-visible"
     style={{ position: "relative", zIndex: routeDetails.length - idx }}
   >
-  <TableCell>{`DAY ${row.day}`}</TableCell>
+  <TableCell className="px-2">{`DAY ${row.day}`}</TableCell>
 
-  <TableCell>
+  <TableCell className="px-2">
     <Input
       tabIndex={-1}
       readOnly
@@ -505,9 +594,9 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
   </TableCell>
 
   <TableCell
-    data-field={isFirstRow ? "firstRouteSource" : undefined}
-    className={isFirstRow && firstRouteSourceError ? "align-top" : ""}
-  >
+  data-field={isFirstRow ? "firstRouteSource" : undefined}
+  className={`px-2 ${isFirstRow && firstRouteSourceError ? "align-top" : ""}`}
+>
     <div
       className={
         isFirstRow && firstRouteSourceError
@@ -532,7 +621,7 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
 
   <TableCell
   data-field={isFirstRow ? "firstRouteNext" : undefined}
-  className={`relative overflow-visible ${
+  className={`px-2 relative overflow-visible ${
     isFirstRow && firstRouteNextError ? "align-top" : ""
   }`}
 >
@@ -559,9 +648,9 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
         }
       : null;
   }}
-  className={`w-full max-w-[260px] ${
-    isLastRowLocked ? "pointer-events-none opacity-60" : ""
-  }`}
+className={`w-full max-w-[260px] ${
+  isLastRowLocked ? "pointer-events-none opacity-60" : ""
+}`}
 >
   <AutoSuggestSelect
     mode="single"
@@ -634,7 +723,7 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
     )}
   </TableCell>
 
-  <TableCell className="text-center">
+  <TableCell className="px-2 text-center">
   <button
     type="button"
     onClick={() => onOpenViaRoutes?.(row)}
@@ -646,18 +735,18 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
 </TableCell>
 
 {!hideIntercityKm && (
-  <TableCell className="text-center">
-    <Input
-      tabIndex={-1}
-      readOnly
-      placeholder="KM"
-      value={row.no_of_km ?? 0}
-      className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs text-center"
-    />
-  </TableCell>
+  <TableCell className="px-2 text-center">
+  <Input
+    tabIndex={-1}
+    readOnly
+    placeholder="KM"
+    value={row.no_of_km ?? 0}
+    className="h-8 w-[85px] mx-auto rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs text-center"
+  />
+</TableCell>
 )}
 
-<TableCell className="text-center">
+<TableCell className="px-2 text-center">
   <span
     className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
     title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
@@ -687,6 +776,20 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
     </button>
   </span>
 </TableCell>
+
+<TableCell className="px-1 text-center">
+  {canDeleteThisRouteDay && (
+    <button
+      type="button"
+      onClick={() => handleDeleteRouteDay(idx)}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xl font-semibold leading-none text-red-500 hover:bg-red-50 hover:text-red-700"
+      title={`Delete Day ${row.day}`}
+      aria-label={`Delete Day ${row.day}`}
+    >
+      ×
+    </button>
+  )}
+</TableCell>
 </TableRow>
               );
             })}
@@ -703,15 +806,6 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
           + Add Day
         </Button>
 
-         <Button
-    type="button"
-    variant="outline"
-          onClick={handleDeleteDay}
-    disabled={routeDetails.length === 1}
-    className="border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600"
-  >
-    Delete Day
-  </Button>
       </CardContent>
     </Card>
   );

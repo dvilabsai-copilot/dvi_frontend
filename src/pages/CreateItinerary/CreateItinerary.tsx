@@ -1006,6 +1006,33 @@ const deleteDay = () => {
   });
 };
 
+const deleteRouteDay = (deleteIdx: number) => {
+  setRouteDetails((prev) => {
+    const totalDays = prev.length;
+    const isFirstTwoDays = deleteIdx === 0 || deleteIdx === 1;
+    const isLastDay = deleteIdx === totalDays - 1;
+
+    if (totalDays <= 3 || isFirstTwoDays || isLastDay) {
+      return prev;
+    }
+
+    const updated = prev
+      .filter((_, index) => index !== deleteIdx)
+      .map((row, index) => ({
+        ...row,
+        id: index + 1,
+        day: index + 1,
+        date: tripStartDate ? addDaysToDDMMYYYY(tripStartDate, index) : row.date,
+      }));
+
+    if (tripStartDate && updated.length > 0) {
+      setTripEndDate(addDaysToDDMMYYYY(tripStartDate, updated.length - 1));
+    }
+
+    return updated;
+  });
+};
+
 const addDay = () => {
   setRouteDetails((prev) => {
     if (!prev.length) {
@@ -1684,17 +1711,18 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
             onDeleteDay={deleteDay}
           />
         ) : (
-                   <RouteDetailsBlock
-            locations={locations}
-            routeDetails={routeDetails}
-            setRouteDetails={setRouteDetails}
-            onOpenViaRoutes={openViaRoutes}
-            onRefreshRouteDistance={refreshRouteDistance}
-            departureLocation={departureLocation}
-            hideIntercityKm={false}
-            onDeleteDay={deleteDay}
-            addDay={addDay}
-          />
+<RouteDetailsBlock
+  locations={locations}
+  routeDetails={routeDetails}
+  setRouteDetails={setRouteDetails}
+  onOpenViaRoutes={openViaRoutes}
+  onRefreshRouteDistance={refreshRouteDistance}
+  departureLocation={departureLocation}
+  hideIntercityKm={false}
+  onDeleteDay={deleteDay}
+  onDeleteRouteDay={deleteRouteDay}
+  addDay={addDay}
+/>
         )}
         {validationErrors.firstRouteSource && (
           <p className="mt-1 text-xs text-red-500">{validationErrors.firstRouteSource}</p>
