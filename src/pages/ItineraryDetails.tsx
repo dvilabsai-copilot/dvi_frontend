@@ -3955,10 +3955,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     return { html: "", plainText: "", packageSectionsHtml: "" };
   }
 
-  const sectionTitle =
-    mode === "highlights"
-      ? "Highlights"
-      : "Recommended Hotel";
+  const sectionTitle = "Recommended Hotel";
 
   const tableStyle =
     "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#000;";
@@ -4405,6 +4402,141 @@ const htmlToPlainText = (html: string): string => {
     .trim();
 };
 
+const buildHighlightsHotspotDetailsHtml = (): string => {
+  if (!itinerary?.days?.length) return "";
+
+  const tableStyle =
+    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.35;color:#000;";
+  const borderStyle = "border:1px solid #b1b1b1;";
+  const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
+  const dayCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
+  const titleStyle =
+    "font-family:Calibri,Arial,sans-serif;font-size:18px;line-height:36px;font-weight:700;text-align:center;color:#000;";
+
+  const formatB2BDate = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const getHotspotLine = (day: ItineraryDay) => {
+    const attractions = day.segments.filter(
+      (segment): segment is AttractionSegment => segment.type === "attraction",
+    );
+
+    if (!attractions.length) {
+      return "No Hotspot Details Available";
+    }
+
+    return attractions
+      .map((segment) => {
+        const name = escapeHtml(segment.name || "");
+        const duration = escapeHtml(segment.duration || "");
+
+        return `<b>${name}</b>${duration ? ` - ${duration}` : ""}`;
+      })
+      .join(", ");
+  };
+
+  const rowsHtml = itinerary.days
+    .map((day) => {
+      const fromText = day.departure || "";
+      const toText = day.arrival || "";
+      const routeText =
+        fromText || toText
+          ? ` - ${escapeHtml(fromText)} to ${escapeHtml(toText)}`
+          : "";
+
+      return `
+        <tr>
+          <td style="${dayCellStyle}">
+            Day ${escapeHtml(day.dayNumber)} - ${escapeHtml(formatB2BDate(day.date))}
+            (${escapeHtml(day.startTime || "")} - ${escapeHtml(day.endTime || "")})${routeText}
+          </td>
+        </tr>
+        <tr>
+          <td style="${cellStyle}">
+            ${getHotspotLine(day)}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `
+    <div style="${titleStyle}margin-top:22px;">Hotspot Details</div>
+    <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
+      ${rowsHtml}
+    </table>
+  `;
+};
+
+const replaceHighlightsHotspotDetailsHtml = (
+  backendHtml: string,
+  highlightsHotspotHtml: string,
+): string => {
+  if (!backendHtml || !highlightsHotspotHtml) return backendHtml;
+
+  const hotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
+
+  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
+    return backendHtml;
+  }
+
+  const hotspotHeadingIndex = hotspotHeadingMatch.index;
+
+  const hotspotTableStart = backendHtml.lastIndexOf("<table", hotspotHeadingIndex);
+
+  if (hotspotTableStart === -1) {
+    return backendHtml;
+  }
+
+  const afterHotspotHtml = backendHtml.slice(
+    hotspotHeadingIndex + "Hotspot Details".length,
+  );
+
+  const nextSectionMatchers = [
+    /Terms\s*&?\s*Condition/i,
+    /Package Includes/i,
+    /Package Excludes/i,
+    /Inclusion/i,
+    /Exclusion/i,
+    /Important Instructions/i,
+    /Instructions/i,
+    /Cancellation/i,
+    /Payment Policy/i,
+  ];
+
+  const nextSectionIndex = nextSectionMatchers
+    .map((regex) => {
+      const match = afterHotspotHtml.match(regex);
+
+      return match?.index !== undefined
+        ? hotspotHeadingIndex + "Hotspot Details".length + match.index
+        : -1;
+    })
+    .filter((index) => index > hotspotHeadingIndex)
+    .sort((a, b) => a - b)[0];
+
+  if (!nextSectionIndex) {
+    return `${backendHtml.slice(0, hotspotTableStart)}${highlightsHotspotHtml}`;
+  }
+
+  const nextSectionTableStart = backendHtml.lastIndexOf("<table", nextSectionIndex);
+  const hotspotSectionEnd =
+    nextSectionTableStart > hotspotTableStart ? nextSectionTableStart : nextSectionIndex;
+
+  return `${backendHtml.slice(
+    0,
+    hotspotTableStart,
+  )}${highlightsHotspotHtml}${backendHtml.slice(hotspotSectionEnd)}`;
+};
 const cleanVehicleOnlyClipboardHtml = (html: string): string => {
   if (!html) return html;
 
@@ -11844,10 +11976,17 @@ function getHotelAmountForBooking(entry: any): number {
 // Recommended Hotel - 4 -> Vehicle Details -> Cost.
 const localClipboard = buildClipboardHtml(clipboardType);
 
-const mergedHtml = mergeClipboardWithB2BRecommendedPackages(
+let mergedHtml = mergeClipboardWithB2BRecommendedPackages(
   html,
   localClipboard.packageSectionsHtml || localClipboard.html,
 );
+
+if (clipboardType === "highlights") {
+  mergedHtml = replaceHighlightsHotspotDetailsHtml(
+    mergedHtml,
+    buildHighlightsHotspotDetailsHtml(),
+  );
+}
 
 const mergedPlainText = htmlToPlainText(mergedHtml);
 
