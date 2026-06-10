@@ -329,13 +329,15 @@ placeholder="Pincode"
             <Label>Password {isEdit ? "(leave blank to keep)" : "*"}</Label>
             <Input
               type="password"
+              name="vendor_new_password"
+              autoComplete="new-password"
               className={fieldErrors.password ? inputErrorClass : ""}
-              value={basicInfo.password}
+              value={basicInfo.password ?? ""}
               onChange={(e) => {
                 setBasicInfo((p) => ({ ...p, password: e.target.value }));
                 onClearFieldError?.("password");
               }}
-              placeholder="Password"
+              placeholder={isEdit ? "Leave blank to keep existing password" : "Password"}
             />
             {fieldErrors.password ? <p className="text-xs text-red-600">{fieldErrors.password}</p> : null}
           </div>
