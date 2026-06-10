@@ -120,9 +120,11 @@ export const ItineraryService = {
     qs.set("sourceLocation", sourceLocation);
     qs.set("destinationLocation", destinationLocation);
     qs.set("dayCount", String(dayCount));
+    qs.set("scope", "routes");
 
     return api(`itineraries/templates/match?${qs.toString()}`, {
       method: "GET",
+      cache: "no-store",
     });
   },
 

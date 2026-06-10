@@ -96,6 +96,24 @@ function csvToNumberArray(v: unknown): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
+function normalizeRouteLocationList(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) continue;
+
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
 function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption[]): string {
   const codeFromPlan = typeof plan?.meal_plan_code === "string" ? plan.meal_plan_code.trim() : "";
   if (codeFromPlan) {
@@ -771,89 +789,65 @@ useEffect(() => {
 
         if (cancelled) return;
 
-        if (!match?.found || !match?.template) {
+        const templateRoutes = Array.isArray(match?.template?.routes)
+          ? match.template.routes
+          : [];
+
+        if (!match?.found || templateRoutes.length === 0) {
           setTemplateAppliedKey(key);
           return;
         }
 
-        const template = match.template;
-        const plan = template?.plan;
-
-        if (plan) {
-          setItineraryPreference(
-            plan.itinerary_preference === 2
-              ? "vehicle"
-              : plan.itinerary_preference === 1
-              ? "hotel"
-              : "both",
-          );
-
-          setItineraryTypeSelect(
-            plan.itinerary_type != null ? String(plan.itinerary_type) : "",
-          );
-          setArrivalType(plan.arrival_type != null ? String(plan.arrival_type) : "");
-          setDepartureType(plan.departure_type != null ? String(plan.departure_type) : "");
-          setEntryTicketRequired(
-            plan.entry_ticket_required != null
-              ? String(plan.entry_ticket_required)
-              : "",
-          );
-          setGuideRequired(
-            plan.guide_for_itinerary != null ? String(plan.guide_for_itinerary) : "",
-          );
-          setNationality(plan.nationality != null ? String(plan.nationality) : "");
-          setFoodPreference(plan.food_type != null ? String(plan.food_type) : "");
-          setMealPlanCode(resolveMealPlanCodeFromPlan(plan, mealPlanOptions || []));
-          setBudget(plan.expecting_budget ?? "");
-          setSpecialInstructions(plan.special_instructions ?? "");
-          setSelectedHotelCategoryIds(csvToNumberArray(plan.preferred_hotel_category));
-          setSelectedHotelFacilityIds(csvToStringArray(plan.hotel_facilities));
-        }
-
-        if (Array.isArray(template?.routes) && template.routes.length) {
-          setRouteDetails(
-            template.routes.map((r: any, idx: number): RouteRow => ({
-              id: idx + 1,
-              day: r.no_of_days ?? idx + 1,
-              // Keep template route sequence, but always align dates to the user's selected trip start date.
-              date: addDaysToDDMMYYYY(tripStartDate, idx),
-              source: r.location_name ?? "",
-              next: r.next_visiting_location ?? "",
-              via: r.via_route ?? "",
-              via_routes: Array.isArray(r.via_routes)
-                ? r.via_routes.map((vr: any) => ({
+        setRouteDetails((prev) =>
+          Array.from({ length: dayCount }, (_, idx): RouteRow => {
+            const r = templateRoutes[idx] || {};
+            const previous = prev[idx];
+            const viaRoutes = Array.isArray(r.via_routes)
+              ? r.via_routes
+                  .map((vr: any) => ({
                     itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
-                    itinerary_via_location_name: String(vr.itinerary_via_location_name),
+                    itinerary_via_location_name: String(vr.itinerary_via_location_name || ""),
                   }))
-                : [],
+                  .filter(
+                    (vr: any) =>
+                      Number.isFinite(vr.itinerary_via_location_ID) &&
+                      vr.itinerary_via_location_name.trim(),
+                  )
+              : [];
+            const isFirstRow = idx === 0;
+            const isLastRow = idx === dayCount - 1;
+
+            return {
+              id: idx + 1,
+              day: idx + 1,
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
+              source: isFirstRow
+                ? arrivalLocation
+                : String(r.location_name ?? previous?.source ?? ""),
+              next: isLastRow
+                ? departureLocation
+                : String(r.next_visiting_location ?? previous?.next ?? ""),
+              via: String(r.via_route ?? previous?.via ?? ""),
+              via_routes: viaRoutes,
               no_of_km:
                 r.no_of_km !== undefined &&
                 r.no_of_km !== null &&
                 String(r.no_of_km).trim() !== ""
                   ? Number(r.no_of_km)
-                  : 0,
-              directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
-            })),
-          );
-        }
-
-        if (Array.isArray(template?.vehicles) && template.vehicles.length) {
-          setVehicles(
-            template.vehicles.map((v: any, idx: number): VehicleRow => ({
-              id: idx + 1,
-              type: v.vehicle_type_id ? String(v.vehicle_type_id) : "",
-              count: v.vehicle_count ?? 1,
-            })),
-          );
-        }
+                  : previous?.no_of_km ?? 0,
+              directVisit: Number(r.direct_to_next_visiting_place ?? 0) === 1 ? "Yes" : "No",
+            };
+          }),
+        );
 
         setTemplateAppliedKey(key);
         toast({
-          title: "Template loaded",
-          description: "Applied saved itinerary template for this route and duration.",
+          title: "Route template loaded",
+          description:
+            "Applied saved route details only. Your itinerary preference and vehicle selections were kept unchanged.",
         });
       } catch (error) {
-        console.error("Failed to load matching itinerary template", error);
+        console.error("Failed to load matching itinerary route template", error);
         if (!cancelled) setTemplateAppliedKey(key);
       }
     })();
@@ -870,7 +864,6 @@ useEffect(() => {
     templateAppliedKey,
     toast,
     setRouteDetails,
-    mealPlanOptions,
   ]);
 
   // Auto-open route suggestions modal when itinerary type is "Default"
@@ -917,9 +910,14 @@ useEffect(() => {
 
   useEffect(() => {
     let isMounted = true;
-    const trimmed = arrivalLocation.trim();
+    const sourceLocation = normalizeRouteLocationList(
+      routeDetails.map((row) => row.source)
+    );
+    const nextVisitingLocation = normalizeRouteLocationList(
+      routeDetails.map((row) => row.next)
+    );
 
-    if (!trimmed) {
+    if (sourceLocation.length === 0 || nextVisitingLocation.length === 0) {
       setVehicleTypes([]);
       setSelectedVehicleIds([]);
       return;
@@ -927,7 +925,11 @@ useEffect(() => {
 
     (async () => {
       try {
-        const result = await fetchEligibleVehicleTypes(trimmed, itineraryPlanId ?? null);
+        const result = await fetchEligibleVehicleTypes({
+          itineraryPlanId: itineraryPlanId ?? null,
+          sourceLocation,
+          nextVisitingLocation,
+        });
         if (!isMounted) return;
         setVehicleTypes(result.vehicleTypes);
         setSelectedVehicleIds(result.selectedVehicleIds);
@@ -943,7 +945,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, [arrivalLocation, itineraryPlanId]);
+  }, [routeDetails, itineraryPlanId]);
 
   // Handler for route suggestion selection
   const handleRouteSelection = (
