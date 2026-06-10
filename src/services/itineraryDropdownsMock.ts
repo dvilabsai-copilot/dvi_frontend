@@ -220,37 +220,26 @@ export async function fetchVehicleTypes(): Promise<SimpleOption[]> {
   return fetchSimple("/vehicle-types");
 }
 
-/**
- * Fetch eligible vehicle types based on the provided arrival location.
- *
- * Sends the payload expected by the new backend endpoint:
- *   POST /itinerary-dropdowns/eligible-vehicle-types
- *
- * Request body:
- * {
- *   itineraryPlanId: "<optional>",
- *   sourceLocation: ["<arrivalLocation>"],
- *   nextVisitingLocation: []
- * }
- *
- * Response shape:
- * {
- *   vehicleTypes: [{ id, label }, ...],
- *   selectedVehicleIds: ["25", "30"]
- * }
- */
-export async function fetchEligibleVehicleTypes(
-  arrivalLocation: string,
-  itineraryPlanId?: number | null
-): Promise<{ vehicleTypes: SimpleOption[]; selectedVehicleIds: string[] }> {
-  if (!arrivalLocation.trim()) {
+export async function fetchEligibleVehicleTypes(args: {
+  sourceLocation: string[];
+  nextVisitingLocation: string[];
+  itineraryPlanId?: number | null;
+}): Promise<{ vehicleTypes: SimpleOption[]; selectedVehicleIds: string[] }> {
+  const sourceLocation = Array.isArray(args.sourceLocation)
+    ? args.sourceLocation.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+  const nextVisitingLocation = Array.isArray(args.nextVisitingLocation)
+    ? args.nextVisitingLocation.map((value) => String(value ?? "").trim()).filter(Boolean)
+    : [];
+
+  if (sourceLocation.length === 0 || nextVisitingLocation.length === 0) {
     return { vehicleTypes: [], selectedVehicleIds: [] };
   }
 
   const payload = {
-    itineraryPlanId: itineraryPlanId ?? null,
-    sourceLocation: [arrivalLocation],
-    nextVisitingLocation: [],
+    itineraryPlanId: args.itineraryPlanId ?? null,
+    sourceLocation,
+    nextVisitingLocation,
   };
 
   try {
