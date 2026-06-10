@@ -221,6 +221,19 @@ export default function VendorFormPage() {
           `/vendors/${editingId}`
         )) as VendorDetailResponse;
         const { vendor, branches: existingBranches } = data;
+        const countryId = vendor.vendor_country ?? vendor.vendor_country_id ?? "";
+        const stateId = vendor.vendor_state ?? vendor.vendor_state_id ?? "";
+        const cityId = vendor.vendor_city ?? vendor.vendor_city_id ?? "";
+        const marginPercent = vendor.vendor_margin ?? vendor.vendor_margin_percent ?? "";
+        const marginGstTypeRaw = vendor.vendor_margin_gst_type;
+        const marginGstPercent =
+          vendor.vendor_margin_gst_percentage ?? vendor.vendor_margin_gst_percent ?? "";
+        const normalizedMarginGstType =
+          marginGstTypeRaw === 1 || marginGstTypeRaw === "1"
+            ? "included"
+            : marginGstTypeRaw === 2 || marginGstTypeRaw === "2"
+              ? "excluded"
+              : (vendor.vendor_margin_gst_type ?? "included");
 
         setVendorId(vendor.vendor_id);
         setBasicInfo({
@@ -228,32 +241,35 @@ export default function VendorFormPage() {
           email: vendor.vendor_email ?? "",
           primaryMobile: vendor.vendor_primary_mobile_number ?? "",
           altMobile: vendor.vendor_alternative_mobile_number ?? "",
-          otherNumber: vendor.vendor_other_number ?? "",
-          countryId: vendor.vendor_country_id
-            ? String(vendor.vendor_country_id)
-            : "",
-          stateId: vendor.vendor_state_id ? String(vendor.vendor_state_id) : "",
-          cityId: vendor.vendor_city_id ? String(vendor.vendor_city_id) : "",
+          otherNumber: vendor.vendor_othernumber ?? vendor.vendor_other_number ?? "",
+          countryId: countryId !== "" && countryId !== null && countryId !== undefined ? String(countryId) : "",
+          stateId: stateId !== "" && stateId !== null && stateId !== undefined ? String(stateId) : "",
+          cityId: cityId !== "" && cityId !== null && cityId !== undefined ? String(cityId) : "",
           pincode: vendor.vendor_pincode ?? "",
-          username: vendor.vendor_username ?? "",
+          username:
+            vendor.vendor_username ??
+            vendor.username ??
+            vendor.vendor_useremail ??
+            "",
           password: "",
-          roleId: vendor.role_id ? String(vendor.role_id) : "",
-          marginPercent:
-            vendor.vendor_margin_percent != null
-              ? String(vendor.vendor_margin_percent)
-              : "",
-          marginGstType: vendor.vendor_margin_gst_type ?? "included",
-          marginGstPercent:
-            vendor.vendor_margin_gst_percent != null
-              ? String(vendor.vendor_margin_gst_percent)
-              : "",
+          roleId:
+            vendor.role_id != null && vendor.role_id !== 0
+              ? String(vendor.role_id)
+              : vendor.roleID != null && vendor.roleID !== 0
+                ? String(vendor.roleID)
+                : "",
+          marginPercent: marginPercent !== "" && marginPercent !== null && marginPercent !== undefined ? String(marginPercent) : "",
+          marginGstType: normalizedMarginGstType,
+          marginGstPercent: marginGstPercent !== "" && marginGstPercent !== null && marginGstPercent !== undefined ? String(marginGstPercent) : "",
           address: vendor.vendor_address ?? "",
-          invoiceCompanyName: vendor.invoice_company_name ?? "",
+          invoiceCompanyName:
+            vendor.vendor_company_name ?? vendor.invoice_company_name ?? "",
           invoiceAddress: vendor.invoice_address ?? "",
           invoicePincode: vendor.invoice_pincode ?? "",
-          invoiceGstin: vendor.invoice_gstin ?? "",
-          invoicePan: vendor.invoice_pan ?? "",
-          invoiceContactNo: vendor.invoice_contact_no ?? "",
+          invoiceGstin: vendor.invoice_gstin_number ?? vendor.invoice_gstin ?? "",
+          invoicePan: vendor.invoice_pan_number ?? vendor.invoice_pan ?? "",
+          invoiceContactNo:
+            vendor.invoice_mobile_number ?? vendor.invoice_contact_no ?? "",
           invoiceEmail: vendor.invoice_email ?? "",
         });
 
@@ -436,7 +452,7 @@ if (!isFilled(basicInfo.altMobile)) {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         vendor_name: basicInfo.vendorName,
         vendor_email: basicInfo.email,
         vendor_primary_mobile_number: basicInfo.primaryMobile,
@@ -468,6 +484,10 @@ if (!isFilled(basicInfo.altMobile)) {
         role_id: basicInfo.roleId ? Number(basicInfo.roleId) : null,
         vendor_username: basicInfo.username,
       };
+
+      if (basicInfo.password.trim()) {
+        payload.vendor_password = basicInfo.password.trim();
+      }
 
       const method = vendorId ? "PUT" : "POST";
       const path = vendorId ? `/vendors/${vendorId}` : "/vendors";
