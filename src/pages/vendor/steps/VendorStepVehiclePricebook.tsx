@@ -371,6 +371,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       try {
         const preview = (await api(
           `/vendors/${vendorId}/pricebook/local/preview?startDate=${encodeURIComponent(localStartDate)}&endDate=${encodeURIComponent(localEndDate)}`,
+          { cache: "no-store" },
         )) as any;
         setLocalPreview(preview ?? { days: [], rows: [] });
       } catch (e) {
@@ -393,6 +394,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       try {
         const preview = (await api(
           `/vendors/${vendorId}/pricebook/outstation/preview?startDate=${encodeURIComponent(outstationStartDate)}&endDate=${encodeURIComponent(outstationEndDate)}`,
+          { cache: "no-store" },
         )) as any;
         setOutstationPreview(preview ?? { days: [], rows: [] });
       } catch (e) {
@@ -407,11 +409,11 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
     setLoading(true);
     try {
       const [vRes, dcRes, extraRes, localRowsRes, outRowsRes] = await Promise.all([
-        api(`/vendors/${vendorId}`),
-        api(`/vendors/${vendorId}/vehicle-type-costs`),
-        api(`/vendors/${vendorId}/vehicle-extra-costs`),
-        api(`/vendors/${vendorId}/pricebook/local/form-rows`),
-        api(`/vendors/${vendorId}/pricebook/outstation/form-rows`),
+        api(`/vendors/${vendorId}`, { cache: "no-store" }),
+        api(`/vendors/${vendorId}/vehicle-type-costs`, { cache: "no-store" }),
+        api(`/vendors/${vendorId}/vehicle-extra-costs`, { cache: "no-store" }),
+        api(`/vendors/${vendorId}/pricebook/local/form-rows`, { cache: "no-store" }),
+        api(`/vendors/${vendorId}/pricebook/outstation/form-rows`, { cache: "no-store" }),
       ]);
 
       const v = vRes.vendor;
@@ -514,6 +516,7 @@ if (vendorTypeOptions.length > 0) {
       if (localStartDate && localEndDate) {
         const preview = (await api(
           `/vendors/${vendorId}/pricebook/local/preview?startDate=${encodeURIComponent(localStartDate)}&endDate=${encodeURIComponent(localEndDate)}`,
+          { cache: "no-store" },
         )) as any;
         setLocalPreview(preview ?? { days: [], rows: [] });
       }
@@ -818,6 +821,7 @@ if (vendorTypeOptions.length > 0) {
       if (localStartDate && localEndDate) {
         const preview = (await api(
           `/vendors/${vendorId}/pricebook/local/preview?startDate=${encodeURIComponent(localStartDate)}&endDate=${encodeURIComponent(localEndDate)}`,
+          { cache: "no-store" },
         )) as any;
         setLocalPreview(preview ?? { days: [], rows: [] });
       }
@@ -856,6 +860,13 @@ if (vendorTypeOptions.length > 0) {
         }),
       });
       setOutstationRentalByRow({});
+      if (outstationStartDate && outstationEndDate) {
+        const preview = (await api(
+          `/vendors/${vendorId}/pricebook/outstation/preview?startDate=${encodeURIComponent(outstationStartDate)}&endDate=${encodeURIComponent(outstationEndDate)}`,
+          { cache: "no-store" },
+        )) as any;
+        setOutstationPreview(preview ?? { days: [], rows: [] });
+      }
       await fetchData();
     } catch (e) {
       console.error("Failed to update outstation pricebook", e);
