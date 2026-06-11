@@ -47,6 +47,7 @@ ownerPincode:string;
 country:string;
 state:string;
 city:string;
+vehicleOrigin:string;
 chassisNumber:string;
 extraKmCharge:string;
 earlyMorningCharges:string;
@@ -155,6 +156,7 @@ ownerPincode:"",
 country:"",
 state:"",
 city:"",
+vehicleOrigin:"",
 chassisNumber:"",
 vehicleExpiryDate:"",
 fuelType:"",
@@ -184,6 +186,7 @@ setVehicleForm(prev=>({
 country:selectedBranch.countryId ? String(selectedBranch.countryId) : prev.country,
 state:selectedBranch.stateId ? String(selectedBranch.stateId) : prev.state,
 city:selectedBranch.cityId ? String(selectedBranch.cityId) : prev.city,
+vehicleOrigin:prev.vehicleOrigin || String(selectedBranch.location || selectedBranch.name || ""),
 }));
 },[selectedBranch,isAddMode,editingVehicleId]);
 
@@ -824,6 +827,7 @@ ownerPincode:v.owner_pincode || "",
 country:String(v.owner_country || ""),
 state:String(v.owner_state || ""),
 city:String(v.owner_city || ""),
+vehicleOrigin:String(v.vehicle_origin || v.vehicle_orign || ""),
 chassisNumber:v.chassis_number || "",
 vehicleExpiryDate:v.vehicle_fc_expiry_date ? v.vehicle_fc_expiry_date.split("T")[0] : "",
 fuelType:String(v.fuel_type || ""),
@@ -897,6 +901,10 @@ if(!String(vehicleForm.city ?? "").trim()){
 errors.city="City is required.";
 }
 
+if(!String(vehicleForm.vehicleOrigin ?? "").trim() && !String(vehicleForm.vehicleLocationId ?? "").trim()){
+errors.vehicleOrigin="Vehicle origin is required.";
+}
+
 
 const chassisNumber=String(vehicleForm.chassisNumber ?? "").trim();
 
@@ -940,6 +948,7 @@ owner_pincode:vehicleForm.ownerPincode,
 owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
 owner_state:vehicleForm.state,
 owner_city:vehicleForm.city,
+vehicle_origin:vehicleForm.vehicleOrigin,
 chassis_number:vehicleForm.chassisNumber,
 vehicle_fc_expiry_date:vehicleForm.vehicleExpiryDate ? new Date(vehicleForm.vehicleExpiryDate) : null,
 fuel_type:vehicleForm.fuelType ? Number(vehicleForm.fuelType) : null,
@@ -976,6 +985,7 @@ setVehicleForm({
 country:selectedBranch?.countryId ? String(selectedBranch.countryId) : "",
 state:selectedBranch?.stateId ? String(selectedBranch.stateId) : "",
 city:selectedBranch?.cityId ? String(selectedBranch.cityId) : "",
+vehicleOrigin:selectedBranch?.location || selectedBranch?.name || "",
 });
 setVehicleDocuments([]);
 setVehicleFormErrors({});
@@ -1436,6 +1446,17 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
         ))}
       </select>
       {vehicleFormErrors.city ? <p className="text-xs text-red-600">{vehicleFormErrors.city}</p> : null}
+    </div>
+
+    <div className="space-y-1 md:col-span-2">
+      <label className="text-sm text-slate-600">Vehicle Origin</label>
+      <input
+        value={vehicleForm.vehicleOrigin}
+        onChange={(e)=>handleFieldChange("vehicleOrigin",e.target.value)}
+        placeholder="e.g. Bangalore, International Airport"
+        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOrigin ? "border-red-400" : ""}`}
+      />
+      {vehicleFormErrors.vehicleOrigin ? <p className="text-xs text-red-600">{vehicleFormErrors.vehicleOrigin}</p> : null}
     </div>
 
   <div className="space-y-1">
