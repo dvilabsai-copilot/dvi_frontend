@@ -17,6 +17,10 @@ type Branch={
 id:number;
 name:string;
 vehicleCount:number;
+countryId?:number;
+stateId?:number;
+cityId?:number;
+location?:string;
 };
 
 type VehicleRow={
@@ -163,6 +167,7 @@ insuranceStartDate:"",
 insuranceEndDate:"",
 insuranceContactNumber:"",
 rtoCode:"",
+vehicleLocationId:"",
 };
 
 const [vehicleForm,setVehicleForm]=useState(emptyVehicleForm);
@@ -170,6 +175,17 @@ const [vehicleDocuments,setVehicleDocuments]=useState<File[]>([]);
 const [isUploadModalOpen,setIsUploadModalOpen]=useState(false);
 const [uploadDocumentType,setUploadDocumentType]=useState("");
 const [uploadDocumentFile,setUploadDocumentFile]=useState<File|null>(null);
+
+useEffect(()=>{
+if(!selectedBranch || !isAddMode || editingVehicleId) return;
+
+setVehicleForm(prev=>({
+...prev,
+country:selectedBranch.countryId ? String(selectedBranch.countryId) : prev.country,
+state:selectedBranch.stateId ? String(selectedBranch.stateId) : prev.state,
+city:selectedBranch.cityId ? String(selectedBranch.cityId) : prev.city,
+}));
+},[selectedBranch,isAddMode,editingVehicleId]);
 
 useEffect(() => {
 if (!vendorId) return;
@@ -532,7 +548,12 @@ setIsVehicleListOpen(false);
 
 const handleOpenAddVehicle = () => {
 setEditingVehicleId(null);
-setVehicleForm(emptyVehicleForm);
+setVehicleForm({
+...emptyVehicleForm,
+country:selectedBranch?.countryId ? String(selectedBranch.countryId) : "",
+state:selectedBranch?.stateId ? String(selectedBranch.stateId) : "",
+city:selectedBranch?.cityId ? String(selectedBranch.cityId) : "",
+});
 setVehicleDocuments([]);
 setVehicleFormErrors({});
 setIsVehicleListOpen(false);
@@ -557,6 +578,11 @@ b.name ||
 "Branch",
 
 vehicleCount:0
+,
+countryId:Number(b.vendor_branch_country ?? b.country_id ?? b.countryId ?? 0) || undefined,
+stateId:Number(b.vendor_branch_state ?? b.state_id ?? b.stateId ?? 0) || undefined,
+cityId:Number(b.vendor_branch_city ?? b.city_id ?? b.cityId ?? 0) || undefined,
+location:String(b.vendor_branch_location ?? b.branch_location ?? b.location ?? "")
 
 }));
 
@@ -810,6 +836,7 @@ insuranceStartDate:v.insurance_start_date ? v.insurance_start_date.split("T")[0]
 insuranceEndDate:v.insurance_end_date ? v.insurance_end_date.split("T")[0] : "",
 insuranceContactNumber:v.insurance_contact_no || "",
 rtoCode:v.RTO_code || "",
+vehicleLocationId:String(v.vehicle_location_id || ""),
 });
 
 setIsVehicleListOpen(false);
@@ -925,6 +952,7 @@ insurance_start_date:vehicleForm.insuranceStartDate ? new Date(vehicleForm.insur
 insurance_end_date:vehicleForm.insuranceEndDate ? new Date(vehicleForm.insuranceEndDate) : null,
 insurance_contact_no:vehicleForm.insuranceContactNumber,
 RTO_code:vehicleForm.rtoCode,
+vehicle_location_id:vehicleForm.vehicleLocationId ? Number(vehicleForm.vehicleLocationId) : null,
 };
 
 if(editingVehicleId){
@@ -943,7 +971,12 @@ await fetchVehicles();
 setIsAddMode(false);
 setIsVehicleListOpen(true);
 setEditingVehicleId(null);
-setVehicleForm(emptyVehicleForm);
+setVehicleForm({
+...emptyVehicleForm,
+country:selectedBranch?.countryId ? String(selectedBranch.countryId) : "",
+state:selectedBranch?.stateId ? String(selectedBranch.stateId) : "",
+city:selectedBranch?.cityId ? String(selectedBranch.cityId) : "",
+});
 setVehicleDocuments([]);
 setVehicleFormErrors({});
 
