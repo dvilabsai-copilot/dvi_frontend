@@ -2623,6 +2623,9 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       provider: string;
       hotelCode: string;
       bookingCode: string;
+      searchReference?: string;
+      roomId?: string;
+      rateId?: string;
       roomType: string;
       netAmount: number;
       hotelName: string;
@@ -4806,6 +4809,32 @@ const inferHotelProvider = (entry: any): HotelProvider => {
       entry?.roomTypes?.[0]?.roomCode ||
       '',
     ).trim();
+  }
+
+  function parseStaahSearchReference(reference: any): {
+    propertyId: string;
+    roomId: string;
+    rateId: string;
+  } | null {
+    const raw = String(reference || '').trim();
+    if (!raw.startsWith('STAAH-')) {
+      return null;
+    }
+
+    const parts = raw.split('-');
+    if (parts.length < 5) {
+      return null;
+    }
+
+    const propertyId = String(parts[1] || '').trim();
+    const roomId = String(parts[2] || '').trim();
+    const rateId = String(parts[3] || '').trim();
+
+    if (!propertyId || !roomId || !rateId) {
+      return null;
+    }
+
+    return { propertyId, roomId, rateId };
   }
 
 function getHotelAmountForBooking(entry: any): number {
@@ -7250,6 +7279,14 @@ function getHotelAmountForBooking(entry: any): number {
         provider: String(hotel.provider || 'tbo').trim().toLowerCase(),
         hotelCode: String(hotel.hotelCode || ''),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
+        searchReference: String(hotel.searchReference || hotel.bookingCode || '').trim() || undefined,
+        roomId:
+          parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.roomId ||
+          String(hotel.roomTypes?.[0]?.roomCode || '').trim() ||
+          undefined,
+        rateId:
+          parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.rateId ||
+          undefined,
         roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
         netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
         hotelName: hotel.hotelName,
@@ -7497,6 +7534,13 @@ function getHotelAmountForBooking(entry: any): number {
               provider: normalizeHotelProvider(h) || 'tbo',
               hotelCode: String(h.hotelCode || h.hotelId || ''),
               bookingCode: String(h.bookingCode || h.searchReference || ''),
+              searchReference: String(h.searchReference || h.bookingCode || '').trim() || undefined,
+              roomId:
+                parseStaahSearchReference(h.searchReference || h.bookingCode)?.roomId ||
+                undefined,
+              rateId:
+                parseStaahSearchReference(h.searchReference || h.bookingCode)?.rateId ||
+                undefined,
               roomType: h.roomType || 'Standard',
               netAmount: getHotelSelectionAmount(h),
               hotelName: h.hotelName,
@@ -7556,6 +7600,13 @@ function getHotelAmountForBooking(entry: any): number {
             provider: normalizeHotelProvider(cheapest) || 'tbo',
             hotelCode: String(cheapest.hotelCode || cheapest.hotelId || ''),
             bookingCode: String(cheapest.bookingCode || cheapest.searchReference || ''),
+            searchReference: String(cheapest.searchReference || cheapest.bookingCode || '').trim() || undefined,
+            roomId:
+              parseStaahSearchReference(cheapest.searchReference || cheapest.bookingCode)?.roomId ||
+              undefined,
+            rateId:
+              parseStaahSearchReference(cheapest.searchReference || cheapest.bookingCode)?.rateId ||
+              undefined,
             roomType: cheapest.roomType || 'Standard',
             netAmount: getHotelSelectionAmount(cheapest),
             hotelName: cheapest.hotelName,
@@ -7796,6 +7847,13 @@ function getHotelAmountForBooking(entry: any): number {
             provider: normalizeHotelProvider(hotelRow) || 'tbo',
             hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
             bookingCode: String(hotelRow?.bookingCode || hotelRow?.searchReference || ''),
+            searchReference: String(hotelRow?.searchReference || hotelRow?.bookingCode || '').trim() || undefined,
+            roomId:
+              parseStaahSearchReference(hotelRow?.searchReference || hotelRow?.bookingCode)?.roomId ||
+              undefined,
+            rateId:
+              parseStaahSearchReference(hotelRow?.searchReference || hotelRow?.bookingCode)?.rateId ||
+              undefined,
             roomType: hotelRow?.roomType || 'Standard',
             netAmount: getHotelSelectionAmount(hotelRow),
             hotelName: hotelRow?.hotelName,
@@ -7964,6 +8022,9 @@ function getHotelAmountForBooking(entry: any): number {
         hotelCode: hotelData.hotelCode,
         hotelName: hotelData.hotelName,
         bookingCode: hotelData.bookingCode,
+        searchReference: hotelData.searchReference,
+        roomId: hotelData.roomId,
+        rateId: hotelData.rateId,
         roomType: hotelData.roomType,
         checkInDate: hotelData.checkInDate,
         checkOutDate: hotelData.checkOutDate,
