@@ -692,6 +692,9 @@ export const ItineraryService = {
       hotelCode: string;
       hotelName?: string;
       bookingCode: string;
+      searchReference?: string;
+      roomId?: string;
+      rateId?: string;
       roomType: string;
       checkInDate: string;
       checkOutDate: string;
@@ -748,6 +751,9 @@ export const ItineraryService = {
       hotelCode: string;
       hotelName?: string;
       bookingCode: string;
+      searchReference?: string;
+      roomId?: string;
+      rateId?: string;
       roomType: string;
       checkInDate: string;
       checkOutDate: string;
