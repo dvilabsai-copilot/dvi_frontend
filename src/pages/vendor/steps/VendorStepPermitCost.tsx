@@ -58,6 +58,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   const [destinationCostError, setDestinationCostError] = useState("");
 
   const [destinationCosts, setDestinationCosts] = useState<{ [key: string]: string }>({});
+  const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] = useState(false);
+const [permitStateSearchText, setPermitStateSearchText] = useState("");
 
   useEffect(() => {
     if (vendorId) {
@@ -143,6 +145,25 @@ export const VendorStepPermitCost: React.FC<Props> = ({
       }
     );
   }, [rows, searchText, vehicleTypeOptions, stateOptions]);
+
+  const selectedPermitStateLabel =
+  stateOptions.find((state) => state.id === permitForm.state)?.label || "";
+
+const filteredPermitStateOptions = useMemo(() => {
+  const query = permitStateSearchText.trim().toLowerCase();
+
+  if (!query) return stateOptions;
+
+  return stateOptions.filter((state) =>
+    state.label.toLowerCase().includes(query)
+  );
+}, [stateOptions, permitStateSearchText]);
+
+const handlePermitStateSelect = (stateId: string) => {
+  handleFormChange("state", stateId);
+  setPermitStateSearchText("");
+  setIsPermitStateDropdownOpen(false);
+};
 
   const handleSavePermit = async () => {
     if (!vendorId) return;
@@ -428,21 +449,67 @@ export const VendorStepPermitCost: React.FC<Props> = ({
           <Label>
             State <span className="text-red-500">*</span>
           </Label>
-          <Select
-            value={permitForm.state}
-            onValueChange={(v) => handleFormChange("state", v)}
-          >
-            <SelectTrigger className={permitFieldErrors.state ? "border-red-400 focus-visible:ring-red-300" : ""}>
-              <SelectValue placeholder="Select Any One" />
-            </SelectTrigger>
-            <SelectContent>
-              {stateOptions.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+<div
+  className="relative"
+  onBlur={(e) => {
+    const nextFocusedElement = e.relatedTarget as Node | null;
+
+    if (!nextFocusedElement || !e.currentTarget.contains(nextFocusedElement)) {
+      setIsPermitStateDropdownOpen(false);
+    }
+  }}
+>
+  <button
+    type="button"
+    className={`flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-left text-sm ${
+      permitFieldErrors.state
+        ? "border-red-400 ring-red-300"
+        : "border-input"
+    }`}
+    onClick={() => setIsPermitStateDropdownOpen((prev) => !prev)}
+  >
+    <span className={selectedPermitStateLabel ? "text-gray-900" : "text-gray-500"}>
+      {selectedPermitStateLabel || "Select Any One"}
+    </span>
+    <span className="text-gray-500">⌄</span>
+  </button>
+
+  {isPermitStateDropdownOpen ? (
+    <div className="absolute left-0 top-[46px] z-50 w-full rounded-xl border border-purple-200 bg-white p-2 shadow-lg">
+      <Input
+        value={permitStateSearchText}
+        onChange={(e) => setPermitStateSearchText(e.target.value)}
+        placeholder="Type to search..."
+        className="mb-2 h-12 rounded-lg border-purple-400 text-sm focus-visible:ring-2 focus-visible:ring-purple-500"
+        autoFocus
+      />
+
+      <div className="max-h-60 overflow-y-auto pr-1">
+        {filteredPermitStateOptions.length > 0 ? (
+          filteredPermitStateOptions.map((state) => (
+            <button
+              key={state.id}
+              type="button"
+              className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-purple-100 ${
+                permitForm.state === state.id
+                  ? "bg-purple-100 text-purple-700"
+                  : "text-gray-800"
+              }`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handlePermitStateSelect(state.id)}
+            >
+              {state.label}
+            </button>
+          ))
+        ) : (
+          <div className="px-3 py-3 text-sm text-gray-500">
+            No states found
+          </div>
+        )}
+      </div>
+    </div>
+  ) : null}
+</div>
           {permitFieldErrors.state ? (
             <p className="text-xs text-red-600">{permitFieldErrors.state}</p>
           ) : null}
