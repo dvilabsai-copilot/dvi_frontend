@@ -1,6 +1,6 @@
 // FILE: src/pages/vendor/steps/VendorStepPermitCost.tsx
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +60,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   const [destinationCosts, setDestinationCosts] = useState<{ [key: string]: string }>({});
   const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] = useState(false);
 const [permitStateSearchText, setPermitStateSearchText] = useState("");
-
+const [highlightedPermitStateIndex, setHighlightedPermitStateIndex] = useState(0);
+const permitStateListRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (vendorId) {
       fetchPermitCosts();
@@ -163,6 +164,67 @@ const handlePermitStateSelect = (stateId: string) => {
   handleFormChange("state", stateId);
   setPermitStateSearchText("");
   setIsPermitStateDropdownOpen(false);
+};
+
+const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (!filteredPermitStateOptions.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+
+    setHighlightedPermitStateIndex((prev) => {
+      const nextIndex =
+        prev >= filteredPermitStateOptions.length - 1 ? 0 : prev + 1;
+
+      requestAnimationFrame(() => {
+        const listEl = permitStateListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-permit-state-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+
+    setHighlightedPermitStateIndex((prev) => {
+      const nextIndex =
+        prev <= 0 ? filteredPermitStateOptions.length - 1 : prev - 1;
+
+      requestAnimationFrame(() => {
+        const listEl = permitStateListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-permit-state-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+
+    const selectedState = filteredPermitStateOptions[highlightedPermitStateIndex];
+    if (selectedState) {
+      handlePermitStateSelect(selectedState.id);
+    }
+  }
+
+  if (e.key === "Escape") {
+    setIsPermitStateDropdownOpen(false);
+  }
 };
 
   const handleSavePermit = async () => {
@@ -466,7 +528,10 @@ const handlePermitStateSelect = (stateId: string) => {
         ? "border-red-400 ring-red-300"
         : "border-input"
     }`}
-    onClick={() => setIsPermitStateDropdownOpen((prev) => !prev)}
+    onClick={() => {
+  setIsPermitStateDropdownOpen((prev) => !prev);
+  setHighlightedPermitStateIndex(0);
+}}
   >
     <span className={selectedPermitStateLabel ? "text-gray-900" : "text-gray-500"}>
       {selectedPermitStateLabel || "Select Any One"}
@@ -477,30 +542,41 @@ const handlePermitStateSelect = (stateId: string) => {
   {isPermitStateDropdownOpen ? (
     <div className="absolute left-0 top-[46px] z-50 w-full rounded-xl border border-purple-200 bg-white p-2 shadow-lg">
       <Input
-        value={permitStateSearchText}
-        onChange={(e) => setPermitStateSearchText(e.target.value)}
-        placeholder="Type to search..."
-        className="mb-2 h-12 rounded-lg border-purple-400 text-sm focus-visible:ring-2 focus-visible:ring-purple-500"
-        autoFocus
-      />
+  value={permitStateSearchText}
+  onChange={(e) => {
+    setPermitStateSearchText(e.target.value);
+    setHighlightedPermitStateIndex(0);
+  }}
+  onKeyDown={handlePermitStateKeyDown}
+  placeholder="Type to search..."
+  className="mb-2 h-12 rounded-lg border-purple-400 text-sm focus-visible:ring-2 focus-visible:ring-purple-500"
+  autoFocus
+/>
 
-      <div className="max-h-60 overflow-y-auto pr-1">
+      <div ref={permitStateListRef} className="max-h-60 overflow-y-auto pr-1">
         {filteredPermitStateOptions.length > 0 ? (
-          filteredPermitStateOptions.map((state) => (
-            <button
-              key={state.id}
-              type="button"
-              className={`block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-purple-100 ${
-                permitForm.state === state.id
-                  ? "bg-purple-100 text-purple-700"
-                  : "text-gray-800"
-              }`}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => handlePermitStateSelect(state.id)}
-            >
-              {state.label}
-            </button>
-          ))
+filteredPermitStateOptions.map((state, index) => {
+  const isHighlighted = index === highlightedPermitStateIndex;
+  const isSelected = permitForm.state === state.id;
+
+  return (
+    <button
+  key={state.id}
+  type="button"
+  data-permit-state-index={index}
+      className={`block w-full rounded-md px-3 py-2 text-left text-sm ${
+        isHighlighted || isSelected
+          ? "bg-purple-100 text-purple-700"
+          : "text-gray-800 hover:bg-purple-50"
+      }`}
+      onMouseEnter={() => setHighlightedPermitStateIndex(index)}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => handlePermitStateSelect(state.id)}
+    >
+      {state.label}
+    </button>
+  );
+})
         ) : (
           <div className="px-3 py-3 text-sm text-gray-500">
             No states found
