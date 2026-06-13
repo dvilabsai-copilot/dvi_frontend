@@ -18,10 +18,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, Loader2, RefreshCw, Edit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
-import type { VehicleBuildStatusResponse } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
@@ -275,6 +274,11 @@ export type ItineraryVehicleRow = {
   vehicleOrigin: string | null;
   totalQty: string;
   totalAmount: string;
+  vehicleId?: number | null;
+  vehicleNumber?: string | null;
+  vehicleRegistrationNumber?: string | null;
+  vehicleRegistrationStateCode?: string | null;
+  vehicleRegistrationStateName?: string | null;
 
   // vehicle type information
   vendorEligibleId?: number;
@@ -396,8 +400,6 @@ type ConfirmedHotelResponseShape = {
   hotels?: any[];
   hotelAvailability?: HotelAvailabilityMeta;
 };
-
-type VehicleBuildState = "PENDING" | "PROCESSING" | "READY" | "FAILED";
 
 // Dedupe in-flight details requests per quote to prevent duplicate API calls
 // in React StrictMode/dev remount scenarios.
@@ -626,8 +628,6 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildStatusResponse | null>(null);
-  const [isRetryingVehicleBuild, setIsRetryingVehicleBuild] = useState(false);
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -5335,74 +5335,6 @@ function getHotelAmountForBooking(entry: any): number {
     }
   }, [quoteId]);
 
-  const fetchVehicleBuildStatus = useCallback(async (planId: number) => {
-    try {
-      const res = await ItineraryService.getVehicleBuildStatus(planId);
-      setVehicleBuildStatus(res);
-      return res;
-    } catch (e: any) {
-      console.error("Failed to fetch vehicle build status", e);
-      return null;
-    }
-  }, []);
-
-  const handleRetryVehicleBuild = useCallback(async () => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!planId || isRetryingVehicleBuild) return;
-
-    try {
-      setIsRetryingVehicleBuild(true);
-      const statusRes = await ItineraryService.triggerVehicleBuildAsync(planId);
-      setVehicleBuildStatus(statusRes);
-      toast.success("Vehicle build retriggered");
-    } catch (e: any) {
-      console.error("Failed to retrigger vehicle build", e);
-      toast.error(e?.message || "Failed to retrigger vehicle build");
-    } finally {
-      setIsRetryingVehicleBuild(false);
-    }
-  }, [itinerary?.planId, isRetryingVehicleBuild]);
-
-  useEffect(() => {
-    setVehicleBuildStatus(null);
-  }, [quoteId]);
-
-  useEffect(() => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!shouldShowVehicles || !planId) {
-      return;
-    }
-
-    let disposed = false;
-    let timerId: number | null = null;
-
-    const poll = async () => {
-      const statusRes = await fetchVehicleBuildStatus(planId);
-      if (disposed || !statusRes) return;
-
-      const state = String(statusRes.status || "").toUpperCase() as VehicleBuildState;
-      if (state === "READY") {
-        await refreshVehicleData();
-        return;
-      }
-
-      if (state === "FAILED") {
-        return;
-      }
-
-      if (state === "PENDING" || state === "PROCESSING") {
-        timerId = window.setTimeout(poll, 3000);
-      }
-    };
-
-    poll();
-
-    return () => {
-      disposed = true;
-      if (timerId) window.clearTimeout(timerId);
-    };
-  }, [itinerary?.planId, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
-
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
 
@@ -9327,47 +9259,7 @@ function getHotelAmountForBooking(entry: any): number {
         <div ref={vehicleListRef} id="vehicle-list-section">
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 px-6">
-              {(vehicleBuildStatus?.status === "PENDING" ||
-                vehicleBuildStatus?.status === "PROCESSING" ||
-                !vehicleBuildStatus) && (
-                <div className="flex items-center justify-center gap-3 text-[#6c6c6c]">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
-                  <span>Building vehicle list. Please wait...</span>
-                </div>
-              )}
-
-              {vehicleBuildStatus?.status === "FAILED" && (
-                <div className="flex flex-col items-center gap-3 text-center text-[#6c6c6c]">
-                  <div className="flex items-center gap-2 text-[#c53030]">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span>Vehicle build failed.</span>
-                  </div>
-                  {vehicleBuildStatus.error && (
-                    <p className="text-xs text-[#8a8a8a] max-w-[800px] break-words">
-                      {vehicleBuildStatus.error}
-                    </p>
-                  )}
-                  <Button
-                    type="button"
-                    onClick={handleRetryVehicleBuild}
-                    disabled={isRetryingVehicleBuild}
-                    className="bg-[#d546ab] hover:bg-[#bb3a94]"
-                  >
-                    {isRetryingVehicleBuild ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Retrying...
-                      </>
-                    ) : (
-                      "Retry Vehicle Build"
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {vehicleBuildStatus?.status === "READY" && (
-                <div className="text-center text-[#6c6c6c]">No Vehicle available</div>
-              )}
+              <div className="text-center text-[#6c6c6c]">No vehicle available</div>
             </CardContent>
           </Card>
         </div>

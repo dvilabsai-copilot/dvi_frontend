@@ -53,6 +53,11 @@ export interface ItineraryVehicleRow {
   vehicleOrigin?: string | null;
   totalQty?: string | null;
   totalAmount?: number | string | null;
+  vehicleId?: number | null;
+  vehicleNumber?: string | null;
+  vehicleRegistrationNumber?: string | null;
+  vehicleRegistrationStateCode?: string | null;
+  vehicleRegistrationStateName?: string | null;
   rentalCharges?: number | string | null;
   tollCharges?: number | string | null;
   parkingCharges?: number | string | null;
@@ -335,6 +340,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   routes,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
+  const [vehicleOriginTooltip, setVehicleOriginTooltip] = useState<{
+    index: number;
+    left: number;
+    top: number;
+  } | null>(null);
   const [expandedVendorEligibleId, setExpandedVendorEligibleId] = useState<number | string | null>(null);
   const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -361,7 +371,76 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   useEffect(() => {
     setExpandedVendorEligibleId(null);
     setHoveredTotalAmountIndex(null);
+    setVehicleOriginTooltip(null);
   }, [vehicleIdentitySignature]);
+
+  const getFloatingTooltipPosition = (
+    clientX: number,
+    clientY: number,
+    tooltipWidth = 320,
+    tooltipHeight = 150,
+  ) => {
+    const padding = 12;
+    const offset = 14;
+
+    let left = clientX + offset;
+    let top = clientY + offset;
+
+    if (left + tooltipWidth + padding > window.innerWidth) {
+      left = clientX - tooltipWidth - offset;
+    }
+
+    if (top + tooltipHeight + padding > window.innerHeight) {
+      top = clientY - tooltipHeight - offset;
+    }
+
+    return {
+      left: Math.max(padding, left),
+      top: Math.max(padding, top),
+    };
+  };
+
+  const showVehicleOriginTooltip = (
+    index: number,
+    event: React.MouseEvent<HTMLElement>,
+  ) => {
+    const position = getFloatingTooltipPosition(event.clientX, event.clientY);
+    setVehicleOriginTooltip({
+      index,
+      ...position,
+    });
+  };
+
+  const moveVehicleOriginTooltip = (
+    index: number,
+    event: React.MouseEvent<HTMLElement>,
+  ) => {
+    setVehicleOriginTooltip((current) => {
+      if (!current || current.index !== index) return current;
+
+      const position = getFloatingTooltipPosition(event.clientX, event.clientY);
+      return {
+        index,
+        ...position,
+      };
+    });
+  };
+
+  const hideVehicleOriginTooltip = () => {
+    setVehicleOriginTooltip(null);
+  };
+
+  const showVehicleOriginTooltipFromFocus = (
+    index: number,
+    event: React.FocusEvent<HTMLElement>,
+  ) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = getFloatingTooltipPosition(rect.right, rect.top);
+    setVehicleOriginTooltip({
+      index,
+      ...position,
+    });
+  };
 
   const escapeHtml = (value: unknown) =>
     String(value ?? "")
@@ -775,7 +854,65 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                     </td>
                     <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>
                     <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>
-                    <td className="py-3 px-3 text-gray-600 text-xs">{safe(v.vehicleOrigin)}</td>
+                    <td
+                      className="py-3 px-3 text-gray-600 text-xs relative"
+                      onMouseEnter={(e) => showVehicleOriginTooltip(index, e)}
+                      onMouseMove={(e) => moveVehicleOriginTooltip(index, e)}
+                      onMouseLeave={hideVehicleOriginTooltip}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        tabIndex={0}
+                        onFocus={(e) => showVehicleOriginTooltipFromFocus(index, e)}
+                        onBlur={hideVehicleOriginTooltip}
+                      >
+                        {safe(v.vehicleOrigin) || "-"}
+                      </span>
+
+                      {vehicleOriginTooltip?.index === index && (
+                        <div
+                          className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]"
+                          style={{
+                            left: `${vehicleOriginTooltip.left}px`,
+                            top: `${vehicleOriginTooltip.top}px`,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <div className="mb-2 border-b border-gray-200 pb-2">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-700 font-semibold">Vehicle Origin</span>
+                              <span className="font-semibold text-gray-900 text-right">
+                                {safe(v.vehicleOrigin) || "-"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mb-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600">Vehicle No</span>
+                              <span className="text-gray-900 font-semibold text-right">
+                                {safe(v.vehicleNumber || v.vehicleRegistrationNumber) || "-"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mb-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600">Permit State</span>
+                              <span className="text-gray-900 text-right">
+                                {safe(v.vehicleRegistrationStateName) || "-"}
+                                {v.vehicleRegistrationStateCode ? ` (${v.vehicleRegistrationStateCode})` : ""}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 border-t border-gray-200 pt-2 text-xs text-purple-900 font-semibold">
+                            Permit source state is derived from vehicle number prefix.
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
                     <td 
                       className="py-3 px-3 text-right font-semibold text-gray-900"

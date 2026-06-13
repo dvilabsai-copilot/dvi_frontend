@@ -8,16 +8,6 @@ export type ItinerarySaveType =
 
 export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
 
-export type VehicleBuildStatusResponse = {
-  planId: number;
-  status: "PENDING" | "PROCESSING" | "READY" | "FAILED";
-  startedAt?: string | null;
-  finishedAt?: string | null;
-  updatedAt?: string | null;
-  error?: string | null;
-  source?: "memory" | "derived";
-};
-
 export type HotelArrivalPolicyRequest = {
   itineraryPlanId?: number;
   itineraryRouteId?: number;
@@ -184,23 +174,6 @@ export const ItineraryService = {
         Pragma: "no-cache",
       },
     });
-  },
-
-  async getVehicleBuildStatus(planId: number) {
-    return api(`itineraries/vehicles/build-status/${planId}`, {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Cache-Control": "no-cache",
-        Pragma: "no-cache",
-      },
-    }) as Promise<VehicleBuildStatusResponse>;
-  },
-
-  async triggerVehicleBuildAsync(planId: number) {
-    return api(`itineraries/vehicles/rebuild-async/${planId}`, {
-      method: "POST",
-    }) as Promise<VehicleBuildStatusResponse>;
   },
 
   async getHotelDetails(
