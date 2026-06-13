@@ -176,6 +176,50 @@ export const ItineraryService = {
     });
   },
 
+  async getVehicleBuildStatus(planId: number) {
+    return api(`itineraries/${planId}/vehicle-build-status`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
+  async triggerVehicleBuild(planId: number) {
+    return api(`itineraries/${planId}/vehicle-build`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
+  async buildPermitsSync(planId: number) {
+    return api(`itineraries/${planId}/permit-build-sync`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
+  async buildVehiclesSync(planId: number) {
+    return api(`itineraries/${planId}/vehicle-build-sync`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
   async getHotelDetails(
     quoteId: string,
     page?: number,

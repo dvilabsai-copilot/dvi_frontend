@@ -404,6 +404,7 @@ type ConfirmedHotelResponseShape = {
 // Dedupe in-flight details requests per quote to prevent duplicate API calls
 // in React StrictMode/dev remount scenarios.
 const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
+const autoLoadStartedQuotes = new Set<string>();
 
 const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
   const existing = detailsInFlight.get(quoteId);
@@ -628,6 +629,11 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
+  const [pageReady, setPageReady] = useState<boolean>(false);
+  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
+  const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
+  const itineraryDaysCountRef = useRef(0);
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -2703,6 +2709,10 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     });
   }, [activeVehicleTypeIds]);
 
+  useEffect(() => {
+    itineraryDaysCountRef.current = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
+  }, [itinerary?.days]);
+
   const scrollToSection = (el: HTMLDivElement | null) => {
     if (!el) return;
 
@@ -2863,7 +2873,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
 
     const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
-    const totalRoutes = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
+    const totalRoutes = itineraryDaysCountRef.current;
     const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
     const placeholderRowCount = hotels.length - supplierHotelCount;
 
@@ -2894,7 +2904,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
           : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
       },
     };
-  }, [itinerary?.days]);
+  }, []);
 
   const loadConfirmedHotelsFromDb = useCallback(async (
     confirmedPlanId: number,
@@ -5552,6 +5562,113 @@ function getHotelAmountForBooking(entry: any): number {
     }
   }, [quoteId, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
 
+  const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
+    const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
+    if (!vehicles.length) return false;
+    return vehicles.some((vehicle: any) => {
+      const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
+      const vehicleTypeId = Number(vehicle?.vehicleTypeId || 0);
+      const totalAmount = Number(vehicle?.totalAmount);
+      const vendorName = String(vehicle?.vendorName || "").trim();
+      const vehicleOrigin = String(vehicle?.vehicleOrigin || "").trim();
+      return (
+        vendorEligibleId > 0 &&
+        vehicleTypeId > 0 &&
+        Number.isFinite(totalAmount) &&
+        (vendorName.length > 0 || vehicleOrigin.length > 0)
+      );
+    });
+  }, []);
+
+  const loadPreparedItineraryPage = useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
+    setLoading(true);
+    setLoadingHotels(true);
+    setPageReady(false);
+    setError(null);
+    setVehicleBuildError(null);
+
+    try {
+      setPageLoaderStage("Building itinerary details");
+      const detailsRes = await getDetailsDeduped(requestedQuoteId);
+      const initialDetails = detailsRes as ItineraryDetailsResponse;
+      const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
+      const useHotels = itineraryPreference === 1 || itineraryPreference === 3;
+      const useVehicles = itineraryPreference === 2 || itineraryPreference === 3;
+      const planId = Number(initialDetails.planId || 0);
+
+      const finalizePage = async (details: ItineraryDetailsResponse) => {
+        let hotelRes: ItineraryHotelDetailsResponse | null = null;
+        if (useHotels) {
+          hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
+        }
+
+        if (!isMountedRef.current) return;
+
+        setItinerary(details);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        if (!useHotels) {
+          setActiveHotelListTotal(0);
+        }
+        setVehicleBuildStatus(useVehicles ? "READY" : "READY");
+        setPageReady(true);
+      };
+
+      if (!useVehicles || !planId) {
+        await finalizePage(initialDetails);
+        return;
+      }
+
+      setPageLoaderStage("Checking vehicle build status");
+      const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
+      const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
+        ? String(buildStatus?.status || "").toUpperCase()
+        : "PENDING") as "PENDING" | "PROCESSING" | "READY" | "FAILED";
+      setVehicleBuildStatus(normalizedStatus);
+      setVehicleBuildError(String(buildStatus?.error || "") || null);
+
+      const isLatestBuildReady = Boolean(buildStatus?.isLatestBuildReady);
+      if (!forceVehicleRebuild && isLatestBuildReady && hasUsableVehicleRows(initialDetails)) {
+        await finalizePage(initialDetails);
+        return;
+      }
+
+      setPageLoaderStage("Building permit charges");
+      await ItineraryService.buildPermitsSync(planId);
+
+      setPageLoaderStage("Building vehicle details and pricing");
+      const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
+      const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
+      if (vehicleBuildState !== "READY") {
+        throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
+      }
+      setVehicleBuildStatus("READY");
+
+      setPageLoaderStage("Loading completed itinerary");
+      const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
+      const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
+      if (!hasUsableVehicleRows(finalDetails)) {
+        throw new Error("Vehicle details are still incomplete after rebuild");
+      }
+
+      await finalizePage(finalDetails);
+    } catch (e: any) {
+      if (!isMountedRef.current) return;
+      console.error("Failed to load staged itinerary details", e);
+      setVehicleBuildStatus("FAILED");
+      setVehicleBuildError(e?.message || "Vehicle pricing failed to prepare");
+      setError(e?.message || "Failed to load itinerary details");
+      setItinerary(null);
+      setHotelDetails(null);
+      setPageReady(false);
+    } finally {
+      currentFetchRef.current = null;
+      if (isMountedRef.current) {
+        setLoading(false);
+        setLoadingHotels(false);
+      }
+    }
+  }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary]);
+
   useEffect(() => {
     if (!quoteId) {
       setError("Missing quote id in URL");
@@ -5575,64 +5692,27 @@ function getHotelAmountForBooking(entry: any): number {
       return;
     }
 
+    // React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
+    if (autoLoadStartedQuotes.has(quoteId)) {
+      return;
+    }
+    autoLoadStartedQuotes.add(quoteId);
+
     // Mark that we're fetching this quoteId
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
 
-    const fetchDetails = async () => {
-      try {
-        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-        setLoading(true);
-        setLoadingHotels(true);
-        setError(null);
-
-        // Fetch details first so we can skip hotel API for vehicle-only itineraries.
-        const detailsRes = await getDetailsDeduped(quoteId);
-        const details = detailsRes as ItineraryDetailsResponse;
-        const pref = Number(details.itineraryPreference ?? 3);
-        const useHotels = pref === 1 || pref === 3;
-
-        let hotelRes: ItineraryHotelDetailsResponse | null = null;
-        if (useHotels) {
-          hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        }
-
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) {
-          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-          return;
-        }
-
-        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(details);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        if (!useHotels) {
-          setActiveHotelListTotal(0);
-        }
-      } catch (e: any) {
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) return;
-
-        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-        setError(e?.message || "Failed to load itinerary details");
-        setItinerary(null);
-        setHotelDetails(null);
-      } finally {
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setLoading(false);
-          setLoadingHotels(false);
-        }
-      }
-    };
-
-    fetchDetails();
+    void loadPreparedItineraryPage(quoteId);
 
     // Cleanup: Mark component as unmounted
     return () => {
       isMountedRef.current = false;
+      currentFetchRef.current = null;
+      if (quoteId) {
+        autoLoadStartedQuotes.delete(quoteId);
+      }
     };
-  }, [quoteId, location.pathname, loadHotelDetailsForItinerary]);
+  }, [quoteId, location.pathname, loadPreparedItineraryPage]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -8229,17 +8309,16 @@ function getHotelAmountForBooking(entry: any): number {
 
   const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
 
-  if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
+  const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
+
+  if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
     return (
-      <div className="w-full max-w-full flex justify-center items-center py-16">
-        <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <p>
-            {isApplyingRouteTimeUpdate
-              ? "Updating itinerary and hotel results..."
-              : shouldShowHotels
-              ? "Loading itinerary details and hotel names..."
-              : "Loading itinerary details..."}
+      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
+          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
+          <p className="mt-2 text-sm text-[#6c6c6c]">
+            We are preparing the latest itinerary data before showing the page.
           </p>
         </div>
       </div>
@@ -8248,6 +8327,32 @@ function getHotelAmountForBooking(entry: any): number {
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
+  }
+
+  if (vehicleBuildStatus === "FAILED" && shouldShowVehicles) {
+    return (
+      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-base font-semibold text-red-700">Vehicle pricing failed to prepare</p>
+          <p className="mt-2 text-sm text-[#6c6c6c]">
+            {vehicleBuildError || "Vehicle pricing failed to prepare. Please retry."}
+          </p>
+          <Button
+            type="button"
+            className="mt-6 bg-[#d546ab] text-white hover:bg-[#c63e9c]"
+            onClick={async () => {
+              if (!quoteId) return;
+              setVehicleBuildStatus("PROCESSING");
+              setVehicleBuildError(null);
+              setError(null);
+              await loadPreparedItineraryPage(quoteId, true);
+            }}
+          >
+            Retry vehicle build
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (error || !itinerary) {
@@ -8334,8 +8439,9 @@ function getHotelAmountForBooking(entry: any): number {
                     <button
                       type="button"
                       onClick={scrollToVehicleList}
-                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
-                      title="Go to Vehicle List"
+                      disabled={vehicleBuildStatus !== "READY"}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
                     >
                       Vehicle
                     </button>
@@ -8360,8 +8466,9 @@ function getHotelAmountForBooking(entry: any): number {
                     <button
                       type="button"
                       onClick={scrollToVehicleList}
-                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
-                      title="Go to Vehicle List"
+                      disabled={vehicleBuildStatus !== "READY"}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
                     >
                       Vehicle
                     </button>
@@ -9207,8 +9314,7 @@ function getHotelAmountForBooking(entry: any): number {
         </div>
       )}
 
-      {/* Vehicle List (grouped by vehicle type) */}
-      {shouldShowVehicles && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
+      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
         // Group vehicles by vehicleTypeId
         const vehiclesByType = new Map<number, typeof itinerary.vehicles>();
         const typeOrder: number[] = [];
@@ -9255,7 +9361,7 @@ function getHotelAmountForBooking(entry: any): number {
         );
       })()}
 
-      {shouldShowVehicles && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+      {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
         <div ref={vehicleListRef} id="vehicle-list-section">
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 px-6">
