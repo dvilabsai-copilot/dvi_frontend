@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { Option } from "../vendorFormTypes";
+import { toast } from "sonner";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 
 type Props = {
   vendorId?: number;
@@ -26,6 +28,7 @@ type PermitRow = {
   vehicleType: string;
   sourceState: string;
   vehicleTypeId: number;
+  vendorVehicleTypeId: number;
   sourceStateId: number;
 };
 
@@ -44,6 +47,8 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   const [isAddMode, setIsAddMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingRow, setDeletingRow] = useState<PermitRow | null>(null);
+  const [editingRow, setEditingRow] = useState<PermitRow | null>(null);
 
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
@@ -83,6 +88,7 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
             vehicleType: String(pc.vehicle_type_id),
             sourceState: String(pc.source_state_id),
             vehicleTypeId: pc.vehicle_type_id,
+            vendorVehicleTypeId: pc.vendor_vehicle_type_id ?? pc.vehicle_type_id,
             sourceStateId: pc.source_state_id,
           };
         }
@@ -133,6 +139,13 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
       // For now, just clear
       setDestinationCosts({});
     }
+  };
+
+  const resetPermitEditor = () => {
+    setPermitFieldErrors({});
+    setDestinationCostError("");
+    setEditingRow(null);
+    setIsAddMode(false);
   };
 
   const filteredRows = useMemo(() => {
@@ -249,6 +262,18 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       return;
     }
 
+    const selectedVehicleTypeId = Number(permitForm.vehicleType);
+    const selectedSourceStateId = Number(permitForm.state);
+    const groupAlreadyExists = rows.some(
+      (row) =>
+        row.vehicleTypeId === selectedVehicleTypeId &&
+        row.sourceStateId === selectedSourceStateId,
+    );
+    if (!editingRow && groupAlreadyExists) {
+      toast.error("Permit charges already exist for this vehicle type and source state.");
+      return;
+    }
+
     setDestinationCostError("");
     setSaving(true);
     try {
@@ -273,9 +298,12 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       await fetchPermitCosts();
       setPermitFieldErrors({});
       setDestinationCostError("");
+      setEditingRow(null);
       setIsAddMode(false);
+      toast.success("Permit cost saved successfully");
     } catch (e) {
       console.error("Failed to save permit costs", e);
+      toast.error("Failed to save permit costs");
     } finally {
       setSaving(false);
     }
@@ -297,10 +325,31 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         }
       });
       setDestinationCosts(costs);
+      setEditingRow(row);
     } catch (e) {
       console.error("Failed to fetch permit costs for edit", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeletePermitGroup = async (row: PermitRow) => {
+    if (!vendorId) return;
+    setSaving(true);
+    try {
+      await api(
+        `/vendors/${vendorId}/permit-costs?vendor_vehicle_type_id=${row.vendorVehicleTypeId}&source_state_id=${row.sourceStateId}`,
+        { method: "DELETE" },
+      );
+      toast.success("Deleted successfully");
+      setDeletingRow(null);
+      setEditingRow(null);
+      await fetchPermitCosts();
+    } catch (e: any) {
+      console.error("Failed to delete permit cost group", e);
+      toast.error(e?.message || "Failed to delete permit cost.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -335,6 +384,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
               setDestinationCosts({});
               setPermitFieldErrors({});
               setDestinationCostError("");
+              setEditingRow(null);
               setIsAddMode(true);
             }}
             disabled={!vendorId}
@@ -392,15 +442,32 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
                     {idx + 1}
                   </td>
                   <td className="border-b border-gray-100 px-4 py-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs"
-                      onClick={() => handleEdit(row)}
-                    >
-                      View &amp; Edit
-                    </Button>
+                    <div className="flex items-center gap-3 text-gray-500">
+                      <button
+                        type="button"
+                        className="transition hover:text-gray-700"
+                        aria-label={`View permit cost ${idx + 1}`}
+                        onClick={() => handleEdit(row)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="transition hover:text-purple-600"
+                        aria-label={`Edit permit cost ${idx + 1}`}
+                        onClick={() => handleEdit(row)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="transition hover:text-red-600"
+                        aria-label={`Delete permit cost ${idx + 1}`}
+                        onClick={() => setDeletingRow(row)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                   <td className="border-b border-gray-100 px-4 py-3">
                     {vehicleTypeOptions.find(o => o.id === row.vehicleType)?.label || row.vehicleType}
@@ -472,11 +539,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
           type="button"
           variant="outline"
           className="bg-gray-100 px-6"
-          onClick={() => {
-            setPermitFieldErrors({});
-            setDestinationCostError("");
-            setIsAddMode(false);
-          }}
+          onClick={resetPermitEditor}
         >
           Back To List
         </Button>
@@ -624,11 +687,7 @@ filteredPermitStateOptions.map((state, index) => {
           type="button"
           variant="outline"
           className="bg-gray-100 px-8"
-          onClick={() => {
-            setPermitFieldErrors({});
-            setDestinationCostError("");
-            setIsAddMode(false);
-          }}
+          onClick={resetPermitEditor}
         >
           Back To List
         </Button>
@@ -657,6 +716,33 @@ filteredPermitStateOptions.map((state, index) => {
         )}
 
         {!isAddMode ? renderListView() : renderAddView()}
+
+        {deletingRow !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+              <div className="mb-3 flex justify-center text-red-500">
+                <Trash2 className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-700">Are you sure?</h2>
+              <p className="mt-3 text-sm text-gray-600">Do you really want to delete this record?</p>
+              <p className="text-sm text-gray-600">This process cannot be undone.</p>
+
+              <div className="mt-6 flex justify-center gap-3">
+                <Button type="button" variant="secondary" onClick={() => setDeletingRow(null)} disabled={saving}>
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-red-500 text-white hover:bg-red-600"
+                  onClick={() => handleDeletePermitGroup(deletingRow)}
+                  disabled={saving}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
