@@ -482,18 +482,18 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
           Route Details
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-0 overflow-visible pb-24">
+      <CardContent className="pt-0 overflow-visible pb-4">
   <div className="w-full overflow-x-auto overflow-y-visible">
-    <table className="w-[910px] caption-bottom text-sm overflow-visible table-fixed">
+<table className="w-[840px] caption-bottom text-sm overflow-visible table-fixed">
   <colgroup>
-    <col className="w-[80px]" />
+    <col className="w-[70px]" />
     <col className="w-[130px]" />
     <col className="w-[210px]" />
-    <col className="w-[270px]" />
-    <col className="w-[60px]" />
+    <col className="w-[285px]" />
+    <col className="w-[42px]" />
     {!hideIntercityKm && <col className="w-[90px]" />}
-    <col className="w-[50px]" />
-    <col className="w-[20px]" />
+    <col className="w-[68px]" />
+    <col className="w-[35px]" />
   </colgroup>
 
     <TableHeader>
@@ -723,7 +723,7 @@ className={`w-full max-w-[260px] ${
     )}
   </TableCell>
 
-  <TableCell className="px-2 text-center">
+  <TableCell className="pl-0 pr-2 text-left">
   <button
     type="button"
     onClick={() => onOpenViaRoutes?.(row)}
@@ -746,7 +746,7 @@ className={`w-full max-w-[260px] ${
 </TableCell>
 )}
 
-<TableCell className="px-2 text-center">
+<TableCell className="px-1 text-center">
   <span
     className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
     title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
@@ -777,7 +777,7 @@ className={`w-full max-w-[260px] ${
   </span>
 </TableCell>
 
-<TableCell className="px-1 text-center">
+<TableCell className="pl-1 pr-0 text-center">
   {canDeleteThisRouteDay && (
     <button
       type="button"
