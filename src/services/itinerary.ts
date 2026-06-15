@@ -1,5 +1,5 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
-import { api } from "@/lib/api";
+import { api, API_BASE_URL, getToken } from "@/lib/api";
 
 export type ItinerarySaveType =
   | "itineary_basic_info"
@@ -66,6 +66,36 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
+  async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/${path.replace(/^\/+/, '')}`, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Download failed: ${res.status} ${res.statusText} ${text}`.trim(),
+      );
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get("content-disposition") || "";
+    const nameMatch =
+      disposition.match(/filename\*=(?:UTF-8'')?([^;]+)/i) ||
+      disposition.match(/filename=\"?([^"]+)\"?/i);
+    const fileName = decodeURIComponent((nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""));
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   async create(data: any, type?: ItinerarySaveType) {
     const url = type
       ? `itineraries/?type=${encodeURIComponent(type)}`
@@ -935,10 +965,26 @@ export const ItineraryService = {
     });
   },
 
+  async downloadVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/voucher-pdf`, `voucher-details-${id}.pdf`);
+  },
+
+  async downloadHotelVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/hotel-voucher-pdf`, `hotel-voucher-${id}.pdf`);
+  },
+
+  async downloadVehicleVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/vehicle-voucher-pdf`, `vehicle-voucher-${id}.pdf`);
+  },
+
   async getPluckCardData(id: number) {
     return api(`itineraries/${id}/pluck-card-data`, {
       method: "GET",
     });
+  },
+
+  async downloadPluckCardPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/pluck-card-pdf`, `pluck-card-${id}.pdf`);
   },
 
   async getPluckCardDataByConfirmedId(confirmedId: number) {
@@ -951,6 +997,10 @@ export const ItineraryService = {
     return api(`itineraries/${id}/invoice-data`, {
       method: "GET",
     });
+  },
+
+  async downloadInvoicePdf(id: number, type: "tax" | "proforma" = "tax") {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/invoice-pdf?type=${encodeURIComponent(type)}`, `${type}-invoice-${id}.pdf`);
   },
 
   // Incidental Expenses
