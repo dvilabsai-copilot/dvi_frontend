@@ -95,8 +95,9 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>("driverCost");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
-  const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
+ const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
+const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
+const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
 
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
@@ -546,9 +547,25 @@ const handleDeleteDriverCost = async (rowId: number) => {
     }
   };
 
-  const handleDeleteLocal = (rowId: number) => {
+const handleDeleteLocal = async (rowId: number) => {
+  if (!vendorId) return;
+
+  setSaving(true);
+
+  try {
+    await api(`/vendors/${vendorId}/local-km-limits/${rowId}`, {
+      method: "DELETE",
+    });
+
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
-  };
+    toast.success("Deleted successfully");
+  } catch (e) {
+    console.error("Failed to delete local limit", e);
+    toast.error("Delete failed. Backend API is not deleting this record.");
+  } finally {
+    setSaving(false);
+  }
+};
 
   // ============================================================
   // Render helpers
@@ -904,15 +921,15 @@ const handleDeleteDriverCost = async (rowId: number) => {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-3 text-xs text-red-600 border-red-200"
-                          type="button"
-                          onClick={() => setDeleteOutstationId(row.id)}
-                        >
-                          Delete
-                        </Button>
+                     <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteOutstationId(row.id)}
+>
+  Delete
+</Button>
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
                         {/* Vendor column: in PHP this is vendor name; here just show current vendorId */}
@@ -1047,15 +1064,15 @@ const handleDeleteDriverCost = async (rowId: number) => {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-3 text-xs text-red-600 border-red-200"
-                          type="button"
-                          onClick={() => setDeleteOutstationId(row.id)}
-                        >
-                          Delete
-                        </Button>
+                       <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteLocalId(row.id)}
+>
+  Delete
+</Button>
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
                         {vendorId ?? "-"}
@@ -1605,32 +1622,85 @@ const handleDeleteDriverCost = async (rowId: number) => {
         </div>        
       )}
     
-      {deleteOutstationId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
-            <h2 className="text-xl font-semibold text-gray-700">Are you sure?</h2>
-            <p className="mt-3 text-sm text-gray-600">Do you really want to delete this record?</p>
-            <p className="text-sm text-gray-600">This process cannot be undone.</p>
+     {deleteOutstationId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
 
-            <div className="mt-6 flex justify-center gap-3">
-              <Button type="button" variant="secondary" onClick={() => setDeleteOutstationId(null)}>
-                Close
-              </Button>
-              <Button
-                type="button"
-                className="bg-red-500 text-white hover:bg-red-600"
-                onClick={() => {
-                  handleDeleteOutstation(deleteOutstationId);
-                  setDeleteOutstationId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Card>
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteOutstationId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteOutstation(deleteOutstationId);
+            setDeleteOutstationId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+
+{deleteLocalId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteLocalId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteLocal(deleteLocalId);
+            setDeleteLocalId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+</Card>
   );
 };
