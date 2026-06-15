@@ -760,156 +760,210 @@ useEffect(() => {
     );
   }
 
-  if (isAgent) {
-    const agentData = dashboardData as AgentDashboardStats;
-    return (
-      <div className="p-8 space-y-6">
-        {/* Welcome Section */}
-        <div className="flex justify-between items-center">
-          <div className="space-y-2">
-            <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-              Welcome back, Agent 👋
-            </h3>
-            <p className="text-muted-foreground">
-              Here's what's happening with your account today.
-            </p>
-          </div>
-          <Button 
-            onClick={() => setIsTopUpModalOpen(true)}
-            className="bg-gradient-to-r from-primary to-pink-500 hover:opacity-90"
-          >
-            <Plus className="mr-2 h-4 w-4" /> Top Up Wallet
-          </Button>
+if (isAgent) {
+  const agentData = dashboardData as AgentDashboardStats;
+
+  const formatAgentMoney = (value: number | string) => {
+    const amount = Number(value || 0);
+
+    return `₹ ${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  return (
+  <div className="min-h-[calc(100vh-88px)] w-full max-w-full overflow-x-hidden bg-gray-50/40 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1280px] space-y-6">
+      {/* Welcome Section */}
+      <div className="flex w-full flex-col gap-4 rounded-2xl border border-purple-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-2">
+          <h3 className="bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
+            Welcome back, Agent 👋
+          </h3>
+          <p className="text-sm text-muted-foreground sm:text-base">
+            Here's what's happening with your account today.
+          </p>
+        </div>
         </div>
 
-{/* Stats Cards */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Total Customers */}
-          <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Users className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Total Customers</p>
-                <p className="text-3xl font-bold text-purple-600">{agentData.totalCustomers}</p>
-              </div>
-            </div>
-          </Card>
+        <Button
+          onClick={() => setIsTopUpModalOpen(true)}
+          className="w-full shrink-0 bg-gradient-to-r from-primary to-pink-500 hover:opacity-90 sm:w-auto"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Top Up Wallet
+        </Button>
+      </div>
 
-          {/* Validity Ends */}
-          <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Calendar className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-1">Validity Ends</p>
-                <div className="flex items-center justify-between">
-                  <p className="text-xl font-bold text-blue-600">
-                    {agentData.validityEnds ? new Date(agentData.validityEnds).toLocaleDateString() : 'N/A'}
-                  </p>
-                  {agentData.validityEnds && new Date(agentData.validityEnds) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
-                    <Button 
-                      variant="link" 
-                      className="text-xs text-blue-600 p-0 h-auto"
-                      onClick={() => agentData.planId && handleRenew(agentData.planId)}
+      {/* Stats Cards */}
+      <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        {/* Total Customers */}
+        <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-purple-50 to-pink-50 p-5 shadow-sm">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+              <Users className="h-6 w-6 text-purple-600" />
+            </div>
+
+            <div className="min-w-0">
+              <p className="mb-1 text-sm text-muted-foreground">
+                Total Customers
+              </p>
+              <p className="truncate text-3xl font-bold text-purple-600">
+                {agentData.totalCustomers}
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Validity Ends */}
+        <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-blue-50 to-cyan-50 p-5 shadow-sm">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+              <Calendar className="h-6 w-6 text-blue-600" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-sm text-muted-foreground">
+                Validity Ends
+              </p>
+
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="min-w-0 break-words text-xl font-bold leading-tight text-blue-600">
+                  {agentData.validityEnds
+                    ? new Date(agentData.validityEnds).toLocaleDateString()
+                    : "N/A"}
+                </p>
+
+                {agentData.validityEnds &&
+                  new Date(agentData.validityEnds) <
+                    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                    <Button
+                      variant="link"
+                      className="h-auto p-0 text-xs text-blue-600"
+                      onClick={() =>
+                        agentData.planId && handleRenew(agentData.planId)
+                      }
                       disabled={isProcessingPayment}
                     >
                       {isProcessingPayment ? "Processing..." : "Renew"}
                     </Button>
                   )}
-                </div>
               </div>
             </div>
-          </Card>
+          </div>
+        </Card>
 
-          {/* Paid Invoice */}
-          <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <FileText className="h-6 w-6 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Paid Invoice</p>
-                <p className="text-3xl font-bold text-orange-600">{agentData.paidInvoices}</p>
-              </div>
+        {/* Paid Invoice */}
+        <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-sm">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+              <FileText className="h-6 w-6 text-orange-600" />
             </div>
-          </Card>
 
-          {/* Last Month Profit */}
-          <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Wallet className="h-6 w-6 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">Last Month Profit</p>
-                <p className="text-3xl font-bold text-green-600">₹{agentData.lastMonthProfit}</p>
-              </div>
+            <div className="min-w-0">
+              <p className="mb-1 text-sm text-muted-foreground">
+                Paid Invoice
+              </p>
+              <p className="truncate text-3xl font-bold text-orange-600">
+                {agentData.paidInvoices}
+              </p>
             </div>
-          </Card>
+          </div>
+        </Card>
 
-          {/* Wallet Balance */}
-          <Card className="p-6 bg-gradient-to-br from-pink-50 to-rose-50 border-none">
-            <div className="flex items-start gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-sm">
-                <Wallet className="h-6 w-6 text-pink-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-1">Wallet Balance</p>
-                <div className="flex items-center justify-between">
-                  <p className="text-3xl font-bold text-pink-600">₹{agentData.totalCashWallet}</p>
-                  <Link 
-                    to="/wallet-history" 
-                    className="text-xs text-pink-600 hover:underline font-medium"
-                  >
-                    View History
-                  </Link>
-                </div>
-              </div>
+        {/* Last Month Profit */}
+        <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-green-50 to-emerald-50 p-5 shadow-sm">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+              <Wallet className="h-6 w-6 text-green-600" />
             </div>
-          </Card>
-        </div>
 
-        {/* Top Up Modal */}
-        <Dialog open={isTopUpModalOpen} onOpenChange={setIsTopUpModalOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Top Up Wallet</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="amount">Amount (INR)</Label>
-                <Input
-                  id="amount"
-                  placeholder="Enter amount"
-                  type="number"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  min="1"
-                  step="0.01"
-                />
-                <p className="text-sm text-muted-foreground">
-                  Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="mb-1 text-sm text-muted-foreground">
+                Last Month Profit
+              </p>
+              <p className="break-words text-2xl font-bold leading-tight text-green-600">
+                {formatAgentMoney(agentData.lastMonthProfit)}
+              </p>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsTopUpModalOpen(false)}>Cancel</Button>
-              <Button 
-                onClick={handleTopUp} 
-                disabled={isProcessingPayment}
-                className="bg-gradient-to-r from-primary to-pink-500"
+          </div>
+        </Card>
+
+        {/* Wallet Balance */}
+        <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-pink-50 to-rose-50 p-5 shadow-sm">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
+              <Wallet className="h-6 w-6 text-pink-600" />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="mb-1 text-sm text-muted-foreground">
+                Wallet Balance
+              </p>
+
+              <p className="break-words text-[22px] font-bold leading-tight text-pink-600">
+                {formatAgentMoney(agentData.totalCashWallet)}
+              </p>
+
+              <Link
+                to="/wallet-history"
+                className="mt-1 inline-block text-xs font-medium text-pink-600 hover:underline"
               >
-                {isProcessingPayment ? "Processing..." : "Pay Now"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                View History
+              </Link>
+            </div>
+          </div>
+        </Card>
       </div>
-    );
-  }
+
+      {/* Top Up Modal */}
+      <Dialog open={isTopUpModalOpen} onOpenChange={setIsTopUpModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Top Up Wallet</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (INR)</Label>
+              <Input
+                id="amount"
+                placeholder="Enter amount"
+                type="number"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                min="1"
+                step="0.01"
+              />
+              <p className="text-sm text-muted-foreground">
+                Gateway fees/tax can vary by payment method and will be shown by
+                Razorpay at checkout.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsTopUpModalOpen(false)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              onClick={handleTopUp}
+              disabled={isProcessingPayment}
+              className="bg-gradient-to-r from-primary to-pink-500"
+            >
+              {isProcessingPayment ? "Processing..." : "Pay Now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
   if (isTravelExpert) {
     const teData = dashboardData as any;
