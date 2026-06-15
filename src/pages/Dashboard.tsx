@@ -240,6 +240,69 @@ const normalizeConfirmedItinerary = (row: any): ConfirmedDashboardItinerary => {
   };
 };
 
+
+const isSameDashboardDay = (value: string, compareDate = new Date()) => {
+  const date = getDateOnly(value);
+  if (!date) return false;
+
+  const targetDate = new Date(compareDate);
+  targetDate.setHours(0, 0, 0, 0);
+
+  return date.getTime() === targetDate.getTime();
+};
+
+const hasAssignedDriver = (row: LiveVehicleStatusRow) => {
+  return Boolean(
+    (row.driver_name && row.driver_name !== "-") ||
+      (row.driver_no && row.driver_no !== "-"),
+  );
+};
+
+const needsDashboardAttention = (
+  confirmedRows: ConfirmedDashboardItinerary[],
+  vehicleRows: LiveVehicleStatusRow[],
+) => {
+  const activeOrTodayQuotes = new Set(
+    confirmedRows
+      .filter(
+        (row) =>
+          isOngoingDashboardItinerary(row) ||
+          isSameDashboardDay(row.arrival_date) ||
+          isSameDashboardDay(row.departure_date),
+      )
+      .map((row) => row.booking_quote_id)
+      .filter((quoteId) => quoteId && quoteId !== "-"),
+  );
+
+  return vehicleRows.filter((row) => {
+    const isActiveOrToday =
+      isLiveVehicleOnRoute(row) ||
+      isSameDashboardDay(row.start_date) ||
+      isSameDashboardDay(row.end_date) ||
+      activeOrTodayQuotes.has(row.booking_id);
+
+    if (!isActiveOrToday) return false;
+
+    return !hasLiveVehicleAssignment(row) || !hasAssignedDriver(row);
+  }).length;
+};
+
+const buildTodayOperations = (
+  confirmedRows: ConfirmedDashboardItinerary[],
+  vehicleRows: LiveVehicleStatusRow[],
+) => {
+  return {
+    arrivalsToday: confirmedRows.filter((row) =>
+      isSameDashboardDay(row.arrival_date),
+    ).length,
+    departuresToday: confirmedRows.filter((row) =>
+      isSameDashboardDay(row.departure_date),
+    ).length,
+    toursRunning: confirmedRows.filter(isOngoingDashboardItinerary).length,
+    driversAssigned: vehicleRows.filter(hasAssignedDriver).length,
+    pendingAttention: needsDashboardAttention(confirmedRows, vehicleRows),
+  };
+};
 const extractHotelNamesFromConfirmedRow = (row: any): { hotel_name: string; hotel_location: string }[] => {
   const hotels: { hotel_name: string; hotel_location: string }[] = [];
 
@@ -325,6 +388,9 @@ export default function Dashboard() {
 const [loading, setLoading] = useState(true);
 
 const [confirmedItineraries, setConfirmedItineraries] = useState<ConfirmedDashboardItinerary[]>([]);
+const [confirmedOperationRows, setConfirmedOperationRows] = useState<
+  ConfirmedDashboardItinerary[]
+>([]);
 const [confirmedLoading, setConfirmedLoading] = useState(false);
 const [confirmedSearch, setConfirmedSearch] = useState("");
 const [confirmedEntries, setConfirmedEntries] = useState(5);
@@ -340,6 +406,9 @@ const [agentWisePage, setAgentWisePage] = useState(1);
 const [agentWiseTotal, setAgentWiseTotal] = useState(0);
 
 const [liveVehicleRows, setLiveVehicleRows] = useState<LiveVehicleStatusRow[]>([]);
+const [liveVehicleOperationRows, setLiveVehicleOperationRows] = useState<
+  LiveVehicleStatusRow[]
+>([]);
 const [liveVehicleLoading, setLiveVehicleLoading] = useState(false);
 const [liveVehicleSearch, setLiveVehicleSearch] = useState("");
 const [liveVehicleEntries, setLiveVehicleEntries] = useState(5);
@@ -559,6 +628,32 @@ useEffect(() => {
   isVendor,
   isGuide,
 ]);
+
+useEffect(() => {
+  if (isAgent || isAccounts || isVendor || isGuide) return;
+
+  const fetchDashboardOperationRows = async () => {
+    try {
+      const response = await ItineraryService.getConfirmedItineraries({
+        draw: 1,
+        start: 0,
+        length: DASHBOARD_CONFIRMED_FETCH_LIMIT,
+        search_value: "",
+      });
+
+      const rawRows = Array.isArray(response?.data) ? response.data : [];
+
+      setConfirmedOperationRows(rawRows.map(normalizeConfirmedItinerary));
+      setLiveVehicleOperationRows(rawRows.map(normalizeLiveVehicleStatusRow));
+    } catch (error) {
+      console.error("Failed to fetch dashboard operation rows:", error);
+      setConfirmedOperationRows([]);
+      setLiveVehicleOperationRows([]);
+    }
+  };
+
+  fetchDashboardOperationRows();
+}, [isAgent, isAccounts, isVendor, isGuide]);
 
 useEffect(() => {
   if (isAgent || isAccounts || isVendor || isGuide) return;
@@ -1165,6 +1260,79 @@ const liveVehicleTotalPages = Math.max(1, Math.ceil(liveVehicleTotal / liveVehic
 const liveVehicleStartEntry =
   liveVehicleTotal === 0 ? 0 : (liveVehiclePage - 1) * liveVehicleEntries + 1;
 const liveVehicleEndEntry = Math.min(liveVehiclePage * liveVehicleEntries, liveVehicleTotal);
+
+const todayOperations = buildTodayOperations(
+  confirmedOperationRows,
+  liveVehicleOperationRows,
+);
+
+const operationCards = [
+  {
+    label: "Arrivals Today",
+    value: todayOperations.arrivalsToday,
+    helper: "Confirmed arrivals for today",
+    icon: Calendar,
+    tone: "from-emerald-50 to-green-50 text-emerald-600 ring-emerald-100",
+  },
+  {
+    label: "Departures Today",
+    value: todayOperations.departuresToday,
+    helper: "Confirmed departures for today",
+    icon: Truck,
+    tone: "from-blue-50 to-cyan-50 text-blue-600 ring-blue-100",
+  },
+  {
+    label: "Tours Running",
+    value: todayOperations.toursRunning,
+    helper: "Tours active right now",
+    icon: CheckCircle2,
+    tone: "from-purple-50 to-violet-50 text-purple-600 ring-purple-100",
+  },
+  {
+    label: "Drivers Assigned",
+    value: todayOperations.driversAssigned,
+    helper: "Rows with driver details",
+    icon: UserCheck,
+    tone: "from-sky-50 to-blue-50 text-sky-600 ring-sky-100",
+  },
+  {
+    label: "Pending Attention",
+    value: todayOperations.pendingAttention,
+    helper: "Active/today rows missing assignment",
+    icon: Clock,
+    tone: "from-orange-50 to-amber-50 text-orange-600 ring-orange-100",
+  },
+];
+
+const statCards = [
+  {
+    label: "Total Itineraries",
+    value: adminData.stats.totalItineraries,
+    icon: "🧳",
+    helper: "All itinerary records",
+  },
+  {
+    label: "Total Revenue",
+    value: `₹ ${adminData.stats.totalRevenue.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    icon: "💰",
+    helper: "Overall business revenue",
+  },
+  {
+    label: "Total Confirm Bookings",
+    value: adminData.stats.confirmedBookings,
+    icon: "📅",
+    helper: "Confirmed booking count",
+  },
+  {
+    label: "Cancelled Booking",
+    value: adminData.stats.cancelledBookings,
+    icon: "📆",
+    helper: "Cancelled booking count",
+  },
+];
 
 const dailyMomentRows =
   adminData.dailyMoment.length > 0
