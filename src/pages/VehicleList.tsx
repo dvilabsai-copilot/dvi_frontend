@@ -54,7 +54,10 @@ export interface ItineraryVehicleRow {
   totalQty?: string | null;
   totalAmount?: number | string | null;
   vehicleId?: number | null;
+  vehicleIds?: number[];
   vehicleNumber?: string | null;
+  vehicleNumbers?: string[];
+  availableVehicleCount?: number;
   vehicleRegistrationNumber?: string | null;
   vehicleRegistrationStateCode?: string | null;
   vehicleRegistrationStateName?: string | null;
@@ -892,10 +895,23 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             <div className="flex justify-between gap-4">
                               <span className="text-gray-600">Vehicle No</span>
                               <span className="text-gray-900 font-semibold text-right">
-                                {safe(v.vehicleNumber || v.vehicleRegistrationNumber) || "-"}
+                                {Array.isArray(v.vehicleNumbers) && v.vehicleNumbers.length > 0
+                                  ? v.vehicleNumbers.join(", ")
+                                  : (safe(v.vehicleNumber || v.vehicleRegistrationNumber) || "-")}
                               </span>
                             </div>
                           </div>
+
+                          {(Number(v.availableVehicleCount || 0) > 1 || (Array.isArray(v.vehicleIds) && v.vehicleIds.length > 1)) && (
+                            <div className="mb-1">
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600">Available Vehicles</span>
+                                <span className="text-gray-900 font-semibold text-right">
+                                  {Number(v.availableVehicleCount || v.vehicleIds?.length || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
 
                           <div className="mb-1">
                             <div className="flex justify-between gap-4">

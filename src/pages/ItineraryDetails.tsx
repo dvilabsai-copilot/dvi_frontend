@@ -275,7 +275,10 @@ export type ItineraryVehicleRow = {
   totalQty: string;
   totalAmount: string;
   vehicleId?: number | null;
+  vehicleIds?: number[];
   vehicleNumber?: string | null;
+  vehicleNumbers?: string[];
+  availableVehicleCount?: number;
   vehicleRegistrationNumber?: string | null;
   vehicleRegistrationStateCode?: string | null;
   vehicleRegistrationStateName?: string | null;
@@ -625,6 +628,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const pref = Number(itinerary?.itineraryPreference ?? 0);
     return pref === 2 || pref === 3;
   })();
+  const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
+  const requiresHotelBookingFlow = shouldShowHotels;
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -4631,6 +4636,35 @@ const vehicleOnlyHtml = html
   const [incidentalModal, setIncidentalModal] = useState(false);
   const [isConfirmingQuotation, setIsConfirmingQuotation] = useState(false);
   const [walletBalance, setWalletBalance] = useState<string>('');
+  const currentItineraryPlanId = Number(itinerary?.planId || 0);
+
+  const handleDownloadPluckCard = async () => {
+    if (!currentItineraryPlanId) {
+      toast.error("Itinerary plan is not available yet");
+      return;
+    }
+    try {
+      await ItineraryService.downloadPluckCardPdf(currentItineraryPlanId);
+      toast.success("Pluck card download started");
+    } catch (error) {
+      console.error("Failed to download pluck card PDF", error);
+      toast.error("Failed to download pluck card");
+    }
+  };
+
+  const handleDownloadInvoice = async (type: 'tax' | 'proforma') => {
+    if (!currentItineraryPlanId) {
+      toast.error("Itinerary plan is not available yet");
+      return;
+    }
+    try {
+      await ItineraryService.downloadInvoicePdf(currentItineraryPlanId, type);
+      toast.success(`${type === 'tax' ? 'Tax' : 'Proforma'} invoice download started`);
+    } catch (error) {
+      console.error("Failed to download invoice PDF", error);
+      toast.error(`Failed to download ${type} invoice`);
+    }
+  };
 
   // ✅ Reference to hotel save function
   const hotelSaveFunctionRef = React.useRef<(() => Promise<boolean>) | null>(null);
@@ -4954,6 +4988,18 @@ function getHotelAmountForBooking(entry: any): number {
   useEffect(() => {
     prebookDataRef.current = prebookData;
   }, [prebookData]);
+
+  useEffect(() => {
+    if (!shouldShowHotels) {
+      setHotelDetails(null);
+      setSelectedHotelBookings({});
+      setActiveHotelGroupType(null);
+      setPrebookData(null);
+      prebookDataRef.current = null;
+      setHasAcceptedUpdatedPrice(false);
+      setConfirmOccupanciesTemplate(null);
+    }
+  }, [shouldShowHotels, itinerary?.planId]);
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -7507,16 +7553,34 @@ function getHotelAmountForBooking(entry: any): number {
         };
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
-        setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
-        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
-        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
+        if (requiresHotelBookingFlow) {
+          setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
+          setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
+          setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
 
-        const template = buildOccupanciesFromTravellers(
-          travellersFromPlan,
-          Number(itinerary?.roomCount || 1),
-        );
-        occupanciesTemplateFromPlan = template;
-        setConfirmOccupanciesTemplate(template);
+          const template = buildOccupanciesFromTravellers(
+            travellersFromPlan,
+            Number(itinerary?.roomCount || 1),
+          );
+          occupanciesTemplateFromPlan = template;
+          setConfirmOccupanciesTemplate(template);
+        } else {
+          setAdditionalAdults([]);
+          setAdditionalChildren([]);
+          setAdditionalInfants([]);
+          setConfirmOccupanciesTemplate(null);
+        }
+      }
+
+      if (isVehicleOnlyItinerary) {
+        setAdditionalAdults([]);
+        setAdditionalChildren([]);
+        setAdditionalInfants([]);
+        setConfirmOccupanciesTemplate(null);
+        setPrebookData(null);
+        prebookDataRef.current = null;
+        setHasAcceptedUpdatedPrice(false);
+        return;
       }
 
       // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
@@ -7808,13 +7872,15 @@ function getHotelAmountForBooking(entry: any): number {
       });
     };
 
-    const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
-    const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
-    const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
+    if (requiresHotelBookingFlow) {
+      const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
+      const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
+      const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
-    validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
-    validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
+      validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+      validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
+      validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
+    }
 
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors);
@@ -7827,25 +7893,26 @@ function getHotelAmountForBooking(entry: any): number {
     setIsConfirmingQuotation(true);
 
     try {
+      let autoSelectedHotels = { ...selectedHotelBookings };
       const groupTypeValue =
         activeHotelGroupType ??
-        Object.values(selectedHotelBookings)[0]?.groupType ??
+        Object.values(autoSelectedHotels)[0]?.groupType ??
         hotelDetails?.hotelTabs?.[0]?.groupType ??
         1;
-
-      let autoSelectedHotels = { ...selectedHotelBookings };
-      const selectedProvidersForConfirm = Array.from(
-        new Set(
-          Object.values(autoSelectedHotels)
-            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
-            .filter(Boolean),
-        ),
-      );
+      const selectedProvidersForConfirm = requiresHotelBookingFlow
+        ? Array.from(
+            new Set(
+              Object.values(autoSelectedHotels)
+                .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          )
+        : [];
       const preferredProviderForConfirm =
         selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
       const skippedRouteIdsForConfirm: number[] = [];
 
-      if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
+      if (requiresHotelBookingFlow && hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
         const toAutoSelection = (hotelRow: any, routeId: number) => {
@@ -7998,22 +8065,25 @@ function getHotelAmountForBooking(entry: any): number {
       ];
 
       // Child ages must be locked from plan/search template to avoid mismatch with TBO
-      const childAgesForBooking = (
-        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-          ? confirmOccupanciesTemplate.flatMap((occ: any) =>
-              Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
-            )
-          : normalizedAdditionalChildren.map((c) => Number(c.age))
-      ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11);
+      const childAgesForBooking = requiresHotelBookingFlow
+        ? (
+            confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+              ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+                  Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
+                )
+              : normalizedAdditionalChildren.map((c) => Number(c.age))
+          ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11)
+        : [];
 
-      const occupanciesForBooking =
-        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+      const occupanciesForBooking = requiresHotelBookingFlow
+        ? confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
           ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
           : buildTboOccupancies(
               Number(itinerary.roomCount || 1),
               Math.max(Number(itinerary.adults || 1), 1),
               childAgesForBooking,
-            );
+            )
+        : [];
 
       const bookingGuestNationality = (
         guestDetails.nationality ||
@@ -8023,33 +8093,37 @@ function getHotelAmountForBooking(entry: any): number {
         .trim()
         .toUpperCase();
 
-      const providerBookableSelections = Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
-        isSupplierBookableHotel(hotelData),
-      );
+      const providerBookableSelections = requiresHotelBookingFlow
+        ? Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
+            isSupplierBookableHotel(hotelData),
+          )
+        : [];
 
-      const hotelBookings: any[] = providerBookableSelections.map(([routeId, hotelData]) => ({
-        occupancies: occupanciesForBooking,
-        provider: inferHotelProvider(hotelData),
-        routeId: parseInt(routeId, 10),
-        hotelCode: hotelData.hotelCode,
-        hotelName: hotelData.hotelName,
-        bookingCode: hotelData.bookingCode,
-        searchReference: hotelData.searchReference,
-        roomId: hotelData.roomId,
-        rateId: hotelData.rateId,
-        roomType: hotelData.roomType,
-        checkInDate: hotelData.checkInDate,
-        checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: Number(itinerary.roomCount || 1),
-        guestNationality: bookingGuestNationality,
-        netAmount: toMoneyNumber(hotelData.netAmount),
-        searchInitiatedAt: hotelData.searchInitiatedAt,
-        isBookable: hotelData.isBookable,
-        externalStay: hotelData.externalStay,
-        availabilityStatus: hotelData.availabilityStatus,
-        availabilityMessage: hotelData.availabilityMessage,
-        passengers,
-      }));
+      const hotelBookings: any[] = requiresHotelBookingFlow
+        ? providerBookableSelections.map(([routeId, hotelData]) => ({
+            occupancies: occupanciesForBooking,
+            provider: inferHotelProvider(hotelData),
+            routeId: parseInt(routeId, 10),
+            hotelCode: hotelData.hotelCode,
+            hotelName: hotelData.hotelName,
+            bookingCode: hotelData.bookingCode,
+            searchReference: hotelData.searchReference,
+            roomId: hotelData.roomId,
+            rateId: hotelData.rateId,
+            roomType: hotelData.roomType,
+            checkInDate: hotelData.checkInDate,
+            checkOutDate: hotelData.checkOutDate,
+            numberOfRooms: Number(itinerary.roomCount || 1),
+            guestNationality: bookingGuestNationality,
+            netAmount: toMoneyNumber(hotelData.netAmount),
+            searchInitiatedAt: hotelData.searchInitiatedAt,
+            isBookable: hotelData.isBookable,
+            externalStay: hotelData.externalStay,
+            availabilityStatus: hotelData.availabilityStatus,
+            availabilityMessage: hotelData.availabilityMessage,
+            passengers,
+          }))
+        : [];
 
       const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
       const nonTboRouteIds = hotelBookings
@@ -8057,7 +8131,7 @@ function getHotelAmountForBooking(entry: any): number {
         .map((booking) => Number(booking.routeId))
         .filter((id) => Number.isFinite(id));
 
-      if (tboCount > 0 && nonTboRouteIds.length > 0) {
+      if (requiresHotelBookingFlow && tboCount > 0 && nonTboRouteIds.length > 0) {
         const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
         const shouldContinueWithMixedProviders = window.confirm(
           `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
@@ -8071,21 +8145,23 @@ function getHotelAmountForBooking(entry: any): number {
         toast.warning('Proceeding with mixed-provider booking as confirmed.');
       }
 
-      if (hotelBookings.length === 0 && externalStayEntries.length === 0) {
+      if (requiresHotelBookingFlow && hotelBookings.length === 0 && externalStayEntries.length === 0) {
         toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');
         return;
       }
 
-      const staleHotel = hotelBookings.find((booking) => {
-        if (!booking.searchInitiatedAt) {
-          return false;
-        }
-        const parsed = new Date(String(booking.searchInitiatedAt));
-        if (Number.isNaN(parsed.getTime())) {
-          return true;
-        }
-        return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
-      });
+      const staleHotel = requiresHotelBookingFlow
+        ? hotelBookings.find((booking) => {
+            if (!booking.searchInitiatedAt) {
+              return false;
+            }
+            const parsed = new Date(String(booking.searchInitiatedAt));
+            if (Number.isNaN(parsed.getTime())) {
+              return true;
+            }
+            return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+          })
+        : null;
 
       if (staleHotel) {
         setPrebookData(null);
@@ -8094,16 +8170,18 @@ function getHotelAmountForBooking(entry: any): number {
         return;
       }
 
-      const clientIp = await fetch('https://api.ipify.org?format=json')
-        .then((res) => res.json())
-        .then((data) => data.ip)
-        .catch(() => '192.168.1.1');
+      const clientIp = requiresHotelBookingFlow
+        ? await fetch('https://api.ipify.org?format=json')
+            .then((res) => res.json())
+            .then((data) => data.ip)
+            .catch(() => '192.168.1.1')
+        : undefined;
 
       const effectivePrebookData = prebookDataRef.current || prebookData;
-      const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((b) => b.provider === 'tbo');
       console.log('hasTboBookings', hasTboBookings);
       console.log(hotelBookings,'hotelBookings');
-      if (hasTboBookings && !effectivePrebookData) {
+      if (requiresHotelBookingFlow && hasTboBookings && !effectivePrebookData) {
         toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
       }
@@ -8117,13 +8195,18 @@ function getHotelAmountForBooking(entry: any): number {
       const currentTboTotal = hotelBookings
         .filter((booking) => booking.provider === 'tbo')
         .reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTboTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+      if (
+        requiresHotelBookingFlow &&
+        prebookTotal > 0 &&
+        Math.abs(prebookTotal - currentTboTotal) > 0.01 &&
+        !hasAcceptedUpdatedPrice
+      ) {
         toast.warning('Accept updated prebook price before final confirmation.');
         return;
       }
 
       // Require acknowledgement of review details before final booking
-      if (!hasAcceptedUpdatedPrice) {
+      if (requiresHotelBookingFlow && !hasAcceptedUpdatedPrice) {
         toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
         return;
       }
@@ -8142,41 +8225,49 @@ function getHotelAmountForBooking(entry: any): number {
         return;
       }
 
-      const hotelBookingsWithPrebookContext = hotelBookings.map((booking) => {
-        const matchingPrebook = prebookHotelEntries.find(
-          (item: any) =>
-            Number(item?.routeId) === Number(booking.routeId) &&
-            String(item?.hotelCode || '') === String(booking.hotelCode || ''),
-        );
+      const hotelBookingsWithPrebookContext = requiresHotelBookingFlow
+        ? hotelBookings.map((booking) => {
+            const matchingPrebook = prebookHotelEntries.find(
+              (item: any) =>
+                Number(item?.routeId) === Number(booking.routeId) &&
+                String(item?.hotelCode || '') === String(booking.hotelCode || ''),
+            );
 
-        return {
-          ...booking,
-          prebookContext: matchingPrebook?.prebookContext,
-        };
-      });
+            return {
+              ...booking,
+              prebookContext: matchingPrebook?.prebookContext,
+            };
+          })
+        : [];
 
-      console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
-        routeId: h.routeId,
-        provider: h.provider,
-        hotelCode: h.hotelCode,
-        hotelName: h.hotelName,
-        bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
-        bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
-        roomType: h.roomType,
-        checkInDate: h.checkInDate,
-        checkOutDate: h.checkOutDate,
-        netAmount: h.netAmount,
-      })));
+      if (requiresHotelBookingFlow) {
+        console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
+          routeId: h.routeId,
+          provider: h.provider,
+          hotelCode: h.hotelCode,
+          hotelName: h.hotelName,
+          bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
+          bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
+          roomType: h.roomType,
+          checkInDate: h.checkInDate,
+          checkOutDate: h.checkOutDate,
+          netAmount: h.netAmount,
+        })));
+      }
 
-      const selectedHotelRouteIds = hotelBookingsWithPrebookContext
-        .map((booking: any) => Number(booking.routeId || 0))
-        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+      const selectedHotelRouteIds = requiresHotelBookingFlow
+        ? hotelBookingsWithPrebookContext
+            .map((booking: any) => Number(booking.routeId || 0))
+            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
+        : [];
 
-      const externalStayRouteIds = externalStayEntries
-        .map((entry: any) => Number(entry.routeId || 0))
-        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+      const externalStayRouteIds = requiresHotelBookingFlow
+        ? externalStayEntries
+            .map((entry: any) => Number(entry.routeId || 0))
+            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
+        : [];
 
-      const confirmPayload = {
+      const confirmPayload: any = {
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
         primary_guest_salutation: guestDetails.salutation,
@@ -8185,26 +8276,29 @@ function getHotelAmountForBooking(entry: any): number {
         primary_guest_age: guestDetails.age,
         primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
         primary_guest_email_id: guestDetails.emailId,
-        adult_name: normalizedAdditionalAdults.map(a => a.name),
-        adult_age: normalizedAdditionalAdults.map(a => a.age),
-        child_name: normalizedAdditionalChildren.map(c => c.name),
-        child_age: normalizedAdditionalChildren.map(c => c.age),
-        infant_name: normalizedAdditionalInfants.map(i => i.name),
-        infant_age: normalizedAdditionalInfants.map(i => i.age),
+        adult_name: requiresHotelBookingFlow ? normalizedAdditionalAdults.map(a => a.name) : [],
+        adult_age: requiresHotelBookingFlow ? normalizedAdditionalAdults.map(a => a.age) : [],
+        child_name: requiresHotelBookingFlow ? normalizedAdditionalChildren.map(c => c.name) : [],
+        child_age: requiresHotelBookingFlow ? normalizedAdditionalChildren.map(c => c.age) : [],
+        infant_name: requiresHotelBookingFlow ? normalizedAdditionalInfants.map(i => i.name) : [],
+        infant_age: requiresHotelBookingFlow ? normalizedAdditionalInfants.map(i => i.age) : [],
         arrival_date_time: guestDetails.arrivalDateTime,
         arrival_place: guestDetails.arrivalPlace,
         arrival_flight_details: guestDetails.arrivalFlightDetails,
         departure_date_time: guestDetails.departureDateTime,
         departure_place: guestDetails.departurePlace,
         departure_flight_details: guestDetails.departureFlightDetails,
-        price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
-        hotel_group_type: selectedGroupType,
-        hotel_bookings: hotelBookingsWithPrebookContext,
-        selected_hotel_route_ids: selectedHotelRouteIds,
-        external_stay_route_ids: externalStayRouteIds,
+        price_confirmation_type: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? 'new' : 'old',
         primaryGuest,
         endUserIp: clientIp,
       };
+
+      if (requiresHotelBookingFlow) {
+        confirmPayload.hotel_group_type = selectedGroupType;
+        confirmPayload.hotel_bookings = hotelBookingsWithPrebookContext;
+        confirmPayload.selected_hotel_route_ids = selectedHotelRouteIds;
+        confirmPayload.external_stay_route_ids = externalStayRouteIds;
+      }
 
       console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
 
@@ -8501,7 +8595,7 @@ function getHotelAmountForBooking(entry: any): number {
                     <Button
                       variant="outline"
                       className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
-                      onClick={() => setPluckCardModal(true)}
+                      onClick={() => void handleDownloadPluckCard()}
                     >
                       <CreditCard className="mr-2 h-4 w-4" />
                       Download Pluck Card
@@ -8534,7 +8628,7 @@ function getHotelAmountForBooking(entry: any): number {
                     <Button
                       variant="outline"
                       className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-                      onClick={() => { setInvoiceType('tax'); setInvoiceModal(true); }}
+                      onClick={() => void handleDownloadInvoice('tax')}
                     >
                       <Receipt className="mr-2 h-4 w-4" />
                       Invoice Tax
@@ -8542,10 +8636,10 @@ function getHotelAmountForBooking(entry: any): number {
                     <Button
                       variant="outline"
                       className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                      onClick={() => { setInvoiceType('proforma'); setInvoiceModal(true); }}
+                      onClick={() => void handleDownloadInvoice('proforma')}
                     >
                       <FileText className="mr-2 h-4 w-4" />
-                      Invoice Performa
+                      Invoice Proforma
                     </Button>
                   </>
                 )}
@@ -12319,36 +12413,38 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm gap-4">
-                <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
-                <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
-              </div>
-              <div className="flex justify-between text-sm gap-4">
-                <span className="text-[#6c6c6c]">Passenger Mix:</span>
-                <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
-              </div>
-              <div className="pt-2 border-t border-[#e6e6e6]">
-                <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
-                <div className="space-y-1">
-                  {confirmOccupancyPreview.map((room, index) => {
-                    const roomMix = [
-                      room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
-                      room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
-                    ].filter(Boolean).join(', ');
+            {requiresHotelBookingFlow && (
+              <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
+                  <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
+                </div>
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-[#6c6c6c]">Passenger Mix:</span>
+                  <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
+                </div>
+                <div className="pt-2 border-t border-[#e6e6e6]">
+                  <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
+                  <div className="space-y-1">
+                    {confirmOccupancyPreview.map((room, index) => {
+                      const roomMix = [
+                        room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
+                        room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
+                      ].filter(Boolean).join(', ');
 
-                    return (
-                      <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
-                        <span className="text-[#6c6c6c]">Room {index + 1}:</span>
-                        <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
+                          <span className="text-[#6c6c6c]">Room {index + 1}:</span>
+                          <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {(Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
+            {requiresHotelBookingFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
                 <p className="text-xs text-amber-700 mt-1">
@@ -12357,7 +12453,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {(isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
+            {requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
               <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
                 <div>
@@ -12367,7 +12463,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {externalStayEntries.length > 0 && (
+            {requiresHotelBookingFlow && externalStayEntries.length > 0 && (
               <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <div>
                   <h3 className="font-semibold text-amber-900">External / self-arranged stay required</h3>
@@ -12406,7 +12502,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
+            {requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
                 <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
@@ -12525,7 +12621,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {prebookData && (
+            {requiresHotelBookingFlow && prebookData && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -12956,6 +13052,8 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 />
               </div>
 
+              {requiresHotelBookingFlow && (
+                <>
               {/* Additional Adults */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
@@ -13228,6 +13326,8 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                   </div>
                 ))}
               </div>
+                </>
+              )}
             </div>
 
             {/* Arrival Details */}
