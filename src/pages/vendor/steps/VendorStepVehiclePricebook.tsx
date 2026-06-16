@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
-import { format, isValid, parseISO } from "date-fns";
+import { addDays, format, isValid, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,10 +54,14 @@ const PricebookDatePicker = ({
   value,
   onChange,
   placeholder,
+  defaultMonth,
+  minDate,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  defaultMonth?: Date;
+  minDate?: Date;
 }) => {
   const selected = toPickerDate(value);
 
@@ -76,9 +80,19 @@ const PricebookDatePicker = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2" align="start">
         <Calendar
+          key={defaultMonth ? format(defaultMonth, "yyyy-MM-dd") : "pricebook-calendar"}
           mode="single"
           selected={selected}
-          onSelect={(date) => onChange(toYmd(date))}
+          defaultMonth={defaultMonth || selected || new Date()}
+          disabled={
+            minDate
+              ? (date) => date < minDate
+              : undefined
+          }
+          onSelect={(date) => {
+            if (!date) return;
+            onChange(toYmd(date));
+          }}
           initialFocus
         />
       </PopoverContent>
@@ -1140,16 +1154,24 @@ if (vendorTypeOptions.length > 0) {
                   + Add KM Limit
                 </Button>
                 <div className="hidden items-center gap-2 sm:flex">
-                  <PricebookDatePicker
-                    value={localStartDate}
-                    onChange={setLocalStartDate}
-                    placeholder="Start Date"
-                  />
-                  <PricebookDatePicker
-                    value={localEndDate}
-                    onChange={setLocalEndDate}
-                    placeholder="End Date"
-                  />
+            <PricebookDatePicker
+  value={localStartDate}
+  onChange={(value) => {
+    setLocalStartDate(value);
+  }}
+  placeholder="Start Date"
+/>
+<PricebookDatePicker
+  value={localEndDate}
+  onChange={setLocalEndDate}
+  placeholder="End Date"
+  defaultMonth={
+    localStartDate ? addDays(toPickerDate(localStartDate)!, 1) : undefined
+  }
+  minDate={
+    localStartDate ? addDays(toPickerDate(localStartDate)!, 1) : undefined
+  }
+/>
                 </div>
                 <Button
                   type="button"
@@ -1275,16 +1297,24 @@ if (vendorTypeOptions.length > 0) {
                   + Add KM Limit
                 </Button>
                 <div className="hidden items-center gap-2 sm:flex">
-                  <PricebookDatePicker
-                    value={outstationStartDate}
-                    onChange={setOutstationStartDate}
-                    placeholder="Start Date"
-                  />
-                  <PricebookDatePicker
-                    value={outstationEndDate}
-                    onChange={setOutstationEndDate}
-                    placeholder="End Date"
-                  />
+                <PricebookDatePicker
+  value={outstationStartDate}
+  onChange={(value) => {
+    setOutstationStartDate(value);
+  }}
+  placeholder="Start Date"
+/>
+<PricebookDatePicker
+  value={outstationEndDate}
+  onChange={setOutstationEndDate}
+  placeholder="End Date"
+  defaultMonth={
+    outstationStartDate ? addDays(toPickerDate(outstationStartDate)!, 1) : undefined
+  }
+  minDate={
+    outstationStartDate ? addDays(toPickerDate(outstationStartDate)!, 1) : undefined
+  }
+/>
                 </div>
                 <Button
                   type="button"
