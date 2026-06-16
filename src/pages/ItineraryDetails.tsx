@@ -8405,20 +8405,6 @@ function getHotelAmountForBooking(entry: any): number {
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
-  if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
-    return (
-      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
-          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
-          <p className="mt-2 text-sm text-[#6c6c6c]">
-            We are preparing the latest itinerary data before showing the page.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
   }
@@ -8444,6 +8430,20 @@ function getHotelAmountForBooking(entry: any): number {
           >
             Retry vehicle build
           </Button>
+        </div>
+      </div>
+      );
+  }
+
+  if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
+    return (
+      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
+          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
+          <p className="mt-2 text-sm text-[#6c6c6c]">
+            We are preparing the latest itinerary data before showing the page.
+          </p>
         </div>
       </div>
     );
