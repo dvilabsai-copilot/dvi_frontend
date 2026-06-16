@@ -22,7 +22,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   const contentShell = isDownloadPackagesPage ? "w-full" : "w-full px-4 lg:px-6";
 
   return (
-    <div className="flex min-h-screen w-full overflow-x-hidden bg-background">
+    <div className="flex min-h-screen w-full bg-background" style={{ overflowX: "clip" }}>
       {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
       <div
         className="hidden md:block transition-all duration-300 shrink-0"
