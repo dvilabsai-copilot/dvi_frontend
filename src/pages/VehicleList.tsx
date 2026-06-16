@@ -102,7 +102,18 @@ export interface ItineraryVehicleRow {
   totalDropKm?: number;
   totalDropDuration?: string;
   totalUsedKm?: number;
+  totalAllowedLocalKm?: number;
+  totalAllowedOutstationKm?: number;
   totalAllowedKm?: number;
+  localDaysCount?: number;
+  outstationDaysCount?: number;
+  outstationAllowedKmPerDay?: number;
+  localAllowedKmBreakdown?: Array<{
+    timeLimitId?: number;
+    allowedKm: number;
+    days: number;
+    label?: string;
+  }>;
   extraKms?: number;
   extraKmRate?: number;
   extraKmCharge?: number;
@@ -137,6 +148,56 @@ const toAmount = (value: number | string | undefined | null): number => {
   const cleaned = String(value || "").replace(/,/g, "").trim();
   const parsed = parseFloat(cleaned);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(String(value ?? "").replace(/,/g, "").trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatKm = (value: unknown): string => {
+  const n = toNumber(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+};
+
+const getAllowedKmSummaryRows = (vehicle: ItineraryVehicleRow): Array<[string, string]> => {
+  const totalAllowedLocalKm = toNumber(vehicle.totalAllowedLocalKm);
+  const totalAllowedOutstationKm = toNumber(vehicle.totalAllowedOutstationKm);
+  const totalAllowedKm = toNumber(vehicle.totalAllowedKm);
+  const localDaysCount = toNumber(vehicle.localDaysCount);
+  const outstationAllowedKmPerDay = toNumber(vehicle.outstationAllowedKmPerDay);
+  const outstationDaysCount = toNumber(vehicle.outstationDaysCount);
+
+  const rows: Array<[string, string]> = [];
+
+  if (totalAllowedLocalKm > 0) {
+    rows.push([
+      "TOTAL ALLOWED LOCAL KM",
+      localDaysCount > 0
+        ? `${formatKm(totalAllowedLocalKm / localDaysCount)} * ${formatKm(localDaysCount)} = ${formatKm(totalAllowedLocalKm)}`
+        : formatKm(totalAllowedLocalKm),
+    ]);
+  }
+
+  if (totalAllowedOutstationKm > 0) {
+    rows.push([
+      "TOTAL ALLOWED OUTSTATION KM",
+      outstationAllowedKmPerDay > 0 && outstationDaysCount > 0
+        ? `${formatKm(outstationAllowedKmPerDay)} * ${formatKm(outstationDaysCount)} = ${formatKm(totalAllowedOutstationKm)}`
+        : formatKm(totalAllowedOutstationKm),
+    ]);
+  }
+
+  if (totalAllowedKm > 0) {
+    rows.push(["TOTAL ALLOWED KM", formatKm(totalAllowedKm)]);
+  }
+
+  if (!rows.length && totalAllowedKm > 0) {
+    rows.push(["TOTAL ALLOWED KM", formatKm(totalAllowedKm)]);
+  }
+
+  return rows;
 };
 
 const getVehicleSubtotal = (vehicle: ItineraryVehicleRow): number => {
@@ -534,10 +595,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
           ? ["Total Drop Duration", vehicle.totalDropDuration || "-"]
           : null,
         ["TOTAL USED KM", Number(vehicle.totalUsedKm ?? 0).toFixed(0)],
-        [
-          vehicle.localTrip ? "TOTAL ALLOWED LOCAL KM" : "TOTAL ALLOWED OUTSTATION KM",
-          `${vehicle.totalAllowedKm != null && vehicle.totalDays ? `${Math.round((vehicle.totalAllowedKm) / vehicle.totalDays)} * ${vehicle.totalDays}` : (vehicle.totalAllowedKm ?? 0)} = ${Number(vehicle.totalAllowedKm ?? 0).toFixed(0)}`,
-        ],
+        ...getAllowedKmSummaryRows(vehicle),
         (vehicle.extraKms ?? 0) > 0
           ? [
               "TOTAL EXTRA KM",
@@ -1183,15 +1241,14 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL USED KM</td>
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
                                   </tr>
-                                  <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{v.localTrip ? 'TOTAL ALLOWED LOCAL KM' : 'TOTAL ALLOWED OUTSTATION KM'}</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                      {v.totalAllowedKm != null && v.totalDays
-                                        ? `${Math.round((v.totalAllowedKm) / (v.totalDays))} * ${v.totalDays}`
-                                        : (v.totalAllowedKm ?? 0)}{' '}
-                                      = {(v.totalAllowedKm ?? 0).toFixed(0)}
-                                    </td>
-                                  </tr>
+                                  {getAllowedKmSummaryRows(v).map(([label, value]) => (
+                                    <tr key={`${label}-${value}`}>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{label}</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+                                        {value}
+                                      </td>
+                                    </tr>
+                                  ))}
                                   {(v.extraKms ?? 0) > 0 && (
                                     <tr>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL EXTRA KM</td>
