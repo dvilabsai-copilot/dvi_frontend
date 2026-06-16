@@ -2721,28 +2721,7 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const scrollToSection = (el: HTMLDivElement | null) => {
     if (!el) return;
 
-    let scrollParent: HTMLElement | null = el.parentElement;
-    while (scrollParent) {
-      const style = window.getComputedStyle(scrollParent);
-      const canScrollY = /(auto|scroll)/.test(style.overflowY || "");
-      if (canScrollY && scrollParent.scrollHeight > scrollParent.clientHeight) {
-        break;
-      }
-      scrollParent = scrollParent.parentElement;
-    }
-
     const offset = summaryStickyHeight + 12;
-    if (scrollParent) {
-      const parentRect = scrollParent.getBoundingClientRect();
-      const targetTop =
-        scrollParent.scrollTop +
-        (el.getBoundingClientRect().top - parentRect.top) -
-        offset;
-
-      scrollParent.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
-      return;
-    }
-
     const y = el.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
   };
@@ -9356,7 +9335,11 @@ function getHotelAmountForBooking(entry: any): number {
       </div>
       {/* Hotel List (separate component) */}
       {shouldShowHotels && loadingHotels && (
-        <div ref={hotelListRef} id="hotel-list-section">
+        <div
+          ref={hotelListRef}
+          id="hotel-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
               <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
@@ -9367,7 +9350,11 @@ function getHotelAmountForBooking(entry: any): number {
       )}
 
       {shouldShowHotels && !loadingHotels && hotelDetails && (
-        <div ref={hotelListRef} id="hotel-list-section">
+        <div
+          ref={hotelListRef}
+          id="hotel-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <HotelList
             hotels={hotelsForDisplay}
             hotelTabs={hotelDetails.hotelTabs}
@@ -9431,7 +9418,11 @@ function getHotelAmountForBooking(entry: any): number {
         })) || [];
 
         return (
-          <div ref={vehicleListRef} id="vehicle-list-section">
+          <div
+            ref={vehicleListRef}
+            id="vehicle-list-section"
+            style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+          >
             {typeOrder.map((typeId) => {
               const vehiclesForType = vehiclesByType.get(typeId) || [];
               const firstVehicle = vehiclesForType[0];
@@ -9456,7 +9447,11 @@ function getHotelAmountForBooking(entry: any): number {
       })()}
 
       {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
-        <div ref={vehicleListRef} id="vehicle-list-section">
+        <div
+          ref={vehicleListRef}
+          id="vehicle-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 px-6">
               <div className="text-center text-[#6c6c6c]">No vehicle available</div>

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
-import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -23,7 +22,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   const contentShell = isDownloadPackagesPage ? "w-full" : "w-full px-4 lg:px-6";
 
   return (
-  <div className="flex min-h-screen w-full overflow-x-hidden bg-background">
+    <div className="flex min-h-screen w-full overflow-x-hidden bg-background">
       {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
       <div
         className="hidden md:block transition-all duration-300 shrink-0"
@@ -37,14 +36,14 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
         onCollapsedChange={setSidebarCollapsed}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col min-h-screen">
         <div className={shell}>
           <Topbar
             onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
           />
         </div>
 
-        <main className="relative flex-1 w-full">
+        <main className="relative flex-1 min-h-0 w-full">
           <div className={contentShell}>{children}</div>
         </main>
 
