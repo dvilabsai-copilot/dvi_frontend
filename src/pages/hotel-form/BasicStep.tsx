@@ -156,6 +156,38 @@ const asOptions = (value: any): any[] => {
   return [];
 };
 
+const makeSavedOption = (
+  id: any,
+  label: any,
+  extra: Record<string, any> = {}
+) => {
+  const value = S(id).trim();
+  if (!value) return null;
+
+  const name = S(label).trim() || value;
+
+  return {
+    id: value,
+    value,
+    name,
+    label: name,
+    ...extra,
+  };
+};
+
+const addMissingOption = (options: any[], option: any | null) => {
+  if (!option) return options;
+
+  const value = S(option.id ?? option.value ?? option).trim();
+  if (!value) return options;
+
+  const exists = options.some(
+    (o: any) => S(o?.id ?? o?.value ?? o).trim() === value
+  );
+
+  return exists ? options : [option, ...options];
+};
+
 const uiErrorMessage = (_err: any, fallback: string) => fallback;
 
 export default function BasicStep({
@@ -172,6 +204,8 @@ export default function BasicStep({
   const qc = useQueryClient();
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
+  const [editStateOption, setEditStateOption] = useState<any | null>(null);
+  const [editCityOption, setEditCityOption] = useState<any | null>(null);
 
   const {
     register,
@@ -281,15 +315,15 @@ export default function BasicStep({
   });
 
   const stateOptions = useMemo(() => {
-    const base = [...states];
+    let base = [...states];
     const fallbackId = S(
       (stateByIdFallback as any)?.id ?? (stateByIdFallback as any)?.value ?? ""
     ).trim();
     if (fallbackId && !base.some((s: any) => S(s?.id ?? s?.value ?? s).trim() === fallbackId)) {
-      base.push(stateByIdFallback);
+      base = [stateByIdFallback, ...base];
     }
-    return base;
-  }, [stateByIdFallback, states]);
+    return addMissingOption(base, editStateOption);
+  }, [stateByIdFallback, states, editStateOption]);
 
   const cityExistsInOptions = useMemo(() => {
     const current = watchedCity.trim();
@@ -310,31 +344,31 @@ export default function BasicStep({
   });
 
   const cityOptions = useMemo(() => {
-    const base = [...cities];
+    let base = [...cities];
     const fallbackId = S((cityByIdFallback as any)?.id ?? (cityByIdFallback as any)?.value ?? "").trim();
     if (fallbackId && !base.some((c: any) => S(c?.id ?? c?.value ?? c).trim() === fallbackId)) {
-      base.push(cityByIdFallback);
+      base = [cityByIdFallback, ...base];
     }
-    return base;
-  }, [cities, cityByIdFallback]);
+    return addMissingOption(base, editCityOption);
+  }, [cities, cityByIdFallback, editCityOption]);
 
   /* ====== FIX: re-apply saved state/city once options load (supports id or label payloads) ====== */
   useEffect(() => {
-    const current = watchedState;
+    const current = watchedState.trim();
     if (!current || !stateOptions.length) return;
+
     const resolved = findOptionValue(stateOptions, current);
-    if (resolved !== current) {
-      setValue("hotel_state", resolved, { shouldValidate: true, shouldDirty: false });
-    }
+
+    setValue("hotel_state", resolved, { shouldValidate: true, shouldDirty: false });
   }, [stateOptions, watchedState, setValue]);
 
   useEffect(() => {
-    const current = watchedCity;
-    if (!current || !(cityOptions as any[]).length) return;
-    const resolved = findOptionValue(cityOptions as any[], current);
-    if (resolved !== current) {
-      setValue("hotel_city", resolved, { shouldValidate: true, shouldDirty: false });
-    }
+    const current = watchedCity.trim();
+    if (!current || !cityOptions.length) return;
+
+    const resolved = findOptionValue(cityOptions, current);
+
+    setValue("hotel_city", resolved, { shouldValidate: true, shouldDirty: false });
   }, [cityOptions, watchedCity, setValue]);
 
   // GST types & percentages
@@ -397,6 +431,25 @@ export default function BasicStep({
         if (!alive || !row) return;
         const phones = splitPhones(row.hotel_mobile ?? row.hotel_mobile_no ?? row.phone ?? "");
         const emails = splitEmails(row.hotel_email ?? row.hotel_email_id ?? row.email ?? "");
+        const countryValue = S(row.hotel_country_id ?? row.hotel_country ?? row.countryId ?? "");
+        const stateValue = S(row.hotel_state_id ?? row.hotel_state ?? row.stateId ?? "");
+        const cityValue = S(row.hotel_city_id ?? row.hotel_city ?? row.cityId ?? "");
+
+        setEditStateOption(
+          makeSavedOption(
+            stateValue,
+            row.hotel_state_name ?? row.stateName ?? row.state_name ?? stateValue,
+            { country_id: countryValue }
+          )
+        );
+
+        setEditCityOption(
+          makeSavedOption(
+            cityValue,
+            row.hotel_city_name ?? row.cityName ?? row.city_name ?? cityValue,
+            { state_id: stateValue }
+          )
+        );
 
         reset({
           hotel_name: row.hotel_name ?? row.name ?? "",
@@ -419,15 +472,17 @@ export default function BasicStep({
           hotel_category: S(row.hotel_category ?? row.categoryId ?? ""),
           hotel_powerbackup:
             (S(
-              row.hotel_powerbackup !== undefined
+              row.hotel_power_backup !== undefined
+                ? Number(row.hotel_power_backup)
+                : row.hotel_powerbackup !== undefined
                 ? Number(row.hotel_powerbackup)
                 : row.powerBackup
                 ? 1
                 : 0
             ) as any),
-          hotel_country: S(row.hotel_country ?? row.countryId ?? ""),
-          hotel_state: S(row.hotel_state ?? row.stateId ?? ""),
-          hotel_city: S(row.hotel_city ?? row.cityId ?? ""),
+          hotel_country: countryValue,
+          hotel_state: stateValue,
+          hotel_city: cityValue,
           hotel_postal_code: row.hotel_pincode ?? row.hotel_postal_code ?? row.pinCode ?? "",
           hotel_code: row.hotel_code ?? row.code ?? "",
           resavenue_hotel_code: row.resavenue_hotel_code ?? "",
@@ -518,30 +573,34 @@ export default function BasicStep({
       (data as any).hotel_email_arr?.filter(Boolean).join(",") ||
       (data as any).hotel_email_id ||
       "";
+    const hotelStatus = N((data as any).hotel_status);
+    const powerBackup = N((data as any).hotel_powerbackup);
+    const hotspotStatus = N((data as any).hotel_hotspot_status);
 
     return {
       ...data,
-      // numbers expected by API
-      status: N((data as any).hotel_status),
-      hotel_status: N((data as any).hotel_status),
-      hotel_powerbackup: N((data as any).hotel_powerbackup),
-      hotel_hotspot_status: N((data as any).hotel_hotspot_status),
-      hotel_country: (data as any).hotel_country, // ids as strings are okay; backend can coerce
+      status: hotelStatus,
+      hotel_status: hotelStatus,
+      hotel_powerbackup: powerBackup,
+      hotel_power_backup: powerBackup,
+      hotel_hotspot_status: hotspotStatus,
+      hotel_country: (data as any).hotel_country,
       hotel_state: (data as any).hotel_state,
       hotel_city: (data as any).hotel_city,
-      hotel_category: N((data as any).hotel_category) ?? (data as any).hotel_category, // keep numeric if possible
+      hotel_category: N((data as any).hotel_category) ?? (data as any).hotel_category,
       hotel_margin: N((data as any).hotel_margin),
       hotel_margin_gst_type: N((data as any).hotel_margin_gst_type) ?? (data as any).hotel_margin_gst_type,
       hotel_margin_gst_percentage: N((data as any).hotel_margin_gst_percentage),
       hotel_latitude: (data as any).hotel_latitude === "" ? null : (data as any).hotel_latitude,
       hotel_longitude: (data as any).hotel_longitude === "" ? null : (data as any).hotel_longitude,
-      // legacy fields
       hotel_mobile_no: mobileJoined,
       hotel_mobile: mobileJoined,
       hotel_email_id: emailJoined,
       hotel_email: emailJoined,
+      hotel_postal_code: (data as any).hotel_postal_code,
       hotel_pincode: (data as any).hotel_postal_code,
       resavenue_hotel_code: String((data as any).resavenue_hotel_code ?? "").trim() || null,
+      hotel_address: (data as any).hotel_address,
       hotel_address_1: (data as any).hotel_address,
     };
   };
@@ -588,20 +647,33 @@ export default function BasicStep({
   };
   const isSaving = isSubmitting || (createMut as any).isPending || (updateMut as any).isPending;
 
-  const countryReg = register("hotel_country", {
-    required: true,
-    onChange: () => {
-      setValue("hotel_state", "", { shouldValidate: true });
-      setValue("hotel_city", "", { shouldValidate: true });
-    },
-  });
+  const handleCountryChange = (nextCountryId: string, onChange: (value: string) => void) => {
+    onChange(nextCountryId);
 
-  const stateReg = register("hotel_state", {
-    required: true,
-    onChange: () => {
-      setValue("hotel_city", "", { shouldValidate: true });
-    },
-  });
+    setValue("hotel_state", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    setValue("hotel_city", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    setEditStateOption(null);
+    setEditCityOption(null);
+  };
+
+  const handleStateChange = (nextStateId: string, onChange: (value: string) => void) => {
+    onChange(nextStateId);
+
+    setValue("hotel_city", "", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+
+    setEditCityOption(null);
+  };
 
   return (
     <>
@@ -735,49 +807,91 @@ export default function BasicStep({
           {/* Country / State / City */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Country *</label>
-            <select
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-              {...countryReg}
-            >
-              <option value="">Choose Country</option>
-              {countries.map((c: any) => (
-                <option key={S(c.id ?? c.value ?? c)} value={S(c.id ?? c.value ?? c)}>
-                  {c.name ?? c.label ?? String(c)}
-                </option>
-              ))}
-            </select>
+
+            <Controller
+              name="hotel_country"
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <select
+                  className="mt-1 w-full border rounded-lg px-3 py-2"
+                  value={S(field.value)}
+                  onChange={(e) => handleCountryChange(e.target.value, field.onChange)}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                >
+                  <option value="">Choose Country</option>
+                  {(countries as any[]).map((c: any) => {
+                    const value = S(c.id ?? c.value ?? c);
+                    return (
+                      <option key={value} value={value}>
+                        {c.name ?? c.label ?? String(c)}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            />
           </div>
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">State *</label>
-            <select
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-              disabled={!countryId}
-              {...stateReg}
-            >
-              <option value="">Please Choose State</option>
-              {stateOptions.map((s: any) => (
-                <option key={S(s.id ?? s.value ?? s)} value={S(s.id ?? s.value ?? s)}>
-                  {s.name ?? s.label ?? String(s)}
-                </option>
-              ))}
-            </select>
+
+            <Controller
+              name="hotel_state"
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <select
+                  className="mt-1 w-full border rounded-lg px-3 py-2"
+                  disabled={!countryId}
+                  value={S(field.value)}
+                  onChange={(e) => handleStateChange(e.target.value, field.onChange)}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                >
+                  <option value="">Please Choose State</option>
+                  {stateOptions.map((s: any) => {
+                    const value = S(s.id ?? s.value ?? s);
+                    return (
+                      <option key={value} value={value}>
+                        {s.name ?? s.label ?? String(s)}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            />
           </div>
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">City *</label>
-            <select
-              className="mt-1 w-full border rounded-lg px-3 py-2"
-              disabled={!stateId}
-              {...register("hotel_city", { required: true })}
-            >
-              <option value="">Please Choosen City</option>
-              {cityOptions.map((c: any) => (
-                <option key={S(c.id ?? c.value ?? c)} value={S(c.id ?? c.value ?? c)}>
-                  {c.name ?? c.label ?? String(c)}
-                </option>
-              ))}
-            </select>
+
+            <Controller
+              name="hotel_city"
+              control={control}
+              rules={{ required: true }}
+              render={({ field }) => (
+                <select
+                  className="mt-1 w-full border rounded-lg px-3 py-2"
+                  disabled={!stateId}
+                  value={S(field.value)}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  onBlur={field.onBlur}
+                  ref={field.ref}
+                >
+                  <option value="">Please Choosen City</option>
+                  {cityOptions.map((c: any) => {
+                    const value = S(c.id ?? c.value ?? c);
+                    return (
+                      <option key={value} value={value}>
+                        {c.name ?? c.label ?? String(c)}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+            />
           </div>
 
           {/* Pincode */}
