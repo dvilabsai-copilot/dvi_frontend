@@ -70,41 +70,67 @@ return format(date,"yyyy-MM-dd");
 };
 
 function DatePickerField({
-value,
-onChange,
-placeholder,
-hasError,
-}:{
-value:string;
-onChange:(value:string)=>void;
-placeholder:string;
-hasError?:boolean;
-}){
-const selected=toPickerDate(value);
+  value,
+  onChange,
+  placeholder,
+  hasError,
+  fromYear = 1950,
+  toYear = 9075,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  hasError?: boolean;
+  fromYear?: number;
+  toYear?: number;
+}) {
+  const selected = toPickerDate(value);
 
-return (
-<Popover>
-<PopoverTrigger asChild>
-<button
-type="button"
-className={`rounded border px-3 py-2 text-left flex items-center justify-between ${hasError ? "border-red-400" : ""}`}
->
-<span className={selected ? "text-slate-900" : "text-slate-400"}>
-{selected ? format(selected,"dd-MM-yyyy") : placeholder}
-</span>
-<CalendarIcon className="h-4 w-4 text-violet-600" />
-</button>
-</PopoverTrigger>
-<PopoverContent className="w-auto p-2" align="start">
-<Calendar
-mode="single"
-selected={selected}
-onSelect={(date)=>onChange(toYmd(date))}
-initialFocus
-/>
-</PopoverContent>
-</Popover>
-);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`rounded border px-3 py-2 text-left flex items-center justify-between ${
+            hasError ? "border-red-400" : ""
+          }`}
+        >
+          <span className={selected ? "text-slate-900" : "text-slate-400"}>
+            {selected ? format(selected, "dd-MM-yyyy") : placeholder}
+          </span>
+          <CalendarIcon className="h-4 w-4 text-violet-600" />
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-auto p-2" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected || new Date()}
+          captionLayout="dropdown"
+          fromYear={fromYear}
+          toYear={toYear}
+          classNames={{
+            caption_dropdowns: "flex items-center justify-center gap-2",
+            dropdown:
+              "h-9 rounded-md border border-slate-200 bg-white px-2 text-sm font-medium text-slate-700 outline-none cursor-pointer",
+            dropdown_month: "rounded-md",
+            dropdown_year: "rounded-md",
+            vhidden: "hidden",
+            caption_label: "hidden",
+            nav: "flex items-center",
+            nav_button:
+              "h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+          }}
+          onSelect={(date) => {
+            if (!date) return;
+            onChange(toYmd(date));
+          }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export const VendorStepVehicle:React.FC<Props>=({
@@ -1326,11 +1352,13 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
 
     <div className="space-y-1">
       <label className="text-sm text-slate-600">Vehicle Expiry Date</label>
-      <DatePickerField
-        value={vehicleForm.vehicleExpiryDate}
-        onChange={(value)=>handleFieldChange("vehicleExpiryDate",value)}
-        placeholder="Vehicle Expiry Date"
-      />
+     <DatePickerField
+  value={vehicleForm.vehicleExpiryDate}
+  onChange={(value)=>handleFieldChange("vehicleExpiryDate",value)}
+  placeholder="Vehicle Expiry Date"
+  fromYear={2020}
+  toYear={9075}
+/>
     </div>
 
     <div className="space-y-1">
