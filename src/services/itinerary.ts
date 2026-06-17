@@ -974,7 +974,7 @@ export const ItineraryService = {
   },
 
   async downloadVehicleVoucherPdf(id: number) {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/vehicle-voucher-pdf`, `vehicle-voucher-${id}.pdf`);
+    return this.downloadAuthenticatedFile(`itineraries/${id}/vehicle-voucher-pdf`, `transport-voucher-${id}.pdf`);
   },
 
   async getPluckCardData(id: number) {
@@ -1088,3 +1088,4 @@ export const ItineraryService = {
     });
   },
 };
+

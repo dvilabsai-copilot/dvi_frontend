@@ -281,10 +281,10 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
   const handleDownloadVehicleVoucher = async () => {
     try {
       await ItineraryService.downloadVehicleVoucherPdf(itineraryPlanId);
-      toast.success("Vehicle voucher download started");
+      toast.success("Transport voucher download started");
     } catch (error) {
       console.error("Failed to download vehicle voucher PDF", error);
-      toast.error("Failed to download vehicle voucher");
+      toast.error("Failed to download transport voucher");
     }
   };
 
@@ -481,7 +481,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
                         onClick={() => void handleDownloadVehicleVoucher()}
                       >
                         <Car className="mr-2 h-4 w-4" />
-                        Download Vehicle Voucher
+                        Download Transport Voucher
                       </Button>
                     ) : null}
                   </div>
@@ -653,3 +653,4 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
     </>
   );
 };
+
