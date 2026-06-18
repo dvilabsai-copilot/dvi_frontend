@@ -212,18 +212,29 @@ function DatePicker({
         </div>
 
         <PopoverContent className="w-auto p-2" align="start">
-          <Calendar
+       <Calendar
   mode="single"
   selected={selected}
-  defaultMonth={selected || defaultMonth}
-  onSelect={(d) => {
-    const iso = dateToISO(d);
-    onChangeISO(iso);
-    setInputValue(formatDateForInput(d));
-  }}
+  defaultMonth={defaultMonth || selected || new Date()}
   captionLayout="dropdown"
   fromYear={fromYear}
   toYear={toYear}
+  classNames={{
+    caption_dropdowns: "flex items-center justify-center gap-2",
+    dropdown:
+      "h-9 rounded-md border border-slate-200 bg-white px-2 text-sm font-medium text-slate-700 outline-none cursor-pointer",
+    dropdown_month: "rounded-md",
+    dropdown_year: "rounded-md",
+    vhidden: "hidden",
+    caption_label: "hidden",
+    nav: "flex items-center",
+    nav_button:
+      "h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50",
+  }}
+onSelect={(date) => {
+  if (!date) return;
+  onChangeISO(dateToISO(date));
+}}
   initialFocus
 />
         </PopoverContent>
@@ -628,19 +639,18 @@ setErrors(e);
   defaultMonth={new Date()}
 />
           {/* Row 4 */}
-          <DatePicker
+         <DatePicker
   label="License Expire Date"
   inputId="licenseExpireDate"
   valueISO={values.licenseExpireDate}
   onChangeISO={(iso) => onChange({ licenseExpireDate: iso })}
   error={errors.licenseExpireDate}
   allowManualInput
-  fromYear={1940}
-  toYear={new Date().getFullYear() + 30}
+  fromYear={2020}
+  toYear={2099}
   defaultMonth={new Date()}
 />
-
-    <DatePicker
+<DatePicker
   label="Date of Birth"
   inputId="dateOfBirth"
   valueISO={values.dateOfBirth}
@@ -649,7 +659,7 @@ setErrors(e);
   allowManualInput
   fromYear={1940}
   toYear={new Date().getFullYear()}
-  defaultMonth={new Date(1990, 0, 1)}
+  defaultMonth={new Date(2000, 0, 1)}
 />
 
           <div>
