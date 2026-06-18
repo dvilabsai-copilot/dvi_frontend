@@ -1288,12 +1288,35 @@ const buildPayload = () => {
       : [];
 
   const food_type_id = resolveOptionId(foodPreference, foodPreferences);
-  const normalizedMealPlanCode = mealPlanCode === "__ALL__" ? "" : mealPlanCode;
-  const selectedMealPlan = mealPlanOptions.find((p) => p.code === normalizedMealPlanCode);
-  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 0) ? 1 : 0;
-  const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
-  const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
-  const meal_plan_code = normalizedMealPlanCode || selectedMealPlan?.code || undefined;
+
+const isAllMealPlanSelected = mealPlanCode === "__ALL__";
+const normalizedMealPlanCode = isAllMealPlanSelected ? "" : mealPlanCode;
+
+const selectedMealPlan = !isAllMealPlanSelected
+  ? mealPlanOptions.find((p) => p.code === normalizedMealPlanCode)
+  : undefined;
+
+// All Meal Plans = no fixed meal restriction.
+// IMPORTANT: Do not send "__ALL__" because backend DTO allows only CP/EP/MAP/AP.
+// Also do not send "AP", because then edit mode reopens as American Plan.
+const meal_plan_breakfast =
+  !isAllMealPlanSelected && Number(selectedMealPlan?.includesBreakfast ?? 0)
+    ? 1
+    : 0;
+
+const meal_plan_lunch =
+  !isAllMealPlanSelected && Number(selectedMealPlan?.includesLunch ?? 0)
+    ? 1
+    : 0;
+
+const meal_plan_dinner =
+  !isAllMealPlanSelected && Number(selectedMealPlan?.includesDinner ?? 0)
+    ? 1
+    : 0;
+
+const meal_plan_code: string | null | undefined = isAllMealPlanSelected
+  ? null
+  : normalizedMealPlanCode || selectedMealPlan?.code || undefined;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)

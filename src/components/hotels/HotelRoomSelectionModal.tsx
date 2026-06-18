@@ -18,6 +18,12 @@ interface RoomCategory {
   room_type_id?: number;
   room_type_title?: string;
   room_qty: number;
+
+  all_meal_plan?: number;
+  breakfast_meal_plan?: number;
+  lunch_meal_plan?: number;
+  dinner_meal_plan?: number;
+
   available_room_types: Array<{
     room_type_id: number;
     room_type_title: string;
@@ -88,20 +94,23 @@ export function HotelRoomSelectionModal({
       setUpdating(true);
       const room = rooms[roomIndex];
       
-      const payload = {
-        itinerary_plan_hotel_room_details_ID: room.itinerary_plan_hotel_room_details_ID || 0,
-        itinerary_plan_hotel_details_ID,
-        itinerary_plan_id,
-        itinerary_route_id,
-        hotel_id,
-        group_type,
-        room_type_id: Number(newRoomTypeId),
-        room_qty: room.room_qty || 1,
-        all_meal_plan: 0,
-        breakfast_meal_plan: 0,
-        lunch_meal_plan: 0,
-        dinner_meal_plan: 0,
-      };
+     const payload = {
+  itinerary_plan_hotel_room_details_ID:
+    room.itinerary_plan_hotel_room_details_ID || 0,
+  itinerary_plan_hotel_details_ID,
+  itinerary_plan_id,
+  itinerary_route_id,
+  hotel_id,
+  group_type,
+  room_type_id: Number(newRoomTypeId),
+  room_qty: room.room_qty || 1,
+
+  // Preserve existing meal plan while only changing room type.
+  all_meal_plan: Number(room.all_meal_plan ?? 0),
+  breakfast_meal_plan: Number(room.breakfast_meal_plan ?? 0),
+  lunch_meal_plan: Number(room.lunch_meal_plan ?? 0),
+  dinner_meal_plan: Number(room.dinner_meal_plan ?? 0),
+};
 
       await api('itineraries/hotel-rooms/update-category', {
         method: 'POST',

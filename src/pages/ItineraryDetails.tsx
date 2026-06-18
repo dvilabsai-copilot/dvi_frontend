@@ -182,7 +182,24 @@ export type ItineraryHotelRow = {
   totalHotelCost: number;
   totalHotelTaxAmount: number;
   noOfRooms?: number;
-  provider?: string; // Provider source (tbo, resavenue, hobse)
+  provider?: string;
+
+  roomTypes?: Array<{
+    roomTypeId?: number;
+    roomTypeTitle?: string;
+    roomTypeName?: string;
+    roomCode?: string;
+    roomName?: string;
+    bookingCode?: string;
+    price?: number;
+  }>;
+
+  availableRoomTypes?: Array<{
+    roomTypeId: number;
+    roomTypeTitle: string;
+    roomTypeName?: string;
+    bookingCode?: string;
+  }>;// Provider source (tbo, resavenue, hobse)
   voucherCancelled?: boolean; // Whether voucher is cancelled
 
   // Original draft hotel details ID. Existing cancellation API uses this.
@@ -240,26 +257,63 @@ const normalizeMealPlanLabel = (value?: string | null): string => {
   };
 
   const raw = String(value || '').trim();
-  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
+
+  // Do not silently convert blank/unknown supplier value into EP.
+  if (!raw || raw === '-') return 'Meal Plan Not Available';
 
   const upper = raw.toUpperCase();
-  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
-  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
-  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
-  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
 
-  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
-  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
+  if (
+    upper === '__ALL__' ||
+    upper === 'ALL' ||
+    upper === 'ALL_MEAL_PLANS' ||
+    upper.includes('ALL MEAL PLAN') ||
+    upper.includes('ALL MEAL PLANS') ||
+    upper.includes('ALL MEALS')
+  ) {
+    return 'All Meal Plans';
+  }
+
+  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) {
+    return mealPlanLabelByCode.CP;
+  }
+
+  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) {
+    return mealPlanLabelByCode.MAP;
+  }
+
+  if (upper === 'AP' || upper === 'AMERICAN PLAN') {
+    return mealPlanLabelByCode.AP;
+  }
+
+  if (
+    upper === 'EP' ||
+    upper.includes('EUROPEAN PLAN') ||
+    upper.includes('ROOM ONLY') ||
+    upper.includes('NO MEAL')
+  ) {
+    return mealPlanLabelByCode.EP;
+  }
+
+  if (upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) {
+    return mealPlanLabelByCode.AP;
+  }
+
+  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) {
+    return mealPlanLabelByCode.MAP;
+  }
 
   const hasBreakfast = upper.includes('BREAKFAST');
   const hasLunch = upper.includes('LUNCH');
   const hasDinner = upper.includes('DINNER');
 
   if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
-  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
+  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) {
+    return mealPlanLabelByCode.MAP;
+  }
   if (hasBreakfast) return mealPlanLabelByCode.CP;
 
-  return mealPlanLabelByCode.EP;
+  return raw;
 };
 
 // --------- VEHICLES ---------
@@ -7254,8 +7308,15 @@ function getHotelAmountForBooking(entry: any): number {
     setIsSelectingHotel(true);
     try {
       // For now, use hotelCode as hotelId. If backend expects different format, adjust here
-      const hotelId = parseInt(hotel.hotelCode) || 0;
-      const roomTypeId = hotel.roomTypes?.[0]?.roomCode ? parseInt(hotel.roomTypes[0].roomCode) : 1;
+     const hotelId = parseInt(hotel.hotelCode) || 0;
+
+const selectedRoomType =
+  hotel.selectedRoomType ||
+  hotel.roomTypes?.[0];
+
+const roomTypeId = selectedRoomType?.roomCode
+  ? parseInt(selectedRoomType.roomCode)
+  : 1;
 
       // Store hotel details for TBO confirmation (ALL hotel selections)
       // Calculate checkout date (next day after check-in)
@@ -7280,14 +7341,17 @@ function getHotelAmountForBooking(entry: any): number {
         hotelCode: String(hotel.hotelCode || ''),
         bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
         searchReference: String(hotel.searchReference || hotel.bookingCode || '').trim() || undefined,
-        roomId:
-          parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.roomId ||
-          String(hotel.roomTypes?.[0]?.roomCode || '').trim() ||
-          undefined,
+       roomId:
+  parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.roomId ||
+  String(selectedRoomType?.roomCode || '').trim() ||
+  undefined,
         rateId:
           parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.rateId ||
           undefined,
-        roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
+roomType:
+  selectedRoomType?.roomName ||
+  selectedRoomType?.roomTypeName ||
+  'Standard',
         netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
         hotelName: hotel.hotelName,
         checkInDate: formatDate(checkInDate),

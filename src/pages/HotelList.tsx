@@ -19,6 +19,7 @@ import type {
   ItineraryHotelTab,
 } from "./ItineraryDetails";
 import { ItineraryService } from "@/services/itinerary";
+import { api } from "@/lib/api";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 
 type HotelListProps = {
@@ -145,26 +146,63 @@ const normalizeMealPlanLabel = (value?: string | null): string => {
   };
 
   const raw = String(value || '').trim();
-  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
+
+  // Do not silently convert blank/unknown supplier value into EP.
+  if (!raw || raw === '-') return 'Meal Plan Not Available';
 
   const upper = raw.toUpperCase();
-  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
-  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
-  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
-  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
 
-  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
-  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
+  if (
+    upper === '__ALL__' ||
+    upper === 'ALL' ||
+    upper === 'ALL_MEAL_PLANS' ||
+    upper.includes('ALL MEAL PLAN') ||
+    upper.includes('ALL MEAL PLANS') ||
+    upper.includes('ALL MEALS')
+  ) {
+    return 'All Meal Plans';
+  }
+
+  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) {
+    return mealPlanLabelByCode.CP;
+  }
+
+  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) {
+    return mealPlanLabelByCode.MAP;
+  }
+
+  if (upper === 'AP' || upper === 'AMERICAN PLAN') {
+    return mealPlanLabelByCode.AP;
+  }
+
+  if (
+    upper === 'EP' ||
+    upper.includes('EUROPEAN PLAN') ||
+    upper.includes('ROOM ONLY') ||
+    upper.includes('NO MEAL')
+  ) {
+    return mealPlanLabelByCode.EP;
+  }
+
+  if (upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) {
+    return mealPlanLabelByCode.AP;
+  }
+
+  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) {
+    return mealPlanLabelByCode.MAP;
+  }
 
   const hasBreakfast = upper.includes('BREAKFAST');
   const hasLunch = upper.includes('LUNCH');
   const hasDinner = upper.includes('DINNER');
 
   if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
-  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
+  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) {
+    return mealPlanLabelByCode.MAP;
+  }
   if (hasBreakfast) return mealPlanLabelByCode.CP;
 
-  return mealPlanLabelByCode.EP;
+  return raw;
 };
 
 const normalizedLabelToCode = (label: string): string | null => {
@@ -328,6 +366,68 @@ export const HotelList: React.FC<HotelListProps> = ({
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
+
+  const normalizeAvailableRoomTypes = (hotel: any): RoomTypeOption[] => {
+  const backendOptions =
+    Array.isArray(hotel?.availableRoomTypes) && hotel.availableRoomTypes.length > 0
+      ? hotel.availableRoomTypes
+      : Array.isArray(hotel?.roomTypes) && hotel.roomTypes.length > 0
+        ? hotel.roomTypes
+        : [];
+
+  const normalized = backendOptions
+    .map((room: any, index: number) => ({
+      roomTypeId:
+        Number(
+          room.roomTypeId ??
+            room.room_type_id ??
+            room.roomCode ??
+            room.room_ID ??
+            room.roomId ??
+            0,
+        ) || index + 1,
+      roomTypeTitle: String(
+        room.roomTypeTitle ||
+          room.roomTypeName ||
+          room.roomName ||
+          room.room_title ||
+          hotel?.roomType ||
+          hotel?.roomTypeName ||
+          'Room',
+      ).trim(),
+    }))
+    .filter((room: RoomTypeOption) => Number(room.roomTypeId || 0) > 0);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  const fallbackRoomType = String(hotel?.roomType || hotel?.roomTypeName || '').trim();
+
+  return fallbackRoomType
+    ? [
+        {
+          roomTypeId: Number(hotel?.roomTypeId || hotel?.room_type_id || 1) || 1,
+          roomTypeTitle: fallbackRoomType,
+        },
+      ]
+    : [];
+};
+
+const resolveCurrentRoomTypeId = (hotel: any, roomOptions: RoomTypeOption[]): number => {
+  const directId = Number(hotel?.roomTypeId || hotel?.room_type_id || 0);
+  if (directId > 0) return directId;
+
+  const currentRoomName = String(hotel?.roomType || hotel?.roomTypeName || '')
+    .trim()
+    .toLowerCase();
+
+  const matched = roomOptions.find(
+    (room) => String(room.roomTypeTitle || '').trim().toLowerCase() === currentRoomName,
+  );
+
+  return Number(matched?.roomTypeId || roomOptions[0]?.roomTypeId || 1);
+};
   const getStayKey = (hotel: Pick<ItineraryHotelRow, 'itineraryRouteId' | 'date' | 'day'>): string => {
     return `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || '').trim()}`;
   };
@@ -441,25 +541,24 @@ export const HotelList: React.FC<HotelListProps> = ({
         return toNumber((h as any).groupType, 0) === toNumber(groupType, 0);
       })
       .filter((h: any) => String(h.date || '').trim() === stayDate)
-      .map((h: any) => ({
-        ...h,
-        itineraryPlanId: planId,
-        hotelCategory: h.category,
-        pricePerNight: h.totalHotelCost,
-        perNightAmount: h.totalHotelCost,
-        taxAmount: h.totalHotelTaxAmount || 0,
-        totalAmount: getHotelAmountWithRooms(h),
-        noOfRooms: getEffectiveRoomCount(h),
-        roomTypeName: h.roomType,
-        availableRoomTypes: h.roomType
-          ? [
-              {
-                roomTypeId: 1,
-                roomTypeTitle: h.roomType,
-              },
-            ]
-          : [],
-      }));
+      .map((h: any) => {
+  const availableRoomTypes = normalizeAvailableRoomTypes(h);
+  const currentRoomTypeId = resolveCurrentRoomTypeId(h, availableRoomTypes);
+
+  return {
+    ...h,
+    itineraryPlanId: planId,
+    hotelCategory: h.category,
+    pricePerNight: h.totalHotelCost,
+    perNightAmount: h.totalHotelCost,
+    taxAmount: h.totalHotelTaxAmount || 0,
+    totalAmount: getHotelAmountWithRooms(h),
+    noOfRooms: getEffectiveRoomCount(h),
+    roomTypeId: currentRoomTypeId,
+    roomTypeName: h.roomTypeName || h.roomType,
+    availableRoomTypes,
+  };
+});
 
     // Keep rate options distinct; same hotel can have multiple room/rate plans with different prices.
     const uniqueByRateOption = new Map<string, (typeof hotelsForRoute)[number]>();
@@ -1068,15 +1167,99 @@ export const HotelList: React.FC<HotelListProps> = ({
       });
     }
 
-    console.log('âœ… Filtered from local state:', uniqueHotels.length, 'hotels');
-    
-    if (uniqueHotels.length > 0) {
-      setRoomDetails(uniqueHotels);
-      setExpandedRowKey(rowKey);
-      setHotelSearchQuery("");
-    } else {
-      toast.warning('No hotels found for this route');
-    }
+    console.log('Filtered from local state:', uniqueHotels.length, 'hotels');
+
+if (uniqueHotels.length === 0) {
+  toast.warning('No hotels found for this route');
+  return;
+}
+
+setRoomDetails(uniqueHotels);
+setExpandedRowKey(rowKey);
+setHotelSearchQuery("");
+
+// Restore TBO room-type edit options.
+// AxisRooms is already working from hotel_details roomTypes/availableRoomTypes,
+// so this block only replaces TBO rows and leaves AxisRooms rows untouched.
+const hasTboHotels = uniqueHotels.some(
+  (h: any) => String(h?.provider || 'tbo').trim().toLowerCase() === 'tbo',
+);
+
+if (!hasTboHotels || !quoteId || Number(itineraryRouteId || 0) <= 0) {
+  return;
+}
+
+const routeId = Number(itineraryRouteId || 0);
+const activeTier = toNumber(activeGroupType, 0);
+const cacheKey = `${routeId}-${activeTier || 'all'}-tbo-room-options`;
+const cachedTboRooms = roomDetailsCache[cacheKey] || [];
+
+if (cachedTboRooms.length > 0) {
+  setRoomDetails((prev) => [
+    ...prev.filter(
+      (item: any) => String(item?.provider || '').trim().toLowerCase() !== 'tbo',
+    ),
+    ...cachedTboRooms,
+  ]);
+  return;
+}
+
+setLoadingRowKey(rowKey);
+
+try {
+  const response = await ItineraryService.getHotelRoomDetails(
+    quoteId,
+    routeId,
+    true,
+  );
+
+  const roomsRaw = response?.rooms || response?.roomDetails || [];
+  const normalizedRooms: HotelRoomDetail[] = roomsRaw.map((r: any) => normalizeRoom(r));
+
+  const tboRoomsForTier = normalizedRooms.filter((room: any) => {
+    const provider = String(room?.provider || 'tbo').trim().toLowerCase();
+    if (provider !== 'tbo') return false;
+    if (!activeTier) return true;
+    return toNumber(room?.groupType, 0) === activeTier;
+  });
+
+  // Keep distinct TBO room/rate rows. Do not dedupe by hotelId.
+  const distinctTboRooms = Array.from(
+    new Map(
+      tboRoomsForTier.map((room: any) => [
+        [
+          String(room?.provider || 'tbo').toLowerCase(),
+          String(room?.bookingCode || ''),
+          String(room?.searchReference || ''),
+          String(room?.hotelId || ''),
+          String(room?.roomTypeId || ''),
+          String(room?.roomTypeName || room?.roomType || ''),
+          String(room?.groupType || ''),
+          String(Number(room?.totalAmount || room?.totalHotelCost || 0)),
+        ].join('|'),
+        room,
+      ]),
+    ).values(),
+  );
+
+  if (distinctTboRooms.length > 0) {
+    setRoomDetails((prev) => [
+      ...prev.filter(
+        (item: any) => String(item?.provider || '').trim().toLowerCase() !== 'tbo',
+      ),
+      ...distinctTboRooms,
+    ]);
+
+    setRoomDetailsCache((prev) => ({
+      ...prev,
+      [cacheKey]: distinctTboRooms,
+    }));
+  }
+} catch (err) {
+  console.error('Error loading TBO room type options:', err);
+} finally {
+  setLoadingRowKey(null);
+}
   };
 
   // ---------- HELPER: NORMALIZE API ROOM RESPONSE TO UI SHAPE ----------
@@ -1154,10 +1337,25 @@ export const HotelList: React.FC<HotelListProps> = ({
       const roomsRaw = response?.rooms || response?.roomDetails || [];
       const normalizedRooms: HotelRoomDetail[] = roomsRaw.map((r: any) => normalizeRoom(r));
       
-      // âœ… Deduplicate by hotelId to prevent duplicate entries
-      const uniqueRooms = Array.from(
-        new Map(normalizedRooms.map((r: any) => [r.hotelId, r])).values()
-      );
+      // Keep distinct room/rate options.
+// Do NOT dedupe only by hotelId, because that removes TBO room-type choices.
+const uniqueRooms = Array.from(
+  new Map(
+    normalizedRooms.map((r: any) => [
+      [
+        String((r as any).provider || 'tbo').toLowerCase(),
+        String((r as any).bookingCode || ''),
+        String((r as any).searchReference || ''),
+        String((r as any).hotelId || ''),
+        String((r as any).roomTypeId || ''),
+        String((r as any).roomTypeName || (r as any).roomType || ''),
+        String((r as any).groupType || ''),
+        String(Number((r as any).totalAmount || (r as any).totalHotelCost || 0)),
+      ].join('|'),
+      r,
+    ]),
+  ).values(),
+);
       
       if (uniqueRooms.length > 0) {
         // âœ… Update cache for ALL groupTypes for this route
@@ -1446,7 +1644,236 @@ export const HotelList: React.FC<HotelListProps> = ({
     }
   };
 
-  // ---------- FUNCTION: SAVE ALL HOTEL SELECTIONS TO DB ----------
+const getRoomTypeUpdateRoomFromCategories = async (room: any) => {
+  const hotelDetailsId = toNumber(
+    room?.itineraryPlanHotelDetailsId ?? room?.itinerary_plan_hotel_details_ID,
+    0,
+  );
+  const resolvedPlanId = toNumber(
+    room?.itineraryPlanId ?? room?.itinerary_plan_id ?? planId,
+    0,
+  );
+  const resolvedRouteId =
+    toNumber(room?.itineraryRouteId ?? room?.itinerary_route_id, 0) ||
+    getExpandedRouteId();
+  const resolvedHotelId = toNumber(room?.hotelId ?? room?.hotel_id, 0);
+  const groupType = toNumber(room?.groupType ?? activeGroupType, 1);
+
+  if (!hotelDetailsId || !resolvedPlanId || !resolvedRouteId || !resolvedHotelId) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    itinerary_plan_hotel_details_ID: String(hotelDetailsId),
+    itinerary_plan_id: String(resolvedPlanId),
+    itinerary_route_id: String(resolvedRouteId),
+    hotel_id: String(resolvedHotelId),
+    group_type: String(groupType),
+  });
+
+  const response = await api(`itineraries/hotel-rooms/categories?${params}`, {
+    method: 'GET',
+  });
+
+  const rooms = Array.isArray(response?.rooms) ? response.rooms : [];
+  return rooms[0] || null;
+};
+
+const handlePersistRoomTypeChange = async (
+  hotel: any,
+  selectedOption: any,
+  identKey: string,
+  selectedKey: string,
+) => {
+  if (readOnly) return;
+
+  const mergedRoom = {
+    ...hotel,
+    ...selectedOption,
+    itineraryPlanId:
+      selectedOption?.itineraryPlanId ??
+      selectedOption?.itinerary_plan_id ??
+      hotel?.itineraryPlanId ??
+      hotel?.itinerary_plan_id ??
+      planId,
+    itineraryRouteId:
+      selectedOption?.itineraryRouteId ??
+      selectedOption?.itinerary_route_id ??
+      hotel?.itineraryRouteId ??
+      hotel?.itinerary_route_id,
+    itineraryPlanHotelDetailsId:
+      selectedOption?.itineraryPlanHotelDetailsId ??
+      selectedOption?.itinerary_plan_hotel_details_ID ??
+      hotel?.itineraryPlanHotelDetailsId ??
+      hotel?.itinerary_plan_hotel_details_ID,
+    itineraryPlanHotelRoomDetailsId:
+      selectedOption?.itineraryPlanHotelRoomDetailsId ??
+      selectedOption?.itinerary_plan_hotel_room_details_ID ??
+      hotel?.itineraryPlanHotelRoomDetailsId ??
+      hotel?.itinerary_plan_hotel_room_details_ID,
+    hotelId:
+      selectedOption?.hotelId ??
+      selectedOption?.hotel_id ??
+      hotel?.hotelId ??
+      hotel?.hotel_id,
+    groupType: selectedOption?.groupType ?? hotel?.groupType ?? activeGroupType ?? 1,
+  };
+
+  const selectedRoomTypeId = Number(
+    selectedOption?.roomTypeId ||
+      selectedOption?.room_type_id ||
+      selectedOption?.availableRoomTypes?.[0]?.roomTypeId ||
+      selectedOption?.roomCode ||
+      0,
+  );
+
+  const resolvedPlanId = toNumber(mergedRoom.itineraryPlanId, 0);
+  const resolvedRouteId =
+    toNumber(mergedRoom.itineraryRouteId, 0) || getExpandedRouteId();
+  const resolvedHotelId = toNumber(mergedRoom.hotelId, 0);
+  const hotelDetailsId = toNumber(mergedRoom.itineraryPlanHotelDetailsId, 0);
+  const groupType = toNumber(mergedRoom.groupType, 1);
+
+  if (!resolvedPlanId || !resolvedRouteId || !resolvedHotelId || !selectedRoomTypeId) {
+    toast.error('Missing room type update data');
+    return;
+  }
+
+  // If hotel is not saved yet, keep old HotelList flow:
+  // select now, save later from saveAllHotelSelections().
+  if (!hotelDetailsId) {
+    setSelectedRoomTypeByHotel((prev) => ({
+      ...prev,
+      [identKey]: selectedKey,
+    }));
+
+    handleChooseOrUpdateHotel(mergedRoom as HotelRoomDetail);
+    return;
+  }
+
+  setIsUpdatingHotel(true);
+
+  try {
+    // Same old flow used by HotelRoomSelectionModal:
+    // first read DB category row, then update only room_type_id.
+    const dbRoom = await getRoomTypeUpdateRoomFromCategories(mergedRoom);
+
+    const payload = {
+      itinerary_plan_hotel_room_details_ID:
+        Number(
+          dbRoom?.itinerary_plan_hotel_room_details_ID ??
+            dbRoom?.itinerary_plan_hotel_room_detailsId ??
+            mergedRoom?.itineraryPlanHotelRoomDetailsId ??
+            mergedRoom?.itinerary_plan_hotel_room_details_ID ??
+            0,
+        ) || 0,
+      itinerary_plan_hotel_details_ID: hotelDetailsId,
+      itinerary_plan_id: resolvedPlanId,
+      itinerary_route_id: resolvedRouteId,
+      hotel_id: resolvedHotelId,
+      group_type: groupType,
+      room_type_id: selectedRoomTypeId,
+      room_qty: Number(dbRoom?.room_qty ?? mergedRoom?.noOfRooms ?? roomCount ?? 1) || 1,
+
+      // Preserve meal flags from DB row; do not recalculate from display text.
+      all_meal_plan: Number(dbRoom?.all_meal_plan ?? mergedRoom?.all_meal_plan ?? 0),
+      breakfast_meal_plan: Number(
+        dbRoom?.breakfast_meal_plan ??
+          dbRoom?.breakfast_required ??
+          mergedRoom?.breakfast_meal_plan ??
+          mergedRoom?.breakfast_required ??
+          0,
+      ),
+      lunch_meal_plan: Number(
+        dbRoom?.lunch_meal_plan ??
+          dbRoom?.lunch_required ??
+          mergedRoom?.lunch_meal_plan ??
+          mergedRoom?.lunch_required ??
+          0,
+      ),
+      dinner_meal_plan: Number(
+        dbRoom?.dinner_meal_plan ??
+          dbRoom?.dinner_required ??
+          mergedRoom?.dinner_meal_plan ??
+          mergedRoom?.dinner_required ??
+          0,
+      ),
+    };
+
+    await api('itineraries/hotel-rooms/update-category', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    const selectedRoomTitle = String(
+      selectedOption?.roomTypeName ||
+        selectedOption?.roomType ||
+        selectedOption?.roomTypeTitle ||
+        selectedOption?.availableRoomTypes?.[0]?.roomTypeTitle ||
+        'Room',
+    ).trim();
+
+    const patchHotelRow = (row: any) => {
+      const sameRoute = toNumber(row?.itineraryRouteId, 0) === resolvedRouteId;
+      const sameHotel = toNumber(row?.hotelId, 0) === resolvedHotelId;
+      const sameGroup = toNumber(row?.groupType, groupType) === groupType;
+
+      if (!sameRoute || !sameHotel || !sameGroup) return row;
+
+      return {
+        ...row,
+        roomTypeId: selectedRoomTypeId,
+        roomType: selectedRoomTitle,
+        roomTypeName: selectedRoomTitle,
+        itineraryPlanHotelRoomDetailsId:
+          payload.itinerary_plan_hotel_room_details_ID ||
+          row?.itineraryPlanHotelRoomDetailsId,
+      };
+    };
+
+    setSelectedRoomTypeByHotel((prev) => ({
+      ...prev,
+      [identKey]: selectedKey,
+    }));
+
+    setLocalHotels((prev) => prev.map((row: any) => patchHotelRow(row)));
+    setRoomDetails((prev) => prev.map((row: any) => patchHotelRow(row)));
+
+    setSelectedByGroup((prev) => {
+      const next = { ...prev };
+      const stayKey = getStayKey(mergedRoom as any);
+
+      if (next[groupType]?.[stayKey]) {
+        next[groupType] = {
+          ...next[groupType],
+          [stayKey]: patchHotelRow(next[groupType][stayKey]) as ItineraryHotelRow,
+        };
+      }
+
+      return next;
+    });
+
+    setUserSelectedByStay((prev) => {
+      const stayKey = getStayKey(mergedRoom as any);
+      if (!prev[stayKey]) return prev;
+
+      return {
+        ...prev,
+        [stayKey]: patchHotelRow(prev[stayKey]) as ItineraryHotelRow,
+      };
+    });
+
+    toast.success('Room type updated');
+    await onRefresh?.();
+  } catch (error) {
+    console.error('Failed to update room type in DB:', error);
+    toast.error('Failed to update room type');
+  } finally {
+    setIsUpdatingHotel(false);
+  }
+}; 
+
+// ---------- FUNCTION: SAVE ALL HOTEL SELECTIONS TO DB ----------
   const saveAllHotelSelections = async () => {
     if (unsavedSelections.size === 0) {
       toast.info("No unsaved hotel selections to save");
@@ -1458,7 +1885,12 @@ export const HotelList: React.FC<HotelListProps> = ({
     const savePromises: Promise<any>[] = [];
     
     unsavedSelections.forEach((room, selectionKey) => {
-      const defaultRoomTypeId = Number(room.availableRoomTypes?.[0]?.roomTypeId ?? 1);
+      const defaultRoomTypeId = Number(
+  (room as any).roomTypeId ||
+    (room as any).room_type_id ||
+    room.availableRoomTypes?.[0]?.roomTypeId ||
+    1,
+);
       const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
       const resolvedRouteId = toNumber((room as any).itineraryRouteId ?? (room as any).itinerary_route_id ?? (room as any).routeId, 0) || getExpandedRouteId();
       const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
@@ -1932,6 +2364,22 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const isSelected = selectedOptionKey !== '' && roomTypeOptions.some((o) => getHotelOptionKey(o) === selectedOptionKey);
+                                const backendRoomOptions = normalizeAvailableRoomTypes(hotel);
+
+  const cardRoomTypeOptions =
+  roomTypeOptions.length > 1
+    ? roomTypeOptions
+    : backendRoomOptions.map((roomOption) => ({
+        ...hotel,
+        roomTypeId: roomOption.roomTypeId,
+        roomTypeName: roomOption.roomTypeTitle,
+        roomType: roomOption.roomTypeTitle,
+        availableRoomTypes: [roomOption],
+      }));
+
+const activeRoomOptionKey =
+  selectedRoomTypeByHotel[identKey] ||
+  getHotelOptionKey(hotel);
                                 const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
                                 const currentHotelAmount = getHotelDisplayAmount(hotel);
                                 const startingFromAmount = getLowestRoomTypeAmount(roomTypeOptions) || currentHotelAmount;
@@ -2102,38 +2550,48 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       <label className="block text-xs font-medium text-[#4a4260] mb-1">
                                         Room Type
                                       </label>
-                                      {roomTypeOptions.length > 1 ? (
-                                        <select
-                                          className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
-                                          value={selectedRoomTypeByHotel[identKey] || getHotelOptionKey(hotel)}
-                                          onClick={(e) => e.stopPropagation()}
-                                          onChange={(e) => {
-                                            const selectedKey = e.target.value;
-                                            const selectedOption = roomTypeOptions.find((opt) => getHotelOptionKey(opt) === selectedKey);
-                                            if (!selectedOption) return;
-                                            setSelectedRoomTypeByHotel(prev => ({ ...prev, [identKey]: selectedKey }));
-                                            handleChooseOrUpdateHotel(selectedOption);
-                                          }}
-                                        >
-                                          {roomTypeOptions.map((opt) => {
-                                            const optKey = getHotelOptionKey(opt);
-                                            return (
-                                              <option key={optKey} value={optKey}>
-                                                {opt.roomTypeName || opt.roomType || 'Standard'}
-                                              </option>
-                                            );
-                                          })}
-                                        </select>
-                                      ) : (
-                                        <p className="text-sm text-[#4a4260] font-medium">
-                                          {isExternalStayRow(hotel)
-                                            ? getRoomTypeDisplay(hotel)
-                                            : (hotel.roomTypeName || hotel.roomType ||
-                                              (hotel.availableRoomTypes && hotel.availableRoomTypes.length > 0
-                                                ? hotel.availableRoomTypes[0].roomTypeTitle
-                                                : 'Not Available'))}
-                                        </p>
-                                      )}
+                                      {cardRoomTypeOptions.length > 1 ? (
+  <select
+    className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+    value={activeRoomOptionKey}
+    onClick={(e) => e.stopPropagation()}
+    onChange={(e) => {
+  const selectedKey = e.target.value;
+
+  const selectedOption = cardRoomTypeOptions.find(
+    (opt: any) => getHotelOptionKey(opt) === selectedKey,
+  );
+
+  if (!selectedOption) return;
+
+  void handlePersistRoomTypeChange(
+    hotel,
+    selectedOption,
+    identKey,
+    selectedKey,
+  );
+}}
+  >
+    {cardRoomTypeOptions.map((opt: any) => {
+      const optKey = getHotelOptionKey(opt);
+
+      return (
+        <option key={optKey} value={optKey}>
+          {opt.roomTypeName || opt.roomType || 'Standard'}
+        </option>
+      );
+    })}
+  </select>
+) : (
+  <p className="text-sm text-[#4a4260] font-medium">
+    {isExternalStayRow(hotel)
+      ? getRoomTypeDisplay(hotel)
+      : hotel.roomTypeName ||
+        hotel.roomType ||
+        backendRoomOptions[0]?.roomTypeTitle ||
+        'Not Available'}
+  </p>
+)}
                                     </div>
                                     <div className="mb-3">
                                       <label className="block text-xs font-medium text-[#4a4260] mb-1">

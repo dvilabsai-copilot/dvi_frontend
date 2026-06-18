@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
-  onSelect: (hotelCode: string, hotelName: string, bookingCode?: string) => void;
+  onSelect: (
+    hotelCode: string,
+    hotelName: string,
+    bookingCode?: string,
+    selectedRoomCode?: string
+  ) => void;
   isLoading?: boolean;
   checkInDate: string;
   checkOutDate: string;
@@ -20,9 +25,22 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   checkOutDate,
   showHotelMargins = false,
 }) => {
-  const handleSelect = () => {
-    onSelect(hotel.hotelCode, hotel.hotelName, hotel.bookingCode);
-  };
+  const [selectedRoomCode, setSelectedRoomCode] = React.useState(
+  hotel.roomTypes?.[0]?.roomCode || ""
+);
+
+React.useEffect(() => {
+  setSelectedRoomCode(hotel.roomTypes?.[0]?.roomCode || "");
+}, [hotel.hotelCode, hotel.bookingCode, hotel.roomTypes]);
+
+const handleSelect = () => {
+  onSelect(
+    hotel.hotelCode,
+    hotel.hotelName,
+    hotel.bookingCode,
+    selectedRoomCode || hotel.roomTypes?.[0]?.roomCode
+  );
+};
   const displayInclusions = (hotel.inclusions || []).slice(0, 3);
   const displayAmenities = (hotel.amenities || []).slice(0, 3);
   const displayRateConditions = (hotel.rateConditions || [])
@@ -147,21 +165,23 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         </div>
 
         {/* Room Types */}
-        {hotel.roomTypes && hotel.roomTypes.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-[#4a4260] mb-2">Room Types:</p>
-            <div className="flex flex-wrap gap-1">
-              {hotel.roomTypes.map((room) => (
-                <span
-                  key={room.roomCode}
-                  className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded"
-                >
-                  {room.roomTypeName || room.roomName || 'Room'}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+{hotel.roomTypes && hotel.roomTypes.length > 0 && (
+  <div className="mb-3">
+    <p className="text-xs font-medium text-[#4a4260] mb-2">Room Type:</p>
+
+    <select
+      value={selectedRoomCode}
+      onChange={(e) => setSelectedRoomCode(e.target.value)}
+      className="w-full rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 focus:outline-none focus:ring-2 focus:ring-[#4ba3c3]"
+    >
+      {hotel.roomTypes.map((room) => (
+        <option key={room.roomCode} value={room.roomCode}>
+          {room.roomTypeName || room.roomName || "Room"}
+        </option>
+      ))}
+    </select>
+  </div>
+)}
 
         {hotel.mealPlan && (
           <div className="mb-3">

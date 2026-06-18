@@ -11,11 +11,18 @@ export type HotelSearchResult = {
   price: number;
   currency?: string;
   roomTypes?: Array<{
-    roomTypeName?: string;
-    roomCode: string;
-    maxOccupancy?: number;
-    roomName?: string;
-  }>;
+  roomTypeName?: string;
+  roomCode: string;
+  maxOccupancy?: number;
+  roomName?: string;
+}>;
+
+selectedRoomType?: {
+  roomTypeName?: string;
+  roomCode: string;
+  maxOccupancy?: number;
+  roomName?: string;
+};
   facilities?: string[];
   amenities?: string[];
   inclusions?: string[];
@@ -50,7 +57,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const [searchResults, setSearchResults] = useState<HotelSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizeStringList = (value: any): string[] => {
     if (!value) {
@@ -190,16 +197,25 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             rateConditions: normalizeStringList(
               hotel.rateConditions ?? hotel.RateConditions ?? hotel.rateCondition ?? hotel.RateCondition,
             ),
-            mealPlan:
-              hotel.mealPlan ||
-              hotel.MealPlan ||
-              hotel.mealType ||
-              hotel.MealType ||
-              hotel.meal_type ||
-              hotel?.rooms?.[0]?.mealType ||
-              hotel?.rooms?.[0]?.MealType ||
-              hotel?.Rooms?.[0]?.MealType ||
-              hotel?.Rooms?.[0]?.mealType,
+           mealPlan:
+  hotel.mealPlan ||
+  hotel.MealPlan ||
+  hotel.mealType ||
+  hotel.MealType ||
+  hotel.meal_type ||
+  hotel.ratePlanName ||
+  hotel.RatePlanName ||
+  hotel.rate_plan_name ||
+  hotel.rateplan_name ||
+  hotel?.rooms?.[0]?.mealType ||
+  hotel?.rooms?.[0]?.MealType ||
+  hotel?.rooms?.[0]?.ratePlanName ||
+  hotel?.rooms?.[0]?.RatePlanName ||
+  hotel?.rooms?.[0]?.rate_plan_name ||
+  hotel?.Rooms?.[0]?.MealType ||
+  hotel?.Rooms?.[0]?.mealType ||
+  hotel?.Rooms?.[0]?.RatePlanName ||
+  hotel?.Rooms?.[0]?.ratePlanName,
             // Provider field comes from backend (tbo, ResAvenue, etc.)
           });
 

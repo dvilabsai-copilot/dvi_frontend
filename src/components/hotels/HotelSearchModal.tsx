@@ -177,19 +177,37 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   // Handle hotel selection
-  const handleSelectHotel = async (hotelCode: string, hotelName: string, bookingCode?: string) => {
-    const hotel = searchResults.find((h) => {
-      if (bookingCode) {
-        return h.hotelCode === hotelCode && h.bookingCode === bookingCode;
-      }
-      return h.hotelCode === hotelCode;
-    });
-    if (!hotel) return;
+  const handleSelectHotel = async (
+  hotelCode: string,
+  hotelName: string,
+  bookingCode?: string,
+  selectedRoomCode?: string
+) => {
+  const hotel = searchResults.find((h) => {
+    if (bookingCode) {
+      return h.hotelCode === hotelCode && h.bookingCode === bookingCode;
+    }
+    return h.hotelCode === hotelCode;
+  });
 
-    setSelectedHotel(hotel);
+  if (!hotel) return;
 
-    try {
-      await onSelectHotel(hotel, selectedMealPlan);
+  const selectedRoomType =
+    hotel.roomTypes?.find((room) => room.roomCode === selectedRoomCode) ||
+    hotel.roomTypes?.[0];
+
+  const hotelWithSelectedRoom = {
+    ...hotel,
+    selectedRoomType,
+  };
+
+  setSelectedHotel(hotelWithSelectedRoom);
+
+  try {
+    await onSelectHotel(
+      hotelWithSelectedRoom,
+      resolveMealPlanForHotelSelection(hotelWithSelectedRoom, selectedMealPlan)
+    );
       onOpenChange(false);
       setSearchQuery('');
       setSelectedMealPlan({
@@ -204,6 +222,91 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
       setSelectedHotel(null);
     }
   };
+
+  const hasManualMealPlanSelection = (mealPlan: {
+  all?: boolean;
+  breakfast?: boolean;
+  lunch?: boolean;
+  dinner?: boolean;
+}) => {
+  return Boolean(
+    mealPlan.all ||
+      mealPlan.breakfast ||
+      mealPlan.lunch ||
+      mealPlan.dinner
+  );
+};
+
+const resolveMealPlanForHotelSelection = (
+  hotel: HotelSearchResult,
+  currentMealPlan: {
+    all?: boolean;
+    breakfast?: boolean;
+    lunch?: boolean;
+    dinner?: boolean;
+  }
+) => {
+  if (hasManualMealPlanSelection(currentMealPlan)) {
+    return currentMealPlan;
+  }
+
+  const mealText = [
+    hotel.mealPlan,
+    ...(hotel.inclusions || []),
+    ...(hotel.rateConditions || []),
+  ]
+    .join(" ")
+    .toUpperCase();
+
+  if (
+    mealText.includes("ALL MEAL") ||
+    mealText.includes("ALL MEALS") ||
+    mealText.includes("FULL BOARD") ||
+    mealText.includes("FULLBOARD") ||
+    mealText === "AP" ||
+    mealText.includes("AMERICAN PLAN") ||
+    (mealText.includes("BREAKFAST") &&
+      mealText.includes("LUNCH") &&
+      mealText.includes("DINNER"))
+  ) {
+    return {
+      all: true,
+      breakfast: true,
+      lunch: true,
+      dinner: true,
+    };
+  }
+
+  if (
+    mealText.includes("MAP") ||
+    mealText.includes("HALF BOARD") ||
+    mealText.includes("HALFBOARD") ||
+    mealText.includes("BREAKFAST + DINNER") ||
+    mealText.includes("BREAKFAST + LUNCH")
+  ) {
+    return {
+      all: false,
+      breakfast: true,
+      lunch: mealText.includes("LUNCH"),
+      dinner: !mealText.includes("LUNCH"),
+    };
+  }
+
+  if (
+    mealText.includes("CP") ||
+    mealText.includes("CONTINENTAL") ||
+    mealText.includes("BREAKFAST")
+  ) {
+    return {
+      all: false,
+      breakfast: true,
+      lunch: false,
+      dinner: false,
+    };
+  }
+
+  return currentMealPlan;
+};
 
   // Clear search when modal closes
   const handleOpenChange = (newOpen: boolean) => {
