@@ -5064,6 +5064,56 @@ function getHotelAmountForBooking(entry: any): number {
     return occupancies;
   };
 
+  const buildSupplierOccupancies = (
+    roomCount: number,
+    totalAdults: number,
+    totalChildren: number,
+    childAges: number[] = [],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    if (childAges.length > 0) {
+      return buildTboOccupancies(roomCount, totalAdults, childAges);
+    }
+
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+      childrenAges: [] as number[],
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    let childrenLeft = Math.max(totalChildren, 0);
+    let nextChildRoom = 0;
+    while (childrenLeft > 0) {
+      let assigned = false;
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (nextChildRoom + offset) % rooms;
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          occupancies[idx].childrenAges.push(7);
+          childrenLeft -= 1;
+          nextChildRoom = (idx + 1) % rooms;
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  };
+
   const buildOccupanciesFromTravellers = (
     travellers: any[],
     fallbackRooms: number,
@@ -8074,7 +8124,7 @@ function getHotelAmountForBooking(entry: any): number {
       ];
 
       // Child ages must be locked from plan/search template to avoid mismatch with TBO
-      const childAgesForBooking = requiresHotelBookingFlow
+      const childAgesForBooking = requiresDetailedPassengerFlow
         ? (
             confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
               ? confirmOccupanciesTemplate.flatMap((occ: any) =>
@@ -8084,13 +8134,21 @@ function getHotelAmountForBooking(entry: any): number {
           ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11)
         : [];
 
+      const totalAdultsForBooking = Math.max(Number(itinerary.adults || 1), 1);
+      const totalChildrenForBooking = Math.max(Number(itinerary.children || 0), 0);
       const occupanciesForBooking = requiresHotelBookingFlow
-        ? confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-          ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
-          : buildTboOccupancies(
+        ? requiresDetailedPassengerFlow
+          ? confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+            ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
+            : buildTboOccupancies(
+                Number(itinerary.roomCount || 1),
+                totalAdultsForBooking,
+                childAgesForBooking,
+              )
+          : buildSupplierOccupancies(
               Number(itinerary.roomCount || 1),
-              Math.max(Number(itinerary.adults || 1), 1),
-              childAgesForBooking,
+              totalAdultsForBooking,
+              totalChildrenForBooking,
             )
         : [];
 
