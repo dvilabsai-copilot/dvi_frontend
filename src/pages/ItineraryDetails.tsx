@@ -4705,6 +4705,14 @@ const vehicleOnlyHtml = html
         .reduce((sum, item: any) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings],
   );
+  const hasSelectedTboHotels = useMemo(
+    () =>
+      Object.values(selectedHotelBookings).some(
+        (item: any) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === 'tbo',
+      ),
+    [selectedHotelBookings],
+  );
+  const requiresDetailedPassengerFlow = requiresHotelBookingFlow && hasSelectedTboHotels;
   const hasPrebookPriceChanged =
     prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
@@ -4747,6 +4755,28 @@ const vehicleOnlyHtml = html
     });
   const DEFAULT_EXTERNAL_STAY_MESSAGE =
     'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
+
+  useEffect(() => {
+    if (!confirmQuotationModal || requiresDetailedPassengerFlow) return;
+    setAdditionalAdults([]);
+    setAdditionalChildren([]);
+    setAdditionalInfants([]);
+    setFormErrors((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([key]) => {
+          return !(
+            key.startsWith('count-adult') ||
+            key.startsWith('count-child') ||
+            key.startsWith('count-infant') ||
+            key.startsWith('adult-') ||
+            key.startsWith('child-') ||
+            key.startsWith('infant-')
+          );
+        }),
+      );
+      return next;
+    });
+  }, [confirmQuotationModal, requiresDetailedPassengerFlow]);
 
   const externalStayEntries = useMemo(() => {
     if (!hotelDetails?.hotels?.length) {
@@ -7532,7 +7562,7 @@ function getHotelAmountForBooking(entry: any): number {
         };
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
-        if (requiresHotelBookingFlow) {
+        if (requiresDetailedPassengerFlow) {
           setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
           setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
           setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
@@ -7851,7 +7881,7 @@ function getHotelAmountForBooking(entry: any): number {
       });
     };
 
-    if (requiresHotelBookingFlow) {
+    if (requiresDetailedPassengerFlow) {
       const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
       const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
       const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
@@ -8255,12 +8285,12 @@ function getHotelAmountForBooking(entry: any): number {
         primary_guest_age: guestDetails.age,
         primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
         primary_guest_email_id: guestDetails.emailId,
-        adult_name: requiresHotelBookingFlow ? normalizedAdditionalAdults.map(a => a.name) : [],
-        adult_age: requiresHotelBookingFlow ? normalizedAdditionalAdults.map(a => a.age) : [],
-        child_name: requiresHotelBookingFlow ? normalizedAdditionalChildren.map(c => c.name) : [],
-        child_age: requiresHotelBookingFlow ? normalizedAdditionalChildren.map(c => c.age) : [],
-        infant_name: requiresHotelBookingFlow ? normalizedAdditionalInfants.map(i => i.name) : [],
-        infant_age: requiresHotelBookingFlow ? normalizedAdditionalInfants.map(i => i.age) : [],
+        adult_name: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.name) : [],
+        adult_age: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.age) : [],
+        child_name: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.name) : [],
+        child_age: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.age) : [],
+        infant_name: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.name) : [],
+        infant_age: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.age) : [],
         arrival_date_time: guestDetails.arrivalDateTime,
         arrival_place: guestDetails.arrivalPlace,
         arrival_flight_details: guestDetails.arrivalFlightDetails,
@@ -12439,7 +12469,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {requiresHotelBookingFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
+            {requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
                 <p className="text-xs text-amber-700 mt-1">
@@ -13047,7 +13077,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 />
               </div>
 
-              {requiresHotelBookingFlow && (
+              {requiresDetailedPassengerFlow && (
                 <>
               {/* Additional Adults */}
               <div className="space-y-3 pt-2">
