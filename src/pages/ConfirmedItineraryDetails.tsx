@@ -28,6 +28,37 @@ interface HotelDetail {
   cancellationPolicy?: string;
 }
 
+interface ConfirmedGuideSlotDetail {
+  confirmedGuideSlotCostId: number;
+  guideSlotCostDetailsId: number;
+  routeGuideId: number;
+  itineraryRouteId: number;
+  itineraryRouteDate: string | null;
+  guideId: number;
+  guideType: number;
+  guideSlot: number;
+  guideSlotLabel: string;
+  guideSlotCost: number;
+  cancellationStatus: number;
+  cancellationDefectType: number;
+}
+
+interface ConfirmedGuideAssignmentDetail {
+  routeGuideId: number;
+  itineraryRouteId: number;
+  itineraryRouteDate: string | null;
+  guideId: number;
+  guideName: string;
+  guideType: number;
+  guideCost: number;
+  guideLanguageIds: number[];
+  guideLanguageLabels: string[];
+  guideSlotIds: number[];
+  guideSlotLabels: string[];
+  cancellationStatus: number;
+  slots: ConfirmedGuideSlotDetail[];
+}
+
 interface ConfirmedItineraryDetail {
   id: string;
   quoteId: string;
@@ -50,6 +81,11 @@ interface ConfirmedItineraryDetail {
   createdDate: string;
   status: 'confirmed' | 'cancelled';
   routes_with_hotels?: any[]; // Debug field from backend
+  plan?: {
+    itinerary_plan_ID: number;
+    confirmed_itinerary_plan_ID: number;
+  };
+  guideAssignments?: ConfirmedGuideAssignmentDetail[];
 }
 
 interface ConfirmedItineraryDetailsProps {
@@ -91,6 +127,14 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
   
   // Cancellation result
   const [cancellationResult, setCancellationResult] = useState<any | null>(null);
+  const [selectedGuideAssignment, setSelectedGuideAssignment] = useState<ConfirmedGuideAssignmentDetail | null>(null);
+  const [selectedGuideSlot, setSelectedGuideSlot] = useState<ConfirmedGuideSlotDetail | null>(null);
+  const [showGuideCancellationDialog, setShowGuideCancellationDialog] = useState(false);
+  const [guideCancellationReason, setGuideCancellationReason] = useState('');
+  const [guideDefectType, setGuideDefectType] = useState<'dvi' | 'guest'>('dvi');
+  const [guideCancellationPercentage, setGuideCancellationPercentage] = useState(10);
+  const [isCancellingGuideSlot, setIsCancellingGuideSlot] = useState(false);
+  const [guideCancellationResult, setGuideCancellationResult] = useState<any | null>(null);
 
   useEffect(() => {
     fetchItineraryDetails();
@@ -217,6 +261,77 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
       modifyActivity: false,
     });
     setCancellationResult(null);
+  };
+
+  const resetGuideCancellationState = () => {
+    setSelectedGuideAssignment(null);
+    setSelectedGuideSlot(null);
+    setGuideCancellationReason('');
+    setGuideDefectType('dvi');
+    setGuideCancellationPercentage(10);
+    setGuideCancellationResult(null);
+    setShowGuideCancellationDialog(false);
+  };
+
+  const openGuideCancellationDialog = (
+    assignment: ConfirmedGuideAssignmentDetail,
+    slot: ConfirmedGuideSlotDetail,
+  ) => {
+    setSelectedGuideAssignment(assignment);
+    setSelectedGuideSlot(slot);
+    setGuideCancellationReason('');
+    setGuideDefectType('dvi');
+    setGuideCancellationPercentage(10);
+    setShowGuideCancellationDialog(true);
+  };
+
+  const handleGuideSlotCancellation = async () => {
+    if (!confirmedPlanId || !selectedGuideAssignment || !selectedGuideSlot) {
+      toast({
+        title: 'Error',
+        description: 'Guide slot details are missing',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!guideCancellationReason.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please provide a reason for guide cancellation',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCancellingGuideSlot(true);
+    try {
+      const response = await ItineraryService.cancelConfirmedGuideSlot(confirmedPlanId, {
+        routeGuideId: selectedGuideAssignment.routeGuideId,
+        guideSlotCostDetailsId: selectedGuideSlot.guideSlotCostDetailsId,
+        itineraryRouteId: selectedGuideAssignment.itineraryRouteId,
+        cancellationPercentage: guideCancellationPercentage,
+        defectType: guideDefectType,
+        reason: guideCancellationReason,
+      });
+
+      setGuideCancellationResult(response?.data || response);
+      setShowGuideCancellationDialog(false);
+      toast({
+        title: 'Success',
+        description: 'Guide slot cancelled successfully',
+      });
+      await fetchItineraryDetails();
+    } catch (error: any) {
+      console.error('Failed to cancel guide slot', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to cancel guide slot',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCancellingGuideSlot(false);
+    }
   };
 
   const handleExportPDF = () => {
@@ -379,6 +494,84 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
       </Card>
 
       {/* Hotel Details Section - ✅ Using HotelList component in read-only mode */}
+      {itinerary.guideAssignments && itinerary.guideAssignments.length > 0 && (
+        <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-[#4a4260]">
+              GUIDE DETAILS
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {itinerary.guideAssignments.map((assignment) => (
+              <div
+                key={assignment.routeGuideId}
+                className="rounded-lg border border-[#eadcf7] bg-[#fcf9ff] p-4"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-base font-semibold text-[#4a4260]">
+                      {assignment.guideName || 'Guide'}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-600">
+                      Date: <span className="font-medium">{assignment.itineraryRouteDate || 'Whole itinerary'}</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Language: <span className="font-medium">{assignment.guideLanguageLabels.join(', ') || 'NA'}</span>
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Slots: <span className="font-medium">{assignment.guideSlotLabels.join(', ') || 'Whole itinerary'}</span>
+                    </div>
+                  </div>
+                  <div className="text-left md:text-right">
+                    <div className="text-xs uppercase tracking-wide text-gray-500">Guide Cost</div>
+                    <div className="text-lg font-bold text-[#4a4260]">
+                      ₹{Number(assignment.guideCost || 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {assignment.slots.map((slot) => (
+                    <div
+                      key={`${assignment.routeGuideId}-${slot.guideSlotCostDetailsId}`}
+                      className={`flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between ${
+                        slot.cancellationStatus === 1
+                          ? 'border-red-200 bg-red-50'
+                          : 'border-[#eadcf7] bg-white'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-medium text-[#4a4260]">{slot.guideSlotLabel}</div>
+                        <div className="text-sm text-gray-600">
+                          Service Amount: ₹{Number(slot.guideSlotCost || 0).toLocaleString('en-IN')}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {slot.itineraryRouteDate || assignment.itineraryRouteDate || 'Whole itinerary'}
+                        </div>
+                      </div>
+
+                      {slot.cancellationStatus === 1 ? (
+                        <div className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700">
+                          Cancelled
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="border-[#dc3545] text-[#dc3545] hover:bg-[#fff5f5]"
+                          onClick={() => openGuideCancellationDialog(assignment, slot)}
+                        >
+                          Cancel Slot
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {itinerary.hotels && itinerary.hotels.length > 0 && (
         <Card className="border-none shadow-none bg-white">
           <CardHeader>
@@ -617,6 +810,159 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={showGuideCancellationDialog}
+        onOpenChange={(open) => {
+          setShowGuideCancellationDialog(open);
+          if (!open && !isCancellingGuideSlot) {
+            resetGuideCancellationState();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Guide Slot</DialogTitle>
+            <DialogDescription>
+              Review the guide slot amount and confirm the cancellation deduction.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border border-[#eadcf7] bg-[#fcf9ff] p-4">
+              <div className="font-semibold text-[#4a4260]">
+                {selectedGuideAssignment?.guideName || 'Guide'}
+              </div>
+              <div className="mt-1 text-sm text-gray-600">
+                Slot: <span className="font-medium">{selectedGuideSlot?.guideSlotLabel || 'NA'}</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                Date: <span className="font-medium">{selectedGuideSlot?.itineraryRouteDate || selectedGuideAssignment?.itineraryRouteDate || 'Whole itinerary'}</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                Service Amount: <span className="font-medium">₹{Number(selectedGuideSlot?.guideSlotCost || 0).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-[#4a4260]">Defect Type</Label>
+              <select
+                value={guideDefectType}
+                onChange={(e) => setGuideDefectType(e.target.value as 'dvi' | 'guest')}
+                className="mt-2 w-full rounded-lg border border-[#e5d9f2] px-3 py-2"
+              >
+                <option value="dvi">DVI</option>
+                <option value="guest">Guest</option>
+              </select>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-[#4a4260]">Cancellation Percentage</Label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={guideCancellationPercentage}
+                onChange={(e) => setGuideCancellationPercentage(Math.max(0, Math.min(100, Number(e.target.value || 0))))}
+                className="mt-2 w-full rounded-lg border border-[#e5d9f2] px-3 py-2"
+              />
+              <div className="mt-2 text-sm text-gray-600">
+                Cancellation Charge: <span className="font-medium">₹{(((Number(selectedGuideSlot?.guideSlotCost || 0) * guideCancellationPercentage) / 100) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="text-sm text-gray-600">
+                Refund Amount: <span className="font-medium">₹{Math.max(0, Number(selectedGuideSlot?.guideSlotCost || 0) - ((Number(selectedGuideSlot?.guideSlotCost || 0) * guideCancellationPercentage) / 100)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="guideCancellationReason" className="text-gray-700">
+                Reason for Cancellation *
+              </Label>
+              <Textarea
+                id="guideCancellationReason"
+                placeholder="Enter the reason for guide slot cancellation..."
+                value={guideCancellationReason}
+                onChange={(e) => setGuideCancellationReason(e.target.value)}
+                className="mt-2 min-h-[90px]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => resetGuideCancellationState()}
+              disabled={isCancellingGuideSlot}
+            >
+              Close
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleGuideSlotCancellation}
+              disabled={isCancellingGuideSlot || !guideCancellationReason.trim()}
+            >
+              {isCancellingGuideSlot ? 'Cancelling...' : 'Confirm Slot Cancellation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {guideCancellationResult && (
+        <Dialog open={!!guideCancellationResult} onOpenChange={(open) => {
+          if (!open) {
+            setGuideCancellationResult(null);
+            resetGuideCancellationState();
+          }
+        }}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="text-green-600 text-lg">Guide Slot Cancelled</DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                <div className="text-xs font-semibold text-green-700">Cancelled Slot</div>
+                <div className="mt-1 text-base font-bold text-green-800">
+                  {selectedGuideSlot?.guideSlotLabel || 'Guide Slot'}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border bg-gray-50 p-3">
+                  <div className="text-xs text-gray-500">Service Amount</div>
+                  <div className="mt-1 font-semibold text-gray-800">
+                    ₹{Number(guideCancellationResult.slotCost || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-red-50 p-3">
+                  <div className="text-xs text-red-600">Cancellation Charge</div>
+                  <div className="mt-1 font-semibold text-red-700">
+                    ₹{Number(guideCancellationResult.cancellationCharge || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                <div className="rounded-lg border bg-blue-50 p-3">
+                  <div className="text-xs text-blue-600">Refund Amount</div>
+                  <div className="mt-1 font-semibold text-blue-700">
+                    ₹{Number(guideCancellationResult.refundAmount || 0).toLocaleString('en-IN')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                className="bg-[#d546ab] hover:bg-[#c03d9f] text-white w-full"
+                onClick={() => {
+                  setGuideCancellationResult(null);
+                  resetGuideCancellationState();
+                }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Cancellation Success Dialog */}
       {cancellationResult && (

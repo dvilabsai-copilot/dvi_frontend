@@ -53,13 +53,20 @@ export interface ItineraryPlan {
 }
 
 export interface GuideDetails {
-  route_guide_ID: number;
-  itinerary_plan_ID: number;
-  itinerary_route_ID?: number;
-  guide_type: number; // 1 = Full itinerary, 2 = Day-wise
-  guide_language: number;
-  guide_slot?: number;
-  guide_cost: number;
+  routeGuideId: number;
+  planId: number;
+  routeId?: number | null;
+  routeDate?: string | null;
+  guideType: number; // 1 = Full itinerary, 2 = Day-wise
+  guideId: number;
+  guideName: string;
+  guideLanguage: string;
+  guideLanguageIds: number[];
+  guideLanguageLabels: string[];
+  guideSlot: string;
+  guideSlotIds: number[];
+  guideSlotLabels: string[];
+  guideCost: number;
 }
 
 export interface HotspotDetails {
