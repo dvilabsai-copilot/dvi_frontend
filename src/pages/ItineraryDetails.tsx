@@ -2,7 +2,7 @@
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -13,6 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -162,6 +169,29 @@ type ItineraryDay = {
   endTime: string; // "08:00 PM"
   viaRoutes?: ViaRouteItem[];
   segments: ItinerarySegment[];
+};
+
+type ItineraryGuideAssignment = {
+  routeGuideId: number;
+  planId: number;
+  routeId: number | null;
+  routeDate: string | null;
+  guideType: number;
+  guideId: number;
+  guideName: string;
+  guideLanguage: string;
+  guideLanguageIds: number[];
+  guideLanguageLabels: string[];
+  guideSlot: string;
+  guideSlotIds: number[];
+  guideSlotLabels: string[];
+  guideCost: number;
+};
+
+type GuideModalOptions = {
+  languages: Array<{ id: number; label: string }>;
+  slots: Array<{ id: number; label: string }>;
+  assignment?: ItineraryGuideAssignment | null;
 };
 
 // --------- HOTELS (matches backend DTO) ---------
@@ -360,6 +390,7 @@ type ItineraryDetailsResponse = {
   planId?: number;
   itineraryPreference?: number;
   confirmed_itinerary_plan_ID?: number;
+  guideForItinerary?: number;
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
@@ -610,7 +641,6 @@ interface ItineraryDetailsProps {
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
   const location = useLocation();
-    const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -737,6 +767,39 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     activityName: "",
   });
   const [isDeletingActivity, setIsDeletingActivity] = useState(false);
+  const [guideAssignments, setGuideAssignments] = useState<ItineraryGuideAssignment[]>([]);
+  const [guideModal, setGuideModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    saving: boolean;
+    planId: number | null;
+    day: ItineraryDay | null;
+    routeGuideId: number | null;
+    guideType: number;
+    guideLanguage: string;
+    guideSlots: number[];
+    options: GuideModalOptions;
+  }>({
+    open: false,
+    loading: false,
+    saving: false,
+    planId: null,
+    day: null,
+    routeGuideId: null,
+    guideType: 2,
+    guideLanguage: "",
+    guideSlots: [],
+    options: { languages: [], slots: [], assignment: null },
+  });
+  const [deleteGuideModal, setDeleteGuideModal] = useState<{
+    open: boolean;
+    assignment: ItineraryGuideAssignment | null;
+    deleting: boolean;
+  }>({
+    open: false,
+    assignment: null,
+    deleting: false,
+  });
 
   // Add hotspot modal state
   type AvailableHotspot = {
@@ -6503,26 +6566,184 @@ function getHotelAmountForBooking(entry: any): number {
     });
   };
 
+  const loadGuideAssignments = useCallback(async (planId: number) => {
+    if (!(planId > 0)) {
+      setGuideAssignments([]);
+      return;
+    }
+
+    try {
+      const response = await ItineraryService.getGuideAssignments(planId) as ItineraryGuideAssignment[];
+      setGuideAssignments(Array.isArray(response) ? response : []);
+    } catch (e) {
+      console.error("Failed to load guide assignments", e);
+      setGuideAssignments([]);
+    }
+  }, []);
+
+  const refreshGuideData = useCallback(async () => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) return;
+
+    await Promise.all([
+      loadGuideAssignments(planId),
+      (async () => {
+        if (!quoteId) return;
+        try {
+          const detailsRes = await ItineraryService.getDetails(quoteId) as ItineraryDetailsResponse;
+          setItinerary(detailsRes);
+        } catch (e) {
+          console.error("Failed to refresh itinerary details after guide change", e);
+        }
+      })(),
+    ]);
+  }, [itinerary?.planId, loadGuideAssignments, quoteId]);
+
+  const openGuideModal = async (
+    day?: ItineraryDay | null,
+    assignment?: ItineraryGuideAssignment | null,
+    guideTypeOverride?: 1 | 2,
+  ) => {
+    if (readOnly) {
+      toast.error("Guide cannot be added in read-only mode");
+      return;
+    }
+
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) {
+      toast.error("Plan ID not found");
+      return;
+    }
+
+    const guideType = Number(guideTypeOverride || assignment?.guideType || 2);
+
+    setGuideModal((prev) => ({
+      ...prev,
+      open: true,
+      loading: true,
+      planId,
+      day,
+      routeGuideId: assignment?.routeGuideId ?? null,
+      guideType,
+      guideLanguage: assignment?.guideLanguageIds?.[0] ? String(assignment.guideLanguageIds[0]) : "",
+      guideSlots: assignment?.guideSlotIds ?? [],
+      options: { languages: [], slots: [], assignment: assignment ?? null },
+    }));
+
+    try {
+      const options = await ItineraryService.getGuideAssignmentOptions(
+        planId,
+        assignment?.routeGuideId,
+      ) as GuideModalOptions;
+
+      const existing = options?.assignment ?? assignment ?? null;
+      setGuideModal((prev) => ({
+        ...prev,
+        loading: false,
+        options: {
+          languages: Array.isArray(options?.languages) ? options.languages : [],
+          slots: Array.isArray(options?.slots) ? options.slots : [],
+          assignment: existing,
+        },
+        routeGuideId: existing?.routeGuideId ?? prev.routeGuideId,
+        guideLanguage: existing?.guideLanguageIds?.[0] ? String(existing.guideLanguageIds[0]) : prev.guideLanguage,
+        guideSlots: existing?.guideSlotIds?.length ? existing.guideSlotIds : prev.guideSlots,
+      }));
+    } catch (e: any) {
+      console.error("Failed to load guide modal options", e);
+      setGuideModal((prev) => ({ ...prev, loading: false, open: false }));
+      toast.error(e?.message || "Failed to load guide options");
+    }
+  };
 
   const handleAddGuideClick = (day: ItineraryDay) => {
-  if (readOnly) {
-    toast.error("Guide cannot be added in read-only mode");
-    return;
-  }
+    const existing = guideAssignments.find((assignment) => (
+      Number(assignment.guideType || 0) === 2
+      && Number(assignment.routeId || 0) === Number(day.id)
+    ));
+    void openGuideModal(day, existing ?? null, 2);
+  };
 
-  navigate("/guide", {
-    state: {
-      fromItinerary: true,
-      quoteId,
-      planId: itinerary?.planId || 0,
-      routeId: day.id,
-      dayNumber: day.dayNumber,
-      date: day.date,
-      departure: day.departure,
-      arrival: day.arrival,
-    },
-  });
-};
+  const handleWholeItineraryGuideClick = () => {
+    const existing = guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
+    void openGuideModal(null, existing, 1);
+  };
+
+  const handleSaveGuideAssignment = async () => {
+    const planId = Number(guideModal.planId || 0);
+    const day = guideModal.day;
+    const guideLanguage = Number(guideModal.guideLanguage || 0);
+    const isWholeItineraryGuide = Number(guideModal.guideType || 0) === 1;
+
+    if (!(planId > 0) || (!isWholeItineraryGuide && !day)) {
+      toast.error("Guide form is incomplete");
+      return;
+    }
+    if (!(guideLanguage > 0)) {
+      toast.error("Guide language is required");
+      return;
+    }
+    if (!isWholeItineraryGuide && guideModal.guideSlots.length === 0) {
+      toast.error("Guide slot is required");
+      return;
+    }
+
+    try {
+      setGuideModal((prev) => ({ ...prev, saving: true }));
+      await ItineraryService.saveGuideAssignment(planId, {
+        routeGuideId: guideModal.routeGuideId ?? undefined,
+        routeId: isWholeItineraryGuide ? undefined : day?.id,
+        routeDate: isWholeItineraryGuide ? undefined : day?.date,
+        guideType: guideModal.guideType,
+        guideLanguage,
+        guideSlots: isWholeItineraryGuide ? undefined : guideModal.guideSlots,
+      });
+
+      await refreshGuideData();
+      setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
+      toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
+    } catch (e: any) {
+      console.error("Failed to save guide assignment", e);
+      setGuideModal((prev) => ({ ...prev, saving: false }));
+      const rawMessage = String(e?.message || "");
+      if (rawMessage.includes("guide_not_available")) {
+        toast.error("Sorry, Guide Cost Not Available. So Unable to Add");
+        return;
+      }
+      toast.error(rawMessage || "Failed to save guide");
+    }
+  };
+
+  const handleDeleteGuideAssignment = async () => {
+    const assignment = deleteGuideModal.assignment;
+    const planId = Number(itinerary?.planId || 0);
+    if (!assignment || !(planId > 0)) return;
+
+    try {
+      setDeleteGuideModal((prev) => ({ ...prev, deleting: true }));
+      await ItineraryService.deleteGuideAssignment(
+        planId,
+        assignment.routeGuideId,
+        assignment.routeId ?? undefined,
+      );
+      await refreshGuideData();
+      setDeleteGuideModal({ open: false, assignment: null, deleting: false });
+      toast.success("Guide deleted successfully");
+    } catch (e: any) {
+      console.error("Failed to delete guide assignment", e);
+      setDeleteGuideModal((prev) => ({ ...prev, deleting: false }));
+      toast.error(e?.message || "Failed to delete guide");
+    }
+  };
+
+  useEffect(() => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) {
+      setGuideAssignments([]);
+      return;
+    }
+    void loadGuideAssignments(planId);
+  }, [itinerary?.planId, loadGuideAssignments]);
 
   const openAddHotspotModal = async (
     planId: number,
@@ -8784,13 +9005,97 @@ function getHotelAmountForBooking(entry: any): number {
 
       {/* Daily Itinerary */}
       <div className="lg:pr-20">
+      {(() => {
+        const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
+        const wholeItineraryGuideAssignment =
+          guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
 
+        return (
+          <>
+            {isWholeItineraryGuideMode && (
+              <div className="mb-4 rounded-lg border border-[#e5d9f2] bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#4a4260]">Whole Itinerary Guide</p>
+                    <p className="mt-1 text-sm text-[#6c6c6c]">
+                      Assign one guide for the full itinerary.
+                    </p>
+                  </div>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+                      onClick={handleWholeItineraryGuideClick}
+                    >
+                      {wholeItineraryGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
+                      {wholeItineraryGuideAssignment ? "Edit Guide" : "Add Guide"}
+                    </Button>
+                  )}
+                </div>
 
-       {displayDays.map((day) => {
+                {wholeItineraryGuideAssignment && (
+                  <div className="mt-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#4a4260]">
+                        Guide
+                        {wholeItineraryGuideAssignment.guideLanguageLabels.length > 0 && (
+                          <>
+                            {" "}
+                            Language - <span className="text-[#d546ab]">{wholeItineraryGuideAssignment.guideLanguageLabels.join(", ")}</span>
+                          </>
+                        )}
+                      </p>
+                      {wholeItineraryGuideAssignment.guideSlotLabels.length > 0 && (
+                        <p className="mt-1 text-sm text-[#6c6c6c]">
+                          Slot Timing -{" "}
+                          <span className="font-medium text-[#4a4260]">
+                            {wholeItineraryGuideAssignment.guideSlotLabels.join(", ")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-4 flex items-center gap-2">
+                      <span className="text-lg font-bold text-[#d546ab]">
+                        ₹ {Number(wholeItineraryGuideAssignment.guideCost || 0).toFixed(2)}
+                      </span>
+                      {!readOnly && (
+                        <>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
+                            onClick={() => void openGuideModal(null, wholeItineraryGuideAssignment, 1)}
+                            aria-label="Edit whole itinerary guide"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
+                            onClick={() => setDeleteGuideModal({ open: true, assignment: wholeItineraryGuideAssignment, deleting: false })}
+                            aria-label="Delete whole itinerary guide"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
   );
+  const currentGuideAssignment =
+    guideAssignments.find((assignment) => (
+      Number(assignment.guideType || 0) === 2
+      && Number(assignment.routeId || 0) === Number(day.id)
+    )) ?? null;
 
   return (
             
@@ -8957,24 +9262,75 @@ function getHotelAmountForBooking(entry: any): number {
         </Button>
       )}
 
-      <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-          onClick={() => handleAddGuideClick(day)}
-          disabled={readOnly}
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          Add Guide
-          </Button>
+      {!isWholeItineraryGuideMode && (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            onClick={() => handleAddGuideClick(day)}
+            disabled={readOnly}
+          >
+            {currentGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
+            {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
+            </Button>
+      )}
 
       <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
         {intercityDistance}
       </span>
     </div>
-  </div>
 </div>
+</div>
+
+                {!isWholeItineraryGuideMode && currentGuideAssignment && (
+                  <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#4a4260]">
+                        Guide
+                        {currentGuideAssignment.guideLanguageLabels.length > 0 && (
+                          <>
+                            {" "}
+                            Language - <span className="text-[#d546ab]">{currentGuideAssignment.guideLanguageLabels.join(", ")}</span>
+                          </>
+                        )}
+                      </p>
+                      {currentGuideAssignment.guideSlotLabels.length > 0 && (
+                        <p className="mt-1 text-sm text-[#6c6c6c]">
+                          Slot Timing -{" "}
+                          <span className="font-medium text-[#4a4260]">
+                            {currentGuideAssignment.guideSlotLabels.join(", ")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-4 flex items-center gap-2">
+                      <span className="text-lg font-bold text-[#d546ab]">
+                        ₹ {Number(currentGuideAssignment.guideCost || 0).toFixed(2)}
+                      </span>
+                      {!readOnly && (
+                        <>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
+                            onClick={() => void openGuideModal(day, currentGuideAssignment)}
+                            aria-label="Edit guide"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
+                            onClick={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })}
+                            aria-label="Delete guide"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
 
                 {/* Segments */}
@@ -9425,6 +9781,9 @@ function getHotelAmountForBooking(entry: any): number {
             </Card>
           );
         })}
+          </>
+        );
+      })()}
       </div>
       {/* Hotel List (separate component) */}
       {shouldShowHotels && loadingHotels && (
@@ -10236,6 +10595,164 @@ function getHotelAmountForBooking(entry: any): number {
                 </>
               ) : (
                 'Delete'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={guideModal.open}
+        onOpenChange={(open) => {
+          if (!open && !guideModal.saving) {
+            setGuideModal((prev) => ({
+              ...prev,
+              open: false,
+              loading: false,
+              saving: false,
+            }));
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {Number(guideModal.guideType || 0) === 1
+                ? (guideModal.routeGuideId ? "Update Guide for Full Itinerary" : "Add Guide for Full Itinerary")
+                : guideModal.routeGuideId
+                ? `Update Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`
+                : `Add Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`}
+            </DialogTitle>
+            <DialogDescription>
+              {Number(guideModal.guideType || 0) === 1
+                ? "Choose the guide language for the full itinerary. Slot coverage will follow the whole-itinerary guide setup."
+                : "Choose the guide language and slot for this itinerary day."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {guideModal.loading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+            </div>
+          ) : (
+            <div className="space-y-5 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-[#4a4260]">Language</label>
+                <Select
+                  value={guideModal.guideLanguage}
+                  onValueChange={(value) => setGuideModal((prev) => ({ ...prev, guideLanguage: value }))}
+                >
+                  <SelectTrigger className="border-[#e5d9f2] focus:ring-[#d546ab]">
+                    <SelectValue placeholder="Choose Language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {guideModal.options.languages.map((language) => (
+                      <SelectItem key={language.id} value={String(language.id)}>
+                        {language.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {Number(guideModal.guideType || 0) !== 1 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[#4a4260]">Slot</label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {guideModal.options.slots.map((slot) => {
+                      const selected = guideModal.guideSlots.includes(slot.id);
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                            selected
+                              ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
+                              : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
+                          }`}
+                          onClick={() => {
+                            setGuideModal((prev) => {
+                              const exists = prev.guideSlots.includes(slot.id);
+                              const guideSlots = exists
+                                ? prev.guideSlots.filter((item) => item !== slot.id)
+                                : [...prev.guideSlots, slot.id].sort((a, b) => a - b);
+                              return { ...prev, guideSlots };
+                            });
+                          }}
+                        >
+                          {slot.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setGuideModal((prev) => ({ ...prev, open: false }))}
+              disabled={guideModal.saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleSaveGuideAssignment()}
+              disabled={guideModal.loading || guideModal.saving}
+              className="bg-[#d546ab] hover:bg-[#bf3397]"
+            >
+              {guideModal.saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteGuideModal.open}
+        onOpenChange={(open) => {
+          if (!deleteGuideModal.deleting) {
+            setDeleteGuideModal((prev) => ({ ...prev, open }));
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Guide</DialogTitle>
+            <DialogDescription>
+              {Number(deleteGuideModal.assignment?.guideType || 0) === 1
+                ? "Are you sure you want to remove this whole-itinerary guide assignment?"
+                : "Are you sure you want to remove this guide assignment from the itinerary day?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteGuideModal({ open: false, assignment: null, deleting: false })}
+              disabled={deleteGuideModal.deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteGuideAssignment()}
+              disabled={deleteGuideModal.deleting}
+            >
+              {deleteGuideModal.deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
               )}
             </Button>
           </DialogFooter>

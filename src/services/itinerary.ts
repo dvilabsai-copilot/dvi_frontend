@@ -206,6 +206,45 @@ export const ItineraryService = {
     });
   },
 
+  async getGuideAssignments(planId: number) {
+    return api(`itineraries/${planId}/guides`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async getGuideAssignmentOptions(planId: number, routeGuideId?: number) {
+    const suffix = routeGuideId ? `?routeGuideId=${routeGuideId}` : "";
+    return api(`itineraries/${planId}/guides/options${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async saveGuideAssignment(
+    planId: number,
+    data: {
+      routeGuideId?: number;
+      routeId?: number;
+      routeDate?: string;
+      guideType?: number;
+      guideLanguage: number;
+      guideSlots?: number[];
+    },
+  ) {
+    return api(`itineraries/${planId}/guides`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async deleteGuideAssignment(planId: number, routeGuideId: number, routeId?: number) {
+    const suffix = routeId ? `?routeId=${routeId}` : "";
+    return api(`itineraries/${planId}/guides/${routeGuideId}${suffix}`, {
+      method: "DELETE",
+    });
+  },
+
   async getVehicleBuildStatus(planId: number) {
     return api(`itineraries/${planId}/vehicle-build-status`, {
       method: "GET",
@@ -888,6 +927,29 @@ export const ItineraryService = {
   async getConfirmedItineraryDetails(id: string) {
     return api(`itineraries/confirmed/${id}`, {
       method: "GET",
+    });
+  },
+
+  async getConfirmedGuideAssignments(confirmedId: number) {
+    return api(`itineraries/confirmed/${confirmedId}/guides`, {
+      method: "GET",
+    });
+  },
+
+  async cancelConfirmedGuideSlot(
+    confirmedId: number,
+    data: {
+      routeGuideId: number;
+      guideSlotCostDetailsId: number;
+      itineraryRouteId?: number;
+      cancellationPercentage?: number;
+      defectType?: string;
+      reason?: string;
+    },
+  ) {
+    return api(`itineraries/confirmed/${confirmedId}/guides/cancel-slot`, {
+      method: "POST",
+      body: data,
     });
   },
 

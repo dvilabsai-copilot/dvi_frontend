@@ -70,6 +70,7 @@ export interface PayPayload {
   modeOfPaymentId?: number;
   utrNumber?: string;
   processedBy?: string;
+  paymentScreenshot?: File;
 }
 
 // Helpers
@@ -172,6 +173,35 @@ export async function fetchPaymentModes(): Promise<PaymentModeOption[]> {
 
 // 6) Pay Now
 export async function postPayment(payload: PayPayload): Promise<void> {
+  const hasFile = payload.paymentScreenshot instanceof File;
+
+  if (hasFile) {
+    const formData = new FormData();
+    formData.append("componentType", payload.componentType);
+    formData.append(
+      "accountsItineraryDetailsId",
+      String(payload.accountsItineraryDetailsId),
+    );
+    formData.append("componentDetailId", String(payload.componentDetailId));
+    formData.append("amount", String(payload.amount));
+    if (payload.routeDate) formData.append("routeDate", payload.routeDate);
+    if (payload.modeOfPaymentId != null) {
+      formData.append("modeOfPaymentId", String(payload.modeOfPaymentId));
+    }
+    if (payload.utrNumber) formData.append("utrNumber", payload.utrNumber);
+    if (payload.processedBy) formData.append("processedBy", payload.processedBy);
+    if (payload.paymentScreenshot) {
+      formData.append("paymentScreenshot", payload.paymentScreenshot);
+    }
+
+    await api(`${ACCOUNTS_BASE_PATH}/pay`, {
+      method: "POST",
+      auth: true,
+      body: formData,
+    });
+    return;
+  }
+
   await api(`${ACCOUNTS_BASE_PATH}/pay`, {
     method: "POST",
     auth: true,
