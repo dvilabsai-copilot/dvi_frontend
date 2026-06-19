@@ -210,6 +210,7 @@ export type ItineraryHotelRow = {
   externalStay?: boolean;
   availabilityStatus?: 'AVAILABLE' | 'NO_SUPPLIER_AVAILABILITY' | 'NOT_BOOKABLE';
   availabilityMessage?: string | null;
+  availableAgainFrom?: string | null;
   displayRoomType?: string;
   displayMealPlan?: string;
 };
@@ -389,6 +390,7 @@ type ItineraryHotelDetailsResponse = {
   showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
+  restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
@@ -4916,10 +4918,13 @@ function getHotelAmountForBooking(entry: any): number {
     const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
     const hotelCode = getHotelCodeForBooking(entry);
     const provider = normalizeHotelProvider(entry);
+    const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
 
     return (
       entry?.externalStay === true ||
       entry?.isBookable === false ||
+      availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+      availabilityStatus === 'NOT_BOOKABLE' ||
       provider === 'external' ||
       provider === 'none' ||
       provider === 'self-arranged' ||
@@ -9445,6 +9450,7 @@ function getHotelAmountForBooking(entry: any): number {
         >
           <HotelList
             hotels={hotelsForDisplay}
+            restrictedHotels={hotelDetails.restrictedHotels || []}
             hotelTabs={hotelDetails.hotelTabs}
             hotelRatesVisible={hotelDetails.hotelRatesVisible}
             showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
