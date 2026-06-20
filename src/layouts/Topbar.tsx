@@ -19,6 +19,7 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
     if (path.includes("/create-itinerary")) return "Create Itinerary";
     if (path.includes("/latest-itinerary")) return "Latest Itinerary";
     if (path.includes("/confirmed-itinerary")) return "Confirmed Itinerary";
+    if (path.includes("/book-activities")) return "Book Activities";
     if (path.includes("/cancelled-itinerary")) return "Cancelled Itinerary";
     if (path.includes("/accounts-ledger")) return "Accounts Ledger";
     if (path.includes("/accounts-manager")) return "Accounts Manager";

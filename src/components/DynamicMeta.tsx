@@ -34,6 +34,12 @@ const META_BY_PATH: Record<
     description: "See all confirmed / booked itineraries in one place.",
     keywords: "confirmed itinerary, bookings, travel confirmation",
   },
+  "/book-activities": {
+    title: "Book Activities - DVi Holidays",
+    description:
+      "Search and book curated travel activities and experiences through DVi Holidays.",
+    keywords: "book activities, travel experiences, dvi holidays, activities",
+  },
   "/accounts-manager": {
     title: "Accounts Manager - DVi Holidays",
     description:
