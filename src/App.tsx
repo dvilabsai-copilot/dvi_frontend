@@ -20,6 +20,7 @@ import Dashboard from "./pages/Dashboard";
 import { CreateItinerary } from "./pages/CreateItinerary/CreateItinerary";
 import { LatestItinerary } from "./pages/LatestItinerary";
 import { ConfirmedItineraries } from "./pages/ConfirmedItineraries";
+import BookActivitiesPage from "./pages/book-activities/BookActivitiesPage";
 import { CancelledItineraries } from "./pages/CancelledItineraries";
 import { AccountsManager } from "./pages/accounts/AccountsManager";
 import "./App.css";
@@ -171,6 +172,14 @@ const App = () => (
               element={
                 <MainLayout>
                   <ConfirmedItineraries />
+                </MainLayout>
+              }
+            />
+            <Route
+              path="/book-activities"
+              element={
+                <MainLayout>
+                  <BookActivitiesPage />
                 </MainLayout>
               }
             />
