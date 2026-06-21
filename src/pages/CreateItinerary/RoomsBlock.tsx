@@ -1,72 +1,125 @@
 // FILE: src/pages/CreateItinerary/RoomsBlock.tsx
 
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Trash2 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 
 type RoomsBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
   rooms: RoomRow[];
-  setRooms: Dispatch<SetStateAction<RoomRow[]>>;
+setRooms: Dispatch<SetStateAction<RoomRow[]>>;
   addRoom: () => void;
   removeRoom: (id: number) => void;
 };
 
-const stayOptions = [
-  {
-    label: "Comfort",
-    description: "Balanced options for a pleasant stay",
-    icon: "✦",
-  },
-  {
-    label: "Standard",
-    description: "Budget-friendly comfortable stays",
-    icon: "☆",
-  },
-  {
-    label: "Luxury",
-    description: "Premium stays with top amenities",
-    icon: "♕",
-  },
+// exact combinations from PHP `validCombinations`
+const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }> = [
+  { adult: 1, child: 0, infant: 0 },
+  { adult: 1, child: 0, infant: 1 },
+  { adult: 1, child: 0, infant: 2 },
+  { adult: 1, child: 0, infant: 3 },
+  { adult: 1, child: 0, infant: 4 },
+  { adult: 1, child: 1, infant: 0 },
+  { adult: 1, child: 1, infant: 1 },
+  { adult: 1, child: 1, infant: 2 },
+  { adult: 1, child: 1, infant: 3 },
+  { adult: 1, child: 2, infant: 0 },
+  { adult: 1, child: 2, infant: 1 },
+  { adult: 1, child: 2, infant: 2 },
+  { adult: 2, child: 0, infant: 0 },
+  { adult: 2, child: 0, infant: 1 },
+  { adult: 2, child: 0, infant: 2 },
+  { adult: 2, child: 0, infant: 3 },
+  { adult: 2, child: 1, infant: 0 },
+  { adult: 2, child: 1, infant: 1 },
+  { adult: 2, child: 1, infant: 2 },
+  { adult: 2, child: 2, infant: 0 },
+  { adult: 2, child: 2, infant: 1 },
+  { adult: 3, child: 0, infant: 0 },
+  { adult: 3, child: 0, infant: 1 },
+  { adult: 3, child: 0, infant: 2 },
+  { adult: 3, child: 1, infant: 0 },
+  { adult: 3, child: 1, infant: 1 },
+  { adult: 3, child: 2, infant: 0 },
 ];
+
+const MAX_ADULTS_PER_ROOM = 3;
+const MAX_ROOMS = 6;
 
 export const RoomsBlock = ({
   itineraryPreference,
   rooms,
   setRooms,
+  addRoom,
 }: RoomsBlockProps) => {
-  const [stayPreference, setStayPreference] = useState<"Comfort" | "Standard" | "Luxury">("Comfort");
+  const [targetRoomCount, setTargetRoomCount] = useState<number>(
+    rooms[0]?.roomCount || rooms.length || 1
+  );
 
   const shouldShowRoomsBlock =
     itineraryPreference === "hotel" || itineraryPreference === "both";
+    //const initialRoomsFixedRef = useRef(false);
 
-  useEffect(() => {
-    setRooms((prev) => {
-      if (!Array.isArray(prev) || prev.length !== 1) return prev;
+  const validateCombination = (
+    adult: number,
+    child: number,
+    infant: number
+  ): boolean => {
+      if (adult > MAX_ADULTS_PER_ROOM) {
+        toast({
+          title: "Maximum of 3 adults only allowed per room",
+          variant: "destructive",
+        });
+        return false;
+      }
 
-      const room = prev[0];
-      const isInitialDefaultRoom =
-        Number(room.id) === 1 &&
-        Number(room.adults) === 1 &&
-        Number(room.children || 0) === 0 &&
-        Number(room.infants || 0) === 0 &&
-        Number(room.roomCount || 1) === 1;
+      const ok = VALID_COMBINATIONS.some(
+        (c) =>
+          c.adult === adult && c.child === child && c.infant === infant
+      );
 
-      if (!isInitialDefaultRoom) return prev;
+      if (ok) return true;
 
-      return [
-        {
-          ...room,
-          adults: 2,
-          roomCount: 1,
-          childrenDetails: Array.isArray(room.childrenDetails)
-            ? room.childrenDetails
-            : [],
-        },
-      ];
+      toast({
+        title: "Reached the maximum of allowed room counts",
+        variant: "destructive",
+      });
+
+      return false;
+  };
+
+  const updateRoom = (
+    roomId: number,
+    patch: Partial<Omit<RoomRow, "id">>
+  ) => {
+    setRooms((prev) =>
+      prev.map((r) => (r.id === roomId ? { ...r, ...patch } : r))
+    );
+  };
+
+  const tryUpdateCounts = (
+    room: RoomRow,
+    nextAdults: number,
+    nextChildren: number,
+    nextInfants: number,
+    opts?: { skipValidate?: boolean }
+  ) => {
+    if (!opts?.skipValidate) {
+      if (!validateCombination(nextAdults, nextChildren, nextInfants)) {
+        return;
+      }
+    }
+    updateRoom(room.id, {
+      adults: nextAdults,
+      children: nextChildren,
+      infants: nextInfants,
     });
-  }, [setRooms]);
+  };
 
+   // sync childrenDetails with children count
   useEffect(() => {
     setRooms((prev) => {
       let changed = false;
@@ -75,201 +128,460 @@ export const RoomsBlock = ({
         const existing = Array.isArray(room.childrenDetails)
           ? room.childrenDetails
           : [];
-        const desired = Number(room.children || 0);
+        const desired = room.children;
 
         if (existing.length === desired) return room;
 
-        changed = true;
-
         if (existing.length < desired) {
-          const nextChildren = [...existing];
-
-          while (nextChildren.length < desired) {
-            nextChildren.push({ age: "", bedType: "Without Bed" });
+          const arr = [...existing];
+          const toAdd = desired - existing.length;
+          for (let i = 0; i < toAdd; i++) {
+            arr.push({
+              age: "",
+              bedType: "Without Bed",
+            });
           }
-
-          return { ...room, childrenDetails: nextChildren };
+          changed = true;
+          return { ...room, childrenDetails: arr };
         }
 
-        return { ...room, childrenDetails: existing.slice(0, desired) };
+        changed = true;
+        return {
+          ...room,
+          childrenDetails: existing.slice(0, desired),
+        };
       });
 
       return changed ? next : prev;
     });
   }, [rooms, setRooms]);
 
-  if (!shouldShowRoomsBlock) return null;
+  
+useEffect(() => {
+  setRooms((prev) => {
+    if (!Array.isArray(prev) || prev.length !== 1) {
+      return prev;
+    }
 
-  const totalAdults = rooms.reduce(
-    (sum, room) => sum + Number(room.adults || 0),
-    0,
-  );
-  const totalChildren = rooms.reduce(
-    (sum, room) => sum + Number(room.children || 0),
-    0,
-  );
-  const totalInfants = rooms.reduce(
-    (sum, room) => sum + Number(room.infants || 0),
-    0,
-  );
+    const room = prev[0];
 
-  const childAgeFields = rooms.flatMap((room, roomIndex) =>
-    (room.childrenDetails || []).map((child, childIndex) => ({
-      key: `child-${room.id}-${childIndex}`,
-      label: `Room ${roomIndex + 1} Child ${childIndex + 1} Age`,
-      value: child.age || "",
-    })),
-  );
+    const isInitialDefaultRoom =
+      Number(room.id) === 1 &&
+      Number(room.adults) === 1 &&
+      Number(room.children || 0) === 0 &&
+      Number(room.infants || 0) === 0 &&
+      Number(room.roomCount || 1) === 1;
 
-  const infantAgeFields = rooms.flatMap((room, roomIndex) =>
-    Array.from({ length: Number(room.infants || 0) }).map((_, infantIndex) => ({
-      key: `infant-${room.id}-${infantIndex}`,
-      label: `Room ${roomIndex + 1} Infant ${infantIndex + 1} Age`,
-      value: "",
-    })),
-  );
+    if (!isInitialDefaultRoom) {
+      return prev;
+    }
 
-  const ageFields = [...childAgeFields, ...infantAgeFields];
+    return [
+      {
+        ...room,
+        adults: 2,
+        roomCount: 1,
+        childrenDetails: Array.isArray(room.childrenDetails)
+          ? room.childrenDetails
+          : [],
+      },
+    ];
+  });
+}, [setRooms]);
 
-  return (
-    <div className="rounded-xl border border-[#eee6fb] bg-white p-3">
-      <h2 className="mb-3 text-sm font-bold text-[#231942]">
-        Stay Preferences & Occupancy Details
-      </h2>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)_230px]">
-        <div>
-          <p className="mb-2 text-[11px] font-semibold text-[#231942]">
-            Stay Preference <span className="text-red-500">*</span>
-          </p>
+  const handleTotalRoomsChange = (value: number) => {
+  if (!Number.isFinite(value) || value < 1) value = 1;
 
-          <div className="grid grid-cols-3 gap-2">
-            {stayOptions.map((item) => {
-              const active = stayPreference === item.label;
+  if (value > MAX_ROOMS) {
+    toast({
+      title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
+      variant: "destructive",
+    });
+    value = MAX_ROOMS;
+  }
 
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => {
-  setStayPreference(item.label as "Comfort" | "Standard" | "Luxury");
+  setTargetRoomCount(value);
 
-  setRooms((prev) =>
-    prev.map((room) => ({
+  setRooms((prev) => {
+    const current = Array.isArray(prev) && prev.length > 0 ? [...prev] : [];
+
+    while (current.length < value) {
+      current.push({
+        id: current.length + 1,
+        adults: 2,
+        children: 0,
+        infants: 0,
+        roomCount: value,
+        childrenDetails: [],
+      });
+    }
+
+    if (current.length > value) {
+      current.length = value;
+    }
+
+    return current.map((room, index) => ({
       ...room,
-      stayPreference: item.label,
-    }))
-  );
-}}
-                  className={`relative min-h-[94px] rounded-lg border px-2 py-3 text-center transition ${
-                    active
-                      ? "border-[#6d28d9] bg-[#faf7ff]"
-                      : "border-[#eee6fb] bg-white"
-                  }`}
-                >
-                  {active && (
-                    <span className="absolute -left-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#4f16e8] text-[10px] text-white">
-                      ✓
+      id: index + 1,
+      roomCount: value,
+      childrenDetails: Array.isArray(room.childrenDetails)
+        ? room.childrenDetails
+        : [],
+    }));
+  });
+};
+  const handleChildAgeChange = (
+    roomId: number,
+    childIndex: number,
+    value: string
+  ) => {
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          age: value === "" ? "" : Number(value),
+        };
+        return { ...room, childrenDetails: nextChildren };
+      })
+    );
+  };
+
+  const handleChildBedTypeChange = (
+    roomId: number,
+    childIndex: number,
+    bedType: "Without Bed" | "With Bed"
+  ) => {
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          bedType,
+        };
+        return { ...room, childrenDetails: nextChildren };
+      })
+    );
+  };
+
+   const handleDeleteRoomBlock = (roomId: number) => {
+  setRooms((prev) => {
+    if (!Array.isArray(prev) || prev.length <= 1) {
+      return prev;
+    }
+
+    const filteredRooms = prev.filter((room) => room.id !== roomId);
+    const nextRoomCount = filteredRooms.length || 1;
+
+    setTargetRoomCount(nextRoomCount);
+
+    return filteredRooms.map((room, index) => ({
+      ...room,
+      id: index + 1,
+      roomCount: nextRoomCount,
+      childrenDetails: Array.isArray(room.childrenDetails)
+        ? room.childrenDetails
+        : [],
+    }));
+  });
+};
+
+  if (!shouldShowRoomsBlock) {
+  return null;
+}
+
+return (
+  <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
+      {rooms.map((room, idx) => {
+        const childDetails = room.childrenDetails || [];
+
+        return (
+          <div
+            key={room.id}
+            className={idx > 0 ? "mt-3 pt-3 border-t border-[#ead1f2]" : ""}
+          >
+            {/* header */}
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-[#4a4260] mb-0">
+                  #Room {idx + 1}
+                </p>
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#4a4260]">
+                  <span className="flex items-center gap-1">
+                    [ Adult{" "}
+                    <span className="text-[#6c6f82] flex items-center gap-1">
+                      <i className="ti ti-info-circle ms-1" />
+                      <small>Age: Above 11,</small>
                     </span>
-                  )}
-
-                  <div className="mx-auto mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#efe7ff] text-[#6d28d9]">
-                    {item.icon}
-                  </div>
-                  <div className="text-[11px] font-bold text-[#4f16e8]">
-                    {item.label}
-                  </div>
-                  <div className="mt-1 text-[9px] font-medium leading-tight text-[#7b728d]">
-                    {item.description}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="border-l border-[#eee6fb] pl-4">
-          <p className="mb-2 text-[11px] font-semibold text-[#231942]">
-            Occupancy Details (Per Room) <span className="text-red-500">*</span>
-          </p>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="mb-1 text-[10px] font-semibold text-[#231942]">
-                Number of Rooms
-              </p>
-              <Input
-               value={rooms[0]?.roomCount || rooms.length || 1}
-                readOnly
-                className="h-8 text-[11px]"
-              />
-            </div>
-
-            <div>
-              <p className="mb-1 text-[10px] font-semibold text-[#231942]">
-                Adults (12+ Years)
-              </p>
-              <Input value={totalAdults} readOnly className="h-8 text-[11px]" />
-            </div>
-
-            <div>
-              <p className="mb-1 text-[10px] font-semibold text-[#231942]">
-                Children (5 - 11 Years)
-              </p>
-              <Input
-                value={totalChildren}
-                readOnly
-                className="h-8 text-[11px]"
-              />
-            </div>
-
-            <div>
-              <p className="mb-1 text-[10px] font-semibold text-[#231942]">
-                Infants (0 - 4 Years)
-              </p>
-              <Input
-                value={totalInfants}
-                readOnly
-                className="h-8 text-[11px]"
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="border-l border-[#eee6fb] pl-4">
-          <p className="mb-2 text-[11px] font-semibold text-[#231942]">Ages</p>
-
-          <div className="grid grid-cols-2 gap-2">
-            {ageFields.length > 0 ? (
-              ageFields.map((item) => (
-                <div key={item.key}>
-                  <p className="mb-1 text-[9px] font-semibold text-[#231942]">
-                    {item.label}
-                  </p>
-                  <Input
-                    value={item.value}
-                    readOnly
-                    className="h-8 text-[11px]"
-                  />
+                  </span>
+                  <span className="flex items-center gap-1">
+                    Child{" "}
+                    <span className="text-[#6c6f82] flex items-center gap-1">
+                      <i className="ti ti-info-circle ms-1" />
+                      <small>Age: 5 to 10,</small>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    Infant{" "}
+                    <span className="text-[#6c6f82] flex items-center gap-1">
+                      <i className="ti ti-info-circle ms-1" />
+                      <small>Age: Below 5</small>
+                    </span>{" "}
+                    ]
+                  </span>
                 </div>
-              ))
-            ) : (
-              <p className="col-span-2 text-[11px] text-[#7b728d]">
-                No child/infant ages added
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
+              </div>
 
-      <div className="mt-3 flex flex-wrap gap-4 rounded-lg bg-[#fbf8ff] px-3 py-2 text-[11px] text-[#6b647a]">
-        {rooms.map((room, index) => (
-          <span key={room.id}>
-            ⓘ Room {index + 1}: {room.adults} Adults, {room.children} Child,{" "}
-            {room.infants} Infant
-          </span>
-        ))}
+{rooms.length > 1 && (
+  <Button
+    type="button"
+    variant="ghost"
+    size="icon"
+    onClick={() => handleDeleteRoomBlock(room.id)}
+    className="h-7 w-7 text-[#d03265]"
+  >
+    <Trash2 className="h-4 w-4" />
+  </Button>
+)}
+            </div>
+
+           {/* counters row */}
+<div className="flex flex-wrap items-center gap-4 mb-2">
+  {/* Adults */}
+  <div className="flex flex-col items-start gap-1">
+    <div className="flex items-center border rounded-md bg-white">
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() =>
+          tryUpdateCounts(
+            room,
+            Math.max(room.adults - 1, 1),
+            room.children,
+            room.infants
+          )
+        }
+      >
+        -
+      </Button>
+<span className="px-3 text-sm select-none">
+  {room.adults}
+</span>
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() =>
+          tryUpdateCounts(
+            room,
+            room.adults + 1,
+            room.children,
+            room.infants
+          )
+        }
+      >
+        +
+      </Button>
+    </div>
+  </div>
+
+  {/* Children */}
+<div className="flex flex-col items-start shrink-0">
+  {room.children === 0 ? (
+    <Button
+      type="button"
+      variant="outline"
+      className="h-7 text-xs border-[#d39ce8] whitespace-nowrap"
+      onClick={() =>
+        tryUpdateCounts(
+          room,
+          room.adults,
+          1,
+          room.infants
+        )
+      }
+    >
+      + Add Child
+    </Button>
+  ) : (
+    <div className="flex items-center border rounded-md bg-white">
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() =>
+          tryUpdateCounts(
+            room,
+            room.adults,
+            Math.max(room.children - 1, 0),
+            room.infants
+          )
+        }
+      >
+        -
+      </Button>
+
+      <span className="px-3 text-sm select-none">
+        {room.children}
+      </span>
+
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-7 px-2"
+        onClick={() =>
+          tryUpdateCounts(
+            room,
+            room.adults,
+            room.children + 1,
+            room.infants
+          )
+        }
+      >
+        +
+      </Button>
+    </div>
+  )}
+</div>
+  {/* Infant */}
+  <div className="flex flex-col items-start gap-1">
+    {room.infants === 0 ? (
+      <Button
+        type="button"
+        variant="outline"
+        className="h-7 text-xs border-[#d39ce8]"
+        onClick={() =>
+          tryUpdateCounts(room, room.adults, room.children, 1)
+        }
+      >
+        + Add Infant
+      </Button>
+    ) : (
+      <div className="flex items-center border rounded-md bg-white">
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-7 px-2"
+          onClick={() =>
+            tryUpdateCounts(
+              room,
+              room.adults,
+              room.children,
+              Math.max(room.infants - 1, 0),
+              { skipValidate: true }
+            )
+          }
+        >
+          -
+        </Button>
+        <span className="px-3 text-sm select-none">
+          {room.infants}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-7 px-2"
+          onClick={() =>
+            tryUpdateCounts(
+              room,
+              room.adults,
+              room.children,
+              room.infants + 1
+            )
+          }
+        >
+          +
+        </Button>
       </div>
+    )}
+  </div>
+
+  {/* Child age + bed type */}
+  {childDetails.length > 0 && childDetails.map((child, cIdx) => (
+    <div
+      key={`${room.id}-${cIdx}`}
+      className="flex items-center gap-2"
+    >
+      <span className="text-[11px] text-[#4a4260] whitespace-nowrap">
+        Child #{cIdx + 1}
+      </span>
+
+      <Input
+        type="number"
+        min={5}
+        max={10}
+        placeholder="Age 5-10"
+        value={child.age}
+        onChange={(e) =>
+          handleChildAgeChange(
+            room.id,
+            cIdx,
+            e.target.value
+          )
+        }
+        className="w-[80px] h-8 text-center px-1 py-1 bg-white"
+      />
+
+      <select
+        className="h-8 text-xs border border-[#dee0ee] rounded px-2 bg-white"
+        value={child.bedType}
+        onChange={(e) =>
+          handleChildBedTypeChange(
+            room.id,
+            cIdx,
+            e.target.value as "Without Bed" | "With Bed"
+          )
+        }
+      >
+        <option value="Without Bed">Without Bed</option>
+        <option value="With Bed">With Bed</option>
+      </select>
+    </div>
+  ))}
+
+        {/* Total Rooms */}
+<div className="flex items-center gap-2">
+  <span className="text-xs text-muted-foreground">Total</span>
+
+ <Input
+  type="number"
+  min={1}
+  max={MAX_ROOMS}
+  className="w-16 h-8 bg-white"
+  value={targetRoomCount}
+  onChange={(e) => {
+    const value = Number(e.target.value);
+    const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
+    const nextRoomCount = Math.min(safeValue, MAX_ROOMS);
+
+    handleTotalRoomsChange(nextRoomCount);
+  }}
+/>
+
+  <Button
+    type="button"
+    variant="link"
+    className="h-8 px-0 text-primary"
+    onClick={() => handleTotalRoomsChange(targetRoomCount)}
+  >
+    <span className="inline-flex items-center text-sm">
+      <span className="mr-1">+</span> Add Rooms
+    </span>
+  </Button>
+</div>
+</div>
+</div>
+  );
+  })}
+
+     
     </div>
   );
 };
+
