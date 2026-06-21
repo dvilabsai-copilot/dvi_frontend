@@ -303,6 +303,9 @@ const getRentalCellLines = (day: DayWisePricingItem): string[] => {
   return isOutstationDay(day) ? ['Outstation', amount] : [amount];
 };
 
+const getVisibleDayTotal = (day: DayWisePricingItem): number =>
+  Math.max(0, toNumber(day.totalCharges) - toNumber(day.extraKmCharges));
+
 const getVehicleRentalSummaryText = (vehicle: ItineraryVehicleRow): string =>
   vehicleHasUnavailableOutstationRate(vehicle)
     ? 'Rates not available'
@@ -518,7 +521,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(getVisibleDayTotal(dp)))}</td>
           </tr>
         `;
           },
@@ -1125,7 +1128,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                         </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(getVisibleDayTotal(dp))}</td>
                                     </tr>
                                   );})}
                                 </tbody>
