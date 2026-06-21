@@ -200,83 +200,40 @@ const getAllowedKmSummaryRows = (vehicle: ItineraryVehicleRow): Array<[string, s
   return rows;
 };
 
-const getVehicleSubtotal = (vehicle: ItineraryVehicleRow): number => {
-  const subtotal = toAmount(vehicle.subtotal);
+const readVehicleSubtotal = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.subtotal);
 
-  if (subtotal > 0) {
-    return subtotal;
-  }
-
-  return toAmount(vehicle.totalAmount);
-};
-
-const getVehicleGstPercentage = (vehicle: ItineraryVehicleRow): number =>
+const readVehicleGstPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vehicleGstPercentage) || 5;
 
-const getVehicleVendorMarginPercentage = (vehicle: ItineraryVehicleRow): number =>
+const readVehicleVendorMarginPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vendorMarginPercentage) || 10;
 
-const getVehicleMarginServiceTaxPercentage = (vehicle: ItineraryVehicleRow): number =>
+const readVehicleMarginServiceTaxPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vendorMarginGstPercentage) || 5;
 
-const getVehicleGstAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vehicleGstAmount);
-
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
-
-  return (getVehicleSubtotal(vehicle) * getVehicleGstPercentage(vehicle)) / 100;
+const readVehicleGstAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.vehicleGstAmount);
 };
 
-const getVehicleVendorMarginAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vendorMarginAmount);
+const readVehicleExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.extraKmCharge);
 
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
+const readVehicleExtraHourCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.extraHourCharge);
 
-  return (
-    getVehicleSubtotal(vehicle) *
-    getVehicleVendorMarginPercentage(vehicle)
-  ) / 100;
+const readVehicleVendorMarginAmount = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.vendorMarginAmount);
+
+const readVehicleMarginServiceTaxAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.vendorMarginGstAmount);
 };
 
-const getVehicleMarginServiceTaxAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vendorMarginGstAmount);
+const readVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.grandTotal);
 
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
-
-  return (
-    getVehicleVendorMarginAmount(vehicle) *
-    getVehicleMarginServiceTaxPercentage(vehicle)
-  ) / 100;
-};
-
-const getVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number => {
-  const subtotal = getVehicleSubtotal(vehicle);
-
-  if (subtotal <= 0) {
-    return 0;
-  }
-
-  return (
-    subtotal +
-    getVehicleGstAmount(vehicle) +
-    getVehicleVendorMarginAmount(vehicle) +
-    getVehicleMarginServiceTaxAmount(vehicle)
-  );
-};
-
-const getVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
-  const apiTotal = toAmount(vehicle.totalAmount);
-  if (apiTotal > 0) {
-    return apiTotal;
-  }
-
-  return getVehicleGrandTotal(vehicle);
+const resolveVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.grandTotal) || toAmount(vehicle.totalAmount);
 };
 
 const formatTotalTime = (day: DayWisePricingItem): string => {
@@ -384,8 +341,8 @@ const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number |
 
   // Always pick the lowest quote as default selection.
 const cheapest = vehicles.reduce((prev, curr) => {
-  const prevAmount = getVehicleDisplayAmount(prev);
-  const currAmount = getVehicleDisplayAmount(curr);
+  const prevAmount = resolveVehicleDisplayAmount(prev);
+  const currAmount = resolveVehicleDisplayAmount(curr);
 
   return currAmount < prevAmount ? curr : prev;
 });
@@ -575,10 +532,10 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         ["Parking Charges", formatCurrencyINR(vehicle.parkingCharges)],
         ["Driver Charges", formatCurrencyINR(vehicle.driverCharges)],
         ["Permit Charges", formatCurrencyINR(vehicle.permitCharges)],
-        (Number(vehicle.extraHourCharge ?? 0) > 0)
+        (readVehicleExtraHourCharge(vehicle) > 0)
           ? [
               `Extra Hour Charges (Rs ${Number(vehicle.extraHourRate ?? 0).toFixed(0)} * ${Number(vehicle.extraHourCount ?? 0).toFixed(0)} hrs)`,
-              formatCurrencyINR(vehicle.extraHourCharge),
+              formatCurrencyINR(readVehicleExtraHourCharge(vehicle)),
             ]
           : null,
         ["Before 6 AM Charges (D)", formatCurrencyINR(vehicle.before6amDriver)],
@@ -615,7 +572,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         (vehicle.extraKms ?? 0) > 0
           ? [
               "TOTAL EXTRA KM",
-              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.extraKmCharge)}`,
+              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(readVehicleExtraKmCharge(vehicle))}`,
             ]
           : null,
       ]
@@ -631,14 +588,14 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         .join("");
 
 
-     const vehicleSubtotal = getVehicleSubtotal(vehicle);
-const vehicleGstPercentage = getVehicleGstPercentage(vehicle);
-const vehicleGstAmount = getVehicleGstAmount(vehicle);
-const vendorMarginPercentage = getVehicleVendorMarginPercentage(vehicle);
-const vendorMarginAmount = getVehicleVendorMarginAmount(vehicle);
-const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(vehicle);
-const marginServiceTaxAmount = getVehicleMarginServiceTaxAmount(vehicle);
-const vehicleGrandTotal = getVehicleGrandTotal(vehicle);
+     const vehicleSubtotal = readVehicleSubtotal(vehicle);
+const vehicleGstPercentage = readVehicleGstPercentage(vehicle);
+const vehicleGstAmount = readVehicleGstAmount(vehicle);
+const vendorMarginPercentage = readVehicleVendorMarginPercentage(vehicle);
+const vendorMarginAmount = readVehicleVendorMarginAmount(vehicle);
+const marginServiceTaxPercentage = readVehicleMarginServiceTaxPercentage(vehicle);
+const marginServiceTaxAmount = readVehicleMarginServiceTaxAmount(vehicle);
+const vehicleGrandTotal = readVehicleGrandTotal(vehicle);
 
 const totalRows = [
   ["SUBTOTAL", formatCurrencyINR(vehicleSubtotal)],
@@ -823,8 +780,8 @@ const totalRows = [
 
   const sortedVehicles = useMemo(() => {
   return [...vehicles].sort((a, b) => {
-    const aAmount = getVehicleDisplayAmount(a);
-    const bAmount = getVehicleDisplayAmount(b);
+    const aAmount = resolveVehicleDisplayAmount(a);
+    const bAmount = resolveVehicleDisplayAmount(b);
 
     return aAmount - bAmount;
   });
@@ -845,7 +802,7 @@ const totalRows = [
 
   if (!selectedVehicle) return;
 
-  const totalAmount = getVehicleDisplayAmount(selectedVehicle);
+  const totalAmount = resolveVehicleDisplayAmount(selectedVehicle);
   const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
 
   const resolvedVehicleTypeId =
@@ -894,15 +851,15 @@ const totalRows = [
               const radioId = `vehicle_${vehicleTypeId ?? "type"}_${v.vendorEligibleId ?? index}`;
               const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
 
-const subtotalVehicle = getVehicleSubtotal(v);
-const gstPercentage = getVehicleGstPercentage(v);
-const gstAmount = getVehicleGstAmount(v);
-const vendorMarginPercentage = getVehicleVendorMarginPercentage(v);
-const vendorMargin = getVehicleVendorMarginAmount(v);
-const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(v);
-const marginServiceTax = getVehicleMarginServiceTaxAmount(v);
-const calculatedGrandTotal = getVehicleGrandTotal(v);
-const displayTotalAmount = getVehicleDisplayAmount(v);
+const subtotalVehicle = readVehicleSubtotal(v);
+const gstPercentage = readVehicleGstPercentage(v);
+const gstAmount = readVehicleGstAmount(v);
+const vendorMarginPercentage = readVehicleVendorMarginPercentage(v);
+const vendorMargin = readVehicleVendorMarginAmount(v);
+const marginServiceTaxPercentage = readVehicleMarginServiceTaxPercentage(v);
+const marginServiceTax = readVehicleMarginServiceTaxAmount(v);
+const calculatedGrandTotal = readVehicleGrandTotal(v);
+const displayTotalAmount = resolveVehicleDisplayAmount(v);
 
 const isExpanded = expandedVendorEligibleId === rowKey;
 const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
@@ -1197,10 +1154,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     { label: 'Parking Charges', value: formatCurrencyINR(v.parkingCharges) },
                                     { label: 'Driver Charges', value: formatCurrencyINR(v.driverCharges) },
                                     { label: 'Permit Charges', value: formatCurrencyINR(v.permitCharges) },
-                                    ...(Number(v.extraHourCharge ?? 0) > 0
+                                    ...(readVehicleExtraHourCharge(v) > 0
                                       ? [{
                                           label: `Extra Hour Charges (Rs ${Number(v.extraHourRate ?? 0).toFixed(0)} * ${Number(v.extraHourCount ?? 0).toFixed(0)} hrs)`,
-                                          value: formatCurrencyINR(v.extraHourCharge),
+                                          value: formatCurrencyINR(readVehicleExtraHourCharge(v)),
                                         }]
                                       : []),
                                     { label: 'Before 6 AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
@@ -1269,7 +1226,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <tr>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL EXTRA KM</td>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                        {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.extraKmCharge)}
+                                        {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(readVehicleExtraKmCharge(v))}
                                       </td>
                                     </tr>
                                   )}
@@ -1405,3 +1362,4 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
     </div>
   );
 };
+
