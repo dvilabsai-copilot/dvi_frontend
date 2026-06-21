@@ -475,338 +475,115 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
   const firstRouteSourceError = validationErrors?.firstRouteSource;
   const firstRouteNextError = validationErrors?.firstRouteNext;
 
-  return (
-    <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none overflow-visible">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base font-semibold text-[#4a4260]">
-          Route Details
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0 overflow-visible pb-4">
-  <div className="w-full overflow-x-auto overflow-y-visible">
-<table className="w-[840px] caption-bottom text-sm overflow-visible table-fixed">
-  <colgroup>
-    <col className="w-[70px]" />
-    <col className="w-[130px]" />
-    <col className="w-[210px]" />
-    <col className="w-[285px]" />
-    <col className="w-[42px]" />
-    {!hideIntercityKm && <col className="w-[90px]" />}
-    <col className="w-[68px]" />
-    <col className="w-[35px]" />
-  </colgroup>
-
-    <TableHeader>
-      <TableRow className="bg-[#faf1ff]">
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          DAY
-        </TableHead>
-
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          DATE
-        </TableHead>
-
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          SOURCE DESTINATION
-        </TableHead>
-
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          NEXT DESTINATION
-        </TableHead>
-
-        <TableHead className="px-2 text-xs text-[#4a4260] text-center">
-          VIA ROUTE
-        </TableHead>
-
-        {!hideIntercityKm && (
-          <TableHead className="px-2 text-xs text-[#4a4260] text-center">
-            INTERCITY KM
-          </TableHead>
-        )}
-
-        <TableHead className="px-2 text-xs text-[#4a4260] text-center leading-tight">
-  DIRECT DESTINATION VISIT
-</TableHead>
-
-<TableHead className="px-1 text-xs text-[#4a4260] text-center">
-  {" "}
-</TableHead>
-      </TableRow>
-    </TableHeader>
-          <TableBody>
-            {routeDetails.map((row, idx) => {
-             const isFirstRow = idx === 0;
-const isSecondRow = idx === 1;
-const isLastRow = idx === routeDetails.length - 1;
-const shouldLockAsDepartureRow = routeDetails.length > 1 && isLastRow;
-const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim());
-
-const canDeleteThisRouteDay =
-  routeDetails.length > 3 && !isFirstRow && !isSecondRow && !isLastRow;
-
-              // For last row, if departure location exists, lock to it
-              let rowSpecificOptions: AutoSuggestOption[];
-              let isLastRowLocked = false;
-              let nextDestinationValue = row.next;
-
-            if (shouldLockAsDepartureRow && departureLocationObj) {
-  // Lock only the actual last day when total days > 1
-  rowSpecificOptions = [
-    {
-      value: departureLocationObj.name,
-      label: departureLocationObj.name,
-    },
-  ];
-  isLastRowLocked = true;
-  nextDestinationValue = departureLocationObj.name;
-} else {
-                // Normal row: use provided options or global fallback
-                rowSpecificOptions =
-                  destinationOptionsMap[idx] &&
-                  destinationOptionsMap[idx]!.length > 0
-                    ? destinationOptionsMap[idx]!
-                    : globalLocationOptions;
-              }
-
-              const safeOptions = sanitizeOptions(rowSpecificOptions);
-              const safeNextDestinationValue = safeOptions.some(
-                (opt) => opt.value === nextDestinationValue
-              )
-                ? nextDestinationValue
-                : undefined;
-
-              return (
-  <TableRow
-    key={idx}
-    className="overflow-visible"
-    style={{ position: "relative", zIndex: routeDetails.length - idx }}
-  >
-  <TableCell className="px-2">{`DAY ${row.day}`}</TableCell>
-
-  <TableCell className="px-2">
-    <Input
-      tabIndex={-1}
-      readOnly
-      placeholder="DD/MM/YYYY"
-      value={row.date}
-      className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs"
-    />
-  </TableCell>
-
-  <TableCell
-  data-field={isFirstRow ? "firstRouteSource" : undefined}
-  className={`px-2 ${isFirstRow && firstRouteSourceError ? "align-top" : ""}`}
->
-    <div
-      className={
-        isFirstRow && firstRouteSourceError
-          ? "border border-red-500 rounded-md p-1"
-          : ""
-      }
-    >
-      <Input
-        tabIndex={-1}
-        readOnly
-        placeholder="Source Location"
-        value={row.source}
-        className="h-8 rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed"
-      />
-    </div>
-    {isFirstRow && firstRouteSourceError && (
-      <p className="mt-1 text-xs text-red-500">
-        {firstRouteSourceError}
-      </p>
-    )}
-  </TableCell>
-
-  <TableCell
-  data-field={isFirstRow ? "firstRouteNext" : undefined}
-  className={`px-2 relative overflow-visible ${
-    isFirstRow && firstRouteNextError ? "align-top" : ""
-  }`}
->
-    <div
-      id={`next-destination-${idx}`}
-      className={
-        isFirstRow && firstRouteNextError
-          ? "border border-red-500 rounded-md p-1"
-          : ""
-      }
-    >
-<div
-  ref={(el) => {
-    nextDestinationRefs.current[idx] = el
-      ? {
-          focus: () => {
-            const control = el.querySelector(
-              "button, input"
-            ) as HTMLElement | null;
-
-            control?.focus();
-            control?.click();
-          },
-        }
-      : null;
-  }}
-className={`w-full max-w-[260px] ${
-  isLastRowLocked ? "pointer-events-none opacity-60" : ""
-}`}
->
-  <AutoSuggestSelect
-    mode="single"
-    value={safeNextDestinationValue || ""}
-    onChange={async (val) => {
-      if (isLastRowLocked) return;
-
-      const chosen = String(val || "");
-
-      const updatedRow: RouteDetailRow = {
-        ...row,
-        next: chosen,
-        via: "",
-        via_routes: [],
-        no_of_km: 0,
-      };
-
-      setRouteDetails((prev) => {
-        const updated = [...prev];
-        updated[idx] = updatedRow;
-
-        if (idx + 1 < updated.length) {
-          updated[idx + 1] = {
-            ...updated[idx + 1],
-            source: chosen,
-          };
-        }
-
-        return updated;
-      });
-
-      if (onRefreshRouteDistance) {
-        const km = await onRefreshRouteDistance(updatedRow);
-
-        setRouteDetails((prev) => {
-          const updated = [...prev];
-
-          if (
-            updated[idx].source === updatedRow.source &&
-            updated[idx].next === updatedRow.next
-          ) {
-            updated[idx] = {
-              ...updated[idx],
-              no_of_km: km ?? 0,
-            };
-          }
-
-          return updated;
-        });
-      }
-
-      moveFocusToNextDestination(idx);
-    }}
-    options={safeOptions}
-    placeholder={
-      safeOptions.length === 0
-        ? row.source
-          ? "Loading destinations…"
-          : "Select a source first"
-        : "Next Destination"
-    }
-    disabled={isLastRowLocked}
-  />
-</div>
-    </div>
-    {isFirstRow && firstRouteNextError && (
-      <p className="mt-1 text-xs text-red-500">
-        {firstRouteNextError}
-      </p>
-    )}
-  </TableCell>
-
-  <TableCell className="pl-0 pr-2 text-left">
-  <button
-    type="button"
-    onClick={() => onOpenViaRoutes?.(row)}
-    className="btn btn-outline-primary btn-sm"
-    title="Via Route"
-  >
-    <i className="ti ti-route ti-tada-hover"></i>
-  </button>
-</TableCell>
-
-{!hideIntercityKm && (
-  <TableCell className="px-2 text-center">
-  <Input
-    tabIndex={-1}
-    readOnly
-    placeholder="KM"
-    value={row.no_of_km ?? 0}
-    className="h-8 w-[85px] mx-auto rounded-md border-[#e5d7f6] bg-[#f9f4ff] cursor-not-allowed text-xs text-center"
-  />
-</TableCell>
-)}
-
-<TableCell className="px-1 text-center">
-  <span
-    className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
-    title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
-  >
-    <button
-      type="button"
-      aria-pressed={row.directVisit === "Yes"}
-      aria-disabled={hasViaRoutes}
-      disabled={hasViaRoutes}
-      className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""} ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
-      title={!hasViaRoutes ? (row.directVisit === "Yes" ? "Active" : "Inactive") : undefined}
-      onClick={() => {
-        if (hasViaRoutes) return;
-        setRouteDetails((prev) =>
-          prev.map((r, i) =>
-            i === idx
-              ? {
-                  ...r,
-                  directVisit: r.directVisit === "Yes" ? "No" : "Yes",
-                }
-              : r
-          )
-        );
-      }}
-    >
-      <span className="hotel-toggle-knob"></span>
-    </button>
-  </span>
-</TableCell>
-
-<TableCell className="pl-1 pr-0 text-center">
-  {canDeleteThisRouteDay && (
-    <button
-      type="button"
-      onClick={() => handleDeleteRouteDay(idx)}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xl font-semibold leading-none text-red-500 hover:bg-red-50 hover:text-red-700"
-      title={`Delete Day ${row.day}`}
-      aria-label={`Delete Day ${row.day}`}
-    >
-      ×
-    </button>
-  )}
-</TableCell>
-</TableRow>
-              );
-            })}
-          </TableBody>
-        </table>
+ return (
+  <Card className="rounded-2xl border border-[#eee6fb] bg-white shadow-none">
+    <CardContent className="px-5 py-4">
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-[#231942]">
+            Routes (Travel Path)
+          </h2>
+          <p className="text-xs font-medium text-[#7b728d]">
+            Add the places you want to visit in the order of your travel
+          </p>
         </div>
 
         <Button
-          ref={addDayButtonRef}
           type="button"
+          variant="outline"
           onClick={handleAddDay}
-          className="mt-4 bg-[#f054b5] hover:bg-[#e249a9]"
+          className="h-9 rounded-lg border-[#7c3aed] px-4 text-sm font-semibold text-[#5b21b6]"
         >
-          + Add Day
+          + Add Destination
         </Button>
+      </div>
 
-      </CardContent>
-    </Card>
-  );
+    <div className="w-full max-w-full overflow-x-auto overflow-y-hidden pb-4">
+  <div
+    className="flex items-center"
+    style={{ width: `${Math.max(routeDetails.length * 170, 760)}px` }}
+  >
+        {routeDetails.map((route, index) => {
+          const isLast = index === routeDetails.length - 1;
+
+          return (
+            <div key={route.id} className="flex shrink-0 items-center">
+              <div className="flex w-[140px] shrink-0 flex-col items-center">
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold ${
+                    isLast
+                      ? "border-red-300 bg-white text-red-500"
+                      : "border-[#d8ccff] bg-white text-[#231942]"
+                  }`}
+                >
+                  {index + 1}
+                </div>
+
+                <div className="mt-2 text-center">
+                  <div className="text-sm font-semibold text-[#231942]">
+                    {route.source || route.next || "Location"}
+                  </div>
+                  <div className="text-xs text-[#7b728d]">
+                    {index === 0
+                      ? "Start Point"
+                      : isLast
+                      ? "End Point"
+                      : route.no_of_km
+                      ? `${route.no_of_km} KM`
+                      : "Destination"}
+                  </div>
+                </div>
+              </div>
+
+              {!isLast && (
+               <div className="mx-2 w-[26px] shrink-0 text-center text-lg font-bold text-[#4f16e8]">
+  →
+</div>
+              )}
+            </div>
+          );
+              })}
+  </div>
+</div>
+
+   <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+  {routeDetails.map((route, index) => (
+    <div key={route.id}>
+      <p className="mb-1 text-xs font-semibold text-[#231942]">
+        Day {index + 1} Destination
+      </p>
+
+      <AutoSuggestSelect
+        mode="single"
+        value={route.next || ""}
+        onChange={(val) => {
+          const nextValue = val as string;
+
+          setRouteDetails((prev) =>
+            prev.map((item, idx) => {
+              if (idx !== index) return item;
+
+              return {
+                ...item,
+                next: nextValue,
+              };
+            })
+          );
+        }}
+        options={locations.map((loc) => ({
+          value: loc.name,
+          label: loc.name,
+        }))}
+        placeholder="Choose Destination"
+      />
+    </div>
+  ))}
+</div>
+
+<div className="mt-3 rounded-lg border border-[#eee6fb] bg-[#fbf8ff] px-4 py-3 text-xs font-medium text-[#6b647a]">
+  ⓘ You can add Day 1, Day 2 route manually from the destination fields above. Distances and travel times are approximate.
+</div>
+    </CardContent>
+  </Card>
+);
 };

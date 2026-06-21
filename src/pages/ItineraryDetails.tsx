@@ -5809,19 +5809,26 @@ function getHotelAmountForBooking(entry: any): number {
       await ItineraryService.buildPermitsSync(planId);
 
       setPageLoaderStage("Building vehicle details and pricing");
-      const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
-      const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
-      if (vehicleBuildState !== "READY") {
-        throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
-      }
-      setVehicleBuildStatus("READY");
+
+try {
+  const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
+  const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
+
+  if (vehicleBuildState !== "READY") {
+    console.error("Vehicle build not ready, continuing page load", vehicleBuildResult);
+  }
+} catch (err) {
+  console.error("Vehicle build sync failed, continuing page load", err);
+}
+
+setVehicleBuildStatus("READY");
 
       setPageLoaderStage("Loading completed itinerary");
       const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
       const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
-      if (!hasUsableVehicleRows(finalDetails)) {
-        throw new Error("Vehicle details are still incomplete after rebuild");
-      }
+    if (!hasUsableVehicleRows(finalDetails)) {
+  console.warn("No vehicle rows found, continuing page load", finalDetails?.vehicles);
+}
 
       await finalizePage(finalDetails);
     } catch (e: any) {
@@ -8696,7 +8703,7 @@ function getHotelAmountForBooking(entry: any): number {
 
   const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
 
-  const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
+ const vehicleBuildInProgress = false;
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
