@@ -330,10 +330,26 @@ const splitDurationLines = (formattedDuration: string): string[] => {
 const isOutstationDay = (day: DayWisePricingItem): boolean =>
   String(day.travelType || '').toLowerCase() === 'outstation';
 
+const hasUnavailableVendorRate = (day: DayWisePricingItem): boolean =>
+  toNumber(day.totalKms) > 0 && toNumber(day.rentalCharges) <= 0;
+
+const vehicleHasUnavailableOutstationRate = (vehicle: ItineraryVehicleRow): boolean =>
+  Array.isArray(vehicle.dayWisePricing) && vehicle.dayWisePricing.some(hasUnavailableVendorRate);
+
 const getRentalCellLines = (day: DayWisePricingItem): string[] => {
+  if (hasUnavailableVendorRate(day)) {
+    return isOutstationDay(day)
+      ? ['Outstation', 'Rates not available']
+      : ['Rates not available'];
+  }
   const amount = formatCurrencyINR(Number(day.rentalCharges || 0));
   return isOutstationDay(day) ? ['Outstation', amount] : [amount];
 };
+
+const getVehicleRentalSummaryText = (vehicle: ItineraryVehicleRow): string =>
+  vehicleHasUnavailableOutstationRate(vehicle)
+    ? 'Rates not available'
+    : formatCurrencyINR(vehicle.rentalCharges);
 
 const getSlabDisplayText = (day: DayWisePricingItem): string => {
   const slabTitle = String(day.slabTitle || "-").trim();
@@ -554,7 +570,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
       const chargeRows = [
         ["Total Days", String(vehicle.totalDays ?? vehicle.dayWisePricing?.length ?? 0)],
-        ["Rental Charges", formatCurrencyINR(vehicle.rentalCharges)],
+        ["Rental Charges", getVehicleRentalSummaryText(vehicle)],
         ["Toll Charges", formatCurrencyINR(vehicle.tollCharges)],
         ["Parking Charges", formatCurrencyINR(vehicle.parkingCharges)],
         ["Driver Charges", formatCurrencyINR(vehicle.driverCharges)],
@@ -1176,7 +1192,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 <tbody>
                                   {[
                                     { label: 'Total Days', value: String(v.totalDays ?? v.dayWisePricing.length) },
-                                    { label: 'Rental Charges', value: formatCurrencyINR(v.rentalCharges) },
+                                    { label: 'Rental Charges', value: getVehicleRentalSummaryText(v) },
                                     { label: 'Toll Charges', value: formatCurrencyINR(v.tollCharges) },
                                     { label: 'Parking Charges', value: formatCurrencyINR(v.parkingCharges) },
                                     { label: 'Driver Charges', value: formatCurrencyINR(v.driverCharges) },
