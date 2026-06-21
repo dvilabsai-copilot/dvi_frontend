@@ -3512,6 +3512,21 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
   const financialTotals = useMemo(() => {
+    const backendNetPayable = Number(
+      itinerary?.costBreakdown?.netPayable ?? itinerary?.overallCost ?? 0,
+    );
+    const backendTotalAmount = Number(itinerary?.costBreakdown?.totalAmount ?? 0);
+    const backendRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff ?? 0);
+
+    if (backendNetPayable > 0) {
+      return {
+        hotelAmount: Number(itinerary?.costBreakdown?.totalHotelAmount || 0),
+        totalAmount: backendTotalAmount,
+        netPayable: backendNetPayable,
+        totalRoundOff: backendRoundOff,
+      };
+    }
+
     const hotelAmount = shouldShowHotels
       ? Number(
           computedHotelCost ||
@@ -3828,9 +3843,8 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   });
 
   const overallTripCostWithHotels = useMemo(() => {
-    // Keep header total in lockstep with the bottom "Net Payable" calculation.
-    return Number(financialTotals.netPayable || 0).toFixed(2);
-  }, [financialTotals.netPayable]);
+    return Number((itinerary?.overallCost ?? financialTotals.netPayable) || 0).toFixed(2);
+  }, [financialTotals.netPayable, itinerary?.overallCost]);
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {
