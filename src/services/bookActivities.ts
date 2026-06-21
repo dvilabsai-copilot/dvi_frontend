@@ -90,6 +90,7 @@ export type StorefrontActivityLocation = {
 };
 
 export type StorefrontActivityQuery = {
+  source?: string;
   destination?: string;
   activityType?: string;
   q?: string;
