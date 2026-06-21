@@ -29,9 +29,13 @@ import {
   type StorefrontActivity,
   type StorefrontAgent,
   type StorefrontBooking,
-  type StorefrontActivityLocation,
   type StorefrontWishlistItem,
 } from "@/services/bookActivities";
+import {
+  AutoSuggestSelect,
+  type AutoSuggestOption,
+} from "@/components/AutoSuggestSelect";
+import { locationsApi } from "@/services/locations";
 import "./BookActivitiesPage.css";
 
 type Category = {
@@ -196,13 +200,21 @@ function getErrorMessage(error: unknown) {
   return "Something went wrong";
 }
 
+function toRouteLocationOption(name: string): AutoSuggestOption {
+  const label = String(name || "").trim();
+  return {
+    label,
+    value: label,
+  };
+}
+
 export default function BookActivitiesPage() {
   const [searchText, setSearchText] = useState("");
-  const [destinationQuery, setDestinationQuery] = useState("");
-  const [selectedDestination, setSelectedDestination] =
-    useState<StorefrontActivityLocation | null>(null);
-  const [destinationOptions, setDestinationOptions] = useState<StorefrontActivityLocation[]>([]);
-  const [destinationDropdownOpen, setDestinationDropdownOpen] = useState(false);
+  const [sourceValue, setSourceValue] = useState("");
+  const [sourceOptions, setSourceOptions] = useState<AutoSuggestOption[]>([]);
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [destinationValue, setDestinationValue] = useState("");
+  const [destinationOptions, setDestinationOptions] = useState<AutoSuggestOption[]>([]);
   const [destinationLoading, setDestinationLoading] = useState(false);
   const [activityType, setActivityType] = useState("All Activities");
   const [activityDate, setActivityDate] = useState("");
@@ -243,7 +255,7 @@ export default function BookActivitiesPage() {
     guests: "1",
     remarks: "",
   });
-  const destinationComboboxRef = useRef<HTMLDivElement | null>(null);
+  const sourceRequestRef = useRef(0);
   const destinationRequestRef = useRef(0);
   const agentComboboxRef = useRef<HTMLDivElement | null>(null);
 
@@ -252,27 +264,17 @@ export default function BookActivitiesPage() {
     [activities, showFallbackActivities],
   );
 
-  const destinationValue = useMemo(
-    () => selectedDestination?.value?.trim() || "",
-    [selectedDestination],
-  );
-
-  const hasPendingDestinationSelection = useMemo(() => {
-    if (!destinationQuery.trim()) return false;
-    if (!selectedDestination) return true;
-    return destinationQuery.trim().toLowerCase() !== selectedDestination.label.trim().toLowerCase();
-  }, [destinationQuery, selectedDestination]);
-
   const hasActiveActivityFilters = useMemo(
     () =>
       Boolean(
         searchText.trim() ||
-          destinationQuery.trim() ||
+          sourceValue.trim() ||
+          destinationValue.trim() ||
           activityDate ||
           guests > 1 ||
           (activityType && activityType !== "All Activities"),
       ),
-    [activityDate, activityType, destinationQuery, guests, searchText],
+    [activityDate, activityType, destinationValue, guests, searchText, sourceValue],
   );
 
   const wishlistActivityIds = useMemo(
@@ -339,6 +341,7 @@ export default function BookActivitiesPage() {
   const loadActivities = useCallback(async (
     overrides?: Partial<{
       searchText: string;
+      source: string;
       destination: string;
       activityType: string;
       activityDate: string;
@@ -347,6 +350,7 @@ export default function BookActivitiesPage() {
   ) => {
     const next = {
       searchText,
+      source: sourceValue,
       destination: destinationValue,
       activityType,
       activityDate,
@@ -358,6 +362,7 @@ export default function BookActivitiesPage() {
       setLoading(true);
       const rows = await BookActivitiesAPI.list({
         q: next.searchText || undefined,
+        source: next.source || undefined,
         destination: next.destination || undefined,
         activityType:
           next.activityType === "All Activities" ? undefined : next.activityType,
@@ -380,32 +385,68 @@ export default function BookActivitiesPage() {
       setHasLoadedActivities(true);
       setLoading(false);
     }
-  }, [activityDate, activityType, destinationValue, guests, hasShownLoadError, searchText]);
+  }, [activityDate, activityType, destinationValue, guests, hasShownLoadError, searchText, sourceValue]);
 
-  const loadDestinationOptions = useCallback(async (query?: string) => {
+  const loadDestinationOptions = useCallback(async () => {
+    const source = sourceValue.trim();
     const requestId = destinationRequestRef.current + 1;
     destinationRequestRef.current = requestId;
 
+    if (!source) {
+      setDestinationOptions([]);
+      return;
+    }
+
     try {
       setDestinationLoading(true);
-      const rows = await BookActivitiesAPI.activityLocations(query || undefined);
+      const response = await locationsApi.list({
+        itineraryMode: true,
+        type: "destination",
+        source,
+      });
       if (destinationRequestRef.current !== requestId) return;
-      setDestinationOptions(rows);
+
+      const options = response.rows
+        .map((row) => toRouteLocationOption(row.destination_location))
+        .filter((option) => option.value);
+
+      setDestinationOptions(options);
     } catch (error) {
       if (destinationRequestRef.current !== requestId) return;
-      console.error("Failed to load activity destinations", error);
+      console.error("Failed to load destination route locations", error);
       setDestinationOptions([]);
     } finally {
       if (destinationRequestRef.current !== requestId) return;
       setDestinationLoading(false);
     }
-  }, []);
+  }, [sourceValue]);
 
-  function applyDestinationSelection(option: StorefrontActivityLocation) {
-    setSelectedDestination(option);
-    setDestinationQuery(option.label);
-    setDestinationDropdownOpen(false);
-  }
+  const loadSourceOptions = useCallback(async () => {
+    const requestId = sourceRequestRef.current + 1;
+    sourceRequestRef.current = requestId;
+
+    try {
+      setSourceLoading(true);
+      const response = await locationsApi.list({
+        itineraryMode: true,
+        type: "source",
+      });
+      if (sourceRequestRef.current !== requestId) return;
+
+      const options = response.rows
+        .map((row) => toRouteLocationOption(row.source_location))
+        .filter((option) => option.value);
+
+      setSourceOptions(options);
+    } catch (error) {
+      if (sourceRequestRef.current !== requestId) return;
+      console.error("Failed to load source route locations", error);
+      setSourceOptions([]);
+    } finally {
+      if (sourceRequestRef.current !== requestId) return;
+      setSourceLoading(false);
+    }
+  }, []);
 
   function applyAgentSelection(agent: StorefrontAgent) {
     updateBookingForm("agentId", String(agent.id));
@@ -413,42 +454,22 @@ export default function BookActivitiesPage() {
     setAgentDropdownOpen(false);
   }
 
-  function handleDestinationInputChange(value: string) {
-    setDestinationQuery(value);
-    setDestinationDropdownOpen(true);
-    if (!value.trim()) {
-      setSelectedDestination(null);
-      return;
-    }
-
-    if (
-      selectedDestination &&
-      value.trim().toLowerCase() !== selectedDestination.label.trim().toLowerCase()
-    ) {
-      setSelectedDestination(null);
-    }
-  }
-
   const runActivitySearch = useCallback(async (
     overrides?: Partial<{
       searchText: string;
+      source: string;
       destination: string;
       activityType: string;
       activityDate: string;
       guests: number;
     }>,
   ) => {
-    if (hasPendingDestinationSelection) {
-      setDestinationDropdownOpen(true);
-      toast.error("Please select a destination from the list");
-      return;
-    }
-
     await loadActivities({
+      source: overrides?.source ?? sourceValue,
       destination: overrides?.destination ?? destinationValue,
       ...overrides,
     });
-  }, [destinationValue, hasPendingDestinationSelection, loadActivities]);
+  }, [destinationValue, loadActivities, sourceValue]);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -724,34 +745,22 @@ export default function BookActivitiesPage() {
   }, [bookingModalOpen, selectedAgent]);
 
   useEffect(() => {
-    if (!destinationDropdownOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        destinationComboboxRef.current &&
-        !destinationComboboxRef.current.contains(event.target as Node)
-      ) {
-        setDestinationDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-    };
-  }, [destinationDropdownOpen]);
+    void loadSourceOptions();
+  }, [loadSourceOptions]);
 
   useEffect(() => {
-    if (!destinationDropdownOpen) return;
+    const source = sourceValue.trim();
 
-    const timeoutId = window.setTimeout(() => {
-      void loadDestinationOptions(destinationQuery.trim() || undefined);
-    }, 300);
+    if (!source) {
+      setDestinationOptions([]);
+      setDestinationValue("");
+      setDestinationLoading(false);
+      return;
+    }
 
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [destinationDropdownOpen, destinationQuery, loadDestinationOptions]);
+    setDestinationValue("");
+    void loadDestinationOptions();
+  }, [loadDestinationOptions, sourceValue]);
 
   useEffect(() => {
     if (!agentDropdownOpen) return;
@@ -871,74 +880,50 @@ export default function BookActivitiesPage() {
             </div>
           </section>
 
-          <section className="ba-search-panel" aria-label="Search activities">
-            <div className="ba-field">
-              <label>Where are you going?</label>
-              <div
-                ref={destinationComboboxRef}
-                className="ba-input-wrap ba-location-combobox"
-              >
-                <MapPin size={19} />
-                <input
-                  type="text"
-                  role="combobox"
-                  aria-autocomplete="list"
-                  aria-expanded={destinationDropdownOpen}
-                  aria-controls="ba-location-dropdown"
-                  aria-label="Search destination"
-                  placeholder="Search destination"
-                  value={destinationQuery}
-                  onChange={(event) => handleDestinationInputChange(event.target.value)}
-                  onFocus={() => setDestinationDropdownOpen(true)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setDestinationDropdownOpen(false);
-                      return;
-                    }
-
-                    if (event.key === "Enter" && destinationDropdownOpen && destinationOptions.length > 0) {
-                      event.preventDefault();
-                      applyDestinationSelection(destinationOptions[0]);
-                    }
-                  }}
-                />
-                {destinationDropdownOpen && (
-                  <div
-                    id="ba-location-dropdown"
-                    className="ba-location-dropdown"
-                    role="listbox"
-                  >
-                    {destinationLoading ? (
-                      <div className="ba-location-empty">Loading activity locations...</div>
-                    ) : destinationOptions.length === 0 ? (
-                      <div className="ba-location-empty">No activity locations found</div>
-                    ) : (
-                      destinationOptions.map((option) => {
-                        const isSelected = selectedDestination?.value === option.value;
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            role="option"
-                            aria-selected={isSelected}
-                            className={`ba-location-option${isSelected ? " is-selected" : ""}`}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              applyDestinationSelection(option);
-                            }}
-                          >
-                            <span className="ba-location-option-main">{option.label}</span>
-                            <span className="ba-location-option-count">
-                              {option.activityCount || 0} {(option.activityCount || 0) === 1 ? "activity" : "activities"}
-                            </span>
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
+            <section className="ba-search-panel" aria-label="Search activities">
+              <div className="ba-field">
+                <label>Source Location</label>
+                <div className="ba-input-wrap ba-location-picker">
+                  <MapPin size={19} />
+                  <AutoSuggestSelect
+                    mode="single"
+                    value={sourceValue}
+                    onChange={(value) => {
+                      const nextSource = String(value || "").trim();
+                      setSourceValue(nextSource);
+                    }}
+                    options={sourceOptions}
+                    placeholder={sourceLoading ? "Loading source locations..." : "Search source location"}
+                  />
+                </div>
               </div>
-            </div>
+              <div className="ba-field">
+                <label>Destination Location</label>
+                <div className="ba-input-wrap ba-location-picker">
+                  <MapPin size={19} />
+                  <AutoSuggestSelect
+                    mode="single"
+                    value={destinationValue}
+                    onChange={(value) => {
+                      if (!sourceValue.trim()) {
+                        toast.error("Please select a source location first");
+                        return;
+                      }
+
+                      setDestinationValue(String(value || "").trim());
+                    }}
+                    options={destinationOptions}
+                    placeholder={
+                      !sourceValue.trim()
+                        ? "Select source location first"
+                        : destinationLoading
+                        ? "Loading destination locations..."
+                        : "Search destination location"
+                    }
+                    disabled={!sourceValue.trim()}
+                  />
+                </div>
+              </div>
             <div className="ba-field">
               <label>Activity Type</label>
               <div className="ba-input-wrap">
