@@ -13241,47 +13241,42 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {requiresHotelBookingFlow && prebookData && (
-              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
-                    <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[#6c6c6c]">Hotels Prebooked (TBO)</p>
-                    <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
-                  </div>
-                </div>
+          {requiresHotelBookingFlow && prebookData && (
+  <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+    <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
 
-                {prebookHotelEntries.map((hotel: any, index: number) => {
-                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
-                  const hotelAmenities = normalizePrebookItems(hotel?.amenities);
-                  const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
-                  const hotelInclusions = resolvePrebookInclusions(hotel);
-                  const hotelMealType = resolvePrebookMealPlan(hotel);
-                  const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
-                  const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
-                  const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
-                  const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div>
+        <p className="text-[#6c6c6c]">Hotel Final Cost</p>
+        <p className="font-semibold text-[#4a4260]">
+          ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+        </p>
+      </div>
 
-                  return (
-                    <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
-                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
-                          </div>
-                          <div className="text-sm text-left md:text-right">
-                            <p className="text-[#6c6c6c]">Updated Final Price</p>
-                            <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </summary>
+      <div>
+        <p className="text-[#6c6c6c]">Hotels Prebooked</p>
+        <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
+      </div>
+    </div>
+
+    {prebookHotelEntries.map((hotel: any, index: number) => {
+      const hotelAmenities = normalizePrebookItems(hotel?.amenities);
+      const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
+      const hotelInclusions = resolvePrebookInclusions(hotel);
+      const hotelMealType = resolvePrebookMealPlan(hotel);
+      const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
+      const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
+      const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
+      const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+
+      return (
+        <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-1">
+              <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+              <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+            </div>
+          </summary>
 
                       <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
                         <div>
