@@ -6091,46 +6091,83 @@ function getHotelAmountForBooking(entry: any): number {
     ));
   };
 
-  const applyRouteTimePatch = async (
-    planId: number,
-    routeId: number,
-    dayNumber: number,
-    startTimeHms: string,
-    endTimeHms: string,
-    options?: {
-      previousDayBillingDecisionProvided?: boolean;
-      previousDayBillingConfirmed?: boolean;
-    },
-  ) => {
-    setIsApplyingRouteTimeUpdate(true);
-    const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
-    setRouteTimeEstimatedMs(estimatedMs);
-    startRouteTimeProgress(estimatedMs);
+const applyRouteTimePatch = async (
+  planId: number,
+  routeId: number,
+  dayNumber: number,
+  startTimeHms: string,
+  endTimeHms: string,
+  options?: {
+    previousDayBillingDecisionProvided?: boolean;
+    previousDayBillingConfirmed?: boolean;
+  },
+) => {
+  setIsApplyingRouteTimeUpdate(true);
+  const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
+  setRouteTimeEstimatedMs(estimatedMs);
+  startRouteTimeProgress(estimatedMs);
 
-    try {
-      await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+  try {
+    const previousItinerary = itinerary;
+    const previousHotelDetails = hotelDetails;
 
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
+    await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
 
-      setRouteTimeProgressPercent(100);
-      setPendingScrollDayNumber(dayNumber);
+    if (quoteId) {
+      const detailsRes = await ItineraryService.getDetails(quoteId);
+      const nextItinerary = detailsRes as ItineraryDetailsResponse;
 
-      toast.success(`Day ${dayNumber} times updated`);
-    } catch (e: any) {
-      console.error('Failed to update route times', e);
-      toast.error(e?.message || 'Failed to update route times');
-    } finally {
-      stopRouteTimeProgress();
-      setIsApplyingRouteTimeUpdate(false);
+      setItinerary({
+        ...nextItinerary,
+
+        // IMPORTANT:
+        // Time update must not change displayed package price.
+        overallCost: previousItinerary?.overallCost ?? nextItinerary.overallCost,
+
+        costBreakdown: {
+          ...nextItinerary.costBreakdown,
+          totalVehicleCost:
+            previousItinerary?.costBreakdown?.totalVehicleCost ??
+            nextItinerary.costBreakdown?.totalVehicleCost ??
+            null,
+          totalVehicleAmount:
+            previousItinerary?.costBreakdown?.totalVehicleAmount ??
+            nextItinerary.costBreakdown?.totalVehicleAmount ??
+            null,
+          totalHotelAmount:
+            previousItinerary?.costBreakdown?.totalHotelAmount ??
+            nextItinerary.costBreakdown?.totalHotelAmount ??
+            null,
+          totalAmount:
+            previousItinerary?.costBreakdown?.totalAmount ??
+            nextItinerary.costBreakdown?.totalAmount ??
+            null,
+          netPayable:
+            previousItinerary?.costBreakdown?.netPayable ??
+            nextItinerary.costBreakdown?.netPayable ??
+            null,
+        },
+
+        vehicles: previousItinerary?.vehicles ?? nextItinerary.vehicles,
+      });
+
+      // Do not reload hotel details here.
+      // Reloading hotelDetails can refresh supplier/TBO amount and change package cost.
+      setHotelDetails(previousHotelDetails);
     }
-  };
+
+    setRouteTimeProgressPercent(100);
+    setPendingScrollDayNumber(dayNumber);
+
+    toast.success(`Day ${dayNumber} times updated`);
+  } catch (e: any) {
+    console.error('Failed to update route times', e);
+    toast.error(e?.message || 'Failed to update route times');
+  } finally {
+    stopRouteTimeProgress();
+    setIsApplyingRouteTimeUpdate(false);
+  }
+};
 
   const buildArrivalPolicyDecisionKey = (
     routeId?: number,
@@ -6195,8 +6232,9 @@ function getHotelAmountForBooking(entry: any): number {
       return;
     }
 
-    // Day 1 early-morning gate: 01:00–07:59 requires previous-day hotel confirmation
-    if (dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
+      // Day 1 early-morning gate is needed only for Hotel / Vehicle + Hotel itineraries.
+    // Vehicle-only itinerary should not show previous-day hotel billing popup.
+    if (requiresHotelBookingFlow && dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
       const resolvedRouteDay =
         routeDay ||
         itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
@@ -6217,10 +6255,9 @@ function getHotelAmountForBooking(entry: any): number {
 
       setIsResolvingArrivalPolicy(true);
       try {
-        const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
-        if (policy.requiresPreviousDayBillingConfirmation) {
-          // Store pending update and show the confirmation modal
-          setPendingRouteTimeUpdate({ planId, routeId, dayNumber, startTimeHms, endTimeHms });
+      const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+if (policy.requiresPreviousDayBillingConfirmation) {
+          console.log('[ArrivalPolicy][confirm_required]', { planId, routeId, dayNumber, startTimeHms, endTimeHms });
           const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
           const routeDate = new Date(`${safeRouteDate}T00:00:00`);
           const previousDay = new Date(routeDate);
