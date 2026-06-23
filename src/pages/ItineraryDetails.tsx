@@ -2778,6 +2778,45 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return next;
     });
   }, [activeVehicleTypeIds]);
+useEffect(() => {
+  if (!shouldShowVehicles || !itinerary?.vehicles?.length) return;
+
+  const vehiclesByType = new Map<number, ItineraryVehicleRow[]>();
+
+  for (const vehicle of itinerary.vehicles) {
+    const typeId = Number(vehicle.vehicleTypeId || 0);
+    if (!typeId) continue;
+
+    if (!vehiclesByType.has(typeId)) {
+      vehiclesByType.set(typeId, []);
+    }
+
+    vehiclesByType.get(typeId)!.push(vehicle);
+  }
+
+  setSelectedVehicleTotalsByType((prev) => {
+    let changed = false;
+    const next: Record<number, { totalAmount: number; totalQty: number }> = {
+      ...prev,
+    };
+
+    vehiclesByType.forEach((vehicles, typeId) => {
+      if (next[typeId]?.totalAmount > 0) return;
+
+      const cheapestVehicle = getCheapestVehicleForType(vehicles);
+      if (!cheapestVehicle) return;
+
+      next[typeId] = {
+        totalAmount: getVehicleAmountNumber(cheapestVehicle),
+        totalQty: Number(cheapestVehicle.totalQty || 1),
+      };
+
+      changed = true;
+    });
+
+    return changed ? next : prev;
+  });
+}, [itinerary?.vehicles, shouldShowVehicles]);
 
   useEffect(() => {
     itineraryDaysCountRef.current = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
@@ -3518,14 +3557,22 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const backendTotalAmount = Number(itinerary?.costBreakdown?.totalAmount ?? 0);
     const backendRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff ?? 0);
 
-    if (backendNetPayable > 0) {
-      return {
-        hotelAmount: Number(itinerary?.costBreakdown?.totalHotelAmount || 0),
-        totalAmount: backendTotalAmount,
-        netPayable: backendNetPayable,
-        totalRoundOff: backendRoundOff,
-      };
-    }
+const hasSelectedVehicleTotal =
+  Object.values(selectedVehicleTotalsByType).some(
+    (row) => Number(row.totalAmount || 0) > 0
+  );
+
+const hasLiveHotelSelection =
+  activeHotelListTotal > 0 || selectedHotelTotal > 0;
+
+if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection) {
+  return {
+    hotelAmount: Number(itinerary?.costBreakdown?.totalHotelAmount || 0),
+    totalAmount: backendTotalAmount,
+    netPayable: backendNetPayable,
+    totalRoundOff: backendRoundOff,
+  };
+}
 
     const hotelAmount = shouldShowHotels
       ? Number(
@@ -3560,7 +3607,16 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       netPayable,
       totalRoundOff,
     };
-  }, [itinerary, computedHotelCost, computedVehicleAmount, shouldShowHotels, shouldShowVehicles]);
+ }, [
+  itinerary,
+  computedHotelCost,
+  computedVehicleAmount,
+  shouldShowHotels,
+  shouldShowVehicles,
+  selectedVehicleTotalsByType,
+  activeHotelListTotal,
+  selectedHotelTotal,
+]);
 
   const hotelHydratedDays = useMemo(() => {
     if (!itinerary?.days?.length) return [];
@@ -3959,6 +4015,28 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
 
     return Number(amount.toFixed(2));
   };
+  const getVehicleAmountNumber = (vehicle: any): number => {
+  const amount = Number(
+    vehicle?.totalAmount ??
+      vehicle?.total_amount ??
+      vehicle?.TotalAmount ??
+      vehicle?.finalAmount ??
+      vehicle?.amount ??
+      0
+  );
+
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
+  if (!vehicles.length) return null;
+
+  return vehicles.reduce((cheapest, current) => {
+    return getVehicleAmountNumber(current) < getVehicleAmountNumber(cheapest)
+      ? current
+      : cheapest;
+  }, vehicles[0]);
+};
 
   const getHotelSelectionAmount = (hotel: any): number => {
     const directTotal = Number(hotel?.totalAmount ?? hotel?.totalPrice ?? 0);
@@ -9928,9 +10006,12 @@ if (policy.requiresPreviousDayBillingConfirmation) {
             style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
           >
             {typeOrder.map((typeId) => {
-              const vehiclesForType = vehiclesByType.get(typeId) || [];
-              const firstVehicle = vehiclesForType[0];
-              const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
+        const vehiclesForType = [...(vehiclesByType.get(typeId) || [])].sort(
+  (a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b)
+);
+
+const firstVehicle = vehiclesForType[0];
+const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
 
               return (
                 <VehicleList
