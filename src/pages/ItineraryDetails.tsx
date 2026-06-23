@@ -3898,9 +3898,9 @@ if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection)
     };
   });
 
-  const overallTripCostWithHotels = useMemo(() => {
-    return Number((itinerary?.overallCost ?? financialTotals.netPayable) || 0).toFixed(2);
-  }, [financialTotals.netPayable, itinerary?.overallCost]);
+const overallTripCostWithHotels = useMemo(() => {
+  return Number(financialTotals.netPayable || itinerary?.overallCost || 0).toFixed(2);
+}, [financialTotals.netPayable, itinerary?.overallCost]);
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {
@@ -4015,15 +4015,26 @@ if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection)
 
     return Number(amount.toFixed(2));
   };
-  const getVehicleAmountNumber = (vehicle: any): number => {
-  const amount = Number(
+ const getVehicleAmountNumber = (vehicle: any): number => {
+  const raw =
     vehicle?.totalAmount ??
-      vehicle?.total_amount ??
-      vehicle?.TotalAmount ??
-      vehicle?.finalAmount ??
-      vehicle?.amount ??
-      0
-  );
+    vehicle?.total_amount ??
+    vehicle?.TotalAmount ??
+    vehicle?.finalAmount ??
+    vehicle?.amount ??
+    0;
+
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  const cleaned = String(raw)
+    .replace(/₹/g, "")
+    .replace(/,/g, "")
+    .replace(/[^\d.-]/g, "")
+    .trim();
+
+  const amount = Number(cleaned);
 
   return Number.isFinite(amount) ? amount : 0;
 };
@@ -10006,13 +10017,39 @@ if (policy.requiresPreviousDayBillingConfirmation) {
             style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
           >
             {typeOrder.map((typeId) => {
-        const vehiclesForType = [...(vehiclesByType.get(typeId) || [])].sort(
+     const rawVehiclesForType = vehiclesByType.get(typeId) || [];
+
+const sortedVehiclesForType = [...rawVehiclesForType].sort(
   (a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b)
 );
 
+const cheapestVehicle = sortedVehiclesForType[0];
+
+const cheapestVehicleKey = cheapestVehicle
+  ? String(
+      cheapestVehicle.vendorEligibleId ??
+        cheapestVehicle.vehicleId ??
+        cheapestVehicle.vehicleIds?.[0] ??
+        `${cheapestVehicle.vendorName}-${cheapestVehicle.branchName}-${cheapestVehicle.totalAmount}`
+    )
+  : "";
+
+const vehiclesForType = sortedVehiclesForType.map((vehicle) => {
+  const vehicleKey = String(
+    vehicle.vendorEligibleId ??
+      vehicle.vehicleId ??
+      vehicle.vehicleIds?.[0] ??
+      `${vehicle.vendorName}-${vehicle.branchName}-${vehicle.totalAmount}`
+  );
+
+  return {
+    ...vehicle,
+    isAssigned: vehicleKey === cheapestVehicleKey,
+  };
+});
+
 const firstVehicle = vehiclesForType[0];
 const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
-
               return (
                 <VehicleList
                   key={typeId}
