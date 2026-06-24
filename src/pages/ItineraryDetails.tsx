@@ -4718,73 +4718,268 @@ const replaceHighlightsHotspotDetailsHtml = (
     hotspotTableStart,
   )}${highlightsHotspotHtml}${backendHtml.slice(hotspotSectionEnd)}`;
 };
-const cleanVehicleOnlyClipboardHtml = (html: string): string => {
-  if (!html) return html;
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+const buildVehicleOnlyClipboardHtml = (): { html: string; plainText: string } => {
+  if (!itinerary) {
+    return { html: "", plainText: "" };
+  }
 
-  doc.querySelectorAll("table").forEach((table) => {
-    const rows = Array.from(table.querySelectorAll("tr"));
+  const money = (value?: number | string | null) => {
+    const amount = Number(value || 0);
 
-    const hotelStartIndex = rows.findIndex((row) =>
-      /Recommended Hotel/i.test(row.textContent || ""),
-    );
+    return Number.isFinite(amount)
+      ? amount.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "0.00";
+  };
 
-    const vehicleStartIndex = rows.findIndex((row, index) =>
-      index > hotelStartIndex && /Vehicle Details/i.test(row.textContent || ""),
-    );
+  const moneyWithSymbol = (value?: number | string | null) => `₹ ${money(value)}`;
 
-    if (hotelStartIndex !== -1 && vehicleStartIndex !== -1) {
-      rows.slice(hotelStartIndex, vehicleStartIndex).forEach((row) => row.remove());
-    }
-  });
+  const vehicleQty =
+    Number(computedVehicleQty || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleQty || 0) ||
+    1;
 
-  doc.querySelectorAll("td, th").forEach((cell) => {
-    const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+  const vehicleAmount =
+    Number(computedVehicleAmount || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleAmount || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleCost || 0) ||
+    Number(financialTotals?.totalAmount || 0) ||
+    Number(financialTotals?.netPayable || 0) ||
+    Number(itinerary.overallCost || 0) ||
+    0;
 
-    if (/^Room Count\b/i.test(text)) {
-      cell.remove();
-    }
-  });
+  const companyName =
+    itinerary.costBreakdown?.companyName || "Doview Holidays India Pvt ltd";
 
-  doc.querySelectorAll("tr").forEach((row) => {
-    const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+  const packageDescription =
+    itinerary.packageIncludes?.description ||
+    itinerary.packageIncludes?.rateNote ||
+    `The Quotation quoted is valid for 3 days from the date of quote, if the travel of the Guest is below then three of from the quoted date the valid quote only for quoted date and Company Reserves the right to change the prices depends on the availability of prices and inventory`;
 
-    if (/^Total Room Cost\b/i.test(text)) {
-      row.remove();
-    }
-  });
+  const packageNote =
+    itinerary.packageIncludes?.houseBoatNote ||
+    `Kindly note that names of hotels mentioned above only indicate that our rates have been based on usage of these hotels and it is not to be construed that accommodation is confirmed at these hotels until and unless we convey such confirmation to you.`;
 
-  return doc.body.innerHTML;
+  const tableStyle =
+    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.35;color:#000;";
+  const borderStyle = "border:1px solid #b1b1b1;";
+  const cellStyle = `${borderStyle}padding:8px;text-align:left;vertical-align:middle;`;
+  const amountCellStyle = `${cellStyle}text-align:right;white-space:nowrap;`;
+  const titleStyle =
+    "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:36px;font-weight:700;color:#000;text-align:left;";
+
+  const html = `
+    <table width="700" border="0" cellpadding="0" cellspacing="0" style="${tableStyle}">
+      <tr>
+        <td width="50%" style="padding:8px 14px 8px 0;vertical-align:top;">
+          <div style="${titleStyle}">Package Includes</div>
+
+          <div style="font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.45;color:#000;margin-top:28px;">
+            ${escapeHtml(packageDescription).replace(/\n/g, "<br/>")}
+          </div>
+
+          <div style="font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.45;color:#000;margin-top:24px;">
+            ${escapeHtml(packageNote).replace(/\n/g, "<br/>")}
+          </div>
+        </td>
+
+        <td width="50%" style="padding:8px 0 8px 22px;vertical-align:top;">
+          <div style="${titleStyle}">OVERALL COST</div>
+
+          <table width="100%" border="0" cellpadding="0" cellspacing="0" style="${tableStyle};margin-top:16px;">
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;">
+                Total Vehicle Cost (${escapeHtml(vehicleQty)})
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Total Vehicle Amount
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="2" style="border-top:1px solid #b1b1b1;height:18px;font-size:1px;line-height:1px;">
+                &nbsp;
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Total Amount
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="2" style="border-top:1px solid #b1b1b1;height:18px;font-size:1px;line-height:1px;">
+                &nbsp;
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Net Payable To ${escapeHtml(companyName)}
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  const plainText = htmlToPlainText(html);
+
+  return { html, plainText };
 };
 
-const handleVehicleOnlyClipboardCopy = async () => {
+const handleVehicleOnlyClipboardCopy = async (
+  type: "recommended" | "highlights" | "para" = "recommended",
+) => {
   if (!quoteId || itineraryPreference !== 2) return;
 
   try {
-    const { html, plainText } = await ItineraryService.getClipboardContent(
+    const response = await ItineraryService.getClipboardContent(
       quoteId,
-      "recommended",
+      type,
       [],
     );
+
+    const backendHtml = response?.html || "";
+    const backendPlainText = response?.plainText || "";
+
+    const cleanVehicleOnlyB2BHtml = (rawHtml: string): string => {
+      if (!rawHtml) return rawHtml;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawHtml, "text/html");
+
+      // Remove hotel-only rows/sections if backend sends them by mistake.
+      doc.querySelectorAll("tr").forEach((row) => {
+        const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /^Recommended Hotel/i.test(text) ||
+          /^Hotel Details/i.test(text) ||
+          /^Total Room Cost/i.test(text) ||
+          /^Total Hotel Cost/i.test(text) ||
+          /^Total Hotel Amount/i.test(text) ||
+          /^Room Count\b/i.test(text)
+        ) {
+          row.remove();
+        }
+      });
+
+      // Fix vehicle-only wrong merged cost label:
+      // BEFORE: Total Vehicle Amount Total Vehicle Cost (1)
+      // AFTER : Total Vehicle Amount
+      doc.querySelectorAll("tr").forEach((row) => {
+        const rowText = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /Total Vehicle Amount/i.test(rowText) &&
+          /Total Vehicle Cost\s*\(/i.test(rowText)
+        ) {
+          const cells = Array.from(row.querySelectorAll("td, th"));
+          if (!cells.length) return;
+
+          const firstCell = cells[0];
+          const amountCell = cells.find((cell) => {
+            const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+            return /₹|Rs\.?|[0-9]+,[0-9]+|\d+\.\d{2}/i.test(text);
+          });
+
+          firstCell.textContent = "Total Vehicle Amount";
+
+          cells.forEach((cell) => {
+            if (cell === firstCell) return;
+            if (amountCell && cell === amountCell) return;
+
+            const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+            if (/Total Vehicle Cost\s*\(/i.test(text)) {
+              cell.remove();
+            }
+          });
+        }
+      });
+
+      // Extra safety if both labels are inside one single cell.
+      doc.querySelectorAll("td, th").forEach((cell) => {
+        const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /Total Vehicle Amount/i.test(text) &&
+          /Total Vehicle Cost\s*\(/i.test(text)
+        ) {
+          cell.textContent = "Total Vehicle Amount";
+        }
+      });
+
+      // Remove tiny empty cells that Outlook shows like square boxes.
+      doc.querySelectorAll("td, th").forEach((cell) => {
+        const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+        const hasContentElement =
+          cell.querySelectorAll("table, img, a, span, div, p, b, strong").length > 0;
+
+        const widthValue = Number(
+          String(cell.getAttribute("width") || "").replace(/[^0-9.]/g, ""),
+        );
+
+        if (!text && !hasContentElement && widthValue > 0 && widthValue <= 40) {
+          cell.remove();
+        }
+      });
+
+      return doc.body.innerHTML;
+    };
+
+    let html = backendHtml
+      ? cleanVehicleOnlyB2BHtml(backendHtml)
+      : backendPlainText;
+
+    // IMPORTANT:
+    // Vehicle Only -> Copy to Highlights must use the same compact highlights
+    // hotspot table used by normal B2B Highlights copy.
+    // This changes only Hotspot Details section, not the full recommended/para format.
+    if (type === "highlights" && html) {
+      html = replaceHighlightsHotspotDetailsHtml(
+        html,
+        buildHighlightsHotspotDetailsHtml(),
+      );
+    }
+
+    const plainText = html ? htmlToPlainText(html) : backendPlainText;
 
     if (!html && !plainText) {
       toast.error("Failed to prepare clipboard content");
       return;
     }
 
-const vehicleOnlyHtml = html
-  ? cleanVehicleOnlyClipboardHtml(html)
-  : plainText;
+    await copyHtmlToClipboard(html, plainText);
 
-  
-    const vehicleOnlyPlainText = vehicleOnlyHtml
-      ? htmlToPlainText(vehicleOnlyHtml)
-      : plainText;
-
-    await copyHtmlToClipboard(vehicleOnlyHtml, vehicleOnlyPlainText);
-    toast.success("Formatted clipboard content copied!");
+    if (type === "recommended") {
+      toast.success("Copy Recommended copied!");
+    } else if (type === "highlights") {
+      toast.success("Copy to Highlights copied!");
+    } else {
+      toast.success("Copy to Para copied!");
+    }
   } catch (error) {
     console.error("Failed to copy vehicle-only clipboard content", error);
     toast.error("Failed to copy clipboard content");
@@ -10474,52 +10669,62 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 justify-center">
        {/* Clipboard Dropdown */}
-{itineraryPreference === 2 ? (
-  <Button
-    className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]"
-    onClick={handleVehicleOnlyClipboardCopy}
-  >
-    Clipboard
+
+<div className="relative group">
+  <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
+    Clipboard ▼
   </Button>
-) : (
-  <div className="relative group">
-    <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
-      Clipboard ▼
-    </Button>
-    <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType('recommended');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📋</span> Copy Recommended
-      </button>
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType('highlights');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>✨</span> Copy to Highlights
-      </button>
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-        onClick={() => {
-          setClipboardType('para');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📝</span> Copy to Para
-      </button>
-    </div>
+
+  <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("recommended");
+          return;
+        }
+
+        setClipboardType("recommended");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📋</span> Copy Recommended
+    </button>
+
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("highlights");
+          return;
+        }
+
+        setClipboardType("highlights");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>✨</span> Copy to Highlights
+    </button>
+
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("para");
+          return;
+        }
+
+        setClipboardType("para");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📝</span> Copy to Para
+    </button>
   </div>
-)}
+</div>
 
         <Link to="/create-itinerary">
           <Button className="bg-[#28a745] hover:bg-[#218838]">
