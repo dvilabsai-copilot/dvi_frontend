@@ -2713,6 +2713,22 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       externalStay?: boolean;
       availabilityStatus?: string;
       availabilityMessage?: string | null;
+      routeId?: number;
+      multiNightBooking?: boolean;
+      stayKey?: string;
+      routeIds?: number[];
+      nights?: number;
+      nightlyRates?: Array<{
+        date: string;
+        amountAfterTax: number;
+        baseAmount?: number;
+        extraAdultCount?: number;
+        extraChildCount?: number;
+        extraAdultRate?: number;
+        extraChildRate?: number;
+      }>;
+      totalAmountAfterTax?: number;
+      mealPlan?: string;
     }
   }>({});
 
@@ -4795,9 +4811,61 @@ const vehicleOnlyHtml = html
   const hasPrebookPriceChanged =
     prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const getCoveredRouteIdsFromHotelSelections = useCallback((selections: Record<number, any>) => {
+    const covered = new Set<number>();
+
+    Object.entries(selections || {}).forEach(([routeIdRaw, hotel]) => {
+      const fallbackRouteId = Number(routeIdRaw);
+      const routeIds = Array.isArray(hotel?.routeIds)
+        ? hotel.routeIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [];
+
+      if (hotel?.multiNightBooking && routeIds.length > 1) {
+        routeIds.forEach((routeId: number) => covered.add(routeId));
+        return;
+      }
+
+      if (Number.isFinite(fallbackRouteId) && fallbackRouteId > 0) {
+        covered.add(fallbackRouteId);
+      }
+    });
+
+    return covered;
+  }, []);
+
+  const selectedHotelCoveredRouteIds = useMemo(
+    () => getCoveredRouteIdsFromHotelSelections(selectedHotelBookings),
+    [getCoveredRouteIdsFromHotelSelections, selectedHotelBookings],
+  );
+
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
-    .filter(([, h]) => isSupplierBookableHotel(h) && normalizeHotelProvider(h) !== 'tbo')
+  const nonTboSelectedHotelEntries = useMemo(() => {
+    return Object.entries(selectedHotelBookings)
+    .filter(([routeId, h]) => {
+      if (!isSupplierBookableHotel(h) || normalizeHotelProvider(h) === 'tbo') {
+        return false;
+      }
+
+      const routeIdNum = Number(routeId);
+
+      if (!h?.multiNightBooking && selectedHotelCoveredRouteIds.has(routeIdNum)) {
+        const parentForRoute = Object.values(selectedHotelBookings).find((selected: any) => {
+          const routeIds = Array.isArray(selected?.routeIds)
+            ? selected.routeIds.map((id: any) => Number(id))
+            : [];
+
+          return selected?.multiNightBooking && routeIds.includes(routeIdNum);
+        });
+
+        if (parentForRoute) {
+          return false;
+        }
+      }
+
+      return true;
+    })
     .map(([routeId, h]: [string, any]) => {
       const routeIdNum = parseInt(routeId, 10);
       const selectedProvider = normalizeHotelProvider(h);
@@ -4807,15 +4875,21 @@ const vehicleOnlyHtml = html
       const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
       const selectedAmount = getHotelAmountForBooking(h);
 
+      const displayRouteIds = Array.isArray(h?.routeIds) && h.routeIds.length > 0
+        ? h.routeIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [routeIdNum];
+
       const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
-        Number(row?.itineraryRouteId || 0) === routeIdNum &&
+        displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
         normalizeHotelProvider(row) === selectedProvider &&
         isSupplierBookableHotel(row),
       );
 
       const matchedHotelRow =
         routeRows.find((row: any) => {
-          const rowBookingCode = String(row?.bookingCode || '').trim();
+          const rowBookingCode = String(row?.bookingCode || row?.searchReference || '').trim();
           const rowHotelCode = String(row?.hotelCode || '').trim();
           const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
           const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
@@ -4830,8 +4904,22 @@ const vehicleOnlyHtml = html
           return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
         }) || routeRows[0] || null;
 
-      return { routeId: routeIdNum, ...h, matchedHotelRow };
+      return {
+        routeId: routeIdNum,
+        ...h,
+        matchedHotelRow,
+        displayRouteIds,
+        displayNights: Number(h?.nights || displayRouteIds.length || 1),
+        displayCheckInDate: h?.checkInDate,
+        displayCheckOutDate: h?.checkOutDate,
+      };
     });
+  }, [
+    getCoveredRouteIdsFromHotelSelections,
+    hotelDetails?.hotels,
+    selectedHotelBookings,
+    selectedHotelCoveredRouteIds,
+  ]);
   const DEFAULT_EXTERNAL_STAY_MESSAGE =
     'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
 
@@ -5675,17 +5763,92 @@ function getHotelAmountForBooking(entry: any): number {
     checkInDate: string;
     checkOutDate: string;
     groupType: number;
-  }>) => {
-    // Merge route-wise selection updates so changing one day never resets other days.
+    mealPlan?: string;
+    searchReference?: string;
+    roomId?: string;
+    rateId?: string;
+    multiNightBooking?: boolean;
+    stayKey?: string;
+    routeIds?: number[];
+    nights?: number;
+    nightlyRates?: Array<{
+      date: string;
+      amountAfterTax: number;
+      baseAmount?: number;
+      extraAdultCount?: number;
+      extraChildCount?: number;
+      extraAdultRate?: number;
+      extraChildRate?: number;
+    }>;
+    totalAmountAfterTax?: number;
+  } | null>) => {
     setSelectedHotelBookings((prev) => {
       const next: Record<number, any> = { ...prev };
 
       Object.entries(selections).forEach(([routeIdRaw, value]) => {
         const routeIdNum = Number(routeIdRaw);
+
+        if (!Number.isFinite(routeIdNum) || routeIdNum <= 0) {
+          return;
+        }
+
+        if (value === null) {
+          delete next[routeIdNum];
+          return;
+        }
+
         next[routeIdNum] = {
           ...(next[routeIdNum] || {}),
           ...value,
+          routeId: Number((value as any)?.routeId || routeIdNum),
         };
+      });
+
+      const canonicalParents = new Map<number, any>();
+
+      Object.entries(next).forEach(([routeIdRaw, booking]) => {
+        const routeIdNum = Number(routeIdRaw);
+        const routeIds = Array.isArray((booking as any)?.routeIds)
+          ? (booking as any).routeIds
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          : [];
+
+        if (
+          !(booking as any)?.multiNightBooking ||
+          !routeIdNum ||
+          routeIds.length <= 1
+        ) {
+          return;
+        }
+
+        const canonicalRouteId = routeIds[0];
+        const currentParent = canonicalParents.get(canonicalRouteId);
+        const normalizedBooking = {
+          ...(booking as any),
+          routeId: canonicalRouteId,
+          routeIds,
+        };
+
+        if (!currentParent || routeIdNum === canonicalRouteId) {
+          canonicalParents.set(canonicalRouteId, normalizedBooking);
+        }
+      });
+
+      canonicalParents.forEach((parentBooking, canonicalRouteId) => {
+        const routeIds = Array.isArray(parentBooking.routeIds)
+          ? parentBooking.routeIds
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          : [];
+
+        routeIds.forEach((routeId: number) => {
+          if (routeId !== canonicalRouteId) {
+            delete next[routeId];
+          }
+        });
+
+        next[canonicalRouteId] = parentBooking;
       });
 
       return next;
@@ -7924,6 +8087,11 @@ if (policy.requiresPreviousDayBillingConfirmation) {
       // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
       // so the confirm modal and prebook reflect exactly what the user sees.
       let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      console.log('[CONFIRM_HOTELS] selectedHotelBookings', selectedHotelBookings);
+      console.log(
+        '[CONFIRM_HOTELS] coveredRouteIds',
+        Array.from(getCoveredRouteIdsFromHotelSelections(selectedHotelBookings)),
+      );
       if (hotelDetails?.hotels?.length) {
         const preferredGroupType =
           activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
@@ -7972,8 +8140,11 @@ if (policy.requiresPreviousDayBillingConfirmation) {
           // that the user has NOT explicitly selected in this session.
           const mergedPersisted: typeof persistedSelections = {};
           Object.entries(persistedSelections).forEach(([routeId, val]) => {
-            if (!selectedHotelBookings[Number(routeId)]) {
-              mergedPersisted[Number(routeId)] = val;
+            const routeIdNum = Number(routeId);
+            const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
+
+            if (!coveredRouteIds.has(routeIdNum)) {
+              mergedPersisted[routeIdNum] = val;
             }
           });
           selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
@@ -7992,7 +8163,8 @@ if (policy.requiresPreviousDayBillingConfirmation) {
 
         const autoSelections: typeof selectedHotelBookings = {};
         routeBuckets.forEach((rows, routeId) => {
-          if (selectedHotelsForPrebook[routeId]) return; // already explicitly chosen (session or persisted)
+          const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
+          if (coveredRouteIds.has(Number(routeId))) return;
 
           const cheapest = rows.reduce((best, curr) => {
             const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
@@ -8074,6 +8246,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         }));
+      console.log('[CONFIRM_HOTELS] nonTboSelectedHotelEntries', nonTboSelectedHotelEntries);
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -8283,6 +8456,11 @@ if (policy.requiresPreviousDayBillingConfirmation) {
         };
 
         routesWithHotels.forEach((routeId: number) => {
+          const coveredRouteIdsForConfirm = getCoveredRouteIdsFromHotelSelections(autoSelectedHotels);
+          if (coveredRouteIdsForConfirm.has(Number(routeId))) {
+            return;
+          }
+
           const routeHotels = hotelDetails.hotels.filter(
             (h: any) =>
               Number(h.itineraryRouteId) === Number(routeId) &&
@@ -8294,7 +8472,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
 
           // Never overwrite an explicit in-memory user selection for this route.
           // Persisted backend selection should only backfill missing routes.
-          if (!autoSelectedHotels[routeId] && persistedRouteSelection) {
+          if (persistedRouteSelection) {
             autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
             return;
           }
@@ -8454,6 +8632,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
             searchReference: hotelData.searchReference,
             roomId: hotelData.roomId,
             rateId: hotelData.rateId,
+            mealPlan: hotelData.mealPlan,
             roomType: hotelData.roomType,
             checkInDate: hotelData.checkInDate,
             checkOutDate: hotelData.checkOutDate,
@@ -8465,6 +8644,12 @@ if (policy.requiresPreviousDayBillingConfirmation) {
             externalStay: hotelData.externalStay,
             availabilityStatus: hotelData.availabilityStatus,
             availabilityMessage: hotelData.availabilityMessage,
+            multiNightBooking: hotelData.multiNightBooking,
+            stayKey: hotelData.stayKey,
+            routeIds: hotelData.routeIds,
+            nights: hotelData.nights,
+            nightlyRates: hotelData.nightlyRates,
+            totalAmountAfterTax: hotelData.totalAmountAfterTax,
             passengers,
           }))
         : [];
@@ -8600,9 +8785,16 @@ if (policy.requiresPreviousDayBillingConfirmation) {
       }
 
       const selectedHotelRouteIds = requiresHotelBookingFlow
-        ? hotelBookingsWithPrebookContext
-            .map((booking: any) => Number(booking.routeId || 0))
+        ? Array.from(new Set(
+            hotelBookingsWithPrebookContext
+            .flatMap((booking: any) =>
+              Array.isArray(booking.routeIds) && booking.routeIds.length > 0
+                ? booking.routeIds
+                : [booking.routeId],
+            )
+            .map((routeId: any) => Number(routeId || 0))
             .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
+          ))
         : [];
 
       const externalStayRouteIds = requiresHotelBookingFlow
@@ -8644,6 +8836,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
         confirmPayload.external_stay_route_ids = externalStayRouteIds;
       }
 
+      console.log('[CONFIRM_HOTELS] final hotel_bookings payload', confirmPayload.hotel_bookings);
       console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
 
       const confirmResponse: any = await ItineraryService.confirmQuotation(confirmPayload);
@@ -13180,9 +13373,24 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                           <div>
                             <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
                             <p className="text-xs text-[#6c6c6c]">
+                              {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
+                                <>
+                                  Stay: <span className="font-medium text-[#4a4260]">
+                                    {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
+                                  </span>
+                                  {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
+                                </>
+                              ) : null}
+                            </p>
+                            <p className="text-xs text-[#6c6c6c]">
                               Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
                               {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
                             </p>
+                            {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
+                              <p className="text-xs text-green-700 font-medium">
+                                Continuous stay selected for {hotel.displayRouteIds.length} route(s)
+                              </p>
+                            ) : null}
                             <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                           </div>
                           <div className="text-sm text-left md:text-right">
@@ -13443,9 +13651,24 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                               <div>
                                 <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
                                 <p className="text-xs text-[#6c6c6c]">
+                                  {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
+                                    <>
+                                      Stay: <span className="font-medium text-[#4a4260]">
+                                        {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
+                                      </span>
+                                      {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
+                                    </>
+                                  ) : null}
+                                </p>
+                                <p className="text-xs text-[#6c6c6c]">
                                   Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
                                   {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
                                 </p>
+                                {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
+                                  <p className="text-xs text-green-700 font-medium">
+                                    Continuous stay selected for {hotel.displayRouteIds.length} route(s)
+                                  </p>
+                                ) : null}
                                 <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                               </div>
                               <div className="text-sm text-left md:text-right">
