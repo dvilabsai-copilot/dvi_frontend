@@ -41,6 +41,52 @@ export type HotelArrivalPolicyResponse = {
   debug?: Record<string, unknown>;
 };
 
+export interface StayExtensionPreviewRequest {
+  routeId: number;
+  provider: 'staah' | 'axisrooms';
+  hotelCode: string;
+  hotelName?: string;
+  roomId?: string;
+  rateId?: string;
+  roomType?: string;
+  mealPlan?: string;
+  checkInDate: string;
+}
+
+export interface StayExtensionPreviewResponse {
+  canBookSingleNight: boolean;
+  canBookMultiNight: boolean;
+  blocked: boolean;
+  provider: 'staah' | 'axisrooms';
+  hotelName?: string;
+  roomType?: string;
+  mealPlan?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  routeIds: number[];
+  stayKey?: string;
+  restrictionConflicts: Array<{
+    date?: string;
+    type: string;
+    message: string;
+  }>;
+  warnings: Array<{
+    type: string;
+    message: string;
+  }>;
+  nightlyRates: Array<{
+    date: string;
+    amountAfterTax: number;
+    baseAmount?: number;
+    extraAdultCount?: number;
+    extraChildCount?: number;
+    extraAdultRate?: number;
+    extraChildRate?: number;
+  }>;
+  totalAmountAfterTax: number;
+}
+
 export type HotspotAnchorPayload = {
   anchorType?: "after_travel";
   anchorIndex?: number;
@@ -340,6 +386,16 @@ export const ItineraryService = {
       method: "POST",
       body: payload,
     }) as Promise<HotelArrivalPolicyResponse>;
+  },
+
+  async previewHotelStayExtension(
+    planId: number,
+    payload: StayExtensionPreviewRequest,
+  ) {
+    return api(`itineraries/${planId}/hotels/stay-extension-preview`, {
+      method: "POST",
+      body: payload,
+    }) as Promise<StayExtensionPreviewResponse>;
   },
 
   async getClipboardContent(
@@ -781,6 +837,7 @@ export const ItineraryService = {
       searchReference?: string;
       roomId?: string;
       rateId?: string;
+      mealPlan?: string;
       roomType: string;
       checkInDate: string;
       checkOutDate: string;
@@ -788,6 +845,20 @@ export const ItineraryService = {
       guestNationality: string;
       netAmount: number;
       searchInitiatedAt?: string;
+      multiNightBooking?: boolean;
+      stayKey?: string;
+      routeIds?: number[];
+      nights?: number;
+      nightlyRates?: Array<{
+        date: string;
+        amountAfterTax: number;
+        baseAmount?: number;
+        extraAdultCount?: number;
+        extraChildCount?: number;
+        extraAdultRate?: number;
+        extraChildRate?: number;
+      }>;
+      totalAmountAfterTax?: number;
       passengers: Array<{
         title: string;
         firstName: string;

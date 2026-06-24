@@ -19,7 +19,31 @@ import type {
   ItineraryHotelTab,
 } from "./ItineraryDetails";
 import { ItineraryService } from "@/services/itinerary";
+import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
+
+type HotelSelectionUpdate = {
+  provider: string;
+  hotelCode: string;
+  bookingCode: string;
+  roomType: string;
+  netAmount: number;
+  hotelName: string;
+  checkInDate: string;
+  checkOutDate: string;
+  groupType: number;
+  mealPlan?: string;
+  searchReference?: string;
+  roomId?: string;
+  rateId?: string;
+  multiNightBooking?: boolean;
+  stayKey?: string;
+  routeIds?: number[];
+  nights?: number;
+  nightlyRates?: StayExtensionPreviewResponse["nightlyRates"];
+  totalAmountAfterTax?: number;
+  manualRoomMealMismatchOverride?: boolean;
+};
 
 type HotelListProps = {
   hotels: ItineraryHotelRow[];
@@ -83,17 +107,7 @@ type HotelListProps = {
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
   // âœ… NEW: Callback when hotel selections change (for confirm quotation payload)
-  onHotelSelectionsChange?: (selections: Record<number, {
-    provider: string;
-    hotelCode: string;
-    bookingCode: string;
-    roomType: string;
-    netAmount: number;
-    hotelName: string;
-    checkInDate: string;
-    checkOutDate: string;
-    groupType: number;
-  }>) => void;
+  onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
   dayDestinationFallback?: Record<number, string>;
   /** Pagination metadata: Record<groupType, { hasMore, page, pageSize, total }> */
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
@@ -134,6 +148,24 @@ type HotelRoomDetail = {
   totalAmount?: number;
   groupType?: number; // âœ… Tier/category from TBO API
   [key: string]: any; // keep flexible â€“ we only use a few fields
+};
+
+type ManualRoomMealMismatchWarning = {
+  enabled: boolean;
+  message: string;
+  previousLabel?: string;
+  selectedLabel?: string;
+};
+
+type PendingHotelAction = {
+  room: HotelRoomDetail;
+  isReplacing: boolean;
+  previousHotelName: string;
+  newHotelName: string;
+  routeDate: string;
+  groupType?: number;
+  multiNightPreview?: StayExtensionPreviewResponse | null;
+  manualRoomMealMismatchWarning?: ManualRoomMealMismatchWarning | null;
 };
 
 // Normalizes supplier/raw meal text into display labels.
@@ -212,6 +244,17 @@ const toMoneyNumber = (value: number | string | undefined | null): number => {
 
 const formatCurrency = (value: number | string | undefined | null): string => {
   return `\u20B9 ${toMoneyNumber(value).toFixed(2)}`;
+};
+
+const formatDisplayDate = (value?: string | null): string => {
+  if (!value) return "";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 };
 
 const stripHtml = (value: string): string =>
@@ -348,7 +391,115 @@ export const HotelList: React.FC<HotelListProps> = ({
     ].join('|');
   };
 
-  const getExpandedRouteId = (): number => {
+  const normalizeHotelIdentity = (hotel: any): string => {
+    return [
+      String(hotel?.provider || '').trim().toLowerCase(),
+      String(hotel?.hotelCode || hotel?.hotelId || '').trim().toLowerCase(),
+      String(hotel?.hotelName || '').trim().toLowerCase(),
+    ].join('|');
+  };
+
+  const normalizeRoomMealIdentity = (hotel: any): string => {
+    return [
+      String(hotel?.roomId || '').trim().toLowerCase(),
+      String(hotel?.rateId || '').trim().toLowerCase(),
+      String(hotel?.roomType || hotel?.roomTypeName || '').trim().toLowerCase(),
+      normalizeMealPlanLabel(hotel?.mealPlan).trim().toLowerCase(),
+    ].join('|');
+  };
+
+  const isSameHotelIdentity = (a: any, b: any): boolean => {
+    return normalizeHotelIdentity(a) === normalizeHotelIdentity(b);
+  };
+
+  const isSameRoomMealIdentity = (a: any, b: any): boolean => {
+    return normalizeRoomMealIdentity(a) === normalizeRoomMealIdentity(b);
+  };
+
+  const getStaySortValue = (hotel: any): string => {
+    return [
+      String(hotel?.date || hotel?.checkInDate || ''),
+      String(hotel?.day || ''),
+      String(hotel?.itineraryRouteId || hotel?.routeId || ''),
+    ].join('|');
+  };
+
+  const sortStayGroupsByDate = (groups: ItineraryHotelRow[][]): ItineraryHotelRow[][] => {
+    return [...groups].sort((a, b) =>
+      getStaySortValue(a[0]).localeCompare(getStaySortValue(b[0])),
+    );
+  };
+
+const findMatchingRoomMealInStay = (
+  stayHotels: ItineraryHotelRow[],
+  previousSelectedHotel?: ItineraryHotelRow | null,
+): ItineraryHotelRow | null => {
+    if (!previousSelectedHotel) {
+      return null;
+    }
+
+    const exactMatch = stayHotels.find((hotel) =>
+      isSelectableHotel(hotel) &&
+      isSameHotelIdentity(hotel, previousSelectedHotel) &&
+      isSameRoomMealIdentity(hotel, previousSelectedHotel),
+    );
+
+  return exactMatch || null;
+};
+
+const getMealPlanCodeOnly = (value: unknown): string => {
+  const normalizedLabel = normalizeMealPlanLabel(String(value || ''));
+  const code = normalizedLabelToCode(normalizedLabel);
+
+  return code || String(value || '').trim() || '-';
+};
+
+const getRoomMealDisplayLabel = (hotel: any): string => {
+  const roomType = String(
+    hotel?.roomType ||
+      hotel?.roomTypeName ||
+      'Room',
+  ).trim();
+
+  const mealPlanCode = getMealPlanCodeOnly(hotel?.mealPlan);
+
+  return `${roomType} / ${mealPlanCode}`;
+};
+
+const getAutoSkipRoomMealMismatchMessage = (
+  hotel: any,
+  selectedForStay?: ItineraryHotelRow | HotelRoomDetail | null,
+  previousSelectedHotel?: ItineraryHotelRow | HotelRoomDetail | null,
+): string => {
+  if (!hotel || !previousSelectedHotel) {
+    return '';
+  }
+
+  if (!isSelectableHotel(hotel)) {
+    return '';
+  }
+
+  if (selectedForStay && getHotelOptionKey(hotel) === getHotelOptionKey(selectedForStay)) {
+    return '';
+  }
+
+  if (!isSameHotelIdentity(hotel, previousSelectedHotel)) {
+    return '';
+  }
+
+  if (isSameRoomMealIdentity(hotel, previousSelectedHotel)) {
+    return '';
+  }
+
+  return [
+    'Not auto-selected because the room type or meal plan is different from the previous night.',
+    `Previous: ${getRoomMealDisplayLabel(previousSelectedHotel)}.`,
+    `This option: ${getRoomMealDisplayLabel(hotel)}.`,
+    'You can still choose this manually if you want.',
+  ].join(' ');
+};
+
+const getExpandedRouteId = (): number => {
     if (!expandedRowKey) return 0;
     const [routeIdText] = expandedRowKey.split('::');
     return toNumber(routeIdText, 0);
@@ -566,6 +717,27 @@ export const HotelList: React.FC<HotelListProps> = ({
     return Number.isFinite(amount) && amount > 0;
   };
 
+  const getAutoSelectableHotelsRespectingPreviousRoomMeal = (
+    stayHotels: ItineraryHotelRow[],
+    previousSelectedHotel?: ItineraryHotelRow | null,
+  ): ItineraryHotelRow[] => {
+    const selectableHotels = stayHotels.filter((hotel) => isSelectableHotel(hotel));
+
+    if (!previousSelectedHotel || selectableHotels.length === 0) {
+      return selectableHotels;
+    }
+
+    const fairCandidates = selectableHotels.filter((hotel) => {
+      if (!isSameHotelIdentity(hotel, previousSelectedHotel)) {
+        return true;
+      }
+
+      return isSameRoomMealIdentity(hotel, previousSelectedHotel);
+    });
+
+    return fairCandidates.length > 0 ? fairCandidates : selectableHotels;
+  };
+
   const resolveHotelRestriction = (
     hotel?: Partial<ItineraryHotelRow> | Partial<HotelRoomDetail> | null,
     groupTypeHint?: number | null,
@@ -647,6 +819,62 @@ export const HotelList: React.FC<HotelListProps> = ({
   // User override should win for a stay across all tabs (group types).
   const [userSelectedByStay, setUserSelectedByStay] = useState<Record<string, ItineraryHotelRow>>({});
 
+  const getRoomMealWarningLabel = (hotel: any): string => {
+    const roomType = String(hotel?.roomType || hotel?.roomTypeName || 'Room').trim();
+    const mealPlanCode = getMealPlanCodeOnly(hotel?.mealPlan);
+    return `${roomType} / ${mealPlanCode}`;
+  };
+
+  const findManualRoomMealMismatchWarning = (
+    selectedHotel: HotelRoomDetail,
+    groupType: number,
+  ): ManualRoomMealMismatchWarning | null => {
+    const selectedRouteId = toNumber(
+      (selectedHotel as any).itineraryRouteId ??
+        (selectedHotel as any).itinerary_route_id ??
+        (selectedHotel as any).routeId,
+      0,
+    );
+
+    if (!selectedRouteId) {
+      return null;
+    }
+
+    const sameHotelSelections = Object.values(selectedByGroup[groupType] || {})
+      .filter((hotel: any) => {
+        const routeId = toNumber(hotel?.itineraryRouteId || hotel?.routeId, 0);
+        if (!routeId || routeId === selectedRouteId) {
+          return false;
+        }
+
+        if (!isSameHotelIdentity(hotel, selectedHotel)) {
+          return false;
+        }
+
+        return isSelectableHotel(hotel);
+      })
+      .sort((a: any, b: any) => getStaySortValue(a).localeCompare(getStaySortValue(b)));
+
+    const mismatchHotel = sameHotelSelections.find((hotel: any) => {
+      return !isSameRoomMealIdentity(hotel, selectedHotel);
+    });
+
+    if (!mismatchHotel) {
+      return null;
+    }
+
+    return {
+      enabled: true,
+      previousLabel: getRoomMealWarningLabel(mismatchHotel),
+      selectedLabel: getRoomMealWarningLabel(selectedHotel),
+      message:
+        `This manual selection creates a different room type or meal plan for the same hotel across the itinerary. ` +
+        `Existing: ${getRoomMealWarningLabel(mismatchHotel)}. ` +
+        `Selected: ${getRoomMealWarningLabel(selectedHotel)}. ` +
+        `This may be unfair or confusing for families travelling together.`,
+    };
+  };
+
   // âœ… Track unsaved hotel selections (for batch save on confirm)
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
@@ -671,85 +899,127 @@ export const HotelList: React.FC<HotelListProps> = ({
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
 
-  // âœ… Sync local hotels with prop changes and auto-select hotels for ALL groupTypes
+  // Sync local hotels with prop changes and auto-select hotels for ALL groupTypes.
+  // Supplier room/rate should stay sticky across consecutive same-hotel stays.
   useEffect(() => {
     setLocalHotels(hotels);
 
     if (hotels.length === 0) return;
 
-    // Auto-select cheapest hotel per stay for EACH groupType.
-    setSelectedByGroup(prev => {
-      const newSelected = { ...prev };
+    setSelectedByGroup((prev) => {
+      const next: Record<number, Record<string, ItineraryHotelRow>> = { ...prev };
       const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
 
-      hotels.forEach(h => {
-        if (!hotelsByGroupAndStay[h.groupType]) {
-          hotelsByGroupAndStay[h.groupType] = {};
+      hotels.forEach((hotel) => {
+        const groupType = toNumber(hotel.groupType, 0);
+        if (!groupType) return;
+
+        if (!hotelsByGroupAndStay[groupType]) {
+          hotelsByGroupAndStay[groupType] = {};
         }
-        const stayKey = getStayKey(h);
-        if (!hotelsByGroupAndStay[h.groupType][stayKey]) {
-          hotelsByGroupAndStay[h.groupType][stayKey] = [];
+
+        const stayKey = getStayKey(hotel);
+        if (!hotelsByGroupAndStay[groupType][stayKey]) {
+          hotelsByGroupAndStay[groupType][stayKey] = [];
         }
-        hotelsByGroupAndStay[h.groupType][stayKey].push(h);
+
+        hotelsByGroupAndStay[groupType][stayKey].push(hotel);
       });
 
-      Object.entries(hotelsByGroupAndStay).forEach(([groupTypeStr, stayMap]) => {
-        const groupType = Number(groupTypeStr);
+      const chooseDefaultForStay = (
+        stayHotels: ItineraryHotelRow[],
+        previousSelectedHotel?: ItineraryHotelRow | null,
+      ): ItineraryHotelRow | null => {
+        const stickySameRoomMeal = findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
 
-        if (!newSelected[groupType]) {
-          newSelected[groupType] = {};
+        if (stickySameRoomMeal) {
+          return stickySameRoomMeal;
         }
 
-        Object.entries(stayMap).forEach(([stayKey, hotelOptions]) => {
-          const hasExistingSelection = Boolean(newSelected[groupType][stayKey]);
-          const existingSelection = newSelected[groupType][stayKey];
-          const selectableOptions = hotelOptions.filter((option) => isSelectableHotel(option));
-          const hasSelectableOptions = selectableOptions.length > 0;
-          const hasRealOptions = hotelOptions.some((option) => !isPlaceholderHotel(option));
+        const persistedSelection = [...stayHotels]
+          .filter((option) =>
+            toNumber((option as any).itineraryPlanHotelDetailsId, 0) > 0 &&
+            isSelectableHotel(option),
+          )
+          .sort((a, b) => getHotelAmountWithRooms(a) - getHotelAmountWithRooms(b))[0];
 
-          // Replace stale placeholder default with real option as soon as any real option exists.
-          if (
-            hasExistingSelection &&
-            (!isSelectableHotel(existingSelection) || isPlaceholderHotel(existingSelection)) &&
-            hasSelectableOptions
-          ) {
-            delete newSelected[groupType][stayKey];
+        if (persistedSelection) {
+          return persistedSelection;
+        }
+
+        const selectableOptions = getAutoSelectableHotelsRespectingPreviousRoomMeal(
+          stayHotels,
+          previousSelectedHotel,
+        );
+        const hasRealOptions = stayHotels.some((option) => !isPlaceholderHotel(option));
+
+        const candidateOptions =
+          selectableOptions.length > 0
+            ? selectableOptions
+            : hasRealOptions
+            ? stayHotels.filter((option) => !isPlaceholderHotel(option))
+            : [...stayHotels];
+
+        return [...candidateOptions].sort((a, b) => {
+          const priceA = getHotelAmountWithRooms(a);
+          const priceB = getHotelAmountWithRooms(b);
+
+          if (priceA !== priceB) return priceA - priceB;
+
+          return String(a.hotelName || '').localeCompare(String(b.hotelName || ''));
+        })[0] || null;
+      };
+
+      Object.entries(hotelsByGroupAndStay).forEach(([groupTypeText, stayMap]) => {
+        const groupType = Number(groupTypeText);
+
+        if (!next[groupType]) {
+          next[groupType] = {};
+        }
+
+        let previousSelectedHotel: ItineraryHotelRow | null = null;
+
+        sortStayGroupsByDate(Object.values(stayMap)).forEach((stayHotels) => {
+          const stayKey = getStayKey(stayHotels[0]);
+          const existingSelection = next[groupType][stayKey];
+          const selectableOptions = getAutoSelectableHotelsRespectingPreviousRoomMeal(
+            stayHotels,
+            previousSelectedHotel,
+          );
+          const hasSelectableOptions = selectableOptions.length > 0;
+
+          const existingStillValid =
+            existingSelection &&
+            isSelectableHotel(existingSelection) &&
+            stayHotels.some((option) => getHotelOptionKey(option) === getHotelOptionKey(existingSelection));
+
+          if (!existingStillValid) {
+            delete next[groupType][stayKey];
           }
 
-          if (!newSelected[groupType][stayKey]) {
-            const persistedSelection = [...hotelOptions]
-              .filter((option) =>
-                toNumber((option as any).itineraryPlanHotelDetailsId, 0) > 0 &&
-                isSelectableHotel(option),
-              )
-              .sort((a, b) => getHotelAmountWithRooms(a) - getHotelAmountWithRooms(b))[0];
+          const stickySelection = findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
 
-            if (persistedSelection) {
-              newSelected[groupType][stayKey] = persistedSelection;
-              return;
+          if (stickySelection) {
+            next[groupType][stayKey] = stickySelection;
+            previousSelectedHotel = stickySelection;
+            return;
+          }
+
+          if (!next[groupType][stayKey]) {
+            const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
+
+            if (selected) {
+              next[groupType][stayKey] = selected;
             }
+          }
 
-            const candidateOptions = hasSelectableOptions
-              ? selectableOptions
-              : hasRealOptions
-              ? hotelOptions.filter((option) => !isPlaceholderHotel(option))
-              : [...hotelOptions];
-
-            const sortedByPrice = [...candidateOptions].sort((a, b) => {
-              const priceA = (a.totalHotelCost || 0) + (a.totalHotelTaxAmount || 0);
-              const priceB = (b.totalHotelCost || 0) + (b.totalHotelTaxAmount || 0);
-              return priceA - priceB;
-            });
-
-            const cheapest = sortedByPrice[0];
-            if (cheapest) {
-              newSelected[groupType][stayKey] = cheapest;
-            }
+          if (next[groupType][stayKey] && hasSelectableOptions) {
+            previousSelectedHotel = next[groupType][stayKey];
           }
         });
       });
 
-      return newSelected;
+      return next;
     });
   }, [hotels, planId]);
 
@@ -779,13 +1049,10 @@ export const HotelList: React.FC<HotelListProps> = ({
 
   // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [pendingHotelAction, setPendingHotelAction] = useState<{
-    room: HotelRoomDetail;
-    isReplacing: boolean;
-    previousHotelName: string;
-    newHotelName: string;
-    routeDate: string;
-    groupType?: number; // âœ… NEW: The groupType (tier) of the selected hotel
+  const [pendingHotelAction, setPendingHotelAction] = useState<PendingHotelAction | null>(null);
+  const [stayExtensionModalState, setStayExtensionModalState] = useState<{
+    preview: StayExtensionPreviewResponse;
+    action: Omit<PendingHotelAction, "multiNightPreview">;
   } | null>(null);
 
   // Room selection modal state
@@ -888,19 +1155,36 @@ export const HotelList: React.FC<HotelListProps> = ({
       groupedByStay.get(stayKey)!.push(hotel);
     });
 
-    return Array.from(groupedByStay.values()).map((stayHotels) => {
+    const selectedHotels: ItineraryHotelRow[] = [];
+    let previousSelectedHotel: ItineraryHotelRow | null = null;
+
+    sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = getStayKey(stayHotels[0]);
       const userSelected = userSelectedByStay[stayKey];
       if (userSelected && isSelectableHotel(userSelected)) {
-        return userSelected;
+        selectedHotels.push(userSelected);
+        previousSelectedHotel = userSelected;
+        return;
+      }
+
+      const stickySelection = findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
+      if (stickySelection) {
+        selectedHotels.push(stickySelection);
+        previousSelectedHotel = stickySelection;
+        return;
       }
 
       const selectedForGroup = selectedByGroup[groupType]?.[stayKey];
       if (selectedForGroup && isSelectableHotel(selectedForGroup)) {
-        return selectedForGroup;
+        selectedHotels.push(selectedForGroup);
+        previousSelectedHotel = selectedForGroup;
+        return;
       }
 
-      const selectableHotels = stayHotels.filter((hotel) => isSelectableHotel(hotel));
+      const selectableHotels = getAutoSelectableHotelsRespectingPreviousRoomMeal(
+        stayHotels,
+        previousSelectedHotel,
+      );
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
         : stayHotels.some((hotel) => !isPlaceholderHotel(hotel))
@@ -914,8 +1198,14 @@ export const HotelList: React.FC<HotelListProps> = ({
         return String(a.hotelName || '').localeCompare(String(b.hotelName || ''));
       });
 
-      return sortedStayHotels[0];
+      const selected = sortedStayHotels[0];
+      if (selected) {
+        selectedHotels.push(selected);
+        previousSelectedHotel = selected;
+      }
     });
+
+    return selectedHotels;
   };
 
   // âœ… Calculate total for a specific groupType (sum of selected hotels)
@@ -947,44 +1237,214 @@ export const HotelList: React.FC<HotelListProps> = ({
     return getActiveTabTotal();
   }, [activeGroupType, selectedByGroup, userSelectedByStay, localHotels]);
 
+  const addOneDay = (date: string): string => {
+    const raw = String(date || "").trim();
+    if (!raw) return "";
+
+    const parsed = new Date(`${raw}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime())) return "";
+
+    parsed.setUTCDate(parsed.getUTCDate() + 1);
+    return parsed.toISOString().slice(0, 10);
+  };
+
+  const getSupplierRoomRateKey = (hotel: any): string => {
+    return [
+      String(hotel?.provider || "").trim().toLowerCase(),
+      String(hotel?.hotelCode || hotel?.hotelId || "").trim().toLowerCase(),
+      String(hotel?.roomId || "").trim().toLowerCase(),
+      String(hotel?.rateId || "").trim().toLowerCase(),
+      String(hotel?.roomType || hotel?.roomTypeName || "").trim().toLowerCase(),
+      normalizeMealPlanLabel(hotel?.mealPlan).trim().toLowerCase(),
+    ].join("|");
+  };
+
+  const buildHotelSelectionUpdate = (
+    hotel: ItineraryHotelRow,
+    groupType: number,
+  ): HotelSelectionUpdate | null => {
+    const routeId = toNumber((hotel as any).itineraryRouteId || (hotel as any).routeId, 0);
+    if (!routeId) return null;
+
+    const checkInDate = String((hotel as any).date || (hotel as any).checkInDate || "").trim();
+    const checkOutDate =
+      String((hotel as any).checkOutDate || "").trim() || addOneDay(checkInDate);
+
+    return {
+      provider: String((hotel as any).provider || "tbo").trim().toLowerCase(),
+      hotelCode: String((hotel as any).hotelCode || (hotel as any).hotelId || "").trim(),
+      bookingCode: String((hotel as any).bookingCode || (hotel as any).searchReference || "").trim(),
+      searchReference: String((hotel as any).searchReference || "").trim() || undefined,
+      roomId: String((hotel as any).roomId || "").trim() || undefined,
+      rateId: String((hotel as any).rateId || "").trim() || undefined,
+      mealPlan: String((hotel as any).mealPlan || "").trim() || undefined,
+      roomType: String((hotel as any).roomType || (hotel as any).roomTypeName || "Standard").trim(),
+      netAmount: toMoneyNumber(getHotelDisplayAmount(hotel)),
+      hotelName: String((hotel as any).hotelName || "").trim(),
+      checkInDate,
+      checkOutDate,
+      groupType: toNumber((hotel as any).groupType, groupType),
+    };
+  };
+
+  const mergeConsecutiveSupplierSelections = (
+    selectedHotels: ItineraryHotelRow[],
+    groupType: number,
+  ): Record<number, HotelSelectionUpdate> => {
+    const sortedHotels = [...selectedHotels].sort((a, b) =>
+      getStaySortValue(a).localeCompare(getStaySortValue(b)),
+    );
+
+    const output: Record<number, HotelSelectionUpdate> = {};
+    const consumedRouteIds = new Set<number>();
+
+    for (let i = 0; i < sortedHotels.length; i += 1) {
+      const currentHotel = sortedHotels[i];
+      const currentRouteId = toNumber(
+        (currentHotel as any).itineraryRouteId || (currentHotel as any).routeId,
+        0,
+      );
+
+      if (!currentRouteId || consumedRouteIds.has(currentRouteId)) {
+        continue;
+      }
+
+      const currentSelection = buildHotelSelectionUpdate(currentHotel, groupType);
+      if (!currentSelection) {
+        continue;
+      }
+
+      const provider = String(currentSelection.provider || "").toLowerCase();
+      const canMergeProvider = provider === "staah" || provider === "axisrooms";
+
+      if (!canMergeProvider) {
+        output[currentRouteId] = currentSelection;
+        consumedRouteIds.add(currentRouteId);
+        continue;
+      }
+
+      const groupHotels = [currentHotel];
+      let lastCheckOutDate = currentSelection.checkOutDate;
+      const currentKey = getSupplierRoomRateKey(currentHotel);
+
+      for (let j = i + 1; j < sortedHotels.length; j += 1) {
+        const nextHotel = sortedHotels[j];
+        const nextRouteId = toNumber(
+          (nextHotel as any).itineraryRouteId || (nextHotel as any).routeId,
+          0,
+        );
+
+        if (!nextRouteId || consumedRouteIds.has(nextRouteId)) {
+          continue;
+        }
+
+        const nextSelection = buildHotelSelectionUpdate(nextHotel, groupType);
+        if (!nextSelection) {
+          continue;
+        }
+
+        const nextKey = getSupplierRoomRateKey(nextHotel);
+        const isSameRoomRate = nextKey === currentKey;
+        const isConsecutiveDate = nextSelection.checkInDate === lastCheckOutDate;
+
+        if (!isSameRoomRate || !isConsecutiveDate) {
+          break;
+        }
+
+        groupHotels.push(nextHotel);
+        lastCheckOutDate = nextSelection.checkOutDate;
+      }
+
+      if (groupHotels.length === 1) {
+        output[currentRouteId] = currentSelection;
+        consumedRouteIds.add(currentRouteId);
+        continue;
+      }
+
+      const routeIds = groupHotels
+        .map((hotel) => toNumber((hotel as any).itineraryRouteId || (hotel as any).routeId, 0))
+        .filter((routeId) => routeId > 0);
+
+      const nightlyRates = groupHotels.map((hotel) => ({
+        date: String((hotel as any).date || (hotel as any).checkInDate || "").trim(),
+        amountAfterTax: toMoneyNumber(getHotelDisplayAmount(hotel)),
+      }));
+
+      const totalAmountAfterTax = nightlyRates.reduce(
+        (sum, night) => sum + toMoneyNumber(night.amountAfterTax),
+        0,
+      );
+
+      const stayKey = [
+        provider,
+        currentSelection.hotelCode,
+        currentSelection.roomId || "",
+        currentSelection.rateId || "",
+        currentSelection.checkInDate,
+        lastCheckOutDate,
+      ].join(":");
+
+      output[currentRouteId] = {
+        ...currentSelection,
+        checkOutDate: lastCheckOutDate,
+        netAmount: totalAmountAfterTax,
+        totalAmountAfterTax,
+        multiNightBooking: true,
+        routeIds,
+        nights: routeIds.length,
+        nightlyRates,
+        stayKey,
+      };
+
+      routeIds.forEach((routeId) => consumedRouteIds.add(routeId));
+    }
+
+    return output;
+  };
+
+  const withCoveredRouteDeletes = (
+    selections: Record<number, HotelSelectionUpdate>,
+  ): Record<number, HotelSelectionUpdate | null> => {
+    const next: Record<number, HotelSelectionUpdate | null> = { ...selections };
+
+    Object.entries(selections).forEach(([routeIdText, selection]) => {
+      const routeIds = Array.isArray(selection?.routeIds)
+        ? selection.routeIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        : [];
+
+      if (!selection?.multiNightBooking || routeIds.length <= 1) {
+        return;
+      }
+
+      const canonicalParentRouteId = routeIds[0];
+      const currentRouteId = Number(routeIdText);
+
+      if (currentRouteId !== canonicalParentRouteId) {
+        delete next[currentRouteId];
+      }
+
+      routeIds.forEach((routeId) => {
+        if (routeId !== canonicalParentRouteId) {
+          next[routeId] = null;
+        }
+      });
+    });
+
+    return next;
+  };
+
   // Keep parent selection state in sync with the currently selected hotels per stay.
+  // Consecutive STAAH/AxisRooms rows with same hotel + room + rate are merged into
+  // one multiNightBooking payload so supplier receives one continuous stay.
   useEffect(() => {
     if (!onHotelSelectionsChange || activeGroupType === null || readOnly) return;
 
-    const selections: Record<number, {
-      provider: string;
-      hotelCode: string;
-      bookingCode: string;
-      roomType: string;
-      netAmount: number;
-      hotelName: string;
-      checkInDate: string;
-      checkOutDate: string;
-      groupType: number;
-    }> = {};
-
     const selectedHotels = getSelectedHotelsForGroup(activeGroupType);
-    selectedHotels.forEach((hotel) => {
-      const routeId = toNumber((hotel as any).itineraryRouteId, 0);
-      if (!routeId) return;
-
-      const checkInDate = String((hotel as any).date || (hotel as any).checkInDate || '').trim();
-      const checkOutDate = String((hotel as any).checkOutDate || '').trim() || (checkInDate
-        ? new Date(new Date(checkInDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        : '');
-
-      selections[routeId] = {
-        provider: String((hotel as any).provider || 'tbo').trim().toLowerCase(),
-        hotelCode: String((hotel as any).hotelCode || (hotel as any).hotelId || '').trim(),
-        bookingCode: String((hotel as any).bookingCode || (hotel as any).searchReference || '').trim(),
-        roomType: String((hotel as any).roomType || (hotel as any).roomTypeName || 'Standard').trim(),
-        netAmount: toMoneyNumber(getHotelDisplayAmount(hotel)),
-        hotelName: String((hotel as any).hotelName || '').trim(),
-        checkInDate,
-        checkOutDate,
-        groupType: toNumber((hotel as any).groupType, activeGroupType),
-      };
-    });
+    const selections = withCoveredRouteDeletes(
+      mergeConsecutiveSupplierSelections(selectedHotels, activeGroupType),
+    );
 
     if (Object.keys(selections).length > 0) {
       onHotelSelectionsChange(selections);
@@ -1063,14 +1523,30 @@ export const HotelList: React.FC<HotelListProps> = ({
       groupedByStay.get(stayKey)!.push(hotel);
     });
 
-    const displayHotels = Array.from(groupedByStay.values()).map((stayHotels) => {
+    const displayHotels: ItineraryHotelRow[] = [];
+    let previousSelectedHotel: ItineraryHotelRow | null = null;
+
+    sortStayGroupsByDate(Array.from(groupedByStay.values())).forEach((stayHotels) => {
       const stayKey = getStayKey(stayHotels[0]);
       const userSelected = userSelectedByStay[stayKey];
       if (userSelected && isSelectableHotel(userSelected)) {
-        return userSelected;
+        displayHotels.push(userSelected);
+        previousSelectedHotel = userSelected;
+        return;
       }
+
+      const stickySelection = findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
+      if (stickySelection) {
+        displayHotels.push(stickySelection);
+        previousSelectedHotel = stickySelection;
+        return;
+      }
+
       const selectedForStay = selectedByGroup[activeGroupType]?.[stayKey];
-      const selectableHotels = stayHotels.filter((hotel) => isSelectableHotel(hotel));
+      const selectableHotels = getAutoSelectableHotelsRespectingPreviousRoomMeal(
+        stayHotels,
+        previousSelectedHotel,
+      );
       const candidateHotels = selectableHotels.length > 0
         ? selectableHotels
         : stayHotels.some((hotel) => !isPlaceholderHotel(hotel))
@@ -1092,11 +1568,17 @@ export const HotelList: React.FC<HotelListProps> = ({
           (option) => getHotelOptionKey(option) === selectedOptionKey,
         );
         if (sameStaySelection) {
-          return sameStaySelection;
+          displayHotels.push(sameStaySelection);
+          previousSelectedHotel = sameStaySelection;
+          return;
         }
       }
 
-      return sortedStayHotels[0];
+      const selected = sortedStayHotels[0];
+      if (selected) {
+        displayHotels.push(selected);
+        previousSelectedHotel = selected;
+      }
     });
 
     return displayHotels.sort((a, b) => {
@@ -1356,6 +1838,155 @@ export const HotelList: React.FC<HotelListProps> = ({
     }
   };
 
+  const openConfirmDialogForAction = (action: Omit<PendingHotelAction, "multiNightPreview">) => {
+    const groupType = toNumber(action.groupType ?? activeGroupType, 1);
+    const manualRoomMealMismatchWarning = findManualRoomMealMismatchWarning(
+      action.room,
+      groupType,
+    );
+
+    setPendingHotelAction({
+      ...action,
+      multiNightPreview: null,
+      manualRoomMealMismatchWarning,
+    });
+    setShowConfirmDialog(true);
+  };
+
+  const buildSelectionUpdates = (
+    normalizedRoom: HotelRoomDetail,
+    groupType: number,
+    resolvedHotelId: number,
+    multiNightPreview?: StayExtensionPreviewResponse | null,
+  ): Record<number, HotelSelectionUpdate | null> => {
+    const provider = String((normalizedRoom as any).provider || 'tbo')
+      .trim()
+      .toLowerCase();
+
+    const hotelCode = String(
+      (normalizedRoom as any).hotelCode ||
+        (normalizedRoom as any).hotelId ||
+        resolvedHotelId ||
+        '',
+    ).trim();
+
+    const bookingCode = String(
+      (normalizedRoom as any).bookingCode ||
+        (normalizedRoom as any).searchReference ||
+        '',
+    ).trim();
+
+    const roomType = String(
+      (normalizedRoom as any).roomTypeName ||
+        (normalizedRoom as any).roomType ||
+        'Standard',
+    ).trim();
+
+    const getNextDateOnly = (date: string): string => {
+      const raw = String(date || '').trim();
+      if (!raw) return '';
+
+      const parsed = new Date(`${raw}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) return '';
+
+      parsed.setUTCDate(parsed.getUTCDate() + 1);
+      return parsed.toISOString().slice(0, 10);
+    };
+
+    const fallbackRouteId = toNumber(
+      (normalizedRoom as any).itineraryRouteId ||
+        (normalizedRoom as any).routeId,
+      0,
+    );
+
+    const fallbackCheckInDate = String(
+      (normalizedRoom as any).checkInDate ||
+        (normalizedRoom as any).date ||
+        '',
+    ).trim();
+
+    const fallbackCheckOutDate =
+      String((normalizedRoom as any).checkOutDate || '').trim() ||
+      getNextDateOnly(fallbackCheckInDate);
+
+    const fallbackAmount = toMoneyNumber(
+      (normalizedRoom as any).totalAmountAfterTax ??
+        (normalizedRoom as any).totalAmount ??
+        getHotelDisplayAmount(normalizedRoom),
+    );
+
+    const baseSelection: HotelSelectionUpdate = {
+      provider,
+      hotelCode,
+      bookingCode,
+      roomType,
+      netAmount: fallbackAmount,
+      hotelName: String((normalizedRoom as any).hotelName || '').trim(),
+      checkInDate: fallbackCheckInDate,
+      checkOutDate: fallbackCheckOutDate,
+      groupType,
+      mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
+      searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
+      roomId: String((normalizedRoom as any).roomId || '').trim() || undefined,
+      rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+    };
+
+    const previewRouteIds =
+      Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 1
+        ? multiNightPreview.routeIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        : [];
+
+    if (multiNightPreview && previewRouteIds.length > 1) {
+      const parentRouteId = previewRouteIds[0];
+      const nightlyRates = Array.isArray(multiNightPreview.nightlyRates)
+        ? multiNightPreview.nightlyRates
+        : [];
+
+      const totalAmountAfterTax = toMoneyNumber(
+        multiNightPreview.totalAmountAfterTax ??
+          nightlyRates.reduce(
+            (sum: number, night: any) =>
+              sum + toMoneyNumber(night?.amountAfterTax ?? night?.baseAmount ?? 0),
+            0,
+          ) ??
+          fallbackAmount,
+      );
+
+      const updates: Record<number, HotelSelectionUpdate | null> = {
+        [parentRouteId]: {
+          ...baseSelection,
+          checkInDate: String(multiNightPreview.checkInDate || fallbackCheckInDate).trim(),
+          checkOutDate: String(multiNightPreview.checkOutDate || fallbackCheckOutDate).trim(),
+          netAmount: totalAmountAfterTax,
+          totalAmountAfterTax,
+          multiNightBooking: true,
+          stayKey: multiNightPreview.stayKey,
+          routeIds: previewRouteIds,
+          nights: Number(multiNightPreview.nights || previewRouteIds.length),
+          nightlyRates,
+        },
+      };
+
+      previewRouteIds.forEach((routeId) => {
+        if (routeId !== parentRouteId) {
+          updates[routeId] = null;
+        }
+      });
+
+      return updates;
+    }
+
+    if (!fallbackRouteId) {
+      return {};
+    }
+
+    return {
+      [fallbackRouteId]: baseSelection,
+    };
+  };
+
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
   const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
     console.log('ðŸ¨ Choose button clicked', room);
@@ -1403,22 +2034,87 @@ export const HotelList: React.FC<HotelListProps> = ({
     const isReplacing = Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
     const routeDate = currentHotel?.day || "";
 
-    // Show confirmation dialog
-    setPendingHotelAction({
+    const pendingActionBase = {
       room: normalizedRoom,
       isReplacing,
       previousHotelName: currentHotel?.hotelName || "",
       newHotelName: normalizedRoom.hotelName || "",
       routeDate,
-      groupType: normalizedRoom.groupType ? Number(normalizedRoom.groupType) : undefined, // âœ… Use hotel's ORIGINAL groupType from TBO (maintains correct tier classification)
-    });
-    setShowConfirmDialog(true);
+      groupType: normalizedRoom.groupType ? Number(normalizedRoom.groupType) : undefined,
+    };
+
+    const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
+    if (provider === "staah" || provider === "axisrooms") {
+      try {
+        const preview = await ItineraryService.previewHotelStayExtension(planId, {
+          routeId: resolvedRouteId,
+          provider: provider as "staah" | "axisrooms",
+          hotelCode: String((normalizedRoom as any).hotelCode || resolvedHotelId || "").trim(),
+          hotelName: String((normalizedRoom as any).hotelName || "").trim() || undefined,
+          roomId: String((normalizedRoom as any).roomId || "").trim() || undefined,
+          rateId: String((normalizedRoom as any).rateId || "").trim() || undefined,
+          roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || "").trim() || undefined,
+          mealPlan: String((normalizedRoom as any).mealPlan || "").trim() || undefined,
+          checkInDate: String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || "").trim(),
+        });
+
+        if (preview?.nights > 1) {
+          if (!preview.canBookMultiNight && !preview.canBookSingleNight) {
+            const message =
+              preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
+              || "Hotel cannot be booked on the selected day.";
+            toast.error(message);
+            return;
+          }
+          setStayExtensionModalState({
+            preview,
+            action: pendingActionBase,
+          });
+          return;
+        }
+
+        if (!preview.canBookSingleNight) {
+          const message =
+            preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
+            || "Hotel cannot be booked on the selected day.";
+          toast.error(message);
+          return;
+        }
+      } catch (previewError) {
+        console.warn("[HotelList] stay-extension-preview failed, falling back to single-day selection", previewError);
+        toast.warning("Could not verify continuous stay. Continuing with single-day booking.");
+      }
+    }
+
+    openConfirmDialogForAction(pendingActionBase);
   };
 
   const handleConfirmHotelSelection = async () => {
     if (!pendingHotelAction) return;
 
     const { room, isReplacing } = pendingHotelAction;
+    const multiNightPreview = pendingHotelAction.multiNightPreview && !pendingHotelAction.multiNightPreview.blocked
+      && pendingHotelAction.multiNightPreview.canBookMultiNight
+      ? pendingHotelAction.multiNightPreview
+      : null;
+
+    if (
+      pendingHotelAction.multiNightPreview
+      && !multiNightPreview
+      && !pendingHotelAction.multiNightPreview.canBookSingleNight
+    ) {
+      setShowConfirmDialog(false);
+      setPendingHotelAction(null);
+      const message =
+        pendingHotelAction.multiNightPreview.restrictionConflicts
+          ?.map((conflict: any) => conflict.message)
+          .join(" | ")
+        || "Hotel cannot be booked on the selected day.";
+      toast.error(
+        message,
+      );
+      return;
+    }
 
     // Validate required fields
     const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
@@ -1460,6 +2156,61 @@ export const HotelList: React.FC<HotelListProps> = ({
       // âœ… Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
+      const selectionRouteIds = Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 0
+        ? multiNightPreview.routeIds
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id) && id > 0)
+        : [routeId];
+
+      const getNextDate = (date: string) => {
+        if (!date) return "";
+        const parsed = new Date(`${date}T00:00:00.000Z`);
+        if (Number.isNaN(parsed.getTime())) return "";
+        parsed.setUTCDate(parsed.getUTCDate() + 1);
+        return parsed.toISOString().slice(0, 10);
+      };
+
+      const buildRouteScopedHotel = (
+        baseHotel: any,
+        selectedRouteId: number,
+        index: number,
+      ): ItineraryHotelRow => {
+        const routeHotel = localHotels.find(
+          (hotel) =>
+            toNumber((hotel as any).itineraryRouteId, 0) === Number(selectedRouteId) &&
+            toNumber((hotel as any).groupType, groupType) === Number(groupType),
+        );
+
+        const nightlyRate = multiNightPreview?.nightlyRates?.[index];
+        const nightDate =
+          nightlyRate?.date ||
+          routeHotel?.date ||
+          String((baseHotel as any).date || (baseHotel as any).checkInDate || "").trim();
+
+        const nightAmount =
+          nightlyRate?.amountAfterTax !== undefined && nightlyRate?.amountAfterTax !== null
+            ? Number(nightlyRate.amountAfterTax)
+            : Number((baseHotel as any).totalHotelCost || (baseHotel as any).totalAmount || 0);
+
+        return {
+          ...baseHotel,
+          itineraryRouteId: Number(selectedRouteId),
+          routeId: Number(selectedRouteId),
+          day: routeHotel?.day || (baseHotel as any).day,
+          date: nightDate,
+          checkInDate: nightDate,
+          checkOutDate: getNextDate(nightDate),
+          totalHotelCost: nightAmount,
+          totalAmount: nightAmount,
+          netAmount: nightAmount,
+          multiNightBooking: Boolean(multiNightPreview && multiNightPreview.nights > 1),
+          stayKey: multiNightPreview?.stayKey,
+          routeIds: multiNightPreview?.routeIds,
+          nights: multiNightPreview?.nights,
+          nightlyRates: multiNightPreview?.nightlyRates,
+          totalAmountAfterTax: multiNightPreview?.totalAmountAfterTax,
+        } as any;
+      };
       
       // Find the full hotel row from localHotels
       const selectedProvider = String((room as any).provider || '').trim().toLowerCase();
@@ -1511,67 +2262,121 @@ export const HotelList: React.FC<HotelListProps> = ({
         } as any;
         console.warn('âš ï¸ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
         // Re-use the normal flow with the fallback
-        const fallbackStayKey = getStayKey(fallbackHotel);
+        const routeScopedFallbackSelections = selectionRouteIds.map((selectedRouteId, index) =>
+          buildRouteScopedHotel(fallbackHotel, Number(selectedRouteId), index),
+        );
+
+        const fallbackIdentityKey = [
+          String((fallbackHotel as any).hotelName || '').trim().toLowerCase(),
+          String((fallbackHotel as any).provider || '').trim().toLowerCase(),
+        ].join('|');
+
+        setSelectedRoomTypeByHotel((prev) => ({
+          ...prev,
+          [fallbackIdentityKey]: getHotelOptionKey(fallbackHotel),
+        }));
+
         setSelectedByGroup(prev => {
           const next = { ...prev };
           if (!next[groupType]) next[groupType] = {};
-          next[groupType][fallbackStayKey] = fallbackHotel;
+          routeScopedFallbackSelections.forEach((routeHotel) => {
+            const routeStayKey = getStayKey(routeHotel);
+            next[groupType][routeStayKey] = routeHotel;
+          });
           return next;
         });
-        setUserSelectedByStay(prev => ({ ...prev, [fallbackStayKey]: fallbackHotel }));
+        setUserSelectedByStay(prev => {
+          const next = { ...prev };
+          routeScopedFallbackSelections.forEach((routeHotel) => {
+            const routeStayKey = getStayKey(routeHotel);
+            next[routeStayKey] = routeHotel;
+          });
+          return next;
+        });
         setUnsavedSelections(prev => {
           const newMap = new Map(prev);
-          newMap.set(`${routeId}-${groupType}`, normalizedRoom);
+          selectionRouteIds.forEach((selectedRouteId) => {
+            newMap.set(`${selectedRouteId}-${groupType}`, {
+              ...normalizedRoom,
+              itineraryRouteId: selectedRouteId,
+              checkInDate: multiNightPreview?.checkInDate || (normalizedRoom as any).checkInDate,
+              checkOutDate: multiNightPreview?.checkOutDate || (normalizedRoom as any).checkOutDate,
+            });
+          });
           return newMap;
         });
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
         if (onHotelSelectionsChange) {
-          const checkInDate = String((normalizedRoom as any).checkInDate || '').trim();
-          const checkOutDate = String((normalizedRoom as any).checkOutDate || '').trim() || (checkInDate
-            ? new Date(new Date(checkInDate).getTime() + 86400000).toISOString().split('T')[0]
-            : '');
-          onHotelSelectionsChange({
-            [routeId]: {
-              provider: String((normalizedRoom as any).provider || 'tbo').toLowerCase(),
-              hotelCode: (normalizedRoom as any).hotelCode || String(resolvedHotelId || ''),
-              bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
-              roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-              netAmount: toMoneyNumber(getHotelDisplayAmount(normalizedRoom)),
-              hotelName: (normalizedRoom as any).hotelName || '',
-              checkInDate,
-              checkOutDate,
-              groupType,
-            },
-          });
+          const updates = buildSelectionUpdates(
+            normalizedRoom,
+            groupType,
+            resolvedHotelId,
+            multiNightPreview,
+          );
+
+          if (pendingHotelAction.manualRoomMealMismatchWarning?.enabled) {
+            Object.values(updates).forEach((update) => {
+              if (update) {
+                update.manualRoomMealMismatchOverride = true;
+              }
+            });
+          }
+
+          onHotelSelectionsChange(updates);
         }
         toast.success('Hotel selected');
         return;
       }
-      
-      const stayKey = getStayKey(selectedHotel);
 
-      // Update selectedByGroup[groupType][stayKey]
-      setSelectedByGroup(prev => {
-        const newSelected = { ...prev };
-        if (!newSelected[groupType]) {
-          newSelected[groupType] = {};
+      const routeScopedSelections = selectionRouteIds.map((selectedRouteId, index) =>
+        buildRouteScopedHotel(selectedHotel, Number(selectedRouteId), index),
+      );
+
+      const selectedIdentityKey = [
+        String((selectedHotel as any).hotelName || '').trim().toLowerCase(),
+        String((selectedHotel as any).provider || '').trim().toLowerCase(),
+      ].join('|');
+
+      setSelectedRoomTypeByHotel((prev) => ({
+        ...prev,
+        [selectedIdentityKey]: getHotelOptionKey(selectedHotel),
+      }));
+
+      setSelectedByGroup((prev) => {
+        const next = { ...prev };
+        if (!next[groupType]) {
+          next[groupType] = {};
         }
-        newSelected[groupType][stayKey] = selectedHotel;
-        return newSelected;
+
+        routeScopedSelections.forEach((routeHotel) => {
+          const routeStayKey = getStayKey(routeHotel);
+          next[groupType][routeStayKey] = routeHotel;
+        });
+
+        return next;
       });
 
-      // Pin this stay selection across all recommendation tabs.
-      setUserSelectedByStay((prev) => ({
-        ...prev,
-        [stayKey]: selectedHotel,
-      }));
+      setUserSelectedByStay((prev) => {
+        const next = { ...prev };
+        routeScopedSelections.forEach((routeHotel) => {
+          const routeStayKey = getStayKey(routeHotel);
+          next[routeStayKey] = routeHotel;
+        });
+        return next;
+      });
       
       // Mark as unsaved selection for backend save
-      const selectionKey = `${routeId}-${groupType}`;
       setUnsavedSelections(prev => {
         const newMap = new Map(prev);
-        newMap.set(selectionKey, normalizedRoom);
+        selectionRouteIds.forEach((selectedRouteId) => {
+          newMap.set(`${selectedRouteId}-${groupType}`, {
+            ...normalizedRoom,
+            itineraryRouteId: selectedRouteId,
+            checkInDate: multiNightPreview?.checkInDate || (normalizedRoom as any).checkInDate,
+            checkOutDate: multiNightPreview?.checkOutDate || (normalizedRoom as any).checkOutDate,
+          });
+        });
         return newMap;
       });
       
@@ -1580,23 +2385,22 @@ export const HotelList: React.FC<HotelListProps> = ({
 
       // Emit only this explicit route selection to parent to avoid bulk overwrite of other days.
       if (onHotelSelectionsChange) {
-        const checkInDate = String((normalizedRoom as any).checkInDate || (normalizedRoom as any).date || '').trim();
-        const checkOutDate = String((normalizedRoom as any).checkOutDate || '').trim() || (checkInDate
-          ? new Date(new Date(checkInDate).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-          : '');
-        onHotelSelectionsChange({
-          [routeId]: {
-            provider: (normalizedRoom as any).provider || 'tbo',
-            hotelCode: (normalizedRoom as any).hotelCode || String((normalizedRoom as any).hotelId || ''),
-            bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
-            roomType: (normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || 'Standard',
-            netAmount: toMoneyNumber(getHotelDisplayAmount(normalizedRoom)),
-            hotelName: (normalizedRoom as any).hotelName || '',
-            checkInDate,
-            checkOutDate,
-            groupType,
-          },
-        });
+        const updates = buildSelectionUpdates(
+          normalizedRoom,
+          groupType,
+          resolvedHotelId,
+          multiNightPreview,
+        );
+
+        if (pendingHotelAction.manualRoomMealMismatchWarning?.enabled) {
+          Object.values(updates).forEach((update) => {
+            if (update) {
+              update.manualRoomMealMismatchOverride = true;
+            }
+          });
+        }
+
+        onHotelSelectionsChange(updates);
       }
       
       // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
@@ -2176,12 +2980,65 @@ export const HotelList: React.FC<HotelListProps> = ({
                                   return sortOptionsByPrice(options)[0];
                                 };
 
-                                // One card per hotel; the active rate option is tracked in selectedRoomTypeByHotel
+                                const getPreviousSelectedHotelForStay = (hotel: any): ItineraryHotelRow | null => {
+                                  const currentRouteId = toNumber(
+                                    hotel?.itineraryRouteId ||
+                                      hotel?.routeId ||
+                                      getExpandedRouteId(),
+                                    0,
+                                  );
+
+                                  const currentDate = String(
+                                    hotel?.date ||
+                                      hotel?.checkInDate ||
+                                      '',
+                                  ).trim();
+
+                                  return currentHotelRows
+                                    .filter((row: any) => {
+                                      const rowRouteId = toNumber(row.itineraryRouteId || row.routeId, 0);
+                                      const rowDate = String(row.date || row.checkInDate || '').trim();
+
+                                      if (!rowRouteId || rowRouteId === currentRouteId) {
+                                        return false;
+                                      }
+
+                                      if (currentDate && rowDate && rowDate >= currentDate) {
+                                        return false;
+                                      }
+
+                                      return isSelectableHotel(row);
+                                    })
+                                    .sort((a: any, b: any) => getStaySortValue(b).localeCompare(getStaySortValue(a)))[0] || null;
+                                };
+
+                                // One card per hotel; selected stay must win over old dropdown/manual state.
                                 const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
                                   const manualKey = selectedRoomTypeByHotel[identKey];
+
+                                  const selectedOption =
+                                    selectedOptionKey !== ''
+                                      ? options.find((o) => getHotelOptionKey(o) === selectedOptionKey)
+                                      : undefined;
+
+                                  const manualOption =
+                                    manualKey
+                                      ? options.find((o) => getHotelOptionKey(o) === manualKey)
+                                      : undefined;
+
+                                  const previousSelectedHotelForThisCard = getPreviousSelectedHotelForStay(options[0]);
+
+                                  const fairSelectableOption = previousSelectedHotelForThisCard
+                                    ? options.find((option) =>
+                                        isSelectableHotel(option) &&
+                                        isSameHotelIdentity(option, previousSelectedHotelForThisCard) &&
+                                        isSameRoomMealIdentity(option, previousSelectedHotelForThisCard))
+                                    : undefined;
+
                                   const active =
-                                    options.find((o) => getHotelOptionKey(o) === manualKey) ||
-                                    options.find((o) => selectedOptionKey !== '' && getHotelOptionKey(o) === selectedOptionKey) ||
+                                    selectedOption ||
+                                    manualOption ||
+                                    fairSelectableOption ||
                                     findBestOption(options) ||
                                     options[0];
                                   return { identKey, active, options };
@@ -2192,6 +3049,12 @@ export const HotelList: React.FC<HotelListProps> = ({
                                 const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
                                 const isSelectable = isSelectableHotel(hotel);
                                 const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
+                                const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
+                                const roomMealMismatchMessage = getAutoSkipRoomMealMismatchMessage(
+                                  hotel,
+                                  selectedForStay,
+                                  previousSelectedHotelForCard,
+                                );
                                 const selectedHotelAmount = getSelectedHotelAmount(selectedForStay);
                                 const currentHotelAmount = getHotelDisplayAmount(hotel);
                                 const selectableRoomTypeOptions = roomTypeOptions.filter((option) => isSelectableHotel(option));
@@ -2366,9 +3229,9 @@ export const HotelList: React.FC<HotelListProps> = ({
                                         </div>
                                       )}
                                     </div>
-                                  </div>
+                                    </div>
 
-                                  <div className="p-4 flex-1 flex flex-col">{/* Check-in/Check-out times */}
+                                  <div className="p-4 flex-1 flex flex-col">
                                     <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b">
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
@@ -2468,6 +3331,25 @@ export const HotelList: React.FC<HotelListProps> = ({
                                       )}
                                     </div>
 
+                                    {actionMessage && (
+                                      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                                        <p className="text-xs font-semibold text-amber-900">
+                                          Restricted for this stay
+                                        </p>
+                                        <p className="mt-1 text-xs leading-5 text-amber-800">
+                                          {actionMessage}
+                                        </p>
+                                      </div>
+                                    )}
+
+                                    {!actionMessage && roomMealMismatchMessage && (
+                                      <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
+                                        <p className="text-xs leading-5 text-blue-800">
+                                          {roomMealMismatchMessage}
+                                        </p>
+                                      </div>
+                                    )}
+
                                     {hasSupplementData && (
                                       <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2">
                                         <p className="text-xs font-medium text-amber-800">Supplements</p>
@@ -2520,13 +3402,6 @@ export const HotelList: React.FC<HotelListProps> = ({
                                             </span>
                                           ))}
                                         </div>
-                                      </div>
-                                    )}
-
-                                    {!isSelectable && actionMessage && (
-                                      <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                                        <p className="text-xs font-semibold text-amber-900">Restricted for this stay</p>
-                                        <p className="mt-1 text-xs leading-5 text-amber-800">{actionMessage}</p>
                                       </div>
                                     )}
 
@@ -2638,6 +3513,114 @@ export const HotelList: React.FC<HotelListProps> = ({
 
       </CardContent>
 
+      <Dialog
+        open={Boolean(stayExtensionModalState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setStayExtensionModalState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {stayExtensionModalState?.preview.blocked ? "Cannot book continuous stay" : "Book continuous stay?"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-left">
+              {stayExtensionModalState && (
+                <div className="space-y-3 text-sm text-slate-700">
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      {stayExtensionModalState.preview.hotelName || stayExtensionModalState.action.newHotelName}
+                    </div>
+                    <div>
+                      {formatDisplayDate(stayExtensionModalState.preview.checkInDate)} to{" "}
+                      {formatDisplayDate(stayExtensionModalState.preview.checkOutDate)}
+                    </div>
+                    <div>{stayExtensionModalState.preview.nights} night(s)</div>
+                  </div>
+
+                  <div>
+                    <div>Room: {stayExtensionModalState.preview.roomType || stayExtensionModalState.action.room.roomType || "-"}</div>
+                    <div>Meal Plan: {stayExtensionModalState.preview.mealPlan || (stayExtensionModalState.action.room as any).mealPlan || "-"}</div>
+                    {stayExtensionModalState.preview.totalAmountAfterTax > 0 && (
+                      <div>Total: {formatCurrency(stayExtensionModalState.preview.totalAmountAfterTax)}</div>
+                    )}
+                  </div>
+
+                  {stayExtensionModalState.preview.nightlyRates.length > 0 && (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                      {stayExtensionModalState.preview.nightlyRates.map((night) => (
+                        <div key={night.date} className="flex items-center justify-between text-xs">
+                          <span>{formatDisplayDate(night.date)}</span>
+                          <span>{formatCurrency(night.amountAfterTax)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {stayExtensionModalState.preview.restrictionConflicts.length > 0 && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                      {stayExtensionModalState.preview.restrictionConflicts.map((conflict, index) => (
+                        <div key={`${conflict.type}-${conflict.date || index}`}>- {conflict.message}</div>
+                      ))}
+                    </div>
+                  )}
+
+                  {stayExtensionModalState.preview.warnings.length > 0 && (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+                      {stayExtensionModalState.preview.warnings.map((warning, index) => (
+                        <div key={`${warning.type}-${index}`}>- {warning.message}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!Boolean(stayExtensionModalState?.preview.canBookSingleNight)}
+              onClick={() => {
+                const action = stayExtensionModalState?.action;
+                if (!action) return;
+                setStayExtensionModalState(null);
+                openConfirmDialogForAction(action);
+              }}
+            >
+              Book Only This Day
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStayExtensionModalState(null)}
+            >
+              Cancel
+            </Button>
+            {stayExtensionModalState?.preview.canBookMultiNight && !stayExtensionModalState.preview.blocked && (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (!stayExtensionModalState) return;
+                  setStayExtensionModalState(null);
+                  setPendingHotelAction({
+                    ...stayExtensionModalState.action,
+                    multiNightPreview: stayExtensionModalState.preview,
+                  });
+                  setShowConfirmDialog(true);
+                }}
+              >
+                {stayExtensionModalState.preview.nights
+                  ? `Book ${stayExtensionModalState.preview.nights} Nights`
+                  : "Book Stay"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="sm:max-w-md">
@@ -2648,12 +3631,21 @@ export const HotelList: React.FC<HotelListProps> = ({
               </div>
             </div>
             <DialogTitle className="text-center">
-              {pendingHotelAction?.isReplacing
+              {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
+                ? `Confirm ${pendingHotelAction.multiNightPreview.nights}-Night Hotel Booking?`
+                : pendingHotelAction?.isReplacing
                 ? `Confirm Hotel Modification for ${pendingHotelAction?.routeDate}?`
                 : "Confirm Hotel Update"}
             </DialogTitle>
             <DialogDescription className="text-center pt-2">
-              {pendingHotelAction?.isReplacing ? (
+              {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1 ? (
+                <>
+                  Confirm booking <strong>{pendingHotelAction?.newHotelName}</strong> from{" "}
+                  <strong>{formatDisplayDate(pendingHotelAction?.multiNightPreview?.checkInDate)}</strong> to{" "}
+                  <strong>{formatDisplayDate(pendingHotelAction?.multiNightPreview?.checkOutDate)}</strong> for{" "}
+                  <strong>{pendingHotelAction?.multiNightPreview?.nights} nights</strong>?
+                </>
+              ) : pendingHotelAction?.isReplacing ? (
                 <>
                   Are you sure you want to modify the hotel from{" "}
                   <strong>{pendingHotelAction?.previousHotelName}</strong> to{" "}
@@ -2662,6 +3654,16 @@ export const HotelList: React.FC<HotelListProps> = ({
                 </>
               ) : (
                 <>Are you sure you want to update the hotel details?</>
+              )}
+
+              {pendingHotelAction?.manualRoomMealMismatchWarning?.enabled && (
+                <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-800">
+                  <div className="mb-1 font-semibold">Room / meal plan mismatch warning</div>
+                  <div>{pendingHotelAction.manualRoomMealMismatchWarning.message}</div>
+                  <div className="mt-2 font-semibold">
+                    Continue only if you want.
+                  </div>
+                </div>
               )}
             </DialogDescription>
           </DialogHeader>
