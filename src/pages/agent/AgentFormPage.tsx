@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { AgentAPI } from "@/services/agentService";
 import { GST_TYPE_OPTIONS, GST_PERCENTAGE_OPTIONS, NATIONALITY_OPTIONS, STATE_OPTIONS } from "@/types/agent";
-import type { Agent, AgentStaff, WalletTransaction, AgentSubscription, AgentConfig } from "@/types/agent";
+import type { Agent, AgentStaff, WalletTransaction, AgentSubscription } from "@/types/agent";
 
 const TABS = ["Basic Info", "Staff", "Wallet", "Configuration"] as const;
 
@@ -33,12 +33,26 @@ export default function AgentFormPage() {
   const [cashHistory, setCashHistory] = useState<WalletTransaction[]>([]);
   const [couponHistory, setCouponHistory] = useState<WalletTransaction[]>([]);
   const [subscriptions, setSubscriptions] = useState<AgentSubscription[]>([]);
-  const [config, setConfig] = useState<AgentConfig | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [walletModalOpen, setWalletModalOpen] = useState(false);
   const [walletType, setWalletType] = useState<"cash" | "coupon">("cash");
-  const [walletAmount, setWalletAmount] = useState("");
-  const [walletRemark, setWalletRemark] = useState("");
+ const [walletAmount, setWalletAmount] = useState("");
+const [walletRemark, setWalletRemark] = useState("");
+
+const [configForm, setConfigForm] = useState({
+  itineraryDiscountMargin: "",
+  serviceCharge: "",
+  agentMarginGstType: "",
+  agentMarginGstPercentage: "",
+  companyName: "",
+  address: "",
+  termsAndCondition: "",
+  gstinNumber: "",
+  panNo: "",
+  invoiceAddress: "",
+});
+
+const [password, setPassword] = useState("");
 
   useEffect(() => {
     // Guard: don’t call APIs with NaN
@@ -51,24 +65,43 @@ export default function AgentFormPage() {
     (async () => {
       try {
         setLoading(true);
-        const [a, s, ch, cph, sub, cfg] = await Promise.all([
-          AgentAPI.get(validAgentId),
-          // ✅ correct signature: object with agentId
-          AgentAPI.getStaff({ agentId: validAgentId }).catch(() => [] as AgentStaff[]),
-          AgentAPI.getCashWalletHistory?.(validAgentId).catch?.(() => [] as WalletTransaction[]) ?? Promise.resolve([]),
-          AgentAPI.getCouponWalletHistory?.(validAgentId).catch?.(() => [] as WalletTransaction[]) ?? Promise.resolve([]),
-          AgentAPI.getSubscriptions?.(validAgentId).catch?.(() => [] as AgentSubscription[]) ?? Promise.resolve([]),
-          AgentAPI.getConfig?.(validAgentId).catch?.(() => null as AgentConfig | null) ?? Promise.resolve(null),
-        ]);
+       const [a, s, ch, cph, sub, cfg] = await Promise.all([
+  AgentAPI.get(validAgentId),
+  AgentAPI.getStaff({ agentId: validAgentId }).catch(() => [] as AgentStaff[]),
+  AgentAPI.getCashWalletHistory
+    ? AgentAPI.getCashWalletHistory(validAgentId).catch(() => [] as WalletTransaction[])
+    : Promise.resolve([] as WalletTransaction[]),
+  AgentAPI.getCouponWalletHistory
+    ? AgentAPI.getCouponWalletHistory(validAgentId).catch(() => [] as WalletTransaction[])
+    : Promise.resolve([] as WalletTransaction[]),
+  AgentAPI.getSubscriptions
+    ? AgentAPI.getSubscriptions(validAgentId).catch(() => [] as AgentSubscription[])
+    : Promise.resolve([] as AgentSubscription[]),
+  AgentAPI.getConfig
+    ? AgentAPI.getConfig(validAgentId).catch(() => null)
+    : Promise.resolve(null),
+] as const);
 
         if (!alive) return;
 
-        setAgent(a);
-        setStaff(s || []);
-        setCashHistory(ch || []);
-        setCouponHistory(cph || []);
-        setSubscriptions(sub || []);
-        setConfig(cfg);
+   setAgent(a as Agent);
+setStaff((s || []) as AgentStaff[]);
+setCashHistory((ch || []) as WalletTransaction[]);
+setCouponHistory((cph || []) as WalletTransaction[]);
+setSubscriptions((sub || []) as AgentSubscription[]);
+
+setConfigForm({
+  itineraryDiscountMargin: String((cfg as any)?.itineraryDiscountMargin ?? ""),
+  serviceCharge: String((cfg as any)?.serviceCharge ?? ""),
+  agentMarginGstType: String((cfg as any)?.agentMarginGstType ?? ""),
+  agentMarginGstPercentage: String((cfg as any)?.agentMarginGstPercentage ?? ""),
+  companyName: String((cfg as any)?.companyName ?? ""),
+  address: String((cfg as any)?.address ?? ""),
+  termsAndCondition: String((cfg as any)?.termsAndCondition ?? ""),
+  gstinNumber: String((cfg as any)?.gstinNumber ?? ""),
+  panNo: String((cfg as any)?.panNo ?? ""),
+  invoiceAddress: String((cfg as any)?.invoiceAddress ?? ""),
+});
       } catch {
         if (alive) toast.error("Failed to load agent");
       } finally {
@@ -80,7 +113,45 @@ export default function AgentFormPage() {
       alive = false;
     };
   }, [validAgentId]);
+const handleConfigSubmit = async () => {
+  if (!validAgentId) return;
 
+  if (password && password.length < 6) {
+    toast.error("Password must be at least 6 characters");
+    return;
+  }
+
+  try {
+    const payload: any = {
+      itineraryDiscountMargin: Number(configForm.itineraryDiscountMargin || 0),
+      serviceCharge: Number(configForm.serviceCharge || 0),
+      agentMarginGstType: configForm.agentMarginGstType,
+      agentMarginGstPercentage: configForm.agentMarginGstPercentage,
+      companyName: configForm.companyName,
+      address: configForm.address,
+      termsAndCondition: configForm.termsAndCondition,
+      gstinNumber: configForm.gstinNumber,
+      panNo: configForm.panNo,
+      invoiceAddress: configForm.invoiceAddress,
+    };
+
+    if (password.trim()) {
+      payload.password = password.trim();
+    }
+
+    if ((AgentAPI as any).updateConfig) {
+      await (AgentAPI as any).updateConfig(validAgentId, payload);
+    } else if ((AgentAPI as any).update) {
+      await (AgentAPI as any).update(validAgentId, payload);
+    }
+
+    toast.success("Agent configuration updated successfully");
+    setPassword("");
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to update configuration");
+  }
+};
   const handleWalletSubmit = async () => {
     if (!validAgentId || !walletAmount) return;
     try {
@@ -417,125 +488,275 @@ export default function AgentFormPage() {
           </>
         )}
 
-        {activeTab === 3 && config && (
-          <>
-            <h2 className="text-lg font-semibold text-pink-600 mb-4">Basic Info</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div>
-                <Label>Itinerary Discount Margin Percentage *</Label>
-                <Input type="number" value={config.itineraryDiscountMargin} readOnly />
-              </div>
-              <div>
-                <Label>Service Charge *</Label>
-                <Input type="number" value={config.serviceCharge} readOnly />
-              </div>
-              <div>
-                <Label>Agent Margin GST Type *</Label>
-                <Select value={config.agentMarginGstType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GST_TYPE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Agent Margin GST Percentage *</Label>
-                <Select value={config.agentMarginGstPercentage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GST_PERCENTAGE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+   {activeTab === 3 && (
+  <>
+    <h2 className="text-lg font-semibold text-pink-600 mb-4">Basic Info</h2>
 
-            <div className="w-1/4 mb-6">
-              <Label>Password</Label>
-              <div className="relative">
-                <Input type={showPassword ? "text" : "password"} placeholder="Enter the Password" />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div>
+        <Label>Itinerary Discount Margin Percentage *</Label>
+        <Input
+          type="number"
+          value={configForm.itineraryDiscountMargin}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              itineraryDiscountMargin: e.target.value,
+            }))
+          }
+          placeholder="Enter Margin Percentage"
+        />
+      </div>
 
-            <h2 className="text-lg font-semibold text-pink-600 mb-4">General Configuration</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
-                <Label>Logo Upload</Label>
-                <div className="flex gap-2">
-                  <Input type="file" />
-                  <Button variant="link" size="sm">
-                    View
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label>Company Name</Label>
-                <Input value={config.companyName} readOnly />
-              </div>
-              <div>
-                <Label>Address</Label>
-                <Textarea value={config.address} placeholder="Enter the Address" readOnly />
-              </div>
-            </div>
+      <div>
+        <Label>Service Charge *</Label>
+        <Input
+          type="number"
+          value={configForm.serviceCharge}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              serviceCharge: e.target.value,
+            }))
+          }
+          placeholder="Enter Service Charge"
+        />
+      </div>
 
-            <div className="mb-6">
-              <Label>Terms and Condition</Label>
-              <Textarea placeholder="Enter the Terms and condition" className="min-h-[100px]" />
-            </div>
+      <div>
+        <Label>Agent Margin GST Type *</Label>
+        <Select
+          value={configForm.agentMarginGstType}
+          onValueChange={(value) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              agentMarginGstType: value,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Choose GST Type" />
+          </SelectTrigger>
+          <SelectContent>
+            {GST_TYPE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-            <h2 className="text-lg font-semibold text-pink-600 mb-4">Invoice Setting</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label>Invoice Logo Upload</Label>
-                <div className="flex gap-2">
-                  <Input type="file" />
-                  <Button variant="link" size="sm">
-                    View
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label>GSTIN Number</Label>
-                <Input placeholder="GSTIN Number" />
-                <p className="text-xs text-gray-400 mt-1">GSTIN Format: 10AABCU9603R1Z5</p>
-              </div>
-              <div>
-                <Label>Pan No</Label>
-                <Input placeholder="PAN Number" />
-              </div>
-              <div>
-                <Label>Invoice Address</Label>
-                <Textarea placeholder="Enter the Address" />
-              </div>
-            </div>
-          </>
+      <div>
+        <Label>Agent Margin GST Percentage *</Label>
+        <Select
+          value={configForm.agentMarginGstPercentage}
+          onValueChange={(value) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              agentMarginGstPercentage: value,
+            }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Choose GST Percentage" />
+          </SelectTrigger>
+          <SelectContent>
+            {GST_PERCENTAGE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+
+<div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+  <div>
+    <Label>Password</Label>
+    <div className="relative">
+      <Input
+        type={showPassword ? "text" : "password"}
+        placeholder="Enter Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <button
+        type="button"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+        onClick={() => setShowPassword(!showPassword)}
+      >
+        {showPassword ? (
+          <EyeOff className="h-4 w-4" />
+        ) : (
+          <Eye className="h-4 w-4" />
         )}
+      </button>
+    </div>
+  </div>
+</div>
 
+    <h2 className="text-lg font-semibold text-pink-600 mb-4">
+      General Configuration
+    </h2>
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div>
+        <Label>Logo Upload</Label>
+        <div className="flex gap-2">
+          <Input type="file" />
+          <Button variant="link" size="sm">
+            View
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <Label>Company Name</Label>
+        <Input
+          value={configForm.companyName}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              companyName: e.target.value,
+            }))
+          }
+          placeholder="Enter Company Name"
+        />
+      </div>
+
+      <div>
+        <Label>Address</Label>
+        <Textarea
+          value={configForm.address}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              address: e.target.value,
+            }))
+          }
+          placeholder="Enter the Address"
+        />
+      </div>
+    </div>
+
+  <div className="mb-8">
+  <Label>Terms and Condition</Label>
+
+  <div className="mt-2 rounded-md border border-gray-200 bg-white">
+    <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-3 py-2 text-sm text-gray-700">
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+        B
+      </Button>
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 italic">
+        I
+      </Button>
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2 underline">
+        U
+      </Button>
+      <span className="h-6 border-l border-gray-300" />
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+        • List
+      </Button>
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+        1. List
+      </Button>
+      <span className="h-6 border-l border-gray-300" />
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+        Link
+      </Button>
+      <Button type="button" variant="ghost" size="sm" className="h-8 px-2">
+        Source
+      </Button>
+    </div>
+
+    <Textarea
+      value={configForm.termsAndCondition}
+      onChange={(e) =>
+        setConfigForm((prev) => ({
+          ...prev,
+          termsAndCondition: e.target.value,
+        }))
+      }
+      placeholder="Enter the Terms and condition"
+      className="min-h-[120px] resize-none border-0 focus-visible:ring-0"
+    />
+  </div>
+</div>
+
+    <h2 className="text-lg font-semibold text-pink-600 mb-4">
+      Invoice Setting
+    </h2>
+
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div>
+        <Label>Invoice Logo Upload</Label>
+        <div className="flex gap-2">
+          <Input type="file" />
+          <Button variant="link" size="sm">
+            View
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <Label>GSTIN Number</Label>
+        <Input
+          value={configForm.gstinNumber}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              gstinNumber: e.target.value,
+            }))
+          }
+          placeholder="GSTIN Number"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          GSTIN Format: 10AABCU9603R1Z5
+        </p>
+      </div>
+
+      <div>
+        <Label>Pan No</Label>
+        <Input
+          value={configForm.panNo}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              panNo: e.target.value,
+            }))
+          }
+          placeholder="PAN Number"
+        />
+      </div>
+
+      <div>
+        <Label>Invoice Address</Label>
+        <Textarea
+          value={configForm.invoiceAddress}
+          onChange={(e) =>
+            setConfigForm((prev) => ({
+              ...prev,
+              invoiceAddress: e.target.value,
+            }))
+          }
+          placeholder="Enter the Address"
+        />
+      </div>
+    </div>
+  </>
+)}
         <div className="flex justify-between mt-6 pt-4 border-t">
           <Button variant="secondary" onClick={() => navigate("/agent")}>
             Back
           </Button>
-          <Button className="bg-gradient-to-r from-primary to-pink-500">
-            {activeTab === 3 ? "Submit" : "Update"}
-          </Button>
+        <Button
+  className="bg-gradient-to-r from-primary to-pink-500"
+  onClick={activeTab === 3 ? handleConfigSubmit : undefined}
+>
+  {activeTab === 3 ? "Submit" : "Update"}
+</Button>
         </div>
       </div>
 
