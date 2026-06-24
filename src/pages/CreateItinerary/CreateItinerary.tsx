@@ -25,7 +25,7 @@ import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
 import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
 import { ViaRouteDialog } from "./ViaRouteDialog";
-import { DefaultRoutesSuggestions } from "@/components/DefaultRoutesSuggestions";
+import { DefaultRoutesSuggestions, RouteData } from "@/components/DefaultRoutesSuggestions";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
@@ -481,8 +481,9 @@ export const CreateItinerary = () => {
 
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
-    useState(false);
-  const defaultRouteWarningShownRef = useRef(false);
+  useState(false);
+const defaultRouteWarningShownRef = useRef(false);
+
 
   const saveProgressTimerRef = useRef<number | null>(null);
 
@@ -497,6 +498,8 @@ export const CreateItinerary = () => {
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
+const [suggestedDefaultRoutes, setSuggestedDefaultRoutes] = useState<RouteData[]>([]);
+const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
   useEffect(() => {
     if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
       setAgentId(loggedInAgentId);
@@ -1525,6 +1528,84 @@ const continueToRouteConfirmation = () => {
     setShowRouteConfirm(false);
   };
 
+const isDefaultItineraryTypeSelected = () => {
+  const selectedType = itineraryTypes.find(
+    (t) => String(t.id) === String(itineraryTypeSelect)
+  );
+
+  return String(selectedType?.label || "").trim().toLowerCase() === "default";
+};
+
+const normalizeSuggestedRouteDayValue = (...values: any[]) => {
+  const value = values.find(
+    (item) => item !== undefined && item !== null && String(item).trim() !== ""
+  );
+
+  return value ?? "";
+};
+
+const buildPayloadForSuggestedRoute = (route: RouteData, basePayload: any) => {
+  const routeDays = Array.isArray((route as any)?.days)
+    ? (route as any).days
+    : [];
+
+  const routes = routeDays.map((day: any, idx: number) => {
+    const source = normalizeSuggestedRouteDayValue(
+      day.source,
+      day.sourceLocation,
+      day.location_name,
+      day.locationName
+    );
+
+    const next = normalizeSuggestedRouteDayValue(
+      day.next,
+      day.nextLocation,
+      day.next_visiting_location,
+      day.nextVisitingLocation
+    );
+
+    const via = normalizeSuggestedRouteDayValue(
+      day.via,
+      day.viaRoute,
+      day.via_route
+    );
+
+    const directVisitValue = normalizeSuggestedRouteDayValue(
+      day.directVisit,
+      day.direct_to_next_visiting_place
+    );
+
+    const directVisit =
+      directVisitValue === true ||
+      directVisitValue === 1 ||
+      String(directVisitValue).trim().toLowerCase() === "yes";
+
+    return {
+      location_name: source || "",
+      next_visiting_location: next || "",
+      itinerary_route_date: day.date ? toISOFromDDMMYYYY(day.date) : undefined,
+      no_of_days: day.dayNo || day.day || idx + 1,
+      no_of_km:
+        day.no_of_km !== undefined &&
+        day.no_of_km !== null &&
+        String(day.no_of_km).trim() !== ""
+          ? Number(day.no_of_km)
+          : 0,
+      direct_to_next_visiting_place: directVisit ? 1 : 0,
+      via_route: via || "",
+      via_routes: Array.isArray(day.via_routes) ? day.via_routes : [],
+    };
+  });
+
+  return {
+    ...basePayload,
+    plan: {
+      ...basePayload.plan,
+      itinerary_plan_id: undefined,
+    },
+    routes,
+  };
+};
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
@@ -1549,8 +1630,64 @@ const handleSaveWithType = async (
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(finalPayload, type);
-    setSaveProgressPercent(100);
+    const isDefaultItinerary = isDefaultItineraryTypeSelected();
+
+const shouldCreateAllRouteOptions =
+  !itineraryPlanId &&
+  isDefaultItinerary &&
+  Array.isArray(suggestedDefaultRoutes) &&
+  suggestedDefaultRoutes.length > 1;
+let res: any = null;
+let createdRouteOptions: Array<{ quoteId: string; label: string }> = [];
+
+if (shouldCreateAllRouteOptions) {
+  for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
+    // Route 1 (index 0): use the user-edited finalPayload directly (routeDetails from the form).
+    // Route 2+ (index > 0): build payload from the raw suggested route data.
+    const routePayload =
+      index === 0
+        ? finalPayload
+        : buildPayloadForSuggestedRoute(
+            suggestedDefaultRoutes[index],
+            finalPayload
+          );
+
+    const routeRes: any = await ItineraryService.create(routePayload, type);
+
+    const createdQuoteId =
+      routeRes?.quoteId ||
+      routeRes?.itinerary_quote_ID ||
+      routeRes?.itinerary_quote_id ||
+      routeRes?.quotationNo ||
+      "";
+
+    if (createdQuoteId) {
+      createdRouteOptions.push({
+        quoteId: String(createdQuoteId),
+        label: `Route ${index + 1}`,
+      });
+    }
+
+    if (index === 0) {
+      res = routeRes;
+    }
+  }
+
+  if (createdRouteOptions.length > 0) {
+    const routeOptionPayload = JSON.stringify(createdRouteOptions);
+
+    createdRouteOptions.forEach((option) => {
+      localStorage.setItem(
+        `itinerary-route-options:${option.quoteId}`,
+        routeOptionPayload
+      );
+    });
+  }
+} else {
+  res = await ItineraryService.create(finalPayload, type);
+}
+
+setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
     const rawPlanId =
@@ -1622,8 +1759,8 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
 
   return (
     <div className="p-4 space-y-4">
-      <ItineraryPlanBlock
-        agents={agents}
+     <ItineraryPlanBlock
+  agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
         isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
@@ -1695,11 +1832,19 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         {/* Show default routes if itinerary type is "Default" */}
         {itineraryTypeSelect && itineraryTypes.find((t) => t.id === itineraryTypeSelect)?.label === "Default" ? (
           <DefaultRoutesSuggestions
-            arrivalLocation={arrivalLocation}
-            departureLocation={departureLocation}
-            noOfDays={calculateDaysBetweenDates(tripStartDate, tripEndDate)}
-            startDate={tripStartDate}
-            endDate={tripEndDate}
+  arrivalLocation={arrivalLocation}
+  departureLocation={departureLocation}
+  noOfDays={calculateDaysBetweenDates(tripStartDate, tripEndDate)}
+  startDate={tripStartDate}
+  endDate={tripEndDate}
+  activeRouteIndex={activeDefaultRouteIndex}
+  onRoutesLoaded={(routes) => {
+    setSuggestedDefaultRoutes(routes);
+    setActiveDefaultRouteIndex(0);
+  }}
+  onRouteSelect={(route, index) => {
+    setActiveDefaultRouteIndex(index);
+  }}
             onNoRoutesFound={() => {
               const customizeType = itineraryTypes.find((t) => t.label === "Customize");
               if (customizeType) {

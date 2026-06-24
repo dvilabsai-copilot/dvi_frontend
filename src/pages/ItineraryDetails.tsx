@@ -347,10 +347,19 @@ type CostBreakdown = {
 
 // ----------------- Main API response types -----------------
 
+type ItineraryPlanRouteOption = {
+  label?: string;
+  routeName?: string;
+  quoteId?: string;
+  quotationNo?: string;
+  routeQuoteId?: string;
+};
+
 type ItineraryDetailsResponse = {
-  // planId for routing back to create-itinerary
   planId?: number;
   itineraryPreference?: number;
+  routeOptions?: ItineraryPlanRouteOption[];
+  suggestedRoutes?: ItineraryPlanRouteOption[];
   confirmed_itinerary_plan_ID?: number;
   isConfirmed?: boolean;
   quoteId: string;
@@ -628,6 +637,28 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [error, setError] = useState<string | null>(null);
   const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildStatusResponse | null>(null);
   const [isRetryingVehicleBuild, setIsRetryingVehicleBuild] = useState(false);
+  const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
+const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
+const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
+  // Eagerly hydrate from localStorage so route tabs are visible immediately on mount.
+  // The async useEffect will re-validate and update them if needed.
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(`itinerary-route-options:${quoteId}`);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [];
+    const options = parsed
+      .map((option: any, index: number) => ({
+        quoteId: String(option.quoteId || option.itinerary_quote_ID || option.itinerary_quote_id || option.quotationNo || ""),
+        label: option.label || `Route ${index + 1}`,
+      }))
+      .filter((o: any) => o.quoteId && String(o.quoteId).startsWith("DVI"));
+    return options.length > 0 ? options : [];
+  } catch {
+    return [];
+  }
+});
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -8295,6 +8326,209 @@ function getHotelAmountForBooking(entry: any): number {
     };
   }, [stopRouteTimeProgress]);
 
+
+  useEffect(() => {
+  if (!quoteId || !itinerary) return;
+
+  const loadRelatedRouteOptions = async () => {
+    try {
+      const currentPlanId =
+        Number((itinerary as any)?.planId || (itinerary as any)?.itineraryPlanId || 0);
+
+      const startDate = itinerary.days?.[0]?.date;
+      const endDate = itinerary.days?.[itinerary.days.length - 1]?.date;
+
+      const formatDate = (value?: string) => {
+        if (!value) return "";
+
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+          return value;
+        }
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+
+        const dd = String(date.getDate()).padStart(2, "0");
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const yyyy = date.getFullYear();
+
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
+const storedRouteOptionsRaw = localStorage.getItem(
+  `itinerary-route-options:${quoteId}`
+);
+
+if (storedRouteOptionsRaw) {
+  try {
+    const storedRouteOptions = JSON.parse(storedRouteOptionsRaw);
+
+    if (Array.isArray(storedRouteOptions) && storedRouteOptions.length > 0) {
+      const parsedOptions = storedRouteOptions
+        .map((option: any, index: number) => ({
+          quoteId: String(
+            option.quoteId ||
+              option.itinerary_quote_ID ||
+              option.itinerary_quote_id ||
+              option.quotationNo ||
+              ""
+          ),
+          label: option.label || `Route ${index + 1}`,
+        }))
+        .filter((option: any) => option.quoteId);
+
+      if (parsedOptions.length > 0) {
+        setLatestRouteOptions(parsedOptions);
+        return;
+      }
+    }
+  } catch (storageError) {
+    console.error("Failed to parse saved route options", storageError);
+  }
+}
+
+      const res: any = await ItineraryService.getLatest({
+        page: 1,
+        pageSize: 100,
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+      });
+
+      const rows = Array.isArray(res?.data) ? res.data : [];
+
+      const relatedRows = currentPlanId
+        ? rows.filter((row: any) => {
+            const rowPlanId = Number(
+              row?.planId ||
+                row?.plan_id ||
+                row?.itineraryPlanId ||
+                row?.itinerary_plan_id ||
+                row?.itinerary_plan_ID ||
+                0
+            );
+
+            return rowPlanId === currentPlanId;
+          })
+        : rows;
+
+      const options = relatedRows
+        .map((row: any) => {
+          const nextQuoteId =
+            row?.itinerary_quote_ID ||
+            row?.itinerary_quote_id ||
+            row?.quoteId ||
+            row?.quote_id ||
+            row?.quotationNo ||
+            row?.quotation_no ||
+            "";
+
+          return {
+            quoteId: String(nextQuoteId || ""),
+            label: "",
+          };
+        })
+        .filter((row) => row.quoteId)
+        .sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId))
+        .map((row, index) => ({
+          ...row,
+          label: `Route ${index + 1}`,
+        }));
+
+      const withCurrentQuote = [
+        {
+          quoteId: String(quoteId),
+          label: "Route 1",
+        },
+        ...options,
+      ];
+
+      const uniqueOptions = Array.from(
+        new Map(withCurrentQuote.map((option) => [option.quoteId, option])).values()
+      ).map((option, index) => ({
+        ...option,
+        label: `Route ${index + 1}`,
+      }));
+
+      setLatestRouteOptions(uniqueOptions);
+    } catch (error) {
+      console.error("Failed to load related route options", error);
+      setLatestRouteOptions([
+        {
+          quoteId: String(quoteId),
+          label: "Route 1",
+        },
+      ]);
+    }
+  };
+
+  loadRelatedRouteOptions();
+}, [quoteId, itinerary?.planId, itinerary?.days]);
+
+
+  const getQuoteNumber = (value?: string) => {
+  const match = String(value || "").match(/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+};
+const itineraryRouteOptions = useMemo(() => {
+  // NOTE: Do NOT read data?.routes or any day-route fields here.
+  // Sibling route options come exclusively from latestRouteOptions
+  // (populated from localStorage written by CreateItinerary on save).
+  // The details API does not return sibling route quote IDs.
+  return Array.from(
+    new Map(latestRouteOptions.map((option) => [option.quoteId, option])).values()
+  ).sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId));
+}, [latestRouteOptions]);
+
+console.log("🟣 Itinerary route options debug:", {
+  quoteId,
+  itinerary,
+  itineraryRouteOptions,
+});
+
+const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
+  const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
+
+  if (
+    !normalizedRouteQuoteId ||
+    normalizedRouteQuoteId === quoteId ||
+    isSwitchingRouteOption
+  ) {
+    return;
+  }
+
+  if (!normalizedRouteQuoteId.startsWith("DVI")) {
+    toast.error("Invalid route option. Route quote ID is missing.");
+    return;
+  }
+
+  try {
+    setIsSwitchingRouteOption(true);
+    setActiveRouteQuoteId(routeQuoteId);
+    setLoadingHotels(true);
+
+    const detailsRes = await ItineraryService.getDetails(routeQuoteId);
+    const details = detailsRes as ItineraryDetailsResponse;
+
+    const pref = Number(details.itineraryPreference ?? 3);
+    const useHotels = pref === 1 || pref === 3;
+
+    let hotelRes: ItineraryHotelDetailsResponse | null = null;
+    if (useHotels) {
+      hotelRes = await loadHotelDetailsForItinerary(routeQuoteId, details);
+    }
+
+    setItinerary(details);
+    setHotelDetails(hotelRes);
+    navigate(`/itinerary-details/${routeQuoteId}`, { replace: true });
+  } catch (e: any) {
+    console.error("Failed to switch itinerary route option", e);
+    toast.error(e?.message || "Failed to load selected route option");
+  } finally {
+    setLoadingHotels(false);
+    setIsSwitchingRouteOption(false);
+  }
+};
+
   const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
 
   if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
@@ -8513,8 +8747,41 @@ function getHotelAmountForBooking(entry: any): number {
               </div>
             </div>
 
-            {/* Quote Info — row 1 */}
-            <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
+            {itineraryRouteOptions.length > 0 && (
+  <div className="mb-3 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-4 py-3">
+    <div className="mb-2 text-sm font-medium text-[#4a4260]">
+      Suggested Route Options
+    </div>
+
+    <div className="flex flex-wrap gap-2">
+      {itineraryRouteOptions.map((route, index) => {
+        const isActive =
+          route.quoteId === quoteId ||
+          route.quoteId === itinerary.quoteId ||
+          route.quoteId === activeRouteQuoteId;
+
+        return (
+          <button
+            key={`${route.quoteId}-${index}`}
+            type="button"
+            disabled={isSwitchingRouteOption}
+            onClick={() => handleItineraryRouteOptionClick(route.quoteId)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isActive
+                ? "bg-pink-500 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
+          >
+            {route.label || `Route ${index + 1}`}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+)}
+
+{/* Quote Info — row 1 */}
+<div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-[#d546ab]">{itinerary.quoteId}</span>
