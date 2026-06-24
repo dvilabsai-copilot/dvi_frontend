@@ -4854,9 +4854,22 @@ const handleVehicleOnlyClipboardCopy = async (
   if (!quoteId || itineraryPreference !== 2) return;
 
   try {
+    /*
+      Vehicle Only clipboard rules:
+
+      recommended = backend recommended format
+      para        = backend para format
+      highlights  = backend base format + ONLY compact highlights hotspot table
+
+      Do NOT use buildVehicleOnlyClipboardHtml() here.
+    */
+
+    const backendMode =
+      type === "highlights" ? "recommended" : type;
+
     const response = await ItineraryService.getClipboardContent(
       quoteId,
-      type,
+      backendMode,
       [],
     );
 
@@ -4885,9 +4898,8 @@ const handleVehicleOnlyClipboardCopy = async (
         }
       });
 
-      // Fix vehicle-only wrong merged cost label:
-      // BEFORE: Total Vehicle Amount Total Vehicle Cost (1)
-      // AFTER : Total Vehicle Amount
+      // Fix wrong merged vehicle label:
+      // "Total Vehicle Amount Total Vehicle Cost (1)" -> "Total Vehicle Amount"
       doc.querySelectorAll("tr").forEach((row) => {
         const rowText = row.textContent?.replace(/\s+/g, " ").trim() || "";
 
@@ -4899,6 +4911,7 @@ const handleVehicleOnlyClipboardCopy = async (
           if (!cells.length) return;
 
           const firstCell = cells[0];
+
           const amountCell = cells.find((cell) => {
             const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
             return /₹|Rs\.?|[0-9]+,[0-9]+|\d+\.\d{2}/i.test(text);
@@ -4931,7 +4944,7 @@ const handleVehicleOnlyClipboardCopy = async (
         }
       });
 
-      // Remove tiny empty cells that Outlook shows like square boxes.
+      // Remove tiny empty cells that Outlook shows as square boxes.
       doc.querySelectorAll("td, th").forEach((cell) => {
         const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
         const hasContentElement =
@@ -4953,18 +4966,66 @@ const handleVehicleOnlyClipboardCopy = async (
       ? cleanVehicleOnlyB2BHtml(backendHtml)
       : backendPlainText;
 
-    // IMPORTANT:
-    // Vehicle Only -> Copy to Highlights must use the same compact highlights
-    // hotspot table used by normal B2B Highlights copy.
-    // This changes only Hotspot Details section, not the full recommended/para format.
-    if (type === "highlights" && html) {
-      html = replaceHighlightsHotspotDetailsHtml(
-        html,
-        buildHighlightsHotspotDetailsHtml(),
+    /*
+      VERY IMPORTANT:
+      Only Copy to Highlights should replace Hotspot Details.
+      This removes paragraph/travel/full-description hotspot content
+      and inserts the compact highlight table:
+      Day 1...
+      Hotspot Name - Duration, Hotspot Name - Duration
+    */
+  if (type === "highlights" && html) {
+  html = replaceHighlightsHotspotDetailsHtml(
+    html,
+    buildHighlightsHotspotDetailsHtml(),
+  );
+
+  const moveHighlightSignatureBelow = (rawHtml: string): string => {
+    if (!rawHtml) return rawHtml;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, "text/html");
+
+    const signatureCell = Array.from(doc.querySelectorAll("td, th")).find((cell) => {
+      const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+      return (
+        /Nisha/i.test(text) &&
+        /Sales Support/i.test(text) &&
+        /Mobile/i.test(text)
       );
+    });
+
+    if (!signatureCell) {
+      return doc.body.innerHTML;
     }
 
-    const plainText = html ? htmlToPlainText(html) : backendPlainText;
+    const signatureHtml = signatureCell.innerHTML;
+
+    const parentRow = signatureCell.closest("tr");
+    const rowCells = parentRow ? Array.from(parentRow.querySelectorAll(":scope > td, :scope > th")) : [];
+
+    // If signature is in right-side column, remove that right column.
+    if (parentRow && rowCells.length > 1) {
+      signatureCell.remove();
+    }
+
+    const signatureWrapper = doc.createElement("div");
+    signatureWrapper.innerHTML = `
+      <div style="margin-top:18px;font-family:Arial,sans-serif;font-size:12px;line-height:1.35;color:#003366;">
+        ${signatureHtml}
+      </div>
+    `;
+
+    doc.body.appendChild(signatureWrapper);
+
+    return doc.body.innerHTML;
+  };
+
+  html = moveHighlightSignatureBelow(html);
+}
+
+const plainText = html ? htmlToPlainText(html) : backendPlainText;
 
     if (!html && !plainText) {
       toast.error("Failed to prepare clipboard content");
