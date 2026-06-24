@@ -4033,6 +4033,8 @@ const overallTripCostWithHotels = useMemo(() => {
   };
  const getVehicleAmountNumber = (vehicle: any): number => {
   const raw =
+    vehicle?.grandTotal ??
+    vehicle?.vehicleGrandTotal ??
     vehicle?.totalAmount ??
     vehicle?.total_amount ??
     vehicle?.TotalAmount ??

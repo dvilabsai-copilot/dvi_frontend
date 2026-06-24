@@ -98,6 +98,8 @@ export interface ItineraryVehicleRow {
   totalDays?: number;
   totalCostOfVehicle?: number;
   totalPickupKm?: number;
+  totalTravelKm?: number;
+  totalSightseeingKm?: number;
   totalPickupDuration?: string;
   totalDropKm?: number;
   totalDropDuration?: string;
@@ -336,21 +338,26 @@ const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; date
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
-  // Respect explicit user selection persisted at DB level.
-  const assigned = vehicles.find((v) => v.isAssigned && v.vendorEligibleId);
-  if (assigned?.vendorEligibleId) {
-    return assigned.vendorEligibleId;
-  }
+  // Always auto-select the lowest displayed amount for each vehicle type.
+  // Do not trust a stale DB assignment for first paint selection.
+  const cheapest = vehicles.reduce((prev, curr) => {
+    const prevAmount = resolveVehicleDisplayAmount(prev);
+    const currAmount = resolveVehicleDisplayAmount(curr);
 
-  // Always pick the lowest quote as default selection.
-const cheapest = vehicles.reduce((prev, curr) => {
-  const prevAmount = resolveVehicleDisplayAmount(prev);
-  const currAmount = resolveVehicleDisplayAmount(curr);
+    if (currAmount < prevAmount) return curr;
 
-  return currAmount < prevAmount ? curr : prev;
-});
+    // Stable tie-breaker to avoid visual jumping on equal amounts.
+    if (currAmount === prevAmount) {
+      return Number(curr.vendorEligibleId || 0) < Number(prev.vendorEligibleId || 0)
+        ? curr
+        : prev;
+    }
 
-  return cheapest.vendorEligibleId ?? null;
+    return prev;
+  }, vehicles[0]);
+
+  const preferredId = Number(cheapest.vendorEligibleId || 0);
+  return preferredId > 0 ? preferredId : null;
 };
 
 
@@ -710,11 +717,21 @@ const totalRows = [
  useEffect(() => {
   const preferredId = getPreferredVendorEligibleId(vehicles);
 
-  if (preferredId !== null && preferredId !== selectedVendorEligibleId) {
-    console.log(`[${vehicleTypeLabel}] Auto-selecting cheapest vendor:`, preferredId, 'from vehicles:', vehicles.map(v => ({ id: v.vendorEligibleId, amount: v.totalAmount })));
+  if (preferredId !== null && Number(preferredId) !== Number(selectedVendorEligibleId || 0)) {
+    console.log(
+      `[${vehicleTypeLabel}] Auto-selecting lowest amount vendor:`,
+      preferredId,
+      vehicles.map((v) => ({
+        id: v.vendorEligibleId,
+        totalAmount: v.totalAmount,
+        grandTotal: v.grandTotal,
+        displayAmount: resolveVehicleDisplayAmount(v),
+        isAssigned: v.isAssigned,
+      })),
+    );
     setSelectedVendorEligibleId(preferredId);
   }
-}, [vehicles, vehicleTypeLabel]);
+}, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
 
 
 
@@ -881,7 +898,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
                         checked={
                           selectedVendorEligibleId != null
-                            ? selectedVendorEligibleId === v.vendorEligibleId
+                            ? Number(selectedVendorEligibleId) === Number(v.vendorEligibleId || 0)
                             : index === 0
                         }
                         onChange={() => handleRadioChange(v, index)}
