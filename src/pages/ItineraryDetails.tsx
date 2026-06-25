@@ -6968,7 +6968,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     }
 
     return parts.length > 0 ? parts.join(' ') : '0 Min';
-  };
+  }
 
   const handlePreviewActivity = async (activityId: number) => {
     if (!addActivityModal.planId || !addActivityModal.routeId ||
@@ -7166,24 +7166,58 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     }));
 
     try {
-      const options = await ItineraryService.getGuideAssignmentOptions(
-        planId,
-        assignment?.routeGuideId,
-      ) as GuideModalOptions;
+  const options = await ItineraryService.getGuideAssignmentOptions(
+  planId,
+  assignment?.routeGuideId,
+) as GuideModalOptions;
 
-      const existing = options?.assignment ?? assignment ?? null;
-      setGuideModal((prev) => ({
-        ...prev,
-        loading: false,
-        options: {
-          languages: Array.isArray(options?.languages) ? options.languages : [],
-          slots: Array.isArray(options?.slots) ? options.slots : [],
-          assignment: existing,
-        },
-        routeGuideId: existing?.routeGuideId ?? prev.routeGuideId,
-        guideLanguage: existing?.guideLanguageIds?.[0] ? String(existing.guideLanguageIds[0]) : prev.guideLanguage,
-        guideSlots: existing?.guideSlotIds?.length ? existing.guideSlotIds : prev.guideSlots,
-      }));
+const apiAssignment = options?.assignment ?? null;
+const localAssignment = assignment ?? null;
+
+/*
+  Important:
+  For full-itinerary guide, the row may already have updated slots in frontend state.
+  API options can still return old guideSlotIds, so prefer local assignment slots first.
+*/
+const existing = localAssignment ?? apiAssignment ?? null;
+
+const localGuideSlotIds = Array.isArray(localAssignment?.guideSlotIds)
+  ? localAssignment.guideSlotIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+  : [];
+
+const apiGuideSlotIds = Array.isArray(apiAssignment?.guideSlotIds)
+  ? apiAssignment.guideSlotIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+  : [];
+
+const localLanguageId = Number(localAssignment?.guideLanguageIds?.[0] || 0);
+const apiLanguageId = Number(apiAssignment?.guideLanguageIds?.[0] || 0);
+
+setGuideModal((prev) => {
+  const resolvedGuideSlotIds =
+    localGuideSlotIds.length > 0
+      ? localGuideSlotIds
+      : apiGuideSlotIds.length > 0
+        ? apiGuideSlotIds
+        : prev.guideSlots;
+
+  return {
+    ...prev,
+    loading: false,
+    options: {
+      languages: Array.isArray(options?.languages) ? options.languages : [],
+      slots: Array.isArray(options?.slots) ? options.slots : [],
+      assignment: existing,
+    },
+    routeGuideId: existing?.routeGuideId ?? prev.routeGuideId,
+    guideLanguage:
+      localLanguageId > 0
+        ? String(localLanguageId)
+        : apiLanguageId > 0
+          ? String(apiLanguageId)
+          : prev.guideLanguage,
+    guideSlots: resolvedGuideSlotIds,
+  };
+});
     } catch (e: any) {
       console.error("Failed to load guide modal options", e);
       setGuideModal((prev) => ({ ...prev, loading: false, open: false }));
@@ -7204,50 +7238,176 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     void openGuideModal(null, existing, 1);
   };
 
-  const handleSaveGuideAssignment = async () => {
-    const planId = Number(guideModal.planId || 0);
-    const day = guideModal.day;
-    const guideLanguage = Number(guideModal.guideLanguage || 0);
-    const isWholeItineraryGuide = Number(guideModal.guideType || 0) === 1;
+const handleSaveGuideAssignment = async () => {
+  const planId = Number(guideModal.planId || 0);
+  const day = guideModal.day;
+  const guideLanguage = Number(guideModal.guideLanguage || 0);
+  const selectedGuideSlots = [...guideModal.guideSlots];
+  const isWholeItineraryGuide = Number(guideModal.guideType || 0) === 1;
 
-    if (!(planId > 0) || (!isWholeItineraryGuide && !day)) {
-      toast.error("Guide form is incomplete");
-      return;
-    }
-    if (!(guideLanguage > 0)) {
-      toast.error("Guide language is required");
-      return;
-    }
-    if (!isWholeItineraryGuide && guideModal.guideSlots.length === 0) {
-      toast.error("Guide slot is required");
-      return;
-    }
+  const firstDay =
+    itinerary?.days?.find((item) => Number(item.dayNumber || 0) === 1) ||
+    itinerary?.days?.[0] ||
+    null;
 
-    try {
-      setGuideModal((prev) => ({ ...prev, saving: true }));
-      await ItineraryService.saveGuideAssignment(planId, {
-        routeGuideId: guideModal.routeGuideId ?? undefined,
-        routeId: isWholeItineraryGuide ? undefined : day?.id,
-        routeDate: isWholeItineraryGuide ? undefined : day?.date,
-        guideType: guideModal.guideType,
-        guideLanguage,
-        guideSlots: isWholeItineraryGuide ? undefined : guideModal.guideSlots,
-      });
+  if (!(planId > 0) || (!isWholeItineraryGuide && !day)) {
+    toast.error("Guide form is incomplete");
+    return;
+  }
 
-      await refreshGuideData();
-      setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
-      toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
-    } catch (e: any) {
-      console.error("Failed to save guide assignment", e);
-      setGuideModal((prev) => ({ ...prev, saving: false }));
-      const rawMessage = String(e?.message || "");
-      if (rawMessage.includes("guide_not_available")) {
-        toast.error("Sorry, Guide Cost Not Available. So Unable to Add");
-        return;
-      }
-      toast.error(rawMessage || "Failed to save guide");
-    }
+  if (!(guideLanguage > 0)) {
+    toast.error("Guide language is required");
+    return;
+  }
+
+  if (selectedGuideSlots.length === 0) {
+    toast.error("Guide slot is required");
+    return;
+  }
+
+  try {
+    setGuideModal((prev) => ({ ...prev, saving: true }));
+
+    const savedGuide = await ItineraryService.saveGuideAssignment(planId, {
+      routeGuideId: guideModal.routeGuideId ?? undefined,
+      routeId: isWholeItineraryGuide ? firstDay?.id : day?.id,
+      routeDate: isWholeItineraryGuide ? firstDay?.date : day?.date,
+      guideType: guideModal.guideType,
+      guideLanguage,
+      guideSlots: selectedGuideSlots,
+    }) as any;
+
+ await refreshGuideData();
+
+let refreshedGuideAssignment: ItineraryGuideAssignment | null = null;
+
+try {
+  const refreshedOptions = await ItineraryService.getGuideAssignmentOptions(
+    planId,
+    Number(savedGuide?.routeGuideId || savedGuide?.route_guide_id || guideModal.routeGuideId || 0) || undefined,
+  ) as GuideModalOptions;
+
+  refreshedGuideAssignment = refreshedOptions?.assignment ?? null;
+} catch (costRefreshError) {
+  console.warn("Failed to refresh guide cost after save", costRefreshError);
+}
+
+const selectedLanguageLabel =
+  guideModal.options.languages.find((item) => Number(item.id) === guideLanguage)?.label ||
+  refreshedGuideAssignment?.guideLanguageLabels?.[0] ||
+  guideModal.options.assignment?.guideLanguageLabels?.[0] ||
+  "English";
+
+const selectedSlotLabels = guideModal.options.slots
+  .filter((slot) => selectedGuideSlots.map(Number).includes(Number(slot.id)))
+  .map((slot) => slot.label);
+
+let oldGuideCostForHeader = 0;
+let newGuideCostForHeader = 0;
+
+setGuideAssignments((prev) => {
+  const existingIndex = prev.findIndex((assignment) => (
+    guideModal.routeGuideId
+      ? Number(assignment.routeGuideId || 0) === Number(guideModal.routeGuideId)
+      : Number(assignment.guideType || 0) === Number(guideModal.guideType || 0) &&
+        (
+          isWholeItineraryGuide ||
+          Number(assignment.routeId || 0) === Number(day?.id || 0)
+        )
+  ));
+
+  if (existingIndex < 0) {
+    return prev;
+  }
+
+  const next = [...prev];
+  const existing = next[existingIndex];
+
+  const backendGuideCost = Number(
+    savedGuide?.guideCost ??
+    savedGuide?.guide_cost ??
+    refreshedGuideAssignment?.guideCost ??
+    (refreshedGuideAssignment as any)?.guide_cost ??
+    0
+  );
+
+  const oldGuideCost = Number(existing.guideCost || 0);
+  const oldSlotCount = Math.max(
+    Array.isArray(existing.guideSlotIds) ? existing.guideSlotIds.length : 0,
+    1
+  );
+  const newSlotCount = Math.max(selectedGuideSlots.length, 1);
+
+  /*
+    Backend is currently returning the old guide cost for full-itinerary guide.
+    So if backend cost is missing or same as old cost, calculate price by slot count.
+    Example: ₹21600 / 3 slots = ₹7200 per slot.
+    4 slots => ₹28800.
+  */
+  const fallbackGuideCost = Number(((oldGuideCost / oldSlotCount) * newSlotCount).toFixed(2));
+
+  const updatedGuideCost =
+    backendGuideCost > 0 && Math.abs(backendGuideCost - oldGuideCost) > 0.01
+      ? backendGuideCost
+      : fallbackGuideCost;
+
+  oldGuideCostForHeader = oldGuideCost;
+  newGuideCostForHeader = updatedGuideCost;
+
+  next[existingIndex] = {
+    ...existing,
+    routeGuideId: Number(savedGuide?.routeGuideId || savedGuide?.route_guide_id || existing.routeGuideId || guideModal.routeGuideId || 0),
+    guideLanguage: selectedLanguageLabel,
+    guideLanguageIds: [guideLanguage],
+    guideLanguageLabels: [selectedLanguageLabel],
+    guideSlotIds: selectedGuideSlots.map(Number),
+    guideSlotLabels: selectedSlotLabels,
+    guideSlot: selectedSlotLabels.join(", "),
+    guideCost: updatedGuideCost,
   };
+
+  return next;
+});
+
+if (oldGuideCostForHeader !== newGuideCostForHeader) {
+  const guideCostDiff = Number((newGuideCostForHeader - oldGuideCostForHeader).toFixed(2));
+
+  setItinerary((prev) => {
+    if (!prev) return prev;
+
+    const currentTotalGuideCost = Number(prev.costBreakdown?.totalGuideCost || 0);
+    const currentTotalAmount = Number(prev.costBreakdown?.totalAmount || 0);
+    const currentNetPayable = Number(prev.costBreakdown?.netPayable || prev.overallCost || 0);
+    const currentOverallCost = Number(prev.overallCost || 0);
+
+    return {
+      ...prev,
+      overallCost: Number((currentOverallCost + guideCostDiff).toFixed(2)),
+      costBreakdown: {
+        ...prev.costBreakdown,
+        totalGuideCost: Number((currentTotalGuideCost + guideCostDiff).toFixed(2)),
+        totalAmount: Number((currentTotalAmount + guideCostDiff).toFixed(2)),
+        netPayable: Number((currentNetPayable + guideCostDiff).toFixed(2)),
+      },
+    };
+  });
+}
+
+    setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
+    toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
+  } catch (e: any) {
+    console.error("Failed to save guide assignment", e);
+    setGuideModal((prev) => ({ ...prev, saving: false }));
+    const rawMessage = String(e?.message || "");
+
+    if (rawMessage.includes("guide_not_available")) {
+      toast.error("Sorry, Guide Cost Not Available. So Unable to Add");
+      return;
+    }
+
+    toast.error(rawMessage || "Failed to save guide");
+  }
+};
 
   const handleDeleteGuideAssignment = async () => {
     const assignment = deleteGuideModal.assignment;
@@ -9568,99 +9728,31 @@ if (policy.requiresPreviousDayBillingConfirmation) {
         </Card>
       </div>
 
-      {/* Daily Itinerary */}
-      <div className="lg:pr-20">
-      {(() => {
-        const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
-        const wholeItineraryGuideAssignment =
-          guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
-
-        return (
-          <>
-            {isWholeItineraryGuideMode && (
-              <div className="mb-4 rounded-lg border border-[#e5d9f2] bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-[#4a4260]">Whole Itinerary Guide</p>
-                    <p className="mt-1 text-sm text-[#6c6c6c]">
-                      Assign one guide for the full itinerary.
-                    </p>
-                  </div>
-                  {!readOnly && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-                      onClick={handleWholeItineraryGuideClick}
-                    >
-                      {wholeItineraryGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
-                      {wholeItineraryGuideAssignment ? "Edit Guide" : "Add Guide"}
-                    </Button>
-                  )}
-                </div>
-
-                {wholeItineraryGuideAssignment && (
-                  <div className="mt-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#4a4260]">
-                        Guide
-                        {wholeItineraryGuideAssignment.guideLanguageLabels.length > 0 && (
-                          <>
-                            {" "}
-                            Language - <span className="text-[#d546ab]">{wholeItineraryGuideAssignment.guideLanguageLabels.join(", ")}</span>
-                          </>
-                        )}
-                      </p>
-                      {wholeItineraryGuideAssignment.guideSlotLabels.length > 0 && (
-                        <p className="mt-1 text-sm text-[#6c6c6c]">
-                          Slot Timing -{" "}
-                          <span className="font-medium text-[#4a4260]">
-                            {wholeItineraryGuideAssignment.guideSlotLabels.join(", ")}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="ml-4 flex items-center gap-2">
-                      <span className="text-lg font-bold text-[#d546ab]">
-                        ₹ {Number(wholeItineraryGuideAssignment.guideCost || 0).toFixed(2)}
-                      </span>
-                      {!readOnly && (
-                        <>
-                          <button
-                            type="button"
-                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
-                            onClick={() => void openGuideModal(null, wholeItineraryGuideAssignment, 1)}
-                            aria-label="Edit whole itinerary guide"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
-                            onClick={() => setDeleteGuideModal({ open: true, assignment: wholeItineraryGuideAssignment, deleting: false })}
-                            aria-label="Delete whole itinerary guide"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {displayDays.map((day) => {
+{/* Daily Itinerary */}
+<div className="lg:pr-20">
+{(() => {
+  return (
+    <>
+      {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
   );
-  const currentGuideAssignment =
-    guideAssignments.find((assignment) => (
-      Number(assignment.guideType || 0) === 2
-      && Number(assignment.routeId || 0) === Number(day.id)
-    )) ?? null;
+ const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
+
+const wholeItineraryGuideAssignment =
+  guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
+
+const dayGuideAssignment =
+  guideAssignments.find((assignment) => (
+    Number(assignment.guideType || 0) === 2
+    && Number(assignment.routeId || 0) === Number(day.id)
+  )) ?? null;
+
+const currentGuideAssignment =
+  isWholeItineraryGuideMode && Number(day.dayNumber || 0) === 1
+    ? wholeItineraryGuideAssignment
+    : dayGuideAssignment;
 
   return (
             
@@ -9826,21 +9918,25 @@ if (policy.requiresPreviousDayBillingConfirmation) {
           Add Hotspot
         </Button>
       )}
+{!readOnly && (
+  <Button
+    type="button"
+    variant="outline"
+    size="sm"
+    className="h-10 rounded-full border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+    onClick={() => {
+      if (isWholeItineraryGuideMode) {
+        handleWholeItineraryGuideClick();
+        return;
+      }
 
-      {!isWholeItineraryGuideMode && (
-        <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-            onClick={() => handleAddGuideClick(day)}
-            disabled={readOnly}
-          >
-            {currentGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
-            {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
-            </Button>
-      )}
-
+      handleAddGuideClick(day);
+    }}
+  >
+    {currentGuideAssignment ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+    {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
+  </Button>
+)}
       <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
         {intercityDistance}
       </span>
@@ -9848,7 +9944,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
 </div>
 </div>
 
-                {!isWholeItineraryGuideMode && currentGuideAssignment && (
+                {currentGuideAssignment && (
                   <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-[#4a4260]">
@@ -9875,14 +9971,20 @@ if (policy.requiresPreviousDayBillingConfirmation) {
                       </span>
                       {!readOnly && (
                         <>
-                          <button
-                            type="button"
-                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
-                            onClick={() => void openGuideModal(day, currentGuideAssignment)}
-                            aria-label="Edit guide"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
+                         <button
+  type="button"
+  className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
+  onClick={() =>
+    void openGuideModal(
+      Number(currentGuideAssignment.guideType || 0) === 1 ? null : day,
+      currentGuideAssignment,
+      Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2
+    )
+  }
+  aria-label="Edit guide"
+>
+  <Edit className="h-4 w-4" />
+</button>
                           <button
                             type="button"
                             className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
@@ -11228,10 +11330,10 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 : `Add Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`}
             </DialogTitle>
             <DialogDescription>
-              {Number(guideModal.guideType || 0) === 1
-                ? "Choose the guide language for the full itinerary. Slot coverage will follow the whole-itinerary guide setup."
-                : "Choose the guide language and slot for this itinerary day."}
-            </DialogDescription>
+  {Number(guideModal.guideType || 0) === 1
+    ? "Choose the guide language and slot for the full itinerary."
+    : "Choose the guide language and slot for this itinerary day."}
+</DialogDescription>
           </DialogHeader>
 
           {guideModal.loading ? (
@@ -11259,38 +11361,36 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 </Select>
               </div>
 
-              {Number(guideModal.guideType || 0) !== 1 && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#4a4260]">Slot</label>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {guideModal.options.slots.map((slot) => {
-                      const selected = guideModal.guideSlots.includes(slot.id);
-                      return (
-                        <button
-                          key={slot.id}
-                          type="button"
-                          className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                            selected
-                              ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
-                              : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
-                          }`}
-                          onClick={() => {
-                            setGuideModal((prev) => {
-                              const exists = prev.guideSlots.includes(slot.id);
-                              const guideSlots = exists
-                                ? prev.guideSlots.filter((item) => item !== slot.id)
-                                : [...prev.guideSlots, slot.id].sort((a, b) => a - b);
-                              return { ...prev, guideSlots };
-                            });
-                          }}
-                        >
-                          {slot.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+     <div className="space-y-2">
+  <label className="text-sm font-medium text-[#4a4260]">Slot</label>
+  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+    {guideModal.options.slots.map((slot) => {
+      const selected = guideModal.guideSlots.includes(slot.id);
+      return (
+        <button
+          key={slot.id}
+          type="button"
+          className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+            selected
+              ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
+              : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
+          }`}
+          onClick={() => {
+            setGuideModal((prev) => {
+              const exists = prev.guideSlots.includes(slot.id);
+              const guideSlots = exists
+                ? prev.guideSlots.filter((item) => item !== slot.id)
+                : [...prev.guideSlots, slot.id].sort((a, b) => a - b);
+              return { ...prev, guideSlots };
+            });
+          }}
+        >
+          {slot.label}
+        </button>
+      );
+    })}
+  </div>
+</div>
             </div>
           )}
 
