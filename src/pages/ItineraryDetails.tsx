@@ -6618,7 +6618,6 @@ const applyRouteTimePatch = async (
   startRouteTimeProgress(estimatedMs);
 
   try {
-    const previousItinerary = itinerary;
     const previousHotelDetails = hotelDetails;
 
     await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
@@ -6629,36 +6628,11 @@ const applyRouteTimePatch = async (
 
       setItinerary({
         ...nextItinerary,
-
-        // IMPORTANT:
-        // Time update must not change displayed package price.
-        overallCost: previousItinerary?.overallCost ?? nextItinerary.overallCost,
-
-        costBreakdown: {
-          ...nextItinerary.costBreakdown,
-          totalVehicleCost:
-            previousItinerary?.costBreakdown?.totalVehicleCost ??
-            nextItinerary.costBreakdown?.totalVehicleCost ??
-            null,
-          totalVehicleAmount:
-            previousItinerary?.costBreakdown?.totalVehicleAmount ??
-            nextItinerary.costBreakdown?.totalVehicleAmount ??
-            null,
-          totalHotelAmount:
-            previousItinerary?.costBreakdown?.totalHotelAmount ??
-            nextItinerary.costBreakdown?.totalHotelAmount ??
-            null,
-          totalAmount:
-            previousItinerary?.costBreakdown?.totalAmount ??
-            nextItinerary.costBreakdown?.totalAmount ??
-            null,
-          netPayable:
-            previousItinerary?.costBreakdown?.netPayable ??
-            nextItinerary.costBreakdown?.netPayable ??
-            null,
-        },
-
-        vehicles: previousItinerary?.vehicles ?? nextItinerary.vehicles,
+        // After route time / hotspot changes, details API is the source of truth.
+        // Do not preserve stale vehicle rows or stale vehicle totals.
+        vehicles: nextItinerary.vehicles,
+        costBreakdown: nextItinerary.costBreakdown,
+        overallCost: nextItinerary.overallCost,
       });
 
       // Do not reload hotel details here.
