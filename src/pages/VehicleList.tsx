@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
@@ -19,7 +19,11 @@ export interface DayWisePricingItem {
   route: string; // "Chennai → Mahabalipuram"
   travelType?: string;
   timeLimitId?: number;
+  chargeableTimeLimitId?: number;
   slabTitle?: string;
+  chargeableSlabTitle?: string;
+  originalSlabTitle?: string;
+  slabUpgraded?: boolean;
   slabHoursLimit?: number;
   slabKmLimit?: number;
   pickupKms: number;
@@ -104,6 +108,8 @@ export interface ItineraryVehicleRow {
   totalDropKm?: number;
   totalDropDuration?: string;
   totalUsedKm?: number;
+  localUsedKm?: number;
+  outstationUsedKm?: number;
   totalAllowedLocalKm?: number;
   totalAllowedOutstationKm?: number;
   totalAllowedKm?: number;
@@ -117,6 +123,10 @@ export interface ItineraryVehicleRow {
     label?: string;
   }>;
   extraKms?: number;
+  localExtraKms?: number;
+  localExtraKmCharge?: number;
+  outstationExtraKms?: number;
+  outstationExtraKmCharge?: number;
   extraKmRate?: number;
   extraKmCharge?: number;
   extraHourCount?: number;
@@ -244,6 +254,7 @@ const formatTotalTime = (day: DayWisePricingItem): string => {
     (
       Number(day.pickupDurationMinutes ?? 0) +
       Number(day.travelDurationMinutes ?? 0) +
+      Number(day.sightseeingDurationMinutes ?? 0) +
       Number(day.dropDurationMinutes ?? 0)
     );
 
@@ -306,7 +317,13 @@ const getRentalCellLines = (day: DayWisePricingItem): string[] => {
 };
 
 const getVisibleDayTotal = (day: DayWisePricingItem): number =>
-  Math.max(0, toNumber(day.totalCharges) - toNumber(day.extraKmCharges));
+  Math.max(0, toNumber(day.totalCharges));
+
+const readVehicleLocalExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.localExtraKmCharge);
+
+const readVehicleOutstationExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.outstationExtraKmCharge);
 
 const getVehicleRentalSummaryText = (vehicle: ItineraryVehicleRow): string =>
   vehicleHasUnavailableOutstationRate(vehicle)
@@ -314,7 +331,7 @@ const getVehicleRentalSummaryText = (vehicle: ItineraryVehicleRow): string =>
     : formatCurrencyINR(vehicle.rentalCharges);
 
 const getSlabDisplayText = (day: DayWisePricingItem): string => {
-  const slabTitle = String(day.slabTitle || "-").trim();
+  const slabTitle = String(day.chargeableSlabTitle || day.slabTitle || "-").trim();
 
   if (!slabTitle || slabTitle === "-") {
     return "-";
@@ -510,7 +527,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               <div style="font-weight:600;">${escapeHtml(dayPart || String(dp.dayLabel || ''))}</div>
               ${datePart ? `<div style="font-weight:500;">${escapeHtml(datePart)}</div>` : ''}
               <div style="font-weight:600;">Time: ${escapeHtml(formatTotalTime(dp))}</div>
-              <div style="font-weight:600;">${escapeHtml(dp.slabTitle || '-')}</div>
+              <div style="font-weight:600;">${escapeHtml(dp.chargeableSlabTitle || dp.slabTitle || '-')}</div>
             </td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;">${escapeHtml(dp.route)}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;line-height:1.2;white-space:nowrap;">
@@ -522,8 +539,21 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">${splitDurationLines(formatMinutesDuration(dp.travelDurationMinutes)).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">
+              <div>${Number(dp.totalKms ?? 0).toFixed(2)} KM</div>
+              ${String(dp.travelType || "").toLowerCase() === "local" ? `
+                <div style="margin-top:4px;font-size:11px;color:#6b7280;line-height:1.25;text-align:left;">
+                  <div>Actual Usage: ${escapeHtml(formatTotalTime(dp))} / ${Number(dp.totalKms ?? 0).toFixed(2)} KM</div>
+                  <div>Chargeable Package: ${Number(dp.slabHoursLimit ?? 0)} HRS / ${Number(dp.slabKmLimit ?? 0)} KM</div>
+                  ${dp.slabUpgraded && String(dp.originalSlabTitle || "").trim() ? `<div>Upgraded from ${escapeHtml(String(dp.originalSlabTitle || "").trim())}</div>` : ""}
+                </div>
+              ` : ""}
+            </td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${
+              String(dp.travelType || "").toLowerCase() === "local"
+                ? `<div>Local Usage Charge</div><div>${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</div>`
+                : getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")
+            }</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
@@ -542,6 +572,18 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         ["Parking Charges", formatCurrencyINR(vehicle.parkingCharges)],
         ["Driver Charges", formatCurrencyINR(vehicle.driverCharges)],
         ["Permit Charges", formatCurrencyINR(vehicle.permitCharges)],
+        (readVehicleLocalExtraKmCharge(vehicle) > 0)
+          ? [
+              "Local Extra KM Charges",
+              formatCurrencyINR(readVehicleLocalExtraKmCharge(vehicle)),
+            ]
+          : null,
+        (readVehicleOutstationExtraKmCharge(vehicle) > 0)
+          ? [
+              "Outstation Extra KM Charges",
+              formatCurrencyINR(readVehicleOutstationExtraKmCharge(vehicle)),
+            ]
+          : null,
         (readVehicleExtraHourCharge(vehicle) > 0)
           ? [
               `Extra Hour Charges (Rs ${Number(vehicle.extraHourRate ?? 0).toFixed(0)} * ${Number(vehicle.extraHourCount ?? 0).toFixed(0)} hrs)`,
@@ -577,7 +619,13 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         (vehicle.totalDropKm ?? 0) > 0
           ? ["Total Drop Duration", vehicle.totalDropDuration || "-"]
           : null,
-        ["TOTAL USED KM", Number(vehicle.totalUsedKm ?? 0).toFixed(0)],
+        (vehicle.localUsedKm ?? 0) > 0
+          ? ["LOCAL USED KM", formatKm(vehicle.localUsedKm)]
+          : null,
+        (vehicle.outstationUsedKm ?? 0) > 0
+          ? ["OUTSTATION USED KM", formatKm(vehicle.outstationUsedKm)]
+          : null,
+        ["TOTAL USED KM", formatKm(vehicle.totalUsedKm)],
         ...getAllowedKmSummaryRows(vehicle),
         (vehicle.extraKms ?? 0) > 0
           ? [
@@ -585,8 +633,27 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               `${Number(vehicle.extraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(readVehicleExtraKmCharge(vehicle))}`,
             ]
           : null,
-      ]
-        .filter(Boolean)
+      ];
+
+      const visibleDistanceRows = [
+        ...distanceRows.filter(
+          (row) => Array.isArray(row) && (row as string[])[0] !== "TOTAL EXTRA KM",
+        ),
+        ...(vehicle.localExtraKms ?? 0) > 0
+          ? [[
+              "LOCAL EXTRA KM",
+              `${Number(vehicle.localExtraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.localExtraKmCharge)}`,
+            ] as string[]]
+          : [],
+        ...(vehicle.outstationExtraKms ?? 0) > 0
+          ? [[
+              "OUTSTATION EXTRA KM",
+              `${Number(vehicle.outstationExtraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.outstationExtraKmCharge)}`,
+            ] as string[]]
+          : [],
+      ];
+
+      const distanceRowsHtml = visibleDistanceRows
         .map(
           (row) => `
           <tr>
@@ -677,7 +744,7 @@ const totalRows = [
             <thead>
               <tr style="background:#e9dff5;"><th colspan="2" style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-size:20px;font-weight:700;color:#334155;">Distance Summary</th></tr>
             </thead>
-            <tbody>${distanceRows}</tbody>
+            <tbody>${distanceRowsHtml}</tbody>
           </table>
 
           <div style="height:12px;"></div>
@@ -1125,11 +1192,36 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                           <div key={lineIndex}>{line}</div>
                                         ))}
                                       </td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">
+                                        {Number(dp.totalKms ?? 0).toFixed(2)} KM
+
+                                        {String(dp.travelType || "").toLowerCase() === "local" && (
+                                          <div className="mt-1 text-[11px] text-gray-500 leading-tight text-left">
+                                            <div>
+                                              Actual Usage: {formatTotalTime(dp)} / {Number(dp.totalKms ?? 0).toFixed(2)} KM
+                                            </div>
+                                            <div>
+                                              Chargeable Package: {Number(dp.slabHoursLimit ?? 0)} HRS / {Number(dp.slabKmLimit ?? 0)} KM
+                                            </div>
+                                            {dp.slabUpgraded && String(dp.originalSlabTitle || "").trim() && (
+                                              <div>
+                                                Upgraded from {String(dp.originalSlabTitle || "").trim()}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap leading-tight">
-                                        {getRentalCellLines(dp).map((line, lineIndex) => (
-                                          <div key={lineIndex}>{line}</div>
-                                        ))}
+                                        {String(dp.travelType || "").toLowerCase() === "local" ? (
+                                          <>
+                                            <div>Local Usage Charge</div>
+                                            <div>{formatCurrencyINR(dp.rentalCharges)}</div>
+                                          </>
+                                        ) : (
+                                          getRentalCellLines(dp).map((line, lineIndex) => (
+                                            <div key={lineIndex}>{line}</div>
+                                          ))
+                                        )}
                                       </td>
                                       <td
                                         className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap cursor-help"
@@ -1174,6 +1266,18 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     { label: 'Parking Charges', value: formatCurrencyINR(v.parkingCharges) },
                                     { label: 'Driver Charges', value: formatCurrencyINR(v.driverCharges) },
                                     { label: 'Permit Charges', value: formatCurrencyINR(v.permitCharges) },
+                                    ...(readVehicleLocalExtraKmCharge(v) > 0
+                                      ? [{
+                                          label: 'Local Extra KM Charges',
+                                          value: formatCurrencyINR(readVehicleLocalExtraKmCharge(v)),
+                                        }]
+                                      : []),
+                                    ...(readVehicleOutstationExtraKmCharge(v) > 0
+                                      ? [{
+                                          label: 'Outstation Extra KM Charges',
+                                          value: formatCurrencyINR(readVehicleOutstationExtraKmCharge(v)),
+                                        }]
+                                      : []),
                                     ...(readVehicleExtraHourCharge(v) > 0
                                       ? [{
                                           label: `Extra Hour Charges (Rs ${Number(v.extraHourRate ?? 0).toFixed(0)} * ${Number(v.extraHourCount ?? 0).toFixed(0)} hrs)`,
@@ -1230,9 +1334,21 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       </tr>
                                     </>
                                   )}
+                                  {(v.localUsedKm ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">LOCAL USED KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.localUsedKm)}</td>
+                                    </tr>
+                                  )}
+                                  {(v.outstationUsedKm ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">OUTSTATION USED KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.outstationUsedKm)}</td>
+                                    </tr>
+                                  )}
                                   <tr>
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL USED KM</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.totalUsedKm)}</td>
                                   </tr>
                                   {getAllowedKmSummaryRows(v).map(([label, value]) => (
                                     <tr key={`${label}-${value}`}>
@@ -1242,11 +1358,19 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       </td>
                                     </tr>
                                   ))}
-                                  {(v.extraKms ?? 0) > 0 && (
+                                  {(v.localExtraKms ?? 0) > 0 && (
                                     <tr>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL EXTRA KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">LOCAL EXTRA KM</td>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                        {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(readVehicleExtraKmCharge(v))}
+                                        {(v.localExtraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.localExtraKmCharge)}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {(v.outstationExtraKms ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">OUTSTATION EXTRA KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+                                        {(v.outstationExtraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.outstationExtraKmCharge)}
                                       </td>
                                     </tr>
                                   )}
