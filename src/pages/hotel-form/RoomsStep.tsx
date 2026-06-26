@@ -1,5 +1,6 @@
 // FILE: src/pages/hotel-form/RoomsStep.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { RoomForm } from "./HotelForm";
 import { API_BASE_URL, getToken } from "../../lib/api";
@@ -9,6 +10,7 @@ type ApiCtx = {
   apiGet: (p: string) => Promise<any>;
   apiPost: (p: string, b: any) => Promise<any>;
   apiGetFirst: (ps: string[]) => Promise<any>;
+  apiDelete?: (p: string) => Promise<any>;
 };
 
 /* ========= Helpers ========= */
@@ -20,6 +22,28 @@ const toGstNum = (v: any): 1 | 2 => {
   if (s.includes("include")) return 1;
   if (s.includes("exclude")) return 2;
   return 1;
+};
+
+const toNumberOrDefault = (value: any, fallback: number): number => {
+  if (value === "" || value === null || value === undefined) {
+    return fallback;
+  }
+
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const toDbStatus = (value: any): 0 | 1 => {
+  return toNumberOrDefault(value, 1) === 0 ? 0 : 1;
+};
+
+const toDbFlag = (value: any): 0 | 1 => {
+  return value === true || value === 1 || value === "1" ? 1 : 0;
+};
+
+const toStringOrNull = (value: any): string | null => {
+  const s = String(value ?? "").trim();
+  return s.length ? s : null;
 };
 
 // "12:00 PM" → "12:00"
@@ -312,6 +336,29 @@ export default function RoomsStep({
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [statusKind, setStatusKind] = useState<"success" | "error" | "">("");
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [topSuccessMessage, setTopSuccessMessage] = useState("");
+  const topSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showTopSuccess = (message: string) => {
+    setTopSuccessMessage(message);
+
+    if (topSuccessTimerRef.current) {
+      clearTimeout(topSuccessTimerRef.current);
+    }
+
+    topSuccessTimerRef.current = setTimeout(() => {
+      setTopSuccessMessage("");
+      topSuccessTimerRef.current = null;
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (topSuccessTimerRef.current) {
+        clearTimeout(topSuccessTimerRef.current);
+      }
+    };
+  }, []);
 
   const defaultRow: RoomForm = {
     room_type: "",
@@ -583,15 +630,73 @@ export default function RoomsStep({
       ];
     });
 
-  const removeRow = (i: number) => {
-  setRows((p) =>
-    p.length === 1
-      ? [{ ...(defaultRow as any), room_ref_code: generateRoomRefCode(hotelId ?? "", 1) } as RoomForm]
-      : p.filter((_, idx) => idx !== i)
-  );
+  const getPersistedRoomId = (row: any): number | null => {
+    const raw = row?.room_ID ?? row?.room_id;
+    const id = Number(raw);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  };
 
-  setDeleteIndex(null);
-};
+  const removeRowLocal = (target: { index: number; roomId: number | null }) => {
+    setRows((prev) => {
+      let next: RoomForm[];
+
+      if (target.roomId) {
+        next = prev.filter((r: any) => {
+          const rid = Number(r?.room_ID ?? r?.room_id);
+          return rid !== target.roomId;
+        });
+      } else {
+        next = prev.filter((_, idx) => idx !== target.index);
+      }
+
+      if (!next.length) {
+        return [
+          {
+            ...(defaultRow as any),
+            room_ref_code: generateRoomRefCode(hotelId ?? "", 0),
+          } as RoomForm,
+        ];
+      }
+
+      return next;
+    });
+
+    initialRowsRef.current = initialRowsRef.current.filter((prev, idx) => {
+      if (target.roomId) {
+        return Number((prev as any)?.room_ID ?? (prev as any)?.room_id) !== target.roomId;
+      }
+      return idx !== target.index;
+    });
+
+    setDeleteIndex(null);
+  };
+
+  const deleteRoomMut = useMutation({
+    mutationFn: async (target: { index: number; roomId: number | null }) => {
+      if (!target.roomId) {
+        return { success: true, localOnly: true };
+      }
+
+      if (!api.apiDelete) {
+        throw new Error("Room delete API is not available");
+      }
+
+      return api.apiDelete(`/api/v1/hotels/${hotelId}/rooms/${target.roomId}`);
+    },
+    onSuccess: (_res, target) => {
+      removeRowLocal(target);
+      qc.invalidateQueries({ queryKey: ["hotel-rooms", hotelId] });
+      setStatusKind("");
+      setStatusMessage("");
+      showTopSuccess("Room deleted successfully.");
+    },
+    onError: (e: any) => {
+      setStatusKind("error");
+      setStatusMessage(
+        uiErrorMessage(e, "Failed to delete room. Please try again.")
+      );
+    },
+  });
   const validateRows = (items: RoomForm[]) => {
     for (let i = 0; i < items.length; i += 1) {
       const row: any = items[i];
@@ -654,20 +759,10 @@ export default function RoomsStep({
     mutationFn: async (items: RoomForm[]) => {
       const hotelIdNum = Number(hotelId);
 
-      const changedItems = items.filter((row, idx) => {
-        const hasGallery = Boolean((row as any)?.gallery && (row as any).gallery.length);
-        if (hasGallery) return true;
-        const prev = initialRowsRef.current[idx];
-        if (!prev) return true;
-        return JSON.stringify(comparableRow(row)) !== JSON.stringify(prev);
-      });
-
-      if (!changedItems.length) {
-        return { success: true, count: 0, skipped: true } as any;
-      }
+      const changedItems = items;
 
       // ✅ Map UI → dvi_hotel_rooms column names & types
-      const payload = changedItems.map((r, index) => {
+      const payload = items.map((r, index) => {
         // Resolve room_type_id from typed text or numeric value
         const rawType = (r as any).room_type;
         let room_type_id: number | null = null;
@@ -709,13 +804,17 @@ export default function RoomsStep({
           room_ID: (r as any).room_ID ?? (r as any).room_id,
           hotel_id: hotelIdNum,
           room_type_id,
-          room_title: r.room_title || null,
+
+          room_title: toStringOrNull(r.room_title),
           preferred_for,
-          no_of_rooms_available: Number(r.no_of_rooms || 1),
-          air_conditioner_availability: Number(r.ac_availability || 0),
-          status: Number(r.status || 1),
-          total_max_adults: Number(r.max_adult || 0),
-          total_max_childrens: Number(r.max_children || 0),
+
+          no_of_rooms_available: toNumberOrDefault(r.no_of_rooms, 1),
+          air_conditioner_availability: toDbFlag(r.ac_availability),
+
+          status: toDbStatus((r as any).status),
+
+          total_max_adults: toNumberOrDefault(r.max_adult, 0),
+          total_max_childrens: toNumberOrDefault(r.max_children, 0),
           check_in_time:
             to12h((r as any).check_in_time) || (r as any).check_in_time || null,
           check_out_time:
@@ -723,11 +822,11 @@ export default function RoomsStep({
             (r as any).check_out_time ||
             null,
           gst_type: toGstNum((r as any).gst_type),
-          gst_percentage: Number(r.gst_percentage || 0),
+          gst_percentage: toNumberOrDefault(r.gst_percentage, 0),
           inbuilt_amenities: inbuilt_amenitiesStr || null,
-          breakfast_included: r.food_breakfast ? 1 : 0,
-          lunch_included: r.food_lunch ? 1 : 0,
-          dinner_included: r.food_dinner ? 1 : 0,
+          breakfast_included: toDbFlag(r.food_breakfast),
+          lunch_included: toDbFlag(r.food_lunch),
+          dinner_included: toDbFlag(r.food_dinner),
           room_ref_code,
           // createdby/createdon/updatedon/deleted handled server-side
         };
@@ -845,9 +944,12 @@ export default function RoomsStep({
     },
     onSuccess: () => {
       qc.invalidateQueries();
-      setStatusKind("success");
-      setStatusMessage("Rooms saved successfully.");
-      onNext();
+      setStatusKind("");
+      setStatusMessage("");
+      showTopSuccess("Rooms saved successfully.");
+      setTimeout(() => {
+        onNext();
+      }, 400);
     },
     onError: (e: any) => {
       setStatusKind("error");
@@ -857,6 +959,26 @@ export default function RoomsStep({
 
   return (
     <>
+      {topSuccessMessage && (
+        <div className="fixed top-20 left-1/2 z-[100] w-[92vw] max-w-[680px] -translate-x-1/2">
+          <div className="flex items-center justify-between rounded-md bg-green-600 px-4 py-3 text-white shadow-lg">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>{topSuccessMessage}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setTopSuccessMessage("")}
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-white/90 transition hover:bg-white/15 hover:text-white"
+              aria-label="Close success message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <h3 className="text-pink-600 font-semibold mb-4">Rooms</h3>
 
       <div className="flex justify-end mb-3">
@@ -878,6 +1000,7 @@ export default function RoomsStep({
               </h6>
               <button
                 type="button"
+                disabled={deleteRoomMut.isPending}
                 onClick={() => setDeleteIndex(idx)}
                 className="text-xs px-2 py-1 rounded border border-red-200 text-red-600 disabled:opacity-50"
               >
@@ -1139,12 +1262,8 @@ export default function RoomsStep({
       {validationError && (
         <div className="mt-3 text-sm text-red-600">{validationError}</div>
       )}
-      {statusMessage && (
-        <div
-          className={`mt-2 text-sm ${
-            statusKind === "success" ? "text-green-600" : "text-red-600"
-          }`}
-        >
+      {statusMessage && statusKind === "error" && (
+        <div className="mt-2 text-sm text-red-600">
           {statusMessage}
         </div>
       )}
@@ -1171,18 +1290,27 @@ export default function RoomsStep({
       <div className="mt-7 flex justify-center gap-4">
         <button
           type="button"
+          disabled={deleteRoomMut.isPending}
           onClick={() => setDeleteIndex(null)}
-          className="rounded-md border border-purple-700 px-7 py-2 text-purple-700"
+          className="rounded-md border border-purple-700 px-7 py-2 text-purple-700 disabled:opacity-60"
         >
           Close
         </button>
 
         <button
           type="button"
-          onClick={() => removeRow(deleteIndex)}
-          className="rounded-md bg-red-500 px-7 py-2 text-white"
+          disabled={deleteRoomMut.isPending}
+          onClick={() => {
+            if (deleteIndex === null) return;
+            const row = rows[deleteIndex] as any;
+            deleteRoomMut.mutate({
+              index: deleteIndex,
+              roomId: getPersistedRoomId(row),
+            });
+          }}
+          className="rounded-md bg-red-500 px-7 py-2 text-white disabled:opacity-60"
         >
-          Delete
+          {deleteRoomMut.isPending ? "Deleting..." : "Delete"}
         </button>
       </div>
     </div>
@@ -1200,6 +1328,7 @@ export default function RoomsStep({
         </button>
         <button
           type="button"
+          disabled={saveMut.isPending}
           onClick={() => {
             const msg = validateRows(rows);
             if (msg) {
@@ -1209,11 +1338,15 @@ export default function RoomsStep({
             setValidationError("");
             setStatusMessage("");
             setStatusKind("");
+            console.log("[RoomsStep] Update & Continue clicked", {
+              hotelId,
+              rowsCount: rows.length,
+            });
             saveMut.mutate(rows);
           }}
-          className="px-5 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white"
+          className="px-5 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-purple-600 text-white disabled:opacity-60"
         >
-          Update & Continue
+          {saveMut.isPending ? "Saving..." : "Update & Continue"}
         </button>
       </div>
     </>

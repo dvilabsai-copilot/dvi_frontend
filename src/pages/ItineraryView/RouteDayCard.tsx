@@ -3,9 +3,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, ArrowRight, MapPin, Clock } from "lucide-react";
-import { ItineraryRoute } from "./types";
+import { GuideDetails, ItineraryRoute } from "./types";
 import {
   formatItineraryDate,
+  formatCurrency,
   formatTime,
   formatViaRoutesPlain,
   isBeforeSixAM,
@@ -19,6 +20,7 @@ interface RouteDayCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   showKm?: boolean;
+  guideAssignment?: GuideDetails | null;
 }
 
 export const RouteDayCard = ({
@@ -28,6 +30,7 @@ export const RouteDayCard = ({
   isExpanded,
   onToggle,
   showKm = true,
+  guideAssignment = null,
 }: RouteDayCardProps) => {
   const viaRoutesText = route.via_routes && route.via_routes.length > 0
     ? formatViaRoutesPlain(route.via_routes)
@@ -134,6 +137,28 @@ export const RouteDayCard = ({
                 </div>
               )}
             </div>
+
+            {guideAssignment && (
+              <div className="mb-4 rounded-lg bg-purple-50 px-4 py-3">
+                <p className="text-sm font-semibold text-purple-800">
+                  {guideAssignment.guideName || "Guide"}
+                  {guideAssignment.guideLanguageLabels.length > 0 && (
+                    <>
+                      {" "}
+                      Language - <span className="text-purple-700">{guideAssignment.guideLanguageLabels.join(", ")}</span>
+                    </>
+                  )}
+                </p>
+                {guideAssignment.guideSlotLabels.length > 0 && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    Slot Timing - <span className="font-medium text-gray-800">{guideAssignment.guideSlotLabels.join(", ")}</span>
+                  </p>
+                )}
+                <p className="mt-2 text-base font-bold text-purple-700">
+                  {formatCurrency(Number(guideAssignment.guideCost || 0))}
+                </p>
+              </div>
+            )}
 
             {/* Additional route details can be added here */}
             {/* Hotspots, Activities, Hotels, etc. */}

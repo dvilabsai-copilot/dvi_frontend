@@ -519,6 +519,7 @@ export const CreateItinerary = () => {
   ]);
 
   const [budget, setBudget] = useState<number | "">("");
+  const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
   // routes + via routes hook
     const {
@@ -599,7 +600,6 @@ const saveProgressTimerRef = useRef<number | null>(null);
   };
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
-  const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
 const [suggestedDefaultRoutes, setSuggestedDefaultRoutes] = useState<RouteData[]>([]);
 const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
@@ -872,7 +872,7 @@ useEffect(() => {
     })();
   }, [itineraryPlanId, setRouteDetails, setRooms]);
 
- useEffect(() => {
+useEffect(() => {
   if (itineraryPlanId) return;
 
   const selectedTypeLabel =
@@ -989,7 +989,6 @@ useEffect(() => {
   toast,
   setRouteDetails,
 ]);
-
   // Auto-open route suggestions modal when itinerary type is "Default"
   useEffect(() => {
     if (itineraryTypeSelect && itineraryTypes.length > 0) {
@@ -1944,8 +1943,6 @@ setSaveProgressPercent(100);
       res?.quoteId && typeof res.quoteId === "string"
         ? res.quoteId
         : null;
-    const vehicleBuildProcessing =
-      String(res?.vehicleBuildStatus || "").toUpperCase() === "PROCESSING";
 
     toast({
       title: isUpdate ? "Itinerary updated" : "Itinerary created",
@@ -1953,10 +1950,6 @@ setSaveProgressPercent(100);
         isUpdate
           ? "The itinerary has been updated successfully."
           : "The itinerary has been created successfully."
-      }${
-        vehicleBuildProcessing
-          ? " Vehicle list is being prepared in the background."
-          : ""
       }`,
     });
 
@@ -2105,7 +2098,7 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
   onOpenViaRoutes={openViaRoutes}
   onRefreshRouteDistance={refreshRouteDistance}
   departureLocation={departureLocation}
-  hideIntercityKm={false}
+  hideIntercityKm={true}
   onDeleteDay={deleteDay}
   onDeleteRouteDay={deleteRouteDay}
   addDay={addDay}

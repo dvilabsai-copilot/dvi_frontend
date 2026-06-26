@@ -1050,12 +1050,12 @@ const handleHotelFacilityChange = (vals: string[]) => {
           <div className="flex-1">
             <Label className="text-sm block mb-1">Special Instructions</Label>
             <Textarea
-              rows={2}
-              placeholder="Enter the Special Instruction"
-              className="border-[#e5d7f6]"
-              value={specialInstructions}
-              onChange={(e) => setSpecialInstructions(e.target.value)}
-            />
+  rows={2}
+  placeholder="Enter the Special Instruction"
+  className="min-h-[52px] resize-y border-[#e5d7f6]"
+  value={specialInstructions}
+  onChange={(e) => setSpecialInstructions(e.target.value)}
+/>
           </div>
         </div>
       </CardContent>

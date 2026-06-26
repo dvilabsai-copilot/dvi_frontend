@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Calendar as CalendarIcon, ChevronDown, X } from "lucide-react";
-import { format, isValid, parseISO } from "date-fns";
+import { addDays, format, isValid, parseISO } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,14 +50,60 @@ const toYmd = (date?: Date) => {
   return format(date, "yyyy-MM-dd");
 };
 
+const extractApiErrorMessage = (error: unknown, fallback: string) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const jsonMatch = message.match(/\{"message":"([^"]+)"/);
+  if (jsonMatch?.[1]) return jsonMatch[1];
+  return message || fallback;
+};
+
+const showKmLimitSaveErrorToast = (error: unknown, fallback: string, vehicleTypeLabel?: string) => {
+  const message = extractApiErrorMessage(error, fallback);
+  if (/already exist for this vehicle type/i.test(message)) {
+    const duplicateMessage = vehicleTypeLabel
+      ? `Already exist for ${vehicleTypeLabel}`
+      : message;
+    toast(duplicateMessage, {
+      position: "top-center",
+      style: {
+        background: "#f59e0b",
+        color: "#ffffff",
+        border: "1px solid #f59e0b",
+      },
+      closeButton: true,
+      duration: 3500,
+    });
+    return true;
+  }
+  toast.error(message);
+  return false;
+};
+
+const showOrangeWarningToast = (message: string) => {
+  toast(message, {
+    position: "top-center",
+    style: {
+      background: "#f59e0b",
+      color: "#ffffff",
+      border: "1px solid #f59e0b",
+    },
+    closeButton: true,
+    duration: 3500,
+  });
+};
+
 const PricebookDatePicker = ({
   value,
   onChange,
   placeholder,
+  defaultMonth,
+  minDate,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  defaultMonth?: Date;
+  minDate?: Date;
 }) => {
   const selected = toPickerDate(value);
 
@@ -76,9 +122,19 @@ const PricebookDatePicker = ({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-2" align="start">
         <Calendar
+          key={defaultMonth ? format(defaultMonth, "yyyy-MM-dd") : "pricebook-calendar"}
           mode="single"
           selected={selected}
-          onSelect={(date) => onChange(toYmd(date))}
+          defaultMonth={defaultMonth || selected || new Date()}
+          disabled={
+            minDate
+              ? (date) => date < minDate
+              : undefined
+          }
+          onSelect={(date) => {
+            if (!date) return;
+            onChange(toYmd(date));
+          }}
           initialFocus
         />
       </PopoverContent>
@@ -324,13 +380,14 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   const [outstationEndDate, setOutstationEndDate] = useState("");
   const [localVehicleFilter, setLocalVehicleFilter] = useState("all");
   const [outstationVehicleFilter, setOutstationVehicleFilter] = useState("all");
-  const [localPreview, setLocalPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_title: string; time_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
-  const [outstationPreview, setOutstationPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_title: string; kms_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
+  const [localPreview, setLocalPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_id?: number; vehicle_type_title: string; time_limit_id?: number; time_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
+  const [outstationPreview, setOutstationPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_id?: number; vehicle_type_title: string; kms_limit_id?: number; kms_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
 
   // ----- Local KM Limit modal -----
   const [localKmOpen, setLocalKmOpen] = useState(false);
+  const [localKmSaveLocked, setLocalKmSaveLocked] = useState(false);
   const [localKmForm, setLocalKmForm] = useState({
-    vehicleTypes: [] as string[],
+    vehicleType: "",
     title: "",
     hours: "",
     kmLimit: "",
@@ -338,8 +395,9 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
 
   // ----- Outstation KM Limit modal -----
   const [outKmOpen, setOutKmOpen] = useState(false);
+  const [outKmSaveLocked, setOutKmSaveLocked] = useState(false);
   const [outKmForm, setOutKmForm] = useState({
-    vehicleTypes: [] as string[],
+    vehicleType: "",
     title: "",
     kmLimit: "",
   });
@@ -652,62 +710,119 @@ if (vendorTypeOptions.length > 0) {
   }, [vehicleExtraRows]);
 
   const handleLocalKmChange = (
-    field: keyof Omit<typeof localKmForm, "vehicleTypes">,
+    field: keyof Omit<typeof localKmForm, "vehicleType">,
     value: string
   ) => {
+    setLocalKmSaveLocked(false);
     setLocalKmForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleOutKmChange = (field: keyof Omit<typeof outKmForm, "vehicleTypes">, value: string) => {
+  const handleOutKmChange = (field: keyof Omit<typeof outKmForm, "vehicleType">, value: string) => {
+    setOutKmSaveLocked(false);
     setOutKmForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleOpenLocalKmModal = () => {
+    setLocalKmSaveLocked(false);
+    setLocalKmForm({
+      vehicleType: localVehicleFilter !== "all" ? localVehicleFilter : "",
+      title: "",
+      hours: "",
+      kmLimit: "",
+    });
+    setLocalKmOpen(true);
+  };
+
+  const handleOpenOutKmModal = () => {
+    setOutKmSaveLocked(false);
+    setOutKmForm({
+      vehicleType: outstationVehicleFilter !== "all" ? outstationVehicleFilter : "",
+      title: "",
+      kmLimit: "",
+    });
+    setOutKmOpen(true);
+  };
+
   const handleLocalKmSave = async () => {
-    if (!vendorId || localKmForm.vehicleTypes.length === 0) return;
+    if (!vendorId) return;
+    if (localKmSaveLocked) return;
+    const isLocalKmFormDirty = Boolean(
+      localKmForm.vehicleType || localKmForm.title.trim() || localKmForm.hours.trim() || localKmForm.kmLimit.trim()
+    );
+    if (!isLocalKmFormDirty) {
+      showOrangeWarningToast("Please change at least one field");
+      setLocalKmSaveLocked(true);
+      return;
+    }
+    if (!localKmForm.vehicleType) {
+      showOrangeWarningToast("Please select vehicle type");
+      setLocalKmSaveLocked(true);
+      return;
+    }
+    const savedVehicleType = localKmForm.vehicleType;
     setSaving(true);
     try {
-      for (const vtId of localKmForm.vehicleTypes) {
-        await api(`/vendors/${vendorId}/local-km-limits`, {
-          method: "POST",
-          body: JSON.stringify({
-            vehicle_type_id: Number(vtId),
-            loc_km_title: localKmForm.title,
-            loc_km_hour: Number(localKmForm.hours || 0),
-            loc_km_limit: Number(localKmForm.kmLimit || 0),
-            status: 1,
-          }),
-        });
-      }
+      await api(`/vendors/${vendorId}/local-km-limits`, {
+        method: "POST",
+        body: JSON.stringify({
+          vehicle_type_id: Number(localKmForm.vehicleType),
+          loc_km_title: localKmForm.title,
+          loc_km_hour: Number(localKmForm.hours || 0),
+          loc_km_limit: Number(localKmForm.kmLimit || 0),
+          status: 1,
+        }),
+      });
+      setLocalVehicleFilter(savedVehicleType);
       setLocalKmOpen(false);
-      setLocalKmForm({ vehicleTypes: [], title: "", hours: "", kmLimit: "" });
+      setLocalKmSaveLocked(false);
+      setLocalKmForm({ vehicleType: "", title: "", hours: "", kmLimit: "" });
+      toast.success("Local KM limit saved successfully");
       await fetchData();
     } catch (e) {
       console.error("Failed to save local KM limit", e);
+      const vehicleTypeLabel = vehicleTypeOptions.find((opt) => opt.id === localKmForm.vehicleType)?.label;
+      const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save local KM limit", vehicleTypeLabel);
+      if (isDuplicate) {
+        setLocalKmSaveLocked(true);
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const handleOutKmSave = async () => {
-    if (!vendorId || outKmForm.vehicleTypes.length === 0) return;
+    if (!vendorId) return;
+    if (outKmSaveLocked) return;
+    if (!outKmForm.vehicleType) {
+      showOrangeWarningToast("Please select vehicle type");
+      setOutKmSaveLocked(true);
+      return;
+    }
+    const savedVehicleType = outKmForm.vehicleType;
     setSaving(true);
     try {
-      for (const vtId of outKmForm.vehicleTypes) {
-        await api(`/vendors/${vendorId}/outstation-km-limits`, {
-          method: "POST",
-          body: JSON.stringify({
-            vehicle_type_id: Number(vtId),
-            out_km_title: outKmForm.title,
-            out_km_limit: Number(outKmForm.kmLimit || 0),
-            status: 1,
-          }),
-        });
-      }
+      await api(`/vendors/${vendorId}/outstation-km-limits`, {
+        method: "POST",
+        body: JSON.stringify({
+          vehicle_type_id: Number(outKmForm.vehicleType),
+          out_km_title: outKmForm.title,
+          out_km_limit: Number(outKmForm.kmLimit || 0),
+          status: 1,
+        }),
+      });
+      setOutstationVehicleFilter(savedVehicleType);
       setOutKmOpen(false);
-      setOutKmForm({ vehicleTypes: [], title: "", kmLimit: "" });
+      setOutKmSaveLocked(false);
+      setOutKmForm({ vehicleType: "", title: "", kmLimit: "" });
+      toast.success("Outstation KM limit saved successfully");
       await fetchData();
     } catch (e) {
       console.error("Failed to save outstation KM limit", e);
+      const vehicleTypeLabel = vehicleTypeOptions.find((opt) => opt.id === outKmForm.vehicleType)?.label;
+      const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save outstation KM limit", vehicleTypeLabel);
+      if (isDuplicate) {
+        setOutKmSaveLocked(true);
+      }
     } finally {
       setSaving(false);
     }
@@ -777,6 +892,11 @@ if (vendorTypeOptions.length > 0) {
     return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
   }, [localFormRows]);
 
+  const filteredLocalPreviewRows = useMemo(() => {
+    if (localVehicleFilter === "all") return localPreview.rows;
+    return localPreview.rows.filter((row) => String(row.vehicle_type_id ?? "") === localVehicleFilter);
+  }, [localPreview.rows, localVehicleFilter]);
+
   const outstationVehicleTypeOptions = useMemo(() => {
     const seen = new Map<string, string>();
     outstationFormRows.forEach((r: any) => {
@@ -785,6 +905,11 @@ if (vendorTypeOptions.length > 0) {
     });
     return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
   }, [outstationFormRows]);
+
+  const filteredOutstationPreviewRows = useMemo(() => {
+    if (outstationVehicleFilter === "all") return outstationPreview.rows;
+    return outstationPreview.rows.filter((row) => String(row.vehicle_type_id ?? "") === outstationVehicleFilter);
+  }, [outstationPreview.rows, outstationVehicleFilter]);
 
   const rowKey = (r: any, type: "local" | "out") =>
     type === "local"
@@ -1134,22 +1259,30 @@ if (vendorTypeOptions.length > 0) {
                 <Button
                   type="button"
                   className="bg-purple-100 px-6 text-sm font-semibold text-purple-700 hover:bg-purple-200"
-                  onClick={() => setLocalKmOpen(true)}
+                  onClick={handleOpenLocalKmModal}
                   disabled={!vendorId}
                 >
                   + Add KM Limit
                 </Button>
                 <div className="hidden items-center gap-2 sm:flex">
-                  <PricebookDatePicker
-                    value={localStartDate}
-                    onChange={setLocalStartDate}
-                    placeholder="Start Date"
-                  />
-                  <PricebookDatePicker
-                    value={localEndDate}
-                    onChange={setLocalEndDate}
-                    placeholder="End Date"
-                  />
+            <PricebookDatePicker
+  value={localStartDate}
+  onChange={(value) => {
+    setLocalStartDate(value);
+  }}
+  placeholder="Start Date"
+/>
+<PricebookDatePicker
+  value={localEndDate}
+  onChange={setLocalEndDate}
+  placeholder="End Date"
+  defaultMonth={
+    localStartDate ? addDays(toPickerDate(localStartDate)!, 1) : undefined
+  }
+  minDate={
+    localStartDate ? addDays(toPickerDate(localStartDate)!, 1) : undefined
+  }
+/>
                 </div>
                 <Button
                   type="button"
@@ -1223,14 +1356,14 @@ if (vendorTypeOptions.length > 0) {
                     </tr>
                   </thead>
                   <tbody className="bg-white">
-                    {localPreview.rows.length === 0 ? (
+                    {filteredLocalPreviewRows.length === 0 ? (
                       <tr>
                         <td colSpan={Math.max(3, localPreview.days.length + 2)} className="px-4 py-4 text-center text-gray-500">
                           No data found
                         </td>
                       </tr>
                     ) : (
-                      localPreview.rows.map((r, i) => (
+                      filteredLocalPreviewRows.map((r, i) => (
                         <tr key={`${r.vehicle_type_title}-${r.time_limit_title}-${i}`}>
                           <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.vehicle_type_title}</td>
                           <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.time_limit_title}</td>
@@ -1269,22 +1402,30 @@ if (vendorTypeOptions.length > 0) {
                 <Button
                   type="button"
                   className="bg-purple-100 px-6 text-sm font-semibold text-purple-700 hover:bg-purple-200"
-                  onClick={() => setOutKmOpen(true)}
+                  onClick={handleOpenOutKmModal}
                   disabled={!vendorId}
                 >
                   + Add KM Limit
                 </Button>
                 <div className="hidden items-center gap-2 sm:flex">
-                  <PricebookDatePicker
-                    value={outstationStartDate}
-                    onChange={setOutstationStartDate}
-                    placeholder="Start Date"
-                  />
-                  <PricebookDatePicker
-                    value={outstationEndDate}
-                    onChange={setOutstationEndDate}
-                    placeholder="End Date"
-                  />
+                <PricebookDatePicker
+  value={outstationStartDate}
+  onChange={(value) => {
+    setOutstationStartDate(value);
+  }}
+  placeholder="Start Date"
+/>
+<PricebookDatePicker
+  value={outstationEndDate}
+  onChange={setOutstationEndDate}
+  placeholder="End Date"
+  defaultMonth={
+    outstationStartDate ? addDays(toPickerDate(outstationStartDate)!, 1) : undefined
+  }
+  minDate={
+    outstationStartDate ? addDays(toPickerDate(outstationStartDate)!, 1) : undefined
+  }
+/>
                 </div>
                 <Button
                   type="button"
@@ -1358,14 +1499,14 @@ if (vendorTypeOptions.length > 0) {
                     </tr>
                   </thead>
                   <tbody className="bg-white">
-                    {outstationPreview.rows.length === 0 ? (
+                    {filteredOutstationPreviewRows.length === 0 ? (
                       <tr>
                         <td colSpan={Math.max(3, outstationPreview.days.length + 2)} className="px-4 py-4 text-center text-gray-500">
                           No data found
                         </td>
                       </tr>
                     ) : (
-                      outstationPreview.rows.map((r, i) => (
+                      filteredOutstationPreviewRows.map((r, i) => (
                         <tr key={`${r.vehicle_type_title}-${r.kms_limit_title}-${i}`}>
                           <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.vehicle_type_title}</td>
                           <td className="px-3 py-2 border-b border-gray-100 text-purple-600">{r.kms_limit_title}</td>
@@ -1421,7 +1562,15 @@ if (vendorTypeOptions.length > 0) {
       </Dialog>
 
       {/* ========== Local KM Limit Modal ========== */}
-      <Dialog open={localKmOpen} onOpenChange={setLocalKmOpen}>
+      <Dialog
+        open={localKmOpen}
+        onOpenChange={(open) => {
+          setLocalKmOpen(open);
+          if (!open) {
+            setLocalKmSaveLocked(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Local KM Limit</DialogTitle>
@@ -1432,12 +1581,24 @@ if (vendorTypeOptions.length > 0) {
               <Label>
                 Vehicle type <span className="text-red-500">*</span>
               </Label>
-              <VehicleTypeMultiSelect
-                options={vehicleTypeOptions}
-                selected={localKmForm.vehicleTypes}
-                onChange={(vehicleTypes) => setLocalKmForm((prev) => ({ ...prev, vehicleTypes }))}
-                placeholder="Choose Vehicle Type"
-              />
+              <Select
+                value={localKmForm.vehicleType}
+                onValueChange={(vehicleType) => {
+                  setLocalKmSaveLocked(false);
+                  setLocalKmForm((prev) => ({ ...prev, vehicleType }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose Vehicle Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicleTypeOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -1492,7 +1653,7 @@ if (vendorTypeOptions.length > 0) {
               type="button"
               className={`${gradientButton} px-8`}
               onClick={handleLocalKmSave}
-              disabled={!vendorId}
+              disabled={!vendorId || localKmSaveLocked || saving}
             >
               Save
             </Button>
@@ -1501,7 +1662,15 @@ if (vendorTypeOptions.length > 0) {
       </Dialog>
 
       {/* ========== Outstation KM Limit Modal ========== */}
-      <Dialog open={outKmOpen} onOpenChange={setOutKmOpen}>
+      <Dialog
+        open={outKmOpen}
+        onOpenChange={(open) => {
+          setOutKmOpen(open);
+          if (!open) {
+            setOutKmSaveLocked(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Outstation KM Limit</DialogTitle>
@@ -1512,12 +1681,24 @@ if (vendorTypeOptions.length > 0) {
               <Label>
                 Vehicle type <span className="text-red-500">*</span>
               </Label>
-              <VehicleTypeMultiSelect
-                options={vehicleTypeOptions}
-                selected={outKmForm.vehicleTypes}
-                onChange={(vehicleTypes) => setOutKmForm((prev) => ({ ...prev, vehicleTypes }))}
-                placeholder="Choose Vehicle Type"
-              />
+              <Select
+                value={outKmForm.vehicleType}
+                onValueChange={(vehicleType) => {
+                  setOutKmSaveLocked(false);
+                  setOutKmForm((prev) => ({ ...prev, vehicleType }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose Vehicle Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicleTypeOptions.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
@@ -1559,7 +1740,7 @@ if (vendorTypeOptions.length > 0) {
               type="button"
               className={`${gradientButton} px-8`}
               onClick={handleOutKmSave}
-              disabled={!vendorId}
+              disabled={!vendorId || outKmSaveLocked || saving}
             >
               Save
             </Button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
@@ -19,7 +19,11 @@ export interface DayWisePricingItem {
   route: string; // "Chennai → Mahabalipuram"
   travelType?: string;
   timeLimitId?: number;
+  chargeableTimeLimitId?: number;
   slabTitle?: string;
+  chargeableSlabTitle?: string;
+  originalSlabTitle?: string;
+  slabUpgraded?: boolean;
   slabHoursLimit?: number;
   slabKmLimit?: number;
   pickupKms: number;
@@ -53,6 +57,14 @@ export interface ItineraryVehicleRow {
   vehicleOrigin?: string | null;
   totalQty?: string | null;
   totalAmount?: number | string | null;
+  vehicleId?: number | null;
+  vehicleIds?: number[];
+  vehicleNumber?: string | null;
+  vehicleNumbers?: string[];
+  availableVehicleCount?: number;
+  vehicleRegistrationNumber?: string | null;
+  vehicleRegistrationStateCode?: string | null;
+  vehicleRegistrationStateName?: string | null;
   rentalCharges?: number | string | null;
   tollCharges?: number | string | null;
   parkingCharges?: number | string | null;
@@ -90,12 +102,31 @@ export interface ItineraryVehicleRow {
   totalDays?: number;
   totalCostOfVehicle?: number;
   totalPickupKm?: number;
+  totalTravelKm?: number;
+  totalSightseeingKm?: number;
   totalPickupDuration?: string;
   totalDropKm?: number;
   totalDropDuration?: string;
   totalUsedKm?: number;
+  localUsedKm?: number;
+  outstationUsedKm?: number;
+  totalAllowedLocalKm?: number;
+  totalAllowedOutstationKm?: number;
   totalAllowedKm?: number;
+  localDaysCount?: number;
+  outstationDaysCount?: number;
+  outstationAllowedKmPerDay?: number;
+  localAllowedKmBreakdown?: Array<{
+    timeLimitId?: number;
+    allowedKm: number;
+    days: number;
+    label?: string;
+  }>;
   extraKms?: number;
+  localExtraKms?: number;
+  localExtraKmCharge?: number;
+  outstationExtraKms?: number;
+  outstationExtraKmCharge?: number;
   extraKmRate?: number;
   extraKmCharge?: number;
   extraHourCount?: number;
@@ -131,83 +162,90 @@ const toAmount = (value: number | string | undefined | null): number => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const getVehicleSubtotal = (vehicle: ItineraryVehicleRow): number => {
-  const subtotal = toAmount(vehicle.subtotal);
-
-  if (subtotal > 0) {
-    return subtotal;
-  }
-
-  return toAmount(vehicle.totalAmount);
+const toNumber = (value: unknown): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const parsed = Number(String(value ?? "").replace(/,/g, "").trim());
+  return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const getVehicleGstPercentage = (vehicle: ItineraryVehicleRow): number =>
+const formatKm = (value: unknown): string => {
+  const n = toNumber(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+};
+
+const getAllowedKmSummaryRows = (vehicle: ItineraryVehicleRow): Array<[string, string]> => {
+  const totalAllowedLocalKm = toNumber(vehicle.totalAllowedLocalKm);
+  const totalAllowedOutstationKm = toNumber(vehicle.totalAllowedOutstationKm);
+  const totalAllowedKm = toNumber(vehicle.totalAllowedKm);
+  const localDaysCount = toNumber(vehicle.localDaysCount);
+  const outstationAllowedKmPerDay = toNumber(vehicle.outstationAllowedKmPerDay);
+  const outstationDaysCount = toNumber(vehicle.outstationDaysCount);
+
+  const rows: Array<[string, string]> = [];
+
+  if (totalAllowedLocalKm > 0) {
+    rows.push([
+      "TOTAL ALLOWED LOCAL KM",
+      localDaysCount > 0
+        ? `${formatKm(totalAllowedLocalKm / localDaysCount)} * ${formatKm(localDaysCount)} = ${formatKm(totalAllowedLocalKm)}`
+        : formatKm(totalAllowedLocalKm),
+    ]);
+  }
+
+  if (totalAllowedOutstationKm > 0) {
+    rows.push([
+      "TOTAL ALLOWED OUTSTATION KM",
+      outstationAllowedKmPerDay > 0 && outstationDaysCount > 0
+        ? `${formatKm(outstationAllowedKmPerDay)} * ${formatKm(outstationDaysCount)} = ${formatKm(totalAllowedOutstationKm)}`
+        : formatKm(totalAllowedOutstationKm),
+    ]);
+  }
+
+  if (totalAllowedKm > 0) {
+    rows.push(["TOTAL ALLOWED KM", formatKm(totalAllowedKm)]);
+  }
+
+  if (!rows.length && totalAllowedKm > 0) {
+    rows.push(["TOTAL ALLOWED KM", formatKm(totalAllowedKm)]);
+  }
+
+  return rows;
+};
+
+const readVehicleSubtotal = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.subtotal);
+
+const readVehicleGstPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vehicleGstPercentage) || 5;
 
-const getVehicleVendorMarginPercentage = (vehicle: ItineraryVehicleRow): number =>
+const readVehicleVendorMarginPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vendorMarginPercentage) || 10;
 
-const getVehicleMarginServiceTaxPercentage = (vehicle: ItineraryVehicleRow): number =>
+const readVehicleMarginServiceTaxPercentage = (vehicle: ItineraryVehicleRow): number =>
   toAmount(vehicle.vendorMarginGstPercentage) || 5;
 
-const getVehicleGstAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vehicleGstAmount);
-
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
-
-  return (getVehicleSubtotal(vehicle) * getVehicleGstPercentage(vehicle)) / 100;
+const readVehicleGstAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.vehicleGstAmount);
 };
 
-const getVehicleVendorMarginAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vendorMarginAmount);
+const readVehicleExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.extraKmCharge);
 
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
+const readVehicleExtraHourCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.extraHourCharge);
 
-  return (
-    getVehicleSubtotal(vehicle) *
-    getVehicleVendorMarginPercentage(vehicle)
-  ) / 100;
+const readVehicleVendorMarginAmount = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.vendorMarginAmount);
+
+const readVehicleMarginServiceTaxAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.vendorMarginGstAmount);
 };
 
-const getVehicleMarginServiceTaxAmount = (vehicle: ItineraryVehicleRow): number => {
-  const backendAmount = toAmount(vehicle.vendorMarginGstAmount);
+const readVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.grandTotal);
 
-  if (backendAmount > 0) {
-    return backendAmount;
-  }
-
-  return (
-    getVehicleVendorMarginAmount(vehicle) *
-    getVehicleMarginServiceTaxPercentage(vehicle)
-  ) / 100;
-};
-
-const getVehicleGrandTotal = (vehicle: ItineraryVehicleRow): number => {
-  const subtotal = getVehicleSubtotal(vehicle);
-
-  if (subtotal <= 0) {
-    return 0;
-  }
-
-  return (
-    subtotal +
-    getVehicleGstAmount(vehicle) +
-    getVehicleVendorMarginAmount(vehicle) +
-    getVehicleMarginServiceTaxAmount(vehicle)
-  );
-};
-
-const getVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
-  const apiTotal = toAmount(vehicle.totalAmount);
-  if (apiTotal > 0) {
-    return apiTotal;
-  }
-
-  return getVehicleGrandTotal(vehicle);
+const resolveVehicleDisplayAmount = (vehicle: ItineraryVehicleRow): number => {
+  return toAmount(vehicle.grandTotal) || toAmount(vehicle.totalAmount);
 };
 
 const formatTotalTime = (day: DayWisePricingItem): string => {
@@ -216,6 +254,7 @@ const formatTotalTime = (day: DayWisePricingItem): string => {
     (
       Number(day.pickupDurationMinutes ?? 0) +
       Number(day.travelDurationMinutes ?? 0) +
+      Number(day.sightseeingDurationMinutes ?? 0) +
       Number(day.dropDurationMinutes ?? 0)
     );
 
@@ -261,13 +300,38 @@ const splitDurationLines = (formattedDuration: string): string[] => {
 const isOutstationDay = (day: DayWisePricingItem): boolean =>
   String(day.travelType || '').toLowerCase() === 'outstation';
 
+const hasUnavailableVendorRate = (day: DayWisePricingItem): boolean =>
+  toNumber(day.totalKms) > 0 && toNumber(day.rentalCharges) <= 0;
+
+const vehicleHasUnavailableOutstationRate = (vehicle: ItineraryVehicleRow): boolean =>
+  Array.isArray(vehicle.dayWisePricing) && vehicle.dayWisePricing.some(hasUnavailableVendorRate);
+
 const getRentalCellLines = (day: DayWisePricingItem): string[] => {
+  if (hasUnavailableVendorRate(day)) {
+    return isOutstationDay(day)
+      ? ['Outstation', 'Rates not available']
+      : ['Rates not available'];
+  }
   const amount = formatCurrencyINR(Number(day.rentalCharges || 0));
   return isOutstationDay(day) ? ['Outstation', amount] : [amount];
 };
 
+const getVisibleDayTotal = (day: DayWisePricingItem): number =>
+  Math.max(0, toNumber(day.totalCharges));
+
+const readVehicleLocalExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.localExtraKmCharge);
+
+const readVehicleOutstationExtraKmCharge = (vehicle: ItineraryVehicleRow): number =>
+  toAmount(vehicle.outstationExtraKmCharge);
+
+const getVehicleRentalSummaryText = (vehicle: ItineraryVehicleRow): string =>
+  vehicleHasUnavailableOutstationRate(vehicle)
+    ? 'Rates not available'
+    : formatCurrencyINR(vehicle.rentalCharges);
+
 const getSlabDisplayText = (day: DayWisePricingItem): string => {
-  const slabTitle = String(day.slabTitle || "-").trim();
+  const slabTitle = String(day.chargeableSlabTitle || day.slabTitle || "-").trim();
 
   if (!slabTitle || slabTitle === "-") {
     return "-";
@@ -291,21 +355,26 @@ const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; date
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
-  // Respect explicit user selection persisted at DB level.
-  const assigned = vehicles.find((v) => v.isAssigned && v.vendorEligibleId);
-  if (assigned?.vendorEligibleId) {
-    return assigned.vendorEligibleId;
-  }
+  // Always auto-select the lowest displayed amount for each vehicle type.
+  // Do not trust a stale DB assignment for first paint selection.
+  const cheapest = vehicles.reduce((prev, curr) => {
+    const prevAmount = resolveVehicleDisplayAmount(prev);
+    const currAmount = resolveVehicleDisplayAmount(curr);
 
-  // Always pick the lowest quote as default selection.
-const cheapest = vehicles.reduce((prev, curr) => {
-  const prevAmount = getVehicleDisplayAmount(prev);
-  const currAmount = getVehicleDisplayAmount(curr);
+    if (currAmount < prevAmount) return curr;
 
-  return currAmount < prevAmount ? curr : prev;
-});
+    // Stable tie-breaker to avoid visual jumping on equal amounts.
+    if (currAmount === prevAmount) {
+      return Number(curr.vendorEligibleId || 0) < Number(prev.vendorEligibleId || 0)
+        ? curr
+        : prev;
+    }
 
-  return cheapest.vendorEligibleId ?? null;
+    return prev;
+  }, vehicles[0]);
+
+  const preferredId = Number(cheapest.vendorEligibleId || 0);
+  return preferredId > 0 ? preferredId : null;
 };
 
 
@@ -335,6 +404,11 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   routes,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
+  const [vehicleOriginTooltip, setVehicleOriginTooltip] = useState<{
+    index: number;
+    left: number;
+    top: number;
+  } | null>(null);
   const [expandedVendorEligibleId, setExpandedVendorEligibleId] = useState<number | string | null>(null);
   const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -361,7 +435,76 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   useEffect(() => {
     setExpandedVendorEligibleId(null);
     setHoveredTotalAmountIndex(null);
+    setVehicleOriginTooltip(null);
   }, [vehicleIdentitySignature]);
+
+  const getFloatingTooltipPosition = (
+    clientX: number,
+    clientY: number,
+    tooltipWidth = 320,
+    tooltipHeight = 150,
+  ) => {
+    const padding = 12;
+    const offset = 14;
+
+    let left = clientX + offset;
+    let top = clientY + offset;
+
+    if (left + tooltipWidth + padding > window.innerWidth) {
+      left = clientX - tooltipWidth - offset;
+    }
+
+    if (top + tooltipHeight + padding > window.innerHeight) {
+      top = clientY - tooltipHeight - offset;
+    }
+
+    return {
+      left: Math.max(padding, left),
+      top: Math.max(padding, top),
+    };
+  };
+
+  const showVehicleOriginTooltip = (
+    index: number,
+    event: React.MouseEvent<HTMLElement>,
+  ) => {
+    const position = getFloatingTooltipPosition(event.clientX, event.clientY);
+    setVehicleOriginTooltip({
+      index,
+      ...position,
+    });
+  };
+
+  const moveVehicleOriginTooltip = (
+    index: number,
+    event: React.MouseEvent<HTMLElement>,
+  ) => {
+    setVehicleOriginTooltip((current) => {
+      if (!current || current.index !== index) return current;
+
+      const position = getFloatingTooltipPosition(event.clientX, event.clientY);
+      return {
+        index,
+        ...position,
+      };
+    });
+  };
+
+  const hideVehicleOriginTooltip = () => {
+    setVehicleOriginTooltip(null);
+  };
+
+  const showVehicleOriginTooltipFromFocus = (
+    index: number,
+    event: React.FocusEvent<HTMLElement>,
+  ) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = getFloatingTooltipPosition(rect.right, rect.top);
+    setVehicleOriginTooltip({
+      index,
+      ...position,
+    });
+  };
 
   const escapeHtml = (value: unknown) =>
     String(value ?? "")
@@ -384,7 +527,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
               <div style="font-weight:600;">${escapeHtml(dayPart || String(dp.dayLabel || ''))}</div>
               ${datePart ? `<div style="font-weight:500;">${escapeHtml(datePart)}</div>` : ''}
               <div style="font-weight:600;">Time: ${escapeHtml(formatTotalTime(dp))}</div>
-              <div style="font-weight:600;">${escapeHtml(dp.slabTitle || '-')}</div>
+              <div style="font-weight:600;">${escapeHtml(dp.chargeableSlabTitle || dp.slabTitle || '-')}</div>
             </td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#374151;">${escapeHtml(dp.route)}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;line-height:1.2;white-space:nowrap;">
@@ -396,13 +539,26 @@ export const VehicleList: React.FC<VehicleListProps> = ({
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.travelKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.sightseeingKms ?? 0).toFixed(2)} KM</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">${splitDurationLines(formatMinutesDuration(dp.travelDurationMinutes)).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;">${Number(dp.totalKms ?? 0).toFixed(2)} KM</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;font-weight:600;text-align:right;white-space:nowrap;line-height:1.2;">
+              <div>${Number(dp.totalKms ?? 0).toFixed(2)} KM</div>
+              ${String(dp.travelType || "").toLowerCase() === "local" ? `
+                <div style="margin-top:4px;font-size:11px;color:#6b7280;line-height:1.25;text-align:left;">
+                  <div>Actual Usage: ${escapeHtml(formatTotalTime(dp))} / ${Number(dp.totalKms ?? 0).toFixed(2)} KM</div>
+                  <div>Chargeable Package: ${Number(dp.slabHoursLimit ?? 0)} HRS / ${Number(dp.slabKmLimit ?? 0)} KM</div>
+                  ${dp.slabUpgraded && String(dp.originalSlabTitle || "").trim() ? `<div>Upgraded from ${escapeHtml(String(dp.originalSlabTitle || "").trim())}</div>` : ""}
+                </div>
+              ` : ""}
+            </td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;line-height:1.2;">${
+              String(dp.travelType || "").toLowerCase() === "local"
+                ? `<div>Local Usage Charge</div><div>${escapeHtml(formatCurrencyINR(dp.rentalCharges))}</div>`
+                : getRentalCellLines(dp).map((line) => `<div>${escapeHtml(line)}</div>`).join("")
+            }</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.tollBreakupText?.length ? `Toll Breakup\n${dp.tollBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.tollCharges))}</td>
               <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;" title="${escapeHtml(dp.parkingBreakupText?.length ? `Parking Breakup\n${dp.parkingBreakupText.join('\n')}` : '')}">${escapeHtml(formatCurrencyINR(dp.parkingCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.driverCharges))}</td>
             <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#1f2937;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.permitCharges))}</td>
-            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(dp.totalCharges))}</td>
+            <td style="padding:3px 4px;border:1px solid #cfd4dc;color:#6d28d9;font-weight:700;text-align:right;white-space:nowrap;">${escapeHtml(formatCurrencyINR(getVisibleDayTotal(dp)))}</td>
           </tr>
         `;
           },
@@ -411,15 +567,27 @@ export const VehicleList: React.FC<VehicleListProps> = ({
 
       const chargeRows = [
         ["Total Days", String(vehicle.totalDays ?? vehicle.dayWisePricing?.length ?? 0)],
-        ["Rental Charges", formatCurrencyINR(vehicle.rentalCharges)],
+        ["Rental Charges", getVehicleRentalSummaryText(vehicle)],
         ["Toll Charges", formatCurrencyINR(vehicle.tollCharges)],
         ["Parking Charges", formatCurrencyINR(vehicle.parkingCharges)],
         ["Driver Charges", formatCurrencyINR(vehicle.driverCharges)],
         ["Permit Charges", formatCurrencyINR(vehicle.permitCharges)],
-        (Number(vehicle.extraHourCharge ?? 0) > 0)
+        (readVehicleLocalExtraKmCharge(vehicle) > 0)
+          ? [
+              "Local Extra KM Charges",
+              formatCurrencyINR(readVehicleLocalExtraKmCharge(vehicle)),
+            ]
+          : null,
+        (readVehicleOutstationExtraKmCharge(vehicle) > 0)
+          ? [
+              "Outstation Extra KM Charges",
+              formatCurrencyINR(readVehicleOutstationExtraKmCharge(vehicle)),
+            ]
+          : null,
+        (readVehicleExtraHourCharge(vehicle) > 0)
           ? [
               `Extra Hour Charges (Rs ${Number(vehicle.extraHourRate ?? 0).toFixed(0)} * ${Number(vehicle.extraHourCount ?? 0).toFixed(0)} hrs)`,
-              formatCurrencyINR(vehicle.extraHourCharge),
+              formatCurrencyINR(readVehicleExtraHourCharge(vehicle)),
             ]
           : null,
         ["Before 6 AM Charges (D)", formatCurrencyINR(vehicle.before6amDriver)],
@@ -451,19 +619,41 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         (vehicle.totalDropKm ?? 0) > 0
           ? ["Total Drop Duration", vehicle.totalDropDuration || "-"]
           : null,
-        ["TOTAL USED KM", Number(vehicle.totalUsedKm ?? 0).toFixed(0)],
-        [
-          vehicle.localTrip ? "TOTAL ALLOWED LOCAL KM" : "TOTAL ALLOWED OUTSTATION KM",
-          `${vehicle.totalAllowedKm != null && vehicle.totalDays ? `${Math.round((vehicle.totalAllowedKm) / vehicle.totalDays)} * ${vehicle.totalDays}` : (vehicle.totalAllowedKm ?? 0)} = ${Number(vehicle.totalAllowedKm ?? 0).toFixed(0)}`,
-        ],
+        (vehicle.localUsedKm ?? 0) > 0
+          ? ["LOCAL USED KM", formatKm(vehicle.localUsedKm)]
+          : null,
+        (vehicle.outstationUsedKm ?? 0) > 0
+          ? ["OUTSTATION USED KM", formatKm(vehicle.outstationUsedKm)]
+          : null,
+        ["TOTAL USED KM", formatKm(vehicle.totalUsedKm)],
+        ...getAllowedKmSummaryRows(vehicle),
         (vehicle.extraKms ?? 0) > 0
           ? [
               "TOTAL EXTRA KM",
-              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.extraKmCharge)}`,
+              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(readVehicleExtraKmCharge(vehicle))}`,
             ]
           : null,
-      ]
-        .filter(Boolean)
+      ];
+
+      const visibleDistanceRows = [
+        ...distanceRows.filter(
+          (row) => Array.isArray(row) && (row as string[])[0] !== "TOTAL EXTRA KM",
+        ),
+        ...(vehicle.localExtraKms ?? 0) > 0
+          ? [[
+              "LOCAL EXTRA KM",
+              `${Number(vehicle.localExtraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.localExtraKmCharge)}`,
+            ] as string[]]
+          : [],
+        ...(vehicle.outstationExtraKms ?? 0) > 0
+          ? [[
+              "OUTSTATION EXTRA KM",
+              `${Number(vehicle.outstationExtraKms ?? 0).toFixed(0)} * ₹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.outstationExtraKmCharge)}`,
+            ] as string[]]
+          : [],
+      ];
+
+      const distanceRowsHtml = visibleDistanceRows
         .map(
           (row) => `
           <tr>
@@ -475,14 +665,14 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         .join("");
 
 
-     const vehicleSubtotal = getVehicleSubtotal(vehicle);
-const vehicleGstPercentage = getVehicleGstPercentage(vehicle);
-const vehicleGstAmount = getVehicleGstAmount(vehicle);
-const vendorMarginPercentage = getVehicleVendorMarginPercentage(vehicle);
-const vendorMarginAmount = getVehicleVendorMarginAmount(vehicle);
-const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(vehicle);
-const marginServiceTaxAmount = getVehicleMarginServiceTaxAmount(vehicle);
-const vehicleGrandTotal = getVehicleGrandTotal(vehicle);
+     const vehicleSubtotal = readVehicleSubtotal(vehicle);
+const vehicleGstPercentage = readVehicleGstPercentage(vehicle);
+const vehicleGstAmount = readVehicleGstAmount(vehicle);
+const vendorMarginPercentage = readVehicleVendorMarginPercentage(vehicle);
+const vendorMarginAmount = readVehicleVendorMarginAmount(vehicle);
+const marginServiceTaxPercentage = readVehicleMarginServiceTaxPercentage(vehicle);
+const marginServiceTaxAmount = readVehicleMarginServiceTaxAmount(vehicle);
+const vehicleGrandTotal = readVehicleGrandTotal(vehicle);
 
 const totalRows = [
   ["SUBTOTAL", formatCurrencyINR(vehicleSubtotal)],
@@ -554,7 +744,7 @@ const totalRows = [
             <thead>
               <tr style="background:#e9dff5;"><th colspan="2" style="padding:3px 4px;border:1px solid #cfd4dc;text-align:left;font-size:20px;font-weight:700;color:#334155;">Distance Summary</th></tr>
             </thead>
-            <tbody>${distanceRows}</tbody>
+            <tbody>${distanceRowsHtml}</tbody>
           </table>
 
           <div style="height:12px;"></div>
@@ -594,11 +784,21 @@ const totalRows = [
  useEffect(() => {
   const preferredId = getPreferredVendorEligibleId(vehicles);
 
-  if (preferredId !== null && preferredId !== selectedVendorEligibleId) {
-    console.log(`[${vehicleTypeLabel}] Auto-selecting cheapest vendor:`, preferredId, 'from vehicles:', vehicles.map(v => ({ id: v.vendorEligibleId, amount: v.totalAmount })));
+  if (preferredId !== null && Number(preferredId) !== Number(selectedVendorEligibleId || 0)) {
+    console.log(
+      `[${vehicleTypeLabel}] Auto-selecting lowest amount vendor:`,
+      preferredId,
+      vehicles.map((v) => ({
+        id: v.vendorEligibleId,
+        totalAmount: v.totalAmount,
+        grandTotal: v.grandTotal,
+        displayAmount: resolveVehicleDisplayAmount(v),
+        isAssigned: v.isAssigned,
+      })),
+    );
     setSelectedVendorEligibleId(preferredId);
   }
-}, [vehicles, vehicleTypeLabel]);
+}, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
 
 
 
@@ -667,8 +867,8 @@ const totalRows = [
 
   const sortedVehicles = useMemo(() => {
   return [...vehicles].sort((a, b) => {
-    const aAmount = getVehicleDisplayAmount(a);
-    const bAmount = getVehicleDisplayAmount(b);
+    const aAmount = resolveVehicleDisplayAmount(a);
+    const bAmount = resolveVehicleDisplayAmount(b);
 
     return aAmount - bAmount;
   });
@@ -689,7 +889,7 @@ const totalRows = [
 
   if (!selectedVehicle) return;
 
-  const totalAmount = getVehicleDisplayAmount(selectedVehicle);
+  const totalAmount = resolveVehicleDisplayAmount(selectedVehicle);
   const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
 
   const resolvedVehicleTypeId =
@@ -738,15 +938,15 @@ const totalRows = [
               const radioId = `vehicle_${vehicleTypeId ?? "type"}_${v.vendorEligibleId ?? index}`;
               const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
 
-const subtotalVehicle = getVehicleSubtotal(v);
-const gstPercentage = getVehicleGstPercentage(v);
-const gstAmount = getVehicleGstAmount(v);
-const vendorMarginPercentage = getVehicleVendorMarginPercentage(v);
-const vendorMargin = getVehicleVendorMarginAmount(v);
-const marginServiceTaxPercentage = getVehicleMarginServiceTaxPercentage(v);
-const marginServiceTax = getVehicleMarginServiceTaxAmount(v);
-const calculatedGrandTotal = getVehicleGrandTotal(v);
-const displayTotalAmount = getVehicleDisplayAmount(v);
+const subtotalVehicle = readVehicleSubtotal(v);
+const gstPercentage = readVehicleGstPercentage(v);
+const gstAmount = readVehicleGstAmount(v);
+const vendorMarginPercentage = readVehicleVendorMarginPercentage(v);
+const vendorMargin = readVehicleVendorMarginAmount(v);
+const marginServiceTaxPercentage = readVehicleMarginServiceTaxPercentage(v);
+const marginServiceTax = readVehicleMarginServiceTaxAmount(v);
+const calculatedGrandTotal = readVehicleGrandTotal(v);
+const displayTotalAmount = resolveVehicleDisplayAmount(v);
 
 const isExpanded = expandedVendorEligibleId === rowKey;
 const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
@@ -765,7 +965,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
                         checked={
                           selectedVendorEligibleId != null
-                            ? selectedVendorEligibleId === v.vendorEligibleId
+                            ? Number(selectedVendorEligibleId) === Number(v.vendorEligibleId || 0)
                             : index === 0
                         }
                         onChange={() => handleRadioChange(v, index)}
@@ -775,7 +975,78 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                     </td>
                     <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>
                     <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>
-                    <td className="py-3 px-3 text-gray-600 text-xs">{safe(v.vehicleOrigin)}</td>
+                    <td
+                      className="py-3 px-3 text-gray-600 text-xs relative"
+                      onMouseEnter={(e) => showVehicleOriginTooltip(index, e)}
+                      onMouseMove={(e) => moveVehicleOriginTooltip(index, e)}
+                      onMouseLeave={hideVehicleOriginTooltip}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span
+                        className="cursor-help underline decoration-dotted underline-offset-2"
+                        tabIndex={0}
+                        onFocus={(e) => showVehicleOriginTooltipFromFocus(index, e)}
+                        onBlur={hideVehicleOriginTooltip}
+                      >
+                        {safe(v.vehicleOrigin) || "-"}
+                      </span>
+
+                      {vehicleOriginTooltip?.index === index && (
+                        <div
+                          className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]"
+                          style={{
+                            left: `${vehicleOriginTooltip.left}px`,
+                            top: `${vehicleOriginTooltip.top}px`,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <div className="mb-2 border-b border-gray-200 pb-2">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-700 font-semibold">Vehicle Origin</span>
+                              <span className="font-semibold text-gray-900 text-right">
+                                {safe(v.vehicleOrigin) || "-"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mb-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600">Vehicle No</span>
+                              <span className="text-gray-900 font-semibold text-right">
+                                {Array.isArray(v.vehicleNumbers) && v.vehicleNumbers.length > 0
+                                  ? v.vehicleNumbers.join(", ")
+                                  : (safe(v.vehicleNumber || v.vehicleRegistrationNumber) || "-")}
+                              </span>
+                            </div>
+                          </div>
+
+                          {(Number(v.availableVehicleCount || 0) > 1 || (Array.isArray(v.vehicleIds) && v.vehicleIds.length > 1)) && (
+                            <div className="mb-1">
+                              <div className="flex justify-between gap-4">
+                                <span className="text-gray-600">Available Vehicles</span>
+                                <span className="text-gray-900 font-semibold text-right">
+                                  {Number(v.availableVehicleCount || v.vehicleIds?.length || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mb-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-gray-600">Permit State</span>
+                              <span className="text-gray-900 text-right">
+                                {safe(v.vehicleRegistrationStateName) || "-"}
+                                {v.vehicleRegistrationStateCode ? ` (${v.vehicleRegistrationStateCode})` : ""}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 border-t border-gray-200 pt-2 text-xs text-purple-900 font-semibold">
+                            Permit source state is derived from vehicle number prefix.
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
                     <td 
                       className="py-3 px-3 text-right font-semibold text-gray-900"
@@ -921,11 +1192,36 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                           <div key={lineIndex}>{line}</div>
                                         ))}
                                       </td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">{(dp.totalKms ?? 0).toFixed(2)} KM</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 font-semibold whitespace-nowrap">
+                                        {Number(dp.totalKms ?? 0).toFixed(2)} KM
+
+                                        {String(dp.travelType || "").toLowerCase() === "local" && (
+                                          <div className="mt-1 text-[11px] text-gray-500 leading-tight text-left">
+                                            <div>
+                                              Actual Usage: {formatTotalTime(dp)} / {Number(dp.totalKms ?? 0).toFixed(2)} KM
+                                            </div>
+                                            <div>
+                                              Chargeable Package: {Number(dp.slabHoursLimit ?? 0)} HRS / {Number(dp.slabKmLimit ?? 0)} KM
+                                            </div>
+                                            {dp.slabUpgraded && String(dp.originalSlabTitle || "").trim() && (
+                                              <div>
+                                                Upgraded from {String(dp.originalSlabTitle || "").trim()}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap leading-tight">
-                                        {getRentalCellLines(dp).map((line, lineIndex) => (
-                                          <div key={lineIndex}>{line}</div>
-                                        ))}
+                                        {String(dp.travelType || "").toLowerCase() === "local" ? (
+                                          <>
+                                            <div>Local Usage Charge</div>
+                                            <div>{formatCurrencyINR(dp.rentalCharges)}</div>
+                                          </>
+                                        ) : (
+                                          getRentalCellLines(dp).map((line, lineIndex) => (
+                                            <div key={lineIndex}>{line}</div>
+                                          ))
+                                        )}
                                       </td>
                                       <td
                                         className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap cursor-help"
@@ -941,7 +1237,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                         </td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.driverCharges)}</td>
                                       <td className="border border-gray-300 py-1 px-1 text-right text-gray-700 whitespace-nowrap">{formatCurrencyINR(dp.permitCharges)}</td>
-                                      <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(dp.totalCharges)}</td>
+                                      <td className="border border-gray-300 py-1 px-1 text-right text-purple-700 font-bold whitespace-nowrap">{formatCurrencyINR(getVisibleDayTotal(dp))}</td>
                                     </tr>
                                   );})}
                                 </tbody>
@@ -965,15 +1261,27 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 <tbody>
                                   {[
                                     { label: 'Total Days', value: String(v.totalDays ?? v.dayWisePricing.length) },
-                                    { label: 'Rental Charges', value: formatCurrencyINR(v.rentalCharges) },
+                                    { label: 'Rental Charges', value: getVehicleRentalSummaryText(v) },
                                     { label: 'Toll Charges', value: formatCurrencyINR(v.tollCharges) },
                                     { label: 'Parking Charges', value: formatCurrencyINR(v.parkingCharges) },
                                     { label: 'Driver Charges', value: formatCurrencyINR(v.driverCharges) },
                                     { label: 'Permit Charges', value: formatCurrencyINR(v.permitCharges) },
-                                    ...(Number(v.extraHourCharge ?? 0) > 0
+                                    ...(readVehicleLocalExtraKmCharge(v) > 0
+                                      ? [{
+                                          label: 'Local Extra KM Charges',
+                                          value: formatCurrencyINR(readVehicleLocalExtraKmCharge(v)),
+                                        }]
+                                      : []),
+                                    ...(readVehicleOutstationExtraKmCharge(v) > 0
+                                      ? [{
+                                          label: 'Outstation Extra KM Charges',
+                                          value: formatCurrencyINR(readVehicleOutstationExtraKmCharge(v)),
+                                        }]
+                                      : []),
+                                    ...(readVehicleExtraHourCharge(v) > 0
                                       ? [{
                                           label: `Extra Hour Charges (Rs ${Number(v.extraHourRate ?? 0).toFixed(0)} * ${Number(v.extraHourCount ?? 0).toFixed(0)} hrs)`,
-                                          value: formatCurrencyINR(v.extraHourCharge),
+                                          value: formatCurrencyINR(readVehicleExtraHourCharge(v)),
                                         }]
                                       : []),
                                     { label: 'Before 6 AM Charges (D)', value: formatCurrencyINR(v.before6amDriver) },
@@ -1026,24 +1334,43 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       </tr>
                                     </>
                                   )}
+                                  {(v.localUsedKm ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">LOCAL USED KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.localUsedKm)}</td>
+                                    </tr>
+                                  )}
+                                  {(v.outstationUsedKm ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">OUTSTATION USED KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.outstationUsedKm)}</td>
+                                    </tr>
+                                  )}
                                   <tr>
                                     <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-700 font-semibold">TOTAL USED KM</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{(v.totalUsedKm ?? 0).toFixed(0)}</td>
+                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">{formatKm(v.totalUsedKm)}</td>
                                   </tr>
-                                  <tr>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{v.localTrip ? 'TOTAL ALLOWED LOCAL KM' : 'TOTAL ALLOWED OUTSTATION KM'}</td>
-                                    <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                      {v.totalAllowedKm != null && v.totalDays
-                                        ? `${Math.round((v.totalAllowedKm) / (v.totalDays))} * ${v.totalDays}`
-                                        : (v.totalAllowedKm ?? 0)}{' '}
-                                      = {(v.totalAllowedKm ?? 0).toFixed(0)}
-                                    </td>
-                                  </tr>
-                                  {(v.extraKms ?? 0) > 0 && (
-                                    <tr>
-                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">TOTAL EXTRA KM</td>
+                                  {getAllowedKmSummaryRows(v).map(([label, value]) => (
+                                    <tr key={`${label}-${value}`}>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">{label}</td>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                        {(v.extraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.extraKmCharge)}
+                                        {value}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  {(v.localExtraKms ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">LOCAL EXTRA KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+                                        {(v.localExtraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.localExtraKmCharge)}
+                                      </td>
+                                    </tr>
+                                  )}
+                                  {(v.outstationExtraKms ?? 0) > 0 && (
+                                    <tr>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">OUTSTATION EXTRA KM</td>
+                                      <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
+                                        {(v.outstationExtraKms ?? 0).toFixed(0)} * ₹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.outstationExtraKmCharge)}
                                       </td>
                                     </tr>
                                   )}
@@ -1179,3 +1506,4 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
     </div>
   );
 };
+

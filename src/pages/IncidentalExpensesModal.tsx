@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ItineraryService } from "@/services/itinerary";
-import { Loader2, Trash2, Plus } from "lucide-react";
+import { AlertCircle, IndianRupee, Loader2, Plus, Trash2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 interface IncidentalExpensesModalProps {
@@ -25,6 +25,25 @@ interface IncidentalExpensesModalProps {
   onClose: () => void;
   itineraryPlanId: number;
 }
+
+const formatCurrency = (value: number) =>
+  Number(value || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = ({
   isOpen,
@@ -35,19 +54,18 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
   const [submitting, setSubmitting] = useState(false);
   const [availableData, setAvailableData] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
-  
+  const [availableMargin, setAvailableMargin] = useState<any>(null);
+
   const [formData, setFormData] = useState({
     componentType: '',
     componentId: '',
     amount: '',
     reason: '',
   });
-  
-  const [availableMargin, setAvailableMargin] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen && itineraryPlanId) {
-      fetchInitialData();
+      void fetchInitialData();
     }
   }, [isOpen, itineraryPlanId]);
 
@@ -59,7 +77,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
         ItineraryService.getIncidentalHistory(itineraryPlanId),
       ]);
       setAvailableData(components);
-      setHistory(historyData);
+      setHistory(Array.isArray(historyData) ? historyData : []);
     } catch (error) {
       console.error("Error fetching incidental data:", error);
       toast.error("Failed to load incidental expenses data");
@@ -68,44 +86,96 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
     }
   };
 
-  const handleTypeChange = async (value: string) => {
-    setFormData({ ...formData, componentType: value, componentId: '', amount: '' });
+  const selectedOptions = useMemo(() => {
+    if (!availableData) return [];
+    switch (formData.componentType) {
+      case '1':
+        return availableData.guides || [];
+      case '2':
+        return availableData.hotspots || [];
+      case '3':
+        return availableData.activities || [];
+      case '4':
+        return availableData.hotels || [];
+      case '5':
+        return availableData.vendors || [];
+      default:
+        return [];
+    }
+  }, [availableData, formData.componentType]);
+
+  const selectedItem = useMemo(
+    () => selectedOptions.find((item: any) => String(item.id) === formData.componentId),
+    [selectedOptions, formData.componentId],
+  );
+
+  const resetForm = () => {
+    setFormData({
+      componentType: '',
+      componentId: '',
+      amount: '',
+      reason: '',
+    });
     setAvailableMargin(null);
-    
-    // If it's Guide, Hotspot, or Activity, we can fetch margin immediately as they share the pool
+  };
+
+  const loadMargin = async (componentType: string, componentId?: string) => {
+    try {
+      const res = await ItineraryService.getIncidentalAvailableMargin(
+        itineraryPlanId,
+        Number(componentType),
+        componentId ? Number(componentId) : undefined,
+      );
+      setAvailableMargin(res);
+    } catch (error: any) {
+      console.error("Error fetching margin:", error);
+      setAvailableMargin(null);
+      toast.error(error?.message || "Failed to fetch available balance");
+    }
+  };
+
+  const handleTypeChange = async (value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      componentType: value,
+      componentId: '',
+      amount: '',
+    }));
+    setAvailableMargin(null);
+
     if (['1', '2', '3'].includes(value)) {
-      try {
-        const res = await ItineraryService.getIncidentalAvailableMargin(itineraryPlanId, Number(value));
-        setAvailableMargin(res.total_avail_cost);
-      } catch (error) {
-        console.error("Error fetching margin:", error);
-      }
+      await loadMargin(value);
     }
   };
 
   const handleComponentChange = async (value: string) => {
-    setFormData({ ...formData, componentId: value, amount: '' });
-    
-    // For Hotel and Vendor, margin depends on the specific component
+    setFormData((prev) => ({
+      ...prev,
+      componentId: value,
+      amount: '',
+    }));
+
     if (['4', '5'].includes(formData.componentType)) {
-      try {
-        const res = await ItineraryService.getIncidentalAvailableMargin(itineraryPlanId, Number(formData.componentType), Number(value));
-        setAvailableMargin(res.total_avail_cost);
-      } catch (error) {
-        console.error("Error fetching margin:", error);
-      }
+      await loadMargin(formData.componentType, value);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.componentType || !formData.componentId || !formData.amount) {
       toast.error("Please fill all required fields");
       return;
     }
 
-    if (availableMargin !== null && Number(formData.amount) > availableMargin) {
-      toast.error(`Amount cannot exceed available margin (₹${availableMargin})`);
+    const enteredAmount = Number(formData.amount || 0);
+    const availableBalance = Number(availableMargin?.total_balance ?? availableMargin?.total_avail_cost ?? 0);
+    if (enteredAmount <= 0) {
+      toast.error("Amount must be greater than zero");
+      return;
+    }
+    if (availableMargin && enteredAmount > availableBalance) {
+      toast.error(`Amount cannot exceed available balance (Rs. ${formatCurrency(availableBalance)})`);
       return;
     }
 
@@ -115,50 +185,40 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
         itineraryPlanId,
         componentType: Number(formData.componentType),
         componentId: Number(formData.componentId),
-        amount: Number(formData.amount),
+        amount: enteredAmount,
         reason: formData.reason,
-        createdBy: 1, // TODO: Get from auth context
+        createdBy: 1,
       });
+
       toast.success("Incidental expense added successfully");
-      setFormData({ componentType: '', componentId: '', amount: '', reason: '' });
-      setAvailableMargin(null);
-      fetchInitialData();
-    } catch (error) {
+      resetForm();
+      await fetchInitialData();
+    } catch (error: any) {
       console.error("Error adding incidental expense:", error);
-      toast.error("Failed to add incidental expense");
+      toast.error(error?.message || "Failed to add incidental expense");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
-    
+    if (!window.confirm("Are you sure you want to delete this incidental expense entry?")) {
+      return;
+    }
+
     try {
       await ItineraryService.deleteIncidentalHistory(id);
       toast.success("Record deleted successfully");
-      fetchInitialData();
-    } catch (error) {
+      await fetchInitialData();
+    } catch (error: any) {
       console.error("Error deleting record:", error);
-      toast.error("Failed to delete record");
-    }
-  };
-
-  const getComponentOptions = () => {
-    if (!availableData) return [];
-    switch (formData.componentType) {
-      case '1': return availableData.guides;
-      case '2': return availableData.hotspots;
-      case '3': return availableData.activities;
-      case '4': return availableData.hotels;
-      case '5': return availableData.vendors;
-      default: return [];
+      toast.error(error?.message || "Failed to delete record");
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Incidental Expenses</DialogTitle>
         </DialogHeader>
@@ -168,107 +228,244 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
             <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
           </div>
         ) : (
-          <div className="space-y-8">
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-lg bg-gray-50">
-              <div className="space-y-2">
-                <Label>Component Type <span className="text-danger">*</span></Label>
-                <Select value={formData.componentType} onValueChange={handleTypeChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose Component Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableData?.availableTypes.map((t: any) => (
-                      <SelectItem key={t.id} value={String(t.id)}>{t.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          <div className="space-y-6">
+            <div className="rounded-[28px] border border-[#f1dcc1] bg-[linear-gradient(135deg,_#fff8ef_0%,_#ffffff_55%,_#fff5f9_100%)] p-5">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#bd6f13]">
+                    Finance Control
+                  </p>
+                  <h2 className="mt-2 text-2xl font-semibold text-[#513f2d]">
+                    Allocate incidental expenses against approved component margin
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm text-[#74614c]">
+                    This flow follows the confirmed-itinerary PHP behavior: shared pool for guide, hotspot, and activity,
+                    with component-specific balance for hotel and vendor allocations.
+                  </p>
+                </div>
+
+                <div className="grid min-w-[260px] grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-[#f0dfc7] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a1712d]">Entries</p>
+                    <p className="mt-2 text-2xl font-semibold text-[#513f2d]">{history.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#f0dfc7] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a1712d]">Types</p>
+                    <p className="mt-2 text-2xl font-semibold text-[#513f2d]">
+                      {availableData?.availableTypes?.length || 0}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5 rounded-[28px] border border-[#eadff3] bg-white p-5 lg:grid-cols-[1.25fr,0.75fr]">
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Component Type</Label>
+                    <Select value={formData.componentType} onValueChange={(value) => void handleTypeChange(value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose component type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(availableData?.availableTypes || []).map((type: any) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Select Item</Label>
+                    <Select
+                      value={formData.componentId}
+                      onValueChange={(value) => void handleComponentChange(value)}
+                      disabled={!formData.componentType}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose itinerary item" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedOptions.map((item: any) => (
+                          <SelectItem key={item.id} value={String(item.id)}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Selected Item</Label>
+                  <div className="rounded-2xl border border-dashed border-[#dcc7ee] bg-[#faf6ff] px-4 py-3 text-sm text-[#5b5367]">
+                    {selectedItem?.name || 'Choose a component type and item to inspect the available balance.'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Amount</Label>
+                    <div className="relative">
+                      <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b7d9f]" />
+                      <Input
+                        className="pl-9"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, amount: e.target.value }))}
+                        placeholder="Enter approved amount"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Reason</Label>
+                    <Textarea
+                      value={formData.reason}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, reason: e.target.value }))}
+                      placeholder="Add reason or operator note"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    className="bg-[#fd7e14] hover:bg-[#e67212]"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="mr-2 h-4 w-4" />
+                    )}
+                    Add Expense
+                  </Button>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Select Item <span className="text-danger">*</span></Label>
-                <Select 
-                  value={formData.componentId} 
-                  onValueChange={handleComponentChange}
-                  disabled={!formData.componentType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose Item" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getComponentOptions().map((item: any) => (
-                      <SelectItem key={item.id} value={String(item.id)}>{item.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="space-y-4 rounded-[24px] border border-[#f0e5fb] bg-[#fcf9ff] p-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#9b7db8]">
+                    Balance Snapshot
+                  </p>
+                  <h3 className="mt-2 text-lg font-semibold text-[#433953]">
+                    {selectedItem?.name || 'No component selected'}
+                  </h3>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Amount <span className="text-danger">*</span> {availableMargin !== null && <span className="text-xs text-gray-500">(Available: ₹{availableMargin})</span>}</Label>
-                <Input 
-                  type="number" 
-                  value={formData.amount} 
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="Enter amount"
-                  required
-                />
-              </div>
+                {availableMargin ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-2xl border border-[#e6d8f6] bg-white p-4">
+                      <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#8b6caf]">
+                        <Wallet className="h-4 w-4" />
+                        Total Amount
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-[#3f3654]">
+                        Rs. {formatCurrency(Number(availableMargin.total_amount || 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#e6d8f6] bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8b6caf]">Used So Far</p>
+                      <p className="mt-2 text-2xl font-semibold text-[#3f3654]">
+                        Rs. {formatCurrency(Number(availableMargin.total_payed || 0))}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[#dfd3f4] bg-[#fffaf1] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#b17818]">Available Balance</p>
+                      <p className="mt-2 text-3xl font-semibold text-[#6a4711]">
+                        Rs. {formatCurrency(Number(availableMargin.total_balance ?? availableMargin.total_avail_cost ?? 0))}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[#d9c7ed] bg-white p-4 text-sm text-[#6f677c]">
+                    Select a valid component to load available allocation balance before adding an expense.
+                  </div>
+                )}
 
-              <div className="space-y-2">
-                <Label>Reason</Label>
-                <Textarea 
-                  value={formData.reason} 
-                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  placeholder="Enter reason"
-                  rows={1}
-                />
-              </div>
-
-              <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" className="bg-[#fd7e14] hover:bg-[#e67212]" disabled={submitting}>
-                  {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  Add Expense
-                </Button>
+                <div className="rounded-2xl border border-dashed border-[#f1dcc1] bg-[#fff9f1] p-4 text-sm text-[#75592f]">
+                  <p className="flex items-center gap-2 font-medium">
+                    <AlertCircle className="h-4 w-4" />
+                    Guardrail
+                  </p>
+                  <p className="mt-2">
+                    The entered amount cannot exceed the remaining balance currently available for the selected pool or component.
+                  </p>
+                </div>
               </div>
             </form>
 
-            <div className="space-y-4">
-              <h3 className="font-bold text-lg border-b pb-2">Incidental Expenses History</h3>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-100 border-b">
+            <div className="overflow-hidden rounded-[28px] border border-[#eadff3] bg-white">
+              <div className="border-b border-[#eadff3] px-5 py-4">
+                <h3 className="text-lg font-semibold text-[#433953]">Incidental Expenses History</h3>
+                <p className="mt-1 text-sm text-[#6f677c]">
+                  Every added expense is logged here against its source component, with current balance context from the backend.
+                </p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-sm">
+                  <thead className="bg-[#faf6ff] text-[#4d4560]">
                     <tr>
-                      <th className="py-2 px-4 text-left">Date</th>
-                      <th className="py-2 px-4 text-left">Type</th>
-                      <th className="py-2 px-4 text-left">Amount</th>
-                      <th className="py-2 px-4 text-left">Reason</th>
-                      <th className="py-2 px-4 text-center">Action</th>
+                      <th className="px-4 py-3 text-left font-semibold">Date</th>
+                      <th className="px-4 py-3 text-left font-semibold">Type</th>
+                      <th className="px-4 py-3 text-left font-semibold">Item</th>
+                      <th className="px-4 py-3 text-right font-semibold">Amount</th>
+                      <th className="px-4 py-3 text-right font-semibold">Used</th>
+                      <th className="px-4 py-3 text-right font-semibold">Balance</th>
+                      <th className="px-4 py-3 text-left font-semibold">Reason</th>
+                      <th className="px-4 py-3 text-center font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {history.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-4 text-center text-gray-500">No history found</td>
+                        <td colSpan={8} className="px-4 py-8 text-center text-[#7d748b]">
+                          No incidental expenses recorded yet.
+                        </td>
                       </tr>
                     ) : (
                       history.map((item) => (
-                        <tr key={item.confirmed_itinerary_incidental_expenses_history_ID} className="border-b hover:bg-gray-50">
-                          <td className="py-2 px-4">{new Date(item.createdon).toLocaleDateString()}</td>
-                          <td className="py-2 px-4">
-                            {item.component_type === 1 ? 'Guide' : 
-                             item.component_type === 2 ? 'Hotspot' : 
-                             item.component_type === 3 ? 'Activity' : 
-                             item.component_type === 4 ? 'Hotel' : 'Vendor'}
+                        <tr
+                          key={item.confirmed_itinerary_incidental_expenses_history_ID}
+                          className="border-t border-[#f1e8fb] align-top"
+                        >
+                          <td className="px-4 py-4 text-[#4d4560]">{formatDate(item.createdon)}</td>
+                          <td className="px-4 py-4">
+                            <span className="rounded-full bg-[#f6efff] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a55ab]">
+                              {item.component_type_label || 'Unknown'}
+                            </span>
                           </td>
-                          <td className="py-2 px-4 font-medium">₹{item.incidental_amount}</td>
-                          <td className="py-2 px-4 text-gray-600">{item.reason || 'N/A'}</td>
-                          <td className="py-2 px-4 text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleDelete(item.confirmed_itinerary_incidental_expenses_history_ID)}
+                          <td className="px-4 py-4 text-[#4d4560]">{item.item_name || '--'}</td>
+                          <td className="px-4 py-4 text-right font-semibold text-[#3f3654]">
+                            Rs. {formatCurrency(Number(item.amount || 0))}
+                          </td>
+                          <td className="px-4 py-4 text-right text-[#5a5268]">
+                            Rs. {formatCurrency(Number(item.total_payed || 0))}
+                          </td>
+                          <td className="px-4 py-4 text-right text-[#5a5268]">
+                            Rs. {formatCurrency(Number(item.total_balance || 0))}
+                          </td>
+                          <td className="px-4 py-4 text-[#5a5268]">{item.reason || '--'}</td>
+                          <td className="px-4 py-4 text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+                              onClick={() =>
+                                void handleDelete(Number(item.confirmed_itinerary_incidental_expenses_history_ID))
+                              }
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
                             </Button>
                           </td>
                         </tr>

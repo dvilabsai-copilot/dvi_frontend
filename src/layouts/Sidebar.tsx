@@ -4,6 +4,7 @@ import {
   Home,
   FileText,
   CheckCircle,
+  TicketCheck,
   Wallet,
   Clock,
   Users,
@@ -55,6 +56,7 @@ const menuItems: MenuItem[] = [
   { id: "download-packages", title: "Download Packages", icon: FileText, path: "/download-packages" },
   { id: "latest-itinerary", title: "Latest Itinerary", icon: FileText, path: "/latest-itinerary" },
   { id: "confirmed-itinerary", title: "Confirmed Itinerary", icon: CheckCircle, path: "/confirmed-itinerary" },
+  { id: "book-activities", title: "Book Activities", icon: TicketCheck, path: "/book-activities" },
   {
     id: "accounts",
     title: "Accounts",
@@ -162,10 +164,10 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
 
   const filteredMenuItems = menuItems.filter((item) => {
     if (role === 4) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","staff","wallet","subscription-history"].includes(item.id);
+      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","book-activities","staff","wallet","subscription-history"].includes(item.id);
     }
     if (role === 1) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","accounts","hotels","axisrooms-hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
+      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","book-activities","accounts","hotels","axisrooms-hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
     }
     return false;
   });

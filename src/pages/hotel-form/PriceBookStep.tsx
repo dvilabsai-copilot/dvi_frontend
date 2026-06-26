@@ -838,21 +838,83 @@ export default function PriceBookStep({
     () => (canLoadAvailView && Array.isArray(availRangeRaw?.dates) ? availRangeRaw.dates : []),
     [canLoadAvailView, availRangeRaw]
   );
-  const availViewFreeByDate = useMemo<Record<string, number | null>>(() => {
+
+  type RoomAvailabilityRestrictionView = {
+    cta: boolean;
+    ctd: boolean;
+    stopsell: boolean;
+  };
+
+  type RoomAvailabilityDateView = {
+    free: number | null;
+    source?: string;
+    restrictions: RoomAvailabilityRestrictionView;
+  };
+
+  const toRestrictionBool = (value: unknown): boolean => {
+    if (typeof value === "boolean") return value;
+
+    const normalized = String(value ?? "").trim().toLowerCase();
+
+    return [
+      "1",
+      "true",
+      "yes",
+      "y",
+      "close",
+      "closed",
+      "stop",
+      "stopsell",
+      "stop sell",
+      "on",
+    ].includes(normalized);
+  };
+
+  const yn = (value: unknown) => (toRestrictionBool(value) ? "Y" : "N");
+
+  const availViewByDate = useMemo<Record<string, RoomAvailabilityDateView>>(() => {
     if (!canLoadAvailView || !availRangeRaw) return {};
 
-    if (availRangeRaw.freeRooms && typeof availRangeRaw.freeRooms === "object") {
-      return availRangeRaw.freeRooms;
+    if (Array.isArray(availRangeRaw.items)) {
+      return availRangeRaw.items.reduce(
+        (acc: Record<string, RoomAvailabilityDateView>, item: any) => {
+          if (!item?.date) return acc;
+
+          acc[item.date] = {
+            free:
+              item.free === null || item.free === undefined
+                ? null
+                : Number(item.free),
+            source: item.source,
+            restrictions: {
+              cta: toRestrictionBool(item?.restrictions?.cta),
+              ctd: toRestrictionBool(item?.restrictions?.ctd),
+              stopsell: toRestrictionBool(item?.restrictions?.stopsell),
+            },
+          };
+
+          return acc;
+        },
+        {},
+      );
     }
 
-    if (Array.isArray(availRangeRaw.items)) {
-      return availRangeRaw.items.reduce((acc: Record<string, number | null>, item: any) => {
-        if (item?.date) {
-          acc[item.date] =
-            item.free === null || item.free === undefined ? null : Number(item.free);
-        }
-        return acc;
-      }, {});
+    if (availRangeRaw.freeRooms && typeof availRangeRaw.freeRooms === "object") {
+      return Object.entries(availRangeRaw.freeRooms).reduce(
+        (acc: Record<string, RoomAvailabilityDateView>, [date, free]) => {
+          acc[date] = {
+            free: free === null || free === undefined ? null : Number(free),
+            restrictions: {
+              cta: false,
+              ctd: false,
+              stopsell: false,
+            },
+          };
+
+          return acc;
+        },
+        {},
+      );
     }
 
     return {};
@@ -1816,20 +1878,37 @@ export default function PriceBookStep({
                     {availSelectedRoom ? roomDropdownLabel(availSelectedRoom) : "Free Rooms"}
                   </td>
                   {availViewDates.map((date) => {
-                    const val = availViewFreeByDate[date];
-                    const isSet = val !== null && val !== undefined;
+                    const dayView = availViewByDate[date];
+                    const freeRooms = dayView?.free;
+                    const restrictions = dayView?.restrictions;
+
+                    const isSet = freeRooms !== null && freeRooms !== undefined;
+
                     return (
                       <td key={`avail-d-${date}`} style={{
-                        padding: "4px 16px",
+                        padding: "6px 12px",
                         border: "1px solid #ddd",
                         background: isSet ? "#f0fdf4" : "#fef2f2",
                         color: isSet ? "#166534" : "#dc2626",
                         whiteSpace: "nowrap",
                         textAlign: "center",
                         fontWeight: "600",
-                        fontSize: "0.8rem",
+                        fontSize: "0.78rem",
+                        lineHeight: "1.35",
                       }}>
-                        {isSet ? `${val} rooms` : "Not Set"}
+                        {isSet ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div>{freeRooms} rooms</div>
+                            <div style={{ color: "#374151", fontWeight: 700 }}>
+                              CTA:{yn(restrictions?.cta)} | CTD:{yn(restrictions?.ctd)}
+                            </div>
+                            <div style={{ color: "#374151", fontWeight: 700 }}>
+                              STOPSELL:{yn(restrictions?.stopsell)}
+                            </div>
+                          </div>
+                        ) : (
+                          "Not Set"
+                        )}
                       </td>
                     );
                   })}

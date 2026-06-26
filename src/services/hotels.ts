@@ -385,11 +385,16 @@ const API_BASE_URL = (import.meta as any)?.env?.VITE_API_DVI_BASE_URL ?? "";
 export const hotelFormApi = {
   API_BASE_URL:RAW_API_BASE,
   // must be a function returning string to satisfy ApiCtx
-    token: () => localStorage.getItem("token") ?? "",
+    token: () =>
+      localStorage.getItem("accessToken") ??
+      localStorage.getItem("token") ??
+      "",
   apiGet: (path: string) => api(stripApiPrefix(path)),
   apiPost: (path: string, body: any) =>
     api(stripApiPrefix(path), { method: "POST", body }),
   apiPatch: (path: string, body: any) =>
     api(stripApiPrefix(path), { method: "PATCH", body }),
+  apiDelete: (path: string) =>
+    api(stripApiPrefix(path), { method: "DELETE" }),
   apiGetFirst: apiGetFirstInternal,
 };

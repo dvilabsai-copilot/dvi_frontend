@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users, Bed, Calendar } from "lucide-react";
 import { ItineraryService } from "@/services/itinerary";
 import { RouteDayCard } from "./RouteDayCard";
-import { ItineraryFullDetails, ItineraryRoute } from "./types";
+import { GuideDetails, ItineraryFullDetails, ItineraryRoute } from "./types";
 import {
   formatItineraryDate,
   calculateTotalPax,
@@ -24,6 +24,7 @@ export const ItineraryView = () => {
 
   const [loading, setLoading] = useState(true);
   const [itinerary, setItinerary] = useState<ItineraryFullDetails | null>(null);
+  const [guideAssignments, setGuideAssignments] = useState<GuideDetails[]>([]);
   const [expandedRoutes, setExpandedRoutes] = useState<Set<number>>(new Set([0])); // First route expanded by default
 
   useEffect(() => {
@@ -35,11 +36,16 @@ export const ItineraryView = () => {
   const loadItinerary = async (planId: number) => {
     try {
       setLoading(true);
-      const data = await ItineraryService.getOne(planId);
-      
+      const [data, assignments] = await Promise.all([
+        ItineraryService.getOne(planId),
+        ItineraryService.getGuideAssignments(planId).catch(() => []),
+      ]);
+
       setItinerary(data as ItineraryFullDetails);
+      setGuideAssignments(Array.isArray(assignments) ? assignments as GuideDetails[] : []);
     } catch (error) {
       console.error("Failed to load itinerary:", error);
+      setGuideAssignments([]);
       toast({
         title: "Error",
         description: "Failed to load itinerary details",
@@ -88,6 +94,9 @@ export const ItineraryView = () => {
 
   const { plan, routes } = itinerary;
   const totalPax = calculateTotalPax(plan.total_adult, plan.total_children, plan.total_infants);
+  const isWholeItineraryGuideMode = Number(plan.guide_for_itinerary || 0) === 1;
+  const wholeItineraryGuide =
+    guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -185,6 +194,29 @@ export const ItineraryView = () => {
       {/* Main Content */}
       <Card>
         <CardContent className="p-4">
+          {isWholeItineraryGuideMode && wholeItineraryGuide && (
+            <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50 p-4">
+              <p className="text-sm font-semibold text-purple-800">Whole Itinerary Guide</p>
+              <p className="mt-1 text-sm text-gray-700">
+                {wholeItineraryGuide.guideName || "Guide"}
+                {wholeItineraryGuide.guideLanguageLabels.length > 0 && (
+                  <>
+                    {" "}
+                    Language - <span className="font-medium text-purple-700">{wholeItineraryGuide.guideLanguageLabels.join(", ")}</span>
+                  </>
+                )}
+              </p>
+              {wholeItineraryGuide.guideSlotLabels.length > 0 && (
+                <p className="mt-1 text-sm text-gray-600">
+                  Slot Timing - <span className="font-medium text-gray-800">{wholeItineraryGuide.guideSlotLabels.join(", ")}</span>
+                </p>
+              )}
+              <p className="mt-2 text-base font-bold text-purple-700">
+                {formatCurrency(Number(wholeItineraryGuide.guideCost || 0))}
+              </p>
+            </div>
+          )}
+
           {/* Routes Accordion */}
           <div className="space-y-2">
             {routes.map((route: ItineraryRoute, index: number) => (
@@ -196,6 +228,15 @@ export const ItineraryView = () => {
                 isExpanded={expandedRoutes.has(index)}
                 onToggle={() => toggleRoute(index)}
                 showKm={plan.itinerary_preference !== 1}
+                guideAssignment={
+                  isWholeItineraryGuideMode
+                    ? null
+                    : guideAssignments.find(
+                        (assignment) =>
+                          Number(assignment.guideType || 0) === 2 &&
+                          Number(assignment.routeId || 0) === Number(route.itinerary_route_ID),
+                      ) ?? null
+                }
               />
             ))}
           </div>

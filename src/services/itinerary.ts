@@ -1,5 +1,5 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
-import { api } from "@/lib/api";
+import { api, API_BASE_URL, getToken } from "@/lib/api";
 
 export type ItinerarySaveType =
   | "itineary_basic_info"
@@ -7,16 +7,6 @@ export type ItinerarySaveType =
   | undefined;
 
 export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
-
-export type VehicleBuildStatusResponse = {
-  planId: number;
-  status: "PENDING" | "PROCESSING" | "READY" | "FAILED";
-  startedAt?: string | null;
-  finishedAt?: string | null;
-  updatedAt?: string | null;
-  error?: string | null;
-  source?: "memory" | "derived";
-};
 
 export type HotelArrivalPolicyRequest = {
   itineraryPlanId?: number;
@@ -51,6 +41,52 @@ export type HotelArrivalPolicyResponse = {
   debug?: Record<string, unknown>;
 };
 
+export interface StayExtensionPreviewRequest {
+  routeId: number;
+  provider: 'staah' | 'axisrooms';
+  hotelCode: string;
+  hotelName?: string;
+  roomId?: string;
+  rateId?: string;
+  roomType?: string;
+  mealPlan?: string;
+  checkInDate: string;
+}
+
+export interface StayExtensionPreviewResponse {
+  canBookSingleNight: boolean;
+  canBookMultiNight: boolean;
+  blocked: boolean;
+  provider: 'staah' | 'axisrooms';
+  hotelName?: string;
+  roomType?: string;
+  mealPlan?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  routeIds: number[];
+  stayKey?: string;
+  restrictionConflicts: Array<{
+    date?: string;
+    type: string;
+    message: string;
+  }>;
+  warnings: Array<{
+    type: string;
+    message: string;
+  }>;
+  nightlyRates: Array<{
+    date: string;
+    amountAfterTax: number;
+    baseAmount?: number;
+    extraAdultCount?: number;
+    extraChildCount?: number;
+    extraAdultRate?: number;
+    extraChildRate?: number;
+  }>;
+  totalAmountAfterTax: number;
+}
+
 export type HotspotAnchorPayload = {
   anchorType?: "after_travel";
   anchorIndex?: number;
@@ -76,6 +112,36 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
+  async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/${path.replace(/^\/+/, '')}`, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `Download failed: ${res.status} ${res.statusText} ${text}`.trim(),
+      );
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get("content-disposition") || "";
+    const nameMatch =
+      disposition.match(/filename\*=(?:UTF-8'')?([^;]+)/i) ||
+      disposition.match(/filename=\"?([^"]+)\"?/i);
+    const fileName = decodeURIComponent((nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""));
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   async create(data: any, type?: ItinerarySaveType) {
     const url = type
       ? `itineraries/?type=${encodeURIComponent(type)}`
@@ -186,21 +252,87 @@ export const ItineraryService = {
     });
   },
 
+  async getGuideAssignments(planId: number) {
+    return api(`itineraries/${planId}/guides`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async getGuideAssignmentOptions(planId: number, routeGuideId?: number) {
+    const suffix = routeGuideId ? `?routeGuideId=${routeGuideId}` : "";
+    return api(`itineraries/${planId}/guides/options${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+    });
+  },
+
+  async saveGuideAssignment(
+    planId: number,
+    data: {
+      routeGuideId?: number;
+      routeId?: number;
+      routeDate?: string;
+      guideType?: number;
+      guideLanguage: number;
+      guideSlots?: number[];
+    },
+  ) {
+    return api(`itineraries/${planId}/guides`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
+  async deleteGuideAssignment(planId: number, routeGuideId: number, routeId?: number) {
+    const suffix = routeId ? `?routeId=${routeId}` : "";
+    return api(`itineraries/${planId}/guides/${routeGuideId}${suffix}`, {
+      method: "DELETE",
+    });
+  },
+
   async getVehicleBuildStatus(planId: number) {
-    return api(`itineraries/vehicles/build-status/${planId}`, {
+    return api(`itineraries/${planId}/vehicle-build-status`, {
       method: "GET",
       cache: "no-store",
       headers: {
         "Cache-Control": "no-cache",
         Pragma: "no-cache",
       },
-    }) as Promise<VehicleBuildStatusResponse>;
+    });
   },
 
-  async triggerVehicleBuildAsync(planId: number) {
-    return api(`itineraries/vehicles/rebuild-async/${planId}`, {
+  async triggerVehicleBuild(planId: number) {
+    return api(`itineraries/${planId}/vehicle-build`, {
       method: "POST",
-    }) as Promise<VehicleBuildStatusResponse>;
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
+  async buildPermitsSync(planId: number) {
+    return api(`itineraries/${planId}/permit-build-sync`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+  },
+
+  async buildVehiclesSync(planId: number) {
+    return api(`itineraries/${planId}/vehicle-build-sync`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
   },
 
   async getHotelDetails(
@@ -254,6 +386,16 @@ export const ItineraryService = {
       method: "POST",
       body: payload,
     }) as Promise<HotelArrivalPolicyResponse>;
+  },
+
+  async previewHotelStayExtension(
+    planId: number,
+    payload: StayExtensionPreviewRequest,
+  ) {
+    return api(`itineraries/${planId}/hotels/stay-extension-preview`, {
+      method: "POST",
+      body: payload,
+    }) as Promise<StayExtensionPreviewResponse>;
   },
 
   async getClipboardContent(
@@ -695,6 +837,7 @@ export const ItineraryService = {
       searchReference?: string;
       roomId?: string;
       rateId?: string;
+      mealPlan?: string;
       roomType: string;
       checkInDate: string;
       checkOutDate: string;
@@ -702,6 +845,20 @@ export const ItineraryService = {
       guestNationality: string;
       netAmount: number;
       searchInitiatedAt?: string;
+      multiNightBooking?: boolean;
+      stayKey?: string;
+      routeIds?: number[];
+      nights?: number;
+      nightlyRates?: Array<{
+        date: string;
+        amountAfterTax: number;
+        baseAmount?: number;
+        extraAdultCount?: number;
+        extraChildCount?: number;
+        extraAdultRate?: number;
+        extraChildRate?: number;
+      }>;
+      totalAmountAfterTax?: number;
       passengers: Array<{
         title: string;
         firstName: string;
@@ -844,6 +1001,29 @@ export const ItineraryService = {
     });
   },
 
+  async getConfirmedGuideAssignments(confirmedId: number) {
+    return api(`itineraries/confirmed/${confirmedId}/guides`, {
+      method: "GET",
+    });
+  },
+
+  async cancelConfirmedGuideSlot(
+    confirmedId: number,
+    data: {
+      routeGuideId: number;
+      guideSlotCostDetailsId: number;
+      itineraryRouteId?: number;
+      cancellationPercentage?: number;
+      defectType?: string;
+      reason?: string;
+    },
+  ) {
+    return api(`itineraries/confirmed/${confirmedId}/guides/cancel-slot`, {
+      method: "POST",
+      body: data,
+    });
+  },
+
   async getCancelledItineraries(params: {
   draw?: number;
   start?: number;
@@ -918,10 +1098,26 @@ export const ItineraryService = {
     });
   },
 
+  async downloadVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/voucher-pdf`, `voucher-details-${id}.pdf`);
+  },
+
+  async downloadHotelVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/hotel-voucher-pdf`, `hotel-voucher-${id}.pdf`);
+  },
+
+  async downloadVehicleVoucherPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/vehicle-voucher-pdf`, `transport-voucher-${id}.pdf`);
+  },
+
   async getPluckCardData(id: number) {
     return api(`itineraries/${id}/pluck-card-data`, {
       method: "GET",
     });
+  },
+
+  async downloadPluckCardPdf(id: number) {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/pluck-card-pdf`, `pluck-card-${id}.pdf`);
   },
 
   async getPluckCardDataByConfirmedId(confirmedId: number) {
@@ -934,6 +1130,10 @@ export const ItineraryService = {
     return api(`itineraries/${id}/invoice-data`, {
       method: "GET",
     });
+  },
+
+  async downloadInvoicePdf(id: number, type: "tax" | "proforma" = "tax") {
+    return this.downloadAuthenticatedFile(`itineraries/${id}/invoice-pdf?type=${encodeURIComponent(type)}`, `${type}-invoice-${id}.pdf`);
   },
 
   // Incidental Expenses
@@ -1021,3 +1221,4 @@ export const ItineraryService = {
     });
   },
 };
+

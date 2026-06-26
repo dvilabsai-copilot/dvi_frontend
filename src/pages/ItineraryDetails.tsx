@@ -2,7 +2,7 @@
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,14 +14,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, AlertTriangle, Loader2, RefreshCw, Edit } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit, AlertTriangle } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
-import type { VehicleBuildStatusResponse } from "@/services/itinerary";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
@@ -165,6 +171,29 @@ type ItineraryDay = {
   segments: ItinerarySegment[];
 };
 
+type ItineraryGuideAssignment = {
+  routeGuideId: number;
+  planId: number;
+  routeId: number | null;
+  routeDate: string | null;
+  guideType: number;
+  guideId: number;
+  guideName: string;
+  guideLanguage: string;
+  guideLanguageIds: number[];
+  guideLanguageLabels: string[];
+  guideSlot: string;
+  guideSlotIds: number[];
+  guideSlotLabels: string[];
+  guideCost: number;
+};
+
+type GuideModalOptions = {
+  languages: Array<{ id: number; label: string }>;
+  slots: Array<{ id: number; label: string }>;
+  assignment?: ItineraryGuideAssignment | null;
+};
+
 // --------- HOTELS (matches backend DTO) ---------
 
 export type ItineraryHotelRow = {
@@ -201,6 +230,7 @@ export type ItineraryHotelRow = {
   // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
   hotelCode?: string; // HOBSE hotel code
   bookingCode?: string; // HOBSE booking code
+  searchReference?: string;
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
@@ -211,6 +241,7 @@ export type ItineraryHotelRow = {
   externalStay?: boolean;
   availabilityStatus?: 'AVAILABLE' | 'NO_SUPPLIER_AVAILABILITY' | 'NOT_BOOKABLE';
   availabilityMessage?: string | null;
+  availableAgainFrom?: string | null;
   displayRoomType?: string;
   displayMealPlan?: string;
 };
@@ -275,6 +306,14 @@ export type ItineraryVehicleRow = {
   vehicleOrigin: string | null;
   totalQty: string;
   totalAmount: string;
+  vehicleId?: number | null;
+  vehicleIds?: number[];
+  vehicleNumber?: string | null;
+  vehicleNumbers?: string[];
+  availableVehicleCount?: number;
+  vehicleRegistrationNumber?: string | null;
+  vehicleRegistrationStateCode?: string | null;
+  vehicleRegistrationStateName?: string | null;
 
   // vehicle type information
   vendorEligibleId?: number;
@@ -347,20 +386,12 @@ type CostBreakdown = {
 
 // ----------------- Main API response types -----------------
 
-type ItineraryPlanRouteOption = {
-  label?: string;
-  routeName?: string;
-  quoteId?: string;
-  quotationNo?: string;
-  routeQuoteId?: string;
-};
-
 type ItineraryDetailsResponse = {
+  // planId for routing back to create-itinerary
   planId?: number;
   itineraryPreference?: number;
-  routeOptions?: ItineraryPlanRouteOption[];
-  suggestedRoutes?: ItineraryPlanRouteOption[];
   confirmed_itinerary_plan_ID?: number;
+  guideForItinerary?: number;
   isConfirmed?: boolean;
   quoteId: string;
   dateRange: string;
@@ -391,6 +422,7 @@ type ItineraryHotelDetailsResponse = {
   showHotelMargins?: boolean;
   hotelTabs: ItineraryHotelTab[];
   hotels: ItineraryHotelRow[];
+  restrictedHotels?: ItineraryHotelRow[];
   hotelAvailability?: HotelAvailabilityMeta;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
@@ -406,11 +438,10 @@ type ConfirmedHotelResponseShape = {
   hotelAvailability?: HotelAvailabilityMeta;
 };
 
-type VehicleBuildState = "PENDING" | "PROCESSING" | "READY" | "FAILED";
-
 // Dedupe in-flight details requests per quote to prevent duplicate API calls
 // in React StrictMode/dev remount scenarios.
 const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
+const autoLoadStartedQuotes = new Set<string>();
 
 const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
   const existing = detailsInFlight.get(quoteId);
@@ -611,7 +642,6 @@ interface ItineraryDetailsProps {
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
   const { id: quoteId } = useParams();
   const location = useLocation();
-    const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -631,34 +661,17 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     const pref = Number(itinerary?.itineraryPreference ?? 0);
     return pref === 2 || pref === 3;
   })();
+  const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
+  const requiresHotelBookingFlow = shouldShowHotels;
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildStatusResponse | null>(null);
-  const [isRetryingVehicleBuild, setIsRetryingVehicleBuild] = useState(false);
-  const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
-const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
-const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
-  // Eagerly hydrate from localStorage so route tabs are visible immediately on mount.
-  // The async useEffect will re-validate and update them if needed.
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(`itinerary-route-options:${quoteId}`);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [];
-    const options = parsed
-      .map((option: any, index: number) => ({
-        quoteId: String(option.quoteId || option.itinerary_quote_ID || option.itinerary_quote_id || option.quotationNo || ""),
-        label: option.label || `Route ${index + 1}`,
-      }))
-      .filter((o: any) => o.quoteId && String(o.quoteId).startsWith("DVI"));
-    return options.length > 0 ? options : [];
-  } catch {
-    return [];
-  }
-});
+  const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
+  const [pageReady, setPageReady] = useState<boolean>(false);
+  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
+  const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
+  const itineraryDaysCountRef = useRef(0);
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -755,6 +768,39 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     activityName: "",
   });
   const [isDeletingActivity, setIsDeletingActivity] = useState(false);
+  const [guideAssignments, setGuideAssignments] = useState<ItineraryGuideAssignment[]>([]);
+  const [guideModal, setGuideModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    saving: boolean;
+    planId: number | null;
+    day: ItineraryDay | null;
+    routeGuideId: number | null;
+    guideType: number;
+    guideLanguage: string;
+    guideSlots: number[];
+    options: GuideModalOptions;
+  }>({
+    open: false,
+    loading: false,
+    saving: false,
+    planId: null,
+    day: null,
+    routeGuideId: null,
+    guideType: 2,
+    guideLanguage: "",
+    guideSlots: [],
+    options: { languages: [], slots: [], assignment: null },
+  });
+  const [deleteGuideModal, setDeleteGuideModal] = useState<{
+    open: boolean;
+    assignment: ItineraryGuideAssignment | null;
+    deleting: boolean;
+  }>({
+    open: false,
+    assignment: null,
+    deleting: false,
+  });
 
   // Add hotspot modal state
   type AvailableHotspot = {
@@ -2668,6 +2714,22 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       externalStay?: boolean;
       availabilityStatus?: string;
       availabilityMessage?: string | null;
+      routeId?: number;
+      multiNightBooking?: boolean;
+      stayKey?: string;
+      routeIds?: number[];
+      nights?: number;
+      nightlyRates?: Array<{
+        date: string;
+        amountAfterTax: number;
+        baseAmount?: number;
+        extraAdultCount?: number;
+        extraChildCount?: number;
+        extraAdultRate?: number;
+        extraChildRate?: number;
+      }>;
+      totalAmountAfterTax?: number;
+      mealPlan?: string;
     }
   }>({});
 
@@ -2733,32 +2795,54 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       return next;
     });
   }, [activeVehicleTypeIds]);
+useEffect(() => {
+  if (!shouldShowVehicles || !itinerary?.vehicles?.length) return;
+
+  const vehiclesByType = new Map<number, ItineraryVehicleRow[]>();
+
+  for (const vehicle of itinerary.vehicles) {
+    const typeId = Number(vehicle.vehicleTypeId || 0);
+    if (!typeId) continue;
+
+    if (!vehiclesByType.has(typeId)) {
+      vehiclesByType.set(typeId, []);
+    }
+
+    vehiclesByType.get(typeId)!.push(vehicle);
+  }
+
+  setSelectedVehicleTotalsByType((prev) => {
+    let changed = false;
+    const next: Record<number, { totalAmount: number; totalQty: number }> = {
+      ...prev,
+    };
+
+    vehiclesByType.forEach((vehicles, typeId) => {
+      if (next[typeId]?.totalAmount > 0) return;
+
+      const cheapestVehicle = getCheapestVehicleForType(vehicles);
+      if (!cheapestVehicle) return;
+
+      next[typeId] = {
+        totalAmount: getVehicleAmountNumber(cheapestVehicle),
+        totalQty: Number(cheapestVehicle.totalQty || 1),
+      };
+
+      changed = true;
+    });
+
+    return changed ? next : prev;
+  });
+}, [itinerary?.vehicles, shouldShowVehicles]);
+
+  useEffect(() => {
+    itineraryDaysCountRef.current = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
+  }, [itinerary?.days]);
 
   const scrollToSection = (el: HTMLDivElement | null) => {
     if (!el) return;
 
-    let scrollParent: HTMLElement | null = el.parentElement;
-    while (scrollParent) {
-      const style = window.getComputedStyle(scrollParent);
-      const canScrollY = /(auto|scroll)/.test(style.overflowY || "");
-      if (canScrollY && scrollParent.scrollHeight > scrollParent.clientHeight) {
-        break;
-      }
-      scrollParent = scrollParent.parentElement;
-    }
-
     const offset = summaryStickyHeight + 12;
-    if (scrollParent) {
-      const parentRect = scrollParent.getBoundingClientRect();
-      const targetTop =
-        scrollParent.scrollTop +
-        (el.getBoundingClientRect().top - parentRect.top) -
-        offset;
-
-      scrollParent.scrollTo({ top: Math.max(targetTop, 0), behavior: "smooth" });
-      return;
-    }
-
     const y = el.getBoundingClientRect().top + window.scrollY - offset;
     window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
   };
@@ -2882,100 +2966,95 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return merged;
   }, [dedupeHotelRows]);
 
-  const normalizeConfirmedHotelResponse = useCallback((payload: any, totalDays?: number): ItineraryHotelDetailsResponse => {
-  if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
+  const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
+    if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
+      return {
+        hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
+        showHotelMargins: Boolean(payload?.showHotelMargins),
+        hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
+        hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
+        hotelAvailability: payload?.hotelAvailability,
+      };
+    }
+
+    const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
+    const totalRoutes = itineraryDaysCountRef.current;
+    const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
+    const placeholderRowCount = hotels.length - supplierHotelCount;
+
     return {
-      hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
-      showHotelMargins: Boolean(payload?.showHotelMargins),
-      hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
-      hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
-      hotelAvailability: payload?.hotelAvailability,
-    };
-  }
-
-  const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
-  // totalRoutes passed as parameter to avoid depending on itinerary state,
-  // which would cause loadHotelDetailsForItinerary to recreate on every setItinerary call.
-  const totalRoutes = totalDays ?? 0;
-  const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
-  const placeholderRowCount = hotels.length - supplierHotelCount;
-
-  return {
-    hotelRatesVisible: false,
-    showHotelMargins: false,
-    hotelTabs: [
-      {
-        groupType: 1,
-        label: 'Booked Hotels',
-        totalAmount: hotels.reduce(
-          (sum: number, hotel: any) =>
-            sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
-          0,
-        ),
+      hotelRatesVisible: false,
+      showHotelMargins: false,
+      hotelTabs: [
+        {
+          groupType: 1,
+          label: 'Booked Hotels',
+          totalAmount: hotels.reduce(
+            (sum: number, hotel: any) =>
+              sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
+            0,
+          ),
+        },
+      ],
+      hotels,
+      hotelAvailability: {
+        hasSupplierHotels: supplierHotelCount > 0,
+        supplierHotelCount,
+        placeholderRowCount,
+        totalSearchRoutes: totalRoutes,
+        emptySearchRoutes: Math.max(totalRoutes - hotels.length, 0),
+        isPlaceholderOnly: supplierHotelCount === 0 && placeholderRowCount > 0,
+        message: supplierHotelCount > 0
+          ? 'Showing confirmed booked hotels for this itinerary.'
+          : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
       },
-    ],
-    hotels,
-    hotelAvailability: {
-      hasSupplierHotels: supplierHotelCount > 0,
-      supplierHotelCount,
-      placeholderRowCount,
-      totalSearchRoutes: totalRoutes,
-      emptySearchRoutes: Math.max(totalRoutes - hotels.length, 0),
-      isPlaceholderOnly: supplierHotelCount === 0 && placeholderRowCount > 0,
-      message: supplierHotelCount > 0
-        ? 'Showing confirmed booked hotels for this itinerary.'
-        : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
-    },
-  };
-}, []); // ← no deps: stable forever, never recreates
+    };
+  }, []);
 
   const loadConfirmedHotelsFromDb = useCallback(async (
-  confirmedPlanId: number,
-  alreadyLoadedPayload?: any,
-  totalDays?: number,
-): Promise<ItineraryHotelDetailsResponse | null> => {
-  if (!confirmedPlanId) return null;
+    confirmedPlanId: number,
+    alreadyLoadedPayload?: any,
+  ): Promise<ItineraryHotelDetailsResponse | null> => {
+    if (!confirmedPlanId) return null;
 
-  if (
-    alreadyLoadedPayload &&
-    Array.isArray(alreadyLoadedPayload?.hotels)
-  ) {
-    return normalizeConfirmedHotelResponse(alreadyLoadedPayload, totalDays);
-  }
+    if (
+      alreadyLoadedPayload &&
+      Array.isArray(alreadyLoadedPayload?.hotels)
+    ) {
+      return normalizeConfirmedHotelResponse(alreadyLoadedPayload);
+    }
 
-  const confirmedRes = await ItineraryService.getConfirmedItinerary(confirmedPlanId);
-  return normalizeConfirmedHotelResponse(confirmedRes, totalDays);
-}, [normalizeConfirmedHotelResponse]);
+    const confirmedRes = await ItineraryService.getConfirmedItinerary(confirmedPlanId);
+    return normalizeConfirmedHotelResponse(confirmedRes);
+  }, [normalizeConfirmedHotelResponse]);
 
   const loadHotelDetailsForItinerary = useCallback(async (
-  quoteIdValue: string,
-  itineraryDetails: ItineraryDetailsResponse,
-): Promise<ItineraryHotelDetailsResponse | null> => {
-  const pref = Number(itineraryDetails.itineraryPreference ?? 3);
-  const useHotels = pref === 1 || pref === 3;
+    quoteIdValue: string,
+    itineraryDetails: ItineraryDetailsResponse,
+  ): Promise<ItineraryHotelDetailsResponse | null> => {
+    const pref = Number(itineraryDetails.itineraryPreference ?? 3);
+    const useHotels = pref === 1 || pref === 3;
 
-  if (!useHotels) return null;
+    if (!useHotels) return null;
 
-  const confirmedPlanId = Number((itineraryDetails as any)?.confirmed_itinerary_plan_ID || 0);
+    const confirmedPlanId = Number((itineraryDetails as any)?.confirmed_itinerary_plan_ID || 0);
 
-  if (confirmedPlanId > 0) {
-    console.log('[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.', {
+    if (confirmedPlanId > 0) {
+      console.log('[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.', {
+        quoteId: quoteIdValue,
+        confirmedPlanId,
+      });
+
+      return loadConfirmedHotelsFromDb(confirmedPlanId);
+    }
+
+    console.log('[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.', {
       quoteId: quoteIdValue,
-      confirmedPlanId,
     });
 
-    // Pass totalDays from itineraryDetails so normalizeConfirmedHotelResponse
-    // doesn't need to read from itinerary state (which causes cascade re-renders).
-    const totalDays = Array.isArray(itineraryDetails.days) ? itineraryDetails.days.length : 0;
-    return loadConfirmedHotelsFromDb(confirmedPlanId, undefined, totalDays);
-  }
+    return fetchCompleteHotelDetails(quoteIdValue);
+  }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 
-  console.log('[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.', {
-    quoteId: quoteIdValue,
-  });
-
-  return fetchCompleteHotelDetails(quoteIdValue);
-}, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
   const selectedHotelTotal = useMemo(
     () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings]
@@ -3489,6 +3568,29 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
   }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
   const financialTotals = useMemo(() => {
+    const backendNetPayable = Number(
+      itinerary?.costBreakdown?.netPayable ?? itinerary?.overallCost ?? 0,
+    );
+    const backendTotalAmount = Number(itinerary?.costBreakdown?.totalAmount ?? 0);
+    const backendRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff ?? 0);
+
+const hasSelectedVehicleTotal =
+  Object.values(selectedVehicleTotalsByType).some(
+    (row) => Number(row.totalAmount || 0) > 0
+  );
+
+const hasLiveHotelSelection =
+  activeHotelListTotal > 0 || selectedHotelTotal > 0;
+
+if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection) {
+  return {
+    hotelAmount: Number(itinerary?.costBreakdown?.totalHotelAmount || 0),
+    totalAmount: backendTotalAmount,
+    netPayable: backendNetPayable,
+    totalRoundOff: backendRoundOff,
+  };
+}
+
     const hotelAmount = shouldShowHotels
       ? Number(
           computedHotelCost ||
@@ -3522,7 +3624,16 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       netPayable,
       totalRoundOff,
     };
-  }, [itinerary, computedHotelCost, computedVehicleAmount, shouldShowHotels, shouldShowVehicles]);
+ }, [
+  itinerary,
+  computedHotelCost,
+  computedVehicleAmount,
+  shouldShowHotels,
+  shouldShowVehicles,
+  selectedVehicleTotalsByType,
+  activeHotelListTotal,
+  selectedHotelTotal,
+]);
 
   const hotelHydratedDays = useMemo(() => {
     if (!itinerary?.days?.length) return [];
@@ -3804,10 +3915,9 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     };
   });
 
-  const overallTripCostWithHotels = useMemo(() => {
-    // Keep header total in lockstep with the bottom "Net Payable" calculation.
-    return Number(financialTotals.netPayable || 0).toFixed(2);
-  }, [financialTotals.netPayable]);
+const overallTripCostWithHotels = useMemo(() => {
+  return Number(financialTotals.netPayable || itinerary?.overallCost || 0).toFixed(2);
+}, [financialTotals.netPayable, itinerary?.overallCost]);
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {
@@ -3922,6 +4032,41 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
 
     return Number(amount.toFixed(2));
   };
+ const getVehicleAmountNumber = (vehicle: any): number => {
+  const raw =
+    vehicle?.grandTotal ??
+    vehicle?.vehicleGrandTotal ??
+    vehicle?.totalAmount ??
+    vehicle?.total_amount ??
+    vehicle?.TotalAmount ??
+    vehicle?.finalAmount ??
+    vehicle?.amount ??
+    0;
+
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  const cleaned = String(raw)
+    .replace(/₹/g, "")
+    .replace(/,/g, "")
+    .replace(/[^\d.-]/g, "")
+    .trim();
+
+  const amount = Number(cleaned);
+
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
+  if (!vehicles.length) return null;
+
+  return vehicles.reduce((cheapest, current) => {
+    return getVehicleAmountNumber(current) < getVehicleAmountNumber(cheapest)
+      ? current
+      : cheapest;
+  }, vehicles[0]);
+};
 
   const getHotelSelectionAmount = (hotel: any): number => {
     const directTotal = Number(hotel?.totalAmount ?? hotel?.totalPrice ?? 0);
@@ -4576,73 +4721,329 @@ const replaceHighlightsHotspotDetailsHtml = (
     hotspotTableStart,
   )}${highlightsHotspotHtml}${backendHtml.slice(hotspotSectionEnd)}`;
 };
-const cleanVehicleOnlyClipboardHtml = (html: string): string => {
-  if (!html) return html;
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
+const buildVehicleOnlyClipboardHtml = (): { html: string; plainText: string } => {
+  if (!itinerary) {
+    return { html: "", plainText: "" };
+  }
 
-  doc.querySelectorAll("table").forEach((table) => {
-    const rows = Array.from(table.querySelectorAll("tr"));
+  const money = (value?: number | string | null) => {
+    const amount = Number(value || 0);
 
-    const hotelStartIndex = rows.findIndex((row) =>
-      /Recommended Hotel/i.test(row.textContent || ""),
-    );
+    return Number.isFinite(amount)
+      ? amount.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "0.00";
+  };
 
-    const vehicleStartIndex = rows.findIndex((row, index) =>
-      index > hotelStartIndex && /Vehicle Details/i.test(row.textContent || ""),
-    );
+  const moneyWithSymbol = (value?: number | string | null) => `₹ ${money(value)}`;
 
-    if (hotelStartIndex !== -1 && vehicleStartIndex !== -1) {
-      rows.slice(hotelStartIndex, vehicleStartIndex).forEach((row) => row.remove());
-    }
-  });
+  const vehicleQty =
+    Number(computedVehicleQty || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleQty || 0) ||
+    1;
 
-  doc.querySelectorAll("td, th").forEach((cell) => {
-    const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+  const vehicleAmount =
+    Number(computedVehicleAmount || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleAmount || 0) ||
+    Number(itinerary.costBreakdown?.totalVehicleCost || 0) ||
+    Number(financialTotals?.totalAmount || 0) ||
+    Number(financialTotals?.netPayable || 0) ||
+    Number(itinerary.overallCost || 0) ||
+    0;
 
-    if (/^Room Count\b/i.test(text)) {
-      cell.remove();
-    }
-  });
+  const companyName =
+    itinerary.costBreakdown?.companyName || "Doview Holidays India Pvt ltd";
 
-  doc.querySelectorAll("tr").forEach((row) => {
-    const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+  const packageDescription =
+    itinerary.packageIncludes?.description ||
+    itinerary.packageIncludes?.rateNote ||
+    `The Quotation quoted is valid for 3 days from the date of quote, if the travel of the Guest is below then three of from the quoted date the valid quote only for quoted date and Company Reserves the right to change the prices depends on the availability of prices and inventory`;
 
-    if (/^Total Room Cost\b/i.test(text)) {
-      row.remove();
-    }
-  });
+  const packageNote =
+    itinerary.packageIncludes?.houseBoatNote ||
+    `Kindly note that names of hotels mentioned above only indicate that our rates have been based on usage of these hotels and it is not to be construed that accommodation is confirmed at these hotels until and unless we convey such confirmation to you.`;
 
-  return doc.body.innerHTML;
+  const tableStyle =
+    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.35;color:#000;";
+  const borderStyle = "border:1px solid #b1b1b1;";
+  const cellStyle = `${borderStyle}padding:8px;text-align:left;vertical-align:middle;`;
+  const amountCellStyle = `${cellStyle}text-align:right;white-space:nowrap;`;
+  const titleStyle =
+    "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:36px;font-weight:700;color:#000;text-align:left;";
+
+  const html = `
+    <table width="700" border="0" cellpadding="0" cellspacing="0" style="${tableStyle}">
+      <tr>
+        <td width="50%" style="padding:8px 14px 8px 0;vertical-align:top;">
+          <div style="${titleStyle}">Package Includes</div>
+
+          <div style="font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.45;color:#000;margin-top:28px;">
+            ${escapeHtml(packageDescription).replace(/\n/g, "<br/>")}
+          </div>
+
+          <div style="font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.45;color:#000;margin-top:24px;">
+            ${escapeHtml(packageNote).replace(/\n/g, "<br/>")}
+          </div>
+        </td>
+
+        <td width="50%" style="padding:8px 0 8px 22px;vertical-align:top;">
+          <div style="${titleStyle}">OVERALL COST</div>
+
+          <table width="100%" border="0" cellpadding="0" cellspacing="0" style="${tableStyle};margin-top:16px;">
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;">
+                Total Vehicle Cost (${escapeHtml(vehicleQty)})
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Total Vehicle Amount
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="2" style="border-top:1px solid #b1b1b1;height:18px;font-size:1px;line-height:1px;">
+                &nbsp;
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Total Amount
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+
+            <tr>
+              <td colspan="2" style="border-top:1px solid #b1b1b1;height:18px;font-size:1px;line-height:1px;">
+                &nbsp;
+              </td>
+            </tr>
+
+            <tr>
+              <td style="${cellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                Net Payable To ${escapeHtml(companyName)}
+              </td>
+              <td style="${amountCellStyle}border-left:0;border-right:0;border-top:0;font-weight:700;">
+                ${escapeHtml(moneyWithSymbol(vehicleAmount))}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  `;
+
+  const plainText = htmlToPlainText(html);
+
+  return { html, plainText };
 };
 
-const handleVehicleOnlyClipboardCopy = async () => {
+const handleVehicleOnlyClipboardCopy = async (
+  type: "recommended" | "highlights" | "para" = "recommended",
+) => {
   if (!quoteId || itineraryPreference !== 2) return;
 
   try {
-    const { html, plainText } = await ItineraryService.getClipboardContent(
+    /*
+      Vehicle Only clipboard rules:
+
+      recommended = backend recommended format
+      para        = backend para format
+      highlights  = backend base format + ONLY compact highlights hotspot table
+
+      Do NOT use buildVehicleOnlyClipboardHtml() here.
+    */
+
+    const backendMode =
+      type === "highlights" ? "recommended" : type;
+
+    const response = await ItineraryService.getClipboardContent(
       quoteId,
-      "recommended",
+      backendMode,
       [],
     );
+
+    const backendHtml = response?.html || "";
+    const backendPlainText = response?.plainText || "";
+
+    const cleanVehicleOnlyB2BHtml = (rawHtml: string): string => {
+      if (!rawHtml) return rawHtml;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(rawHtml, "text/html");
+
+      // Remove hotel-only rows/sections if backend sends them by mistake.
+      doc.querySelectorAll("tr").forEach((row) => {
+        const text = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /^Recommended Hotel/i.test(text) ||
+          /^Hotel Details/i.test(text) ||
+          /^Total Room Cost/i.test(text) ||
+          /^Total Hotel Cost/i.test(text) ||
+          /^Total Hotel Amount/i.test(text) ||
+          /^Room Count\b/i.test(text)
+        ) {
+          row.remove();
+        }
+      });
+
+      // Fix wrong merged vehicle label:
+      // "Total Vehicle Amount Total Vehicle Cost (1)" -> "Total Vehicle Amount"
+      doc.querySelectorAll("tr").forEach((row) => {
+        const rowText = row.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /Total Vehicle Amount/i.test(rowText) &&
+          /Total Vehicle Cost\s*\(/i.test(rowText)
+        ) {
+          const cells = Array.from(row.querySelectorAll("td, th"));
+          if (!cells.length) return;
+
+          const firstCell = cells[0];
+
+          const amountCell = cells.find((cell) => {
+            const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+            return /₹|Rs\.?|[0-9]+,[0-9]+|\d+\.\d{2}/i.test(text);
+          });
+
+          firstCell.textContent = "Total Vehicle Amount";
+
+          cells.forEach((cell) => {
+            if (cell === firstCell) return;
+            if (amountCell && cell === amountCell) return;
+
+            const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+            if (/Total Vehicle Cost\s*\(/i.test(text)) {
+              cell.remove();
+            }
+          });
+        }
+      });
+
+      // Extra safety if both labels are inside one single cell.
+      doc.querySelectorAll("td, th").forEach((cell) => {
+        const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+        if (
+          /Total Vehicle Amount/i.test(text) &&
+          /Total Vehicle Cost\s*\(/i.test(text)
+        ) {
+          cell.textContent = "Total Vehicle Amount";
+        }
+      });
+
+      // Remove tiny empty cells that Outlook shows as square boxes.
+      doc.querySelectorAll("td, th").forEach((cell) => {
+        const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+        const hasContentElement =
+          cell.querySelectorAll("table, img, a, span, div, p, b, strong").length > 0;
+
+        const widthValue = Number(
+          String(cell.getAttribute("width") || "").replace(/[^0-9.]/g, ""),
+        );
+
+        if (!text && !hasContentElement && widthValue > 0 && widthValue <= 40) {
+          cell.remove();
+        }
+      });
+
+      return doc.body.innerHTML;
+    };
+
+    let html = backendHtml
+      ? cleanVehicleOnlyB2BHtml(backendHtml)
+      : backendPlainText;
+
+    /*
+      VERY IMPORTANT:
+      Only Copy to Highlights should replace Hotspot Details.
+      This removes paragraph/travel/full-description hotspot content
+      and inserts the compact highlight table:
+      Day 1...
+      Hotspot Name - Duration, Hotspot Name - Duration
+    */
+  if (type === "highlights" && html) {
+  html = replaceHighlightsHotspotDetailsHtml(
+    html,
+    buildHighlightsHotspotDetailsHtml(),
+  );
+
+  const moveHighlightSignatureBelow = (rawHtml: string): string => {
+    if (!rawHtml) return rawHtml;
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, "text/html");
+
+    const signatureCell = Array.from(doc.querySelectorAll("td, th")).find((cell) => {
+      const text = cell.textContent?.replace(/\s+/g, " ").trim() || "";
+
+      return (
+        /Nisha/i.test(text) &&
+        /Sales Support/i.test(text) &&
+        /Mobile/i.test(text)
+      );
+    });
+
+    if (!signatureCell) {
+      return doc.body.innerHTML;
+    }
+
+    const signatureHtml = signatureCell.innerHTML;
+
+    const parentRow = signatureCell.closest("tr");
+    const rowCells = parentRow ? Array.from(parentRow.querySelectorAll(":scope > td, :scope > th")) : [];
+
+    // If signature is in right-side column, remove that right column.
+    if (parentRow && rowCells.length > 1) {
+      signatureCell.remove();
+    }
+
+    const signatureWrapper = doc.createElement("div");
+    signatureWrapper.innerHTML = `
+      <div style="margin-top:18px;font-family:Arial,sans-serif;font-size:12px;line-height:1.35;color:#003366;">
+        ${signatureHtml}
+      </div>
+    `;
+
+    doc.body.appendChild(signatureWrapper);
+
+    return doc.body.innerHTML;
+  };
+
+  html = moveHighlightSignatureBelow(html);
+}
+
+const plainText = html ? htmlToPlainText(html) : backendPlainText;
 
     if (!html && !plainText) {
       toast.error("Failed to prepare clipboard content");
       return;
     }
 
-const vehicleOnlyHtml = html
-  ? cleanVehicleOnlyClipboardHtml(html)
-  : plainText;
+    await copyHtmlToClipboard(html, plainText);
 
-  
-    const vehicleOnlyPlainText = vehicleOnlyHtml
-      ? htmlToPlainText(vehicleOnlyHtml)
-      : plainText;
-
-    await copyHtmlToClipboard(vehicleOnlyHtml, vehicleOnlyPlainText);
-    toast.success("Formatted clipboard content copied!");
+    if (type === "recommended") {
+      toast.success("Copy Recommended copied!");
+    } else if (type === "highlights") {
+      toast.success("Copy to Highlights copied!");
+    } else {
+      toast.success("Copy to Para copied!");
+    }
   } catch (error) {
     console.error("Failed to copy vehicle-only clipboard content", error);
     toast.error("Failed to copy clipboard content");
@@ -4657,6 +5058,35 @@ const vehicleOnlyHtml = html
   const [incidentalModal, setIncidentalModal] = useState(false);
   const [isConfirmingQuotation, setIsConfirmingQuotation] = useState(false);
   const [walletBalance, setWalletBalance] = useState<string>('');
+  const currentItineraryPlanId = Number(itinerary?.planId || 0);
+
+  const handleDownloadPluckCard = async () => {
+    if (!currentItineraryPlanId) {
+      toast.error("Itinerary plan is not available yet");
+      return;
+    }
+    try {
+      await ItineraryService.downloadPluckCardPdf(currentItineraryPlanId);
+      toast.success("Pluck card download started");
+    } catch (error) {
+      console.error("Failed to download pluck card PDF", error);
+      toast.error("Failed to download pluck card");
+    }
+  };
+
+  const handleDownloadInvoice = async (type: 'tax' | 'proforma') => {
+    if (!currentItineraryPlanId) {
+      toast.error("Itinerary plan is not available yet");
+      return;
+    }
+    try {
+      await ItineraryService.downloadInvoicePdf(currentItineraryPlanId, type);
+      toast.success(`${type === 'tax' ? 'Tax' : 'Proforma'} invoice download started`);
+    } catch (error) {
+      console.error("Failed to download invoice PDF", error);
+      toast.error(`Failed to download ${type} invoice`);
+    }
+  };
 
   // ✅ Reference to hotel save function
   const hotelSaveFunctionRef = React.useRef<(() => Promise<boolean>) | null>(null);
@@ -4664,15 +5094,8 @@ const vehicleOnlyHtml = html
   // ✅ Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
 
-// ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
-const currentFetchRef = useRef<string | null>(null);
-
-// ✅ Prevent older route API responses from overwriting the latest selected route
-const latestRouteRequestRef = useRef(0);
-
-// Tracks a quoteId that was already fully loaded by handleItineraryRouteOptionClick.
-// Prevents the useEffect from re-fetching data we just loaded manually.
-const switchedRouteRef = useRef<string | null>(null);
+  // ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
+  const currentFetchRef = useRef<string | null>(null);
 
   const [agentInfo, setAgentInfo] = useState<{
     quotation_no: string;
@@ -4725,12 +5148,72 @@ const switchedRouteRef = useRef<string | null>(null);
         .reduce((sum, item: any) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings],
   );
+  const hasSelectedTboHotels = useMemo(
+    () =>
+      Object.values(selectedHotelBookings).some(
+        (item: any) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === 'tbo',
+      ),
+    [selectedHotelBookings],
+  );
+  const requiresDetailedPassengerFlow = requiresHotelBookingFlow && hasSelectedTboHotels;
   const hasPrebookPriceChanged =
     prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const getCoveredRouteIdsFromHotelSelections = useCallback((selections: Record<number, any>) => {
+    const covered = new Set<number>();
+
+    Object.entries(selections || {}).forEach(([routeIdRaw, hotel]) => {
+      const fallbackRouteId = Number(routeIdRaw);
+      const routeIds = Array.isArray(hotel?.routeIds)
+        ? hotel.routeIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [];
+
+      if (hotel?.multiNightBooking && routeIds.length > 1) {
+        routeIds.forEach((routeId: number) => covered.add(routeId));
+        return;
+      }
+
+      if (Number.isFinite(fallbackRouteId) && fallbackRouteId > 0) {
+        covered.add(fallbackRouteId);
+      }
+    });
+
+    return covered;
+  }, []);
+
+  const selectedHotelCoveredRouteIds = useMemo(
+    () => getCoveredRouteIdsFromHotelSelections(selectedHotelBookings),
+    [getCoveredRouteIdsFromHotelSelections, selectedHotelBookings],
+  );
+
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = Object.entries(selectedHotelBookings)
-    .filter(([, h]) => isSupplierBookableHotel(h) && normalizeHotelProvider(h) !== 'tbo')
+  const nonTboSelectedHotelEntries = useMemo(() => {
+    return Object.entries(selectedHotelBookings)
+    .filter(([routeId, h]) => {
+      if (!isSupplierBookableHotel(h) || normalizeHotelProvider(h) === 'tbo') {
+        return false;
+      }
+
+      const routeIdNum = Number(routeId);
+
+      if (!h?.multiNightBooking && selectedHotelCoveredRouteIds.has(routeIdNum)) {
+        const parentForRoute = Object.values(selectedHotelBookings).find((selected: any) => {
+          const routeIds = Array.isArray(selected?.routeIds)
+            ? selected.routeIds.map((id: any) => Number(id))
+            : [];
+
+          return selected?.multiNightBooking && routeIds.includes(routeIdNum);
+        });
+
+        if (parentForRoute) {
+          return false;
+        }
+      }
+
+      return true;
+    })
     .map(([routeId, h]: [string, any]) => {
       const routeIdNum = parseInt(routeId, 10);
       const selectedProvider = normalizeHotelProvider(h);
@@ -4740,15 +5223,21 @@ const switchedRouteRef = useRef<string | null>(null);
       const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
       const selectedAmount = getHotelAmountForBooking(h);
 
+      const displayRouteIds = Array.isArray(h?.routeIds) && h.routeIds.length > 0
+        ? h.routeIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        : [routeIdNum];
+
       const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
-        Number(row?.itineraryRouteId || 0) === routeIdNum &&
+        displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
         normalizeHotelProvider(row) === selectedProvider &&
         isSupplierBookableHotel(row),
       );
 
       const matchedHotelRow =
         routeRows.find((row: any) => {
-          const rowBookingCode = String(row?.bookingCode || '').trim();
+          const rowBookingCode = String(row?.bookingCode || row?.searchReference || '').trim();
           const rowHotelCode = String(row?.hotelCode || '').trim();
           const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
           const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
@@ -4763,10 +5252,46 @@ const switchedRouteRef = useRef<string | null>(null);
           return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
         }) || routeRows[0] || null;
 
-      return { routeId: routeIdNum, ...h, matchedHotelRow };
+      return {
+        routeId: routeIdNum,
+        ...h,
+        matchedHotelRow,
+        displayRouteIds,
+        displayNights: Number(h?.nights || displayRouteIds.length || 1),
+        displayCheckInDate: h?.checkInDate,
+        displayCheckOutDate: h?.checkOutDate,
+      };
     });
+  }, [
+    getCoveredRouteIdsFromHotelSelections,
+    hotelDetails?.hotels,
+    selectedHotelBookings,
+    selectedHotelCoveredRouteIds,
+  ]);
   const DEFAULT_EXTERNAL_STAY_MESSAGE =
     'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
+
+  useEffect(() => {
+    if (!confirmQuotationModal || requiresDetailedPassengerFlow) return;
+    setAdditionalAdults([]);
+    setAdditionalChildren([]);
+    setAdditionalInfants([]);
+    setFormErrors((prev) => {
+      const next = Object.fromEntries(
+        Object.entries(prev).filter(([key]) => {
+          return !(
+            key.startsWith('count-adult') ||
+            key.startsWith('count-child') ||
+            key.startsWith('count-infant') ||
+            key.startsWith('adult-') ||
+            key.startsWith('child-') ||
+            key.startsWith('infant-')
+          );
+        }),
+      );
+      return next;
+    });
+  }, [confirmQuotationModal, requiresDetailedPassengerFlow]);
 
   const externalStayEntries = useMemo(() => {
     if (!hotelDetails?.hotels?.length) {
@@ -4906,10 +5431,13 @@ function getHotelAmountForBooking(entry: any): number {
     const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
     const hotelCode = getHotelCodeForBooking(entry);
     const provider = normalizeHotelProvider(entry);
+    const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
 
     return (
       entry?.externalStay === true ||
       entry?.isBookable === false ||
+      availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+      availabilityStatus === 'NOT_BOOKABLE' ||
       provider === 'external' ||
       provider === 'none' ||
       provider === 'self-arranged' ||
@@ -4988,6 +5516,18 @@ function getHotelAmountForBooking(entry: any): number {
     prebookDataRef.current = prebookData;
   }, [prebookData]);
 
+  useEffect(() => {
+    if (!shouldShowHotels) {
+      setHotelDetails(null);
+      setSelectedHotelBookings({});
+      setActiveHotelGroupType(null);
+      setPrebookData(null);
+      prebookDataRef.current = null;
+      setHasAcceptedUpdatedPrice(false);
+      setConfirmOccupanciesTemplate(null);
+    }
+  }, [shouldShowHotels, itinerary?.planId]);
+
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
@@ -5030,6 +5570,56 @@ function getHotelAmountForBooking(entry: any): number {
           occupancies[idx].children += 1;
           occupancies[idx].childrenAges.push(age);
           roomIndex = (idx + 1) % rooms;
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        break;
+      }
+    }
+
+    return occupancies;
+  };
+
+  const buildSupplierOccupancies = (
+    roomCount: number,
+    totalAdults: number,
+    totalChildren: number,
+    childAges: number[] = [],
+  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+    if (childAges.length > 0) {
+      return buildTboOccupancies(roomCount, totalAdults, childAges);
+    }
+
+    const rooms = Math.max(Number(roomCount) || 1, 1);
+    const occupancies = Array.from({ length: rooms }, () => ({
+      adults: 1,
+      children: 0,
+      childrenAges: [] as number[],
+    }));
+
+    let adultsLeft = Math.max(totalAdults - rooms, 0);
+    let roomIndex = 0;
+    while (adultsLeft > 0) {
+      if (occupancies[roomIndex].adults < 8) {
+        occupancies[roomIndex].adults += 1;
+        adultsLeft -= 1;
+      }
+      roomIndex = (roomIndex + 1) % rooms;
+    }
+
+    let childrenLeft = Math.max(totalChildren, 0);
+    let nextChildRoom = 0;
+    while (childrenLeft > 0) {
+      let assigned = false;
+      for (let offset = 0; offset < rooms; offset++) {
+        const idx = (nextChildRoom + offset) % rooms;
+        if (occupancies[idx].children < 4) {
+          occupancies[idx].children += 1;
+          occupancies[idx].childrenAges.push(7);
+          childrenLeft -= 1;
+          nextChildRoom = (idx + 1) % rooms;
           assigned = true;
           break;
         }
@@ -5378,74 +5968,6 @@ function getHotelAmountForBooking(entry: any): number {
     }
   }, [quoteId]);
 
-  const fetchVehicleBuildStatus = useCallback(async (planId: number) => {
-    try {
-      const res = await ItineraryService.getVehicleBuildStatus(planId);
-      setVehicleBuildStatus(res);
-      return res;
-    } catch (e: any) {
-      console.error("Failed to fetch vehicle build status", e);
-      return null;
-    }
-  }, []);
-
-  const handleRetryVehicleBuild = useCallback(async () => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!planId || isRetryingVehicleBuild) return;
-
-    try {
-      setIsRetryingVehicleBuild(true);
-      const statusRes = await ItineraryService.triggerVehicleBuildAsync(planId);
-      setVehicleBuildStatus(statusRes);
-      toast.success("Vehicle build retriggered");
-    } catch (e: any) {
-      console.error("Failed to retrigger vehicle build", e);
-      toast.error(e?.message || "Failed to retrigger vehicle build");
-    } finally {
-      setIsRetryingVehicleBuild(false);
-    }
-  }, [itinerary?.planId, isRetryingVehicleBuild]);
-
-  useEffect(() => {
-    setVehicleBuildStatus(null);
-  }, [quoteId]);
-
-  useEffect(() => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!shouldShowVehicles || !planId) {
-      return;
-    }
-
-    let disposed = false;
-    let timerId: number | null = null;
-
-    const poll = async () => {
-      const statusRes = await fetchVehicleBuildStatus(planId);
-      if (disposed || !statusRes) return;
-
-      const state = String(statusRes.status || "").toUpperCase() as VehicleBuildState;
-      if (state === "READY") {
-        await refreshVehicleData();
-        return;
-      }
-
-      if (state === "FAILED") {
-        return;
-      }
-
-      if (state === "PENDING" || state === "PROCESSING") {
-        timerId = window.setTimeout(poll, 3000);
-      }
-    };
-
-    poll();
-
-    return () => {
-      disposed = true;
-      if (timerId) window.clearTimeout(timerId);
-    };
-  }, [itinerary?.planId, shouldShowVehicles, fetchVehicleBuildStatus, refreshVehicleData]);
-
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
 
@@ -5589,17 +6111,92 @@ function getHotelAmountForBooking(entry: any): number {
     checkInDate: string;
     checkOutDate: string;
     groupType: number;
-  }>) => {
-    // Merge route-wise selection updates so changing one day never resets other days.
+    mealPlan?: string;
+    searchReference?: string;
+    roomId?: string;
+    rateId?: string;
+    multiNightBooking?: boolean;
+    stayKey?: string;
+    routeIds?: number[];
+    nights?: number;
+    nightlyRates?: Array<{
+      date: string;
+      amountAfterTax: number;
+      baseAmount?: number;
+      extraAdultCount?: number;
+      extraChildCount?: number;
+      extraAdultRate?: number;
+      extraChildRate?: number;
+    }>;
+    totalAmountAfterTax?: number;
+  } | null>) => {
     setSelectedHotelBookings((prev) => {
       const next: Record<number, any> = { ...prev };
 
       Object.entries(selections).forEach(([routeIdRaw, value]) => {
         const routeIdNum = Number(routeIdRaw);
+
+        if (!Number.isFinite(routeIdNum) || routeIdNum <= 0) {
+          return;
+        }
+
+        if (value === null) {
+          delete next[routeIdNum];
+          return;
+        }
+
         next[routeIdNum] = {
           ...(next[routeIdNum] || {}),
           ...value,
+          routeId: Number((value as any)?.routeId || routeIdNum),
         };
+      });
+
+      const canonicalParents = new Map<number, any>();
+
+      Object.entries(next).forEach(([routeIdRaw, booking]) => {
+        const routeIdNum = Number(routeIdRaw);
+        const routeIds = Array.isArray((booking as any)?.routeIds)
+          ? (booking as any).routeIds
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          : [];
+
+        if (
+          !(booking as any)?.multiNightBooking ||
+          !routeIdNum ||
+          routeIds.length <= 1
+        ) {
+          return;
+        }
+
+        const canonicalRouteId = routeIds[0];
+        const currentParent = canonicalParents.get(canonicalRouteId);
+        const normalizedBooking = {
+          ...(booking as any),
+          routeId: canonicalRouteId,
+          routeIds,
+        };
+
+        if (!currentParent || routeIdNum === canonicalRouteId) {
+          canonicalParents.set(canonicalRouteId, normalizedBooking);
+        }
+      });
+
+      canonicalParents.forEach((parentBooking, canonicalRouteId) => {
+        const routeIds = Array.isArray(parentBooking.routeIds)
+          ? parentBooking.routeIds
+              .map((id: any) => Number(id))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          : [];
+
+        routeIds.forEach((routeId: number) => {
+          if (routeId !== canonicalRouteId) {
+            delete next[routeId];
+          }
+        });
+
+        next[canonicalRouteId] = parentBooking;
       });
 
       return next;
@@ -5663,6 +6260,113 @@ function getHotelAmountForBooking(entry: any): number {
     }
   }, [quoteId, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
 
+  const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
+    const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
+    if (!vehicles.length) return false;
+    return vehicles.some((vehicle: any) => {
+      const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
+      const vehicleTypeId = Number(vehicle?.vehicleTypeId || 0);
+      const totalAmount = Number(vehicle?.totalAmount);
+      const vendorName = String(vehicle?.vendorName || "").trim();
+      const vehicleOrigin = String(vehicle?.vehicleOrigin || "").trim();
+      return (
+        vendorEligibleId > 0 &&
+        vehicleTypeId > 0 &&
+        Number.isFinite(totalAmount) &&
+        (vendorName.length > 0 || vehicleOrigin.length > 0)
+      );
+    });
+  }, []);
+
+  const loadPreparedItineraryPage = useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
+    setLoading(true);
+    setLoadingHotels(true);
+    setPageReady(false);
+    setError(null);
+    setVehicleBuildError(null);
+
+    try {
+      setPageLoaderStage("Building itinerary details");
+      const detailsRes = await getDetailsDeduped(requestedQuoteId);
+      const initialDetails = detailsRes as ItineraryDetailsResponse;
+      const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
+      const useHotels = itineraryPreference === 1 || itineraryPreference === 3;
+      const useVehicles = itineraryPreference === 2 || itineraryPreference === 3;
+      const planId = Number(initialDetails.planId || 0);
+
+      const finalizePage = async (details: ItineraryDetailsResponse) => {
+        let hotelRes: ItineraryHotelDetailsResponse | null = null;
+        if (useHotels) {
+          hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
+        }
+
+        if (!isMountedRef.current) return;
+
+        setItinerary(details);
+        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        if (!useHotels) {
+          setActiveHotelListTotal(0);
+        }
+        setVehicleBuildStatus(useVehicles ? "READY" : "READY");
+        setPageReady(true);
+      };
+
+      if (!useVehicles || !planId) {
+        await finalizePage(initialDetails);
+        return;
+      }
+
+      setPageLoaderStage("Checking vehicle build status");
+      const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
+      const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
+        ? String(buildStatus?.status || "").toUpperCase()
+        : "PENDING") as "PENDING" | "PROCESSING" | "READY" | "FAILED";
+      setVehicleBuildStatus(normalizedStatus);
+      setVehicleBuildError(String(buildStatus?.error || "") || null);
+
+      const isLatestBuildReady = Boolean(buildStatus?.isLatestBuildReady);
+      if (!forceVehicleRebuild && isLatestBuildReady && hasUsableVehicleRows(initialDetails)) {
+        await finalizePage(initialDetails);
+        return;
+      }
+
+      setPageLoaderStage("Building permit charges");
+      await ItineraryService.buildPermitsSync(planId);
+
+      setPageLoaderStage("Building vehicle details and pricing");
+      const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
+      const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
+      if (vehicleBuildState !== "READY") {
+        throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
+      }
+      setVehicleBuildStatus("READY");
+
+      setPageLoaderStage("Loading completed itinerary");
+      const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
+      const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
+      if (!hasUsableVehicleRows(finalDetails)) {
+        throw new Error("Vehicle details are still incomplete after rebuild");
+      }
+
+      await finalizePage(finalDetails);
+    } catch (e: any) {
+      if (!isMountedRef.current) return;
+      console.error("Failed to load staged itinerary details", e);
+      setVehicleBuildStatus("FAILED");
+      setVehicleBuildError(e?.message || "Vehicle pricing failed to prepare");
+      setError(e?.message || "Failed to load itinerary details");
+      setItinerary(null);
+      setHotelDetails(null);
+      setPageReady(false);
+    } finally {
+      currentFetchRef.current = null;
+      if (isMountedRef.current) {
+        setLoading(false);
+        setLoadingHotels(false);
+      }
+    }
+  }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary]);
+
   useEffect(() => {
     if (!quoteId) {
       setError("Missing quote id in URL");
@@ -5681,95 +6385,32 @@ function getHotelAmountForBooking(entry: any): number {
     }
 
     // If we're already fetching this quoteId, skip duplicate fetch
-if (currentFetchRef.current === quoteId) {
-  console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-  return;
-}
+    if (currentFetchRef.current === quoteId) {
+      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+      return;
+    }
 
-// If handleItineraryRouteOptionClick already loaded this quoteId fully,
-// skip the re-fetch triggered by navigate() changing the URL param.
-if (switchedRouteRef.current === quoteId) {
-  console.log("⚡ [ItineraryDetails] Route already loaded by tab switch, skipping re-fetch:", quoteId);
-  switchedRouteRef.current = null; // consume the flag — next navigation or refresh works normally
-  return;
-}
+    // React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
+    if (autoLoadStartedQuotes.has(quoteId)) {
+      return;
+    }
+    autoLoadStartedQuotes.add(quoteId);
 
-// Mark that we're fetching this quoteId
-currentFetchRef.current = quoteId;
-isMountedRef.current = true;
+    // Mark that we're fetching this quoteId
+    currentFetchRef.current = quoteId;
+    isMountedRef.current = true;
 
-// Every new route/details load gets its own request number.
-// If an older request finishes late, it will be ignored.
-const routeRequestId = ++latestRouteRequestRef.current;
-
-    const fetchDetails = async () => {
-      try {
-        console.log("🌐 [ItineraryDetails] FETCHING initial details for quoteId:", quoteId);
-        setLoading(true);
-        setLoadingHotels(true);
-        setError(null);
-
-        // Fetch details first so we can skip hotel API for vehicle-only itineraries.
-        const detailsRes = await getDetailsDeduped(quoteId);
-        const details = detailsRes as ItineraryDetailsResponse;
-        const pref = Number(details.itineraryPreference ?? 3);
-        const useHotels = pref === 1 || pref === 3;
-
-        let hotelRes: ItineraryHotelDetailsResponse | null = null;
-        if (useHotels) {
-          hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        }
-
-        // Only update state if component is still mounted
-        // Only update state if component is still mounted
-if (!isMountedRef.current) {
-  console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-  return;
-}
-
-// If user already clicked another route, ignore this older response.
-if (latestRouteRequestRef.current !== routeRequestId) {
-  console.log("⏭️ [ItineraryDetails] Ignoring stale route response:", quoteId);
-  return;
-}
-
-console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-setItinerary(details);
-setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        if (!useHotels) {
-          setActiveHotelListTotal(0);
-        }
-} catch (e: any) {
-  // Only update state if component is still mounted
-  if (!isMountedRef.current) return;
-
-  // If this failed request is old, do not show its error on the latest selected route.
-  if (latestRouteRequestRef.current !== routeRequestId) {
-    console.log("⏭️ [ItineraryDetails] Ignoring stale route error:", quoteId);
-    return;
-  }
-
-  console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-  setError(e?.message || "Failed to load itinerary details");
-  setItinerary(null);
-  setHotelDetails(null);
-} finally {
-  // Only the latest route request can stop loading.
-  // Older requests finishing late should not affect the current route UI.
-  if (isMountedRef.current && latestRouteRequestRef.current === routeRequestId) {
-    setLoading(false);
-    setLoadingHotels(false);
-  }
-}
-    };
-
-    fetchDetails();
+    void loadPreparedItineraryPage(quoteId);
 
     // Cleanup: Mark component as unmounted
     return () => {
       isMountedRef.current = false;
+      currentFetchRef.current = null;
+      if (quoteId) {
+        autoLoadStartedQuotes.delete(quoteId);
+      }
     };
-  }, [quoteId, location.pathname, loadHotelDetailsForItinerary]);
+  }, [quoteId, location.pathname, loadPreparedItineraryPage]);
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -5961,46 +6602,57 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
     ));
   };
 
-  const applyRouteTimePatch = async (
-    planId: number,
-    routeId: number,
-    dayNumber: number,
-    startTimeHms: string,
-    endTimeHms: string,
-    options?: {
-      previousDayBillingDecisionProvided?: boolean;
-      previousDayBillingConfirmed?: boolean;
-    },
-  ) => {
-    setIsApplyingRouteTimeUpdate(true);
-    const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
-    setRouteTimeEstimatedMs(estimatedMs);
-    startRouteTimeProgress(estimatedMs);
+const applyRouteTimePatch = async (
+  planId: number,
+  routeId: number,
+  dayNumber: number,
+  startTimeHms: string,
+  endTimeHms: string,
+  options?: {
+    previousDayBillingDecisionProvided?: boolean;
+    previousDayBillingConfirmed?: boolean;
+  },
+) => {
+  setIsApplyingRouteTimeUpdate(true);
+  const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
+  setRouteTimeEstimatedMs(estimatedMs);
+  startRouteTimeProgress(estimatedMs);
 
-    try {
-      await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+  try {
+    const previousHotelDetails = hotelDetails;
 
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
+    await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
 
-      setRouteTimeProgressPercent(100);
-      setPendingScrollDayNumber(dayNumber);
+    if (quoteId) {
+      const detailsRes = await ItineraryService.getDetails(quoteId);
+      const nextItinerary = detailsRes as ItineraryDetailsResponse;
 
-      toast.success(`Day ${dayNumber} times updated`);
-    } catch (e: any) {
-      console.error('Failed to update route times', e);
-      toast.error(e?.message || 'Failed to update route times');
-    } finally {
-      stopRouteTimeProgress();
-      setIsApplyingRouteTimeUpdate(false);
+      setItinerary({
+        ...nextItinerary,
+        // After route time / hotspot changes, details API is the source of truth.
+        // Do not preserve stale vehicle rows or stale vehicle totals.
+        vehicles: nextItinerary.vehicles,
+        costBreakdown: nextItinerary.costBreakdown,
+        overallCost: nextItinerary.overallCost,
+      });
+
+      // Do not reload hotel details here.
+      // Reloading hotelDetails can refresh supplier/TBO amount and change package cost.
+      setHotelDetails(previousHotelDetails);
     }
-  };
+
+    setRouteTimeProgressPercent(100);
+    setPendingScrollDayNumber(dayNumber);
+
+    toast.success(`Day ${dayNumber} times updated`);
+  } catch (e: any) {
+    console.error('Failed to update route times', e);
+    toast.error(e?.message || 'Failed to update route times');
+  } finally {
+    stopRouteTimeProgress();
+    setIsApplyingRouteTimeUpdate(false);
+  }
+};
 
   const buildArrivalPolicyDecisionKey = (
     routeId?: number,
@@ -6065,8 +6717,9 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       return;
     }
 
-    // Day 1 early-morning gate: 01:00–07:59 requires previous-day hotel confirmation
-    if (dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
+      // Day 1 early-morning gate is needed only for Hotel / Vehicle + Hotel itineraries.
+    // Vehicle-only itinerary should not show previous-day hotel billing popup.
+    if (requiresHotelBookingFlow && dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
       const resolvedRouteDay =
         routeDay ||
         itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
@@ -6087,10 +6740,9 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
 
       setIsResolvingArrivalPolicy(true);
       try {
-        const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
-        if (policy.requiresPreviousDayBillingConfirmation) {
-          // Store pending update and show the confirmation modal
-          setPendingRouteTimeUpdate({ planId, routeId, dayNumber, startTimeHms, endTimeHms });
+      const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
+if (policy.requiresPreviousDayBillingConfirmation) {
+          console.log('[ArrivalPolicy][confirm_required]', { planId, routeId, dayNumber, startTimeHms, endTimeHms });
           const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
           const routeDate = new Date(`${safeRouteDate}T00:00:00`);
           const previousDay = new Date(routeDate);
@@ -6450,26 +7102,184 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
     });
   };
 
+  const loadGuideAssignments = useCallback(async (planId: number) => {
+    if (!(planId > 0)) {
+      setGuideAssignments([]);
+      return;
+    }
+
+    try {
+      const response = await ItineraryService.getGuideAssignments(planId) as ItineraryGuideAssignment[];
+      setGuideAssignments(Array.isArray(response) ? response : []);
+    } catch (e) {
+      console.error("Failed to load guide assignments", e);
+      setGuideAssignments([]);
+    }
+  }, []);
+
+  const refreshGuideData = useCallback(async () => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) return;
+
+    await Promise.all([
+      loadGuideAssignments(planId),
+      (async () => {
+        if (!quoteId) return;
+        try {
+          const detailsRes = await ItineraryService.getDetails(quoteId) as ItineraryDetailsResponse;
+          setItinerary(detailsRes);
+        } catch (e) {
+          console.error("Failed to refresh itinerary details after guide change", e);
+        }
+      })(),
+    ]);
+  }, [itinerary?.planId, loadGuideAssignments, quoteId]);
+
+  const openGuideModal = async (
+    day?: ItineraryDay | null,
+    assignment?: ItineraryGuideAssignment | null,
+    guideTypeOverride?: 1 | 2,
+  ) => {
+    if (readOnly) {
+      toast.error("Guide cannot be added in read-only mode");
+      return;
+    }
+
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) {
+      toast.error("Plan ID not found");
+      return;
+    }
+
+    const guideType = Number(guideTypeOverride || assignment?.guideType || 2);
+
+    setGuideModal((prev) => ({
+      ...prev,
+      open: true,
+      loading: true,
+      planId,
+      day,
+      routeGuideId: assignment?.routeGuideId ?? null,
+      guideType,
+      guideLanguage: assignment?.guideLanguageIds?.[0] ? String(assignment.guideLanguageIds[0]) : "",
+      guideSlots: assignment?.guideSlotIds ?? [],
+      options: { languages: [], slots: [], assignment: assignment ?? null },
+    }));
+
+    try {
+      const options = await ItineraryService.getGuideAssignmentOptions(
+        planId,
+        assignment?.routeGuideId,
+      ) as GuideModalOptions;
+
+      const existing = options?.assignment ?? assignment ?? null;
+      setGuideModal((prev) => ({
+        ...prev,
+        loading: false,
+        options: {
+          languages: Array.isArray(options?.languages) ? options.languages : [],
+          slots: Array.isArray(options?.slots) ? options.slots : [],
+          assignment: existing,
+        },
+        routeGuideId: existing?.routeGuideId ?? prev.routeGuideId,
+        guideLanguage: existing?.guideLanguageIds?.[0] ? String(existing.guideLanguageIds[0]) : prev.guideLanguage,
+        guideSlots: existing?.guideSlotIds?.length ? existing.guideSlotIds : prev.guideSlots,
+      }));
+    } catch (e: any) {
+      console.error("Failed to load guide modal options", e);
+      setGuideModal((prev) => ({ ...prev, loading: false, open: false }));
+      toast.error(e?.message || "Failed to load guide options");
+    }
+  };
 
   const handleAddGuideClick = (day: ItineraryDay) => {
-  if (readOnly) {
-    toast.error("Guide cannot be added in read-only mode");
-    return;
-  }
+    const existing = guideAssignments.find((assignment) => (
+      Number(assignment.guideType || 0) === 2
+      && Number(assignment.routeId || 0) === Number(day.id)
+    ));
+    void openGuideModal(day, existing ?? null, 2);
+  };
 
-  navigate("/guide", {
-    state: {
-      fromItinerary: true,
-      quoteId,
-      planId: itinerary?.planId || 0,
-      routeId: day.id,
-      dayNumber: day.dayNumber,
-      date: day.date,
-      departure: day.departure,
-      arrival: day.arrival,
-    },
-  });
-};
+  const handleWholeItineraryGuideClick = () => {
+    const existing = guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
+    void openGuideModal(null, existing, 1);
+  };
+
+  const handleSaveGuideAssignment = async () => {
+    const planId = Number(guideModal.planId || 0);
+    const day = guideModal.day;
+    const guideLanguage = Number(guideModal.guideLanguage || 0);
+    const isWholeItineraryGuide = Number(guideModal.guideType || 0) === 1;
+
+    if (!(planId > 0) || (!isWholeItineraryGuide && !day)) {
+      toast.error("Guide form is incomplete");
+      return;
+    }
+    if (!(guideLanguage > 0)) {
+      toast.error("Guide language is required");
+      return;
+    }
+    if (!isWholeItineraryGuide && guideModal.guideSlots.length === 0) {
+      toast.error("Guide slot is required");
+      return;
+    }
+
+    try {
+      setGuideModal((prev) => ({ ...prev, saving: true }));
+      await ItineraryService.saveGuideAssignment(planId, {
+        routeGuideId: guideModal.routeGuideId ?? undefined,
+        routeId: isWholeItineraryGuide ? undefined : day?.id,
+        routeDate: isWholeItineraryGuide ? undefined : day?.date,
+        guideType: guideModal.guideType,
+        guideLanguage,
+        guideSlots: isWholeItineraryGuide ? undefined : guideModal.guideSlots,
+      });
+
+      await refreshGuideData();
+      setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
+      toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
+    } catch (e: any) {
+      console.error("Failed to save guide assignment", e);
+      setGuideModal((prev) => ({ ...prev, saving: false }));
+      const rawMessage = String(e?.message || "");
+      if (rawMessage.includes("guide_not_available")) {
+        toast.error("Sorry, Guide Cost Not Available. So Unable to Add");
+        return;
+      }
+      toast.error(rawMessage || "Failed to save guide");
+    }
+  };
+
+  const handleDeleteGuideAssignment = async () => {
+    const assignment = deleteGuideModal.assignment;
+    const planId = Number(itinerary?.planId || 0);
+    if (!assignment || !(planId > 0)) return;
+
+    try {
+      setDeleteGuideModal((prev) => ({ ...prev, deleting: true }));
+      await ItineraryService.deleteGuideAssignment(
+        planId,
+        assignment.routeGuideId,
+        assignment.routeId ?? undefined,
+      );
+      await refreshGuideData();
+      setDeleteGuideModal({ open: false, assignment: null, deleting: false });
+      toast.success("Guide deleted successfully");
+    } catch (e: any) {
+      console.error("Failed to delete guide assignment", e);
+      setDeleteGuideModal((prev) => ({ ...prev, deleting: false }));
+      toast.error(e?.message || "Failed to delete guide");
+    }
+  };
+
+  useEffect(() => {
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) {
+      setGuideAssignments([]);
+      return;
+    }
+    void loadGuideAssignments(planId);
+  }, [itinerary?.planId, loadGuideAssignments]);
 
   const openAddHotspotModal = async (
     planId: number,
@@ -7564,16 +8374,34 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         };
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
-        setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
-        setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
-        setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
+        if (requiresDetailedPassengerFlow) {
+          setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
+          setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
+          setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
 
-        const template = buildOccupanciesFromTravellers(
-          travellersFromPlan,
-          Number(itinerary?.roomCount || 1),
-        );
-        occupanciesTemplateFromPlan = template;
-        setConfirmOccupanciesTemplate(template);
+          const template = buildOccupanciesFromTravellers(
+            travellersFromPlan,
+            Number(itinerary?.roomCount || 1),
+          );
+          occupanciesTemplateFromPlan = template;
+          setConfirmOccupanciesTemplate(template);
+        } else {
+          setAdditionalAdults([]);
+          setAdditionalChildren([]);
+          setAdditionalInfants([]);
+          setConfirmOccupanciesTemplate(null);
+        }
+      }
+
+      if (isVehicleOnlyItinerary) {
+        setAdditionalAdults([]);
+        setAdditionalChildren([]);
+        setAdditionalInfants([]);
+        setConfirmOccupanciesTemplate(null);
+        setPrebookData(null);
+        prebookDataRef.current = null;
+        setHasAcceptedUpdatedPrice(false);
+        return;
       }
 
       // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
@@ -7581,6 +8409,11 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
       // so the confirm modal and prebook reflect exactly what the user sees.
       let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      console.log('[CONFIRM_HOTELS] selectedHotelBookings', selectedHotelBookings);
+      console.log(
+        '[CONFIRM_HOTELS] coveredRouteIds',
+        Array.from(getCoveredRouteIdsFromHotelSelections(selectedHotelBookings)),
+      );
       if (hotelDetails?.hotels?.length) {
         const preferredGroupType =
           activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
@@ -7629,8 +8462,11 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
           // that the user has NOT explicitly selected in this session.
           const mergedPersisted: typeof persistedSelections = {};
           Object.entries(persistedSelections).forEach(([routeId, val]) => {
-            if (!selectedHotelBookings[Number(routeId)]) {
-              mergedPersisted[Number(routeId)] = val;
+            const routeIdNum = Number(routeId);
+            const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
+
+            if (!coveredRouteIds.has(routeIdNum)) {
+              mergedPersisted[routeIdNum] = val;
             }
           });
           selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
@@ -7649,7 +8485,8 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
 
         const autoSelections: typeof selectedHotelBookings = {};
         routeBuckets.forEach((rows, routeId) => {
-          if (selectedHotelsForPrebook[routeId]) return; // already explicitly chosen (session or persisted)
+          const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
+          if (coveredRouteIds.has(Number(routeId))) return;
 
           const cheapest = rows.reduce((best, curr) => {
             const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
@@ -7731,6 +8568,7 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         }));
+      console.log('[CONFIRM_HOTELS] nonTboSelectedHotelEntries', nonTboSelectedHotelEntries);
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -7865,13 +8703,15 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       });
     };
 
-    const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
-    const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
-    const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
+    if (requiresDetailedPassengerFlow) {
+      const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
+      const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
+      const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
 
-    validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-    validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
-    validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
+      validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
+      validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
+      validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
+    }
 
     if (Object.keys(nextErrors).length > 0) {
       setFormErrors(nextErrors);
@@ -7884,25 +8724,26 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
     setIsConfirmingQuotation(true);
 
     try {
+      let autoSelectedHotels = { ...selectedHotelBookings };
       const groupTypeValue =
         activeHotelGroupType ??
-        Object.values(selectedHotelBookings)[0]?.groupType ??
+        Object.values(autoSelectedHotels)[0]?.groupType ??
         hotelDetails?.hotelTabs?.[0]?.groupType ??
         1;
-
-      let autoSelectedHotels = { ...selectedHotelBookings };
-      const selectedProvidersForConfirm = Array.from(
-        new Set(
-          Object.values(autoSelectedHotels)
-            .map((h: any) => String(h?.provider || '').trim().toLowerCase())
-            .filter(Boolean),
-        ),
-      );
+      const selectedProvidersForConfirm = requiresHotelBookingFlow
+        ? Array.from(
+            new Set(
+              Object.values(autoSelectedHotels)
+                .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          )
+        : [];
       const preferredProviderForConfirm =
         selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
       const skippedRouteIdsForConfirm: number[] = [];
 
-      if (hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
+      if (requiresHotelBookingFlow && hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
         const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
 
         const toAutoSelection = (hotelRow: any, routeId: number) => {
@@ -7937,6 +8778,11 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         };
 
         routesWithHotels.forEach((routeId: number) => {
+          const coveredRouteIdsForConfirm = getCoveredRouteIdsFromHotelSelections(autoSelectedHotels);
+          if (coveredRouteIdsForConfirm.has(Number(routeId))) {
+            return;
+          }
+
           const routeHotels = hotelDetails.hotels.filter(
             (h: any) =>
               Number(h.itineraryRouteId) === Number(routeId) &&
@@ -7948,7 +8794,7 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
 
           // Never overwrite an explicit in-memory user selection for this route.
           // Persisted backend selection should only backfill missing routes.
-          if (!autoSelectedHotels[routeId] && persistedRouteSelection) {
+          if (persistedRouteSelection) {
             autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
             return;
           }
@@ -8055,22 +8901,33 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       ];
 
       // Child ages must be locked from plan/search template to avoid mismatch with TBO
-      const childAgesForBooking = (
-        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-          ? confirmOccupanciesTemplate.flatMap((occ: any) =>
-              Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
-            )
-          : normalizedAdditionalChildren.map((c) => Number(c.age))
-      ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11);
+      const childAgesForBooking = requiresDetailedPassengerFlow
+        ? (
+            confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+              ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+                  Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
+                )
+              : normalizedAdditionalChildren.map((c) => Number(c.age))
+          ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11)
+        : [];
 
-      const occupanciesForBooking =
-        confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-          ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
-          : buildTboOccupancies(
+      const totalAdultsForBooking = Math.max(Number(itinerary.adults || 1), 1);
+      const totalChildrenForBooking = Math.max(Number(itinerary.children || 0), 0);
+      const occupanciesForBooking = requiresHotelBookingFlow
+        ? requiresDetailedPassengerFlow
+          ? confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
+            ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
+            : buildTboOccupancies(
+                Number(itinerary.roomCount || 1),
+                totalAdultsForBooking,
+                childAgesForBooking,
+              )
+          : buildSupplierOccupancies(
               Number(itinerary.roomCount || 1),
-              Math.max(Number(itinerary.adults || 1), 1),
-              childAgesForBooking,
-            );
+              totalAdultsForBooking,
+              totalChildrenForBooking,
+            )
+        : [];
 
       const bookingGuestNationality = (
         guestDetails.nationality ||
@@ -8080,33 +8937,44 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         .trim()
         .toUpperCase();
 
-      const providerBookableSelections = Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
-        isSupplierBookableHotel(hotelData),
-      );
+      const providerBookableSelections = requiresHotelBookingFlow
+        ? Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
+            isSupplierBookableHotel(hotelData),
+          )
+        : [];
 
-      const hotelBookings: any[] = providerBookableSelections.map(([routeId, hotelData]) => ({
-        occupancies: occupanciesForBooking,
-        provider: inferHotelProvider(hotelData),
-        routeId: parseInt(routeId, 10),
-        hotelCode: hotelData.hotelCode,
-        hotelName: hotelData.hotelName,
-        bookingCode: hotelData.bookingCode,
-        searchReference: hotelData.searchReference,
-        roomId: hotelData.roomId,
-        rateId: hotelData.rateId,
-        roomType: hotelData.roomType,
-        checkInDate: hotelData.checkInDate,
-        checkOutDate: hotelData.checkOutDate,
-        numberOfRooms: Number(itinerary.roomCount || 1),
-        guestNationality: bookingGuestNationality,
-        netAmount: toMoneyNumber(hotelData.netAmount),
-        searchInitiatedAt: hotelData.searchInitiatedAt,
-        isBookable: hotelData.isBookable,
-        externalStay: hotelData.externalStay,
-        availabilityStatus: hotelData.availabilityStatus,
-        availabilityMessage: hotelData.availabilityMessage,
-        passengers,
-      }));
+      const hotelBookings: any[] = requiresHotelBookingFlow
+        ? providerBookableSelections.map(([routeId, hotelData]) => ({
+            occupancies: occupanciesForBooking,
+            provider: inferHotelProvider(hotelData),
+            routeId: parseInt(routeId, 10),
+            hotelCode: hotelData.hotelCode,
+            hotelName: hotelData.hotelName,
+            bookingCode: hotelData.bookingCode,
+            searchReference: hotelData.searchReference,
+            roomId: hotelData.roomId,
+            rateId: hotelData.rateId,
+            mealPlan: hotelData.mealPlan,
+            roomType: hotelData.roomType,
+            checkInDate: hotelData.checkInDate,
+            checkOutDate: hotelData.checkOutDate,
+            numberOfRooms: Number(itinerary.roomCount || 1),
+            guestNationality: bookingGuestNationality,
+            netAmount: toMoneyNumber(hotelData.netAmount),
+            searchInitiatedAt: hotelData.searchInitiatedAt,
+            isBookable: hotelData.isBookable,
+            externalStay: hotelData.externalStay,
+            availabilityStatus: hotelData.availabilityStatus,
+            availabilityMessage: hotelData.availabilityMessage,
+            multiNightBooking: hotelData.multiNightBooking,
+            stayKey: hotelData.stayKey,
+            routeIds: hotelData.routeIds,
+            nights: hotelData.nights,
+            nightlyRates: hotelData.nightlyRates,
+            totalAmountAfterTax: hotelData.totalAmountAfterTax,
+            passengers,
+          }))
+        : [];
 
       const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
       const nonTboRouteIds = hotelBookings
@@ -8114,7 +8982,7 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         .map((booking) => Number(booking.routeId))
         .filter((id) => Number.isFinite(id));
 
-      if (tboCount > 0 && nonTboRouteIds.length > 0) {
+      if (requiresHotelBookingFlow && tboCount > 0 && nonTboRouteIds.length > 0) {
         const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
         const shouldContinueWithMixedProviders = window.confirm(
           `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
@@ -8128,21 +8996,23 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         toast.warning('Proceeding with mixed-provider booking as confirmed.');
       }
 
-      if (hotelBookings.length === 0 && externalStayEntries.length === 0) {
+      if (requiresHotelBookingFlow && hotelBookings.length === 0 && externalStayEntries.length === 0) {
         toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');
         return;
       }
 
-      const staleHotel = hotelBookings.find((booking) => {
-        if (!booking.searchInitiatedAt) {
-          return false;
-        }
-        const parsed = new Date(String(booking.searchInitiatedAt));
-        if (Number.isNaN(parsed.getTime())) {
-          return true;
-        }
-        return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
-      });
+      const staleHotel = requiresHotelBookingFlow
+        ? hotelBookings.find((booking) => {
+            if (!booking.searchInitiatedAt) {
+              return false;
+            }
+            const parsed = new Date(String(booking.searchInitiatedAt));
+            if (Number.isNaN(parsed.getTime())) {
+              return true;
+            }
+            return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
+          })
+        : null;
 
       if (staleHotel) {
         setPrebookData(null);
@@ -8151,16 +9021,18 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         return;
       }
 
-      const clientIp = await fetch('https://api.ipify.org?format=json')
-        .then((res) => res.json())
-        .then((data) => data.ip)
-        .catch(() => '192.168.1.1');
+      const clientIp = requiresHotelBookingFlow
+        ? await fetch('https://api.ipify.org?format=json')
+            .then((res) => res.json())
+            .then((data) => data.ip)
+            .catch(() => '192.168.1.1')
+        : undefined;
 
       const effectivePrebookData = prebookDataRef.current || prebookData;
-      const hasTboBookings = hotelBookings.some((b) => b.provider === 'tbo');
+      const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((b) => b.provider === 'tbo');
       console.log('hasTboBookings', hasTboBookings);
       console.log(hotelBookings,'hotelBookings');
-      if (hasTboBookings && !effectivePrebookData) {
+      if (requiresHotelBookingFlow && hasTboBookings && !effectivePrebookData) {
         toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
         return;
       }
@@ -8174,13 +9046,18 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       const currentTboTotal = hotelBookings
         .filter((booking) => booking.provider === 'tbo')
         .reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (prebookTotal > 0 && Math.abs(prebookTotal - currentTboTotal) > 0.01 && !hasAcceptedUpdatedPrice) {
+      if (
+        requiresHotelBookingFlow &&
+        prebookTotal > 0 &&
+        Math.abs(prebookTotal - currentTboTotal) > 0.01 &&
+        !hasAcceptedUpdatedPrice
+      ) {
         toast.warning('Accept updated prebook price before final confirmation.');
         return;
       }
 
       // Require acknowledgement of review details before final booking
-      if (!hasAcceptedUpdatedPrice) {
+      if (requiresHotelBookingFlow && !hasAcceptedUpdatedPrice) {
         toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
         return;
       }
@@ -8199,41 +9076,56 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         return;
       }
 
-      const hotelBookingsWithPrebookContext = hotelBookings.map((booking) => {
-        const matchingPrebook = prebookHotelEntries.find(
-          (item: any) =>
-            Number(item?.routeId) === Number(booking.routeId) &&
-            String(item?.hotelCode || '') === String(booking.hotelCode || ''),
-        );
+      const hotelBookingsWithPrebookContext = requiresHotelBookingFlow
+        ? hotelBookings.map((booking) => {
+            const matchingPrebook = prebookHotelEntries.find(
+              (item: any) =>
+                Number(item?.routeId) === Number(booking.routeId) &&
+                String(item?.hotelCode || '') === String(booking.hotelCode || ''),
+            );
 
-        return {
-          ...booking,
-          prebookContext: matchingPrebook?.prebookContext,
-        };
-      });
+            return {
+              ...booking,
+              prebookContext: matchingPrebook?.prebookContext,
+            };
+          })
+        : [];
 
-      console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
-        routeId: h.routeId,
-        provider: h.provider,
-        hotelCode: h.hotelCode,
-        hotelName: h.hotelName,
-        bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
-        bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
-        roomType: h.roomType,
-        checkInDate: h.checkInDate,
-        checkOutDate: h.checkOutDate,
-        netAmount: h.netAmount,
-      })));
+      if (requiresHotelBookingFlow) {
+        console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
+          routeId: h.routeId,
+          provider: h.provider,
+          hotelCode: h.hotelCode,
+          hotelName: h.hotelName,
+          bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
+          bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
+          roomType: h.roomType,
+          checkInDate: h.checkInDate,
+          checkOutDate: h.checkOutDate,
+          netAmount: h.netAmount,
+        })));
+      }
 
-      const selectedHotelRouteIds = hotelBookingsWithPrebookContext
-        .map((booking: any) => Number(booking.routeId || 0))
-        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+      const selectedHotelRouteIds = requiresHotelBookingFlow
+        ? Array.from(new Set(
+            hotelBookingsWithPrebookContext
+            .flatMap((booking: any) =>
+              Array.isArray(booking.routeIds) && booking.routeIds.length > 0
+                ? booking.routeIds
+                : [booking.routeId],
+            )
+            .map((routeId: any) => Number(routeId || 0))
+            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
+          ))
+        : [];
 
-      const externalStayRouteIds = externalStayEntries
-        .map((entry: any) => Number(entry.routeId || 0))
-        .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0);
+      const externalStayRouteIds = requiresHotelBookingFlow
+        ? externalStayEntries
+            .map((entry: any) => Number(entry.routeId || 0))
+            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
+        : [];
 
-      const confirmPayload = {
+      const confirmPayload: any = {
         itinerary_plan_ID: itinerary.planId,
         agent: agentInfo.agent_id,
         primary_guest_salutation: guestDetails.salutation,
@@ -8242,27 +9134,31 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         primary_guest_age: guestDetails.age,
         primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
         primary_guest_email_id: guestDetails.emailId,
-        adult_name: normalizedAdditionalAdults.map(a => a.name),
-        adult_age: normalizedAdditionalAdults.map(a => a.age),
-        child_name: normalizedAdditionalChildren.map(c => c.name),
-        child_age: normalizedAdditionalChildren.map(c => c.age),
-        infant_name: normalizedAdditionalInfants.map(i => i.name),
-        infant_age: normalizedAdditionalInfants.map(i => i.age),
+        adult_name: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.name) : [],
+        adult_age: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.age) : [],
+        child_name: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.name) : [],
+        child_age: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.age) : [],
+        infant_name: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.name) : [],
+        infant_age: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.age) : [],
         arrival_date_time: guestDetails.arrivalDateTime,
         arrival_place: guestDetails.arrivalPlace,
         arrival_flight_details: guestDetails.arrivalFlightDetails,
         departure_date_time: guestDetails.departureDateTime,
         departure_place: guestDetails.departurePlace,
         departure_flight_details: guestDetails.departureFlightDetails,
-        price_confirmation_type: hasAcceptedUpdatedPrice ? 'new' : 'old',
-        hotel_group_type: selectedGroupType,
-        hotel_bookings: hotelBookingsWithPrebookContext,
-        selected_hotel_route_ids: selectedHotelRouteIds,
-        external_stay_route_ids: externalStayRouteIds,
+        price_confirmation_type: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? 'new' : 'old',
         primaryGuest,
         endUserIp: clientIp,
       };
 
+      if (requiresHotelBookingFlow) {
+        confirmPayload.hotel_group_type = selectedGroupType;
+        confirmPayload.hotel_bookings = hotelBookingsWithPrebookContext;
+        confirmPayload.selected_hotel_route_ids = selectedHotelRouteIds;
+        confirmPayload.external_stay_route_ids = externalStayRouteIds;
+      }
+
+      console.log('[CONFIRM_HOTELS] final hotel_bookings payload', confirmPayload.hotel_bookings);
       console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
 
       const confirmResponse: any = await ItineraryService.confirmQuotation(confirmPayload);
@@ -8364,329 +9260,52 @@ setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
     };
   }, [stopRouteTimeProgress]);
 
-
-  useEffect(() => {
-  if (!quoteId || !itinerary) return;
-
-  const loadRelatedRouteOptions = async () => {
-    try {
-      const currentPlanId =
-        Number((itinerary as any)?.planId || (itinerary as any)?.itineraryPlanId || 0);
-
-      const startDate = itinerary.days?.[0]?.date;
-      const endDate = itinerary.days?.[itinerary.days.length - 1]?.date;
-
-      const formatDate = (value?: string) => {
-        if (!value) return "";
-
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-          return value;
-        }
-
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "";
-
-        const dd = String(date.getDate()).padStart(2, "0");
-        const mm = String(date.getMonth() + 1).padStart(2, "0");
-        const yyyy = date.getFullYear();
-
-        return `${dd}/${mm}/${yyyy}`;
-      };
-
-const normalizeRouteOptionList = (rawOptions: any[]) => {
-  const getQuoteNumberFromValue = (value?: string) => {
-    const match = String(value || "").match(/(\d+)$/);
-    return match ? Number(match[1]) : 0;
-  };
-
-  const options = rawOptions
-    .map((option: any, index: number) => {
-      const rawQuoteId =
-        typeof option === "string"
-          ? option
-          : option?.quoteId ||
-            option?.routeQuoteId ||
-            option?.quotationNo ||
-            option?.quotation_no ||
-            option?.itinerary_quote_ID ||
-            option?.itinerary_quote_id ||
-            option?.quote_id ||
-            "";
-
-      return {
-        quoteId: String(rawQuoteId || "").trim(),
-        label: option?.label || option?.routeName || `Route ${index + 1}`,
-      };
-    })
-    .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
-
-  return Array.from(
-    new Map(options.map((option) => [option.quoteId, option])).values()
-  )
-    .sort(
-      (a, b) =>
-        getQuoteNumberFromValue(a.quoteId) -
-        getQuoteNumberFromValue(b.quoteId)
-    )
-    .map((option, index) => ({
-      ...option,
-      label: `Route ${index + 1}`,
-    }));
-};
-
-const apiRouteOptions = normalizeRouteOptionList([
-  ...((Array.isArray((itinerary as any)?.routeOptions)
-    ? (itinerary as any).routeOptions
-    : []) as any[]),
-  ...((Array.isArray((itinerary as any)?.suggestedRoutes)
-    ? (itinerary as any).suggestedRoutes
-    : []) as any[]),
-  ...((Array.isArray((itinerary as any)?.siblingRoutes)
-    ? (itinerary as any).siblingRoutes
-    : []) as any[]),
-]);
-
-if (apiRouteOptions.length > 0) {
-  const routeOptionPayload = JSON.stringify(apiRouteOptions);
-
-  apiRouteOptions.forEach((option) => {
-    localStorage.setItem(
-      `itinerary-route-options:${option.quoteId}`,
-      routeOptionPayload
-    );
-  });
-
-  setLatestRouteOptions(apiRouteOptions);
-  return;
-}
-
-const storedRouteOptionsRaw = localStorage.getItem(
-  `itinerary-route-options:${quoteId}`
-);
-
-if (storedRouteOptionsRaw) {
-  try {
-    const storedRouteOptions = JSON.parse(storedRouteOptionsRaw);
-
-    if (Array.isArray(storedRouteOptions) && storedRouteOptions.length > 0) {
-      const parsedOptions = storedRouteOptions
-        .map((option: any, index: number) => ({
-          quoteId: String(
-            option.quoteId ||
-              option.itinerary_quote_ID ||
-              option.itinerary_quote_id ||
-              option.quotationNo ||
-              ""
-          ),
-          label: option.label || `Route ${index + 1}`,
-        }))
-        .filter((option: any) => option.quoteId);
-
-      if (parsedOptions.length > 0) {
-        setLatestRouteOptions(parsedOptions);
-        return;
-      }
-    }
-  } catch (storageError) {
-    console.error("Failed to parse saved route options", storageError);
-  }
-}
-
-      const res: any = await ItineraryService.getLatest({
-        page: 1,
-        pageSize: 100,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
-      });
-
-      const rows = Array.isArray(res?.data) ? res.data : [];
-
-      const relatedRows = currentPlanId
-        ? rows.filter((row: any) => {
-            const rowPlanId = Number(
-              row?.planId ||
-                row?.plan_id ||
-                row?.itineraryPlanId ||
-                row?.itinerary_plan_id ||
-                row?.itinerary_plan_ID ||
-                0
-            );
-
-            return rowPlanId === currentPlanId;
-          })
-        : rows;
-
-      const options = relatedRows
-        .map((row: any) => {
-          const nextQuoteId =
-            row?.itinerary_quote_ID ||
-            row?.itinerary_quote_id ||
-            row?.quoteId ||
-            row?.quote_id ||
-            row?.quotationNo ||
-            row?.quotation_no ||
-            "";
-
-          return {
-            quoteId: String(nextQuoteId || ""),
-            label: "",
-          };
-        })
-        .filter((row) => row.quoteId)
-        .sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId))
-        .map((row, index) => ({
-          ...row,
-          label: `Route ${index + 1}`,
-        }));
-
-      const withCurrentQuote = [
-        {
-          quoteId: String(quoteId),
-          label: "Route 1",
-        },
-        ...options,
-      ];
-
-      const uniqueOptions = Array.from(
-        new Map(withCurrentQuote.map((option) => [option.quoteId, option])).values()
-      ).map((option, index) => ({
-        ...option,
-        label: `Route ${index + 1}`,
-      }));
-
-      setLatestRouteOptions(uniqueOptions);
-    } catch (error) {
-      console.error("Failed to load related route options", error);
-      setLatestRouteOptions([
-        {
-          quoteId: String(quoteId),
-          label: "Route 1",
-        },
-      ]);
-    }
-  };
-
-  loadRelatedRouteOptions();
-}, [quoteId, itinerary?.planId]);
-
-
-  const getQuoteNumber = (value?: string) => {
-  const match = String(value || "").match(/(\d+)$/);
-  return match ? Number(match[1]) : 0;
-};
-const itineraryRouteOptions = useMemo(() => {
-  // NOTE: Do NOT read data?.routes or any day-route fields here.
-  // Sibling route options come exclusively from latestRouteOptions
-  // (populated from localStorage written by CreateItinerary on save).
-  // The details API does not return sibling route quote IDs.
-  return Array.from(
-    new Map(latestRouteOptions.map((option) => [option.quoteId, option])).values()
-  ).sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId));
-}, [latestRouteOptions]);
-
-console.log("🟣 Itinerary route options debug:", {
-  quoteId,
-  itinerary,
-  itineraryRouteOptions,
-});
-
-const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
-  const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-
-  if (!normalizedRouteQuoteId || normalizedRouteQuoteId === activeRouteQuoteId) {
-    return;
-  }
-
-  if (!normalizedRouteQuoteId.startsWith("DVI")) {
-    toast.error("Invalid route option. Route quote ID is missing.");
-    return;
-  }
-
-  const routeRequestId = ++latestRouteRequestRef.current;
-
-  try {
-    setIsSwitchingRouteOption(true);
-
-    // Instantly highlight clicked route
-    setActiveRouteQuoteId(normalizedRouteQuoteId);
-
-    // Instantly update URL instead of waiting for hotel API
-    switchedRouteRef.current = normalizedRouteQuoteId;
-    currentFetchRef.current = normalizedRouteQuoteId;
-    navigate(`/itinerary-details/${normalizedRouteQuoteId}`, { replace: true });
-
-    setLoadingHotels(true);
-
-    // First load only itinerary details
-    const detailsRes = await ItineraryService.getDetails(normalizedRouteQuoteId);
-    const details = detailsRes as ItineraryDetailsResponse;
-
-    // Ignore old response if user already clicked another route
-    if (latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    // Show route/day/travel details immediately
-    setItinerary(details);
-
-    const pref = Number(details.itineraryPreference ?? 3);
-    const useHotels = pref === 1 || pref === 3;
-
-    if (!useHotels) {
-      setHotelDetails(null);
-      setActiveHotelListTotal(0);
-      return;
-    }
-
-    // Hotel details load after route details are already visible
-    const hotelRes = await loadHotelDetailsForItinerary(
-      normalizedRouteQuoteId,
-      details
-    );
-
-    // Ignore old hotel response also
-    if (latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    setHotelDetails(hotelRes);
-  } catch (e: any) {
-    if (latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    switchedRouteRef.current = null;
-    console.error("Failed to switch itinerary route option", e);
-    toast.error(e?.message || "Failed to load selected route option");
-  } finally {
-    if (latestRouteRequestRef.current === routeRequestId) {
-      setLoadingHotels(false);
-      setIsSwitchingRouteOption(false);
-    }
-  }
-};
-
   const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
 
-  if ((loading || hotelTimelineLoading) && !isApplyingRouteTimeUpdate) {
+  const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
+
+  if (location.pathname.startsWith("/confirmed-itinerary/")) {
+    return null;
+  }
+
+  if (vehicleBuildStatus === "FAILED" && shouldShowVehicles) {
     return (
-      <div className="w-full max-w-full flex justify-center items-center py-16">
-        <div className="flex items-center gap-2 text-sm text-[#6c6c6c]">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <p>
-            {isApplyingRouteTimeUpdate
-              ? "Updating itinerary and hotel results..."
-              : shouldShowHotels
-              ? "Loading itinerary details and hotel names..."
-              : "Loading itinerary details..."}
+      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-base font-semibold text-red-700">Vehicle pricing failed to prepare</p>
+          <p className="mt-2 text-sm text-[#6c6c6c]">
+            {vehicleBuildError || "Vehicle pricing failed to prepare. Please retry."}
+          </p>
+          <Button
+            type="button"
+            className="mt-6 bg-[#d546ab] text-white hover:bg-[#c63e9c]"
+            onClick={async () => {
+              if (!quoteId) return;
+              setVehicleBuildStatus("PROCESSING");
+              setVehicleBuildError(null);
+              setError(null);
+              await loadPreparedItineraryPage(quoteId, true);
+            }}
+          >
+            Retry vehicle build
+          </Button>
+        </div>
+      </div>
+      );
+  }
+
+  if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
+    return (
+      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
+          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
+          <p className="mt-2 text-sm text-[#6c6c6c]">
+            We are preparing the latest itinerary data before showing the page.
           </p>
         </div>
       </div>
     );
-  }
-
-  if (location.pathname.startsWith("/confirmed-itinerary/")) {
-    return null;
   }
 
   if (error || !itinerary) {
@@ -8764,39 +9383,8 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
         <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
-  {itineraryRouteOptions.length > 0 && (
-    <div className="mb-2 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-3 py-2">
-      <div className="max-h-[78px] overflow-y-auto pr-1">
-        <div className="flex flex-wrap gap-1.5">
-          {itineraryRouteOptions.map((route, index) => {
-            const selectedRouteQuoteId =
-              activeRouteQuoteId || quoteId || itinerary.quoteId;
-
-            const isActive = route.quoteId === selectedRouteQuoteId;
-
-            return (
-              <button
-                key={`${route.quoteId}-${index}`}
-                type="button"
-                disabled={isSwitchingRouteOption}
-                onClick={() => handleItineraryRouteOptionClick(route.quoteId)}
-                className={`min-w-[92px] px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-                  isActive
-                    ? "bg-pink-500 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
-              >
-                {route.label || `Route ${index + 1}`}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  )}
-
-  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-    <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+              <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
                 <span>Tour Itinerary Plan</span>
                 <span className="text-[#6c6c6c]">(</span>
                 {itineraryPreference === 2 && (
@@ -8804,8 +9392,9 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                     <button
                       type="button"
                       onClick={scrollToVehicleList}
-                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
-                      title="Go to Vehicle List"
+                      disabled={vehicleBuildStatus !== "READY"}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
                     >
                       Vehicle
                     </button>
@@ -8830,8 +9419,9 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                     <button
                       type="button"
                       onClick={scrollToVehicleList}
-                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded"
-                      title="Go to Vehicle List"
+                      disabled={vehicleBuildStatus !== "READY"}
+                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
                     >
                       Vehicle
                     </button>
@@ -8864,7 +9454,7 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                     <Button
                       variant="outline"
                       className="border-[#6f42c1] text-[#6f42c1] hover:bg-[#6f42c1] hover:text-white"
-                      onClick={() => setPluckCardModal(true)}
+                      onClick={() => void handleDownloadPluckCard()}
                     >
                       <CreditCard className="mr-2 h-4 w-4" />
                       Download Pluck Card
@@ -8897,7 +9487,7 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                     <Button
                       variant="outline"
                       className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-                      onClick={() => { setInvoiceType('tax'); setInvoiceModal(true); }}
+                      onClick={() => void handleDownloadInvoice('tax')}
                     >
                       <Receipt className="mr-2 h-4 w-4" />
                       Invoice Tax
@@ -8905,18 +9495,18 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                     <Button
                       variant="outline"
                       className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                      onClick={() => { setInvoiceType('proforma'); setInvoiceModal(true); }}
+                      onClick={() => void handleDownloadInvoice('proforma')}
                     >
                       <FileText className="mr-2 h-4 w-4" />
-                      Invoice Performa
+                      Invoice Proforma
                     </Button>
                   </>
                 )}
               </div>
             </div>
 
-{/* Quote Info — row 1 */}
-<div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
+            {/* Quote Info — row 1 */}
+            <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
               <div className="flex flex-wrap items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-[#d546ab]">{itinerary.quoteId}</span>
@@ -8981,13 +9571,97 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
 
       {/* Daily Itinerary */}
       <div className="lg:pr-20">
+      {(() => {
+        const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
+        const wholeItineraryGuideAssignment =
+          guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
 
+        return (
+          <>
+            {isWholeItineraryGuideMode && (
+              <div className="mb-4 rounded-lg border border-[#e5d9f2] bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[#4a4260]">Whole Itinerary Guide</p>
+                    <p className="mt-1 text-sm text-[#6c6c6c]">
+                      Assign one guide for the full itinerary.
+                    </p>
+                  </div>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+                      onClick={handleWholeItineraryGuideClick}
+                    >
+                      {wholeItineraryGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
+                      {wholeItineraryGuideAssignment ? "Edit Guide" : "Add Guide"}
+                    </Button>
+                  )}
+                </div>
 
-       {displayDays.map((day) => {
+                {wholeItineraryGuideAssignment && (
+                  <div className="mt-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#4a4260]">
+                        Guide
+                        {wholeItineraryGuideAssignment.guideLanguageLabels.length > 0 && (
+                          <>
+                            {" "}
+                            Language - <span className="text-[#d546ab]">{wholeItineraryGuideAssignment.guideLanguageLabels.join(", ")}</span>
+                          </>
+                        )}
+                      </p>
+                      {wholeItineraryGuideAssignment.guideSlotLabels.length > 0 && (
+                        <p className="mt-1 text-sm text-[#6c6c6c]">
+                          Slot Timing -{" "}
+                          <span className="font-medium text-[#4a4260]">
+                            {wholeItineraryGuideAssignment.guideSlotLabels.join(", ")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-4 flex items-center gap-2">
+                      <span className="text-lg font-bold text-[#d546ab]">
+                        ₹ {Number(wholeItineraryGuideAssignment.guideCost || 0).toFixed(2)}
+                      </span>
+                      {!readOnly && (
+                        <>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
+                            onClick={() => void openGuideModal(null, wholeItineraryGuideAssignment, 1)}
+                            aria-label="Edit whole itinerary guide"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
+                            onClick={() => setDeleteGuideModal({ open: true, assignment: wholeItineraryGuideAssignment, deleting: false })}
+                            aria-label="Delete whole itinerary guide"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
   );
+  const currentGuideAssignment =
+    guideAssignments.find((assignment) => (
+      Number(assignment.guideType || 0) === 2
+      && Number(assignment.routeId || 0) === Number(day.id)
+    )) ?? null;
 
   return (
             
@@ -9154,24 +9828,75 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
         </Button>
       )}
 
-      <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-          onClick={() => handleAddGuideClick(day)}
-          disabled={readOnly}
-        >
-          <Plus className="mr-1 h-4 w-4" />
-          Add Guide
-          </Button>
+      {!isWholeItineraryGuideMode && (
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            onClick={() => handleAddGuideClick(day)}
+            disabled={readOnly}
+          >
+            {currentGuideAssignment ? <Edit className="mr-1 h-4 w-4" /> : <Plus className="mr-1 h-4 w-4" />}
+            {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
+            </Button>
+      )}
 
       <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
         {intercityDistance}
       </span>
     </div>
-  </div>
 </div>
+</div>
+
+                {!isWholeItineraryGuideMode && currentGuideAssignment && (
+                  <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#4a4260]">
+                        Guide
+                        {currentGuideAssignment.guideLanguageLabels.length > 0 && (
+                          <>
+                            {" "}
+                            Language - <span className="text-[#d546ab]">{currentGuideAssignment.guideLanguageLabels.join(", ")}</span>
+                          </>
+                        )}
+                      </p>
+                      {currentGuideAssignment.guideSlotLabels.length > 0 && (
+                        <p className="mt-1 text-sm text-[#6c6c6c]">
+                          Slot Timing -{" "}
+                          <span className="font-medium text-[#4a4260]">
+                            {currentGuideAssignment.guideSlotLabels.join(", ")}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-4 flex items-center gap-2">
+                      <span className="text-lg font-bold text-[#d546ab]">
+                        ₹ {Number(currentGuideAssignment.guideCost || 0).toFixed(2)}
+                      </span>
+                      {!readOnly && (
+                        <>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
+                            onClick={() => void openGuideModal(day, currentGuideAssignment)}
+                            aria-label="Edit guide"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
+                            onClick={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })}
+                            aria-label="Delete guide"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
 
 
                 {/* Segments */}
@@ -9622,10 +10347,17 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
             </Card>
           );
         })}
+          </>
+        );
+      })()}
       </div>
       {/* Hotel List (separate component) */}
       {shouldShowHotels && loadingHotels && (
-        <div ref={hotelListRef} id="hotel-list-section">
+        <div
+          ref={hotelListRef}
+          id="hotel-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
               <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
@@ -9636,9 +10368,14 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
       )}
 
       {shouldShowHotels && !loadingHotels && hotelDetails && (
-        <div ref={hotelListRef} id="hotel-list-section">
+        <div
+          ref={hotelListRef}
+          id="hotel-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <HotelList
             hotels={hotelsForDisplay}
+            restrictedHotels={hotelDetails.restrictedHotels || []}
             hotelTabs={hotelDetails.hotelTabs}
             hotelRatesVisible={hotelDetails.hotelRatesVisible}
             showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
@@ -9677,8 +10414,7 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
         </div>
       )}
 
-      {/* Vehicle List (grouped by vehicle type) */}
-      {shouldShowVehicles && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
+      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
         // Group vehicles by vehicleTypeId
         const vehiclesByType = new Map<number, typeof itinerary.vehicles>();
         const typeOrder: number[] = [];
@@ -9701,12 +10437,45 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
         })) || [];
 
         return (
-          <div ref={vehicleListRef} id="vehicle-list-section">
+          <div
+            ref={vehicleListRef}
+            id="vehicle-list-section"
+            style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+          >
             {typeOrder.map((typeId) => {
-              const vehiclesForType = vehiclesByType.get(typeId) || [];
-              const firstVehicle = vehiclesForType[0];
-              const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
+     const rawVehiclesForType = vehiclesByType.get(typeId) || [];
 
+const sortedVehiclesForType = [...rawVehiclesForType].sort(
+  (a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b)
+);
+
+const cheapestVehicle = sortedVehiclesForType[0];
+
+const cheapestVehicleKey = cheapestVehicle
+  ? String(
+      cheapestVehicle.vendorEligibleId ??
+        cheapestVehicle.vehicleId ??
+        cheapestVehicle.vehicleIds?.[0] ??
+        `${cheapestVehicle.vendorName}-${cheapestVehicle.branchName}-${cheapestVehicle.totalAmount}`
+    )
+  : "";
+
+const vehiclesForType = sortedVehiclesForType.map((vehicle) => {
+  const vehicleKey = String(
+    vehicle.vendorEligibleId ??
+      vehicle.vehicleId ??
+      vehicle.vehicleIds?.[0] ??
+      `${vehicle.vendorName}-${vehicle.branchName}-${vehicle.totalAmount}`
+  );
+
+  return {
+    ...vehicle,
+    isAssigned: vehicleKey === cheapestVehicleKey,
+  };
+});
+
+const firstVehicle = vehiclesForType[0];
+const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
               return (
                 <VehicleList
                   key={typeId}
@@ -9725,51 +10494,15 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
         );
       })()}
 
-      {shouldShowVehicles && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
-        <div ref={vehicleListRef} id="vehicle-list-section">
+      {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+        <div
+          ref={vehicleListRef}
+          id="vehicle-list-section"
+          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
+        >
           <Card className="border border-[#e5d9f2] bg-white">
             <CardContent className="py-10 px-6">
-              {(vehicleBuildStatus?.status === "PENDING" ||
-                vehicleBuildStatus?.status === "PROCESSING" ||
-                !vehicleBuildStatus) && (
-                <div className="flex items-center justify-center gap-3 text-[#6c6c6c]">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
-                  <span>Building vehicle list. Please wait...</span>
-                </div>
-              )}
-
-              {vehicleBuildStatus?.status === "FAILED" && (
-                <div className="flex flex-col items-center gap-3 text-center text-[#6c6c6c]">
-                  <div className="flex items-center gap-2 text-[#c53030]">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span>Vehicle build failed.</span>
-                  </div>
-                  {vehicleBuildStatus.error && (
-                    <p className="text-xs text-[#8a8a8a] max-w-[800px] break-words">
-                      {vehicleBuildStatus.error}
-                    </p>
-                  )}
-                  <Button
-                    type="button"
-                    onClick={handleRetryVehicleBuild}
-                    disabled={isRetryingVehicleBuild}
-                    className="bg-[#d546ab] hover:bg-[#bb3a94]"
-                  >
-                    {isRetryingVehicleBuild ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Retrying...
-                      </>
-                    ) : (
-                      "Retry Vehicle Build"
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {vehicleBuildStatus?.status === "READY" && (
-                <div className="text-center text-[#6c6c6c]">No Vehicle available</div>
-              )}
+              <div className="text-center text-[#6c6c6c]">No vehicle available</div>
             </CardContent>
           </Card>
         </div>
@@ -9974,52 +10707,62 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-3 justify-center">
        {/* Clipboard Dropdown */}
-{itineraryPreference === 2 ? (
-  <Button
-    className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]"
-    onClick={handleVehicleOnlyClipboardCopy}
-  >
-    Clipboard
+
+<div className="relative group">
+  <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
+    Clipboard ▼
   </Button>
-) : (
-  <div className="relative group">
-    <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
-      Clipboard ▼
-    </Button>
-    <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType('recommended');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📋</span> Copy Recommended
-      </button>
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType('highlights');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>✨</span> Copy to Highlights
-      </button>
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-        onClick={() => {
-          setClipboardType('para');
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📝</span> Copy to Para
-      </button>
-    </div>
+
+  <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("recommended");
+          return;
+        }
+
+        setClipboardType("recommended");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📋</span> Copy Recommended
+    </button>
+
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("highlights");
+          return;
+        }
+
+        setClipboardType("highlights");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>✨</span> Copy to Highlights
+    </button>
+
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("para");
+          return;
+        }
+
+        setClipboardType("para");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📝</span> Copy to Para
+    </button>
   </div>
-)}
+</div>
 
         <Link to="/create-itinerary">
           <Button className="bg-[#28a745] hover:bg-[#218838]">
@@ -10457,6 +11200,164 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                 </>
               ) : (
                 'Delete'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={guideModal.open}
+        onOpenChange={(open) => {
+          if (!open && !guideModal.saving) {
+            setGuideModal((prev) => ({
+              ...prev,
+              open: false,
+              loading: false,
+              saving: false,
+            }));
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {Number(guideModal.guideType || 0) === 1
+                ? (guideModal.routeGuideId ? "Update Guide for Full Itinerary" : "Add Guide for Full Itinerary")
+                : guideModal.routeGuideId
+                ? `Update Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`
+                : `Add Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`}
+            </DialogTitle>
+            <DialogDescription>
+              {Number(guideModal.guideType || 0) === 1
+                ? "Choose the guide language for the full itinerary. Slot coverage will follow the whole-itinerary guide setup."
+                : "Choose the guide language and slot for this itinerary day."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {guideModal.loading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
+            </div>
+          ) : (
+            <div className="space-y-5 py-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-[#4a4260]">Language</label>
+                <Select
+                  value={guideModal.guideLanguage}
+                  onValueChange={(value) => setGuideModal((prev) => ({ ...prev, guideLanguage: value }))}
+                >
+                  <SelectTrigger className="border-[#e5d9f2] focus:ring-[#d546ab]">
+                    <SelectValue placeholder="Choose Language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {guideModal.options.languages.map((language) => (
+                      <SelectItem key={language.id} value={String(language.id)}>
+                        {language.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {Number(guideModal.guideType || 0) !== 1 && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[#4a4260]">Slot</label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {guideModal.options.slots.map((slot) => {
+                      const selected = guideModal.guideSlots.includes(slot.id);
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                            selected
+                              ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
+                              : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
+                          }`}
+                          onClick={() => {
+                            setGuideModal((prev) => {
+                              const exists = prev.guideSlots.includes(slot.id);
+                              const guideSlots = exists
+                                ? prev.guideSlots.filter((item) => item !== slot.id)
+                                : [...prev.guideSlots, slot.id].sort((a, b) => a - b);
+                              return { ...prev, guideSlots };
+                            });
+                          }}
+                        >
+                          {slot.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setGuideModal((prev) => ({ ...prev, open: false }))}
+              disabled={guideModal.saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleSaveGuideAssignment()}
+              disabled={guideModal.loading || guideModal.saving}
+              className="bg-[#d546ab] hover:bg-[#bf3397]"
+            >
+              {guideModal.saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteGuideModal.open}
+        onOpenChange={(open) => {
+          if (!deleteGuideModal.deleting) {
+            setDeleteGuideModal((prev) => ({ ...prev, open }));
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Guide</DialogTitle>
+            <DialogDescription>
+              {Number(deleteGuideModal.assignment?.guideType || 0) === 1
+                ? "Are you sure you want to remove this whole-itinerary guide assignment?"
+                : "Are you sure you want to remove this guide assignment from the itinerary day?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteGuideModal({ open: false, assignment: null, deleting: false })}
+              disabled={deleteGuideModal.deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteGuideAssignment()}
+              disabled={deleteGuideModal.deleting}
+            >
+              {deleteGuideModal.deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
               )}
             </Button>
           </DialogFooter>
@@ -12723,36 +13624,38 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm gap-4">
-                <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
-                <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
-              </div>
-              <div className="flex justify-between text-sm gap-4">
-                <span className="text-[#6c6c6c]">Passenger Mix:</span>
-                <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
-              </div>
-              <div className="pt-2 border-t border-[#e6e6e6]">
-                <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
-                <div className="space-y-1">
-                  {confirmOccupancyPreview.map((room, index) => {
-                    const roomMix = [
-                      room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
-                      room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
-                    ].filter(Boolean).join(', ');
+            {requiresHotelBookingFlow && (
+              <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
+                  <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
+                </div>
+                <div className="flex justify-between text-sm gap-4">
+                  <span className="text-[#6c6c6c]">Passenger Mix:</span>
+                  <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
+                </div>
+                <div className="pt-2 border-t border-[#e6e6e6]">
+                  <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
+                  <div className="space-y-1">
+                    {confirmOccupancyPreview.map((room, index) => {
+                      const roomMix = [
+                        room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
+                        room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
+                      ].filter(Boolean).join(', ');
 
-                    return (
-                      <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
-                        <span className="text-[#6c6c6c]">Room {index + 1}:</span>
-                        <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
+                          <span className="text-[#6c6c6c]">Room {index + 1}:</span>
+                          <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {(Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
+            {requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
                 <p className="text-xs text-amber-700 mt-1">
@@ -12761,7 +13664,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {(isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
+            {requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
               <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
                 <div>
@@ -12771,7 +13674,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {externalStayEntries.length > 0 && (
+            {requiresHotelBookingFlow && externalStayEntries.length > 0 && (
               <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <div>
                   <h3 className="font-semibold text-amber-900">External / self-arranged stay required</h3>
@@ -12810,7 +13713,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {!prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
+            {requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
                 <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
@@ -12831,9 +13734,24 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                           <div>
                             <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
                             <p className="text-xs text-[#6c6c6c]">
+                              {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
+                                <>
+                                  Stay: <span className="font-medium text-[#4a4260]">
+                                    {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
+                                  </span>
+                                  {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
+                                </>
+                              ) : null}
+                            </p>
+                            <p className="text-xs text-[#6c6c6c]">
                               Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
                               {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
                             </p>
+                            {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
+                              <p className="text-xs text-green-700 font-medium">
+                                Continuous stay selected for {hotel.displayRouteIds.length} route(s)
+                              </p>
+                            ) : null}
                             <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                           </div>
                           <div className="text-sm text-left md:text-right">
@@ -12929,47 +13847,42 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               </div>
             )}
 
-            {prebookData && (
-              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-[#6c6c6c]">Updated Final Price</p>
-                    <p className="font-semibold text-[#4a4260]">
-                      ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[#6c6c6c]">Hotels Prebooked (TBO)</p>
-                    <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
-                  </div>
-                </div>
+          {requiresHotelBookingFlow && prebookData && (
+  <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
+    <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
 
-                {prebookHotelEntries.map((hotel: any, index: number) => {
-                  const hotelPrice = Number(hotel?.updatedTotalPrice || hotel?.finalPrice || hotel?.totalAmount || 0);
-                  const hotelAmenities = normalizePrebookItems(hotel?.amenities);
-                  const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
-                  const hotelInclusions = resolvePrebookInclusions(hotel);
-                  const hotelMealType = resolvePrebookMealPlan(hotel);
-                  const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
-                  const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
-                  const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
-                  const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+      <div>
+        <p className="text-[#6c6c6c]">Hotel Final Cost</p>
+        <p className="font-semibold text-[#4a4260]">
+          ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
+        </p>
+      </div>
 
-                  return (
-                    <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
-                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
-                          </div>
-                          <div className="text-sm text-left md:text-right">
-                            <p className="text-[#6c6c6c]">Updated Final Price</p>
-                            <p className="font-semibold text-[#4a4260]">₹ {hotelPrice.toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </summary>
+      <div>
+        <p className="text-[#6c6c6c]">Hotels Prebooked</p>
+        <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
+      </div>
+    </div>
+
+    {prebookHotelEntries.map((hotel: any, index: number) => {
+      const hotelAmenities = normalizePrebookItems(hotel?.amenities);
+      const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
+      const hotelInclusions = resolvePrebookInclusions(hotel);
+      const hotelMealType = resolvePrebookMealPlan(hotel);
+      const hotelCancellation = normalizeCancellationPolicyItems(hotel?.cancellationPolicy || hotel?.cancellationPoliciesText);
+      const hotelPromotions = normalizePrebookItems(hotel?.roomPromotion);
+      const hotelSupplements = Array.isArray(hotel?.normalizedSupplements) ? hotel.normalizedSupplements : [];
+      const hotelMandatorySupplements = normalizePrebookItems(hotel?.mandatorySupplements);
+
+      return (
+        <details key={`prebook-hotel-${hotel?.routeId ?? index}-${hotel?.hotelCode ?? index}`} className="rounded-lg border border-[#eadcfb] bg-white p-4 space-y-3">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-1">
+              <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
+              <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
+            </div>
+          </summary>
 
                       <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
                         <div>
@@ -13099,9 +14012,24 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                               <div>
                                 <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
                                 <p className="text-xs text-[#6c6c6c]">
+                                  {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
+                                    <>
+                                      Stay: <span className="font-medium text-[#4a4260]">
+                                        {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
+                                      </span>
+                                      {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
+                                    </>
+                                  ) : null}
+                                </p>
+                                <p className="text-xs text-[#6c6c6c]">
                                   Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
                                   {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
                                 </p>
+                                {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
+                                  <p className="text-xs text-green-700 font-medium">
+                                    Continuous stay selected for {hotel.displayRouteIds.length} route(s)
+                                  </p>
+                                ) : null}
                                 <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
                               </div>
                               <div className="text-sm text-left md:text-right">
@@ -13360,6 +14288,8 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 />
               </div>
 
+              {requiresDetailedPassengerFlow && (
+                <>
               {/* Additional Adults */}
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
@@ -13632,6 +14562,8 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                   </div>
                 ))}
               </div>
+                </>
+              )}
             </div>
 
             {/* Arrival Details */}

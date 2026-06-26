@@ -26,6 +26,18 @@ export type TravellersResult = {
   }[];
 };
 
+function mapChildBedTypeToApiValue(bedType: string | undefined): number {
+  if (bedType === "With Bed") {
+    return 2;
+  }
+
+  if (bedType === "Without Bed") {
+    return 1;
+  }
+
+  return 0;
+}
+
 export function useRoomsAndTravellers() {
   const [rooms, setRooms] = useState<RoomRow[]>([
     {
@@ -93,12 +105,7 @@ export function useRoomsAndTravellers() {
             childInfo && childInfo.age !== ""
               ? String(childInfo.age)
               : undefined,
-          child_bed_type:
-            childInfo &&
-            childInfo.bedType &&
-            !Number.isNaN(Number(childInfo.bedType))
-              ? Number(childInfo.bedType)
-              : 0,
+          child_bed_type: mapChildBedTypeToApiValue(childInfo?.bedType),
         });
       }
 

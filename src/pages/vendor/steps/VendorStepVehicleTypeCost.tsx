@@ -87,6 +87,39 @@ type LocalFieldErrors = Partial<{
   km: string;
 }>;
 
+const extractApiErrorMessage = (error: unknown, fallback: string) => {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const jsonMatch = message.match(/\{"message":"([^"]+)"/);
+  if (jsonMatch?.[1]) return jsonMatch[1];
+  return message || fallback;
+};
+
+const showOrangeWarningToast = (message: string) => {
+  toast(message, {
+    position: "top-center",
+    style: {
+      background: "#f59e0b",
+      color: "#ffffff",
+      border: "1px solid #f59e0b",
+    },
+    closeButton: true,
+    duration: 3500,
+  });
+};
+
+const showKmLimitSaveErrorToast = (error: unknown, fallback: string, vehicleTypeLabel?: string) => {
+  const message = extractApiErrorMessage(error, fallback);
+  if (/already exist for this vehicle type/i.test(message)) {
+    const duplicateMessage = vehicleTypeLabel
+      ? `Already exist for ${vehicleTypeLabel}`
+      : message;
+    showOrangeWarningToast(duplicateMessage);
+    return true;
+  }
+  toast.error(message);
+  return false;
+};
+
 export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   vendorId,
   onBack,
@@ -95,8 +128,9 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<ActiveTab>("driverCost");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
-  const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
+ const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
+const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
+const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
 
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
@@ -136,6 +170,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     limit: "",
   });
   const [outstationFieldErrors, setOutstationFieldErrors] = useState<OutstationFieldErrors>({});
+  const [outstationSaveLocked, setOutstationSaveLocked] = useState(false);
 
   // ---- Local KM Limit state ----
   const [localRows, setLocalRows] = useState<LocalKmLimitRow[]>([]);
@@ -151,6 +186,7 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
     km: "",
   });
   const [localFieldErrors, setLocalFieldErrors] = useState<LocalFieldErrors>({});
+  const [localSaveLocked, setLocalSaveLocked] = useState(false);
 
   const isValidNumberInput = (value: string): boolean => {
     const trimmed = String(value ?? "").trim();
@@ -405,6 +441,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setOutstationFormVehicleType("");
     setOutstationFormFields({ title: "", limit: "" });
     setOutstationFieldErrors({});
+    setOutstationSaveLocked(false);
     setShowOutstationModal(true);
   };
 
@@ -413,11 +450,13 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setOutstationFormVehicleType(row.vehicleType);
     setOutstationFormFields({ title: row.title, limit: row.limit });
     setOutstationFieldErrors({});
+    setOutstationSaveLocked(false);
     setShowOutstationModal(true);
   };
 
   const handleSaveOutstation = async () => {
     if (!vendorId) return;
+    if (outstationSaveLocked) return;
 
     const errors: OutstationFieldErrors = {};
     if (!String(outstationFormVehicleType ?? "").trim()) {
@@ -453,6 +492,12 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setShowOutstationModal(false);
     } catch (e) {
       console.error("Failed to save outstation limit", e);
+      const vehicleTypeLabel =
+        vehicleTypeOptions.find((opt) => opt.id === outstationFormVehicleType)?.label;
+      const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save outstation KM limit", vehicleTypeLabel);
+      if (isDuplicate) {
+        setOutstationSaveLocked(true);
+      }
     } finally {
       setSaving(false);
     }
@@ -485,6 +530,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setLocalFormVehicleType("");
     setLocalFormFields({ title: "", hours: "", km: "" });
     setLocalFieldErrors({});
+    setLocalSaveLocked(false);
     setShowLocalModal(true);
   };
 
@@ -497,11 +543,13 @@ const handleDeleteDriverCost = async (rowId: number) => {
       km: row.km,
     });
     setLocalFieldErrors({});
+    setLocalSaveLocked(false);
     setShowLocalModal(true);
   };
 
   const handleSaveLocal = async () => {
     if (!vendorId) return;
+    if (localSaveLocked) return;
 
     const errors: LocalFieldErrors = {};
     if (!String(localFormVehicleType ?? "").trim()) {
@@ -541,14 +589,36 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setShowLocalModal(false);
     } catch (e) {
       console.error("Failed to save local limit", e);
+      const vehicleTypeLabel =
+        vehicleTypeOptions.find((opt) => opt.id === localFormVehicleType)?.label;
+      const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save local KM limit", vehicleTypeLabel);
+      if (isDuplicate) {
+        setLocalSaveLocked(true);
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteLocal = (rowId: number) => {
+const handleDeleteLocal = async (rowId: number) => {
+  if (!vendorId) return;
+
+  setSaving(true);
+
+  try {
+    await api(`/vendors/${vendorId}/local-km-limits/${rowId}`, {
+      method: "DELETE",
+    });
+
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
-  };
+    toast.success("Deleted successfully");
+  } catch (e) {
+    console.error("Failed to delete local limit", e);
+    toast.error("Delete failed. Backend API is not deleting this record.");
+  } finally {
+    setSaving(false);
+  }
+};
 
   // ============================================================
   // Render helpers
@@ -904,15 +974,15 @@ const handleDeleteDriverCost = async (rowId: number) => {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-3 text-xs text-red-600 border-red-200"
-                          type="button"
-                          onClick={() => setDeleteOutstationId(row.id)}
-                        >
-                          Delete
-                        </Button>
+                     <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteOutstationId(row.id)}
+>
+  Delete
+</Button>
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
                         {/* Vendor column: in PHP this is vendor name; here just show current vendorId */}
@@ -1047,15 +1117,15 @@ const handleDeleteDriverCost = async (rowId: number) => {
                         >
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 px-3 text-xs text-red-600 border-red-200"
-                          type="button"
-                          onClick={() => setDeleteOutstationId(row.id)}
-                        >
-                          Delete
-                        </Button>
+                       <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteLocalId(row.id)}
+>
+  Delete
+</Button>
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
                         {vendorId ?? "-"}
@@ -1334,7 +1404,12 @@ const handleDeleteDriverCost = async (rowId: number) => {
       {/* OUTSTATION KM LIMIT MODAL */}
       <Dialog
         open={showOutstationModal}
-        onOpenChange={setShowOutstationModal}
+        onOpenChange={(open) => {
+          setShowOutstationModal(open);
+          if (!open) {
+            setOutstationSaveLocked(false);
+          }
+        }}
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1353,6 +1428,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
               <Select
                 value={outstationFormVehicleType}
                 onValueChange={(value) => {
+                  setOutstationSaveLocked(false);
                   setOutstationFormVehicleType(value);
                   setOutstationFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
                 }}
@@ -1385,6 +1461,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 className={outstationFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={outstationFormFields.title}
                 onChange={(e) => {
+                  setOutstationSaveLocked(false);
                   setOutstationFormFields((prev) => ({
                     ...prev,
                     title: e.target.value,
@@ -1406,6 +1483,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 className={outstationFieldErrors.limit ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={outstationFormFields.limit}
                 onChange={(e) => {
+                  setOutstationSaveLocked(false);
                   setOutstationFormFields((prev) => ({
                     ...prev,
                     limit: e.target.value,
@@ -1432,6 +1510,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
               type="button"
               className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
               onClick={handleSaveOutstation}
+              disabled={saving || outstationSaveLocked}
             >
               Save
             </Button>
@@ -1440,7 +1519,15 @@ const handleDeleteDriverCost = async (rowId: number) => {
       </Dialog>
 
       {/* LOCAL KM LIMIT MODAL */}
-      <Dialog open={showLocalModal} onOpenChange={setShowLocalModal}>
+      <Dialog
+        open={showLocalModal}
+        onOpenChange={(open) => {
+          setShowLocalModal(open);
+          if (!open) {
+            setLocalSaveLocked(false);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-gray-800">
@@ -1456,6 +1543,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
               <Select
                 value={localFormVehicleType}
                 onValueChange={(value) => {
+                  setLocalSaveLocked(false);
                   setLocalFormVehicleType(value);
                   setLocalFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
                 }}
@@ -1487,6 +1575,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 className={localFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
                 value={localFormFields.title}
                 onChange={(e) => {
+                  setLocalSaveLocked(false);
                   setLocalFormFields((prev) => ({
                     ...prev,
                     title: e.target.value,
@@ -1507,12 +1596,13 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 <Input
                   placeholder="Enter Hours"
                   className={localFieldErrors.hours ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={localFormFields.hours}
-                  onChange={(e) => {
-                    setLocalFormFields((prev) => ({
-                      ...prev,
-                      hours: e.target.value,
-                    }));
+                value={localFormFields.hours}
+                onChange={(e) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormFields((prev) => ({
+                    ...prev,
+                    hours: e.target.value,
+                  }));
                     setLocalFieldErrors((prev) => ({ ...prev, hours: undefined }));
                   }}
                 />
@@ -1527,12 +1617,13 @@ const handleDeleteDriverCost = async (rowId: number) => {
                 <Input
                   placeholder="KM Limit"
                   className={localFieldErrors.km ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={localFormFields.km}
-                  onChange={(e) => {
-                    setLocalFormFields((prev) => ({
-                      ...prev,
-                      km: e.target.value,
-                    }));
+                value={localFormFields.km}
+                onChange={(e) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormFields((prev) => ({
+                    ...prev,
+                    km: e.target.value,
+                  }));
                     setLocalFieldErrors((prev) => ({ ...prev, km: undefined }));
                   }}
                 />
@@ -1556,6 +1647,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
               type="button"
               className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
               onClick={handleSaveLocal}
+              disabled={saving || localSaveLocked}
             >
               Save
             </Button>
@@ -1605,32 +1697,85 @@ const handleDeleteDriverCost = async (rowId: number) => {
         </div>        
       )}
     
-      {deleteOutstationId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
-            <h2 className="text-xl font-semibold text-gray-700">Are you sure?</h2>
-            <p className="mt-3 text-sm text-gray-600">Do you really want to delete this record?</p>
-            <p className="text-sm text-gray-600">This process cannot be undone.</p>
+     {deleteOutstationId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
 
-            <div className="mt-6 flex justify-center gap-3">
-              <Button type="button" variant="secondary" onClick={() => setDeleteOutstationId(null)}>
-                Close
-              </Button>
-              <Button
-                type="button"
-                className="bg-red-500 text-white hover:bg-red-600"
-                onClick={() => {
-                  handleDeleteOutstation(deleteOutstationId);
-                  setDeleteOutstationId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Card>
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteOutstationId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteOutstation(deleteOutstationId);
+            setDeleteOutstationId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+
+{deleteLocalId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteLocalId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteLocal(deleteLocalId);
+            setDeleteLocalId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+</Card>
   );
 };
