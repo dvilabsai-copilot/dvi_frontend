@@ -2882,95 +2882,100 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return merged;
   }, [dedupeHotelRows]);
 
-  const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
-    if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
-      return {
-        hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
-        showHotelMargins: Boolean(payload?.showHotelMargins),
-        hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
-        hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
-        hotelAvailability: payload?.hotelAvailability,
-      };
-    }
-
-    const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
-    const totalRoutes = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
-    const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
-    const placeholderRowCount = hotels.length - supplierHotelCount;
-
+  const normalizeConfirmedHotelResponse = useCallback((payload: any, totalDays?: number): ItineraryHotelDetailsResponse => {
+  if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
     return {
-      hotelRatesVisible: false,
-      showHotelMargins: false,
-      hotelTabs: [
-        {
-          groupType: 1,
-          label: 'Booked Hotels',
-          totalAmount: hotels.reduce(
-            (sum: number, hotel: any) =>
-              sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
-            0,
-          ),
-        },
-      ],
-      hotels,
-      hotelAvailability: {
-        hasSupplierHotels: supplierHotelCount > 0,
-        supplierHotelCount,
-        placeholderRowCount,
-        totalSearchRoutes: totalRoutes,
-        emptySearchRoutes: Math.max(totalRoutes - hotels.length, 0),
-        isPlaceholderOnly: supplierHotelCount === 0 && placeholderRowCount > 0,
-        message: supplierHotelCount > 0
-          ? 'Showing confirmed booked hotels for this itinerary.'
-          : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
-      },
+      hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
+      showHotelMargins: Boolean(payload?.showHotelMargins),
+      hotelTabs: Array.isArray(payload?.hotelTabs) ? payload.hotelTabs : [],
+      hotels: Array.isArray(payload?.hotels) ? payload.hotels : [],
+      hotelAvailability: payload?.hotelAvailability,
     };
-  }, [itinerary?.days]);
+  }
+
+  const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
+  // totalRoutes passed as parameter to avoid depending on itinerary state,
+  // which would cause loadHotelDetailsForItinerary to recreate on every setItinerary call.
+  const totalRoutes = totalDays ?? 0;
+  const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
+  const placeholderRowCount = hotels.length - supplierHotelCount;
+
+  return {
+    hotelRatesVisible: false,
+    showHotelMargins: false,
+    hotelTabs: [
+      {
+        groupType: 1,
+        label: 'Booked Hotels',
+        totalAmount: hotels.reduce(
+          (sum: number, hotel: any) =>
+            sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
+          0,
+        ),
+      },
+    ],
+    hotels,
+    hotelAvailability: {
+      hasSupplierHotels: supplierHotelCount > 0,
+      supplierHotelCount,
+      placeholderRowCount,
+      totalSearchRoutes: totalRoutes,
+      emptySearchRoutes: Math.max(totalRoutes - hotels.length, 0),
+      isPlaceholderOnly: supplierHotelCount === 0 && placeholderRowCount > 0,
+      message: supplierHotelCount > 0
+        ? 'Showing confirmed booked hotels for this itinerary.'
+        : 'No supplier hotel was booked for one or more stays in this confirmed itinerary.',
+    },
+  };
+}, []); // ← no deps: stable forever, never recreates
 
   const loadConfirmedHotelsFromDb = useCallback(async (
-    confirmedPlanId: number,
-    alreadyLoadedPayload?: any,
-  ): Promise<ItineraryHotelDetailsResponse | null> => {
-    if (!confirmedPlanId) return null;
+  confirmedPlanId: number,
+  alreadyLoadedPayload?: any,
+  totalDays?: number,
+): Promise<ItineraryHotelDetailsResponse | null> => {
+  if (!confirmedPlanId) return null;
 
-    if (
-      alreadyLoadedPayload &&
-      Array.isArray(alreadyLoadedPayload?.hotels)
-    ) {
-      return normalizeConfirmedHotelResponse(alreadyLoadedPayload);
-    }
+  if (
+    alreadyLoadedPayload &&
+    Array.isArray(alreadyLoadedPayload?.hotels)
+  ) {
+    return normalizeConfirmedHotelResponse(alreadyLoadedPayload, totalDays);
+  }
 
-    const confirmedRes = await ItineraryService.getConfirmedItinerary(confirmedPlanId);
-    return normalizeConfirmedHotelResponse(confirmedRes);
-  }, [normalizeConfirmedHotelResponse]);
+  const confirmedRes = await ItineraryService.getConfirmedItinerary(confirmedPlanId);
+  return normalizeConfirmedHotelResponse(confirmedRes, totalDays);
+}, [normalizeConfirmedHotelResponse]);
 
   const loadHotelDetailsForItinerary = useCallback(async (
-    quoteIdValue: string,
-    itineraryDetails: ItineraryDetailsResponse,
-  ): Promise<ItineraryHotelDetailsResponse | null> => {
-    const pref = Number(itineraryDetails.itineraryPreference ?? 3);
-    const useHotels = pref === 1 || pref === 3;
+  quoteIdValue: string,
+  itineraryDetails: ItineraryDetailsResponse,
+): Promise<ItineraryHotelDetailsResponse | null> => {
+  const pref = Number(itineraryDetails.itineraryPreference ?? 3);
+  const useHotels = pref === 1 || pref === 3;
 
-    if (!useHotels) return null;
+  if (!useHotels) return null;
 
-    const confirmedPlanId = Number((itineraryDetails as any)?.confirmed_itinerary_plan_ID || 0);
+  const confirmedPlanId = Number((itineraryDetails as any)?.confirmed_itinerary_plan_ID || 0);
 
-    if (confirmedPlanId > 0) {
-      console.log('[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.', {
-        quoteId: quoteIdValue,
-        confirmedPlanId,
-      });
-
-      return loadConfirmedHotelsFromDb(confirmedPlanId);
-    }
-
-    console.log('[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.', {
+  if (confirmedPlanId > 0) {
+    console.log('[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.', {
       quoteId: quoteIdValue,
+      confirmedPlanId,
     });
 
-    return fetchCompleteHotelDetails(quoteIdValue);
-  }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
+    // Pass totalDays from itineraryDetails so normalizeConfirmedHotelResponse
+    // doesn't need to read from itinerary state (which causes cascade re-renders).
+    const totalDays = Array.isArray(itineraryDetails.days) ? itineraryDetails.days.length : 0;
+    return loadConfirmedHotelsFromDb(confirmedPlanId, undefined, totalDays);
+  }
 
+  console.log('[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.', {
+    quoteId: quoteIdValue,
+  });
+
+  return fetchCompleteHotelDetails(quoteIdValue);
+}, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
   const selectedHotelTotal = useMemo(
     () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings]
@@ -4659,8 +4664,15 @@ const vehicleOnlyHtml = html
   // ✅ Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
 
-  // ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
-  const currentFetchRef = useRef<string | null>(null);
+// ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
+const currentFetchRef = useRef<string | null>(null);
+
+// ✅ Prevent older route API responses from overwriting the latest selected route
+const latestRouteRequestRef = useRef(0);
+
+// Tracks a quoteId that was already fully loaded by handleItineraryRouteOptionClick.
+// Prevents the useEffect from re-fetching data we just loaded manually.
+const switchedRouteRef = useRef<string | null>(null);
 
   const [agentInfo, setAgentInfo] = useState<{
     quotation_no: string;
@@ -5669,14 +5681,26 @@ function getHotelAmountForBooking(entry: any): number {
     }
 
     // If we're already fetching this quoteId, skip duplicate fetch
-    if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-      return;
-    }
+if (currentFetchRef.current === quoteId) {
+  console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+  return;
+}
 
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
+// If handleItineraryRouteOptionClick already loaded this quoteId fully,
+// skip the re-fetch triggered by navigate() changing the URL param.
+if (switchedRouteRef.current === quoteId) {
+  console.log("⚡ [ItineraryDetails] Route already loaded by tab switch, skipping re-fetch:", quoteId);
+  switchedRouteRef.current = null; // consume the flag — next navigation or refresh works normally
+  return;
+}
+
+// Mark that we're fetching this quoteId
+currentFetchRef.current = quoteId;
+isMountedRef.current = true;
+
+// Every new route/details load gets its own request number.
+// If an older request finishes late, it will be ignored.
+const routeRequestId = ++latestRouteRequestRef.current;
 
     const fetchDetails = async () => {
       try {
@@ -5697,32 +5721,46 @@ function getHotelAmountForBooking(entry: any): number {
         }
 
         // Only update state if component is still mounted
-        if (!isMountedRef.current) {
-          console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
-          return;
-        }
+        // Only update state if component is still mounted
+if (!isMountedRef.current) {
+  console.log("🔄 [ItineraryDetails] Component unmounted, skipping state update");
+  return;
+}
 
-        console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
-        setItinerary(details);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+// If user already clicked another route, ignore this older response.
+if (latestRouteRequestRef.current !== routeRequestId) {
+  console.log("⏭️ [ItineraryDetails] Ignoring stale route response:", quoteId);
+  return;
+}
+
+console.log("✅ [ItineraryDetails] Initial fetch completed successfully");
+setItinerary(details);
+setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         if (!useHotels) {
           setActiveHotelListTotal(0);
         }
-      } catch (e: any) {
-        // Only update state if component is still mounted
-        if (!isMountedRef.current) return;
+} catch (e: any) {
+  // Only update state if component is still mounted
+  if (!isMountedRef.current) return;
 
-        console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
-        setError(e?.message || "Failed to load itinerary details");
-        setItinerary(null);
-        setHotelDetails(null);
-      } finally {
-        // Only update state if component is still mounted
-        if (isMountedRef.current) {
-          setLoading(false);
-          setLoadingHotels(false);
-        }
-      }
+  // If this failed request is old, do not show its error on the latest selected route.
+  if (latestRouteRequestRef.current !== routeRequestId) {
+    console.log("⏭️ [ItineraryDetails] Ignoring stale route error:", quoteId);
+    return;
+  }
+
+  console.error("❌ [ItineraryDetails] Failed to load itinerary details", e);
+  setError(e?.message || "Failed to load itinerary details");
+  setItinerary(null);
+  setHotelDetails(null);
+} finally {
+  // Only the latest route request can stop loading.
+  // Older requests finishing late should not affect the current route UI.
+  if (isMountedRef.current && latestRouteRequestRef.current === routeRequestId) {
+    setLoading(false);
+    setLoadingHotels(false);
+  }
+}
     };
 
     fetchDetails();
@@ -8355,6 +8393,73 @@ function getHotelAmountForBooking(entry: any): number {
         return `${dd}/${mm}/${yyyy}`;
       };
 
+const normalizeRouteOptionList = (rawOptions: any[]) => {
+  const getQuoteNumberFromValue = (value?: string) => {
+    const match = String(value || "").match(/(\d+)$/);
+    return match ? Number(match[1]) : 0;
+  };
+
+  const options = rawOptions
+    .map((option: any, index: number) => {
+      const rawQuoteId =
+        typeof option === "string"
+          ? option
+          : option?.quoteId ||
+            option?.routeQuoteId ||
+            option?.quotationNo ||
+            option?.quotation_no ||
+            option?.itinerary_quote_ID ||
+            option?.itinerary_quote_id ||
+            option?.quote_id ||
+            "";
+
+      return {
+        quoteId: String(rawQuoteId || "").trim(),
+        label: option?.label || option?.routeName || `Route ${index + 1}`,
+      };
+    })
+    .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
+
+  return Array.from(
+    new Map(options.map((option) => [option.quoteId, option])).values()
+  )
+    .sort(
+      (a, b) =>
+        getQuoteNumberFromValue(a.quoteId) -
+        getQuoteNumberFromValue(b.quoteId)
+    )
+    .map((option, index) => ({
+      ...option,
+      label: `Route ${index + 1}`,
+    }));
+};
+
+const apiRouteOptions = normalizeRouteOptionList([
+  ...((Array.isArray((itinerary as any)?.routeOptions)
+    ? (itinerary as any).routeOptions
+    : []) as any[]),
+  ...((Array.isArray((itinerary as any)?.suggestedRoutes)
+    ? (itinerary as any).suggestedRoutes
+    : []) as any[]),
+  ...((Array.isArray((itinerary as any)?.siblingRoutes)
+    ? (itinerary as any).siblingRoutes
+    : []) as any[]),
+]);
+
+if (apiRouteOptions.length > 0) {
+  const routeOptionPayload = JSON.stringify(apiRouteOptions);
+
+  apiRouteOptions.forEach((option) => {
+    localStorage.setItem(
+      `itinerary-route-options:${option.quoteId}`,
+      routeOptionPayload
+    );
+  });
+
+  setLatestRouteOptions(apiRouteOptions);
+  return;
+}
+
 const storedRouteOptionsRaw = localStorage.getItem(
   `itinerary-route-options:${quoteId}`
 );
@@ -8462,7 +8567,7 @@ if (storedRouteOptionsRaw) {
   };
 
   loadRelatedRouteOptions();
-}, [quoteId, itinerary?.planId, itinerary?.days]);
+}, [quoteId, itinerary?.planId]);
 
 
   const getQuoteNumber = (value?: string) => {
@@ -8488,11 +8593,7 @@ console.log("🟣 Itinerary route options debug:", {
 const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
   const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
 
-  if (
-    !normalizedRouteQuoteId ||
-    normalizedRouteQuoteId === quoteId ||
-    isSwitchingRouteOption
-  ) {
+  if (!normalizedRouteQuoteId || normalizedRouteQuoteId === activeRouteQuoteId) {
     return;
   }
 
@@ -8501,31 +8602,67 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
     return;
   }
 
+  const routeRequestId = ++latestRouteRequestRef.current;
+
   try {
     setIsSwitchingRouteOption(true);
-    setActiveRouteQuoteId(routeQuoteId);
+
+    // Instantly highlight clicked route
+    setActiveRouteQuoteId(normalizedRouteQuoteId);
+
+    // Instantly update URL instead of waiting for hotel API
+    switchedRouteRef.current = normalizedRouteQuoteId;
+    currentFetchRef.current = normalizedRouteQuoteId;
+    navigate(`/itinerary-details/${normalizedRouteQuoteId}`, { replace: true });
+
     setLoadingHotels(true);
 
-    const detailsRes = await ItineraryService.getDetails(routeQuoteId);
+    // First load only itinerary details
+    const detailsRes = await ItineraryService.getDetails(normalizedRouteQuoteId);
     const details = detailsRes as ItineraryDetailsResponse;
+
+    // Ignore old response if user already clicked another route
+    if (latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
+    // Show route/day/travel details immediately
+    setItinerary(details);
 
     const pref = Number(details.itineraryPreference ?? 3);
     const useHotels = pref === 1 || pref === 3;
 
-    let hotelRes: ItineraryHotelDetailsResponse | null = null;
-    if (useHotels) {
-      hotelRes = await loadHotelDetailsForItinerary(routeQuoteId, details);
+    if (!useHotels) {
+      setHotelDetails(null);
+      setActiveHotelListTotal(0);
+      return;
     }
 
-    setItinerary(details);
+    // Hotel details load after route details are already visible
+    const hotelRes = await loadHotelDetailsForItinerary(
+      normalizedRouteQuoteId,
+      details
+    );
+
+    // Ignore old hotel response also
+    if (latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
     setHotelDetails(hotelRes);
-    navigate(`/itinerary-details/${routeQuoteId}`, { replace: true });
   } catch (e: any) {
+    if (latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
+    switchedRouteRef.current = null;
     console.error("Failed to switch itinerary route option", e);
     toast.error(e?.message || "Failed to load selected route option");
   } finally {
-    setLoadingHotels(false);
-    setIsSwitchingRouteOption(false);
+    if (latestRouteRequestRef.current === routeRequestId) {
+      setLoadingHotels(false);
+      setIsSwitchingRouteOption(false);
+    }
   }
 };
 
@@ -8627,8 +8764,39 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
         <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
-              <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
+  {itineraryRouteOptions.length > 0 && (
+    <div className="mb-2 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-3 py-2">
+      <div className="max-h-[78px] overflow-y-auto pr-1">
+        <div className="flex flex-wrap gap-1.5">
+          {itineraryRouteOptions.map((route, index) => {
+            const selectedRouteQuoteId =
+              activeRouteQuoteId || quoteId || itinerary.quoteId;
+
+            const isActive = route.quoteId === selectedRouteQuoteId;
+
+            return (
+              <button
+                key={`${route.quoteId}-${index}`}
+                type="button"
+                disabled={isSwitchingRouteOption}
+                onClick={() => handleItineraryRouteOptionClick(route.quoteId)}
+                className={`min-w-[92px] px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  isActive
+                    ? "bg-pink-500 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
+              >
+                {route.label || `Route ${index + 1}`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  )}
+
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+    <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
                 <span>Tour Itinerary Plan</span>
                 <span className="text-[#6c6c6c]">(</span>
                 {itineraryPreference === 2 && (
@@ -8746,39 +8914,6 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
                 )}
               </div>
             </div>
-
-            {itineraryRouteOptions.length > 0 && (
-  <div className="mb-3 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-4 py-3">
-    <div className="mb-2 text-sm font-medium text-[#4a4260]">
-      Suggested Route Options
-    </div>
-
-    <div className="flex flex-wrap gap-2">
-      {itineraryRouteOptions.map((route, index) => {
-        const isActive =
-          route.quoteId === quoteId ||
-          route.quoteId === itinerary.quoteId ||
-          route.quoteId === activeRouteQuoteId;
-
-        return (
-          <button
-            key={`${route.quoteId}-${index}`}
-            type="button"
-            disabled={isSwitchingRouteOption}
-            onClick={() => handleItineraryRouteOptionClick(route.quoteId)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isActive
-                ? "bg-pink-500 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
-          >
-            {route.label || `Route ${index + 1}`}
-          </button>
-        );
-      })}
-    </div>
-  </div>
-)}
 
 {/* Quote Info — row 1 */}
 <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
