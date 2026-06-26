@@ -2,7 +2,7 @@
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -386,10 +386,27 @@ type CostBreakdown = {
 
 // ----------------- Main API response types -----------------
 
+// ----------------- Main API response types -----------------
+
+type ItineraryPlanRouteOption = {
+  label?: string;
+  routeName?: string;
+  quoteId?: string;
+  quotationNo?: string;
+  quotation_no?: string;
+  routeQuoteId?: string;
+  itinerary_quote_ID?: string;
+  itinerary_quote_id?: string;
+  quote_id?: string;
+};
+
 type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
   itineraryPreference?: number;
+  routeOptions?: ItineraryPlanRouteOption[];
+  suggestedRoutes?: ItineraryPlanRouteOption[];
+  siblingRoutes?: ItineraryPlanRouteOption[];
   confirmed_itinerary_plan_ID?: number;
   guideForItinerary?: number;
   isConfirmed?: boolean;
@@ -640,8 +657,9 @@ interface ItineraryDetailsProps {
 }
 
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
-  const { id: quoteId } = useParams();
-  const location = useLocation();
+const { id: quoteId } = useParams();
+const location = useLocation();
+const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -669,9 +687,41 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const [error, setError] = useState<string | null>(null);
   const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
   const [pageReady, setPageReady] = useState<boolean>(false);
-  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
-  const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
-  const itineraryDaysCountRef = useRef(0);
+const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
+const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
+const itineraryDaysCountRef = useRef(0);
+const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
+const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
+const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
+  // Hydrate route tabs immediately from the payload saved by Create Itinerary.
+  if (typeof window === "undefined") return [];
+
+  try {
+    const stored = localStorage.getItem(`itinerary-route-options:${quoteId}`);
+    if (!stored) return [];
+
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [];
+
+    return parsed
+      .map((option: any, index: number) => ({
+        quoteId: String(
+          option?.quoteId ||
+            option?.routeQuoteId ||
+            option?.quotationNo ||
+            option?.quotation_no ||
+            option?.itinerary_quote_ID ||
+            option?.itinerary_quote_id ||
+            option?.quote_id ||
+            ""
+        ).trim(),
+        label: option?.label || option?.routeName || `Route ${index + 1}`,
+      }))
+      .filter((option: any) => option.quoteId && option.quoteId.startsWith("DVI"));
+  } catch {
+    return [];
+  }
+});
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -5094,9 +5144,14 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
   // ✅ Track if component is mounted to prevent state updates after unmount
   const isMountedRef = useRef(true);
 
-  // ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
-  const currentFetchRef = useRef<string | null>(null);
+// ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
+const currentFetchRef = useRef<string | null>(null);
 
+// ✅ Prevent older route/detail API responses from overwriting the latest selected route
+const latestRouteRequestRef = useRef(0);
+
+// Prevent route-tab navigation from causing a duplicate details fetch.
+const switchedRouteRef = useRef<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<{
     quotation_no: string;
     agent_name: string;
@@ -6279,9 +6334,12 @@ function getHotelAmountForBooking(entry: any): number {
   }, []);
 
   const loadPreparedItineraryPage = useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
-    setLoading(true);
-    setLoadingHotels(true);
-    setPageReady(false);
+  isMountedRef.current = true;
+  const loadRequestId = ++latestRouteRequestRef.current;
+
+  setLoading(true);
+  setLoadingHotels(true);
+  setPageReady(false);
     setError(null);
     setVehicleBuildError(null);
 
@@ -6300,9 +6358,9 @@ function getHotelAmountForBooking(entry: any): number {
           hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
         }
 
-        if (!isMountedRef.current) return;
+if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
 
-        setItinerary(details);
+setItinerary(details);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         if (!useHotels) {
           setActiveHotelListTotal(0);
@@ -6316,39 +6374,107 @@ function getHotelAmountForBooking(entry: any): number {
         return;
       }
 
-      setPageLoaderStage("Checking vehicle build status");
-      const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
-      const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
-        ? String(buildStatus?.status || "").toUpperCase()
-        : "PENDING") as "PENDING" | "PROCESSING" | "READY" | "FAILED";
-      setVehicleBuildStatus(normalizedStatus);
-      setVehicleBuildError(String(buildStatus?.error || "") || null);
+      const extractRouteOptionQuoteId = (option: any) =>
+  String(
+    option?.quoteId ||
+      option?.routeQuoteId ||
+      option?.quotationNo ||
+      option?.quotation_no ||
+      option?.itinerary_quote_ID ||
+      option?.itinerary_quote_id ||
+      option?.quote_id ||
+      (typeof option === "string" ? option : "")
+  ).trim();
 
-      const isLatestBuildReady = Boolean(buildStatus?.isLatestBuildReady);
-      if (!forceVehicleRebuild && isLatestBuildReady && hasUsableVehicleRows(initialDetails)) {
-        await finalizePage(initialDetails);
-        return;
-      }
+let storedRouteOptions: any[] = [];
+if (typeof window !== "undefined") {
+  try {
+    const storedRouteOptionsRaw = localStorage.getItem(
+      `itinerary-route-options:${requestedQuoteId}`
+    );
+    const parsedStoredRouteOptions = storedRouteOptionsRaw
+      ? JSON.parse(storedRouteOptionsRaw)
+      : [];
+    storedRouteOptions = Array.isArray(parsedStoredRouteOptions)
+      ? parsedStoredRouteOptions
+      : [];
+  } catch {
+    storedRouteOptions = [];
+  }
+}
 
-      setPageLoaderStage("Building permit charges");
-      await ItineraryService.buildPermitsSync(planId);
+const routeOptionQuoteIds = [
+  ...((Array.isArray((initialDetails as any)?.routeOptions)
+    ? (initialDetails as any).routeOptions
+    : []) as any[]),
+  ...((Array.isArray((initialDetails as any)?.suggestedRoutes)
+    ? (initialDetails as any).suggestedRoutes
+    : []) as any[]),
+  ...((Array.isArray((initialDetails as any)?.siblingRoutes)
+    ? (initialDetails as any).siblingRoutes
+    : []) as any[]),
+  ...storedRouteOptions,
+]
+  .map(extractRouteOptionQuoteId)
+  .filter((id) => id && id.startsWith("DVI"));
 
-      setPageLoaderStage("Building vehicle details and pricing");
-      const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
-      const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
-      if (vehicleBuildState !== "READY") {
-        throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
-      }
-      setVehicleBuildStatus("READY");
+const isSuggestedRouteItinerary =
+  new Set(routeOptionQuoteIds).size > 1;
 
-      setPageLoaderStage("Loading completed itinerary");
-      const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
-      const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
-      if (!hasUsableVehicleRows(finalDetails)) {
-        throw new Error("Vehicle details are still incomplete after rebuild");
-      }
+const shouldStrictlyRequireVehicleBuild =
+  forceVehicleRebuild || isSuggestedRouteItinerary;
 
-      await finalizePage(finalDetails);
+try {
+  setPageLoaderStage("Checking vehicle build status");
+  const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
+  const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
+    ? String(buildStatus?.status || "").toUpperCase()
+    : "PENDING") as "PENDING" | "PROCESSING" | "READY" | "FAILED";
+  setVehicleBuildStatus(normalizedStatus);
+  setVehicleBuildError(String(buildStatus?.error || "") || null);
+
+  const isLatestBuildReady = Boolean(buildStatus?.isLatestBuildReady);
+  if (!forceVehicleRebuild && isLatestBuildReady && hasUsableVehicleRows(initialDetails)) {
+    await finalizePage(initialDetails);
+    return;
+  }
+
+  setPageLoaderStage("Building permit charges");
+  await ItineraryService.buildPermitsSync(planId);
+
+  setPageLoaderStage("Building vehicle details and pricing");
+  const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
+  const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
+  if (vehicleBuildState !== "READY") {
+    throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
+  }
+  setVehicleBuildStatus("READY");
+
+  setPageLoaderStage("Loading completed itinerary");
+  const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
+  const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
+  if (!hasUsableVehicleRows(finalDetails)) {
+    throw new Error("Vehicle details are still incomplete after rebuild");
+  }
+
+  await finalizePage(finalDetails);
+} catch (vehicleBuildError: any) {
+  if (shouldStrictlyRequireVehicleBuild) {
+    throw vehicleBuildError;
+  }
+
+  console.warn(
+    "Vehicle build failed for non-suggested itinerary. Showing itinerary details without blocking the page.",
+    vehicleBuildError
+  );
+
+  setVehicleBuildStatus("READY");
+  setVehicleBuildError(
+    vehicleBuildError?.message || "Vehicle pricing failed to prepare"
+  );
+
+  await finalizePage(initialDetails);
+}
     } catch (e: any) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", e);
@@ -6358,13 +6484,15 @@ function getHotelAmountForBooking(entry: any): number {
       setItinerary(null);
       setHotelDetails(null);
       setPageReady(false);
-    } finally {
-      currentFetchRef.current = null;
-      if (isMountedRef.current) {
-        setLoading(false);
-        setLoadingHotels(false);
-      }
+   } finally {
+  if (latestRouteRequestRef.current === loadRequestId) {
+    currentFetchRef.current = null;
+    if (isMountedRef.current) {
+      setLoading(false);
+      setLoadingHotels(false);
     }
+  }
+}
   }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary]);
 
   useEffect(() => {
@@ -6385,12 +6513,23 @@ function getHotelAmountForBooking(entry: any): number {
     }
 
     // If we're already fetching this quoteId, skip duplicate fetch
-    if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-      return;
-    }
+    // If we're already fetching this quoteId, skip duplicate fetch
+if (currentFetchRef.current === quoteId) {
+  console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+  return;
+}
 
-    // React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
+// If route tab click already started loading this quoteId, skip the re-fetch caused by URL change.
+if (switchedRouteRef.current === quoteId) {
+  console.log("⚡ [ItineraryDetails] Route already loading from tab switch, skipping duplicate re-fetch:", quoteId);
+  // The URL changed, so the previous effect cleanup may have marked this ref false.
+  // Keep it true because the route-tab handler is still loading this same page.
+  isMountedRef.current = true;
+  switchedRouteRef.current = null;
+  return;
+}
+
+// React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
     if (autoLoadStartedQuotes.has(quoteId)) {
       return;
     }
@@ -9420,7 +9559,268 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     };
   }, [stopRouteTimeProgress]);
 
-  const hotelTimelineLoading = Boolean(shouldShowHotels && !hotelDetails && itinerary && !error);
+useEffect(() => {
+  if (!quoteId || !itinerary) return;
+
+  const getQuoteNumberFromValue = (value?: string) => {
+    const match = String(value || "").match(/(\d+)$/);
+    return match ? Number(match[1]) : 0;
+  };
+
+  const normalizeRouteOptionList = (rawOptions: any[]) => {
+    const options = rawOptions
+      .map((option: any, index: number) => {
+        const rawQuoteId =
+          typeof option === "string"
+            ? option
+            : option?.quoteId ||
+              option?.routeQuoteId ||
+              option?.quotationNo ||
+              option?.quotation_no ||
+              option?.itinerary_quote_ID ||
+              option?.itinerary_quote_id ||
+              option?.quote_id ||
+              "";
+
+        return {
+          quoteId: String(rawQuoteId || "").trim(),
+          label: option?.label || option?.routeName || `Route ${index + 1}`,
+        };
+      })
+      .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
+
+    return Array.from(
+      new Map(options.map((option) => [option.quoteId, option])).values()
+    )
+      .sort(
+        (a, b) =>
+          getQuoteNumberFromValue(a.quoteId) -
+          getQuoteNumberFromValue(b.quoteId)
+      )
+      .map((option, index) => ({
+        ...option,
+        label: `Route ${index + 1}`,
+      }));
+  };
+
+  const loadRelatedRouteOptions = async () => {
+    try {
+      const apiRouteOptions = normalizeRouteOptionList([
+        ...((Array.isArray((itinerary as any)?.routeOptions)
+          ? (itinerary as any).routeOptions
+          : []) as any[]),
+        ...((Array.isArray((itinerary as any)?.suggestedRoutes)
+          ? (itinerary as any).suggestedRoutes
+          : []) as any[]),
+        ...((Array.isArray((itinerary as any)?.siblingRoutes)
+          ? (itinerary as any).siblingRoutes
+          : []) as any[]),
+      ]);
+
+      if (apiRouteOptions.length > 0) {
+        const routeOptionPayload = JSON.stringify(apiRouteOptions);
+
+        apiRouteOptions.forEach((option) => {
+          localStorage.setItem(
+            `itinerary-route-options:${option.quoteId}`,
+            routeOptionPayload
+          );
+        });
+
+        setLatestRouteOptions(apiRouteOptions);
+        return;
+      }
+
+      const storedRouteOptionsRaw = localStorage.getItem(
+        `itinerary-route-options:${quoteId}`
+      );
+
+      if (storedRouteOptionsRaw) {
+        try {
+          const storedRouteOptions = JSON.parse(storedRouteOptionsRaw);
+          const parsedOptions = Array.isArray(storedRouteOptions)
+            ? normalizeRouteOptionList(storedRouteOptions)
+            : [];
+
+          if (parsedOptions.length > 0) {
+            setLatestRouteOptions(parsedOptions);
+            return;
+          }
+        } catch (storageError) {
+          console.error("Failed to parse saved route options", storageError);
+        }
+      }
+
+      const currentPlanId = Number(
+        (itinerary as any)?.planId || (itinerary as any)?.itineraryPlanId || 0
+      );
+
+      const formatDate = (value?: string) => {
+        if (!value) return "";
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+
+        const dd = String(date.getDate()).padStart(2, "0");
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const yyyy = date.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+      };
+
+      const startDate = itinerary.days?.[0]?.date;
+      const endDate = itinerary.days?.[itinerary.days.length - 1]?.date;
+
+      const res: any = await ItineraryService.getLatest({
+        page: 1,
+        pageSize: 100,
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+      });
+
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      const relatedRows = currentPlanId
+        ? rows.filter((row: any) => {
+            const rowPlanId = Number(
+              row?.planId ||
+                row?.plan_id ||
+                row?.itineraryPlanId ||
+                row?.itinerary_plan_id ||
+                row?.itinerary_plan_ID ||
+                0
+            );
+
+            return rowPlanId === currentPlanId;
+          })
+        : rows;
+
+      const fallbackOptions = normalizeRouteOptionList(relatedRows);
+
+      const withCurrentQuote = normalizeRouteOptionList([
+        { quoteId: String(quoteId), label: "Route 1" },
+        ...fallbackOptions,
+      ]);
+
+      setLatestRouteOptions(withCurrentQuote.length > 0 ? withCurrentQuote : [
+        { quoteId: String(quoteId), label: "Route 1" },
+      ]);
+    } catch (error) {
+      console.error("Failed to load related route options", error);
+      setLatestRouteOptions([
+        {
+          quoteId: String(quoteId),
+          label: "Route 1",
+        },
+      ]);
+    }
+  };
+
+  loadRelatedRouteOptions();
+}, [quoteId, itinerary]);
+
+const getQuoteNumber = (value?: string) => {
+  const match = String(value || "").match(/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+};
+
+const itineraryRouteOptions = useMemo(() => {
+  return Array.from(
+    new Map(latestRouteOptions.map((option) => [option.quoteId, option])).values()
+  ).sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId));
+}, [latestRouteOptions]);
+
+const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
+  const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
+  const selectedRouteQuoteId = activeRouteQuoteId || quoteId || itinerary?.quoteId;
+
+  if (!normalizedRouteQuoteId || normalizedRouteQuoteId === selectedRouteQuoteId) {
+    return;
+  }
+
+  if (!normalizedRouteQuoteId.startsWith("DVI")) {
+    toast.error("Invalid route option. Route quote ID is missing.");
+    return;
+  }
+
+  const routeRequestId = ++latestRouteRequestRef.current;
+
+  try {
+    setIsSwitchingRouteOption(true);
+    setActiveRouteQuoteId(normalizedRouteQuoteId);
+
+    // Keep the current page visible while the selected sibling route loads.
+    isMountedRef.current = true;
+    switchedRouteRef.current = normalizedRouteQuoteId;
+    currentFetchRef.current = normalizedRouteQuoteId;
+    setError(null);
+    setPageReady(true);
+    setLoading(false);
+    setLoadingHotels(true);
+    setPageLoaderStage("Loading selected route");
+
+    navigate(`/itinerary-details/${normalizedRouteQuoteId}`, { replace: true });
+
+    // Fast route switch: load route details first and show them immediately.
+    // Do not rebuild permits/vehicles here; the initial page load/retry flow still handles that.
+    const detailsRes = await getDetailsDeduped(normalizedRouteQuoteId);
+    const details = detailsRes as ItineraryDetailsResponse;
+
+    if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
+    setItinerary(details);
+    setVehicleBuildError(null);
+
+    const pref = Number(details.itineraryPreference ?? 3);
+    const useHotels = pref === 1 || pref === 3;
+    const useVehicles = pref === 2 || pref === 3;
+
+    setVehicleBuildStatus(useVehicles ? "READY" : "READY");
+
+    if (!useHotels) {
+      setHotelDetails(null);
+      setActiveHotelListTotal(0);
+      return;
+    }
+
+    setHotelDetails(null);
+
+    const hotelRes = await loadHotelDetailsForItinerary(
+      normalizedRouteQuoteId,
+      details
+    );
+
+    if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
+    setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+  } catch (e: any) {
+    if (latestRouteRequestRef.current !== routeRequestId) {
+      return;
+    }
+
+    switchedRouteRef.current = null;
+    console.error("Failed to switch itinerary route option", e);
+    toast.error(e?.message || "Failed to load selected route option");
+  } finally {
+    if (latestRouteRequestRef.current === routeRequestId) {
+      currentFetchRef.current = null;
+      setLoading(false);
+      setLoadingHotels(false);
+      setIsSwitchingRouteOption(false);
+    }
+  }
+};
+
+const hotelTimelineLoading = Boolean(
+  shouldShowHotels &&
+    !hotelDetails &&
+    itinerary &&
+    !error &&
+    !isSwitchingRouteOption
+);
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -9543,7 +9943,37 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
         <Card className="border-none shadow-none bg-white">
           <CardContent className="pt-4 pb-0">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+  {itineraryRouteOptions.length > 1 && (
+  <div className="mb-2 rounded-lg border border-[#f0d7ff] bg-[#fff7fd] px-3 py-2">
+    <div className="max-h-[78px] overflow-y-auto pr-1">
+      <div className="flex flex-wrap gap-1.5">
+        {itineraryRouteOptions.map((route, index) => {
+          const selectedRouteQuoteId =
+            activeRouteQuoteId || quoteId || itinerary.quoteId;
+          const isActive = route.quoteId === selectedRouteQuoteId;
+
+          return (
+            <button
+              key={`${route.quoteId}-${index}`}
+              type="button"
+              disabled={isSwitchingRouteOption}
+              onClick={() => handleItineraryRouteOptionClick(route.quoteId || "")}
+              className={`min-w-[92px] px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                isActive
+                  ? "bg-pink-500 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              } ${isSwitchingRouteOption ? "opacity-60 cursor-not-allowed" : ""}`}
+            >
+              {route.label || `Route ${index + 1}`}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+)}
+
+  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
               <h1 className="text-xl font-semibold text-[#4a4260] flex flex-wrap items-center gap-1">
                 <span>Tour Itinerary Plan</span>
                 <span className="text-[#6c6c6c]">(</span>
