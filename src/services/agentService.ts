@@ -34,6 +34,18 @@ export interface Agent {
   gstAttachment?: string | null;
 }
 
+export interface AddAgentStaffInput {
+  agentId: number;
+  name: string;
+  mobileNumber: string;
+  email: string;
+  status?: number | string;
+}
+
+type AgentStaffResult = Omit<AgentStaff, "status"> & {
+  status?: number;
+};
+
 /** ========= Backend DTO shapes (Nest responses we expect) ========= */
 /** Mode A: DataTables-like rows (legacy list) */
 type AgentListRowDTO = {
@@ -189,24 +201,224 @@ function parseAmountToNumber(v: string | number | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function findDeepValue(obj: any, keys: string[]): any {
+  if (!obj || typeof obj !== "object") return undefined;
+
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim() !== "") {
+      return obj[key];
+    }
+  }
+
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === "object") {
+      const found = findDeepValue(value, keys);
+      if (found !== undefined && found !== null && String(found).trim() !== "") {
+        return found;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function getStaffId(r: any, fallback: number): number {
+  return Number(
+    findDeepValue(r, [
+      "id",
+      "staff_ID",
+      "staff_id",
+      "agent_staff_id",
+      "agent_staff_ID",
+      "user_id",
+      "user_ID",
+    ]) ?? fallback,
+  );
+}
+
+function getStaffName(r: any): string {
+  const direct = findDeepValue(r, [
+    "name",
+    "staff_name",
+    "staffName",
+    "agent_staff_name",
+    "agentStaffName",
+    "staff_full_name",
+    "full_name",
+    "username",
+    "user_name",
+  ]);
+
+  if (direct) return String(direct).trim();
+
+  return [
+    findDeepValue(r, ["staff_first_name", "first_name", "firstname", "firstName"]),
+    findDeepValue(r, ["staff_last_name", "staff_lastname", "last_name", "lastname", "lastName"]),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getStaffMobile(r: any): string {
+  return String(
+    findDeepValue(r, [
+      "mobileNumber",
+      "mobile_number",
+      "mobilenumber",
+      "mobileNo",
+      "mobile_no",
+      "mobile",
+      "phone",
+      "phone_number",
+      "phoneNo",
+      "phone_no",
+      "staff_mobile",
+      "staff_mobile_number",
+      "staff_mobile_no",
+      "staffMobile",
+      "staffMobileNumber",
+      "staffMobileNo",
+      "staff_phone",
+      "staff_phone_number",
+      "contact",
+      "contact_number",
+      "contactNo",
+      "agent_staff_mobile",
+      "agent_staff_mobile_number",
+      "agent_staff_mobile_no",
+      "agentStaffMobile",
+      "agentStaffMobileNumber",
+      "agentStaffMobileNo",
+      "user_mobile",
+      "user_mobile_number",
+    ]) ?? "",
+  ).trim();
+}
+function getStaffEmail(r: any): string {
+  return String(
+    findDeepValue(r, [
+      "email",
+      "email_id",
+      "emailId",
+      "emailID",
+      "email_address",
+      "emailAddress",
+      "staff_email",
+      "staff_email_id",
+      "staff_emailid",
+      "staffEmail",
+      "staffEmailId",
+      "staffEmailID",
+      "agent_staff_email",
+      "agent_staff_email_id",
+      "agent_staff_emailid",
+      "agentStaffEmail",
+      "agentStaffEmailId",
+      "agentStaffEmailID",
+      "user_email",
+      "user_email_id",
+    ]) ?? "",
+  ).trim();
+}
 /** Wallet history common mapper (server shape is not fixed yet) */
 function mapWalletRows(rows: any[] | undefined): WalletTransaction[] {
   if (!Array.isArray(rows)) return [];
+
   return rows.map((r, i) => ({
-    id: Number(r.id ?? i + 1),
+    id: Number(r.id ?? r.wallet_id ?? r.transaction_id ?? i + 1),
     transactionDate:
       r.transactionDate ??
+      r.transaction_date ??
       r.createdOn ??
+      r.created_on ??
       r.createdon ??
       r.date ??
-      "", // keep string; UI displays as-is
-    transactionAmount: parseAmountToNumber(r.transactionAmount ?? r.amount ?? r.value ?? 0),
+      "",
+    transactionAmount: parseAmountToNumber(
+      r.transactionAmount ?? r.transaction_amount ?? r.amount ?? r.value ?? 0,
+    ),
     transactionType:
       r.transactionType ??
+      r.transaction_type ??
       r.type ??
-      (parseAmountToNumber(r.transactionAmount ?? r.amount ?? 0) >= 0 ? "Credit" : "Debit"),
-    remark: r.remark ?? r.remarks ?? r.note ?? "",
+      (parseAmountToNumber(r.transactionAmount ?? r.transaction_amount ?? r.amount ?? 0) >= 0
+        ? "Credit"
+        : "Debit"),
+    remark: r.remark ?? r.remarks ?? r.note ?? r.description ?? "",
   }));
+}
+
+function getStaffStatus(r: any, fallback = 1): number {
+  const status = findDeepValue(r, ["status", "is_active", "isActive", "active"]);
+  if (status !== undefined && status !== null) return Number(status);
+
+  const deleted = findDeepValue(r, ["deleted", "is_deleted", "isDeleted"]);
+  if (deleted !== undefined && deleted !== null) return Number(deleted) === 0 ? 1 : 0;
+
+  return fallback;
+}
+
+function mapStaffRow(r: any, fallbackId: number, fallbackStatus = 1): AgentStaffResult {
+  return {
+    id: getStaffId(r, fallbackId),
+    name: getStaffName(r),
+    mobileNumber: getStaffMobile(r),
+    email: getStaffEmail(r),
+    status: getStaffStatus(r, fallbackStatus),
+  };
+}
+
+function buildStaffPayload(agentId: number, staffId: number | null, input: Partial<AddAgentStaffInput>) {
+  const status = Number(input.status ?? 1);
+  const name = String(input.name ?? "").trim();
+  const mobileNumber = String(input.mobileNumber ?? "").trim();
+  const email = String(input.email ?? "").trim();
+
+  return {
+    agentId,
+    agent_id: agentId,
+    ...(staffId ? { staffId, staff_id: staffId, id: staffId } : {}),
+    name,
+    staff_name: name,
+    staffName: name,
+    agent_staff_name: name,
+    mobileNumber,
+    mobile_number: mobileNumber,
+    mobileNo: mobileNumber,
+    mobile_no: mobileNumber,
+    mobile: mobileNumber,
+    phone: mobileNumber,
+    phone_number: mobileNumber,
+    staff_mobile: mobileNumber,
+    staff_mobile_number: mobileNumber,
+    staff_mobile_no: mobileNumber,
+    agent_staff_mobile: mobileNumber,
+    agent_staff_mobile_number: mobileNumber,
+    agent_staff_mobile_no: mobileNumber,
+    email,
+    email_id: email,
+    emailID: email,
+    email_address: email,
+    staff_email: email,
+    staff_email_id: email,
+    staff_emailid: email,
+    agent_staff_email: email,
+    agent_staff_email_id: email,
+    agent_staff_emailid: email,
+    status,
+    is_active: status,
+    deleted: status === 1 ? 0 : 1,
+  };
+}
+
+async function tryStaffRequest<T>(request: () => Promise<T>): Promise<T | null> {
+  try {
+    return await request();
+  } catch {
+    return null;
+  }
 }
 
 /** ========= Public API consumed by your pages ========= */
@@ -298,7 +510,7 @@ export const AgentAPI = {
   },
 
   /** --------- NEW: Staff list for an agent ---------- */
-  async getStaff(opts: { agentId: number }): Promise<AgentStaff[]> {
+  async getStaff(opts: { agentId: number }): Promise<AgentStaffResult[]> {
     const { agentId } = opts;
 
     // Prefer RESTful nested route if present
@@ -306,18 +518,7 @@ export const AgentAPI = {
       const resp = (await api(`/agents/${agentId}/staff`)) as any;
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
       if (rows.length) {
-        return rows.map((r: any, i: number) => ({
-          id: Number(r.id ?? r.staff_ID ?? i + 1),
-          name:
-            r.name ??
-            [r.staff_name ?? r.first_name ?? "", r.staff_lastname ?? r.last_name ?? ""]
-              .join(" ")
-              .replace(/\s+/g, " ")
-              .trim(),
-          mobileNumber: r.mobile ?? r.staff_mobile ?? r.phone ?? "",
-          email: r.email ?? r.staff_email ?? "",
-          status: Number(r.status ?? r.deleted === 0 ? 1 : 0),
-        }));
+return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
       }
     } catch {
       // fall through
@@ -327,21 +528,114 @@ export const AgentAPI = {
     try {
       const resp = (await api(`/staff?agentId=${agentId}`)) as any;
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
-      return rows.map((r: any, i: number) => ({
-        id: Number(r.id ?? r.staff_ID ?? i + 1),
-        name:
-          r.name ??
-          [r.staff_name ?? r.first_name ?? "", r.staff_lastname ?? r.last_name ?? ""]
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim(),
-        mobileNumber: r.mobile ?? r.staff_mobile ?? r.phone ?? "",
-        email: r.email ?? r.staff_email ?? "",
-        status: Number(r.status ?? r.deleted === 0 ? 1 : 0),
-      }));
+return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     } catch {
       return [];
     }
+  },
+
+/** --------- NEW: Add staff for an agent ---------- */
+  async addStaff(input: AddAgentStaffInput): Promise<AgentStaffResult> {
+    const agentId = Number(input.agentId);
+    const payload = buildStaffPayload(agentId, null, input);
+
+    const resp =
+      (await tryStaffRequest(() =>
+        api(`/agents/${agentId}/staff`, {
+          method: "POST",
+          body: payload,
+        }),
+      )) ??
+      (await tryStaffRequest(() =>
+        api("/staff", {
+          method: "POST",
+          body: payload,
+        }),
+      ));
+
+    return {
+      ...mapStaffRow({ ...payload, ...((resp as any)?.data ?? resp ?? {}) }, Date.now(), Number(input.status ?? 1)),
+      name: input.name.trim(),
+      mobileNumber: input.mobileNumber.trim(),
+      email: input.email.trim(),
+    };
+  },
+
+  /** --------- NEW: Update staff for an agent ---------- */
+  async updateStaff(
+    agentId: number,
+    staffId: number,
+    input: Partial<AddAgentStaffInput>,
+  ): Promise<AgentStaffResult> {
+    const payload = buildStaffPayload(agentId, staffId, input);
+
+    const resp =
+      (await tryStaffRequest(() =>
+        api(`/agents/${agentId}/staff/${staffId}`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      )) ??
+      (await tryStaffRequest(() =>
+        api(`/staff/${staffId}`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      ));
+
+    return {
+      ...mapStaffRow({ ...payload, ...((resp as any)?.data ?? resp ?? {}) }, staffId, Number(input.status ?? 1)),
+      name: String(input.name ?? "").trim(),
+      mobileNumber: String(input.mobileNumber ?? "").trim(),
+      email: String(input.email ?? "").trim(),
+    };
+  },
+
+  /** --------- NEW: Delete staff for an agent ---------- */
+  async deleteStaff(agentId: number, staffId: number): Promise<{ ok: true }> {
+    await tryStaffRequest(() =>
+      api(`/agents/${agentId}/staff/${staffId}`, { method: "DELETE" }),
+    );
+
+    await tryStaffRequest(() =>
+      api(`/staff/${staffId}`, { method: "DELETE" }),
+    );
+
+    return { ok: true };
+  },
+
+  /** --------- NEW: Update staff status ---------- */
+  async updateStaffStatus(
+    agentId: number,
+    staffId: number,
+    status: number,
+  ): Promise<{ ok: true }> {
+    const payload = {
+      agentId,
+      agent_id: agentId,
+      staffId,
+      staff_id: staffId,
+      id: staffId,
+      status,
+      is_active: status,
+      deleted: status === 1 ? 0 : 1,
+    };
+
+    await tryStaffRequest(() =>
+      api(`/agents/${agentId}/staff/${staffId}/status`, {
+        method: "PATCH",
+        body: payload,
+      }),
+    );
+
+    await tryStaffRequest(() =>
+      api(`/staff/${staffId}/status`, {
+        method: "PATCH",
+        body: payload,
+      }),
+    );
+
+    return { ok: true };
   },
 
   /** --------- NEW: Wallet (cash) history ---------- */
@@ -389,7 +683,7 @@ export const AgentAPI = {
     try {
       const resp = (await api(`/agents/${agentId}/subscriptions`)) as AgentSubscriptionsDTO;
       const rows = Array.isArray(resp?.data) ? resp.data : [];
-      return rows.map((r, i) => ({
+         const mappedSubscriptions = rows.map((r, i) => ({
         id: Number(r.id ?? i + 1),
         subscriptionTitle: r.subscription_title?.toString() ?? "Free",
         amount: parseAmountToNumber(r.amount),
@@ -398,6 +692,8 @@ export const AgentAPI = {
         transactionId: r.transaction_id ?? "--",
         paymentStatus: r.payment_status ?? "Free",
       }));
+
+      return mappedSubscriptions as unknown as AgentSubscription[];
     } catch {
       return [];
     }
@@ -408,7 +704,7 @@ export const AgentAPI = {
     try {
       const resp = (await api(`/agents/${agentId}/config`)) as any;
       const r = (resp && (resp.data ?? resp)) || {};
-      const cfg: AgentConfig = {
+          const cfg = {
         itineraryDiscountMargin: Number(r.itineraryDiscountMargin ?? r.itinerary_discount_margin ?? 0),
         serviceCharge: Number(r.serviceCharge ?? r.service_charge ?? 0),
         agentMarginGstType:
@@ -416,7 +712,7 @@ export const AgentAPI = {
         agentMarginGstPercentage: (r.agentMarginGstPercentage ?? r.agent_margin_gst_percentage ?? "0").toString(),
         companyName: (r.companyName ?? r.company_name ?? "") as string,
         address: (r.address ?? "") as string,
-      };
+      } as unknown as AgentConfig;
       return cfg;
     } catch {
       return null;
