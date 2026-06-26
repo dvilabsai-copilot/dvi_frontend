@@ -12,9 +12,10 @@ import {
   fetchNationalities,
   fetchFoodPreferences,
   fetchMealPlans,
-  fetchEligibleVehicleTypes,
-  fetchHotelCategories,
-  fetchHotelFacilities,
+fetchEligibleVehicleTypes,
+fetchVehicleTypes,
+fetchHotelCategories,
+fetchHotelFacilities,
   LocationOption,
   MealPlanOption,
   SimpleOption,
@@ -25,7 +26,7 @@ import { ItineraryPlanBlock } from "./ItineraryPlanBlock";
 import { RouteDetailsBlock } from "./RouteDetailsBlock";
 import { VehicleBlock } from "./VehicleBlock";
 import { ViaRouteDialog } from "./ViaRouteDialog";
-import { DefaultRoutesSuggestions } from "@/components/DefaultRoutesSuggestions";
+import { DefaultRoutesSuggestions, RouteData } from "@/components/DefaultRoutesSuggestions";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useToast } from "@/components/ui/use-toast";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
@@ -112,6 +113,106 @@ function normalizeRouteLocationList(values: string[]): string[] {
   }
 
   return result;
+}
+
+function simplifyVehicleLocationName(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  // Example: "Kanchipuram, Tamil Nadu, India" -> "Kanchipuram"
+  const beforeComma = raw.split(",")[0]?.trim();
+  if (beforeComma && beforeComma !== raw) {
+    return beforeComma;
+  }
+
+  // Example: "Chennai International Airport" -> "Chennai"
+  const airportMatch = raw.match(/^(.+?)\s+(?:International\s+)?Airport$/i);
+  if (airportMatch?.[1]) {
+    return airportMatch[1].trim();
+  }
+
+  // Example: "Madurai Airport" -> "Madurai"
+  const simpleAirportMatch = raw.match(/^(.+?)\s+Airport$/i);
+  if (simpleAirportMatch?.[1]) {
+    return simpleAirportMatch[1].trim();
+  }
+
+  // Example: "Kanchipuram Railway Station" -> "Kanchipuram"
+  const railwayMatch = raw.match(/^(.+?)\s+(?:Railway Station|Central)$/i);
+  if (railwayMatch?.[1]) {
+    return railwayMatch[1].trim();
+  }
+
+  return raw;
+}
+
+function buildVehicleRouteLocationPayload({
+  rows,
+  arrivalLocation,
+  departureLocation,
+  simplify = false,
+}: {
+  rows: any[];
+  arrivalLocation: string;
+  departureLocation: string;
+  simplify?: boolean;
+}) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const pairs: Array<{ source: string; next: string }> = [];
+  const seen = new Set<string>();
+
+  const pushPair = (sourceValue: string, nextValue: string) => {
+    let source = String(sourceValue || "").trim();
+    let next = String(nextValue || "").trim();
+
+    if (simplify) {
+      source = simplifyVehicleLocationName(source);
+      next = simplifyVehicleLocationName(next);
+    }
+
+    if (!source || !next) return;
+
+    const key = `${source.toLowerCase()}|${next.toLowerCase()}`;
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    pairs.push({ source, next });
+  };
+
+  // ✅ Customize safety:
+  // Sometimes routeDetails has not been fully synced yet,
+  // but arrival/departure are already selected.
+  // So do not keep vehicle dropdown permanently disabled.
+  if (safeRows.length === 0) {
+    pushPair(arrivalLocation, departureLocation);
+
+    return {
+      sourceLocation: pairs.map((pair) => pair.source),
+      nextVisitingLocation: pairs.map((pair) => pair.next),
+    };
+  }
+
+  const lastIndex = safeRows.length - 1;
+
+  safeRows.forEach((row, index) => {
+    let source = String(row?.source || "").trim();
+    let next = String(row?.next || "").trim();
+
+    if (index === 0 && !source) {
+      source = String(arrivalLocation || "").trim();
+    }
+
+    if (index === lastIndex && !next) {
+      next = String(departureLocation || "").trim();
+    }
+
+    pushPair(source, next);
+  });
+
+  return {
+    sourceLocation: pairs.map((pair) => pair.source),
+    nextVisitingLocation: pairs.map((pair) => pair.next),
+  };
 }
 
 function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption[]): string {
@@ -418,6 +519,7 @@ export const CreateItinerary = () => {
   ]);
 
   const [budget, setBudget] = useState<number | "">("");
+  const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
   // routes + via routes hook
     const {
@@ -481,10 +583,13 @@ export const CreateItinerary = () => {
 
   // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
-    useState(false);
-  const defaultRouteWarningShownRef = useRef(false);
+  useState(false);
+const defaultRouteWarningShownRef = useRef(false);
 
-  const saveProgressTimerRef = useRef<number | null>(null);
+// ✅ Prevent old vehicle-type API responses from clearing latest Customize route result
+const vehicleTypeRequestRef = useRef(0);
+
+const saveProgressTimerRef = useRef<number | null>(null);
 
   const applyArrivalPolicyDecision = (decision: {
     previousDayBillingDecisionProvided: boolean;
@@ -496,6 +601,8 @@ export const CreateItinerary = () => {
 
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
+const [suggestedDefaultRoutes, setSuggestedDefaultRoutes] = useState<RouteData[]>([]);
+const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
   useEffect(() => {
     if (!itineraryPlanId && isAgentLogin && loggedInAgentId) {
       setAgentId(loggedInAgentId);
@@ -765,6 +872,123 @@ useEffect(() => {
     })();
   }, [itineraryPlanId, setRouteDetails, setRooms]);
 
+useEffect(() => {
+  if (itineraryPlanId) return;
+
+  const selectedTypeLabel =
+    itineraryTypes
+      .find((t) => String(t.id) === String(itineraryTypeSelect))
+      ?.label?.trim()
+      .toLowerCase() || "";
+
+  const isSuggestedRouteType =
+    selectedTypeLabel === "default" ||
+    selectedTypeLabel === "suggested routes";
+
+  // ✅ Important:
+  // Do not auto-apply reusable/default route template for Customize.
+  // Customize route details must stay fully manual.
+  if (!isSuggestedRouteType) return;
+
+  if (!arrivalLocation || !departureLocation || !tripStartDate || !tripEndDate) return;
+
+  const dayCount = calculateDaysBetweenDates(tripStartDate, tripEndDate);
+    const key = `${arrivalLocation.trim().toLowerCase()}|${departureLocation
+      .trim()
+      .toLowerCase()}|${dayCount}`;
+
+    if (templateAppliedKey === key) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const match = await ItineraryService.getReusableTemplateMatch(
+          arrivalLocation,
+          departureLocation,
+          dayCount,
+        );
+
+        if (cancelled) return;
+
+        const templateRoutes = Array.isArray(match?.template?.routes)
+          ? match.template.routes
+          : [];
+
+        if (!match?.found || templateRoutes.length === 0) {
+          setTemplateAppliedKey(key);
+          return;
+        }
+
+        setRouteDetails((prev) =>
+          Array.from({ length: dayCount }, (_, idx): RouteRow => {
+            const r = templateRoutes[idx] || {};
+            const previous = prev[idx];
+            const viaRoutes = Array.isArray(r.via_routes)
+              ? r.via_routes
+                  .map((vr: any) => ({
+                    itinerary_via_location_ID: Number(vr.itinerary_via_location_ID),
+                    itinerary_via_location_name: String(vr.itinerary_via_location_name || ""),
+                  }))
+                  .filter(
+                    (vr: any) =>
+                      Number.isFinite(vr.itinerary_via_location_ID) &&
+                      vr.itinerary_via_location_name.trim(),
+                  )
+              : [];
+            const isFirstRow = idx === 0;
+            const isLastRow = idx === dayCount - 1;
+
+            return {
+              id: idx + 1,
+              day: idx + 1,
+              date: addDaysToDDMMYYYY(tripStartDate, idx),
+              source: isFirstRow
+                ? arrivalLocation
+                : String(r.location_name ?? previous?.source ?? ""),
+              next: isLastRow
+                ? departureLocation
+                : String(r.next_visiting_location ?? previous?.next ?? ""),
+              via: String(r.via_route ?? previous?.via ?? ""),
+              via_routes: viaRoutes,
+              no_of_km:
+                r.no_of_km !== undefined &&
+                r.no_of_km !== null &&
+                String(r.no_of_km).trim() !== ""
+                  ? Number(r.no_of_km)
+                  : previous?.no_of_km ?? 0,
+              directVisit: Number(r.direct_to_next_visiting_place ?? 0) === 1 ? "Yes" : "No",
+            };
+          }),
+        );
+
+        setTemplateAppliedKey(key);
+        toast({
+          title: "Route template loaded",
+          description:
+            "Applied saved route details only. Your itinerary preference and vehicle selections were kept unchanged.",
+        });
+      } catch (error) {
+        console.error("Failed to load matching itinerary route template", error);
+        if (!cancelled) setTemplateAppliedKey(key);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+  itineraryPlanId,
+  itineraryTypeSelect,
+  itineraryTypes,
+  arrivalLocation,
+  departureLocation,
+  tripStartDate,
+  tripEndDate,
+  templateAppliedKey,
+  toast,
+  setRouteDetails,
+]);
   // Auto-open route suggestions modal when itinerary type is "Default"
   useEffect(() => {
     if (itineraryTypeSelect && itineraryTypes.length > 0) {
@@ -807,45 +1031,115 @@ useEffect(() => {
     }
   }, [itineraryTypeSelect, itineraryTypes, arrivalLocation, departureLocation, tripStartDate, tripEndDate, routeDetails.length]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const sourceLocation = normalizeRouteLocationList(
-      routeDetails.map((row) => row.source)
-    );
-    const nextVisitingLocation = normalizeRouteLocationList(
-      routeDetails.map((row) => row.next)
-    );
+ useEffect(() => {
+  let isMounted = true;
+  const requestId = ++vehicleTypeRequestRef.current;
 
-    if (sourceLocation.length === 0 || nextVisitingLocation.length === 0) {
-      setVehicleTypes([]);
-      setSelectedVehicleIds([]);
-      return;
-    }
+  const selectedTypeLabel =
+    itineraryTypes
+      .find((t) => String(t.id) === String(itineraryTypeSelect))
+      ?.label?.trim()
+      .toLowerCase() || "";
 
-    (async () => {
-      try {
-        const result = await fetchEligibleVehicleTypes({
+  const isCustomizeItineraryType = selectedTypeLabel === "customize";
+
+  const exactPayload = buildVehicleRouteLocationPayload({
+    rows: routeDetails,
+    arrivalLocation,
+    departureLocation,
+  });
+
+  if (
+    exactPayload.sourceLocation.length === 0 ||
+    exactPayload.nextVisitingLocation.length === 0
+  ) {
+    setVehicleTypes([]);
+    setSelectedVehicleIds([]);
+    return;
+  }
+
+  (async () => {
+    try {
+      let result = await fetchEligibleVehicleTypes({
+        itineraryPlanId: itineraryPlanId ?? null,
+        sourceLocation: exactPayload.sourceLocation,
+        nextVisitingLocation: exactPayload.nextVisitingLocation,
+      });
+
+      let hasVehicleTypes =
+        Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
+
+      const fallbackPayload = buildVehicleRouteLocationPayload({
+        rows: routeDetails,
+        arrivalLocation,
+        departureLocation,
+        simplify: true,
+      });
+
+      const fallbackIsDifferent =
+        JSON.stringify(fallbackPayload) !== JSON.stringify(exactPayload);
+
+      // ✅ Existing exact vehicle matching stays first priority.
+      if (
+        !hasVehicleTypes &&
+        fallbackIsDifferent &&
+        fallbackPayload.sourceLocation.length > 0 &&
+        fallbackPayload.nextVisitingLocation.length > 0
+      ) {
+        result = await fetchEligibleVehicleTypes({
           itineraryPlanId: itineraryPlanId ?? null,
-          sourceLocation,
-          nextVisitingLocation,
+          sourceLocation: fallbackPayload.sourceLocation,
+          nextVisitingLocation: fallbackPayload.nextVisitingLocation,
         });
-        if (!isMounted) return;
-        setVehicleTypes(result.vehicleTypes);
-        setSelectedVehicleIds(result.selectedVehicleIds);
-      } catch (error) {
-        console.error("Failed to load eligible vehicle types", error);
-        if (isMounted) {
-          setVehicleTypes([]);
-          setSelectedVehicleIds([]);
-        }
+
+        hasVehicleTypes =
+          Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
       }
-    })();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [routeDetails, itineraryPlanId]);
+      // ✅ Customize-only fallback:
+      // If eligible vehicle API returns empty, load normal vehicle type list.
+      // This keeps Suggested Routes untouched.
+      if (!hasVehicleTypes && isCustomizeItineraryType) {
+        const allVehicleTypes = await fetchVehicleTypes();
 
+        result = {
+          vehicleTypes: allVehicleTypes,
+          selectedVehicleIds: [],
+        };
+      }
+
+      if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
+
+      setVehicleTypes(
+        Array.isArray(result?.vehicleTypes) ? result.vehicleTypes : []
+      );
+
+      setSelectedVehicleIds(
+        Array.isArray(result?.selectedVehicleIds)
+          ? result.selectedVehicleIds
+          : []
+      );
+    } catch (error) {
+      console.error("Failed to load eligible vehicle types", error);
+
+      if (isMounted && vehicleTypeRequestRef.current === requestId) {
+        setVehicleTypes([]);
+        setSelectedVehicleIds([]);
+      }
+    }
+  })();
+
+  return () => {
+    isMounted = false;
+  };
+}, [
+  routeDetails,
+  itineraryPlanId,
+  arrivalLocation,
+  departureLocation,
+  itineraryTypeSelect,
+  itineraryTypes,
+]);
   // Handler for route suggestion selection
   const handleRouteSelection = (
     routeDetails: any[],
@@ -1424,6 +1718,134 @@ const continueToRouteConfirmation = () => {
     setShowRouteConfirm(false);
   };
 
+const isDefaultItineraryTypeSelected = () => {
+  const selectedType = itineraryTypes.find(
+    (t) => String(t.id) === String(itineraryTypeSelect)
+  );
+
+  const selectedLabel = String(selectedType?.label || "")
+    .trim()
+    .toLowerCase();
+
+  return (
+    selectedLabel === "default" ||
+    selectedLabel === "suggested route" ||
+    selectedLabel === "suggested routes"
+  );
+};
+
+const normalizeSuggestedRouteDayValue = (...values: any[]) => {
+  const value = values.find(
+    (item) => item !== undefined && item !== null && String(item).trim() !== ""
+  );
+
+  return value ?? "";
+};
+
+const buildPayloadForSuggestedRoute = (route: RouteData, basePayload: any) => {
+  const routeDays = Array.isArray((route as any)?.days)
+    ? (route as any).days
+    : [];
+
+  const routes = routeDays.map((day: any, idx: number) => {
+    const source = normalizeSuggestedRouteDayValue(
+      day.source,
+      day.sourceLocation,
+      day.location_name,
+      day.locationName
+    );
+
+    const next = normalizeSuggestedRouteDayValue(
+      day.next,
+      day.nextLocation,
+      day.next_visiting_location,
+      day.nextVisitingLocation
+    );
+
+    const via = normalizeSuggestedRouteDayValue(
+      day.via,
+      day.viaRoute,
+      day.via_route
+    );
+
+    const directVisitValue = normalizeSuggestedRouteDayValue(
+      day.directVisit,
+      day.direct_to_next_visiting_place
+    );
+
+    const directVisit =
+      directVisitValue === true ||
+      directVisitValue === 1 ||
+      String(directVisitValue).trim().toLowerCase() === "yes";
+
+    return {
+      location_name: source || "",
+      next_visiting_location: next || "",
+      itinerary_route_date: day.date ? toISOFromDDMMYYYY(day.date) : undefined,
+      no_of_days: day.dayNo || day.day || idx + 1,
+      no_of_km:
+        day.no_of_km !== undefined &&
+        day.no_of_km !== null &&
+        String(day.no_of_km).trim() !== ""
+          ? Number(day.no_of_km)
+          : 0,
+      direct_to_next_visiting_place: directVisit ? 1 : 0,
+      via_route: via || "",
+      via_routes: Array.isArray(day.via_routes) ? day.via_routes : [],
+    };
+  });
+
+  return {
+    ...basePayload,
+    plan: {
+      ...basePayload.plan,
+      itinerary_plan_id: undefined,
+    },
+    routes,
+  };
+};
+
+const extractCreatedQuoteId = (response: any): string => {
+  const candidates = [
+    response?.quoteId,
+    response?.itinerary_quote_ID,
+    response?.itinerary_quote_id,
+    response?.quotationNo,
+    response?.quotation_no,
+    response?.quote_id,
+
+    response?.data?.quoteId,
+    response?.data?.itinerary_quote_ID,
+    response?.data?.itinerary_quote_id,
+    response?.data?.quotationNo,
+    response?.data?.quotation_no,
+    response?.data?.quote_id,
+
+    response?.result?.quoteId,
+    response?.result?.itinerary_quote_ID,
+    response?.result?.itinerary_quote_id,
+    response?.result?.quotationNo,
+    response?.result?.quotation_no,
+    response?.result?.quote_id,
+
+    response?.plan?.quoteId,
+    response?.plan?.itinerary_quote_ID,
+    response?.plan?.itinerary_quote_id,
+    response?.plan?.quotationNo,
+    response?.plan?.quotation_no,
+    response?.plan?.quote_id,
+  ];
+
+  const cleanCandidates = candidates
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return (
+    cleanCandidates.find((value) => value.startsWith("DVI")) ||
+    cleanCandidates[0] ||
+    ""
+  );
+};
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
@@ -1448,8 +1870,63 @@ const handleSaveWithType = async (
     const isUpdate = !!itineraryPlanId;
 
     // ✅ Single POST endpoint for both create & update
-    const res = await ItineraryService.create(finalPayload, type);
-    setSaveProgressPercent(100);
+    const isDefaultItinerary = isDefaultItineraryTypeSelected();
+
+const shouldCreateAllRouteOptions =
+  !itineraryPlanId &&
+  isDefaultItinerary &&
+  Array.isArray(suggestedDefaultRoutes) &&
+  suggestedDefaultRoutes.length > 1;
+let res: any = null;
+let createdRouteOptions: Array<{ quoteId: string; label: string }> = [];
+
+if (shouldCreateAllRouteOptions) {
+  for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
+    // Route 1 (index 0): use the user-edited finalPayload directly (routeDetails from the form).
+    // Route 2+ (index > 0): build payload from the raw suggested route data.
+    const routePayload =
+      index === 0
+        ? finalPayload
+        : buildPayloadForSuggestedRoute(
+            suggestedDefaultRoutes[index],
+            finalPayload
+          );
+
+    const routeRes: any = await ItineraryService.create(routePayload, type);
+
+const createdQuoteId = extractCreatedQuoteId(routeRes);
+
+if (createdQuoteId) {
+  createdRouteOptions.push({
+    quoteId: String(createdQuoteId),
+    label: `Route ${index + 1}`,
+  });
+} else {
+  console.warn("⚠️ Suggested route created but quote ID was not found", {
+    index,
+    routeRes,
+  });
+}
+    if (index === 0) {
+      res = routeRes;
+    }
+  }
+
+  if (createdRouteOptions.length > 0) {
+    const routeOptionPayload = JSON.stringify(createdRouteOptions);
+
+    createdRouteOptions.forEach((option) => {
+      localStorage.setItem(
+        `itinerary-route-options:${option.quoteId}`,
+        routeOptionPayload
+      );
+    });
+  }
+} else {
+  res = await ItineraryService.create(finalPayload, type);
+}
+
+setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
     const rawPlanId =
@@ -1515,8 +1992,8 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
 
   return (
     <div className="p-4 space-y-4">
-      <ItineraryPlanBlock
-        agents={agents}
+     <ItineraryPlanBlock
+  agents={agents}
         agentId={agentId}
         setAgentId={setAgentId}
         isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
@@ -1585,14 +2062,22 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
             : ""
         }
       >
-        {/* Show default routes if itinerary type is "Default" */}
-        {itineraryTypeSelect && itineraryTypes.find((t) => t.id === itineraryTypeSelect)?.label === "Default" ? (
+       {/* Show suggested/default routes if itinerary type is Default/Suggested Routes */}
+{itineraryTypeSelect && isDefaultItineraryTypeSelected() ? (
           <DefaultRoutesSuggestions
-            arrivalLocation={arrivalLocation}
-            departureLocation={departureLocation}
-            noOfDays={calculateDaysBetweenDates(tripStartDate, tripEndDate)}
-            startDate={tripStartDate}
-            endDate={tripEndDate}
+  arrivalLocation={arrivalLocation}
+  departureLocation={departureLocation}
+  noOfDays={calculateDaysBetweenDates(tripStartDate, tripEndDate)}
+  startDate={tripStartDate}
+  endDate={tripEndDate}
+  activeRouteIndex={activeDefaultRouteIndex}
+  onRoutesLoaded={(routes) => {
+    setSuggestedDefaultRoutes(routes);
+    setActiveDefaultRouteIndex(0);
+  }}
+  onRouteSelect={(route, index) => {
+    setActiveDefaultRouteIndex(index);
+  }}
             onNoRoutesFound={() => {
               const customizeType = itineraryTypes.find((t) => t.label === "Customize");
               if (customizeType) {

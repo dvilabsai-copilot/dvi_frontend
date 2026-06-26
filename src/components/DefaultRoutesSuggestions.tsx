@@ -22,7 +22,7 @@ interface DayDetail {
   directVisit?: boolean;
 }
 
-interface RouteData {
+export interface RouteData {
   routeId: number;
   routeName: string;
   noOfDays: number;
@@ -49,6 +49,10 @@ interface DefaultRoutesSuggestionsProps {
   setRouteDetails?: (routes: any[]) => void;
   onOpenViaRoutes?: (row: any) => void;
   onDeleteDay?: () => void;
+
+  activeRouteIndex?: number;
+  onRoutesLoaded?: (routes: RouteData[]) => void;
+  onRouteSelect?: (route: RouteData, index: number) => void;
 }
 
 export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> = ({
@@ -63,6 +67,9 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
   setRouteDetails,
   onOpenViaRoutes,
   onDeleteDay,
+  activeRouteIndex,
+  onRoutesLoaded,
+  onRouteSelect,
 }) => {
   const [routes, setRoutes] = useState<RouteData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -125,22 +132,26 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
 }) as RouteResponse;
 
       if (data.success && data.routes && data.routes.length > 0) {
-        setRoutes(data.routes);
-        
-        // Load the first suggested route's data into the form
-        const firstRoute = data.routes[0];
-        const formattedRouteDetails = firstRoute.days.map((day, idx) => ({
-          id: idx + 1,
-          day: day.dayNo,
-          date: day.date,
-          source: day.sourceLocation,
-          next: day.nextLocation,
-          via: "",
-          via_routes: [],
-          directVisit: day.directVisit ? "Yes" : "No",
-        }));
-        
-        setRouteDetails?.(formattedRouteDetails);
+setRoutes(data.routes);
+setSelectedRouteIdx(0);
+onRoutesLoaded?.(data.routes);
+
+// Load the first suggested route's data into the form
+const firstRoute = data.routes[0];
+const formattedRouteDetails = firstRoute.days.map((day, idx) => ({
+  id: idx + 1,
+  day: day.dayNo,
+  date: day.date,
+  source: day.sourceLocation,
+  next: day.nextLocation,
+  via: "",
+  via_routes: [],
+  directVisit: day.directVisit ? "Yes" : "No",
+  no_of_km: 0,
+}));
+
+setRouteDetails?.(formattedRouteDetails);
+onRouteSelect?.(firstRoute, 0);
       } else {
         setNoRoutesMessage(
           data.no_routes_message || 'No routes available for this location.',
@@ -239,22 +250,26 @@ export const DefaultRoutesSuggestions: React.FC<DefaultRoutesSuggestionsProps> =
               <button
                 key={`route-${idx}`}
                 onClick={() => {
-                  setSelectedRouteIdx(idx);
-                  // Load this route's data into form
-                  const formattedRouteDetails = route.days.map((day, dayIdx) => ({
-                    id: dayIdx + 1,
-                    day: day.dayNo,
-                    date: day.date,
-                    source: day.sourceLocation,
-                    next: day.nextLocation,
-                    via: "",
-                    via_routes: [],
-                    directVisit: day.directVisit ? "Yes" : "No",
-                  }));
-                  setRouteDetails?.(formattedRouteDetails);
-                }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
-                  selectedRouteIdx === idx
+  setSelectedRouteIdx(idx);
+  onRouteSelect?.(route, idx);
+
+  // Load this route's data into form
+  const formattedRouteDetails = route.days.map((day, dayIdx) => ({
+    id: dayIdx + 1,
+    day: day.dayNo,
+    date: day.date,
+    source: day.sourceLocation,
+    next: day.nextLocation,
+    via: "",
+    via_routes: [],
+    directVisit: day.directVisit ? "Yes" : "No",
+    no_of_km: 0,
+  }));
+
+  setRouteDetails?.(formattedRouteDetails);
+}}
+className={`px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
+  (activeRouteIndex ?? selectedRouteIdx) === idx
                     ? 'bg-pink-500 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}

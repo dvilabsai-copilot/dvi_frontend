@@ -32,6 +32,7 @@ import { AgentOption } from "@/services/accountsManagerApi";
 import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itineraryDropdownsMock";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { RoomRow } from "./helpers/useRoomsAndTravellers";
+import type { RouteData } from "@/components/DefaultRoutesSuggestions";
 // type RoomRow = {
 //   id: number;
 //   adults: number;
@@ -121,6 +122,10 @@ type ItineraryPlanBlockProps = {
   // ✅ Calculated from arrival/departure dates
   noOfNights: number;
   noOfDays: number;
+
+  defaultRouteOptions?: RouteData[];
+  activeDefaultRouteIndex?: number;
+  onDefaultRouteSelect?: (route: RouteData, index: number) => void;
 };
 
 
@@ -242,6 +247,9 @@ export const ItineraryPlanBlock = ({
   validationErrors,
   noOfNights,
   noOfDays,
+  defaultRouteOptions = [],
+  activeDefaultRouteIndex = 0,
+  onDefaultRouteSelect,
 }: ItineraryPlanBlockProps) => {
 const isMobile = useIsMobile();
 const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
@@ -459,8 +467,33 @@ const handleHotelFacilityChange = (vals: string[]) => {
   return (
     <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
       <CardHeader className="pb-0" />
-      <CardContent className="pt-4 pb-5 space-y-4">
-        {/* ROW 1: Itinerary Preference | Agent */}
+<CardContent className="pt-4 pb-5 space-y-4">
+  {defaultRouteOptions.length > 0 && (
+    <div className="rounded-lg border border-[#f0d7ff] bg-[#fff7fd] p-3">
+      <Label className="mb-2 block text-sm font-medium text-[#4a4260]">
+        Suggested Route Options
+      </Label>
+
+      <div className="flex flex-wrap gap-2">
+        {defaultRouteOptions.map((route, idx) => (
+          <button
+            key={`plan-route-${route.routeId || idx}`}
+            type="button"
+            onClick={() => onDefaultRouteSelect?.(route, idx)}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeDefaultRouteIndex === idx
+                ? "bg-pink-500 text-white"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            Route {idx + 1}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {/* ROW 1: Itinerary Preference | Agent */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
             <Label className="mb-2 block text-sm text-[#4a4260]">

@@ -230,6 +230,7 @@ export type ItineraryHotelRow = {
   // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
   hotelCode?: string; // HOBSE hotel code
   bookingCode?: string; // HOBSE booking code
+  searchReference?: string;
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
