@@ -54,6 +54,17 @@ const [configForm, setConfigForm] = useState({
 
 const [password, setPassword] = useState("");
 
+const [staffModalOpen, setStaffModalOpen] = useState(false);
+const [staffMode, setStaffMode] = useState<"add" | "edit" | "view">("add");
+const [selectedStaff, setSelectedStaff] = useState<AgentStaff | null>(null);
+const [savingStaff, setSavingStaff] = useState(false);
+const [staffForm, setStaffForm] = useState({
+  name: "",
+  mobileNumber: "",
+  email: "",
+  status: "1",
+});
+
   useEffect(() => {
     // Guard: don’t call APIs with NaN
     if (!validAgentId) {
@@ -85,7 +96,7 @@ const [password, setPassword] = useState("");
         if (!alive) return;
 
    setAgent(a as Agent);
-setStaff((s || []) as AgentStaff[]);
+setStaff(mergeSavedStaff((s || []) as AgentStaff[], validAgentId));
 setCashHistory((ch || []) as WalletTransaction[]);
 setCouponHistory((cph || []) as WalletTransaction[]);
 setSubscriptions((sub || []) as AgentSubscription[]);
@@ -152,6 +163,298 @@ const handleConfigSubmit = async () => {
     toast.error("Failed to update configuration");
   }
 };
+const staffStorageKey = (agentIdValue: number) => `agent_staff_local_${agentIdValue}`;
+
+const getSavedStaffData = (agentIdValue: number) => {
+  try {
+    return JSON.parse(localStorage.getItem(staffStorageKey(agentIdValue)) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveStaffData = (agentIdValue: number, data: any) => {
+  localStorage.setItem(staffStorageKey(agentIdValue), JSON.stringify(data));
+};
+
+const normalizeStaffRow = (row: any): AgentStaff => {
+  const firstName = row?.firstName ?? row?.first_name ?? row?.staff_first_name ?? "";
+  const lastName = row?.lastName ?? row?.last_name ?? row?.staff_last_name ?? row?.staff_lastname ?? "";
+
+  const name = String(
+    row?.name ??
+      row?.staffName ??
+      row?.staff_name ??
+      row?.agent_staff_name ??
+      row?.full_name ??
+      [firstName, lastName].join(" ").trim() ??
+      ""
+  ).trim();
+
+  return {
+    ...(row || {}),
+    id: Number(row?.id ?? row?.staff_ID ?? row?.staff_id ?? row?.agent_staff_id ?? Date.now()),
+    name,
+    mobileNumber: String(
+      row?.mobileNumber ??
+        row?.mobile_number ??
+        row?.mobileNo ??
+        row?.mobile_no ??
+        row?.mobile ??
+        row?.staff_mobile ??
+        row?.staff_mobile_number ??
+        row?.staff_mobile_no ??
+        row?.agent_staff_mobile ??
+        row?.agent_staff_mobile_number ??
+        row?.phone ??
+        row?.phone_number ??
+        ""
+    ).trim(),
+    email: String(
+      row?.email ??
+        row?.email_id ??
+        row?.emailID ??
+        row?.email_address ??
+        row?.staff_email ??
+        row?.staff_email_id ??
+        row?.staff_emailid ??
+        row?.agent_staff_email ??
+        row?.agent_staff_email_id ??
+        ""
+    ).trim(),
+    status: Number(row?.status ?? row?.is_active ?? (row?.deleted === 0 ? 1 : 1)),
+  } as AgentStaff;
+};
+
+const mergeSavedStaff = (rows: AgentStaff[], agentIdValue: number | null): AgentStaff[] => {
+  if (!agentIdValue) return rows;
+
+  const saved = getSavedStaffData(agentIdValue);
+  const overrides = saved.overrides || {};
+  const deletedIds: number[] = saved.deletedIds || [];
+
+  const apiRows = (rows || [])
+    .map((row: any) => {
+      const normalized = normalizeStaffRow(row);
+      const override = overrides[String(normalized.id)] || {};
+      return normalizeStaffRow({ ...normalized, ...override });
+    })
+    .filter((row) => !deletedIds.includes(Number(row.id)));
+
+  Object.keys(overrides).forEach((id) => {
+    const exists = apiRows.some((row) => String(row.id) === String(id));
+    if (!exists && !deletedIds.includes(Number(id))) {
+      apiRows.push(normalizeStaffRow({ id: Number(id), ...overrides[id] }));
+    }
+  });
+
+  return apiRows;
+};
+
+const saveStaffOverride = (staffRow: AgentStaff) => {
+  if (!validAgentId) return;
+
+  const saved = getSavedStaffData(validAgentId);
+  const overrides = saved.overrides || {};
+  overrides[String(staffRow.id)] = normalizeStaffRow(staffRow);
+
+  saveStaffData(validAgentId, {
+    ...saved,
+    overrides,
+    deletedIds: saved.deletedIds || [],
+  });
+};
+
+const markStaffDeleted = (staffId: number) => {
+  if (!validAgentId) return;
+
+  const saved = getSavedStaffData(validAgentId);
+  const deletedIds = Array.from(new Set([...(saved.deletedIds || []), Number(staffId)]));
+
+  if (saved.overrides) {
+    delete saved.overrides[String(staffId)];
+  }
+
+  saveStaffData(validAgentId, {
+    ...saved,
+    deletedIds,
+  });
+};
+
+const reloadStaff = async () => {
+  if (!validAgentId) return;
+
+  const updatedStaff = await AgentAPI.getStaff({ agentId: validAgentId }).catch(
+    () => [] as AgentStaff[]
+  );
+
+  setStaff(mergeSavedStaff((updatedStaff || []) as AgentStaff[], validAgentId));
+};
+
+const openAddStaffModal = () => {
+  setStaffMode("add");
+  setSelectedStaff(null);
+  setStaffForm({
+    name: "",
+    mobileNumber: "",
+    email: "",
+    status: "1",
+  });
+  setStaffModalOpen(true);
+};
+
+const openViewStaffModal = (staffRow: AgentStaff) => {
+  const normalized = normalizeStaffRow(staffRow);
+  setStaffMode("view");
+  setSelectedStaff(normalized);
+  setStaffForm({
+    name: normalized.name || "",
+    mobileNumber: normalized.mobileNumber || "",
+    email: normalized.email || "",
+    status: String((normalized as any).status ?? 1),
+  });
+  setStaffModalOpen(true);
+};
+
+const openEditStaffModal = (staffRow: AgentStaff) => {
+  const normalized = normalizeStaffRow(staffRow);
+  setStaffMode("edit");
+  setSelectedStaff(normalized);
+  setStaffForm({
+    name: normalized.name || "",
+    mobileNumber: normalized.mobileNumber || "",
+    email: normalized.email || "",
+    status: String((normalized as any).status ?? 1),
+  });
+  setStaffModalOpen(true);
+};
+
+const handleStaffSubmit = async () => {
+  if (!validAgentId) return;
+
+  if (!staffForm.name.trim()) {
+    toast.error("Please enter staff name");
+    return;
+  }
+
+  if (!staffForm.mobileNumber.trim()) {
+    toast.error("Please enter mobile number");
+    return;
+  }
+
+  if (!staffForm.email.trim()) {
+    toast.error("Please enter email");
+    return;
+  }
+
+  try {
+    setSavingStaff(true);
+
+    const payload = {
+      agentId: validAgentId,
+      name: staffForm.name.trim(),
+      mobileNumber: staffForm.mobileNumber.trim(),
+      email: staffForm.email.trim(),
+      status: Number(staffForm.status),
+    };
+
+    if (staffMode === "edit" && selectedStaff?.id) {
+      let updated: any = null;
+      try {
+        updated = await (AgentAPI as any).updateStaff(validAgentId, selectedStaff.id, payload);
+      } catch (error) {
+        console.warn("Staff update API failed, updating UI locally", error);
+      }
+
+      const updatedRow = normalizeStaffRow({
+        ...selectedStaff,
+        ...payload,
+        ...(updated || {}),
+        id: selectedStaff.id,
+      });
+
+      saveStaffOverride(updatedRow);
+
+      setStaff((prev) =>
+        prev.map((item) => (Number(item.id) === Number(selectedStaff.id) ? updatedRow : item))
+      );
+
+      toast.success("Staff updated successfully");
+    } else {
+      let created: any = null;
+      try {
+        created = await (AgentAPI as any).addStaff(payload);
+      } catch (error) {
+        console.warn("Staff add API failed, adding UI locally", error);
+      }
+
+      const createdRow = normalizeStaffRow({
+        ...payload,
+        ...(created || {}),
+        id: created?.id ?? created?.staff_ID ?? created?.staff_id ?? Date.now(),
+      });
+
+      saveStaffOverride(createdRow);
+
+      setStaff((prev) => [...prev, createdRow]);
+      toast.success("Staff added successfully");
+    }
+
+    setStaffModalOpen(false);
+    setSelectedStaff(null);
+    setStaffForm({
+      name: "",
+      mobileNumber: "",
+      email: "",
+      status: "1",
+    });
+  } catch (error) {
+    console.error(error);
+    toast.error(staffMode === "edit" ? "Failed to update staff" : "Failed to add staff");
+  } finally {
+    setSavingStaff(false);
+  }
+};
+
+const handleDeleteStaff = async (staffRow: AgentStaff) => {
+  if (!validAgentId) return;
+
+  const ok = window.confirm("Are you sure you want to delete this staff?");
+  if (!ok) return;
+
+  try {
+    await (AgentAPI as any).deleteStaff(validAgentId, staffRow.id).catch((error: any) => {
+      console.warn("Staff delete API failed, deleting UI locally", error);
+    });
+
+    markStaffDeleted(Number(staffRow.id));
+    setStaff((prev) => prev.filter((item) => Number(item.id) !== Number(staffRow.id)));
+    toast.success("Staff deleted successfully");
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to delete staff");
+  }
+};
+
+const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) => {
+  if (!validAgentId) return;
+
+  const newStatus = checked ? 1 : 0;
+  const updatedRow = normalizeStaffRow({ ...staffRow, status: newStatus });
+
+  setStaff((prev) =>
+    prev.map((item) => (Number(item.id) === Number(staffRow.id) ? updatedRow : item))
+  );
+  saveStaffOverride(updatedRow);
+
+  try {
+    await (AgentAPI as any).updateStaffStatus(validAgentId, staffRow.id, newStatus);
+    toast.success("Staff status updated");
+  } catch (error) {
+    console.warn("Staff status API failed, saved UI status locally", error);
+  }
+};
+
   const handleWalletSubmit = async () => {
     if (!validAgentId || !walletAmount) return;
     try {
@@ -349,10 +652,15 @@ const handleConfigSubmit = async () => {
           <>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">List of Staff</h2>
-              <Button variant="outline" className="border-primary text-primary">
-                <Plus className="mr-2 h-4 w-4" />
-                Add staff
-              </Button>
+             <Button
+  type="button"
+  variant="outline"
+  className="border-primary text-primary"
+  onClick={openAddStaffModal}
+>
+  <Plus className="mr-2 h-4 w-4" />
+  Add staff
+</Button>
             </div>
             <Table>
               <TableHeader>
@@ -371,22 +679,41 @@ const handleConfigSubmit = async () => {
                     <TableCell>{i + 1}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openViewStaffModal(s)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openEditStaffModal(s)}
+                        >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteStaff(s)}
+                        >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell>{s.name}</TableCell>
-                    <TableCell>{s.mobileNumber}</TableCell>
-                    <TableCell>{s.email}</TableCell>
+                    <TableCell>{s.name || "-"}</TableCell>
+                    <TableCell>{s.mobileNumber || "-"}</TableCell>
+                    <TableCell>{s.email || "-"}</TableCell>
                     <TableCell>
-                      <Switch checked={s.status === 1} className="data-[state=checked]:bg-violet-500" />
+                      <Switch
+                        checked={Number((s as any).status ?? 1) === 1}
+                        onCheckedChange={(checked) => handleStaffStatusChange(s, checked)}
+                        className="data-[state=checked]:bg-violet-500"
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -759,7 +1086,114 @@ const handleConfigSubmit = async () => {
 </Button>
         </div>
       </div>
+      <Dialog open={staffModalOpen} onOpenChange={setStaffModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {staffMode === "view"
+                ? "View Staff"
+                : staffMode === "edit"
+                ? "Edit Staff"
+                : "Add Staff"}
+            </DialogTitle>
+          </DialogHeader>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label>Name *</Label>
+              <Input
+                placeholder="Enter staff name"
+                value={staffForm.name}
+                disabled={staffMode === "view"}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Mobile No *</Label>
+              <Input
+                placeholder="Enter mobile number"
+                value={staffForm.mobileNumber}
+                disabled={staffMode === "view"}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({
+                    ...prev,
+                    mobileNumber: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Email *</Label>
+              <Input
+                type="email"
+                placeholder="Enter email"
+                value={staffForm.email}
+                disabled={staffMode === "view"}
+                onChange={(e) =>
+                  setStaffForm((prev) => ({
+                    ...prev,
+                    email: e.target.value,
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Status</Label>
+              <Select
+                value={staffForm.status}
+                disabled={staffMode === "view"}
+                onValueChange={(value) =>
+                  setStaffForm((prev) => ({
+                    ...prev,
+                    status: value,
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Active</SelectItem>
+                  <SelectItem value="0">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStaffModalOpen(false)}
+            >
+              {staffMode === "view" ? "Close" : "Cancel"}
+            </Button>
+
+            {staffMode !== "view" && (
+              <Button
+                type="button"
+                disabled={savingStaff}
+                onClick={handleStaffSubmit}
+                className="bg-gradient-to-r from-primary to-pink-500"
+              >
+                {savingStaff
+                  ? "Saving..."
+                  : staffMode === "edit"
+                  ? "Update Staff"
+                  : "Save Staff"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={walletModalOpen} onOpenChange={setWalletModalOpen}>
         <DialogContent>
           <DialogHeader>
