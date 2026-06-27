@@ -1846,9 +1846,13 @@ const extractCreatedQuoteId = (response: any): string => {
     ""
   );
 };
+const isSavingRef = useRef(false);
+
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
+  if (isSavingRef.current) return; // sync guard — prevents double-fire before setState re-render
+  isSavingRef.current = true;
   try {
     setIsSaving(true);
     setActiveSaveType(type);
@@ -1881,37 +1885,59 @@ let res: any = null;
 let createdRouteOptions: Array<{ quoteId: string; label: string }> = [];
 
 if (shouldCreateAllRouteOptions) {
-  for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
-    // Route 1 (index 0): use the user-edited finalPayload directly (routeDetails from the form).
+  const createSuggestedRouteOption = async (route: RouteData, index: number) => {
+    // Route 1 (index 0): use the user-edited finalPayload directly.
     // Route 2+ (index > 0): build payload from the raw suggested route data.
     const routePayload =
       index === 0
         ? finalPayload
-        : buildPayloadForSuggestedRoute(
-            suggestedDefaultRoutes[index],
-            finalPayload
-          );
+        : buildPayloadForSuggestedRoute(route, finalPayload);
 
     const routeRes: any = await ItineraryService.create(routePayload, type);
+    const createdQuoteId = extractCreatedQuoteId(routeRes);
 
-const createdQuoteId = extractCreatedQuoteId(routeRes);
+    if (!createdQuoteId) {
+      console.warn("⚠️ Suggested route created but quote ID was not found", {
+        index,
+        routeRes,
+      });
+    }
 
-if (createdQuoteId) {
-  createdRouteOptions.push({
-    quoteId: String(createdQuoteId),
-    label: `Route ${index + 1}`,
-  });
-} else {
-  console.warn("⚠️ Suggested route created but quote ID was not found", {
-    index,
-    routeRes,
-  });
-}
+    return {
+      routeRes,
+      option: createdQuoteId
+        ? {
+            quoteId: String(createdQuoteId),
+            label: `Route ${index + 1}`,
+          }
+        : null,
+    };
+  };
+
+// Save sibling routes one-by-one with a small delay between each call.
+  // Do NOT use Promise.all: backend quote ID generation is not concurrency-safe.
+  // The delay prevents rapid sequential POSTs from causing 500 errors on the backend.
+  const DELAY_BETWEEN_ROUTE_SAVES_MS = 300;
+
+  for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
+    // Small pause between saves (skip delay for the first one)
+    if (index > 0) {
+      await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_ROUTE_SAVES_MS));
+    }
+
+    const created = await createSuggestedRouteOption(
+      suggestedDefaultRoutes[index],
+      index
+    );
+
     if (index === 0) {
-      res = routeRes;
+      res = created.routeRes;
+    }
+
+    if (created.option) {
+      createdRouteOptions.push(created.option);
     }
   }
-
   if (createdRouteOptions.length > 0) {
     const routeOptionPayload = JSON.stringify(createdRouteOptions);
 
@@ -1925,7 +1951,6 @@ if (createdQuoteId) {
 } else {
   res = await ItineraryService.create(finalPayload, type);
 }
-
 setSaveProgressPercent(100);
 
     // ✅ planId for internal editing, quoteId for redirect to details
@@ -1974,6 +1999,7 @@ setSaveProgressPercent(100);
     });
   } finally {
     stopSaveProgress();
+    isSavingRef.current = false;
     setIsSaving(false);
     setActiveSaveType(null);
   }
