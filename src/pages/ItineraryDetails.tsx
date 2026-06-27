@@ -529,6 +529,92 @@ const formatMinutesToDisplay = (totalMinutes: number): string => {
   return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
 };
 
+const formatManualPolicyTime = (value?: string | null): string => {
+  if (!value) return '';
+
+  const [hhRaw, mmRaw] = String(value).split(':');
+  const hh = Number(hhRaw);
+  const mm = Number(mmRaw || 0);
+
+  if (!Number.isFinite(hh)) return String(value);
+
+  const suffix = hh >= 12 ? 'PM' : 'AM';
+  const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+
+  return `${hour12}:${String(mm).padStart(2, '0')} ${suffix}`;
+};
+
+const getManualTimingPolicyFromPreview = (preview: any) => {
+  return (
+    preview?.manualTimingPolicy
+    || preview?.validation?.manualTimingPolicy
+    || preview?.resolution?.manualTimingPolicy
+    || preview?.manualInsertionFit?.manualTimingPolicy
+    || preview?.resolution?.manualInsertionFit?.manualTimingPolicy
+    || null
+  );
+};
+
+const isManualRelaxedRouteFitPolicy = (preview: any): boolean => {
+  const policy = getManualTimingPolicyFromPreview(preview);
+  return (
+    policy?.mode === 'MANUAL_HOTSPOT'
+    && policy?.allowOffRouteWhenTimePermits === true
+  );
+};
+
+const hasManualOpeningOrTimingConflict = (validation: any): boolean => {
+  if (!validation) return false;
+
+  const selectedManualConflictCount = Number(validation?.selectedManualConflictCount || 0);
+  const openingHourConflictCount = Number(validation?.openingHourConflictCount || 0);
+  const unscheduledManualCount = Number(validation?.unscheduledManualCount || 0);
+  const reason = String(validation?.reason || '').toLowerCase();
+
+  return (
+    selectedManualConflictCount > 0
+    || openingHourConflictCount > 0
+    || (
+      unscheduledManualCount > 0
+      && (
+        reason.includes('opening')
+        || reason.includes('timing')
+        || reason.includes('time window')
+        || reason.includes('could not be scheduled')
+        || reason.includes('does not fit')
+      )
+    )
+  );
+};
+
+const formatPreviewDuration = (value: any): string => {
+  if (!value) return '';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const hours = value.getUTCHours();
+    const minutes = value.getUTCMinutes();
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
+    if (minutes > 0) parts.push(`${minutes} Min`);
+    return parts.join(' ') || '';
+  }
+
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const isoDate = new Date(raw);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !Number.isNaN(isoDate.getTime())) {
+    const hours = isoDate.getUTCHours();
+    const minutes = isoDate.getUTCMinutes();
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
+    if (minutes > 0) parts.push(`${minutes} Min`);
+    return parts.join(' ') || '';
+  }
+
+  return raw;
+};
+
 const formatMinutesDuration = (minutes: number): string => {
   const safeMinutes = Math.max(0, Math.round(minutes));
   const hours = Math.floor(safeMinutes / 60);
@@ -1615,6 +1701,14 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const matrixRequiresBuild = useMemo(() => {
     if (!matrixFit) return false;
     if (matrixFit?.destinationInsertionMode === true) return false;
+    if (matrixFit?.singleHotspotInsertionMode === true) return false;
+    if (matrixFit?.emptyRouteInsertionMode === true) return false;
+
+    const chosenRouteFitType = String(matrixFit?.chosenSlot?.routeFitType || '').toUpperCase();
+    if (chosenRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || chosenRouteFitType === 'SINGLE_HOTSPOT_AFTER') {
+      return false;
+    }
+
     return matrixFit?.requiresMatrixBuild === true || matrixFit?.routeFitAvailable === false;
   }, [matrixFit]);
 
@@ -1629,34 +1723,131 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
   const hasValidChosenMatrixSlot = useMemo(() => {
     const chosen = matrixFit?.chosenSlot;
     if (!chosen) return false;
+    const routeFitType = String(chosen?.routeFitType || '').toUpperCase();
     if (matrixFit?.destinationInsertionMode === true) {
       return (
         Number(chosen?.fromHotspotId || 0) > 0
-        && ['DESTINATION_SIDE_INSERTION', 'MINOR_DETOUR'].includes(String(chosen?.routeFitType || '').toUpperCase())
+        && ['DESTINATION_SIDE_INSERTION', 'MINOR_DETOUR'].includes(routeFitType)
       );
     }
+
+    if (routeFitType === 'SINGLE_HOTSPOT_BEFORE') {
+      return (
+        matrixFit?.routeFitAvailable !== false
+        && Number(chosen?.toHotspotId || 0) > 0
+      );
+    }
+
+    if (routeFitType === 'SINGLE_HOTSPOT_AFTER') {
+      return (
+        matrixFit?.routeFitAvailable !== false
+        && Number(chosen?.fromHotspotId || 0) > 0
+      );
+    }
+
     return (
       matrixFit?.routeFitAvailable !== false
-      && ['ON_ROUTE', 'MINOR_DETOUR'].includes(String(chosen?.routeFitType || '').toUpperCase())
+      && ['ON_ROUTE', 'MINOR_DETOUR'].includes(routeFitType)
       && Number(chosen?.fromHotspotId || 0) > 0
       && Number(chosen?.toHotspotId || 0) > 0
     );
   }, [matrixFit]);
 
+  const matrixFitAlreadyHasUsableData = useMemo(() => {
+    const fit = matrixFit as any;
+    const chosen = fit?.chosenSlot || fit?.bestSlot || null;
+    const slotContext = String(chosen?.slotContext || '').toUpperCase();
+    const routeFitType = String(chosen?.routeFitType || '').toUpperCase();
+
+    return (
+      fit?.requiresMatrixBuild !== true
+      && (
+        fit?.hasAnyMatrixData === true
+        || fit?.hasFeasibleMatrixSlot === true
+        || (
+          fit?.cityEndpointInsertionMode === true
+          && ['CITY_TO_CITY', 'CITY_TO_HOTSPOT', 'HOTSPOT_TO_CITY'].includes(slotContext)
+          && ['ON_ROUTE', 'MINOR_DETOUR'].includes(routeFitType)
+        )
+      )
+    );
+  }, [matrixFit]);
+
   const isMatrixMissingBlockedState = useMemo(() => {
-    if (!matrixFit) return false;
-    if (matrixFit?.destinationInsertionMode === true) return false;
+    const matrixCode = String(matrixFit?.code || '').toUpperCase();
+    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
+    const previewBlockReason = String((activePreviewResolution as any)?.previewBlockReason || '').toUpperCase();
+    const validationReason = String(activePreviewValidation?.reason || '').toUpperCase();
+
+    const matrixAlreadyBuiltButNotFeasible =
+      matrixCode === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
+      || previewCode === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
+      || previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
+      || validationReason === 'NO_FEASIBLE_ROUTE_SLOT'
+      || (
+        matrixFit?.requiresMatrixBuild !== true
+        && matrixFit?.hasAnyMatrixData === true
+        && matrixFit?.hasFeasibleMatrixSlot === false
+      );
+
+    if (matrixAlreadyBuiltButNotFeasible) {
+      return false;
+    }
+
+    if (matrixFitAlreadyHasUsableData) {
+      return false;
+    }
+
+    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
+
+    const previewSaysMatrixMissing =
+      validationReason === 'MATRIX_DATA_MISSING'
+      || decisionStatus === 'MATRIX_UNAVAILABLE'
+      || previewCode === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || previewCode === 'MATRIX_DATA_MISSING'
+      || previewBlockReason === 'MATRIX_MISSING'
+      || String((groupPreviewResolution as any)?.code || '').toUpperCase() === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || String((groupPreviewResolution as any)?.code || '').toUpperCase() === 'MATRIX_DATA_MISSING'
+      || String((groupPreviewResolution as any)?.previewBlockReason || '').toUpperCase() === 'MATRIX_MISSING';
+
+    if (!matrixFit) return previewSaysMatrixMissing;
+
+    if (matrixFit?.destinationInsertionMode === true && !previewSaysMatrixMissing) {
+      return false;
+    }
+
     return (
       matrixFit?.requiresMatrixBuild === true
-      || matrixFit?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || (activePreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
-      || (groupPreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || (groupPreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
+      || matrixCode === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || matrixCode === 'MATRIX_DATA_MISSING'
+      || previewSaysMatrixMissing
     );
-  }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
+  }, [
+    activePreviewResolution,
+    activePreviewValidation?.reason,
+    groupPreviewResolution,
+    matrixFit,
+    matrixFitAlreadyHasUsableData,
+    normalizedDecision,
+  ]);
 
   const isMatrixBuiltButNoFeasibleSlot = useMemo(() => {
+    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
+    const unscheduledReason = String(
+      (activePreviewResolution as any)?.resolution?.unscheduledManualHotspots?.[0]?.reason
+      || (activePreviewResolution as any)?.unscheduledManualHotspots?.[0]?.reason
+      || '',
+    ).toUpperCase();
+
+    const schedulerProducedFinalFitFailure =
+      previewCode === 'MANUAL_HOTSPOT_CANNOT_FIT'
+      || unscheduledReason.includes('OPENING HOURS')
+      || unscheduledReason.includes('ROUTE TIME WINDOW');
+
+    if (schedulerProducedFinalFitFailure) {
+      return false;
+    }
+
     return (
       matrixFit?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
       || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
@@ -1671,13 +1862,63 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     );
   }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
 
+  const shouldShowBuildMatrixButton = useMemo(() => {
+    if (isMatrixBuiltButNoFeasibleSlot) {
+      return false;
+    }
+
+    if (matrixFitAlreadyHasUsableData) {
+      return false;
+    }
+
+    const validationReason = String(activePreviewValidation?.reason || '').toUpperCase();
+    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
+
+    return (
+      isMatrixMissingBlockedState
+      || validationReason === 'MATRIX_DATA_MISSING'
+      || decisionStatus === 'MATRIX_UNAVAILABLE'
+      || (activePreviewResolution as any)?.canBuildMatrix === true
+      || (matrixFit as any)?.canBuildMatrix === true
+      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || (activePreviewResolution as any)?.code === 'MATRIX_DATA_MISSING'
+      || (activePreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
+    );
+  }, [
+    activePreviewResolution,
+    activePreviewValidation?.reason,
+    isMatrixBuiltButNoFeasibleSlot,
+    isMatrixMissingBlockedState,
+    matrixFitAlreadyHasUsableData,
+    matrixFit,
+    normalizedDecision,
+  ]);
+
   const previewValidationReasonText = useMemo(() => {
+    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
+    const unscheduledReason = String(
+      (activePreviewResolution as any)?.resolution?.unscheduledManualHotspots?.[0]?.reason
+      || (activePreviewResolution as any)?.unscheduledManualHotspots?.[0]?.reason
+      || '',
+    ).trim();
+
+    if (previewCode === 'MANUAL_HOTSPOT_CANNOT_FIT' && unscheduledReason) {
+      return unscheduledReason;
+    }
+
     if (normalizedDecision?.primaryMessage) {
       return String(normalizedDecision.primaryMessage);
     }
     const reason = String(activePreviewValidation?.reason || '').toUpperCase();
     if (reason === 'NO_FEASIBLE_ROUTE_SLOT') {
-      return 'Matrix data exists, but this hotspot is off-route or backtracking for all current route segments.';
+      const manualRelaxedRouteFit =
+        isManualRelaxedRouteFitPolicy(manualPreviewState)
+        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
+
+      return manualRelaxedRouteFit
+        ? 'This hotspot adds extra distance/off-route travel. Manual add allows this when the rebuilt day still finishes within the allowed timing window.'
+        : 'Matrix data exists, but this hotspot is off-route or backtracking for all current route segments.';
     }
     if (reason === 'MATRIX_DATA_MISSING') {
       return 'Route-fit matrix data is missing for the selected hotspot and current route.';
@@ -1692,23 +1933,46 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     }
     const escapedDestinationName = matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return String(baseReason).replace(new RegExp(escapedDestinationName, 'gi'), destinationHotelDisplayName);
-  }, [activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision]);
+  }, [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution]);
 
   const matrixApplyBlocked = useMemo(() => {
     const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
     if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY' || decisionStatus === 'MATRIX_UNAVAILABLE') {
       return true;
     }
+
     if (!matrixFit) return false;
+
+    const manualRelaxedRouteFit =
+      isManualRelaxedRouteFitPolicy(manualPreviewState)
+      || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+      || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
+
     if (matrixFit?.destinationInsertionMode === true) {
       return matrixFit?.canApply === false;
     }
+
+    const canBypassMatrixApplyForManualRouteFit =
+      manualRelaxedRouteFit
+      && isMatrixBuiltButNoFeasibleSlot;
+
     return (
       isMatrixMissingBlockedState
-      || isMatrixBuiltButNoFeasibleSlot
-      || matrixFit?.canApply === false
+      || (!manualRelaxedRouteFit && isMatrixBuiltButNoFeasibleSlot)
+      || (
+        matrixFit?.canApply === false
+        && !canBypassMatrixApplyForManualRouteFit
+      )
     );
-  }, [isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit, normalizedDecision]);
+  }, [
+    isMatrixBuiltButNoFeasibleSlot,
+    isMatrixMissingBlockedState,
+    matrixFit,
+    normalizedDecision,
+    manualPreviewState,
+    activePreviewResolution,
+    groupPreviewResolution,
+  ]);
 
   const decisionStatus = useMemo(() => {
     return String(normalizedDecision?.decisionStatus || '').toUpperCase();
@@ -1722,13 +1986,19 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       return { label: 'Cannot Add', disabled: true };
     }
     if (decisionStatus === 'OFF_ROUTE' || decisionStatus === 'BACKTRACK') {
-      return { label: 'Cannot Add - Off Route', disabled: true };
+      const manualRelaxedRouteFit =
+        isManualRelaxedRouteFitPolicy(manualPreviewState)
+        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
+      return manualRelaxedRouteFit
+        ? { label: 'Confirm Add Hotspot', disabled: false }
+        : { label: 'Cannot Add - Off Route', disabled: true };
     }
     if (decisionStatus === 'NEEDS_RESCHEDULE') {
       return { label: 'Add with Reschedule', disabled: false };
     }
     return { label: 'Confirm Add Hotspot', disabled: false };
-  }, [decisionStatus]);
+  }, [decisionStatus, manualPreviewState, activePreviewResolution, groupPreviewResolution]);
 
   const insertionDecisionSummary = useMemo(() => {
     if (!activePreviewHotspotId || !matrixFit) return null;
@@ -1744,15 +2014,38 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
       };
     }
     if (isMatrixBuiltButNoFeasibleSlot) {
+      const manualRelaxedRouteFit =
+        isManualRelaxedRouteFitPolicy(manualPreviewState)
+        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
       return {
-        willInsert: false,
-        text: 'Will not be inserted: hotspot is off-route/backtracking for current route.',
+        willInsert: manualRelaxedRouteFit,
+        text: manualRelaxedRouteFit
+          ? 'Can be inserted manually. This adds extra distance/off-route travel, but timing will decide final fit.'
+          : 'Will not be inserted: hotspot is off-route/backtracking for current route.',
       };
     }
     if (canProceedWithReschedule) {
+      const routeEndOverflowMinutes = Number(activePreviewValidation?.routeEndOverflowMinutes || 0);
+      const hasOpeningOrTimingConflict = hasManualOpeningOrTimingConflict(activePreviewValidation);
+
+      if (routeEndOverflowMinutes > 0) {
+        return {
+          willInsert: false,
+          text: `Cannot insert normally because the rebuilt route exceeds the allowed manual day end by ${routeEndOverflowMinutes} minutes.`,
+        };
+      }
+
+      if (hasOpeningOrTimingConflict) {
+        return {
+          willInsert: false,
+          text: 'Route-fit slot found, but the hotspot conflicts with opening/timing rules. Use force add only if you want to keep it as a conflict.',
+        };
+      }
+
       return {
         willInsert: true,
-        text: 'Can be inserted with reschedule. Timeline will be recalculated.',
+        text: 'Route-fit slot found. Timeline can be recalculated within the manual timing window.',
       };
     }
     if (matrixApplyBlocked || activePreviewValidation?.readyToApply === false) {
@@ -1769,11 +2062,15 @@ export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = f
     activePreviewHotspotId,
     activePreviewValidation?.readyToApply,
     activePreviewValidation?.requiresPriorityConfirmation,
+    activePreviewValidation?.routeEndOverflowMinutes,
     isMatrixBuiltButNoFeasibleSlot,
     isMatrixMissingBlockedState,
     matrixApplyBlocked,
     matrixFit,
     matrixRequiresBuild,
+    manualPreviewState,
+    activePreviewResolution,
+    groupPreviewResolution,
   ]);
 
   const resolvedRemovalTimelineLeak = useMemo(() => {
@@ -7605,6 +7902,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         hasPreviewOrder: fullTimeline.some((seg: any) => Number.isFinite(Number(seg?.matrixPreviewOrder ?? seg?.previewOrder))),
       });
 
+      const manualTimingPolicy = getManualTimingPolicyFromPreview(preview);
+
       // The backend returns { newHotspot, otherConflicts, fullTimeline, allInsertionSlots }.
       const previewResolution = {
         ...(preview?.resolution || {}),
@@ -7612,10 +7911,12 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         newHotspot: preview?.newHotspot || null,
         allInsertionSlots: preview?.allInsertionSlots || [],
         slotInsights: preview?.resolution?.slotInsights || [],
+        manualTimingPolicy,
       };
       setManualPreviewState({
         ...preview,
         fullTimeline,
+        manualTimingPolicy,
         manualInsertionFit:
           preview?.manualInsertionFit
           || previewResolution?.manualInsertionFit
@@ -7717,12 +8018,40 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setIsBuildingMatrix(true);
     try {
       const result: any = await ItineraryService.buildMissingManualHotspotMatrix(planId, routeId, candidateId);
-      if (!result?.success) {
+      const resultCode = String(result?.code || '').toUpperCase();
+
+      if (
+        !result?.success
+        && resultCode !== 'SINGLE_HOTSPOT_CITY_MATRIX_BUILT'
+        && resultCode !== 'EMPTY_ROUTE_CITY_MATRIX_BUILT'
+        && resultCode !== 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX'
+        && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_SINGLE_HOTSPOT_MATRIX'
+        && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_EMPTY_ROUTE_MATRIX'
+      ) {
         toast.error(result?.message || 'Matrix build failed.');
         return;
       }
 
-      toast.success('Matrix data built. Rebuilding preview...');
+      if (
+        resultCode === 'SINGLE_HOTSPOT_CITY_MATRIX_BUILT'
+        || resultCode === 'EMPTY_ROUTE_CITY_MATRIX_BUILT'
+      ) {
+        toast.success(result?.message || 'Matrix built using city endpoint. Rebuilding preview...');
+      } else if (
+        resultCode === 'CITY_ENDPOINT_NOT_FOUND_FOR_SINGLE_HOTSPOT_MATRIX'
+        || resultCode === 'CITY_ENDPOINT_NOT_FOUND_FOR_EMPTY_ROUTE_MATRIX'
+      ) {
+        toast.error(result?.message || 'Cannot build matrix because city endpoint was not found.');
+        return;
+      } else if (resultCode === 'EMPTY_ROUTE_CITY_MATRIX_FAILED') {
+        toast.error(result?.message || 'City endpoint matrix failed for first hotspot insertion.');
+        return;
+      } else if (resultCode === 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX') {
+        toast.error(result?.message || 'Cannot build matrix because this route has no hotspot anchor and no city endpoint.');
+        return;
+      } else {
+        toast.success('Matrix data built. Rebuilding preview...');
+      }
       resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
       await handlePreviewHotspot(candidateId, { forceRefresh: true, source: 'AFTER_MATRIX_BUILD' });
     } catch (error: any) {
@@ -7776,7 +8105,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       return;
     }
 
-    const previewValidation = (groupPreviewResolution || activePreviewResolution)?.validation || null;
+    const previewSource = groupPreviewResolution || activePreviewResolution || manualPreviewState;
+    const previewValidation = previewSource?.validation || null;
+    const manualTimingPolicy = getManualTimingPolicyFromPreview(previewSource);
     const forceConflictInsertion =
       previewValidation?.readyToApply === false
       && previewValidation?.requiresPriorityConfirmation !== true;
@@ -7809,15 +8140,38 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const applyHotspotIds = [candidateId];
 
       const bestSlot = matrixFit?.bestSlot || null;
-      const matrixPreferredSlot = (
-        matrixFit?.chosenSlotSource === 'BEST_FIT'
-        && bestSlot
-        && Number(bestSlot?.fromHotspotId || 0) > 0
-        && Number(bestSlot?.toHotspotId || 0) > 0
-      )
+      const bestRouteFitType = String(bestSlot?.routeFitType || '').toUpperCase();
+      const isNormalMatrixSlot =
+        bestRouteFitType === 'ON_ROUTE' || bestRouteFitType === 'MINOR_DETOUR';
+      const isSingleHotspotSlot =
+        bestRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || bestRouteFitType === 'SINGLE_HOTSPOT_AFTER';
+      const isDestinationSideSlot =
+        bestRouteFitType === 'DESTINATION_SIDE_INSERTION';
+      const shouldSendPreferredSlot =
+        !!bestSlot
+        && (
+          (
+            matrixFit?.chosenSlotSource === 'BEST_FIT'
+            && isNormalMatrixSlot
+            && Number(bestSlot?.fromHotspotId || 0) > 0
+            && Number(bestSlot?.toHotspotId || 0) > 0
+          )
+          || (
+            isSingleHotspotSlot
+            && (
+              Number(bestSlot?.fromHotspotId || 0) > 0
+              || Number(bestSlot?.toHotspotId || 0) > 0
+            )
+          )
+          || (
+            isDestinationSideSlot
+            && Number(bestSlot?.fromHotspotId || 0) > 0
+          )
+        );
+      const matrixPreferredSlot = shouldSendPreferredSlot
         ? {
-            fromHotspotId: Number(bestSlot.fromHotspotId),
-            toHotspotId: Number(bestSlot.toHotspotId),
+            fromHotspotId: Number(bestSlot?.fromHotspotId || 0),
+            toHotspotId: Number(bestSlot?.toHotspotId || 0),
             slotIndex: Number.isFinite(Number(bestSlot?.slotIndex)) ? Number(bestSlot.slotIndex) : 0,
             source: 'BEST_FIT' as const,
           }
@@ -7845,6 +8199,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           allowTopPriorityRemoval: topPriorityReplacementApproved === true,
           forceConflictInsertion,
           matrixPreferredSlot,
+          manualTimingPolicy,
         },
       );
 
@@ -9739,6 +10094,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
   );
+  const canShowAddHotspotButton = !readOnly;
+  const addHotspotLocationName = day.arrival || day.departure || "Location";
  const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
 
 const wholeItineraryGuideAssignment =
@@ -9891,7 +10248,7 @@ const currentGuideAssignment =
 
     {/* RIGHT: buttons + KM */}
     <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-      {addHotspotCta && !readOnly && (
+      {canShowAddHotspotButton && (
         <Button
           type="button"
           variant="outline"
@@ -9901,16 +10258,16 @@ const currentGuideAssignment =
             openAddHotspotModal(
               itinerary.planId || 0,
               day.id,
-              addHotspotCta.locationId || 0,
-              day.arrival || "Location",
-              addHotspotCta.anchorType === "after_travel" &&
+              addHotspotCta?.locationId || 0,
+              addHotspotLocationName,
+              addHotspotCta?.anchorType === "after_travel" &&
                 Number.isInteger(Number(addHotspotCta.anchorIndex))
                 ? {
                     anchorType: "after_travel",
                     anchorIndex: Number(addHotspotCta.anchorIndex),
-                    anchorFrom: addHotspotCta.anchorFrom,
-                    anchorTo: addHotspotCta.anchorTo,
-                    anchorTimeRange: addHotspotCta.anchorTimeRange,
+                    anchorFrom: addHotspotCta?.anchorFrom,
+                    anchorTo: addHotspotCta?.anchorTo,
+                    anchorTimeRange: addHotspotCta?.anchorTimeRange,
                   }
                 : null
             )
@@ -11803,15 +12160,21 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 {(activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (
                   <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
                     <p className="text-xs text-[#6c6c6c]">
-                      {isMatrixMissingBlockedState
-                        ? 'Route-fit matrix data missing'
-                        : isMatrixBuiltButNoFeasibleSlot
-                          ? 'Matrix data built, but not on the way'
-                          : 'Best Computed Insert Slot'}
+                      {(matrixFit as any)?.cityEndpointInsertionMode === true
+                        ? 'City Endpoint Insert Slot'
+                        : matrixFit?.singleHotspotInsertionMode === true
+                        ? 'Single Hotspot Insert Slot'
+                        : isMatrixMissingBlockedState
+                          ? 'Route-fit matrix data missing'
+                          : isMatrixBuiltButNoFeasibleSlot
+                            ? 'Matrix data built, but not on the way'
+                            : 'Best Computed Insert Slot'}
                     </p>
                     {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot ? (
                       <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
-                        {bestInsertionSlot?.slot || (
+                        {((matrixFit as any)?.cityEndpointInsertionMode === true
+                          ? (matrixFit?.chosenSlot?.label || matrixFit?.bestSlot?.label || null)
+                          : null) || bestInsertionSlot?.slot || (
                           selectedPreviewCityContext === 'DESTINATION_CITY'
                             ? ((destinationInsertionSlotLabel || '').replace(/^Will\s+be\s+inserted\s+/i, '') || 'Computing best slot...')
                             : 'Computing best slot...'
@@ -11823,7 +12186,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       </p>
                     ) : (
                       <p className="text-sm font-semibold text-orange-700 mt-0.5">
-                        This hotspot is off-route or backtracking for all current route segments.
+                        This hotspot adds extra distance or off-route travel. Since this is a manual add, it can still be inserted if the rebuilt route reaches the hotel within the allowed manual timing window.
                       </p>
                     )}
 
@@ -11839,7 +12202,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
 
                     {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activePreviewResolution?.anchorPreference?.honored === false && (
                       <p className="text-xs text-amber-700 mt-1">
-                        Auto-moved away from the requested segment to the lower-detour feasible slot.
+                        The system tested the available insertion positions and selected the best timing / lowest extra-distance slot.
                       </p>
                     )}
 
@@ -11870,18 +12233,35 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                     )}
 
                     {isMatrixMissingBlockedState && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2">
-                        <p className="text-xs text-red-700 leading-4">
-                          Cannot preview this manual insertion accurately because route-fit matrix data is missing for the selected hotspot against the current route.
+                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                        <p className="text-xs font-semibold text-red-800 leading-4">
+                          Route-fit matrix data is missing for the selected hotspot and current route.
                         </p>
+
+                        <p className="text-xs text-red-700 leading-4 mt-1">
+                          Build the route-fit matrix first, then preview this hotspot again.
+                        </p>
+
                         {activePreviewHotspotId ? (
                           <Button
                             type="button"
-                            className="mt-2 bg-[#d546ab] hover:bg-[#b93a8f] text-white"
-                            disabled={isBuildingMatrix || isPreviewingHotspotId === activePreviewHotspotId || isApplyingPreviewHotspot}
+                            size="sm"
+                            className="mt-3 bg-[#d546ab] hover:bg-[#b93a8f] text-white"
+                            disabled={
+                              isBuildingMatrix
+                              || isPreviewingHotspotId === activePreviewHotspotId
+                              || isApplyingPreviewHotspot
+                            }
                             onClick={handleBuildMatrixAndPreviewAgain}
                           >
-                            {isBuildingMatrix ? 'Building matrix...' : 'Build Matrix & Preview Again'}
+                            {isBuildingMatrix ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Building matrix...
+                              </>
+                            ) : (
+                              'Build Matrix & Preview Again'
+                            )}
                           </Button>
                         ) : null}
                         {String(matrixBuildSuggestion?.command || '').trim().length > 0 && (
@@ -11895,7 +12275,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                     {isMatrixBuiltButNoFeasibleSlot && (
                       <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 p-2">
                         <p className="text-xs text-orange-700 leading-4">
-                          Matrix data exists for this hotspot, but it falls off-route or requires backtracking for all current route segments.
+                          This hotspot adds extra distance or off-route travel. For manual add, this is treated as a warning. The final decision is based on whether the rebuilt timeline fits within the manual timing window.
                         </p>
                         {Array.isArray(safeMatrixSlots) && safeMatrixSlots.length > 0 && (
                           <div className="mt-2 text-xs text-orange-700">
@@ -11928,16 +12308,42 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 )}
                 {!pendingPriorityReplacementHotspotId && (
                   <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
-                    {activePreviewValidation?.readyToApply === false && activePreviewValidation?.requiresPriorityConfirmation !== true ? (
+                    {activePreviewValidation?.readyToApply === false
+                      && activePreviewValidation?.requiresPriorityConfirmation !== true
+                      && !isMatrixBuiltButNoFeasibleSlot ? (
                       <div className="p-3 rounded-xl border border-red-200 bg-red-50 shadow-sm">
                         <p className="text-sm font-bold text-red-800">
                           {isMatrixBuiltButNoFeasibleSlot
                             ? 'Selected hotspot is off-route for this route'
                             : 'Selected hotspot does not fit the rebuilt slot'}
                         </p>
+                        {hasManualOpeningOrTimingConflict(activePreviewValidation) ? (
+                          <p className="text-xs text-red-700 mt-1">
+                            The route can be recalculated, but this hotspot conflicts with its opening/timing window.
+                          </p>
+                        ) : activePreviewValidation?.readyToApply === false ? (
+                          <p className="text-xs text-red-700 mt-1">
+                            This hotspot cannot be inserted normally in the current preview.
+                          </p>
+                        ) : null}
                         <p className="text-xs text-red-700 mt-1 leading-4 line-clamp-2">
                           {previewValidationReasonText}
                         </p>
+                        {shouldShowBuildMatrixButton && activePreviewHotspotId ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="mt-2 bg-[#d546ab] hover:bg-[#b93a8f] text-white"
+                            disabled={
+                              isBuildingMatrix
+                              || isPreviewingHotspotId === activePreviewHotspotId
+                              || isApplyingPreviewHotspot
+                            }
+                            onClick={handleBuildMatrixAndPreviewAgain}
+                          >
+                            {isBuildingMatrix ? 'Building matrix...' : 'Build Matrix & Preview Again'}
+                          </Button>
+                        ) : null}
                         {selectedHotspotAnchor ? (
                           <p className="text-xs text-red-700 mt-2 leading-4">
                             Attempted insertion slot:{' '}
@@ -12053,9 +12459,20 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
                         <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
                           <p className="font-semibold text-orange-900">Overflow resolved by removing lower-priority hotspots.</p>
-                          <p className="text-xs text-orange-700 mt-1 leading-4">
-                            To fit this manual hotspot and keep hotel check-in before 8:00 PM, these lower-priority hotspots will be removed:
-                          </p>
+                          {(() => {
+                            const manualTimingPolicy =
+                              getManualTimingPolicyFromPreview(manualPreviewState)
+                              || getManualTimingPolicyFromPreview(activePreviewResolution)
+                              || getManualTimingPolicyFromPreview(groupPreviewResolution);
+
+                            const endLabel = formatManualPolicyTime(manualTimingPolicy?.endTime) || 'route end time';
+
+                            return (
+                              <p className="text-xs text-orange-700 mt-1 leading-4">
+                                To fit this manual hotspot and keep hotel check-in before {endLabel}, these lower-priority hotspots will be removed:
+                              </p>
+                            );
+                          })()}
                           {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
                             (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
                             <ul className="mt-2 space-y-1">
@@ -12822,7 +13239,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                 {activityDuration && (
                                   <span className="flex items-center">
                                     <Clock className="h-3 w-3 mr-1" />
-                                    {activityDuration}
+                                    {formatPreviewDuration(seg?.duration || seg?.hotspot_traveling_time || seg?.hotspot_duration || hotspotMeta?.duration)}
                                   </span>
                                 )}
                                 {activityTimings && (
@@ -12922,7 +13339,9 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                     arrivalMinutes = nextTravelStartMinutes - stayMinutes;
                                   }
 
-                                  const stayLabel = String(activityDuration || '').trim() || (stayMinutes != null ? formatMinutesLabel(stayMinutes) : '');
+                                  const stayLabel =
+                                    formatPreviewDuration(activityDuration)
+                                    || (stayMinutes != null ? formatMinutesLabel(stayMinutes) : '');
                                   const departureMinutes = arrivalMinutes != null && stayMinutes != null
                                     ? arrivalMinutes + stayMinutes
                                     : null;
@@ -12996,7 +13415,11 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                             activePreviewValidation?.readyToApply === false && !forceConflictMode;
                           return (
                         <Button
-                          className={`w-full text-white shadow-lg ${forceConflictMode ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          className={`w-full text-white shadow-lg ${
+                            forceConflictMode
+                              ? 'bg-red-600 hover:bg-red-700'
+                              : 'bg-green-600 hover:bg-green-700'
+                          }`}
                           onClick={handleAddHotspot}
                           disabled={
                             isApplyingPreviewHotspot
@@ -13016,17 +13439,22 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           ) : (
                             isCurrentPreviewAlreadyAdded
                               ? 'Added'
-                              : isBuildingMatrix
-                              ? 'Building matrix...'
-                              : isMatrixMissingBlockedState
-                              ? 'Build matrix data first'
-                              : isMatrixBuiltButNoFeasibleSlot
-                              ? 'Cannot Add - Off Route'
-                              : matrixApplyBlocked
-                              ? 'Cannot Apply'
-                              : forceConflictMode
-                              ? 'Confirm Force Add (Conflict)'
-                              : confirmActionConfig.label
+                              : isMatrixMissingBlockedState || matrixRequiresBuild
+                                ? 'Build matrix from the warning box above'
+                                : isMatrixBuiltButNoFeasibleSlot
+                                  && !(
+                                    isManualRelaxedRouteFitPolicy(manualPreviewState)
+                                    || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+                                    || isManualRelaxedRouteFitPolicy(groupPreviewResolution)
+                                  )
+                                  ? 'Cannot Add - Off Route'
+                                  : matrixApplyBlocked
+                                    ? 'Cannot Apply'
+                                    : activePreviewValidation?.requiresForceConfirmation === true
+                                      ? 'Confirm Force Add (Opening / Timing Conflict)'
+                                      : forceConflictMode
+                                        ? 'Confirm Force Add (Conflict)'
+                                      : confirmActionConfig.label
                           )}
                         </Button>
                           );
