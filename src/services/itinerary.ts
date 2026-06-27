@@ -661,6 +661,7 @@ export const ItineraryService = {
       allowTopPriorityRemoval?: boolean;
       forceConflictInsertion?: boolean;
       matrixPreferredSlot?: MatrixPreferredSlotPayload;
+      manualTimingPolicy?: any;
     },
   ) {
     return api(`itineraries/${planId}/manual-hotspots/apply`, {
@@ -673,6 +674,7 @@ export const ItineraryService = {
         allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
         forceConflictInsertion: options?.forceConflictInsertion === true,
         matrixPreferredSlot: options?.matrixPreferredSlot,
+        manualTimingPolicy: options?.manualTimingPolicy,
       },
     });
   },
