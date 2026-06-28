@@ -422,9 +422,19 @@ type ItineraryDetailsResponse = {
   children: number;
   infants: number;
   overallCost: string | number; // API is giving "15000.00"
-  meal_plan_code?: string | null;
+meal_plan_code?: string | null;
 
-  days: ItineraryDay[];
+// Guest food preference from backend
+food_type?: string | null;
+foodType?: string | null;
+food_type_name?: string | null;
+foodTypeName?: string | null;
+guest_food_preference?: string | null;
+guestFoodPreference?: string | null;
+guest_food_preference_name?: string | null;
+guestFoodPreferenceName?: string | null;
+
+days: ItineraryDay[];
 
   // VEHICLES
   vehicles: ItineraryVehicleRow[];
@@ -494,7 +504,56 @@ const getDisplayDistances = (day: ItineraryDay) => {
     sightseeingDistance: day.sightseeingDistance || "0.00 KM",
   };
 };
+const getGuestFoodPreferenceText = (
+  itineraryData: any,
+  dayData?: any
+): string => {
+  const rawValue =
+    dayData?.guest_food_preference_name ||
+    dayData?.guestFoodPreferenceName ||
+    dayData?.guest_food_preference ||
+    dayData?.guestFoodPreference ||
+    dayData?.food_preference_name ||
+    dayData?.foodPreferenceName ||
+    dayData?.food_preference ||
+    dayData?.foodPreference ||
+    dayData?.food_type_name ||
+    dayData?.foodTypeName ||
+    dayData?.food_type ||
+    dayData?.foodType ||
+    itineraryData?.guest_food_preference_name ||
+    itineraryData?.guestFoodPreferenceName ||
+    itineraryData?.guest_food_preference ||
+    itineraryData?.guestFoodPreference ||
+    itineraryData?.food_preference_name ||
+    itineraryData?.foodPreferenceName ||
+    itineraryData?.food_preference ||
+    itineraryData?.foodPreference ||
+    itineraryData?.food_type_name ||
+    itineraryData?.foodTypeName ||
+    itineraryData?.food_type ||
+    itineraryData?.foodType ||
+    "";
 
+  if (!rawValue) return "Not Mentioned";
+
+  if (typeof rawValue === "string") {
+    return rawValue.trim() || "Not Mentioned";
+  }
+
+  if (typeof rawValue === "number") {
+    return String(rawValue);
+  }
+
+  return (
+    rawValue?.name ||
+    rawValue?.label ||
+    rawValue?.title ||
+    rawValue?.food_type_name ||
+    rawValue?.foodTypeName ||
+    "Not Mentioned"
+  ).trim();
+};
 const parseDisplayTimeToHms = (displayTime: string): string => {
   if (!displayTime) return "09:00:00";
   const parts = displayTime.split(' ');
@@ -10519,8 +10578,10 @@ const hotelTimelineLoading = Boolean(
 {(() => {
   return (
     <>
-      {displayDays.map((day) => {
+{displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
+  const guestFoodPreferenceText = getGuestFoodPreferenceText(itinerary, day);
+
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
   );
@@ -10566,8 +10627,8 @@ const currentGuideAssignment =
       <Calendar className="mt-1 h-5 w-5 shrink-0 text-[#d546ab]" />
 
       <div className="min-w-0">
-       <div className="flex flex-wrap items-center gap-2">
-       <h3 className="font-semibold leading-6 text-[#4a4260]">
+      <div className="flex flex-wrap items-center gap-2">
+<h3 className="font-semibold leading-6 text-[#4a4260]">
   DAY {day.dayNumber} - {formatHeaderDate(day.date)}
 </h3>
 
@@ -10591,8 +10652,15 @@ const currentGuideAssignment =
                 </>
               )}
             </Button>
-          )}
+            )}
         </div>
+
+       <div className="mt-1 text-sm font-semibold text-[#d546ab]">
+  Food Preference:{" "}
+  <span className="font-medium text-[#4a4260]">
+    {guestFoodPreferenceText}
+  </span>
+</div>
 
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#6c6c6c]">
           <span className="font-medium">{day.departure}</span>
