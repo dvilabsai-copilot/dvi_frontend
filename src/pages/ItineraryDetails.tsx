@@ -156,6 +156,34 @@ type ViaRouteItem = {
   name: string;
 };
 
+type AvailableHotspot = {
+  id: number;
+  name: string;
+  amount: number;
+  description: string;
+  timeSpend: number;
+  locationMap: string | null;
+  hotspot_location?: string | null;
+  hotspot_to_location?: string | null;
+  hotspotLocation?: string | null;
+  hotspotToLocation?: string | null;
+  image?: string | null;
+  galleryImages?: string[];
+  videoUrl?: string | null;
+  timings?: string;
+  visitAgain?: boolean;
+  alreadyAdded?: boolean;
+  alreadyAddedOnOtherRoute?: boolean;
+  availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE';
+  availabilityReason?: string;
+  actionDisabled?: boolean;
+  buttonLabel?: string;
+  priority?: number;
+  hotspotPriority?: number;
+  hotspot_priority?: number;
+  cityContext?: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN';
+};
+
 type ItineraryDay = {
   id: number;
   dayNumber: number;
@@ -580,6 +608,186 @@ const normalizeTimelineLabel = (value: unknown): string => {
   return String(value ?? '').trim().toLowerCase();
 };
 
+const normalizeCityKeyForHotspotFilter = (value?: string | null): string => {
+  return String(value || '')
+    .split('|')[0]
+    .split(',')[0]
+    .toLowerCase()
+    .replace(/\b(international|domestic|airport|railway|station|bus stand|mattuthavani|arappalayam)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+};
+
+const splitHotspotLocationTokens = (value?: string | null): string[] => {
+  return String(value || '')
+    .split('|')
+    .flatMap((part) => String(part || '').split(','))
+    .map(normalizeCityKeyForHotspotFilter)
+    .filter(Boolean);
+};
+
+const locationTokenMatchesCity = (
+  value: string | null | undefined,
+  cityKey: string,
+): boolean => {
+  if (!cityKey) return false;
+
+  return splitHotspotLocationTokens(value).some((token) => (
+    token === cityKey
+    || token.startsWith(`${cityKey} `)
+    || token.includes(` ${cityKey} `)
+    || token.endsWith(` ${cityKey}`)
+  ));
+};
+
+const getHotspotFromLocationText = (hotspot: AvailableHotspot): string => {
+  return String(
+    hotspot.hotspot_location
+    || hotspot.hotspotLocation
+    || hotspot.locationMap
+    || '',
+  ).trim();
+};
+
+const getHotspotToLocationText = (hotspot: AvailableHotspot): string => {
+  return String(
+    hotspot.hotspot_to_location
+    || hotspot.hotspotToLocation
+    || hotspot.hotspot_location
+    || hotspot.hotspotLocation
+    || hotspot.locationMap
+    || '',
+  ).trim();
+};
+
+const isRouteMovementAvailableHotspot = (hotspot: AvailableHotspot): boolean => {
+  const fromTokens = splitHotspotLocationTokens(getHotspotFromLocationText(hotspot));
+  const toTokens = splitHotspotLocationTokens(getHotspotToLocationText(hotspot));
+
+  if (!fromTokens.length || !toTokens.length) return false;
+
+  return fromTokens.join('|') !== toTokens.join('|');
+};
+
+const isAvailableHotspotForRoutePair = (
+  hotspot: AvailableHotspot,
+  sourceCity: string,
+  destinationCity: string,
+): boolean => {
+  const sourceKey = normalizeCityKeyForHotspotFilter(sourceCity);
+  const destinationKey = normalizeCityKeyForHotspotFilter(destinationCity);
+  const sameCityRoute =
+    !!sourceKey &&
+    !!destinationKey &&
+    sourceKey === destinationKey;
+
+  const fromText = getHotspotFromLocationText(hotspot);
+  const toText = getHotspotToLocationText(hotspot);
+
+  const fromMatchesSource = locationTokenMatchesCity(fromText, sourceKey);
+  const fromMatchesDestination = locationTokenMatchesCity(fromText, destinationKey);
+  const toMatchesSource = locationTokenMatchesCity(toText, sourceKey);
+  const toMatchesDestination = locationTokenMatchesCity(toText, destinationKey);
+
+  if (sameCityRoute) {
+    return (
+      fromMatchesSource ||
+      fromMatchesDestination ||
+      toMatchesSource ||
+      toMatchesDestination
+    );
+  }
+
+  return (
+    (fromMatchesSource && toMatchesDestination) ||
+    (fromMatchesDestination && toMatchesSource)
+  );
+};
+
+const isAvailableHotspotForAnchorOrRoutePair = (
+  hotspot: AvailableHotspot,
+  sourceCity: string,
+  destinationCity: string,
+  anchorFrom?: string | null,
+  anchorTo?: string | null,
+): boolean => {
+  if (!isRouteMovementAvailableHotspot(hotspot)) return true;
+
+  const sourceKey = normalizeCityKeyForHotspotFilter(sourceCity);
+  const destinationKey = normalizeCityKeyForHotspotFilter(destinationCity);
+
+  const sameCityRoute =
+    !!sourceKey &&
+    !!destinationKey &&
+    sourceKey === destinationKey;
+
+  const hasConcreteAnchorLeg =
+    String(anchorFrom || '').trim().length > 0 ||
+    String(anchorTo || '').trim().length > 0;
+
+  const anchorFromMatchesSource = locationTokenMatchesCity(anchorFrom || '', sourceKey);
+  const anchorFromMatchesDestination = locationTokenMatchesCity(anchorFrom || '', destinationKey);
+  const anchorToMatchesSource = locationTokenMatchesCity(anchorTo || '', sourceKey);
+  const anchorToMatchesDestination = locationTokenMatchesCity(anchorTo || '', destinationKey);
+
+  const anchorRepresentsRouteMovement =
+    !sameCityRoute &&
+    hasConcreteAnchorLeg &&
+    (
+      (anchorFromMatchesSource && anchorToMatchesDestination) ||
+      (anchorFromMatchesDestination && anchorToMatchesSource)
+    );
+
+  if (sameCityRoute) {
+    return false;
+  }
+
+  if (hasConcreteAnchorLeg && !anchorRepresentsRouteMovement) {
+    return false;
+  }
+
+  return isAvailableHotspotForRoutePair(
+    hotspot,
+    sourceCity,
+    destinationCity,
+  );
+};
+
+const filterAvailableHotspotsForAnchor = (
+  hotspots: AvailableHotspot[],
+  sourceCity: string,
+  destinationCity: string,
+  anchorFrom?: string | null,
+  anchorTo?: string | null,
+): AvailableHotspot[] => {
+  return hotspots.filter((hotspot) => {
+    if (!isRouteMovementAvailableHotspot(hotspot)) return true;
+
+    const keep = isAvailableHotspotForAnchorOrRoutePair(
+      hotspot,
+      sourceCity,
+      destinationCity,
+      anchorFrom,
+      anchorTo,
+    );
+
+    if (!keep) {
+      console.log('[AddHotspotModal] hiding_route_movement_hotspot_wrong_anchor', {
+        hotspotId: Number(hotspot?.id || 0),
+        hotspotName: hotspot?.name,
+        hotspotLocation: getHotspotFromLocationText(hotspot),
+        hotspotToLocation: getHotspotToLocationText(hotspot),
+        routeSourceName: sourceCity,
+        routeDestinationName: destinationCity,
+        anchorFromName: String(anchorFrom || '').trim() || null,
+        anchorToName: String(anchorTo || '').trim() || null,
+      });
+    }
+
+    return keep;
+  });
+};
+
 const parseDisplayMinutes = (value?: string | null, edge: 'start' | 'end' = 'start'): number | null => {
   const raw = String(value ?? '').trim();
   if (!raw) return null;
@@ -998,30 +1206,6 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
   });
 
   // Add hotspot modal state
-  type AvailableHotspot = {
-    id: number;
-    name: string;
-    amount: number;
-    description: string;
-    timeSpend: number;
-    locationMap: string | null;
-    image?: string | null;
-    galleryImages?: string[];
-    videoUrl?: string | null;
-    timings?: string;
-    visitAgain?: boolean;
-    alreadyAdded?: boolean;
-    alreadyAddedOnOtherRoute?: boolean;
-    availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE';
-    availabilityReason?: string;
-    actionDisabled?: boolean;
-    buttonLabel?: string;
-    priority?: number;
-    hotspotPriority?: number;
-    hotspot_priority?: number;
-    cityContext?: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN';
-  };
-
   const [addHotspotModal, setAddHotspotModal] = useState<{
     open: boolean;
     planId: number | null;
@@ -1807,20 +1991,6 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return '';
   }, [addHotspotModal.routeId, effectivePreviewTimeline, hotelDetails?.hotels, itinerary?.days, matrixFit]);
 
-  const matrixRequiresBuild = useMemo(() => {
-    if (!matrixFit) return false;
-    if (matrixFit?.destinationInsertionMode === true) return false;
-    if (matrixFit?.singleHotspotInsertionMode === true) return false;
-    if (matrixFit?.emptyRouteInsertionMode === true) return false;
-
-    const chosenRouteFitType = String(matrixFit?.chosenSlot?.routeFitType || '').toUpperCase();
-    if (chosenRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || chosenRouteFitType === 'SINGLE_HOTSPOT_AFTER') {
-      return false;
-    }
-
-    return matrixFit?.requiresMatrixBuild === true || matrixFit?.routeFitAvailable === false;
-  }, [matrixFit]);
-
   const matrixBuildSuggestion = useMemo(() => {
     return (activePreviewResolution as any)?.missingMatrixBuildSuggestion
       || (activePreviewResolution as any)?.resolution?.missingMatrixBuildSuggestion
@@ -1882,7 +2052,106 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     );
   }, [matrixFit]);
 
+  const deriveHotspotCityContext = useCallback((hotspot: AvailableHotspot): 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN' => {
+    const backend = String((hotspot as any)?.cityContext || '').trim().toUpperCase();
+    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
+      return backend;
+    }
+
+    const sourceKey = String(hotspotFilterMeta?.sourceCityKey || '').trim().toLowerCase();
+    const destinationKey = String(hotspotFilterMeta?.destinationCityKey || '').trim().toLowerCase();
+    const hay = `${String(hotspot?.locationMap || '')} ${String(hotspot?.name || '')}`.toLowerCase();
+
+    if (destinationKey && hay.includes(destinationKey)) return 'DESTINATION_CITY';
+    if (sourceKey && hay.includes(sourceKey)) return 'SOURCE_CITY';
+    return 'UNKNOWN';
+  }, [hotspotFilterMeta?.destinationCityKey, hotspotFilterMeta?.sourceCityKey]);
+
+  const activePreviewHotspot = useMemo(
+    () => availableHotspots.find((h) => Number(h.id) === Number(activePreviewHotspotId || 0)) || null,
+    [availableHotspots, activePreviewHotspotId],
+  );
+
+  const selectedPreviewCityContext = useMemo(() => {
+    const backend = String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase();
+    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
+      return backend as 'SOURCE_CITY' | 'DESTINATION_CITY';
+    }
+    if (!activePreviewHotspot) return null;
+    return deriveHotspotCityContext(activePreviewHotspot);
+  }, [manualPreviewState?.manualInsertionFit?.hotspotCityContext, activePreviewHotspot, deriveHotspotCityContext]);
+
+  const isDestinationSideManualPreview = useMemo(() => {
+    const sources: any[] = [
+      matrixFit,
+      manualPreviewState,
+      activePreviewResolution,
+      (activePreviewResolution as any)?.manualInsertionFit,
+      (activePreviewResolution as any)?.resolution?.manualInsertionFit,
+      groupPreviewResolution,
+      (groupPreviewResolution as any)?.manualInsertionFit,
+      (groupPreviewResolution as any)?.resolution?.manualInsertionFit,
+      (matrixFit as any)?.chosenSlot,
+      (matrixFit as any)?.bestSlot,
+      (matrixFit as any)?.requestedSlot,
+      (activePreviewResolution as any)?.manualInsertionFit?.chosenSlot,
+      (activePreviewResolution as any)?.manualInsertionFit?.bestSlot,
+      (activePreviewResolution as any)?.resolution?.manualInsertionFit?.chosenSlot,
+      (activePreviewResolution as any)?.resolution?.manualInsertionFit?.bestSlot,
+    ];
+
+    return (
+      selectedPreviewCityContext === 'DESTINATION_CITY'
+      || sources.some((source: any) => {
+        const code = String(source?.code || '').toUpperCase();
+        const reason = String(source?.validation?.reason || source?.reason || '').toUpperCase();
+        const cityContext = String(source?.hotspotCityContext || '').toUpperCase();
+        const slotSource = String(source?.source || '').toUpperCase();
+        const routeFitType = String(source?.routeFitType || '').toUpperCase();
+        const slotContext = String(source?.slotContext || '').toUpperCase();
+
+        return (
+          source?.destinationInsertionMode === true
+          || cityContext === 'DESTINATION_CITY'
+          || code === 'MANUAL_HOTSPOT_DESTINATION_INSERT_PREVIEW_READY'
+          || code === 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
+          || reason === 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
+          || slotSource === 'DESTINATION_CITY_AFTER_REACHED'
+          || slotSource === 'DESTINATION_CITY_REACHED_TO_HOTEL'
+          || slotSource === 'DESTINATION_CITY_ENDPOINT'
+          || routeFitType === 'DESTINATION_SIDE_INSERTION'
+          || slotContext === 'DESTINATION_CITY_TO_HOTEL'
+        );
+      })
+    );
+  }, [
+    matrixFit,
+    manualPreviewState,
+    activePreviewResolution,
+    groupPreviewResolution,
+    selectedPreviewCityContext,
+  ]);
+
+  const matrixRequiresBuild = useMemo(() => {
+    if (!matrixFit) return false;
+    if (isDestinationSideManualPreview) return false;
+    if (matrixFit?.destinationInsertionMode === true) return false;
+    if (matrixFit?.singleHotspotInsertionMode === true) return false;
+    if (matrixFit?.emptyRouteInsertionMode === true) return false;
+
+    const chosenRouteFitType = String(matrixFit?.chosenSlot?.routeFitType || '').toUpperCase();
+    if (chosenRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || chosenRouteFitType === 'SINGLE_HOTSPOT_AFTER') {
+      return false;
+    }
+
+    return matrixFit?.requiresMatrixBuild === true || matrixFit?.routeFitAvailable === false;
+  }, [isDestinationSideManualPreview, matrixFit]);
+
   const isMatrixMissingBlockedState = useMemo(() => {
+    if (isDestinationSideManualPreview) {
+      return false;
+    }
+
     const matrixCode = String(matrixFit?.code || '').toUpperCase();
     const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
     const previewBlockReason = String((activePreviewResolution as any)?.previewBlockReason || '').toUpperCase();
@@ -1935,12 +2204,17 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     activePreviewResolution,
     activePreviewValidation?.reason,
     groupPreviewResolution,
+    isDestinationSideManualPreview,
     matrixFit,
     matrixFitAlreadyHasUsableData,
     normalizedDecision,
   ]);
 
   const isMatrixBuiltButNoFeasibleSlot = useMemo(() => {
+    if (isDestinationSideManualPreview) {
+      return false;
+    }
+
     const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
     const unscheduledReason = String(
       (activePreviewResolution as any)?.resolution?.unscheduledManualHotspots?.[0]?.reason
@@ -1969,9 +2243,13 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
         && matrixFit?.hasFeasibleMatrixSlot === false
       )
     );
-  }, [activePreviewResolution, groupPreviewResolution, matrixFit]);
+  }, [activePreviewResolution, groupPreviewResolution, isDestinationSideManualPreview, matrixFit]);
 
   const shouldShowBuildMatrixButton = useMemo(() => {
+    if (isDestinationSideManualPreview) {
+      return false;
+    }
+
     if (isMatrixBuiltButNoFeasibleSlot) {
       return false;
     }
@@ -1989,13 +2267,14 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       || decisionStatus === 'MATRIX_UNAVAILABLE'
       || (activePreviewResolution as any)?.canBuildMatrix === true
       || (matrixFit as any)?.canBuildMatrix === true
-      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || (activePreviewResolution as any)?.code === 'MATRIX_DATA_MISSING'
-      || (activePreviewResolution as any)?.previewBlockReason === 'MATRIX_MISSING'
+      || String((activePreviewResolution as any)?.code || '').toUpperCase() === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
+      || String((activePreviewResolution as any)?.code || '').toUpperCase() === 'MATRIX_DATA_MISSING'
+      || String((activePreviewResolution as any)?.previewBlockReason || '').toUpperCase() === 'MATRIX_MISSING'
     );
   }, [
     activePreviewResolution,
     activePreviewValidation?.reason,
+    isDestinationSideManualPreview,
     isMatrixBuiltButNoFeasibleSlot,
     isMatrixMissingBlockedState,
     matrixFitAlreadyHasUsableData,
@@ -2814,35 +3093,6 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return source.length > 0 && destination.length > 0 && source !== destination;
   }, [hotspotFilterMeta?.sourceCityKey, hotspotFilterMeta?.destinationCityKey]);
 
-  const deriveHotspotCityContext = useCallback((hotspot: AvailableHotspot): 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN' => {
-    const backend = String((hotspot as any)?.cityContext || '').trim().toUpperCase();
-    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
-      return backend;
-    }
-
-    const sourceKey = String(hotspotFilterMeta?.sourceCityKey || '').trim().toLowerCase();
-    const destinationKey = String(hotspotFilterMeta?.destinationCityKey || '').trim().toLowerCase();
-    const hay = `${String(hotspot?.locationMap || '')} ${String(hotspot?.name || '')}`.toLowerCase();
-
-    if (destinationKey && hay.includes(destinationKey)) return 'DESTINATION_CITY';
-    if (sourceKey && hay.includes(sourceKey)) return 'SOURCE_CITY';
-    return 'UNKNOWN';
-  }, [hotspotFilterMeta?.destinationCityKey, hotspotFilterMeta?.sourceCityKey]);
-
-  const activePreviewHotspot = useMemo(
-    () => availableHotspots.find((h) => Number(h.id) === Number(activePreviewHotspotId || 0)) || null,
-    [availableHotspots, activePreviewHotspotId],
-  );
-
-  const selectedPreviewCityContext = useMemo(() => {
-    const backend = String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase();
-    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
-      return backend as 'SOURCE_CITY' | 'DESTINATION_CITY';
-    }
-    if (!activePreviewHotspot) return null;
-    return deriveHotspotCityContext(activePreviewHotspot);
-  }, [manualPreviewState?.manualInsertionFit?.hotspotCityContext, activePreviewHotspot, deriveHotspotCityContext]);
-
   const destinationInsertionSlotLabel = useMemo(() => {
     const preferredRaw = String(
       matrixFit?.chosenSlot?.attemptedSlotLabel
@@ -2925,22 +3175,47 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       }];
     }
 
-    const sourceLabel = `${String(hotspotFilterMeta?.sourceCityKey || 'Source').replace(/^./, (c: string) => c.toUpperCase())} Hotspots`;
-    const destinationLabel = `${destinationCityLabel} Hotspots`;
+    const formatCityLabel = (value: unknown, fallback: string) => {
+      const raw = String(value || '').trim();
+      if (!raw) return fallback;
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    };
+
+    const sourceLabel = `${formatCityLabel(hotspotFilterMeta?.sourceCityKey, 'Source')} Hotspots`;
+    const destinationLabel = `${formatCityLabel(hotspotFilterMeta?.destinationCityKey || destinationCityLabel, 'Destination')} Hotspots`;
     const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [];
 
     if (hotspotCityBuckets.source.length > 0) {
-      tabs.push({ key: 'SOURCE_CITY', label: sourceLabel, count: hotspotCityBuckets.source.length });
+      tabs.push({
+        key: 'SOURCE_CITY',
+        label: sourceLabel,
+        count: hotspotCityBuckets.source.length,
+      });
     }
     if (hotspotCityBuckets.destination.length > 0) {
-      tabs.push({ key: 'DESTINATION_CITY', label: destinationLabel, count: hotspotCityBuckets.destination.length });
+      tabs.push({
+        key: 'DESTINATION_CITY',
+        label: destinationLabel,
+        count: hotspotCityBuckets.destination.length,
+      });
     }
     if (hotspotCityBuckets.other.length > 0) {
-      tabs.push({ key: 'UNKNOWN', label: 'Other Hotspots', count: hotspotCityBuckets.other.length });
+      tabs.push({
+        key: 'UNKNOWN',
+        label: 'Other Hotspots',
+        count: hotspotCityBuckets.other.length,
+      });
     }
 
     return tabs;
-  }, [routeIsDifferentCity, filteredHotspots.length, hotspotFilterMeta?.sourceCityKey, destinationCityLabel, hotspotCityBuckets]);
+  }, [
+    routeIsDifferentCity,
+    filteredHotspots.length,
+    hotspotFilterMeta?.sourceCityKey,
+    hotspotFilterMeta?.destinationCityKey,
+    destinationCityLabel,
+    hotspotCityBuckets,
+  ]);
 
   const visibleHotspotsForActiveTab = useMemo(() => {
     if (!routeIsDifferentCity || activeHotspotCityTab === 'ALL') return filteredHotspots;
@@ -2951,16 +3226,35 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
 
   useEffect(() => {
     if (!routeIsDifferentCity) {
-      if (activeHotspotCityTab !== 'ALL') setActiveHotspotCityTab('ALL');
+      if (activeHotspotCityTab !== 'ALL') {
+        setActiveHotspotCityTab('ALL');
+      }
       return;
     }
 
-    const validKeys = new Set(hotspotCityTabs.map((t) => t.key));
+    const validKeys = new Set(hotspotCityTabs.map((tab) => tab.key));
+
+    if (
+      selectedPreviewCityContext === 'DESTINATION_CITY' &&
+      validKeys.has('DESTINATION_CITY') &&
+      activeHotspotCityTab !== 'DESTINATION_CITY'
+    ) {
+      setActiveHotspotCityTab('DESTINATION_CITY');
+      return;
+    }
+
     if (!validKeys.has(activeHotspotCityTab as any)) {
       const first = hotspotCityTabs[0];
-      if (first) setActiveHotspotCityTab(first.key);
+      if (first) {
+        setActiveHotspotCityTab(first.key);
+      }
     }
-  }, [routeIsDifferentCity, hotspotCityTabs, activeHotspotCityTab]);
+  }, [
+    routeIsDifferentCity,
+    hotspotCityTabs,
+    activeHotspotCityTab,
+    selectedPreviewCityContext,
+  ]);
 
   // Hotel selection modal state
   type AvailableHotel = {
@@ -8009,8 +8303,21 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       setHotspotFilterMeta(responseFilterMeta);
       console.log('[AddHotspotModal] hotspot_filter_meta', responseFilterMeta);
 
+      const routeSourceName = String((currentRoute as any)?.departure || '').trim();
+      const routeDestinationName = String((currentRoute as any)?.arrival || '').trim();
+      const anchorFromName = String(anchor?.anchorFrom || '').trim();
+      const anchorToName = String(anchor?.anchorTo || '').trim();
+
+      const routePairFilteredHotspots = filterAvailableHotspotsForAnchor(
+        hotspots as AvailableHotspot[],
+        routeSourceName,
+        routeDestinationName,
+        anchorFromName,
+        anchorToName,
+      );
+
       setAvailableHotspots(
-        normalizeAvailableHotspots(hotspots as AvailableHotspot[], {
+        normalizeAvailableHotspots(routePairFilteredHotspots, {
           routeId,
           excludedIds: routeExcludedIds,
           activeIds: routeActiveIds,
@@ -8208,6 +8515,15 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     const planId = Number(addHotspotModal.planId || 0);
     const routeId = Number(addHotspotModal.routeId || 0);
 
+    if (isDestinationSideManualPreview) {
+      resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
+      await handlePreviewHotspot(candidateId, {
+        forceRefresh: true,
+        source: 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED',
+      });
+      return;
+    }
+
     if (!planId || !routeId || !candidateId) {
       toast.error('Missing plan, route, or hotspot.');
       return;
@@ -8222,6 +8538,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         !result?.success
         && resultCode !== 'SINGLE_HOTSPOT_CITY_MATRIX_BUILT'
         && resultCode !== 'EMPTY_ROUTE_CITY_MATRIX_BUILT'
+        && resultCode !== 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
         && resultCode !== 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX'
         && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_SINGLE_HOTSPOT_MATRIX'
         && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_EMPTY_ROUTE_MATRIX'
@@ -8247,8 +8564,10 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       } else if (resultCode === 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX') {
         toast.error(result?.message || 'Cannot build matrix because this route has no hotspot anchor and no city endpoint.');
         return;
-      } else {
+      } else if (resultCode !== 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED') {
         toast.success('Matrix data built. Rebuilding preview...');
+      } else {
+        // Destination-side re-preview is silent to avoid implying matrix was needed.
       }
       resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
       await handlePreviewHotspot(candidateId, { forceRefresh: true, source: 'AFTER_MATRIX_BUILD' });
@@ -8493,7 +8812,18 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
             const refreshMeta = Array.isArray(rows) ? null : (rows?.hotspotFilterMeta || null);
             setHotspotFilterMeta(refreshMeta);
             console.log('[AddHotspotModal] hotspot_filter_meta', refreshMeta);
-            setAvailableHotspots(normalizeAvailableHotspots(refreshRows as AvailableHotspot[]));
+            const routeSourceName = String((currentRoute as any)?.departure || '').trim();
+            const routeDestinationName = String((currentRoute as any)?.arrival || '').trim();
+            const anchorFromName = String(selectedHotspotAnchor?.anchorFrom || '').trim();
+            const anchorToName = String(selectedHotspotAnchor?.anchorTo || '').trim();
+            const filteredRefreshRows = filterAvailableHotspotsForAnchor(
+              refreshRows as AvailableHotspot[],
+              routeSourceName,
+              routeDestinationName,
+              anchorFromName,
+              anchorToName,
+            );
+            setAvailableHotspots(normalizeAvailableHotspots(filteredRefreshRows));
           })
           .catch(() => {
             // Local optimistic update already applied; silent background sync failure.
@@ -8754,22 +9084,31 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       return;
     }
 
+    const shouldUseLatestArrivalPolicy =
+      !!latestArrivalPolicy && Number(routeDay?.dayNumber || 0) === 1;
+
     const policyToApply: HotelArrivalPolicyResponse =
-      latestArrivalPolicy ||
-      {
-        resolutionStatus: 'RESOLVED',
-        arrivalWindow: 'NON_ARRIVAL_DAY',
-        requiresPreviousDayBillingConfirmation: false,
-        shouldOpenHotelSearch: true,
-        hotelSearchMode: 'SAME_DAY',
-        hotelFlowAction: 'DIRECT_SIGHTSEEING',
-        deferHotelToEndOfDay: true,
-        goToHotelImmediately: false,
-        effectiveCheckInDate: routeDate,
-        effectiveCheckOutDate: routeDate,
-        sameCityArrival: true,
-        normalizationApplied: false,
-      };
+      shouldUseLatestArrivalPolicy
+        ? latestArrivalPolicy
+        : {
+            resolutionStatus: 'RESOLVED',
+            arrivalWindow:
+              Number(routeDay?.dayNumber || 0) === 1
+                ? 'AFTERNOON_14_TO_1659'
+                : 'NON_ARRIVAL_DAY',
+            requiresPreviousDayBillingConfirmation: false,
+            shouldOpenHotelSearch: true,
+            hotelSearchMode: 'SAME_DAY',
+            hotelFlowAction: 'DIRECT_SIGHTSEEING',
+            deferHotelToEndOfDay: true,
+            goToHotelImmediately: false,
+            effectiveCheckInDate: routeDate,
+            effectiveCheckOutDate: routeDate,
+            sameCityArrival: true,
+            normalizationApplied: false,
+            message:
+              'Arrival policy: sightseeing first, hotel check-in later in the day.',
+          };
 
     applyArrivalPolicyDecision(policyToApply, {
       planId,
@@ -12359,11 +12698,6 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       ? `Select a hotspot to insert after ${selectedHotspotAnchor.anchorFrom || "current"} -> ${selectedHotspotAnchor.anchorTo || "next stop"}`
                       : "Select a hotspot to add to your itinerary")}
                 </DialogDescription>
-                {Number(hotspotFilterMeta?.destinationCityHotspotsHidden || 0) > 0 && (
-                  <p className="mt-1 text-xs text-amber-700">
-                    Destination city hotspots are hidden because destination is reached after 3 PM.
-                  </p>
-                )}
               </div>
               <input
                 type="text"
