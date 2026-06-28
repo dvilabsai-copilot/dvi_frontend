@@ -1442,6 +1442,24 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : []);
     if (!selectedHotspotId && sourceTimeline.length === 0) return [];
 
+    const previewResolutionSource = manualPreviewState?.resolution || manualPreviewState || null;
+    const removedRows = [
+      ...(Array.isArray((previewResolutionSource as any)?.removedHotspots)
+        ? (previewResolutionSource as any).removedHotspots
+        : []),
+      ...(Array.isArray((previewResolutionSource as any)?.removedTopPriorityHotspots)
+        ? (previewResolutionSource as any).removedTopPriorityHotspots
+        : []),
+      ...(Array.isArray((previewResolutionSource as any)?.deferredHotspots)
+        ? (previewResolutionSource as any).deferredHotspots
+        : []),
+    ];
+    const removedIds = new Set(
+      removedRows
+        .map((row: any) => Number(row?.id ?? row?.hotspotId ?? row?.hotspot_ID ?? 0))
+        .filter((id: number) => id > 0),
+    );
+
     const routeScopedRows = sourceTimeline
       .filter((row: any) => {
         const rowRouteId = Number(
@@ -1456,6 +1474,30 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
         );
         if (!Number.isFinite(rowRouteId) || rowRouteId <= 0) return true;
         return rowRouteId === Number(addHotspotModal.routeId);
+      })
+      .filter((row: any) => {
+        if (removedIds.size === 0) return true;
+
+        const hotspotId = Number(row?.hotspotId ?? row?.hotspot_ID ?? row?.locationId ?? 0);
+        if (removedIds.has(hotspotId)) return false;
+
+        const toHotspotId = Number(row?.toHotspotId ?? 0);
+        if (removedIds.has(toHotspotId)) return false;
+
+        const text = String(row?.text || row?.name || '').toLowerCase();
+        const toName = String(row?.toName || row?.to || row?.displayToName || '').toLowerCase();
+
+        return !removedRows.some((removed: any) => {
+          const removedName = String(removed?.name || '').toLowerCase().trim();
+          return (
+            removedName
+            && (
+              text === removedName
+              || text.includes(`travel to ${removedName}`)
+              || toName.includes(removedName)
+            )
+          );
+        });
       });
     const rows = [...routeScopedRows];
 
@@ -1538,7 +1580,19 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
         ? resolution.removedTopPriorityHotspots.length
         : 0;
-      return removedTopPriorityCount > 0;
+      const affectedPriorityCount = Array.isArray(resolution?.topPriorityAffected)
+        ? resolution.topPriorityAffected.length
+        : 0;
+      const p3Count = Array.isArray((resolution as any)?.p3HotspotsToRemove)
+        ? (resolution as any).p3HotspotsToRemove.length
+        : 0;
+      return (
+        removedTopPriorityCount > 0
+        || affectedPriorityCount > 0
+        || p3Count > 0
+        || resolution?.requiresP3RemovalConfirmation === true
+        || resolution?.validation?.requiresPriorityConfirmation === true
+      );
     };
 
     const resolution = groupPreviewResolution || activePreviewResolution;
@@ -1932,6 +1986,32 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       || (groupPreviewResolution as any)?.manualInsertionFit
       || null;
   }, [activePreviewResolution, groupPreviewResolution]);
+
+  const activeManualOptimizer = useMemo(() => {
+    return (activePreviewResolution as any)?.manualOptimizer
+      || (activePreviewResolution as any)?.resolution?.manualOptimizer
+      || null;
+  }, [activePreviewResolution]);
+
+  const manualAttemptDisplayMeta = useMemo(() => {
+    const attempts = Array.isArray(activeManualOptimizer?.attempts) ? activeManualOptimizer.attempts : [];
+    const authoritative = attempts.length > 0 && attempts.every((attempt: any) => (
+      String(attempt?.source || '').toUpperCase() === 'REAL_CLUSTER_SIMULATION'
+    ));
+    const wrapperOnly = attempts.length > 0 && attempts.every((attempt: any) => (
+      String(attempt?.source || '').toUpperCase() === 'CANDIDATE_WRAPPER'
+    ));
+    return { attempts, authoritative, wrapperOnly };
+  }, [activeManualOptimizer]);
+
+  const backendForceConflictState = useMemo(() => {
+    const source = (activePreviewResolution as any)?.resolution || activePreviewResolution || null;
+    return {
+      canForceConflict: source?.canForceConflict === true,
+      finalConflictModeOnly: source?.finalConflictModeOnly === true,
+      selectedStrategyLabel: String(source?.selectedStrategyLabel || '').trim(),
+    };
+  }, [activePreviewResolution]);
 
   const destinationHotelDisplayName = useMemo(() => {
     const sanitize = (raw: unknown): string => {
@@ -8481,7 +8561,12 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     if (!targetHotspotId) return;
 
     const needsReplacementApproval =
-      (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0);
+      (
+        (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0)
+        || (Array.isArray(groupPreviewResolution?.topPriorityAffected) && groupPreviewResolution.topPriorityAffected.length > 0)
+        || (Array.isArray((groupPreviewResolution as any)?.p3HotspotsToRemove) && (groupPreviewResolution as any).p3HotspotsToRemove.length > 0)
+        || groupPreviewResolution?.requiresP3RemovalConfirmation === true
+      );
 
     if (needsReplacementApproval) {
       await handlePreviewHotspot(targetHotspotId, {
@@ -8613,7 +8698,17 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
         ? resolution.removedTopPriorityHotspots.length
         : 0;
-      const needsReplacementApproval = removedTopPriorityCount > 0;
+      const affectedPriorityCount = Array.isArray(resolution?.topPriorityAffected)
+        ? resolution.topPriorityAffected.length
+        : 0;
+      const p3Count = Array.isArray((resolution as any)?.p3HotspotsToRemove)
+        ? (resolution as any).p3HotspotsToRemove.length
+        : 0;
+      const needsReplacementApproval =
+        removedTopPriorityCount > 0
+        || affectedPriorityCount > 0
+        || p3Count > 0
+        || resolution?.requiresP3RemovalConfirmation === true;
       return needsReplacementApproval && topPriorityReplacementApproved !== true;
     })();
 
@@ -12992,15 +13087,16 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 {(activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (
                   <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
                     <p className="text-xs text-[#6c6c6c]">
-                      {(matrixFit as any)?.cityEndpointInsertionMode === true
-                        ? 'City Endpoint Insert Slot'
+                      {backendForceConflictState.selectedStrategyLabel
+                        || ((matrixFit as any)?.cityEndpointInsertionMode === true
+                        ? 'Selected Timing-Safe Schedule'
                         : matrixFit?.singleHotspotInsertionMode === true
-                        ? 'Single Hotspot Insert Slot'
+                        ? 'Selected Timing-Safe Schedule'
                         : isMatrixMissingBlockedState
                           ? 'Route-fit matrix data missing'
                           : isMatrixBuiltButNoFeasibleSlot
-                            ? 'Matrix data built, but not on the way'
-                            : 'Best Computed Insert Slot'}
+                            ? 'Conflict Mode Only'
+                            : 'Selected Timing-Safe Schedule')}
                     </p>
                     {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot ? (
                       <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
@@ -13030,6 +13126,56 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       >
                         {insertionDecisionSummary.text}
                       </p>
+                    )}
+
+                    {manualAttemptDisplayMeta.attempts.length > 0 && (
+                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-800">
+                          {manualAttemptDisplayMeta.authoritative ? 'Attempted schedules' : 'Candidate-wrapped attempt log'} ({manualAttemptDisplayMeta.attempts.length})
+                        </p>
+                        {activeManualOptimizer?.summary ? (
+                          <p className="mt-1 text-[11px] text-slate-700">
+                            Selected: {activeManualOptimizer.summary}
+                          </p>
+                        ) : null}
+                        {manualAttemptDisplayMeta.wrapperOnly && (
+                          <p className="mt-1 text-[11px] text-amber-700">
+                            These rows are candidate-wrapper diagnostics, not authoritative real cluster simulations yet.
+                          </p>
+                        )}
+                        <div className="mt-2 space-y-2">
+                          {manualAttemptDisplayMeta.attempts.slice(0, 6).map((attempt: any, idx: number) => (
+                            <div
+                              key={`${String(attempt?.strategyKey || 'attempt')}-${idx}`}
+                              className={`rounded-md border px-2 py-2 text-[11px] ${
+                                attempt?.selected === true
+                                  ? 'border-green-300 bg-green-50'
+                                  : attempt?.readyToApply === true
+                                    ? 'border-blue-200 bg-white'
+                                    : 'border-slate-200 bg-white'
+                              }`}
+                            >
+                              <p className="font-semibold text-slate-800">
+                                {attempt?.selected === true ? 'Selected: ' : ''}
+                                {attempt?.strategyLabel || attempt?.strategyKey || `Attempt ${idx + 1}`}
+                              </p>
+                              <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">
+                                Source: {String(attempt?.source || 'UNKNOWN').replace(/_/g, ' ')}
+                              </p>
+                              <p className="mt-1 text-slate-600">
+                                {attempt?.summary || attempt?.reason || 'No explanation available.'}
+                              </p>
+                              <p className="mt-1 text-slate-500">
+                                {attempt?.openingHourConflictCount > 0 ? `Opening conflicts: ${attempt.openingHourConflictCount}. ` : ''}
+                                {Number(attempt?.routeEndOverflowMinutes || 0) > 0 ? `Overflow: ${attempt.routeEndOverflowMinutes} min. ` : ''}
+                                {Number(attempt?.removedOptionalCount || 0) > 0 ? `Removed P4+: ${attempt.removedOptionalCount}. ` : ''}
+                                {Number(attempt?.removedTopPriorityCount || 0) > 0 ? `Removed P3: ${attempt.removedTopPriorityCount}. ` : ''}
+                                {Number(attempt?.extraTravelKm || 0) > 0 ? `Extra detour: ${Number(attempt.extraTravelKm).toFixed(1)} km.` : ''}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
 
                     {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activePreviewResolution?.anchorPreference?.honored === false && (
@@ -13140,6 +13286,21 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 )}
                 {!pendingPriorityReplacementHotspotId && (
                   <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {Array.isArray(activePreviewResolution?.removedHotspots)
+                      && activePreviewResolution.removedHotspots.length > 0
+                      && activePreviewValidation?.readyToApply === false && (
+                      <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                        <p className="font-bold">P3 hotspot removed, but manual hotspot still has a timing conflict</p>
+                        <p className="mt-1">
+                          Removed:{' '}
+                          {activePreviewResolution.removedHotspots
+                            .map((row: any) => row?.name)
+                            .filter(Boolean)
+                            .join(', ')}
+                          . You can force add only if you want to keep the selected manual hotspot as a conflict.
+                        </p>
+                      </div>
+                    )}
                     {activePreviewValidation?.readyToApply === false
                       && activePreviewValidation?.requiresPriorityConfirmation !== true
                       && !isMatrixBuiltButNoFeasibleSlot ? (
@@ -13267,6 +13428,14 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                   {effectivePreviewTimeline.length > 0 ? (
                     <>
                       {/* Rescheduling Applied Banner */}
+                      {(activePreviewResolution as any)?.sameCityShuffleApplied === true && (
+                        <div className="mb-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                          <p className="font-bold">Timings reshuffled to fit manual hotspot</p>
+                          <p className="mt-1">
+                            The system reordered nearby same-city hotspots based on opening and closing time before removing any hotspot.
+                          </p>
+                        </div>
+                      )}
                       {manualInsertionFit?.rescheduleApplied === true && (
                         <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
                           <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
@@ -13995,14 +14164,21 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                 </div>
 
                                 {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
-                                {pendingPriorityReplacementHotspotId && Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots) && pendingPriorityResolution.removedTopPriorityHotspots.length > 0 && (
+                                {pendingPriorityReplacementHotspotId && (
                                   <div ref={priorityConfirmRef} className="mt-3 p-3 rounded-xl border border-red-200 bg-red-50">
                                     {(() => {
+                                      const p3Rows = Array.isArray((pendingPriorityResolution as any)?.p3HotspotsToRemove)
+                                        ? (pendingPriorityResolution as any).p3HotspotsToRemove
+                                        : [];
                                       const removedPriorityRows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
-                                        ? pendingPriorityResolution.removedTopPriorityHotspots : [];
+                                        ? pendingPriorityResolution.removedTopPriorityHotspots
+                                        : [];
                                       const affectedPriorityRows = Array.isArray(pendingPriorityResolution?.topPriorityAffected)
-                                        ? pendingPriorityResolution.topPriorityAffected : [];
-                                      const sourceRows = removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows;
+                                        ? pendingPriorityResolution.topPriorityAffected
+                                        : [];
+                                      const sourceRows = p3Rows.length > 0
+                                        ? p3Rows
+                                        : (removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows);
                                       const affectedPriorityHotspots = sourceRows
                                         .map((row: any) => {
                                           const id = Number(row?.id ?? row?.hotspotId ?? row?.hotspot_id ?? 0);
@@ -14015,17 +14191,40 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                       const affectedPriorityLabel = affectedPriorityHotspots.length > 0
                                         ? affectedPriorityHotspots.join(', ') : 'one or more priority hotspots';
                                       const pluralSuffix = affectedPriorityHotspots.length === 1 ? '' : 's';
+                                      const removedPriorityRowsWithValues = sourceRows.map((row: any) => Number(
+                                        row?.priority
+                                        ?? row?.effectivePriority
+                                        ?? row?.normalizedPriority
+                                        ?? row?.rawPriority
+                                        ?? 0,
+                                      ));
+                                      const isP3RemovalConfirmation = removedPriorityRowsWithValues.some((priority: number) => priority === 3)
+                                        || pendingPriorityResolution?.requiresP3RemovalConfirmation === true;
                                       return (
                                         <div className="flex items-start gap-2 mb-3">
                                           <div className="h-7 w-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
                                             <AlertTriangle className="h-3.5 w-3.5" />
                                           </div>
                                           <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold text-red-700">Reschedule Priority Hotspot{pluralSuffix}?</p>
+                                            <p className="text-sm font-bold text-red-700">
+                                              {isP3RemovalConfirmation ? `Remove P3 Hotspot${pluralSuffix} & Recalculate?` : `Reschedule Priority Hotspot${pluralSuffix}?`}
+                                            </p>
                                             <p className="text-xs text-red-700 mt-1 leading-5">
-                                              Adding this hotspot requires moving these priority hotspot{pluralSuffix} from the current slot:
-                                              <span className="font-semibold"> {affectedPriorityLabel}</span>.
-                                              {' '}No hotspot is deleted. The timeline will be reshuffled and following items will be rescheduled.
+                                              {isP3RemovalConfirmation
+                                                ? (
+                                                  <>
+                                                    Adding this hotspot requires removing these P3 hotspot{pluralSuffix}:
+                                                    <span className="font-semibold"> {affectedPriorityLabel}</span>.
+                                                    {' '}After removal, the route will be recalculated automatically.
+                                                  </>
+                                                )
+                                                : (
+                                                  <>
+                                                    Adding this hotspot requires moving these priority hotspot{pluralSuffix} from the current slot:
+                                                    <span className="font-semibold"> {affectedPriorityLabel}</span>.
+                                                    {' '}No hotspot is deleted. The timeline will be reshuffled and following items will be rescheduled.
+                                                  </>
+                                                )}
                                             </p>
                                           </div>
                                         </div>
@@ -14038,7 +14237,19 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                         onClick={handleConfirmPriorityReplacement}
                                         disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
                                       >
-                                        Confirm Reschedule
+                                        {(() => {
+                                          const rows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
+                                            ? pendingPriorityResolution.removedTopPriorityHotspots
+                                            : [];
+                                          const isP3RemovalConfirmation = rows.some((row: any) => Number(
+                                            row?.priority
+                                            ?? row?.effectivePriority
+                                            ?? row?.normalizedPriority
+                                            ?? row?.rawPriority
+                                            ?? 0,
+                                          ) === 3) || pendingPriorityResolution?.requiresP3RemovalConfirmation === true;
+                                          return isP3RemovalConfirmation ? 'Remove P3 & Recalculate' : 'Confirm Reschedule';
+                                        })()}
                                       </Button>
                                       <Button
                                         size="sm"
@@ -14239,7 +14450,8 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       <div className="pt-4 sticky bottom-0 bg-white">
                         {(() => {
                           const forceConflictMode =
-                            activePreviewValidation?.readyToApply === false
+                            (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)
+                            && activePreviewValidation?.readyToApply === false
                             && activePreviewValidation?.requiresPriorityConfirmation !== true
                             && !matrixApplyBlocked;
                           const effectiveDecisionBlocked = confirmActionConfig.disabled && !forceConflictMode;
