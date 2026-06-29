@@ -99,6 +99,14 @@ export type MatrixPreferredSlotPayload = {
   source?: "BEST_FIT";
 };
 
+export type ManualFitHerePreviewPayload = {
+  routeId: number;
+  selectedHotspotId: number;
+  anchor: any;
+  allowP3Removal?: boolean;
+  allowP1P2Removal?: boolean;
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -649,6 +657,26 @@ export const ItineraryService = {
         anchorIndex: anchor?.anchorIndex,
         allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
       },
+    });
+  },
+
+  async previewManualHotspotFitHere(
+    planId: number,
+    payload: ManualFitHerePreviewPayload,
+  ) {
+    return api(`itineraries/${planId}/manual-hotspot/fit-preview`, {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  async confirmManualHotspotFitHere(
+    planId: number,
+    payload: { attemptId: string },
+  ) {
+    return api(`itineraries/${planId}/manual-hotspot/fit-confirm`, {
+      method: "POST",
+      body: payload,
     });
   },
 
