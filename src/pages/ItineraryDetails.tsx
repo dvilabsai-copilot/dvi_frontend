@@ -28,6 +28,7 @@ import {
 import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit, AlertTriangle } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
+import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
 import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
@@ -4076,6 +4077,28 @@ const overallTripCostWithHotels = useMemo(() => {
     return `₹ ${amount.toFixed(2)}`;
   };
 
+  const parseWalletAmount = (value: unknown): number => {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const cleaned = String(value ?? "").replace(/[^\d.-]/g, "");
+    const amount = Number(cleaned);
+
+    return Number.isFinite(amount) ? amount : 0;
+  };
+
+  const getWalletAmountFromResponse = (walletData: any): number => {
+    return parseWalletAmount(
+      walletData?.balance ??
+        walletData?.wallet_balance ??
+        walletData?.formatted_balance ??
+        walletData?.cashWalletBalance ??
+        walletData?.formattedBalance ??
+        walletData,
+    );
+  };
+
   const toMoneyNumber = (value?: number | string | null): number => {
     const amount = Number(value || 0);
     if (!Number.isFinite(amount)) return 0;
@@ -5108,7 +5131,18 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
   const [incidentalModal, setIncidentalModal] = useState(false);
   const [isConfirmingQuotation, setIsConfirmingQuotation] = useState(false);
   const [walletBalance, setWalletBalance] = useState<string>('');
+  const [walletBalanceAmount, setWalletBalanceAmount] = useState<number | null>(null);
+  const [showWalletTopUpPanel, setShowWalletTopUpPanel] = useState(false);
+  const [walletTopUpAmount, setWalletTopUpAmount] = useState("");
+  const [walletTopUpRemark, setWalletTopUpRemark] = useState("");
+  const [walletShortfallAmount, setWalletShortfallAmount] = useState(0);
+  const [isWalletTopUpSubmitting, setIsWalletTopUpSubmitting] = useState(false);
   const currentItineraryPlanId = Number(itinerary?.planId || 0);
+  const confirmRequiredAmount = Number(financialTotals.netPayable || itinerary?.overallCost || 0);
+  const isWalletInsufficientForConfirm =
+    walletBalanceAmount !== null &&
+    confirmRequiredAmount > 0 &&
+    walletBalanceAmount < confirmRequiredAmount;
 
   const handleDownloadPluckCard = async () => {
     if (!currentItineraryPlanId) {
@@ -5157,6 +5191,10 @@ const switchedRouteRef = useRef<string | null>(null);
     agent_name: string;
     agent_id?: number;
   } | null>(null);
+
+  const shouldEnableWalletTopUpOnConfirm =
+    confirmQuotationModal === true &&
+    Boolean(agentInfo?.agent_id);
 
   type AdditionalPassenger = {
     title: string;
@@ -8551,6 +8589,78 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     });
   };
 
+  const refreshConfirmWalletBalance = async (agentId?: number): Promise<number> => {
+    if (!agentId) return 0;
+
+    const walletData = await ItineraryService.checkWalletBalance(agentId);
+    const amount = getWalletAmountFromResponse(walletData);
+
+    setWalletBalance(walletData?.formatted_balance || walletData?.formattedBalance || formatCurrency(amount));
+    setWalletBalanceAmount(amount);
+
+    return amount;
+  };
+
+  const resetConfirmWalletTopUpPanel = () => {
+    setShowWalletTopUpPanel(false);
+    setWalletTopUpAmount("");
+    setWalletTopUpRemark("");
+    setWalletShortfallAmount(0);
+  };
+
+  const prepareWalletTopUpPanel = (currentBalance: number) => {
+    const shortfall = Math.max(confirmRequiredAmount - currentBalance, 0);
+    const suggestedAmount = Math.ceil(shortfall);
+
+    setWalletShortfallAmount(shortfall);
+    setWalletTopUpAmount(String(suggestedAmount > 0 ? suggestedAmount : ""));
+    setWalletTopUpRemark(
+      `Cash wallet top-up before confirming quotation ${itinerary?.quoteId || itinerary?.planId || ""}`,
+    );
+    setShowWalletTopUpPanel(true);
+  };
+
+  const handleWalletTopUpAndContinue = async () => {
+    if (!shouldEnableWalletTopUpOnConfirm || !agentInfo?.agent_id) {
+      toast.error("Agent information is missing. Please reopen Confirm Quotation.");
+      return;
+    }
+
+    const amount = Number(walletTopUpAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Please enter a valid cash amount greater than 0.");
+      return;
+    }
+
+    if (!String(walletTopUpRemark || "").trim()) {
+      toast.error("Please enter a remark for this wallet top-up.");
+      return;
+    }
+
+    setIsWalletTopUpSubmitting(true);
+    try {
+      await AgentAPI.addCashWallet(agentInfo.agent_id, Number(amount.toFixed(2)), walletTopUpRemark.trim());
+      toast.success("Cash wallet amount added successfully.");
+
+      const latestWalletBalance = await refreshConfirmWalletBalance(agentInfo.agent_id);
+
+      if (latestWalletBalance < confirmRequiredAmount) {
+        prepareWalletTopUpPanel(latestWalletBalance);
+        toast.error("Wallet is still insufficient. Please add the remaining shortfall.");
+        return;
+      }
+
+      resetConfirmWalletTopUpPanel();
+      await handleConfirmQuotation({ skipWalletCheck: true });
+    } catch (error: any) {
+      console.error("Failed to add cash wallet amount", error);
+      toast.error(getSafeErrorMessage(error, "Failed to add cash wallet amount."));
+    } finally {
+      setIsWalletTopUpSubmitting(false);
+    }
+  };
+
   const openConfirmQuotationModal = async () => {
     if (isOpeningConfirmQuotation) {
       return;
@@ -8568,6 +8678,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setHasAcceptedUpdatedPrice(false);
     setConfirmOccupanciesTemplate(null);
     setFormErrors({});
+    resetConfirmWalletTopUpPanel();
     // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
     setAdditionalAdults([]);
     setAdditionalChildren([]);
@@ -8576,7 +8687,10 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     try {
       // Fetch customer info form data
       const customerInfo = await ItineraryService.getCustomerInfoForm(itinerary.planId);
-      setWalletBalance(customerInfo.wallet_balance);
+      const initialWalletAmount = parseWalletAmount(customerInfo.wallet_balance);
+
+      setWalletBalance(customerInfo.wallet_balance || formatCurrency(initialWalletAmount));
+      setWalletBalanceAmount(initialWalletAmount);
 
       // Check wallet balance and get plan details
       const planDetails = await api(`itineraries/edit/${itinerary.planId}`, { method: 'GET' });
@@ -8594,8 +8708,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
       if (agentId) {
         try {
-          const walletData = await ItineraryService.checkWalletBalance(agentId);
-          setWalletBalance(walletData.formatted_balance);
+          await refreshConfirmWalletBalance(Number(agentId));
         } catch (e) {
           console.warn('⚠️ Failed to fetch wallet balance:', e);
         }
@@ -8912,7 +9025,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
   };
 
-  const handleConfirmQuotation = async () => {
+  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error('Missing itinerary plan information');
       return;
@@ -9020,6 +9133,33 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
 
     setFormErrors({});
+
+    if (
+      shouldEnableWalletTopUpOnConfirm &&
+      !options.skipWalletCheck &&
+      agentInfo?.agent_id &&
+      confirmRequiredAmount > 0
+    ) {
+      try {
+        const latestWalletBalance = await refreshConfirmWalletBalance(agentInfo.agent_id);
+
+        if (latestWalletBalance < confirmRequiredAmount) {
+          prepareWalletTopUpPanel(latestWalletBalance);
+          toast.error(
+            `Insufficient wallet balance to confirm booking. Please add at least ${formatCurrency(
+              confirmRequiredAmount - latestWalletBalance,
+            )} and continue.`,
+          );
+          return;
+        }
+
+        resetConfirmWalletTopUpPanel();
+      } catch (error) {
+        toast.error('Failed to refresh wallet balance. Please try again.');
+        return;
+      }
+    }
+
     setIsConfirmingQuotation(true);
 
     try {
@@ -14147,10 +14287,82 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[#6c6c6c]">Wallet Balance:</span>
-                  <span className={`font-medium ${walletBalance.includes('-') ? 'text-red-600' : 'text-green-600'}`}>
+                  <span className={`font-medium ${(walletBalanceAmount ?? parseWalletAmount(walletBalance)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {walletBalance}
                   </span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[#6c6c6c]">Amount Required:</span>
+                  <span className="font-medium text-[#4a4260]">
+                    {formatCurrency(confirmRequiredAmount)}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {shouldEnableWalletTopUpOnConfirm && showWalletTopUpPanel && agentInfo && (
+              <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
+                <div>
+                  <h3 className="font-semibold text-red-800">Agent wallet balance is insufficient</h3>
+                  <p className="text-xs text-red-700 mt-1">
+                    Required: {formatCurrency(confirmRequiredAmount)} · Current Wallet:{" "}
+                    {walletBalance || formatCurrency(walletBalanceAmount || 0)} · Shortfall:{" "}
+                    {formatCurrency(walletShortfallAmount)}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium text-[#4a4260] mb-1 block">Add Cash Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={walletTopUpAmount}
+                      onChange={(e) => setWalletTopUpAmount(e.target.value)}
+                      placeholder="Enter amount"
+                      className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-[#4a4260] mb-1 block">Remark</label>
+                    <input
+                      type="text"
+                      value={walletTopUpRemark}
+                      onChange={(e) => setWalletTopUpRemark(e.target.value)}
+                      placeholder="Wallet top-up remark"
+                      className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleWalletTopUpAndContinue}
+                    disabled={isWalletTopUpSubmitting}
+                    className="bg-[#d546ab] hover:bg-[#be3f97]"
+                  >
+                    {isWalletTopUpSubmitting ? "Adding Cash..." : "Add Cash Wallet & Continue"}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void (agentInfo?.agent_id && refreshConfirmWalletBalance(agentInfo.agent_id))}
+                    disabled={isWalletTopUpSubmitting}
+                    className="border-[#d546ab] text-[#d546ab]"
+                  >
+                    Refresh Wallet
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {isWalletInsufficientForConfirm && !showWalletTopUpPanel && shouldEnableWalletTopUpOnConfirm && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Wallet balance is currently below required amount. Click Confirm Booking to auto-check and open top-up panel.
               </div>
             )}
 
@@ -15219,6 +15431,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 setPrebookData(null);
                 setHasAcceptedUpdatedPrice(false);
                 setFormErrors({});
+                resetConfirmWalletTopUpPanel();
               }}
             >
               Cancel
@@ -15226,8 +15439,10 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
             <Button
               type="button"
               className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-              onClick={handleConfirmQuotation}
-              disabled={isConfirmingQuotation || isPrebooking}
+              onClick={() => {
+                void handleConfirmQuotation();
+              }}
+              disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting}
             >
               {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
             </Button>
