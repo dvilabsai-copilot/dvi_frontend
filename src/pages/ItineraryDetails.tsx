@@ -12801,20 +12801,22 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
   </div>
 </div>
 
-        <Link to="/create-itinerary">
+              <Link to="/create-itinerary">
           <Button className="bg-[#28a745] hover:bg-[#218838]">
             Create Itinerary
           </Button>
         </Link>
 
-        <Button
-          variant="outline"
-          className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
-          onClick={() => setCancelModalOpen(true)}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Modify Itinerary
-        </Button>
+        {(readOnly || isConfirmedItinerary) && (
+          <Button
+            variant="outline"
+            className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+            onClick={() => setCancelModalOpen(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Modify Itinerary
+          </Button>
+        )}
 
         <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
