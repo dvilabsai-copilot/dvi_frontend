@@ -3,9 +3,17 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Trash2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import type { RoomRow } from "./helpers/useRoomsAndTravellers";
+import type { ChildDetail, RoomRow } from "./helpers/useRoomsAndTravellers";
 
 type RoomsBlockProps = {
   itineraryPreference: "vehicle" | "hotel" | "both";
@@ -55,9 +63,12 @@ export const RoomsBlock = ({
   setRooms,
   addRoom,
 }: RoomsBlockProps) => {
-  const [targetRoomCount, setTargetRoomCount] = useState<number>(
+    const [targetRoomCount, setTargetRoomCount] = useState<number>(
     rooms[0]?.roomCount || rooms.length || 1
   );
+
+  const [maxRoomOccupancyAlertRoomId, setMaxRoomOccupancyAlertRoomId] =
+    useState<number | null>(null);
 
   const shouldShowRoomsBlock =
     itineraryPreference === "hotel" || itineraryPreference === "both";
@@ -91,6 +102,18 @@ export const RoomsBlock = ({
       return false;
   };
 
+    const isMaxRoomOccupancyReachedCombination = (
+    adult: number,
+    child: number,
+    infant: number
+  ): boolean => {
+    return (
+      Number(adult) === 2 &&
+      Number(child) === 2 &&
+      Number(infant) === 1
+    );
+  };
+
   const updateRoom = (
     roomId: number,
     patch: Partial<Omit<RoomRow, "id">>
@@ -100,7 +123,7 @@ export const RoomsBlock = ({
     );
   };
 
-  const tryUpdateCounts = (
+    const tryUpdateCounts = (
     room: RoomRow,
     nextAdults: number,
     nextChildren: number,
@@ -112,11 +135,24 @@ export const RoomsBlock = ({
         return;
       }
     }
+
+    const shouldShowMaxRoomOccupancyAlert =
+      !opts?.skipValidate &&
+      isMaxRoomOccupancyReachedCombination(
+        nextAdults,
+        nextChildren,
+        nextInfants
+      );
+
     updateRoom(room.id, {
       adults: nextAdults,
       children: nextChildren,
       infants: nextInfants,
     });
+
+    if (shouldShowMaxRoomOccupancyAlert) {
+      setMaxRoomOccupancyAlertRoomId(room.id);
+    }
   };
 
    // sync childrenDetails with children count
@@ -139,6 +175,7 @@ export const RoomsBlock = ({
             arr.push({
               age: "",
               bedType: "Without Bed",
+              hotelApprovalAccepted: false,
             });
           }
           changed = true;
@@ -244,6 +281,7 @@ useEffect(() => {
         nextChildren[childIndex] = {
           ...nextChildren[childIndex],
           age: value === "" ? "" : Number(value),
+          hotelApprovalAccepted: false,
         };
         return { ...room, childrenDetails: nextChildren };
       })
@@ -263,10 +301,281 @@ useEffect(() => {
         nextChildren[childIndex] = {
           ...nextChildren[childIndex],
           bedType,
+          hotelApprovalAccepted: false,
         };
         return { ...room, childrenDetails: nextChildren };
       })
     );
+  };
+
+    const isChildAgeFiveOrAbove = (age: number | ""): boolean => {
+    if (age === "") {
+      return true;
+    }
+
+    const numericAge = Number(age);
+    return Number.isFinite(numericAge) && numericAge >= 5;
+  };
+
+  const getOccupancyAlertChildIndex = (room: RoomRow): number => {
+    const eligibleChildren = (room.childrenDetails || [])
+      .map((child, index) => ({ child, index }))
+      .filter(({ child }) => isChildAgeFiveOrAbove(child.age));
+
+    if (eligibleChildren.length < 2) {
+      return -1;
+    }
+
+    const unresolvedSecondChild = eligibleChildren.slice(1).find(({ child }) => {
+      const hasExtraBed = child.bedType === "With Bed";
+      const hasHotelApproval = child.hotelApprovalAccepted === true;
+      return !hasExtraBed && !hasHotelApproval;
+    });
+
+    return unresolvedSecondChild?.index ?? -1;
+  };
+
+  const handleAddExtraBedForChild = (roomId: number, childIndex: number) => {
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          bedType: "With Bed",
+          hotelApprovalAccepted: false,
+        };
+
+        return {
+          ...room,
+          childrenDetails: nextChildren,
+        };
+      })
+    );
+
+    toast({
+      title: "Extra bed added",
+      description: "The second child has been marked as With Bed.",
+    });
+  };
+
+  const handleProceedWithoutExtraBed = (
+    roomId: number,
+    childIndex: number
+  ) => {
+    setRooms((prev) =>
+      prev.map((room) => {
+        if (room.id !== roomId) return room;
+
+        const nextChildren = [...(room.childrenDetails || [])];
+        if (!nextChildren[childIndex]) return room;
+
+        nextChildren[childIndex] = {
+          ...nextChildren[childIndex],
+          bedType: "Without Bed",
+          hotelApprovalAccepted: true,
+        };
+
+        return {
+          ...room,
+          childrenDetails: nextChildren,
+        };
+      })
+    );
+
+    toast({
+      title: "Hotel approval required",
+      description:
+        "This itinerary will proceed without extra bed for the second child, subject to hotel approval.",
+    });
+  };
+
+  const handleAddAdditionalRoomForChild = (
+    roomId: number,
+    childIndex: number
+  ) => {
+    if (targetRoomCount >= MAX_ROOMS) {
+      toast({
+        title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sourceRoom = rooms.find((room) => room.id === roomId);
+
+    if (!sourceRoom || sourceRoom.adults <= 1) {
+      handleTotalRoomsChange(targetRoomCount + 1);
+
+      toast({
+        title: "Additional room added",
+        description:
+          "Please adjust the adult and child distribution manually for the new room.",
+      });
+
+      return;
+    }
+
+    setRooms((prev) => {
+      const sourceIndex = prev.findIndex((room) => room.id === roomId);
+      if (sourceIndex < 0) return prev;
+
+      const source = prev[sourceIndex];
+      const childToMove = source.childrenDetails?.[childIndex] as
+        | ChildDetail
+        | undefined;
+
+      if (!childToMove || source.adults <= 1) return prev;
+
+      const nextRoomCount = prev.length + 1;
+
+      const updatedSourceChildren = (source.childrenDetails || []).filter(
+        (_, index) => index !== childIndex
+      );
+
+      const nextRooms = prev.map((room, index) => {
+        if (index !== sourceIndex) {
+          return {
+            ...room,
+            roomCount: nextRoomCount,
+          };
+        }
+
+        return {
+          ...room,
+          adults: Math.max(Number(room.adults || 0) - 1, 1),
+          children: Math.max(Number(room.children || 0) - 1, 0),
+          childrenDetails: updatedSourceChildren,
+          roomCount: nextRoomCount,
+        };
+      });
+
+      nextRooms.push({
+        id: nextRoomCount,
+        roomCount: nextRoomCount,
+        adults: 1,
+        children: 1,
+        infants: 0,
+        childrenDetails: [
+          {
+            ...childToMove,
+            bedType: "Without Bed",
+            hotelApprovalAccepted: false,
+          },
+        ],
+      });
+
+      setTargetRoomCount(nextRoomCount);
+
+      return nextRooms.map((room, index) => ({
+        ...room,
+        id: index + 1,
+        roomCount: nextRoomCount,
+      }));
+    });
+
+    toast({
+      title: "Additional room added",
+      description:
+        "One adult and the second child have been moved to the new room.",
+    });
+  };
+
+    const maxRoomOccupancyAlertRoom =
+    maxRoomOccupancyAlertRoomId !== null
+      ? rooms.find((room) => room.id === maxRoomOccupancyAlertRoomId) || null
+      : null;
+
+  const handleAddAdditionalRoomForMaxOccupancy = (roomId: number) => {
+    if (targetRoomCount >= MAX_ROOMS) {
+      toast({
+        title: `Maximum ${MAX_ROOMS} rooms are allowed per search`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRooms((prev) => {
+      const sourceIndex = prev.findIndex((room) => room.id === roomId);
+      if (sourceIndex < 0) return prev;
+
+      const sourceRoom = prev[sourceIndex];
+      const nextRoomCount = prev.length + 1;
+
+      const sourceChildrenDetails = Array.isArray(sourceRoom.childrenDetails)
+        ? sourceRoom.childrenDetails
+        : [];
+
+      const childIndexToMove = Math.max(
+        Number(sourceRoom.children || 0) - 1,
+        0
+      );
+
+      const childToMove: ChildDetail =
+        sourceChildrenDetails[childIndexToMove] || {
+          age: "",
+          bedType: "Without Bed",
+          hotelApprovalAccepted: false,
+        };
+
+      const remainingSourceChildren = sourceChildrenDetails.filter(
+        (_, index) => index !== childIndexToMove
+      );
+
+      const nextRooms = prev.map((room, index) => {
+        if (index !== sourceIndex) {
+          return {
+            ...room,
+            roomCount: nextRoomCount,
+          };
+        }
+
+        return {
+          ...room,
+          adults: Math.max(Number(room.adults || 0) - 1, 1),
+          children: Math.max(Number(room.children || 0) - 1, 0),
+          infants: Number(room.infants || 0),
+          childrenDetails: remainingSourceChildren,
+          roomCount: nextRoomCount,
+        };
+      });
+
+      nextRooms.push({
+        id: nextRoomCount,
+        roomCount: nextRoomCount,
+        adults: 1,
+        children: 1,
+        infants: 0,
+        childrenDetails: [
+          {
+            ...childToMove,
+            hotelApprovalAccepted: false,
+          },
+        ],
+      });
+
+      setTargetRoomCount(nextRoomCount);
+
+      return nextRooms.map((room, index) => ({
+        ...room,
+        id: index + 1,
+        roomCount: nextRoomCount,
+        childrenDetails: Array.isArray(room.childrenDetails)
+          ? room.childrenDetails
+          : [],
+      }));
+    });
+
+    setMaxRoomOccupancyAlertRoomId(null);
+
+    toast({
+      title: "Additional room added",
+      description:
+        "One adult and one child have been moved to the new room.",
+    });
   };
 
    const handleDeleteRoomBlock = (roomId: number) => {
@@ -299,6 +608,7 @@ return (
   <div className="border border-dashed border-[#c985d7] rounded-lg bg-[#fff9ff] p-3">
       {rooms.map((room, idx) => {
         const childDetails = room.childrenDetails || [];
+        const occupancyAlertChildIndex = getOccupancyAlertChildIndex(room);
 
         return (
           <div
@@ -545,6 +855,54 @@ return (
     </div>
   ))}
 
+
+  {occupancyAlertChildIndex >= 0 && (
+    <div className="w-full rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      <div className="font-semibold">Occupancy Alert</div>
+
+      <p className="mt-1">
+        This room has two children aged 5 or above. At least one extra bed is
+        required for the second child.
+      </p>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() =>
+            handleAddExtraBedForChild(room.id, occupancyAlertChildIndex)
+          }
+        >
+          Add one extra bed
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs bg-white"
+          onClick={() =>
+            handleAddAdditionalRoomForChild(room.id, occupancyAlertChildIndex)
+          }
+        >
+          Add additional room
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs"
+          onClick={() =>
+            handleProceedWithoutExtraBed(room.id, occupancyAlertChildIndex)
+          }
+        >
+          Proceed subject to hotel approval
+        </Button>
+      </div>
+    </div>
+  )}
         {/* Total Rooms */}
 <div className="flex items-center gap-2">
   <span className="text-xs text-muted-foreground">Total</span>
@@ -578,9 +936,56 @@ return (
 </div>
 </div>
   );
-  })}
+    })}
 
-     
+  <Dialog
+    open={Boolean(maxRoomOccupancyAlertRoom)}
+    onOpenChange={(open) => {
+      if (!open) {
+        setMaxRoomOccupancyAlertRoomId(null);
+      }
+    }}
+  >
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Maximum room occupancy reached</DialogTitle>
+        <DialogDescription>
+          This room now has 2 adults, 2 children, and 1 infant. This is the
+          maximum room occupancy combination, so booking an additional room is
+          recommended.
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+        Adding another room will move one adult and one child into the new room,
+        keeping the itinerary safer for hotel approval.
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setMaxRoomOccupancyAlertRoomId(null)}
+        >
+          Keep same room
+        </Button>
+
+        <Button
+          type="button"
+          onClick={() => {
+            if (maxRoomOccupancyAlertRoom) {
+              handleAddAdditionalRoomForMaxOccupancy(
+                maxRoomOccupancyAlertRoom.id
+              );
+            }
+          }}
+        >
+          Add additional room
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
     </div>
   );
 };
