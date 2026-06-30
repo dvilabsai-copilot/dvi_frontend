@@ -8,6 +8,8 @@ import {
 const QUOTE_ID = "DVI202606167";
 const ROUTE_ID = 7194;
 const SELECTED_HOTSPOT_ID = 42;
+const RAMANATHA_SWAMI_TEMPLE_ID = 35;
+const PAMBAN_BRIDGE_ID = 40;
 const ALAGAR_KOYIL_ID = 28;
 const FLOWER_MARKET_ID = 894;
 const ARIYAMAAN_ID = 636;
@@ -71,6 +73,8 @@ test("day 2 Dhanushkodi after Alagar stays rejected when the exact anchor still 
 
   const appBaseUrl = baseURL ?? "http://localhost:8080";
   const token = await seedAuthToken(page, request);
+
+  await deleteManualHotspotIfPresent(request, token, 9706, SELECTED_HOTSPOT_ID);
 
   const details = await fetchItineraryDetails(request, token, QUOTE_ID);
   const dayTwo = (details.days || []).find((day: any) => Number(day?.dayNumber || 0) === 2);
@@ -292,7 +296,12 @@ test("day 2 Fit Here confirm saves the same preview timeline for the Dhanushkodi
 
   await deleteManualHotspotIfPresent(request, token, 9706, SELECTED_HOTSPOT_ID);
 
-  const availableBefore = await fetchAvailableHotspots(request, token, ROUTE_ID);
+  const details = await fetchItineraryDetails(request, token, QUOTE_ID);
+  const dayTwo = (details.days || []).find((day: any) => Number(day?.dayNumber || 0) === 2);
+  const dayTwoRouteId = Number(dayTwo?.id || 0);
+  expect(dayTwoRouteId, "Day 2 route ID should exist after row rebuild").toBeGreaterThan(0);
+
+  const availableBefore = await fetchAvailableHotspots(request, token, dayTwoRouteId);
   const dhanushBefore = availableBefore.find((row) => Number(row?.id || 0) === SELECTED_HOTSPOT_ID);
   expect(dhanushBefore, "Dhanushkodi should be available before confirm test").toBeTruthy();
   expect(dhanushBefore?.alreadyAdded).not.toBeTruthy();
@@ -383,7 +392,7 @@ test("day 2 Fit Here confirm saves the same preview timeline for the Dhanushkodi
     cleanupNeeded = true;
 
     expect(confirmJson?.success).toBe(true);
-    expect(Number(confirmJson?.routeId || 0)).toBe(ROUTE_ID);
+    expect(Number(confirmJson?.routeId || 0)).toBe(dayTwoRouteId);
 
     const confirmSelectedRow = (Array.isArray(confirmJson?.routeTimeline) ? confirmJson.routeTimeline : []).find((row: any) => (
       getHotspotId(row) === SELECTED_HOTSPOT_ID && String(row?.type || "").toLowerCase() === "attraction"
@@ -394,7 +403,7 @@ test("day 2 Fit Here confirm saves the same preview timeline for the Dhanushkodi
     await expect(dialog).toHaveCount(0);
     await expect(dayTwoCard).toContainText(/dhanushkodi/i, { timeout: 30000 });
 
-    const availableAfter = await fetchAvailableHotspots(request, token, ROUTE_ID);
+    const availableAfter = await fetchAvailableHotspots(request, token, dayTwoRouteId);
     const dhanushAfter = availableAfter.find((row) => Number(row?.id || 0) === SELECTED_HOTSPOT_ID);
     expect(dhanushAfter, "Dhanushkodi should still appear in available-hotspots payload after confirm").toBeTruthy();
     expect(dhanushAfter?.alreadyAdded).toBeTruthy();
@@ -404,4 +413,123 @@ test("day 2 Fit Here confirm saves the same preview timeline for the Dhanushkodi
       await deleteManualHotspotIfPresent(request, token, 9706, SELECTED_HOTSPOT_ID);
     }
   }
+});
+
+test("day 2 Ramanatha Fit Here confirm saves the exact preview timeline without 409 retry", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(300000);
+
+  const appBaseUrl = baseURL ?? "http://localhost:8080";
+  const token = await seedAuthToken(page, request);
+
+  await deleteManualHotspotIfPresent(request, token, 9706, RAMANATHA_SWAMI_TEMPLE_ID);
+
+  const details = await fetchItineraryDetails(request, token, QUOTE_ID);
+  const dayTwo = (details.days || []).find((day: any) => Number(day?.dayNumber || 0) === 2);
+  const dayTwoRouteId = Number(dayTwo?.id || 0);
+  expect(dayTwoRouteId, "Day 2 route ID should exist after row rebuild").toBeGreaterThan(0);
+
+  const availableHotspots = await fetchAvailableHotspots(request, token, dayTwoRouteId);
+  const ramanatha = availableHotspots.find((row) => Number(row?.id || 0) === RAMANATHA_SWAMI_TEMPLE_ID);
+  expect(ramanatha, "Ramanatha swami Temple should be available for preview on day 2").toBeTruthy();
+  expect(ramanatha?.actionDisabled).not.toBeTruthy();
+
+  await page.goto(`${appBaseUrl}/itinerary-details/${encodeURIComponent(QUOTE_ID)}`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(new RegExp(`/itinerary-details/${QUOTE_ID}$`), {
+    timeout: 30000,
+  });
+
+  const dayTwoCard = page.locator('#itinerary-day-2[data-day-number="2"]').first();
+  await expect(dayTwoCard).toBeVisible({ timeout: 30000 });
+  await dayTwoCard.scrollIntoViewIfNeeded();
+
+  const addHotspotButton = dayTwoCard.getByRole("button", {
+    name: /add hotspot|click to add hotspot/i,
+  }).first();
+  await expect(addHotspotButton).toBeVisible({ timeout: 30000 });
+  await addHotspotButton.click();
+
+  await expect(page.getByRole("heading", { name: /hotspot list/i })).toBeVisible({ timeout: 30000 });
+
+  const rameswaramTab = page.getByText(/rameswaram hotspots/i).first();
+  if (await rameswaramTab.isVisible().catch(() => false)) {
+    await rameswaramTab.click();
+  }
+
+  const searchInput = page.getByPlaceholder(/search hotspot/i).first();
+  if (await searchInput.isVisible().catch(() => false)) {
+    await searchInput.fill("Ramanatha");
+  }
+
+  const hotspotCard = page.locator(`[data-hotspot-id="${RAMANATHA_SWAMI_TEMPLE_ID}"]`).first();
+  await expect(hotspotCard).toBeVisible({ timeout: 30000 });
+  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+
+  const anchor = page
+    .locator(`[data-testid="fit-here-anchor"][data-anchor-intent="AFTER_ATTRACTION"][data-anchor-from*="Pamban"]`)
+    .first();
+  await expect(anchor).toBeVisible({ timeout: 30000 });
+
+  const fitPreviewResponsePromise = page.waitForResponse(
+    (resp) =>
+      resp.request().method() === "POST" &&
+      resp.url().includes("/manual-hotspot/fit-preview"),
+    { timeout: 90000 },
+  );
+
+  await anchor.getByRole("button", { name: /fit here/i }).click();
+
+  const fitPreviewResponse = await fitPreviewResponsePromise;
+  expect(fitPreviewResponse.ok(), "Ramanatha Fit Here preview API should succeed").toBeTruthy();
+
+  const fitPreviewRequestPayload = fitPreviewResponse.request().postDataJSON();
+  expect(fitPreviewRequestPayload?.anchor?.anchorIntent).toMatch(/AFTER_ATTRACTION/i);
+  expect(Number(fitPreviewRequestPayload?.anchor?.afterHotspotId || 0)).toBe(PAMBAN_BRIDGE_ID);
+
+  const previewJson = await fitPreviewResponse.json();
+  expect(previewJson?.resultType).toBe("FITS_DIRECTLY");
+  expect(previewJson?.canConfirm).toBe(true);
+  expect(previewJson?.selectedAnchor?.anchorIntent || previewJson?.anchor?.anchorIntent).toMatch(/AFTER_ATTRACTION/i);
+  const previewSelectedRow = getPreviewTimeline(previewJson).find((row: any) => (
+    getHotspotId(row) === RAMANATHA_SWAMI_TEMPLE_ID && String(row?.type || "").toLowerCase() === "attraction"
+  ));
+  expect(previewSelectedRow, "Preview should include Ramanatha attraction row").toBeTruthy();
+  const previewSelectedTime = String(previewSelectedRow?.timeRange || "");
+  expect(previewSelectedTime).toBeTruthy();
+
+  const dialog = page.getByTestId("fit-here-preview-dialog");
+  await expect(dialog).toBeVisible({ timeout: 30000 });
+
+  const confirmButton = page.getByRole("button", { name: /confirm fit here/i });
+  await expect(confirmButton).toBeVisible();
+  await expect(confirmButton).toBeEnabled();
+
+  const fitConfirmResponsePromise = page.waitForResponse(
+    (resp) =>
+      resp.request().method() === "POST" &&
+      resp.url().includes("/manual-hotspot/fit-confirm"),
+    { timeout: 90000 },
+  );
+
+  await confirmButton.click();
+
+  const fitConfirmResponse = await fitConfirmResponsePromise;
+  expect(fitConfirmResponse.ok(), "Fit confirm should succeed without a server-preview-changed retry").toBeTruthy();
+
+  const fitConfirmJson = await fitConfirmResponse.json();
+  expect(fitConfirmJson?.success).toBe(true);
+  expect(Number(fitConfirmJson?.routeId || 0)).toBe(dayTwoRouteId);
+  expect(Number(fitConfirmJson?.selectedHotspotId || 0)).toBe(RAMANATHA_SWAMI_TEMPLE_ID);
+  const confirmSelectedRow = (Array.isArray(fitConfirmJson?.routeTimeline) ? fitConfirmJson.routeTimeline : []).find((row: any) => (
+    getHotspotId(row) === RAMANATHA_SWAMI_TEMPLE_ID && String(row?.type || "").toLowerCase() === "attraction"
+  ));
+  expect(confirmSelectedRow, "Confirmed route timeline should include Ramanatha attraction row").toBeTruthy();
+  expect(String(confirmSelectedRow?.timeRange || "")).toBe(previewSelectedTime);
+
+  await expect(dialog).toHaveCount(0);
 });
