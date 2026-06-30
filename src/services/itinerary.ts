@@ -672,7 +672,13 @@ export const ItineraryService = {
 
   async confirmManualHotspotFitHere(
     planId: number,
-    payload: { attemptId: string },
+    payload: {
+      attemptId: string;
+      allowTimingRisk?: boolean;
+      allowPriorityRemoval?: boolean;
+      allowClosedHotspotConflict?: boolean;
+      acknowledgedRemovedHotspotIds?: number[];
+    },
   ) {
     return api(`itineraries/${planId}/manual-hotspot/fit-confirm`, {
       method: "POST",
