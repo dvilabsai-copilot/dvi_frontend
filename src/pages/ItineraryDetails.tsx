@@ -467,6 +467,10 @@ type ItineraryDetailsResponse = {
   confirmed_itinerary_plan_ID?: number;
   guideForItinerary?: number;
   isConfirmed?: boolean;
+  special_instructions?: string | null;
+  specialInstructions?: string | null;
+  special_instruction?: string | null;
+  specialInstruction?: string | null;
   quoteId: string;
   dateRange: string;
   dayCount?: number;
@@ -4965,6 +4969,21 @@ if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection)
 const overallTripCostWithHotels = useMemo(() => {
   return Number(financialTotals.netPayable || itinerary?.overallCost || 0).toFixed(2);
 }, [financialTotals.netPayable, itinerary?.overallCost]);
+
+const specialInstructionsText = useMemo(() => {
+  const source = itinerary as any;
+
+  const rawValue =
+    source?.special_instructions ??
+    source?.specialInstructions ??
+    source?.special_instruction ??
+    source?.specialInstruction ??
+    source?.plan?.special_instructions ??
+    source?.plan?.specialInstructions ??
+    "";
+
+  return String(rawValue || "").trim();
+}, [itinerary]);
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {
@@ -11635,7 +11654,7 @@ const hotelTimelineLoading = Boolean(
               </div>
             </div>
 
-            {/* Trip Details — row 2 (same bg) */}
+                       {/* Trip Details — row 2 (same bg) */}
             <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
               <span>
                 <span>Room Count </span>
@@ -11649,6 +11668,17 @@ const hotelTimelineLoading = Boolean(
                 <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
                 <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
               </div>
+            </div>
+
+            {/* Special Instructions */}
+            <div className="mt-4 rounded-lg border border-[#f1c4dd] bg-[#fff7fb] px-4 py-3">
+              <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#d546ab]">
+                <AlertTriangle className="h-4 w-4" />
+                Special Instructions
+              </div>
+              <p className="whitespace-pre-line text-sm leading-6 text-[#4a4260]">
+                {specialInstructionsText || "No special instructions mentioned."}
+              </p>
             </div>
           </CardContent>
         </Card>
