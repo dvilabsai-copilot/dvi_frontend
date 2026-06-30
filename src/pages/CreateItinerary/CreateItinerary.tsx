@@ -39,7 +39,11 @@ import {
   calculateNights,
 } from "./helpers/itineraryUtils";
 import { SaveRouteConfirmDialog } from "./helpers/SaveRouteConfirmDialog";
-import { useRoomsAndTravellers, RoomRow as TravellerRoomRow } from "./helpers/useRoomsAndTravellers";
+import {
+  getUnresolvedChildExtraBedOccupancyRooms,
+  useRoomsAndTravellers,
+  type RoomRow as TravellerRoomRow,
+} from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
 import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
 
@@ -1679,10 +1683,24 @@ const continueToRouteConfirmation = () => {
   setShowRouteConfirm(true);
 };
 
-  const handleSaveClick = async () => {
+    const handleSaveClick = async () => {
+    if (itineraryPreference === "hotel" || itineraryPreference === "both") {
+      const unresolvedOccupancyRooms =
+        getUnresolvedChildExtraBedOccupancyRooms(rooms);
+
+      if (unresolvedOccupancyRooms.length > 0) {
+        toast({
+          title: "Occupancy alert required",
+          description:
+            "One room has two children aged 5 or above. Please add one extra bed, add another room, or proceed without extra bed subject to hotel approval.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const ok = validateBeforeSave();
     if (!ok) return;
-
     applyArrivalPolicyDecision({
       previousDayBillingDecisionProvided: false,
       previousDayBillingConfirmed: false,
