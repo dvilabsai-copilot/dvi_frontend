@@ -3897,6 +3897,7 @@ useEffect(() => {
   const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
+const shouldRenderBottomHotelList = false;
  
 
   const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
@@ -12389,7 +12390,7 @@ const currentGuideAssignment =
       })()}
       </div>
       {/* Hotel List (separate component) */}
-      {shouldShowHotels && loadingHotels && (
+      {shouldRenderBottomHotelList && shouldShowHotels && loadingHotels && (
         <div
           ref={hotelListRef}
           id="hotel-list-section"
@@ -12404,7 +12405,7 @@ const currentGuideAssignment =
         </div>
       )}
 
-      {shouldShowHotels && !loadingHotels && hotelDetails && (
+      {shouldRenderBottomHotelList && shouldShowHotels && !loadingHotels && hotelDetails && (
         <div
           ref={hotelListRef}
           id="hotel-list-section"
