@@ -1072,6 +1072,9 @@ export function ManualFitHerePreviewDialog({
   const allRemovalAcknowledged =
     !requiresRemovalAcknowledgement ||
     plannedRemovalIds.every((id: number) => acknowledgedRemovedHotspotIds.includes(id));
+  const removalAcknowledgementLabel = plannedRemovalIds.length > 0
+    ? `I acknowledge removal of ${plannedRemovalIds.length} hotspot${plannedRemovalIds.length === 1 ? "" : "s"} and want to continue.`
+    : "I acknowledge the required hotspot removals and want to continue.";
   const shouldUseDangerConfirm =
     attempt?.confirmButtonVariant === "danger" ||
     hasTimingRisk ||
@@ -1340,24 +1343,6 @@ export function ManualFitHerePreviewDialog({
                                         {formatPriorityText(getRemovalExplanationText(matchingRow))}
                                       </p>
                                     ) : null}
-                                    {attempt?.canConfirm === true && Number(item?.hotspotId || 0) > 0 ? (
-                                      <label className="mt-2 flex items-center gap-2 text-xs text-slate-700">
-                                        <input
-                                          type="checkbox"
-                                          checked={acknowledgedRemovedHotspotIds.includes(Number(item?.hotspotId || 0))}
-                                          onChange={(event) => {
-                                            const rowId = Number(item?.hotspotId || 0);
-                                            if (!(rowId > 0)) return;
-                                            setAcknowledgedRemovedHotspotIds((prev) => (
-                                              event.target.checked
-                                                ? Array.from(new Set([...prev, rowId]))
-                                                : prev.filter((id) => id !== rowId)
-                                            ));
-                                          }}
-                                        />
-                                        I acknowledge removal of this hotspot.
-                                      </label>
-                                    ) : null}
                                   </div>
                                 </div>
                               </div>
@@ -1370,6 +1355,24 @@ export function ManualFitHerePreviewDialog({
                         </p>
                       )}
                     </div>
+                    {requiresRemovalAcknowledgement ? (
+                      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                        <label className="flex cursor-pointer items-start gap-3 text-sm font-medium text-slate-800">
+                          <input
+                            data-testid="fit-here-removal-ack-checkbox"
+                            type="checkbox"
+                            checked={allRemovalAcknowledged}
+                            onChange={(event) => {
+                              setAcknowledgedRemovedHotspotIds(
+                                event.target.checked ? plannedRemovalIds : [],
+                              );
+                            }}
+                            className="mt-1 h-6 w-6 rounded border-emerald-300 accent-emerald-700"
+                          />
+                          <span>{removalAcknowledgementLabel}</span>
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
