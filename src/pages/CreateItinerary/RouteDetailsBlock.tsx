@@ -484,55 +484,62 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
       </CardHeader>
       <CardContent className="pt-0 overflow-visible pb-4">
   <div className="w-full overflow-x-auto overflow-y-visible">
-<table className="w-[840px] caption-bottom text-sm overflow-visible table-fixed">
+<table className="w-[960px] caption-bottom text-sm overflow-visible table-fixed">
   <colgroup>
     <col className="w-[70px]" />
-    <col className="w-[130px]" />
+    <col className="w-[140px]" />
     <col className="w-[210px]" />
     <col className="w-[285px]" />
-    <col className="w-[42px]" />
+    <col className="w-[95px]" />
     {!hideIntercityKm && <col className="w-[90px]" />}
-    <col className="w-[68px]" />
+    <col className="w-[105px]" />
     <col className="w-[35px]" />
   </colgroup>
 
-    <TableHeader>
-      <TableRow className="bg-[#faf1ff]">
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          DAY
-        </TableHead>
+  <TableHeader>
+    <TableRow className="bg-[#faf1ff]">
+      <TableHead className="px-2 text-xs text-[#4a4260]">
+        Day
+      </TableHead>
 
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          DATE
-        </TableHead>
+      <TableHead className="px-2 text-xs text-[#4a4260]">
+        Travel Date
+      </TableHead>
 
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          SOURCE DESTINATION
-        </TableHead>
+      <TableHead className="px-2 text-xs text-[#4a4260]">
+        From
+      </TableHead>
 
-        <TableHead className="px-2 text-xs text-[#4a4260]">
-          NEXT DESTINATION
-        </TableHead>
+      <TableHead className="px-2 text-xs text-[#4a4260]">
+        To
+      </TableHead>
 
+      <TableHead
+        className="px-2 text-xs text-[#4a4260] text-center leading-tight"
+        title="Enroute Visits: Add sightseeing or stopovers during the journey from one destination to another."
+      >
+        Enroute Visits <span className="cursor-help">ⓘ</span>
+      </TableHead>
+
+      {!hideIntercityKm && (
         <TableHead className="px-2 text-xs text-[#4a4260] text-center">
-          VIA ROUTE
+          Intercity KM
         </TableHead>
+      )}
 
-        {!hideIntercityKm && (
-          <TableHead className="px-2 text-xs text-[#4a4260] text-center">
-            INTERCITY KM
-          </TableHead>
-        )}
+      <TableHead
+        className="px-2 text-xs text-[#4a4260] text-center leading-tight"
+        title="Explore Destination: Include local sightseeing and attractions after arriving at this destination."
+      >
+        Explore Destination <span className="cursor-help">ⓘ</span>
+      </TableHead>
 
-        <TableHead className="px-2 text-xs text-[#4a4260] text-center leading-tight">
-  DIRECT DESTINATION VISIT
-</TableHead>
+      <TableHead className="px-1 text-xs text-[#4a4260] text-center">
+        {" "}
+      </TableHead>
+    </TableRow>
+  </TableHeader>
 
-<TableHead className="px-1 text-xs text-[#4a4260] text-center">
-  {" "}
-</TableHead>
-      </TableRow>
-    </TableHeader>
           <TableBody>
             {routeDetails.map((row, idx) => {
              const isFirstRow = idx === 0;
@@ -725,13 +732,13 @@ className={`w-full max-w-[260px] ${
 
   <TableCell className="pl-0 pr-2 text-left">
   <button
-    type="button"
-    onClick={() => onOpenViaRoutes?.(row)}
-    className="btn btn-outline-primary btn-sm"
-    title="Via Route"
-  >
-    <i className="ti ti-route ti-tada-hover"></i>
-  </button>
+  type="button"
+  onClick={() => onOpenViaRoutes?.(row)}
+  className="btn btn-outline-primary btn-sm"
+  title="Enroute Visits: Add sightseeing or stopovers during the journey from one destination to another."
+>
+  <i className="ti ti-route ti-tada-hover"></i>
+</button>
 </TableCell>
 
 {!hideIntercityKm && (
@@ -748,16 +755,16 @@ className={`w-full max-w-[260px] ${
 
 <TableCell className="px-1 text-center">
   <span
-    className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
-    title={hasViaRoutes ? "Direct Destination Visit is unavailable when Via Route is selected" : undefined}
-  >
+  className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
+  title={hasViaRoutes ? "Explore Destination is unavailable when Enroute Visits are selected" : undefined}
+>
     <button
       type="button"
       aria-pressed={row.directVisit === "Yes"}
       aria-disabled={hasViaRoutes}
       disabled={hasViaRoutes}
       className={`hotel-toggle ${row.directVisit === "Yes" ? "active" : ""} ${hasViaRoutes ? "pointer-events-none opacity-50" : ""}`}
-      title={!hasViaRoutes ? (row.directVisit === "Yes" ? "Active" : "Inactive") : undefined}
+      title={!hasViaRoutes ? "Explore Destination: Include local sightseeing and attractions after arriving at this destination." : undefined}
       onClick={() => {
         if (hasViaRoutes) return;
         setRouteDetails((prev) =>
