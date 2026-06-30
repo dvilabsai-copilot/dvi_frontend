@@ -11479,10 +11479,10 @@ const hotelTimelineLoading = Boolean(
                       onClick={scrollToVehicleList}
                       disabled={vehicleBuildStatus !== "READY"}
                       className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
-                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
-                    >
-                      Vehicle
-                    </button>
+                    title={vehicleBuildStatus !== "READY" ? "Transportation details are preparing" : "Go to Transportation"}
+>
+  Transportation
+</button>
                     <span className="text-[#6c6c6c]">Only</span>                   
                   </>
                 )}
@@ -11502,14 +11502,14 @@ const hotelTimelineLoading = Boolean(
                 {itineraryPreference !== 1 && itineraryPreference !== 2 && (
                   <>
                     <button
-                      type="button"
-                      onClick={scrollToVehicleList}
-                      disabled={vehicleBuildStatus !== "READY"}
-                      className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
-                      title={vehicleBuildStatus !== "READY" ? "Vehicle details are preparing" : "Go to Vehicle List"}
-                    >
-                      Vehicle
-                    </button>
+  type="button"
+  onClick={scrollToVehicleList}
+  disabled={vehicleBuildStatus !== "READY"}
+  className="text-[#6c6c6c] hover:text-[#d546ab] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d546ab]/40 rounded disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:text-[#6c6c6c] disabled:no-underline"
+  title={vehicleBuildStatus !== "READY" ? "Transportation details are preparing" : "Go to Transportation"}
+>
+  Transportation
+</button>
                     <span className="text-[#6c6c6c]">+</span>
                     <button
                       type="button"
@@ -11565,8 +11565,8 @@ const hotelTimelineLoading = Boolean(
                         variant="outline"
                         className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
                       >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Modify Itinerary
+                       <Trash2 className="mr-2 h-4 w-4" />
+                     Extend Trip
                       </Button>
                     </Link>
                     <Button
@@ -12802,22 +12802,22 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
   </div>
 </div>
 
-              <Link to="/create-itinerary">
-          <Button className="bg-[#28a745] hover:bg-[#218838]">
-            Create Itinerary
-          </Button>
-        </Link>
+             <Link to="/create-itinerary">
+  <Button className="bg-[#28a745] hover:bg-[#218838]">
+    Continue Planning
+  </Button>
+</Link>
 
         {(readOnly || isConfirmedItinerary) && (
-          <Button
-            variant="outline"
-            className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
-            onClick={() => setCancelModalOpen(true)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Modify Itinerary
-          </Button>
-        )}
+  <Button
+    variant="outline"
+    className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+    onClick={() => setCancelModalOpen(true)}
+  >
+    <Trash2 className="mr-2 h-4 w-4" />
+    Extend Trip
+  </Button>
+)}
 
         <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
