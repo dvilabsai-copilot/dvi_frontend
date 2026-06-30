@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 
+export type ChildDetail = {
+  age: number | "";
+  bedType: "Without Bed" | "With Bed";
+  hotelApprovalAccepted?: boolean;
+};
+
 export type RoomRow = {
   id: number;
   roomCount: number;
   adults: number;
   children: number;
   infants: number;
-  childrenDetails: {
-    age: number | "";
-    bedType: string;
-  }[];
+  childrenDetails: ChildDetail[];
 };
 
 export type TravellersResult = {
@@ -23,6 +26,7 @@ export type TravellersResult = {
     traveller_type: 1 | 2 | 3;
     traveller_age?: string;
     child_bed_type?: number;
+    child_extra_bed_hotel_approval_required?: number;
   }[];
 };
 
@@ -36,6 +40,45 @@ function mapChildBedTypeToApiValue(bedType: string | undefined): number {
   }
 
   return 0;
+}
+
+function isChildAgeFiveOrAbove(age: number | ""): boolean {
+  if (age === "") {
+    return true;
+  }
+
+  const numericAge = Number(age);
+  return Number.isFinite(numericAge) && numericAge >= 5;
+}
+
+export function getUnresolvedChildExtraBedOccupancyRooms(
+  rooms: RoomRow[]
+): number[] {
+  const unresolvedRoomIds: number[] = [];
+
+  for (const room of rooms || []) {
+    const eligibleChildren = (room.childrenDetails || [])
+      .map((child, index) => ({ child, index }))
+      .filter(({ child }) => isChildAgeFiveOrAbove(child.age));
+
+    if (eligibleChildren.length < 2) {
+      continue;
+    }
+
+    const hasUnresolvedSecondChild = eligibleChildren
+      .slice(1)
+      .some(({ child }) => {
+        const hasExtraBed = child.bedType === "With Bed";
+        const hasHotelApproval = child.hotelApprovalAccepted === true;
+        return !hasExtraBed && !hasHotelApproval;
+      });
+
+    if (hasUnresolvedSecondChild) {
+      unresolvedRoomIds.push(room.id);
+    }
+  }
+
+  return unresolvedRoomIds;
 }
 
 export function useRoomsAndTravellers() {
@@ -87,33 +130,33 @@ export function useRoomsAndTravellers() {
       totalChildren += children;
       totalInfants += infants;
 
-      // Adults
       for (let i = 0; i < adults; i++) {
         travellerRows.push({
           room_id: room.id,
-          traveller_type: 1, // Adult
+          traveller_type: 1,
         });
       }
 
-      // Children
       for (let i = 0; i < children; i++) {
         const childInfo = room.childrenDetails?.[i];
+
         travellerRows.push({
           room_id: room.id,
-          traveller_type: 2, // Child
+          traveller_type: 2,
           traveller_age:
             childInfo && childInfo.age !== ""
               ? String(childInfo.age)
               : undefined,
           child_bed_type: mapChildBedTypeToApiValue(childInfo?.bedType),
+          child_extra_bed_hotel_approval_required:
+            childInfo?.hotelApprovalAccepted === true ? 1 : 0,
         });
       }
 
-      // Infants
       for (let i = 0; i < infants; i++) {
         travellerRows.push({
           room_id: room.id,
-          traveller_type: 3, // Infant
+          traveller_type: 3,
         });
       }
     }
