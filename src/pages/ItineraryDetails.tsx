@@ -198,6 +198,9 @@ type AvailableHotspot = {
   hotspotPriority?: number;
   hotspot_priority?: number;
   cityContext?: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN';
+  routeHotspotId?: number | null;
+  planOwnWay?: boolean;
+  isManual?: boolean;
 };
 
 type ItineraryDay = {
@@ -927,6 +930,121 @@ const formatPreviewDuration = (value: any): string => {
   return raw;
 };
 
+const normalizeConfirmedTimelineToSegments = (
+  rows: any[],
+  context?: {
+    existingSegments?: ItinerarySegment[];
+    availableHotspots?: AvailableHotspot[];
+  },
+): ItinerarySegment[] => {
+  if (!Array.isArray(rows)) return [];
+
+  return rows
+    .map((row: any): ItinerarySegment | null => {
+      const type = String(row?.type || '').toLowerCase();
+      const itemType = Number(row?.item_type || 0);
+
+      if (type === 'start' || type === 'refreshment' || itemType === 1) {
+        return {
+          type: 'start',
+          title: String(row?.text || row?.title || 'Start Your Day'),
+          timeRange: String(row?.timeRange || ''),
+        };
+      }
+
+      if (type === 'travel' || itemType === 3 || itemType === 5) {
+        return {
+          type: 'travel',
+          from: String(row?.from || row?.fromName || row?.displayFromName || ''),
+          to: String(row?.to || row?.toName || row?.displayToName || row?.text || ''),
+          timeRange: String(row?.timeRange || ''),
+          distance: String(row?.distance || row?.hotspot_travelling_distance || ''),
+          duration: String(row?.duration || ''),
+          isConflict: row?.isConflict === true,
+          conflictReason: row?.conflictReason || null,
+        };
+      }
+
+      if (type === 'attraction' || itemType === 4) {
+        const hotspotId = Number(row?.hotspotId || row?.hotspot_ID || row?.locationId || 0) || 0;
+        const existingSegment = (context?.existingSegments || []).find((seg: any) => {
+          if (String(seg?.type || '').toLowerCase() !== 'attraction') return false;
+          return Number(seg?.hotspotId ?? seg?.locationId ?? 0) === hotspotId;
+        }) as AttractionSegment | undefined;
+        const availableHotspot = (context?.availableHotspots || []).find((hotspot) => (
+          Number(hotspot.id || 0) === hotspotId
+        ));
+
+        return {
+          type: 'attraction',
+          name: String(
+            row?.name ||
+            row?.hotspot_name ||
+            row?.text ||
+            existingSegment?.name ||
+            availableHotspot?.name ||
+            '',
+          ),
+          description: String(
+            row?.description ||
+            row?.hotspot_description ||
+            row?.hotspotDescription ||
+            existingSegment?.description ||
+            availableHotspot?.description ||
+            '',
+          ),
+          visitTime: String(row?.visitTime || row?.timeRange || ''),
+          duration: formatPreviewDuration(
+            row?.duration ||
+            row?.hotspot_traveling_time ||
+            availableHotspot?.timeSpend ||
+            '',
+          ),
+          priority: Number(
+            row?.priority ||
+            row?.hotspot_priority ||
+            availableHotspot?.priority ||
+            availableHotspot?.hotspotPriority ||
+            0,
+          ) || undefined,
+          amount: Number(row?.amount || row?.hotspot_amout || availableHotspot?.amount || 0) || null,
+          timings: String(row?.timings || availableHotspot?.timings || ''),
+          image: row?.image || existingSegment?.image || availableHotspot?.image || null,
+          galleryImages: Array.isArray(row?.galleryImages)
+            ? row.galleryImages
+            : (Array.isArray(existingSegment?.galleryImages)
+              ? existingSegment.galleryImages
+              : (Array.isArray(availableHotspot?.galleryImages) ? availableHotspot.galleryImages : [])),
+          videoUrl: row?.videoUrl || existingSegment?.videoUrl || availableHotspot?.videoUrl || null,
+          planOwnWay: row?.planOwnWay === true || row?.isManual === true || existingSegment?.planOwnWay === true,
+          isManual: row?.isManual === true || row?.planOwnWay === true || existingSegment?.isManual === true,
+          hotspotId: hotspotId || undefined,
+          routeHotspotId: Number(
+            row?.routeHotspotId ||
+            row?.route_hotspot_ID ||
+            existingSegment?.routeHotspotId ||
+            0,
+          ) || undefined,
+          locationId: hotspotId || null,
+          isConflict: row?.isConflict === true,
+          conflictReason: row?.conflictReason || null,
+        };
+      }
+
+      if (type === 'hotel' || type === 'checkin' || itemType === 6) {
+        return {
+          type: 'checkin',
+          hotelName: String(row?.hotelName || row?.text || 'Hotel'),
+          hotelAddress: String(row?.hotelAddress || ''),
+          time: String(row?.time || row?.timeRange || ''),
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean) as ItinerarySegment[];
+};
+
 const formatMinutesDuration = (minutes: number): string => {
   const safeMinutes = Math.max(0, Math.round(minutes));
   const hours = Math.floor(safeMinutes / 60);
@@ -1337,6 +1455,10 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     () => itinerary?.days?.find((day) => Number(day.id) === Number(addHotspotModal.routeId || 0)) || null,
     [addHotspotModal.routeId, itinerary?.days],
   );
+
+  const isFitHereSelectionMode =
+    addHotspotModal.open &&
+    selectedHotspotAnchor != null;
 
   const getFitHereSegmentLabel = useCallback((segment: ItinerarySegment | any): string => {
     if (!segment) return 'Timeline row';
@@ -3281,6 +3403,55 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return ids;
   }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds, addedInModalHotspotIds]);
 
+  const currentRouteManualHotspotMetaById = useMemo(() => {
+    const map = new Map<number, {
+      hotspotId: number;
+      routeHotspotId: number | null;
+      isManual: boolean;
+    }>();
+
+    const routeId = Number(addHotspotModal.routeId || 0);
+    const day = itinerary?.days?.find((d) => Number(d.id) === routeId) || null;
+    const excludedSet = new Set(excludedHotspotIds.map(Number));
+
+    for (const seg of day?.segments || []) {
+      const routeSeg = seg as any;
+
+      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
+
+      const hotspotId = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
+      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
+      if (excludedSet.has(hotspotId)) continue;
+
+      const isDeleted =
+        routeSeg?.isDeleted === true ||
+        routeSeg?.deleted === true ||
+        routeSeg?.isExcluded === true ||
+        routeSeg?.excluded === true ||
+        routeSeg?.removed === true ||
+        routeSeg?.deletedAt != null ||
+        routeSeg?.deleted_at != null ||
+        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
+        String(routeSeg?.status || '').toLowerCase() === 'excluded';
+
+      if (isDeleted) continue;
+
+      const isManual =
+        routeSeg?.planOwnWay === true ||
+        routeSeg?.isManual === true;
+
+      if (!isManual) continue;
+
+      map.set(hotspotId, {
+        hotspotId,
+        routeHotspotId: Number(routeSeg?.routeHotspotId || 0) || null,
+        isManual: true,
+      });
+    }
+
+    return map;
+  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
+
   const isCurrentPreviewAlreadyAdded = useMemo(() => {
     const id = Number(activePreviewHotspotId || 0);
     if (!id) return false;
@@ -3326,9 +3497,26 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
         };
       }
 
+      const manualMeta = currentRouteManualHotspotMetaById.get(hotspotId) || null;
+
+      if (isActuallyActive) {
+        return {
+          ...hotspot,
+          alreadyAdded: true,
+          visitAgain: true,
+          availabilityStatus: 'ACTIVE_THIS_ROUTE',
+          availabilityReason: 'Hotspot is already active on this route.',
+          actionDisabled: true,
+          buttonLabel: 'Added',
+          routeHotspotId: Number(hotspot.routeHotspotId || manualMeta?.routeHotspotId || 0) || null,
+          planOwnWay: hotspot.planOwnWay === true || manualMeta?.isManual === true,
+          isManual: hotspot.isManual === true || manualMeta?.isManual === true,
+        };
+      }
+
       return hotspot;
     });
-  }, [excludedHotspotIds, currentRouteAttractionHotspotIds]);
+  }, [excludedHotspotIds, currentRouteAttractionHotspotIds, currentRouteManualHotspotMetaById]);
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
@@ -3385,11 +3573,17 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       };
 
       const isAddedInCurrentRoute = (h: AvailableHotspot): boolean => {
+        const hotspotId = Number(h?.id || 0);
         const deletedFromTimeline = isDeletedFromTimeline(h);
         const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
         return (
           !deletedFromTimeline
-          && (h.alreadyAdded === true || backendStatus === 'ACTIVE_THIS_ROUTE')
+          && (
+            currentRouteAttractionHotspotIds.has(hotspotId)
+            || addedInModalHotspotIds.has(hotspotId)
+            || h.alreadyAdded === true
+            || backendStatus === 'ACTIVE_THIS_ROUTE'
+          )
         );
       };
 
@@ -3405,7 +3599,16 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       const getSortRank = (h: AvailableHotspot): number => {
         if (canPreview(h)) return 1; // Group 1: Previewable (available to add)
         const added = isAddedInCurrentRoute(h);
-        if (added && currentRouteManualHotspotIds.has(h.id)) return 2; // Group 2: Manually added on this route
+        const hotspotId = Number(h.id || 0);
+        if (
+          added &&
+          (
+            currentRouteManualHotspotIds.has(hotspotId) ||
+            addedInModalHotspotIds.has(hotspotId) ||
+            h.isManual === true ||
+            h.planOwnWay === true
+          )
+        ) return 2; // Group 2: Manually added on this route
         return 3; // Group 3: Closed or Auto-added / Prebuilt
       };
 
@@ -3512,6 +3715,12 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
   }, [filteredHotspots, deriveHotspotCityContext]);
 
   const hotspotCityTabs = useMemo(() => {
+    const formatCityLabel = (value: unknown, fallback: string) => {
+      const raw = String(value || '').trim();
+      if (!raw) return fallback;
+      return raw.charAt(0).toUpperCase() + raw.slice(1);
+    };
+
     if (!routeIsDifferentCity) {
       return [{
         key: 'ALL' as const,
@@ -3520,30 +3729,27 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       }];
     }
 
-    const formatCityLabel = (value: unknown, fallback: string) => {
-      const raw = String(value || '').trim();
-      if (!raw) return fallback;
-      return raw.charAt(0).toUpperCase() + raw.slice(1);
-    };
-
-    const sourceLabel = `${formatCityLabel(hotspotFilterMeta?.sourceCityKey, 'Source')} Hotspots`;
-    const destinationLabel = `${formatCityLabel(hotspotFilterMeta?.destinationCityKey || destinationCityLabel, 'Destination')} Hotspots`;
-    const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [];
-
-    if (hotspotCityBuckets.source.length > 0) {
-      tabs.push({
+    const sourceLabel = `${formatCityLabel(
+      hotspotFilterMeta?.sourceCityKey || addHotspotModal.locationName,
+      'Source',
+    )} Hotspots`;
+    const destinationLabel = `${formatCityLabel(
+      hotspotFilterMeta?.destinationCityKey || destinationCityLabel,
+      'Destination',
+    )} Hotspots`;
+    const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [
+      {
         key: 'SOURCE_CITY',
         label: sourceLabel,
         count: hotspotCityBuckets.source.length,
-      });
-    }
-    if (hotspotCityBuckets.destination.length > 0) {
-      tabs.push({
+      },
+      {
         key: 'DESTINATION_CITY',
         label: destinationLabel,
         count: hotspotCityBuckets.destination.length,
-      });
-    }
+      },
+    ];
+
     if (hotspotCityBuckets.other.length > 0) {
       tabs.push({
         key: 'UNKNOWN',
@@ -3558,6 +3764,7 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     filteredHotspots.length,
     hotspotFilterMeta?.sourceCityKey,
     hotspotFilterMeta?.destinationCityKey,
+    addHotspotModal.locationName,
     destinationCityLabel,
     hotspotCityBuckets,
   ]);
@@ -7666,8 +7873,89 @@ if (switchedRouteRef.current === quoteId) {
           ItineraryService.getDetails(quoteId),
           shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
+        const refreshedDetails = detailsRes as ItineraryDetailsResponse;
+        setItinerary(refreshedDetails);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+
+        if (addHotspotModal.open && confirmedRouteId > 0) {
+          try {
+            const refreshedRoute = refreshedDetails?.days?.find(
+              (day: any) => Number(day?.id || 0) === confirmedRouteId,
+            );
+
+            const refreshedActiveIds = new Set<number>(
+              (Array.isArray((refreshedRoute as any)?.segments)
+                ? (refreshedRoute as any).segments
+                : []
+              )
+                .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
+                .filter((seg: any) => {
+                  const deletedLike =
+                    seg?.isDeleted === true ||
+                    seg?.deleted === true ||
+                    seg?.isExcluded === true ||
+                    seg?.excluded === true ||
+                    seg?.removed === true ||
+                    seg?.deletedAt != null ||
+                    seg?.deleted_at != null ||
+                    String(seg?.status || '').toLowerCase() === 'deleted' ||
+                    String(seg?.status || '').toLowerCase() === 'excluded';
+
+                  return !deletedLike;
+                })
+                .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+                .filter((id: number) => Number.isFinite(id) && id > 0),
+            );
+
+            const refreshedExcludedIds: number[] = Array.isArray((refreshedRoute as any)?.excluded_hotspot_ids)
+              ? (refreshedRoute as any).excluded_hotspot_ids.map(Number)
+              : [];
+
+            const hotspotResponse = selectedHotspotAnchor
+              ? await ItineraryService.getAvailableHotspotsForAnchor({
+                  planId,
+                  routeId: confirmedRouteId,
+                  anchorType: selectedHotspotAnchor.anchorType,
+                  anchorIndex: Number(selectedHotspotAnchor.anchorIndex),
+                })
+              : await ItineraryService.getAvailableHotspots(confirmedRouteId);
+
+            const refreshedHotspots = Array.isArray(hotspotResponse)
+              ? hotspotResponse
+              : (Array.isArray((hotspotResponse as any)?.hotspots)
+                ? (hotspotResponse as any).hotspots
+                : []);
+
+            const responseFilterMeta = Array.isArray(hotspotResponse)
+              ? null
+              : ((hotspotResponse as any)?.hotspotFilterMeta || null);
+
+            const routeSourceName = String((refreshedRoute as any)?.departure || '').trim();
+            const routeDestinationName = String((refreshedRoute as any)?.arrival || '').trim();
+            const anchorFromName = String(selectedHotspotAnchor?.anchorFrom || '').trim();
+            const anchorToName = String(selectedHotspotAnchor?.anchorTo || '').trim();
+
+            const routePairFilteredHotspots = filterAvailableHotspotsForAnchor(
+              refreshedHotspots as AvailableHotspot[],
+              routeSourceName,
+              routeDestinationName,
+              anchorFromName,
+              anchorToName,
+            );
+
+            setHotspotFilterMeta(responseFilterMeta);
+            setExcludedHotspotIds(refreshedExcludedIds);
+            setAvailableHotspots(
+              normalizeAvailableHotspots(routePairFilteredHotspots, {
+                routeId: confirmedRouteId,
+                excludedIds: refreshedExcludedIds,
+                activeIds: refreshedActiveIds,
+              }),
+            );
+          } catch (refreshError) {
+            console.warn('[FitHereConfirm] Modal hotspot refresh failed after confirm', refreshError);
+          }
+        }
       }
     } catch (e: any) {
       console.error("Failed to delete hotspot", e);
@@ -8811,8 +9099,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           beforeRouteHotspotId: anchor.beforeRouteHotspotId,
           isBeforeHotel: false,
         },
-        allowP3Removal: false,
-        allowP1P2Removal: false,
+        allowP3Removal: true,
+        allowP1P2Removal: true,
       };
       console.log("[FitHere] clicked anchor", previewPayload);
 
@@ -8891,9 +9179,63 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     void handleFitHereClick(retryPayload.day, retryPayload.anchor);
   };
 
-  const handleConfirmFitHere = async () => {
+  const isRetryableFitHereConfirmError = (error: any): boolean => {
+    const message = String(error?.message || "");
+    return (
+      message.includes("Fit Here preview attempt was not found")
+      || (message.includes("404") && message.includes("/manual-hotspot/fit-confirm"))
+      || (
+        message.includes("/manual-hotspot/fit-confirm")
+        && message.includes("409")
+        && (
+          message.includes("Timeline changed after preview")
+          || message.includes("cannot be confirmed as a clean fit")
+          || message.includes("Fit Here confirm was rejected")
+          || message.includes("MANUAL_INSERT_")
+          || message.includes("MATRIX_SAFE_")
+        )
+      )
+    );
+  };
+
+  const handleConfirmFitHere = async (
+    options?: {
+      allowClosedHotspotConflict?: boolean;
+      allowTimingRisk?: boolean;
+      acknowledgedRemovedHotspotIds?: number[];
+    },
+  ) => {
     const attemptId = fitHereModal.attempt?.attemptId;
     const planId = Number(itinerary?.planId || 0);
+    const selectedAttempt = fitHereModal.attempt;
+    const confirmRemovedRows = [
+      ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
+      ...(Array.isArray(selectedAttempt?.resolution?.removedHotspots) ? selectedAttempt.resolution.removedHotspots : []),
+      ...(Array.isArray(selectedAttempt?.resolution?.removedOptionalHotspots) ? selectedAttempt.resolution.removedOptionalHotspots : []),
+      ...(Array.isArray(selectedAttempt?.resolution?.removedTopPriorityHotspots) ? selectedAttempt.resolution.removedTopPriorityHotspots : []),
+    ];
+    const acknowledgedRemovedHotspotIds = Array.from(new Set(
+      (Array.isArray(options?.acknowledgedRemovedHotspotIds) ? options?.acknowledgedRemovedHotspotIds : [])
+        .map((id: any) => Number(id))
+        .filter((id: number) => id > 0),
+    ));
+    const hasTimingRisk =
+      selectedAttempt?.timingRisk?.type === 'PARTIAL_STAY_AFTER_CLOSING'
+      || selectedAttempt?.requiresTimingRiskConfirmation === true;
+    const hasPriorityRemoval = acknowledgedRemovedHotspotIds.length > 0;
+    const hasP3Removal = confirmRemovedRows.some((row: any) => {
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      return priority === 3;
+    });
+    const hasP1P2Removal = confirmRemovedRows.some((row: any) => {
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      return priority === 1 || priority === 2;
+    });
+    const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row: any) => {
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      const reasonCode = String(row?.removalReasonCode || '').toUpperCase();
+      return (priority === 1 || priority === 2) && reasonCode === 'UNPROVEN_REMOVAL';
+    });
 
     if (!attemptId) {
       toast.error('Preview attempt is missing.');
@@ -8903,12 +9245,172 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       toast.error('Plan ID missing.');
       return;
     }
+    if (hasUnprovenProtectedRemoval) {
+      toast.error('This preview removes a protected hotspot without proven route-feasibility evidence. Please recalculate before confirming.');
+      return;
+    }
+    if (hasP3Removal && selectedAttempt?.removalPolicy?.allowP3Removal !== true) {
+      toast.error('This preview removes a Priority 3 hotspot without approval. Please recalculate with P3 removal allowed.');
+      return;
+    }
+    if (hasP1P2Removal && selectedAttempt?.removalPolicy?.allowP1P2Removal !== true) {
+      toast.error('This preview removes a Priority 1 / Priority 2 hotspot without approval. Please recalculate with protected removal allowed.');
+      return;
+    }
 
     setConfirmFitHereLoading(true);
     stopFitHereProgressTimer();
     try {
-      await ItineraryService.confirmManualHotspotFitHere(planId, { attemptId });
+      const confirmResult: any = await ItineraryService.confirmManualHotspotFitHere(planId, {
+        attemptId,
+        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk,
+        allowClosedHotspotConflict: options?.allowClosedHotspotConflict === true,
+        allowPriorityRemoval:
+          selectedAttempt?.requiresPriorityRemovalConfirmation === true ||
+          selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true ||
+          acknowledgedRemovedHotspotIds.length > 0,
+        acknowledgedRemovedHotspotIds,
+      });
+      const confirmedHotspotId = Number(
+        confirmResult?.selectedHotspotId
+        || selectedAttempt?.selectedHotspotId
+        || selectedFitHotspot?.id
+        || 0,
+      );
+      const confirmedRouteId = Number(
+        confirmResult?.routeId
+        || selectedAttempt?.routeId
+        || addHotspotModal.routeId
+        || 0,
+      );
+      const persistedTimeline = Array.isArray(confirmResult?.routeTimeline)
+        ? confirmResult.routeTimeline
+        : (Array.isArray(confirmResult?.fullTimeline) ? confirmResult.fullTimeline : []);
+      const insertedTimelineRow = persistedTimeline.find((row: any) => (
+        String(row?.type || '').toLowerCase() === 'attraction'
+        && Number(row?.hotspotId ?? row?.locationId ?? 0) === confirmedHotspotId
+        && (row?.planOwnWay === true || row?.isManual === true)
+      ));
+      const backendScheduledManualHotspot = Array.isArray(confirmResult?.resolution?.scheduledManualHotspots)
+        ? confirmResult.resolution.scheduledManualHotspots.find((row: any) =>
+            Number(row?.hotspotId || row?.id || 0) === confirmedHotspotId
+          )
+        : null;
+
+      const insertedRouteHotspotId = Number(
+        confirmResult?.routeHotspotId
+        || backendScheduledManualHotspot?.routeHotspotId
+        || insertedTimelineRow?.routeHotspotId
+        || 0,
+      ) || null;
+      const removedRows = [
+        ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
+        ...(Array.isArray(confirmResult?.removedHotspots) ? confirmResult.removedHotspots : []),
+        ...(Array.isArray(confirmResult?.resolution?.removedHotspots) ? confirmResult.resolution.removedHotspots : []),
+        ...(Array.isArray(confirmResult?.resolution?.removedOptionalHotspots) ? confirmResult.resolution.removedOptionalHotspots : []),
+        ...(Array.isArray(confirmResult?.resolution?.removedTopPriorityHotspots) ? confirmResult.resolution.removedTopPriorityHotspots : []),
+      ];
+      const removedHotspotIds = Array.from(new Set(
+        removedRows
+          .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || 0))
+          .filter((id: number) => id > 0),
+      ));
+
+      if (confirmedHotspotId > 0) {
+        setAddedInModalHotspotIds((prev) => {
+          const next = new Set(prev);
+          next.add(confirmedHotspotId);
+          for (const removedId of removedHotspotIds) {
+            next.delete(removedId);
+          }
+          return next;
+        });
+      }
+
+      setExcludedHotspotIds((prev) => {
+        const next = new Set(prev.map(Number).filter((id: number) => id > 0));
+        for (const removedId of removedHotspotIds) {
+          next.add(removedId);
+        }
+        if (confirmedHotspotId > 0) {
+          next.delete(confirmedHotspotId);
+        }
+        return Array.from(next);
+      });
+
+      setAvailableHotspots((prev) => prev.map((row) => {
+        const rowId = Number(row?.id || 0);
+
+        if (confirmedHotspotId > 0 && rowId === confirmedHotspotId) {
+          return {
+            ...row,
+            alreadyAdded: true,
+            visitAgain: true,
+            availabilityStatus: 'ACTIVE_THIS_ROUTE',
+            availabilityReason: 'Hotspot is already active on this route.',
+            actionDisabled: true,
+            buttonLabel: 'Added',
+            routeHotspotId: insertedRouteHotspotId ?? row.routeHotspotId ?? null,
+            planOwnWay: true,
+            isManual: true,
+          };
+        }
+
+        if (removedHotspotIds.includes(rowId)) {
+          return {
+            ...row,
+            alreadyAdded: false,
+            visitAgain: false,
+            availabilityStatus: 'EXCLUDED_BY_ROUTE',
+            availabilityReason: 'Hotspot is currently excluded for this route.',
+            actionDisabled: false,
+            buttonLabel: 'Preview',
+            routeHotspotId: null,
+            planOwnWay: false,
+            isManual: false,
+          };
+        }
+
+        return row;
+      }));
+
+      const existingConfirmedRoute = itinerary?.days?.find(
+        (day) => Number(day.id) === Number(confirmedRouteId),
+      );
+
+      const confirmedSegments = normalizeConfirmedTimelineToSegments(persistedTimeline, {
+        existingSegments: existingConfirmedRoute?.segments || [],
+        availableHotspots,
+      });
+
+      if (confirmedRouteId > 0 && persistedTimeline.length > 0) {
+        setItinerary((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            days: prev.days.map((day) => (
+              Number(day.id) !== confirmedRouteId
+                ? day
+                : {
+                    ...day,
+                    segments: confirmedSegments.length > 0 ? confirmedSegments : day.segments,
+                  }
+            )),
+          };
+        });
+        setRouteNeedsRebuild(confirmedRouteId);
+      }
+
       toast.success('Hotspot inserted successfully. Timeline updated.');
+      setSelectedFitHotspot(null);
+      setActivePreviewHotspotId(null);
+      setSelectedHotspotIds([]);
+      setManualPreviewState(null);
+      setPreviewTimelinesByHotspot({});
+      setPreviewResolutionsByHotspot({});
+      setGroupPreviewTimeline([]);
+      setGroupPreviewResolution(null);
+      setTempModalTimeline([]);
       setFitHereModal({
         open: false,
         loading: false,
@@ -8925,10 +9427,33 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           ItineraryService.getDetails(quoteId),
           shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
         ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
+        const refreshedDetails = detailsRes as ItineraryDetailsResponse;
+        const mergedDetails: ItineraryDetailsResponse = {
+          ...refreshedDetails,
+          days: (refreshedDetails.days || []).map((day) => {
+            if (Number(day.id) !== Number(confirmedRouteId)) {
+              return day;
+            }
+
+            return {
+              ...day,
+              segments: confirmedSegments.length > 0 ? confirmedSegments : day.segments,
+            };
+          }),
+        };
+
+        setItinerary(mergedDetails);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
     } catch (error: any) {
+      if (isRetryableFitHereConfirmError(error)) {
+        const retryPayload = fitHereModal.retryPayload;
+        if (retryPayload) {
+          toast.error('This preview changed on the server. Recalculating the latest Fit Here preview now.');
+          await handleFitHereClick(retryPayload.day, retryPayload.anchor);
+          return;
+        }
+      }
       toast.error(error?.message || 'Could not confirm Fit Here insertion.');
     } finally {
       stopFitHereProgressTimer();
@@ -9176,6 +9701,11 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
 
     if (!addHotspotModal.planId || !addHotspotModal.routeId) {
+      return;
+    }
+
+    if (selectedHotspotAnchor) {
+      toast.error('Please use the Fit Here button on the timeline to add this hotspot at an exact position.');
       return;
     }
 
@@ -11521,6 +12051,13 @@ const hotelTimelineLoading = Boolean(
 {displayDays.map((day) => {
   const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
   const guestFoodPreferenceText = getGuestFoodPreferenceText(itinerary, day);
+  const dayHasManualOverride = day.segments.some((segment) => (
+    String(segment?.type || '').toLowerCase() === 'attraction'
+    && (
+      (segment as AttractionSegment).planOwnWay === true
+      || (segment as AttractionSegment).isManual === true
+    )
+  ));
 
   const addHotspotCta = day.segments.find(
     (segment): segment is HotspotSegment => segment.type === "hotspot"
@@ -11572,7 +12109,7 @@ const currentGuideAssignment =
   DAY {day.dayNumber} - {formatHeaderDate(day.date)}
 </h3>
 
-{(routeNeedsRebuild === day.id || (day as any).needsRebuild === true) && (
+{(routeNeedsRebuild === day.id || (day as any).needsRebuild === true || dayHasManualOverride) && (
             <Button
               size="sm"
               variant="outline"
@@ -13394,6 +13931,22 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           (seg: any) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
                         );
                         const isLoadingThis = isPreviewingHotspotId === hotspot.id;
+                        const manualMeta = currentRouteManualHotspotMetaById.get(hotspotId) || null;
+                        const resolvedRouteHotspotId = Number(
+                          (hotspot as any).routeHotspotId ||
+                          manualMeta?.routeHotspotId ||
+                          0,
+                        );
+                        const isManualAddedOnCurrentRoute =
+                          isAdded &&
+                          (
+                            currentRouteManualHotspotIds.has(hotspotId) ||
+                            addedInModalHotspotIds.has(hotspotId) ||
+                            hotspot.isManual === true ||
+                            hotspot.planOwnWay === true ||
+                            manualMeta?.isManual === true
+                          ) &&
+                          resolvedRouteHotspotId > 0;
 
                         return (
                           <div
@@ -13482,51 +14035,80 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                       </div>
                                     </div>
                                     <div className="flex gap-2 shrink-0">
-                                      <Button
-                                        size="sm"
-                                        variant={isSelected ? "default" : "outline"}
-                                        className={isSelected
-                                          ? "bg-emerald-700 text-white hover:bg-emerald-800 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
-                                          : "border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100 disabled:cursor-not-allowed"
-                                        }
-                                        onClick={() => {
-                                          if (isActionDisabled || isClosedTiming) return;
-                                          handleSelectFitHotspot(hotspot);
-                                        }}
-                                        disabled={isLoadingThis || isActionDisabled || isBuildingMatrix || isApplyingPreviewHotspot || isClosedTiming}
-                                      >
-                                        {isLoadingThis ? (
-                                          <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            Previewing...
-                                          </>
-                                        ) : isClosedTiming ? (
-                                          'Closed'
-                                        ) : isAdded ? (
-                                          'Added'
-                                        ) : (
-                                          isSelected ? 'Selected' : 'Preview'
-                                        )}
-                                      </Button>
-                                      {isAdded && currentRouteManualHotspotIds.has(hotspot.id) && (
+                                      {isManualAddedOnCurrentRoute ? (
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                            disabled
+                                          >
+                                            Added
+                                          </Button>
+
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                            onClick={() => {
+                                              if (!(resolvedRouteHotspotId > 0)) {
+                                                toast.error('Could not find the route hotspot row ID. Please refresh and try again.');
+                                                return;
+                                              }
+
+                                              openDeleteHotspotModal(
+                                                addHotspotModal.planId || itinerary?.planId || 0,
+                                                addHotspotModal.routeId || 0,
+                                                resolvedRouteHotspotId,
+                                                hotspotId,
+                                                hotspot.name,
+                                                true,
+                                              );
+                                            }}
+                                          >
+                                            <Trash2 className="mr-1 h-4 w-4" />
+                                            Delete
+                                          </Button>
+                                        </div>
+                                      ) : isAdded ? (
                                         <Button
+                                          type="button"
+                                          variant="outline"
                                           size="sm"
-                                          variant="ghost"
-                                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                          onClick={() =>
-                                            openDeleteHotspotModal(
-                                              addHotspotModal.planId || itinerary?.planId || 0,
-                                              addHotspotModal.routeId || 0,
-                                              (hotspot as any).routeHotspotId || hotspot.id,
-                                              hotspot.id,
-                                              hotspot.name,
-                                              true // isManualHotspot = true
-                                            )
-                                          }
-                                          disabled={isLoadingThis}
+                                          className="border-slate-200 bg-slate-100 text-slate-500"
+                                          disabled
                                         >
-                                          <Trash2 className="h-4 w-4 mr-1" />
-                                          Delete
+                                          Added
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot}
+                                          onClick={() => {
+                                            if (isFitHereSelectionMode) {
+                                              setSelectedFitHotspot(hotspot);
+                                              setActivePreviewHotspotId(hotspot.id);
+                                              setSelectedHotspotIds([hotspot.id]);
+                                              resetManualHotspotPreviewStateButKeepActiveHotspot(hotspot.id);
+                                              toast.info('Now choose the exact Fit Here position from the timeline on the right.');
+                                              return;
+                                            }
+
+                                            handlePreviewHotspot(hotspot.id);
+                                          }}
+                                          className="bg-[#d546ab] hover:bg-[#c03d9f] text-white"
+                                        >
+                                          {isLoadingThis ? (
+                                            <>
+                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                              Previewing
+                                            </>
+                                          ) : (
+                                            hotspot.buttonLabel || 'Preview'
+                                          )}
                                         </Button>
                                       )}
                                     </div>
@@ -13642,7 +14224,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                     </div>
                   </div>
                 )}
-                {(activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (
+                {!isFitHereSelectionMode && (activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (
                   <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
                     <p className="text-xs text-[#6c6c6c]">
                       {backendForceConflictState.selectedStrategyLabel
@@ -15015,6 +15597,16 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           const effectiveDecisionBlocked = confirmActionConfig.disabled && !forceConflictMode;
                           const blockForValidation =
                             activePreviewValidation?.readyToApply === false && !forceConflictMode;
+                          if (isFitHereSelectionMode) {
+                            return (
+                              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                                <p className="font-bold">Choose exact position</p>
+                                <p className="mt-1">
+                                  Click a <b>Fit Here</b> button in the timeline above. We will calculate and confirm that exact position.
+                                </p>
+                              </div>
+                            );
+                          }
                           return (
                         <Button
                           className={`w-full text-white shadow-lg ${
@@ -16842,6 +17434,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
         failedReason={fitHereModal.failedReason}
         attempt={fitHereModal.attempt}
         selectedHotspot={selectedFitHotspot}
+        baseTimeline={selectedFitHereDay?.segments || []}
         onClose={handleFitHereCancel}
         onConfirm={handleConfirmFitHere}
         onRetry={handleRetryFitHere}
