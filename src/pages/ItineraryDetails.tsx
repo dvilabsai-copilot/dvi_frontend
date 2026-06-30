@@ -16004,7 +16004,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
                 <p className="text-xs text-amber-700 mt-1">
-                  Child and infant details entered below are sent in the final booking API payload. Review names, ages, and nationality before confirming.
+                  Please review the child and infant details below before confirming the booking.
                 </p>
               </div>
             )}
