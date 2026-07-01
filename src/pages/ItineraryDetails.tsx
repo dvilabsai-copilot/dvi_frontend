@@ -3629,12 +3629,14 @@ const [guideModal, setGuideModal] = useState<{
         const hotspotId = Number(h?.id || 0);
         const deletedFromTimeline = isDeletedFromTimeline(h);
         const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
+        const isAddedOnOtherRoute =
+          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
         return (
           !deletedFromTimeline
           && (
             currentRouteAttractionHotspotIds.has(hotspotId)
             || addedInModalHotspotIds.has(hotspotId)
-            || h.alreadyAdded === true
+            || (h.alreadyAdded === true && !isAddedOnOtherRoute)
             || backendStatus === 'ACTIVE_THIS_ROUTE'
           )
         );
@@ -3643,7 +3645,10 @@ const [guideModal, setGuideModal] = useState<{
       const canPreview = (h: AvailableHotspot): boolean => {
         const deletedFromTimeline = isDeletedFromTimeline(h);
         const added = isAddedInCurrentRoute(h);
-        const disabled = added || (h.actionDisabled === true && !deletedFromTimeline);
+        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
+        const isAddedOnOtherRoute =
+          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
+        const disabled = added || (h.actionDisabled === true && !isAddedOnOtherRoute && !deletedFromTimeline);
         const timingText = String(h.timings || '').trim().toLowerCase();
         const closed = timingText.length === 0 || timingText === 'no timings available';
         return !disabled && !closed;
@@ -7096,10 +7101,10 @@ function getHotelAmountForBooking(entry: any): number {
     });
   };
 
-  const applyChildAgesToTemplate = (
-    template: Array<{ adults: number; children: number; childrenAges: number[] }>,
-    childAges: number[],
-  ): Array<{ adults: number; children: number; childrenAges: number[] }> => {
+const applyChildAgesToTemplate = (
+  template: Array<{ adults: number; children: number; childrenAges: number[] }>,
+  childAges: number[],
+): Array<{ adults: number; children: number; childrenAges: number[] }> => {
     const agesPool = [...childAges];
     return template.map((occ) => {
       const ages: number[] = [];
@@ -7114,6 +7119,7 @@ function getHotelAmountForBooking(entry: any): number {
       };
     });
   };
+
 
   function buildOccupancyPreview(
     roomCount: number,
@@ -13196,7 +13202,7 @@ const canShowGuideActionButton =
                                 </div>
                                 <div className="bg-red-500 text-white px-4 py-2 rounded-lg flex-1">
                                   <p className="text-sm font-medium m-0">
-                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route.
+                                    Manual override: This stop is included in your plan. Exact timing may shift from the optimized route. This stop is visiting again as requested.
                                   </p>
                                 </div>
                               </div>
@@ -14575,20 +14581,24 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                         const isActuallyInCurrentTimeline =
                           currentRouteAttractionHotspotIds.has(hotspotId) ||
                           addedInModalHotspotIds.has(hotspotId);
+                        const isAddedOnOtherRoute =
+                          hotspot.alreadyAddedOnOtherRoute === true
+                          || backendStatus === 'ACTIVE_OTHER_ROUTE';
                         const isAdded =
                           isActuallyInCurrentTimeline ||
                           (
                             !isDeletedFromTimeline &&
                             (
-                              hotspot.alreadyAdded === true ||
+                              (hotspot.alreadyAdded === true && !isAddedOnOtherRoute) ||
                               backendStatus === 'ACTIVE_THIS_ROUTE'
                             )
                           );
-                        const isAlsoOnOtherRoute = backendStatus === 'ACTIVE_OTHER_ROUTE';
+                        const isAlsoOnOtherRoute = isAddedOnOtherRoute;
                         const isActionDisabled =
                           isAdded ||
                           (
                             hotspot.actionDisabled === true &&
+                            !isAddedOnOtherRoute &&
                             !isDeletedFromTimeline
                           );
                         const timingText = String(hotspot.timings || '').trim().toLowerCase();

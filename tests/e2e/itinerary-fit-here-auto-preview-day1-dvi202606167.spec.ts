@@ -30,6 +30,10 @@ function getSegmentName(row: any): string {
   ).trim();
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function getRouteIdForDay(
   request: APIRequestContext,
   token: string,
@@ -158,6 +162,85 @@ async function resetItineraryBasicInfo(request: APIRequestContext, token: string
   expect(response.ok(), "Resetting itinerary basic info should succeed").toBeTruthy();
 }
 
+type VisitAgainCandidate = {
+  id: number;
+  name: string;
+  timings: string;
+  availabilityStatus: string;
+  actionDisabled: boolean;
+};
+
+async function fetchVisitAgainCandidatesForDay(
+  request: APIRequestContext,
+  token: string,
+  routeId: number,
+): Promise<VisitAgainCandidate[]> {
+  const response = await request.get(`${API_BASE_URL}/itineraries/hotspots/available/${routeId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  expect(response.ok(), `Fetching available hotspots for route ${routeId} should succeed`).toBeTruthy();
+
+  const rows = (await response.json().catch(() => [])) as any[];
+  return (Array.isArray(rows) ? rows : [])
+    .map((row: any) => ({
+      id: Number(row?.id || 0),
+      name: String(row?.name || "").trim(),
+      timings: String(row?.timings || "").trim(),
+      availabilityStatus: String(row?.availabilityStatus || "").trim().toUpperCase(),
+      actionDisabled: row?.actionDisabled === true,
+    }))
+    .filter((row) => (
+      row.id > 0
+      && row.name.length > 0
+      && row.availabilityStatus === "ACTIVE_OTHER_ROUTE"
+      && row.actionDisabled !== true
+      && row.timings.length > 0
+      && !/no timings available/i.test(row.timings)
+    ));
+}
+
+async function findVisitAgainCardByCandidates(
+  page: any,
+  candidates: VisitAgainCandidate[],
+): Promise<{
+  hotspotId: number;
+  hotspotName: string;
+  card: any;
+}> {
+  const searchInput = page.getByPlaceholder(/search hotspot/i).first();
+  await expect(searchInput).toBeVisible({ timeout: 30000 });
+
+  for (const candidate of candidates) {
+    await searchInput.fill("");
+    await searchInput.fill(candidate.name);
+
+    const card = page.locator(`[data-hotspot-id="${candidate.id}"]`).first();
+    const visible = await card.isVisible().catch(() => false);
+    if (!visible) continue;
+
+    const cardText = await card.innerText().catch(() => "");
+    if (!/visit again/i.test(cardText) && !/also used on another day/i.test(cardText)) continue;
+
+    const previewButton = card.getByRole("button", { name: /^preview$/i });
+    const autoPreviewButton = card.getByRole("button", { name: /auto-preview/i });
+    const previewVisible = await previewButton.isVisible().catch(() => false);
+    const autoVisible = await autoPreviewButton.isVisible().catch(() => false);
+    const previewEnabled = previewVisible && await previewButton.isEnabled().catch(() => false);
+    const autoEnabled = autoVisible && await autoPreviewButton.isEnabled().catch(() => false);
+
+    if (!previewEnabled || !autoEnabled) continue;
+
+    return {
+      hotspotId: candidate.id,
+      hotspotName: candidate.name,
+      card,
+    };
+  }
+
+  throw new Error("Could not find a Visit Again hotspot with enabled Preview and Auto-Preview buttons.");
+}
+
 async function confirmAutoPreviewHotspotBySearch(
   page: any,
   searchText: string,
@@ -221,6 +304,94 @@ async function confirmAutoPreviewHotspotBySearch(
 
   return { autoPreviewJson, confirmJson };
 }
+
+test("day 2 Visit Again hotspot enables both Auto-Preview and exact Preview popups", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(420000);
+
+  const appBaseUrl = baseURL ?? "http://localhost:8080";
+  const token = await seedAuthToken(page, request);
+
+  await resetItineraryBasicInfo(request, token);
+
+  try {
+    const dayTwoRouteId = await getRouteIdForDay(request, token, QUOTE_ID, 2);
+    const visitAgainCandidates = await fetchVisitAgainCandidatesForDay(request, token, dayTwoRouteId);
+
+    expect(
+      visitAgainCandidates.length,
+      "Day 2 should expose at least one ACTIVE_OTHER_ROUTE hotspot for this Visit Again flow",
+    ).toBeGreaterThan(0);
+
+    await page.goto(`${appBaseUrl}/itinerary-details/${encodeURIComponent(QUOTE_ID)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page).toHaveURL(new RegExp(`/itinerary-details/${QUOTE_ID}$`), {
+      timeout: 30000,
+    });
+
+    await openHotspotListForDay(page, 2);
+
+    const {
+      hotspotId: dayTwoHotspotId,
+      hotspotName: dayTwoHotspotName,
+      card: dayTwoCard,
+    } = await findVisitAgainCardByCandidates(page, visitAgainCandidates);
+
+    await expect(dayTwoCard).toContainText(/visit again/i);
+    await expect(dayTwoCard).toContainText(/also used on another day/i);
+
+    const dayTwoPreviewButton = dayTwoCard.getByRole("button", { name: /^preview$/i });
+    const dayTwoAutoPreviewButton = dayTwoCard.getByRole("button", { name: /auto-preview/i });
+    await expect(dayTwoPreviewButton, `${dayTwoHotspotName} Preview button should be enabled`).toBeEnabled({ timeout: 30000 });
+    await expect(dayTwoAutoPreviewButton, `${dayTwoHotspotName} Auto-Preview button should be enabled`).toBeEnabled({ timeout: 30000 });
+
+    const dayTwoAutoPreviewResponsePromise = page.waitForResponse(
+      (resp) =>
+        resp.request().method() === "POST" &&
+        resp.url().includes("/manual-hotspot/auto-fit-preview"),
+      { timeout: 120000 },
+    );
+
+    await dayTwoAutoPreviewButton.click();
+
+    const dayTwoAutoPreviewResponse = await dayTwoAutoPreviewResponsePromise;
+    expect(dayTwoAutoPreviewResponse.ok(), `${dayTwoHotspotName} Visit Again Auto-Preview should succeed`).toBeTruthy();
+
+    const dayTwoAutoDialog = page.getByTestId("auto-fit-here-preview-dialog");
+    await expect(dayTwoAutoDialog).toBeVisible({ timeout: 30000 });
+    await expect(dayTwoAutoDialog).toContainText(new RegExp(escapeRegExp(dayTwoHotspotName), "i"));
+    await dayTwoAutoDialog.getByRole("button", { name: /close auto-preview|close/i }).first().click();
+    await expect(dayTwoAutoDialog).toBeHidden({ timeout: 30000 });
+
+    const dayTwoExactPreviewResponsePromise = page.waitForResponse(
+      (resp) =>
+        resp.request().method() === "POST" &&
+        resp.url().includes("/manual-hotspot/fit-preview"),
+      { timeout: 120000 },
+    );
+
+    await dayTwoPreviewButton.click();
+    await expect(page.getByText(/selected for fit here/i)).toBeVisible({ timeout: 30000 });
+    const dayTwoFirstAnchor = page.locator('[data-testid="fit-here-anchor"]').first();
+    await expect(dayTwoFirstAnchor).toBeVisible({ timeout: 30000 });
+    await dayTwoFirstAnchor.getByRole("button", { name: /fit here/i }).click();
+
+    const dayTwoExactPreviewResponse = await dayTwoExactPreviewResponsePromise;
+    expect(dayTwoExactPreviewResponse.ok(), `${dayTwoHotspotName} Visit Again exact Preview should succeed`).toBeTruthy();
+
+    const dayTwoFitDialog = page.getByTestId("fit-here-preview-dialog");
+    await expect(dayTwoFitDialog).toBeVisible({ timeout: 30000 });
+    await expect(dayTwoFitDialog).toContainText(new RegExp(escapeRegExp(dayTwoHotspotName), "i"));
+    await dayTwoFitDialog.getByRole("button", { name: /close fit here preview|cancel/i }).first().click();
+    await expect(dayTwoFitDialog).toBeHidden({ timeout: 30000 });
+  } finally {
+    await resetItineraryBasicInfo(request, token);
+  }
+});
 
 test("day 1 Auto-Preview tests Before first hotspot anchor for Alagar", async ({
   page,
