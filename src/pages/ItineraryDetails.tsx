@@ -4826,31 +4826,58 @@ const shouldRenderBottomHotelList = false;
   }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
   const financialTotals = useMemo(() => {
-    const backendNetPayable = Number(
+    const toSafeMoney = (value?: number | string | null): number => {
+      const amount = Number(value || 0);
+      if (!Number.isFinite(amount)) return 0;
+      return Number(amount.toFixed(2));
+    };
+
+    const getRoundOffToNearestRupee = (amount: number): number => {
+      if (!Number.isFinite(amount)) return 0;
+
+      const roundedAmount = Math.round(amount);
+      return Number((roundedAmount - amount).toFixed(2));
+    };
+
+    const backendNetPayable = toSafeMoney(
       itinerary?.costBreakdown?.netPayable ?? itinerary?.overallCost ?? 0,
     );
-    const backendTotalAmount = Number(itinerary?.costBreakdown?.totalAmount ?? 0);
-    const backendRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff ?? 0);
 
-const hasSelectedVehicleTotal =
-  Object.values(selectedVehicleTotalsByType).some(
-    (row) => Number(row.totalAmount || 0) > 0
-  );
+    const backendTotalAmount = toSafeMoney(itinerary?.costBreakdown?.totalAmount ?? 0);
+    const couponDiscount = toSafeMoney(itinerary?.costBreakdown?.couponDiscount || 0);
+    const agentMargin = toSafeMoney(itinerary?.costBreakdown?.agentMargin || 0);
 
-const hasLiveHotelSelection =
-  activeHotelListTotal > 0 || selectedHotelTotal > 0;
+    const hasSelectedVehicleTotal =
+      Object.values(selectedVehicleTotalsByType).some(
+        (row) => Number(row.totalAmount || 0) > 0
+      );
 
-if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection) {
-  return {
-    hotelAmount: Number(itinerary?.costBreakdown?.totalHotelAmount || 0),
-    totalAmount: backendTotalAmount,
-    netPayable: backendNetPayable,
-    totalRoundOff: backendRoundOff,
-  };
-}
+    const hasLiveHotelSelection =
+      activeHotelListTotal > 0 || selectedHotelTotal > 0;
+
+    if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection) {
+      const backendBaseTotalAmount =
+        backendTotalAmount > 0
+          ? backendTotalAmount
+          : toSafeMoney(backendNetPayable - agentMargin + couponDiscount);
+
+      const subtotalBeforeRoundOff = toSafeMoney(
+        backendBaseTotalAmount - couponDiscount + agentMargin,
+      );
+
+      const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
+      const netPayable = toSafeMoney(subtotalBeforeRoundOff + totalRoundOff);
+
+      return {
+        hotelAmount: toSafeMoney(itinerary?.costBreakdown?.totalHotelAmount || 0),
+        totalAmount: backendBaseTotalAmount,
+        netPayable,
+        totalRoundOff,
+      };
+    }
 
     const hotelAmount = shouldShowHotels
-      ? Number(
+      ? toSafeMoney(
           computedHotelCost ||
           itinerary?.costBreakdown?.totalRoomCost ||
           itinerary?.costBreakdown?.totalHotelAmount ||
@@ -4858,9 +4885,9 @@ if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection)
         )
       : 0;
 
-    const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
+    const vehicleAmount = shouldShowVehicles ? toSafeMoney(computedVehicleAmount || 0) : 0;
 
-    const otherAmount =
+    const otherAmount = toSafeMoney(
       Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
       Number(itinerary?.costBreakdown?.extraBedCost || 0) +
       Number(itinerary?.costBreakdown?.childWithBedCost || 0) +
@@ -4868,13 +4895,13 @@ if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection)
       Number(itinerary?.costBreakdown?.totalGuideCost || 0) +
       Number(itinerary?.costBreakdown?.totalHotspotCost || 0) +
       Number(itinerary?.costBreakdown?.totalActivityCost || 0) +
-      Number(itinerary?.costBreakdown?.additionalMargin || 0);
+      Number(itinerary?.costBreakdown?.additionalMargin || 0)
+    );
 
-    const totalAmount = hotelAmount + vehicleAmount + otherAmount;
-    const couponDiscount = Number(itinerary?.costBreakdown?.couponDiscount || 0);
-    const agentMargin = Number(itinerary?.costBreakdown?.agentMargin || 0);
-    const totalRoundOff = Number(itinerary?.costBreakdown?.totalRoundOff || 0);
-    const netPayable = totalAmount - couponDiscount + agentMargin + totalRoundOff;
+    const totalAmount = toSafeMoney(hotelAmount + vehicleAmount + otherAmount);
+    const subtotalBeforeRoundOff = toSafeMoney(totalAmount - couponDiscount + agentMargin);
+    const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
+    const netPayable = toSafeMoney(subtotalBeforeRoundOff + totalRoundOff);
 
     return {
       hotelAmount,
