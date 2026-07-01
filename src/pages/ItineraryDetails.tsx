@@ -949,6 +949,20 @@ const formatPreviewDuration = (value: any): string => {
   return raw;
 };
 
+const extractCheckinHotelName = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'Hotel';
+
+  const withoutPrefix = raw
+    .replace(/^check-?in\s+(?:to|at)\s+/i, '')
+    .replace(/^hotel\s*:\s*/i, '')
+    .trim();
+
+  if (!withoutPrefix) return 'Hotel';
+  if (/^hotel$/i.test(withoutPrefix)) return 'Hotel';
+  return withoutPrefix;
+};
+
 const normalizeConfirmedTimelineToSegments = (
   rows: any[],
   context?: {
@@ -1053,7 +1067,7 @@ const normalizeConfirmedTimelineToSegments = (
       if (type === 'hotel' || type === 'checkin' || itemType === 6) {
         return {
           type: 'checkin',
-          hotelName: String(row?.hotelName || row?.text || 'Hotel'),
+          hotelName: extractCheckinHotelName(row?.hotelName || row?.text || 'Hotel'),
           hotelAddress: String(row?.hotelAddress || ''),
           time: String(row?.time || row?.timeRange || ''),
         };
@@ -5139,14 +5153,7 @@ const shouldRenderBottomHotelList = false;
           segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
         ));
 
-      if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel && !hasLateCheckin) {
-        const lastRenderableSegment = [...segments]
-          .reverse()
-          .find((segment, reverseIndex) => {
-            const actualIndex = segments.length - 1 - reverseIndex;
-            return actualIndex > earlyCheckinIndex && segment.type !== 'hotspot';
-          });
-
+      if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel) {
         const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined): string => {
           if (!segment) return day.arrival || day.departure || currentHotelName;
           if (segment.type === 'attraction') return segment.name;
@@ -5158,76 +5165,106 @@ const shouldRenderBottomHotelList = false;
           return day.arrival || day.departure || currentHotelName;
         };
 
-        const lastLabel = getSegmentAnchorLabel(lastRenderableSegment);
-        const isTailAlreadyHotelArrival =
-          !!lastRenderableSegment &&
-          (
-            lastRenderableSegment.type === 'checkin' ||
-            (
-              lastRenderableSegment.type === 'travel' &&
-              normalizeTimelineLabel(lastRenderableSegment.to || '') === normalizeTimelineLabel(currentHotelName)
-            ) ||
-            normalizeTimelineLabel(lastLabel) === 'hotel' ||
-            normalizeTimelineLabel(lastLabel) === normalizeTimelineLabel(currentHotelName)
-          );
-        const lastEndMinutes = lastRenderableSegment
-          ? lastRenderableSegment.type === 'attraction'
-            ? parseDisplayMinutes(lastRenderableSegment.visitTime, 'end')
-            : lastRenderableSegment.type === 'travel'
-              ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
-              : lastRenderableSegment.type === 'break'
-                ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
-                : lastRenderableSegment.type === 'checkin'
-                  ? parseDisplayMinutes(lastRenderableSegment.time)
-                  : lastRenderableSegment.type === 'start'
-                    ? parseDisplayMinutes(lastRenderableSegment.timeRange, 'end')
-                    : lastRenderableSegment.type === 'return'
-                      ? parseDisplayMinutes(lastRenderableSegment.time)
-                      : null
-          : null;
+        const getSegmentEndMinutes = (segment: ItinerarySegment | undefined): number | null => {
+          if (!segment) return null;
+          if (segment.type === 'attraction') return parseDisplayMinutes(segment.visitTime, 'end');
+          if (segment.type === 'travel') return parseDisplayMinutes(segment.timeRange, 'end');
+          if (segment.type === 'break') return parseDisplayMinutes(segment.timeRange, 'end');
+          if (segment.type === 'checkin') return parseDisplayMinutes(segment.time);
+          if (segment.type === 'start') return parseDisplayMinutes(segment.timeRange, 'end');
+          if (segment.type === 'return') return parseDisplayMinutes(segment.time);
+          return null;
+        };
 
+        const lateCheckinIndex = segments.findIndex((segment, segmentIndex) => (
+          segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
+        ));
+        const lateCheckinSegment = lateCheckinIndex >= 0 ? segments[lateCheckinIndex] as CheckinSegment : null;
+
+        const searchEndIndex = lateCheckinIndex >= 0 ? lateCheckinIndex : segments.length;
+        let anchorIndex = -1;
+        for (let index = searchEndIndex - 1; index > earlyCheckinIndex; index -= 1) {
+          if (segments[index]?.type === 'hotspot') continue;
+          anchorIndex = index;
+          break;
+        }
+
+        const anchorSegment = anchorIndex >= 0 ? segments[anchorIndex] : undefined;
+        const anchorLabel = getSegmentAnchorLabel(anchorSegment);
+        const anchorEndMinutes = getSegmentEndMinutes(anchorSegment);
+        const existingCheckinMinutes = lateCheckinSegment ? parseDisplayMinutes(lateCheckinSegment.time) : parseDisplayMinutes(day.endTime);
         const dayEndMinutes = parseDisplayMinutes(day.endTime);
-        const finalCheckinMinutes = dayEndMinutes ?? lastEndMinutes;
+        const desiredCheckinMinutes = existingCheckinMinutes ?? dayEndMinutes ?? anchorEndMinutes;
+        const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
 
-        if (!isTailAlreadyHotelArrival && lastLabel && normalizeTimelineLabel(lastLabel) !== normalizeTimelineLabel(currentHotelName)) {
-          if (
-            lastEndMinutes !== null &&
-            finalCheckinMinutes !== null &&
-            finalCheckinMinutes > lastEndMinutes
-          ) {
-            const scheduleGapMinutes = finalCheckinMinutes - lastEndMinutes;
-            const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
-            const effectiveTravelMinutes = estimatedTravelMinutes != null
+        const tailAlreadyArrivesAtHotel =
+          !!anchorSegment &&
+          (
+            anchorSegment.type === 'checkin' ||
+            (
+              anchorSegment.type === 'travel' &&
+              normalizeTimelineLabel(anchorSegment.to || '') === normalizeTimelineLabel(currentHotelName)
+            ) ||
+            normalizeTimelineLabel(anchorLabel) === 'hotel' ||
+            normalizeTimelineLabel(anchorLabel) === normalizeTimelineLabel(currentHotelName)
+          );
+
+        if (!tailAlreadyArrivesAtHotel && anchorLabel && normalizeTimelineLabel(anchorLabel) !== normalizeTimelineLabel(currentHotelName)) {
+          const scheduleGapMinutes =
+            anchorEndMinutes !== null && desiredCheckinMinutes !== null
+              ? Math.max(0, desiredCheckinMinutes - anchorEndMinutes)
+              : 0;
+          const effectiveTravelMinutes =
+            estimatedTravelMinutes != null
               ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
               : scheduleGapMinutes;
-            const travelEndMinutes = lastEndMinutes + effectiveTravelMinutes;
 
-            segments.push({
+          if (anchorEndMinutes !== null) {
+            const travelEndMinutes = anchorEndMinutes + effectiveTravelMinutes;
+            const travelSegment: TravelSegment = {
               type: 'travel',
-              from: lastLabel,
+              from: anchorLabel,
               to: currentHotelName,
-              timeRange: `${formatMinutesToDisplay(lastEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
+              timeRange: `${formatMinutesToDisplay(anchorEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
               distance: currentHotelDistance || '',
               duration: formatMinutesDuration(effectiveTravelMinutes),
               note: 'This may vary due to traffic conditions',
-            });
+            };
+            const adjustedCheckinMinutes = desiredCheckinMinutes !== null
+              ? Math.max(desiredCheckinMinutes, travelEndMinutes)
+              : travelEndMinutes;
 
-            const adjustedCheckinMinutes = Math.max(finalCheckinMinutes, travelEndMinutes);
-
+            if (lateCheckinIndex >= 0) {
+              segments.splice(lateCheckinIndex, 0, travelSegment);
+              segments[lateCheckinIndex + 1] = {
+                ...(segments[lateCheckinIndex + 1] as CheckinSegment),
+                hotelName: currentHotelName,
+                hotelAddress: '',
+                time: formatMinutesToDisplay(adjustedCheckinMinutes),
+              };
+            } else {
+              segments.push(travelSegment);
+              segments.push({
+                type: 'checkin',
+                hotelName: currentHotelName,
+                hotelAddress: '',
+                time: formatMinutesToDisplay(adjustedCheckinMinutes),
+              });
+            }
+          } else if (lateCheckinIndex < 0) {
             segments.push({
               type: 'checkin',
               hotelName: currentHotelName,
               hotelAddress: '',
-              time: formatMinutesToDisplay(adjustedCheckinMinutes),
-            });
-          } else {
-            segments.push({
-              type: 'checkin',
-              hotelName: currentHotelName,
-              hotelAddress: '',
-              time: finalCheckinMinutes !== null ? formatMinutesToDisplay(finalCheckinMinutes) : day.endTime || null,
+              time: desiredCheckinMinutes !== null ? formatMinutesToDisplay(desiredCheckinMinutes) : day.endTime || null,
             });
           }
+        } else if (lateCheckinIndex >= 0) {
+          segments[lateCheckinIndex] = {
+            ...(segments[lateCheckinIndex] as CheckinSegment),
+            hotelName: currentHotelName,
+            hotelAddress: '',
+          };
         }
       }
 
@@ -18214,6 +18251,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
         results={autoFitHereModal.results}
         selectedAnchorKey={autoFitHereModal.selectedAnchorKey}
         selectedHotspot={selectedFitHotspot}
+        baseTimeline={selectedFitHereDay?.segments || []}
         onClose={() => {
           setAutoFitHereModal({
             open: false,

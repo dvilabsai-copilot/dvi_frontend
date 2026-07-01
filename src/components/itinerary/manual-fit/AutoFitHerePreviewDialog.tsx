@@ -38,6 +38,7 @@ type AutoFitHerePreviewDialogProps = {
   results: AutoFitHerePreviewResultRow[];
   selectedAnchorKey: string | null;
   selectedHotspot?: any | null;
+  baseTimeline?: any[] | null;
   onClose: () => void;
   onSelectAnchorKey: (anchorKey: string) => void;
   onConfirm: (
@@ -129,6 +130,14 @@ const getTimelineRowOperatingHours = (row: any): string => {
 };
 
 const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] => {
+  if (Array.isArray(attempt?.finalizedTimeline) && attempt.finalizedTimeline.length > 0) {
+    return attempt.finalizedTimeline;
+  }
+
+  if (Array.isArray(attempt?.proposedTimeline) && attempt.proposedTimeline.length > 0) {
+    return attempt.proposedTimeline;
+  }
+
   const hasExactAnchorMismatch =
     attempt?.selectedAnchorPreserved === false ||
     String(attempt?.exactAnchorMismatch?.message || "").trim().length > 0;
@@ -163,11 +172,7 @@ const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] =>
     }
   }
 
-  if (Array.isArray(attempt?.finalizedTimeline) && attempt.finalizedTimeline.length > 0) {
-    return attempt.finalizedTimeline;
-  }
-
-  return Array.isArray(attempt?.proposedTimeline) ? attempt.proposedTimeline : [];
+  return [];
 };
 
 const getRowHotspotId = (row: any): number =>
@@ -411,6 +416,84 @@ const getAttemptRemovedItems = (attemptRow: any): Array<{
   }));
 };
 
+const getBaseTimelineAttractions = (baseTimeline: any[] | null | undefined) => {
+  return (Array.isArray(baseTimeline) ? baseTimeline : [])
+    .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+    .map((row: any) => {
+      const hotspotId = getRowHotspotId(row);
+      return {
+        hotspotId,
+        name: getTimelineRowName(row),
+        workPriority:
+          Number(
+            row?.priority ||
+            row?.hotspotPriority ||
+            row?.hotspot_priority ||
+            row?.rawPriority ||
+            0,
+          ) || null,
+      };
+    })
+    .filter((row) => row.hotspotId > 0);
+};
+
+const buildTimelineRemovedItems = (
+  baseTimeline: any[] | null | undefined,
+  finalizedTimeline: any[],
+  selectedHotspotId?: number | null,
+): Array<{
+  hotspotId: number;
+  name: string;
+  workPriority: number | null;
+  reason: string | null;
+}> => {
+  const baseAttractions = getBaseTimelineAttractions(baseTimeline);
+  if (baseAttractions.length === 0) return [];
+
+  const finalizedAttractionIds = new Set(
+    (Array.isArray(finalizedTimeline) ? finalizedTimeline : [])
+      .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+      .map((row: any) => getRowHotspotId(row))
+      .filter((id: number) => id > 0),
+  );
+  const selectedId = Number(selectedHotspotId || 0);
+
+  return baseAttractions
+    .filter((row) => row.hotspotId !== selectedId)
+    .filter((row) => !finalizedAttractionIds.has(row.hotspotId))
+    .map((row) => ({
+      hotspotId: row.hotspotId,
+      name: row.name,
+      workPriority: row.workPriority,
+      reason: "Removed from the original route in the finalized sequence.",
+    }));
+};
+
+const hasTimelineReorder = (
+  baseTimeline: any[] | null | undefined,
+  finalizedTimeline: any[],
+): boolean => {
+  const baseIds = getBaseTimelineAttractions(baseTimeline).map((row) => row.hotspotId);
+  const finalizedIds = (Array.isArray(finalizedTimeline) ? finalizedTimeline : [])
+    .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+    .map((row: any) => getRowHotspotId(row))
+    .filter((id: number) => id > 0);
+
+  const sharedBase = baseIds.filter((id) => finalizedIds.includes(id));
+  const sharedFinal = finalizedIds.filter((id) => sharedBase.includes(id));
+
+  if (sharedBase.length <= 1 || sharedFinal.length <= 1) return false;
+  return sharedBase.join("|") !== sharedFinal.join("|");
+};
+
+const hasShiftedTimelineRows = (timelineRows: any[]): boolean => {
+  return (Array.isArray(timelineRows) ? timelineRows : []).some((row: any) => (
+    row?.shifted === true ||
+    row?.isShifted === true ||
+    row?.shiftedLater === true
+  ));
+};
+
 const getAnchorLabel = (row: AutoFitHerePreviewResultRow): string => {
   const explicitLabel = String(row?.anchor?.anchorLabel || "").trim();
   if (explicitLabel) return explicitLabel;
@@ -496,6 +579,7 @@ const getFitHereResultMessage = (attempt: ManualFitHerePreviewResponse | null): 
 
 const deriveAutoPreviewAttemptState = (
   row: AutoFitHerePreviewResultRow | null,
+  baseTimeline?: any[] | null,
 ): {
   timelineRows: any[];
   removedRows: any[];
@@ -512,6 +596,8 @@ const deriveAutoPreviewAttemptState = (
   isSelectedClosedAtAttemptedTime: boolean;
   canConfirm: boolean;
   rescueAttemptUsed: boolean;
+  hasReorderedTimeline: boolean;
+  hasShiftedTimeline: boolean;
   summary: string;
   badgeText: string;
   badgeTone: "success" | "warning" | "danger" | "neutral";
@@ -598,15 +684,17 @@ const deriveAutoPreviewAttemptState = (
       reason: candidate?.reason || null,
     };
   });
-  const rescueAttemptRemovedItems = preferredRescueAttempt
-    ? getAttemptRemovedItems(preferredRescueAttempt)
-    : [];
+  const timelineRemovedItems = buildTimelineRemovedItems(
+    baseTimeline,
+    timelineRows,
+    attempt?.selectedHotspotId,
+  );
   const displayedRemovedItems = (
-    Array.isArray(changesRequiredDisplay?.removedItems) && changesRequiredDisplay.removedItems.length > 0
-      ? changesRequiredDisplay.removedItems
-      : removedItemsFromRows.length > 0
-        ? removedItemsFromRows
-        : rescueAttemptRemovedItems
+    [
+      ...(Array.isArray(changesRequiredDisplay?.removedItems) ? changesRequiredDisplay.removedItems : []),
+      ...removedItemsFromRows,
+      ...timelineRemovedItems,
+    ]
   )
     .map((candidate: any) => ({
       hotspotId: Number(candidate?.hotspotId || candidate?.id || 0),
@@ -642,10 +730,11 @@ const deriveAutoPreviewAttemptState = (
     !hasUnauthorizedProtectedRemoval &&
     !isSelectedClosedAtAttemptedTime;
   const rescueAttemptUsed =
-    displayedRemovedItems.length > 0 &&
+    displayedRemovedItems.length === 0 &&
     removedItemsFromRows.length === 0 &&
     (!Array.isArray(changesRequiredDisplay?.removedItems) || changesRequiredDisplay.removedItems.length === 0) &&
-    rescueAttemptRemovedItems.length > 0;
+    !!preferredRescueAttempt &&
+    getAttemptRemovedItems(preferredRescueAttempt).length > 0;
   let badgeText = "Cannot fit";
   let badgeTone: "success" | "warning" | "danger" | "neutral" = "neutral";
 
@@ -689,6 +778,8 @@ const deriveAutoPreviewAttemptState = (
     isSelectedClosedAtAttemptedTime,
     canConfirm,
     rescueAttemptUsed,
+    hasReorderedTimeline: hasTimelineReorder(baseTimeline, timelineRows),
+    hasShiftedTimeline: hasShiftedTimelineRows(timelineRows),
     summary,
     badgeText,
     badgeTone,
@@ -702,13 +793,14 @@ export function AutoFitHerePreviewDialog({
   results,
   selectedAnchorKey,
   selectedHotspot,
+  baseTimeline = null,
   onClose,
   onSelectAnchorKey,
   onConfirm,
   confirmLoading = false,
 }: AutoFitHerePreviewDialogProps) {
   const [loadingStepIndex, setLoadingStepIndex] = React.useState(0);
-  const [acknowledgedRemovedHotspotIds, setAcknowledgedRemovedHotspotIds] = React.useState<number[]>([]);
+  const [removalsAcknowledged, setRemovalsAcknowledged] = React.useState(false);
 
   React.useEffect(() => {
     if (!open || !loading) {
@@ -726,7 +818,7 @@ export function AutoFitHerePreviewDialog({
   }, [loading, open]);
 
   React.useEffect(() => {
-    setAcknowledgedRemovedHotspotIds([]);
+    setRemovalsAcknowledged(false);
   }, [open, selectedAnchorKey]);
 
   const selectedRow =
@@ -734,7 +826,7 @@ export function AutoFitHerePreviewDialog({
     results[0] ||
     null;
   const selectedAttempt = (selectedRow?.attempt || null) as ManualFitHerePreviewResponse | null;
-  const selectedState = deriveAutoPreviewAttemptState(selectedRow);
+  const selectedState = deriveAutoPreviewAttemptState(selectedRow, baseTimeline);
   const timelineRows = selectedState.timelineRows;
   const removedItems = selectedState.displayedRemovedItems;
   const resultConfig = getResultConfig(selectedAttempt?.resultType);
@@ -752,7 +844,7 @@ export function AutoFitHerePreviewDialog({
       : []),
   ]));
   const requiresRemovalAcknowledgement = plannedRemovalIds.length > 0;
-  const allRemovalAcknowledged = plannedRemovalIds.every((id) => acknowledgedRemovedHotspotIds.includes(id));
+  const allRemovalAcknowledged = !requiresRemovalAcknowledgement || removalsAcknowledged;
   const canConfirm = selectedState.canConfirm && (!requiresRemovalAcknowledgement || allRemovalAcknowledged);
   const confirmButtonLabel = removedItems.length > 0
     ? "Confirm and Remove Hotspots"
@@ -865,7 +957,7 @@ export function AutoFitHerePreviewDialog({
 
                 <div className="space-y-3" data-testid="auto-fit-here-results">
                   {results.map((row, index) => {
-                    const rowState = deriveAutoPreviewAttemptState(row);
+                    const rowState = deriveAutoPreviewAttemptState(row, baseTimeline);
                     const isSelected = row.anchorKey === selectedRow?.anchorKey;
                     const isBest = index === 0;
                     const isCompleted = row.status === "COMPLETED";
@@ -983,6 +1075,16 @@ export function AutoFitHerePreviewDialog({
                             Confirm is locked until you tick the checkbox below.
                           </div>
                         ) : null}
+                    {selectedState.hasReorderedTimeline ? (
+                      <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-900">
+                        Existing downstream hotspots were reordered in the finalized sequence to preserve the selected Fit Here outcome.
+                      </div>
+                    ) : null}
+                    {selectedState.hasShiftedTimeline ? (
+                      <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-900">
+                        Some later timeline rows were pushed forward after insertion. Check the finalized sequence below.
+                      </div>
+                    ) : null}
                     {removedItems.length === 0 ? (
                       <p className="mt-2 text-sm text-slate-700">No hotspot removed</p>
                     ) : (
@@ -992,8 +1094,9 @@ export function AutoFitHerePreviewDialog({
                             These hotspot removals were tried while preserving the selected exact position, but the exact anchor still could not be kept.
                           </div>
                         ) : null}
-                        {removedItems.map((item) => {
-                          const checked = acknowledgedRemovedHotspotIds.includes(item.hotspotId);
+                        {removedItems.map((item, index) => {
+                          const checked = allRemovalAcknowledged;
+                          const showAcknowledgementCheckbox = index === 0;
 
                           return (
                             <label
@@ -1004,21 +1107,31 @@ export function AutoFitHerePreviewDialog({
                                   : "border-amber-200 bg-amber-50 shadow-sm"
                               }`}
                             >
-                              <input
-                                type="checkbox"
-                                data-testid="auto-fit-here-removal-ack-checkbox"
-                                checked={checked}
-                                onChange={(event) => {
-                                  setAcknowledgedRemovedHotspotIds((prev) => (
-                                    event.target.checked
-                                      ? Array.from(new Set([...prev, item.hotspotId]))
-                                      : prev.filter((id) => id !== item.hotspotId)
-                                  ));
-                                }}
-                                className="mt-1 h-5 w-5 rounded border-amber-300 accent-emerald-700"
-                              />
+                              {showAcknowledgementCheckbox ? (
+                                <input
+                                  type="checkbox"
+                                  data-testid="auto-fit-here-removal-ack-checkbox"
+                                  checked={checked}
+                                  onChange={(event) => {
+                                    setRemovalsAcknowledged(event.target.checked);
+                                  }}
+                                  className="mt-1 h-5 w-5 rounded border-amber-300 accent-emerald-700"
+                                />
+                              ) : (
+                                <div className="mt-1 h-5 w-5 shrink-0" />
+                              )}
                               <div>
-                                <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                                {showAcknowledgementCheckbox ? (
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    I reviewed all listed removals and want to continue.
+                                  </p>
+                                ) : null}
+                                <p className={`text-sm font-semibold text-slate-900 ${showAcknowledgementCheckbox ? "mt-2" : ""}`}>{item.name}</p>
+                                {showAcknowledgementCheckbox ? (
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    This acknowledges {removedItems.length} hotspot{removedItems.length === 1 ? "" : "s"} removed from the finalized route.
+                                  </p>
+                                ) : null}
                                 <p className="mt-1 text-xs text-slate-600">
                                   {item.workPriority ? `Priority ${item.workPriority}` : "Priority not set"}
                                   {item.reason ? ` • ${item.reason}` : ""}
@@ -1129,7 +1242,7 @@ export function AutoFitHerePreviewDialog({
                     onClick={() => {
                       onConfirm({
                         allowTimingRisk: selectedAttempt?.requiresTimingRiskConfirmation === true,
-                        acknowledgedRemovedHotspotIds: plannedRemovalIds,
+                        acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
                       }, selectedAttempt);
                     }}
                     className={removedItems.length > 0 ? "bg-amber-600 text-white hover:bg-amber-700" : ""}

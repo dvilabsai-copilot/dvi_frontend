@@ -534,6 +534,49 @@ test("day 1 Auto-Preview tests Before first hotspot anchor for Alagar", async ({
         dayOneNames.some((name: string) => /Alagar/i.test(name)),
         "After confirm, Alagar should appear on Day 1 timeline",
       ).toBe(true);
+
+      const dayOneSegments = Array.isArray(dayOneAfter?.segments) ? dayOneAfter.segments : [];
+      const lastCheckinIndex = dayOneSegments.reduce((foundIndex: number, row: any, index: number) => (
+        String(row?.type || "").toLowerCase() === "checkin" ? index : foundIndex
+      ), -1);
+      const finalTravelToHotel = lastCheckinIndex >= 0
+        ? [...dayOneSegments]
+            .slice(0, lastCheckinIndex)
+            .reverse()
+            .find((row: any) => (
+              String(row?.type || "").toLowerCase() === "travel"
+              && /hotel/i.test(String(row?.to || row?.toName || row?.displayToName || row?.text || ""))
+            ))
+        : null;
+      const expectedHotelTravelFrom = String(
+        finalTravelToHotel?.from ||
+        finalTravelToHotel?.fromName ||
+        finalTravelToHotel?.displayFromName ||
+        "",
+      ).trim();
+
+      await page.goto(`${appBaseUrl}/itinerary-details/${encodeURIComponent(QUOTE_ID)}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(page).toHaveURL(new RegExp(`/itinerary-details/${QUOTE_ID}$`), {
+        timeout: 30000,
+      });
+
+      const refreshedDayOneCard = page.locator('#itinerary-day-1[data-day-number="1"]').first();
+      await expect(refreshedDayOneCard).toBeVisible({ timeout: 30000 });
+      const refreshedDayOneText = await refreshedDayOneCard.innerText();
+
+      expect(
+        refreshedDayOneText,
+        "Day 1 details page should not render a duplicated check-in label after confirm",
+      ).not.toMatch(/Check-in to\s+Check-in at Hotel/i);
+
+      if (expectedHotelTravelFrom) {
+        expect(
+          refreshedDayOneText,
+          `Day 1 details page should show the final travel-to-hotel leg from ${expectedHotelTravelFrom} after confirm`,
+        ).toMatch(new RegExp(`Travelling from\\s+${escapeRegExp(expectedHotelTravelFrom)}\\s+to\\s+`, "i"));
+      }
     } else {
       const dialogText = await page.getByTestId("auto-fit-here-preview-dialog").innerText();
       expect(dialogText).toMatch(/cannot fit|failed|rejected|no hotspot removed|changes required|best/i);
@@ -563,6 +606,17 @@ test("day 3 Auto-Preview for Agni matches exact-anchor normal Fit Here rescue af
   try {
     routeId = await confirmDay3RamanathaBeforeFirstAttractionViaUi(page, request, token, appBaseUrl);
     expect(routeId).toBeGreaterThan(0);
+
+    const detailsBeforeAutoPreview = await fetchItineraryDetails(request, token, QUOTE_ID);
+    const dayThreeBeforeAutoPreview = (detailsBeforeAutoPreview.days || []).find(
+      (day: any) => Number(day?.dayNumber || 0) === 3,
+    );
+    const originalDayThreeAttractionNames = Array.isArray(dayThreeBeforeAutoPreview?.segments)
+      ? dayThreeBeforeAutoPreview.segments
+          .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+          .map((row: any) => getSegmentName(row))
+          .filter(Boolean)
+      : [];
 
     await page.goto(`${appBaseUrl}/itinerary-details/${encodeURIComponent(QUOTE_ID)}`, {
       waitUntil: "domcontentloaded",
@@ -638,6 +692,14 @@ test("day 3 Auto-Preview for Agni matches exact-anchor normal Fit Here rescue af
     ).toBeGreaterThan(dhanushkodiIndex);
     expect(fiveFacedIndex, "Removed Five Faced Hanuman Temple should be absent from finalized auto-preview timeline").toBe(-1);
 
+    const removedFromOriginalRoute = originalDayThreeAttractionNames.filter(
+      (name: string) => !targetAttractionNames.some((finalName: string) => finalName === name),
+    );
+    expect(
+      removedFromOriginalRoute.length,
+      "At least one original attraction should be absent from the finalized exact-anchor rescue timeline",
+    ).toBeGreaterThan(0);
+
     const dialog = page.getByTestId("auto-fit-here-preview-dialog");
     await expect(dialog).toBeVisible({ timeout: 30000 });
 
@@ -654,6 +716,12 @@ test("day 3 Auto-Preview for Agni matches exact-anchor normal Fit Here rescue af
     await expect(changesRequired).toContainText(/Removal order checked: Non-manual \/ Priority 4 -> Priority 3 -> Priority 2 -> Priority 1/i);
     await expect(changesRequired).toContainText(/Five Faced Hanuman Temple/i);
     await expect(changesRequired).toContainText(/removed/i);
+    for (const removedName of removedFromOriginalRoute) {
+      await expect(
+        changesRequired,
+        `Changes required must list each hotspot removed from the original route: ${removedName}`,
+      ).toContainText(new RegExp(escapeRegExp(removedName), "i"));
+    }
 
     const mainTimeline = page.getByTestId("auto-fit-here-main-timeline");
     await expect(mainTimeline).toContainText(/Agni Teertham/i);
