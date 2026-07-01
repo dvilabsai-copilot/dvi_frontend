@@ -311,14 +311,20 @@ export default function BookActivitiesPage() {
 
   const bookingGuests = useMemo(() => Math.max(Number(bookingForm.guests) || 1, 1), [bookingForm.guests]);
 
+  const bookingPricingUnitType =
+    selectedActivity?.pricingUnitType === "UNIT" ? "UNIT" : "PER_ADULT";
+
   const bookingUnitPrice = useMemo(() => {
     if (!selectedActivity) return 0;
     return selectedActivity.price ?? parsePriceLabel(selectedActivity.priceLabel);
   }, [selectedActivity]);
 
   const bookingTotalAmount = useMemo(
-    () => bookingUnitPrice * bookingGuests,
-    [bookingGuests, bookingUnitPrice],
+    () =>
+      bookingPricingUnitType === "UNIT"
+        ? bookingUnitPrice
+        : bookingUnitPrice * bookingGuests,
+    [bookingGuests, bookingPricingUnitType, bookingUnitPrice],
   );
 
   const walletAfterBooking = useMemo(
@@ -1340,8 +1346,10 @@ export default function BookActivitiesPage() {
                   <span>Destination</span>
                   <strong>{selectedActivity.location}</strong>
                 </div>
-                <div>
-                  <span>Unit Price</span>
+                                <div>
+                  <span>
+                    {bookingPricingUnitType === "UNIT" ? "Unit Cost" : "Per Adult Cost"}
+                  </span>
                   <strong>{selectedActivity.priceLabel}</strong>
                 </div>
                 <div>
@@ -1349,6 +1357,12 @@ export default function BookActivitiesPage() {
                   <strong>{bookingGuests}</strong>
                 </div>
                 <div>
+                  <span>Pricing Type</span>
+                  <strong>
+                    {bookingPricingUnitType === "UNIT" ? "Unit Cost" : "Per Adult Cost"}
+                  </strong>
+                </div>
+                                <div>
                   <span>Total Amount</span>
                   <strong className="ba-amount">{formatMoney(bookingTotalAmount)}</strong>
                 </div>

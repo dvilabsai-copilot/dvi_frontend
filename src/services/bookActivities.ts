@@ -19,6 +19,8 @@ async function request<T>(path: string, opts?: { method?: string; body?: unknown
   return res as T;
 }
 
+export type ActivityPricingUnitType = "PER_ADULT" | "UNIT";
+
 export type StorefrontActivity = {
   id: number;
   activityId: number;
@@ -31,6 +33,8 @@ export type StorefrontActivity = {
   ratingValue?: number;
   reviewCount?: number;
   price?: number;
+  pricingUnitType?: ActivityPricingUnitType;
+  priceUnitLabel?: string;
   priceLabel: string;
   availableDate?: string | null;
   availableOnSelectedDate?: boolean;

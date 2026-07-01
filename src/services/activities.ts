@@ -130,18 +130,21 @@ function mapPricebookBody(activityId: number, body: any) {
     return body;
   }
 
-  // Otherwise, assume UI ActivityForm fields and remap
-  // Expecting: { hotspotId?, startDate, endDate, adult, children, infant, foreignAdult, foreignChildren, foreignInfant }
+   // Otherwise, assume UI ActivityForm fields and remap
+  // Expecting: { hotspotId?, startDate, endDate, pricingUnitType?, adult, children, infant, unitCost, foreignAdult, foreignChildren, foreignInfant, foreignUnitCost }
   const {
     hotspotId,
     startDate,
     endDate,
+    pricingUnitType,
     adult,
     children,
     infant,
+    unitCost,
     foreignAdult,
     foreignChildren,
     foreignInfant,
+    foreignUnitCost,
     createdby,
   } = body;
 
@@ -149,16 +152,19 @@ function mapPricebookBody(activityId: number, body: any) {
     hotspot_id: hotspotId, // BigInt in DB, backend will coerce
     start_date: startDate, // "yyyy-mm-dd"
     end_date: endDate, // "yyyy-mm-dd"
+    pricing_unit_type: pricingUnitType ?? "PER_ADULT",
     createdby: createdby ?? 0,
     indian: {
       adult_cost: adult ?? 0,
       child_cost: children ?? 0,
       infant_cost: infant ?? 0,
+      unit_cost: unitCost ?? 0,
     },
     nonindian: {
       adult_cost: foreignAdult ?? 0,
       child_cost: foreignChildren ?? 0,
       infant_cost: foreignInfant ?? 0,
+      unit_cost: foreignUnitCost ?? 0,
     },
   };
 }
