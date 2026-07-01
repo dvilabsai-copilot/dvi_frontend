@@ -11,13 +11,12 @@ export const OPTIMIZE_ESTIMATED_MS_BY_DAYS: Record<number, number> = {
 export const SAME_ROUTE_BASE_ESTIMATED_MS = 9000;
 
 export const TRANSPORT_LOADING_MESSAGES: string[] = [
-  "Calculating travel distance",
-  "Checking vehicle suitability",
-  "Optimizing route efficiency",
-  "Evaluating luggage requirements",
-  "Computing travel costs",
-  "Preparing transportation options",
-  "Finalizing recommendations",
+  "Analyzing destinations",
+  "Optimizing travel routes",
+  "Selecting experiences",
+  "Calculating travel times",
+  "Organizing daily plans",
+  "Preparing final itinerary",
 ];
 
 export function getEstimatedSaveMs(
