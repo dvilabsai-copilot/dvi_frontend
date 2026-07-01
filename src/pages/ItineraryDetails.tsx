@@ -254,6 +254,19 @@ type GuideModalOptions = {
   assignment?: ItineraryGuideAssignment | null;
 };
 
+type GuideAvailabilityDay = {
+  routeId: number;
+  routeDate: string | null;
+  available: boolean;
+};
+
+type GuideAvailabilityResponse = {
+  planId: number;
+  wholeItineraryAvailable: boolean;
+  hasAnyGuidePrice: boolean;
+  days: GuideAvailabilityDay[];
+};
+
 // --------- HOTELS (matches backend DTO) ---------
 
 export type ItineraryHotelRow = {
@@ -1322,8 +1335,11 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     activityName: "",
   });
   const [isDeletingActivity, setIsDeletingActivity] = useState(false);
-  const [guideAssignments, setGuideAssignments] = useState<ItineraryGuideAssignment[]>([]);
-  const [guideModal, setGuideModal] = useState<{
+ const [guideAssignments, setGuideAssignments] = useState<ItineraryGuideAssignment[]>([]);
+const [guideAvailability, setGuideAvailability] = useState<GuideAvailabilityResponse | null>(null);
+const [guideAvailabilityLoading, setGuideAvailabilityLoading] = useState(false);
+
+const [guideModal, setGuideModal] = useState<{
     open: boolean;
     loading: boolean;
     saving: boolean;
@@ -8746,6 +8762,115 @@ setGuideModal((prev) => {
     void openGuideModal(null, existing, 1);
   };
 
+  const loadGuideAvailability = useCallback(async (planId: number) => {
+    if (!(planId > 0)) {
+      setGuideAvailability(null);
+      return;
+    }
+
+    setGuideAvailabilityLoading(true);
+
+    try {
+      const response = await api(`/itineraries/${planId}/guides/availability`) as GuideAvailabilityResponse;
+
+console.log("[GuideAvailability]", {
+  planId,
+  response,
+});
+
+setGuideAvailability(response || null);
+    } catch (e) {
+      console.error("Failed to load guide availability", e);
+      setGuideAvailability(null);
+    } finally {
+      setGuideAvailabilityLoading(false);
+    }
+  }, []);
+
+  const getGuideAssignmentForDay = useCallback((day: ItineraryDay): ItineraryGuideAssignment | null => {
+    const dayGuideAssignment =
+      guideAssignments.find((assignment) => (
+        Number(assignment.guideType || 0) === 2 &&
+        Number(assignment.routeId || 0) === Number(day.id)
+      )) ?? null;
+
+    const wholeItineraryGuideAssignment =
+      guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
+
+    return dayGuideAssignment ?? wholeItineraryGuideAssignment;
+  }, [guideAssignments]);
+
+  const isGuidePriceAvailableForDay = useCallback((day: ItineraryDay): boolean => {
+    if (!guideAvailability) return false;
+
+    if (Number(itinerary?.guideForItinerary || 0) === 1) {
+      return guideAvailability.wholeItineraryAvailable === true;
+    }
+
+    const dayAvailability = guideAvailability.days.find((item) => (
+      Number(item.routeId || 0) === Number(day.id)
+    ));
+
+    return dayAvailability?.available === true;
+  }, [guideAvailability, itinerary?.guideForItinerary]);
+
+  const getGuideSlotWindowMinutes = (slotId: number): { start: number; end: number } | null => {
+    switch (Number(slotId || 0)) {
+      case 1:
+        return { start: 8 * 60, end: 13 * 60 };
+      case 2:
+        return { start: 13 * 60, end: 18 * 60 };
+      case 3:
+        return { start: 8 * 60, end: 18 * 60 };
+      case 4:
+        return { start: 18 * 60, end: 21 * 60 };
+      default:
+        return null;
+    }
+  };
+
+  const isAttractionCoveredByGuide = (
+    segment: AttractionSegment,
+    assignment: ItineraryGuideAssignment | null,
+  ): boolean => {
+    if (!assignment) return false;
+
+    const guideSlotIds = Array.isArray(assignment.guideSlotIds)
+      ? assignment.guideSlotIds.map(Number).filter((slotId) => Number.isFinite(slotId) && slotId > 0)
+      : [];
+
+    if (guideSlotIds.length === 0) return true;
+
+    const visitStart = parseDisplayMinutes(segment.visitTime, "start");
+    const visitEnd = parseDisplayMinutes(segment.visitTime, "end");
+
+    if (visitStart === null || visitEnd === null) return true;
+
+    const normalizedVisitEnd = visitEnd <= visitStart ? visitEnd + 1440 : visitEnd;
+
+    return guideSlotIds.some((slotId) => {
+      const slotWindow = getGuideSlotWindowMinutes(slotId);
+      if (!slotWindow) return false;
+
+      const normalizedSlotEnd = slotWindow.end <= slotWindow.start
+        ? slotWindow.end + 1440
+        : slotWindow.end;
+
+      return visitStart < normalizedSlotEnd && normalizedVisitEnd > slotWindow.start;
+    });
+  };
+
+  useEffect(() => {
+    const planId = Number(itinerary?.planId || 0);
+
+    if (!(planId > 0)) {
+      setGuideAvailability(null);
+      return;
+    }
+
+    void loadGuideAvailability(planId);
+  }, [itinerary?.planId, loadGuideAvailability]);
+
 const handleSaveGuideAssignment = async () => {
   const planId = Number(guideModal.planId || 0);
   const day = guideModal.day;
@@ -12278,6 +12403,20 @@ const currentGuideAssignment =
     ? wholeItineraryGuideAssignment
     : dayGuideAssignment;
 
+const dayFlowGuideAssignment = getGuideAssignmentForDay(day);
+const guidePriceAvailableForDay = isGuidePriceAvailableForDay(day);
+
+const isGuideEnabledForItinerary = [1, 2].includes(Number(itinerary?.guideForItinerary || 0));
+
+const canShowGuideActionButton =
+  Boolean(currentGuideAssignment) ||
+  (
+    isGuideEnabledForItinerary &&
+    guideAvailability !== null &&
+    !guideAvailabilityLoading &&
+    guidePriceAvailableForDay === true
+  );
+
   return (
             
             <Card
@@ -12449,7 +12588,7 @@ const currentGuideAssignment =
           Add Hotspot
         </Button>
       )}
-{!readOnly && (
+{!readOnly && canShowGuideActionButton && (
   <Button
     type="button"
     variant="outline"
@@ -12533,8 +12672,15 @@ const currentGuideAssignment =
 
                 {/* Segments */}
                 <div className="space-y-0">
-                  {day.segments.map((segment, idx) => (
-                    <div key={idx}>
+                {day.segments.map((segment, idx) => {
+  const guideAssignmentForSegment =
+    segment.type === "attraction" &&
+    isAttractionCoveredByGuide(segment, dayFlowGuideAssignment)
+      ? dayFlowGuideAssignment
+      : null;
+
+  return (
+  <div key={idx}>
                       {/* Connector dots — only between real segments, never around hotspot CTAs */}
                       {idx > 0 &&
                         segment.type !== 'hotspot' &&
@@ -12633,9 +12779,39 @@ const currentGuideAssignment =
                                     </button>
                                   </div>
                                   <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
-                                    {segment.description}
-                                  </p>
-                                  <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
+  {segment.description}
+</p>
+
+{guideAssignmentForSegment && (
+  <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+    <span className="rounded-full bg-emerald-600 px-2 py-1 font-semibold text-white">
+      Guide Assigned
+    </span>
+
+    <span>
+      Language:{" "}
+      <span className="font-semibold">
+        {guideAssignmentForSegment.guideLanguageLabels.join(", ") || "NA"}
+      </span>
+    </span>
+
+    <span>
+      Duration:{" "}
+      <span className="font-semibold">
+        {segment.duration || "As per itinerary"}
+      </span>
+    </span>
+
+    <span>
+      Service Timing:{" "}
+      <span className="font-semibold">
+        {segment.visitTime || guideAssignmentForSegment.guideSlotLabels.join(", ") || "As per itinerary"}
+      </span>
+    </span>
+  </div>
+)}
+
+<div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
                                     <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
                                       <Clock className="h-3 w-3 mr-1" />
                                       {segment.visitTime}
@@ -12970,8 +13146,9 @@ const currentGuideAssignment =
                           </div>
                         )}
                       </div>{/* end timeline row wrapper */}
-                    </div>
-                  ))}
+                                     </div>
+                  );
+                })}
 
 
                 </div>
