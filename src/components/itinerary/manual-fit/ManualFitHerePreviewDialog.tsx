@@ -35,7 +35,16 @@ export type ManualFitHerePreviewResponse = {
   selectedHotspotId: number;
   resultType: ManualFitHereResultType;
   canConfirm: boolean;
+  selectedAnchorPreserved?: boolean;
   canForceConflict?: boolean;
+  exactAnchorMismatch?: {
+    message?: string;
+    anchorIntent?: "AFTER_START" | "AFTER_ATTRACTION";
+    anchorFrom?: string | null;
+    anchorTo?: string | null;
+    afterHotspotId?: number | null;
+    beforeHotspotId?: number | null;
+  } | null;
   selectedOpeningConflict?: {
     hotspotId?: number;
     hotspotName?: string;
@@ -338,6 +347,10 @@ const getResultConfig = (resultType?: ManualFitHereResultType) => {
 
 const getFitHereResultMessage = (attempt: ManualFitHerePreviewResponse | null): string => {
   if (!attempt) return "";
+  const exactAnchorMismatchMessage = String(attempt?.exactAnchorMismatch?.message || "").trim();
+  if (exactAnchorMismatchMessage) {
+    return exactAnchorMismatchMessage;
+  }
 
   switch (attempt.resultType) {
     case "FITS_DIRECTLY":
@@ -866,6 +879,39 @@ const buildDisplayedPreviewTimeline = (
   const routeTimeline = Array.isArray(baseTimeline)
     ? baseTimeline.map(mapBaseSegmentToPreviewRow).filter(Boolean)
     : [];
+  const hasExactAnchorMismatch =
+    attempt?.selectedAnchorPreserved === false ||
+    String(attempt?.exactAnchorMismatch?.message || "").trim().length > 0;
+
+  if (hasExactAnchorMismatch) {
+    const openingHoursRemovalPlan =
+      attempt?.resolution?.manualInsertionFit?.lowPriorityOpeningHoursRemovalPlanPreview ||
+      attempt?.resolution?.lowPriorityOpeningHoursRemovalPlanPreview ||
+      (attempt as any)?.manualInsertionFit?.lowPriorityOpeningHoursRemovalPlanPreview ||
+      null;
+    const dayEndRemovalPlan =
+      attempt?.resolution?.manualInsertionFit?.lowPriorityRemovalPlanPreview ||
+      (attempt as any)?.manualInsertionFit?.lowPriorityRemovalPlanPreview ||
+      null;
+    const rescueAttempts = [
+      ...(Array.isArray(dayEndRemovalPlan?.simulationAttempts) ? dayEndRemovalPlan.simulationAttempts : []),
+      ...(Array.isArray(dayEndRemovalPlan?.rejectedAttempts) ? dayEndRemovalPlan.rejectedAttempts : []),
+      ...(Array.isArray(openingHoursRemovalPlan?.simulationAttempts) ? openingHoursRemovalPlan.simulationAttempts : []),
+      ...(Array.isArray(openingHoursRemovalPlan?.rejectedAttempts) ? openingHoursRemovalPlan.rejectedAttempts : []),
+    ];
+    const preferredRescueAttempt =
+      rescueAttempts.find((attemptRow: any) => attemptRow?.resolved === true || attemptRow?.valid === true)
+      || rescueAttempts[rescueAttempts.length - 1]
+      || null;
+    const rescueTimeline = preferredRescueAttempt?.previewTimelineDisplay
+      || preferredRescueAttempt?.displayTimeline
+      || preferredRescueAttempt?.previewTimeline
+      || [];
+
+    if (Array.isArray(rescueTimeline) && rescueTimeline.length > 0) {
+      return rescueTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+    }
+  }
 
   const authoritative = finalizedTimeline.length > 0
     ? finalizedTimeline
@@ -1000,6 +1046,10 @@ export function ManualFitHerePreviewDialog({
   const successfulRescueAttempt = openingHoursRescueAttempts.find((attemptRow: any) => (
     attemptRow?.resolved === true || attemptRow?.valid === true
   )) || null;
+  const preferredRescueAttempt =
+    successfulRescueAttempt ||
+    openingHoursRescueAttempts[openingHoursRescueAttempts.length - 1] ||
+    null;
   const isSelectedClosedAtAttemptedTime =
     attempt?.resultType === "SELECTED_HOTSPOT_CLOSED_AT_ATTEMPTED_TIME" ||
     !!selectedOpeningConflict;
@@ -1039,8 +1089,8 @@ export function ManualFitHerePreviewDialog({
           reason: row?.reason || null,
         };
       });
-  const rescueAttemptRemovedItems = successfulRescueAttempt
-    ? getAttemptRemovedItems(successfulRescueAttempt)
+  const rescueAttemptRemovedItems = preferredRescueAttempt
+    ? getAttemptRemovedItems(preferredRescueAttempt)
     : [];
   const displayedRemovedItemsSource = Array.isArray(changesRequiredDisplay?.removedItems) && changesRequiredDisplay.removedItems.length > 0
     ? changesRequiredDisplay.removedItems
@@ -1288,15 +1338,31 @@ export function ManualFitHerePreviewDialog({
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4" data-testid="fit-here-changes-required">
-                    <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                      {changesRequiredDisplay?.title || "Changes Required"}
-                    </p>
+                  <div className="xl:sticky xl:top-0 xl:self-start">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm" data-testid="fit-here-changes-required">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                            {changesRequiredDisplay?.title || "Changes Required"}
+                          </p>
+                          <p className="text-xs font-semibold text-slate-600">
+                            {changesRequiredDisplay?.removalOrderLabel || "Removal order checked: Priority 3 -> Priority 2 -> Priority 1"}
+                          </p>
+                        </div>
+                        {requiresRemovalAcknowledgement && !allRemovalAcknowledged ? (
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-800">
+                            Action needed
+                          </span>
+                        ) : null}
+                      </div>
 
-                    <div className="space-y-3">
-                      <p className="text-xs font-semibold text-slate-600">
-                        {changesRequiredDisplay?.removalOrderLabel || "Removal order checked: Priority 3 -> Priority 2 -> Priority 1"}
-                      </p>
+                      {requiresRemovalAcknowledgement && !allRemovalAcknowledged ? (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                          Confirm is locked until you tick the checkbox below.
+                        </div>
+                      ) : null}
+
+                      <div className="mt-3 space-y-3">
 
                       {hasDisplayedRemovals ? (
                         <div className="space-y-2">
@@ -1354,10 +1420,10 @@ export function ManualFitHerePreviewDialog({
                           {changesRequiredDisplay?.noRemovalText || "No hotspot removed"}
                         </p>
                       )}
-                    </div>
-                    {requiresRemovalAcknowledgement ? (
-                      <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                        <label className="flex cursor-pointer items-start gap-3 text-sm font-medium text-slate-800">
+                      </div>
+                      {requiresRemovalAcknowledgement ? (
+                        <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+                          <label className="flex cursor-pointer items-start gap-3 text-sm font-medium text-slate-800">
                           <input
                             data-testid="fit-here-removal-ack-checkbox"
                             type="checkbox"
@@ -1370,9 +1436,10 @@ export function ManualFitHerePreviewDialog({
                             className="mt-1 h-6 w-6 rounded border-emerald-300 accent-emerald-700"
                           />
                           <span>{removalAcknowledgementLabel}</span>
-                        </label>
-                      </div>
-                    ) : null}
+                          </label>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
