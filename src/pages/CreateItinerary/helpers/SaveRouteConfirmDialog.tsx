@@ -38,7 +38,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
       ? "Optimizing route"
       : "Saving itinerary";
   const friendlyLoadingMessage =
-    transportLoadingMessage || "Preparing transportation options";
+    transportLoadingMessage || "Preparing final itinerary";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="relative w-full max-w-lg rounded-2xl bg-white p-8 text-center shadow-2xl">
