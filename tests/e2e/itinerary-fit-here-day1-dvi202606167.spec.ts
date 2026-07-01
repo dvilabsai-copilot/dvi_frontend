@@ -9,6 +9,7 @@ const QUOTE_ID = "DVI202606167";
 const SELECTED_HOTSPOT_ID = 42;
 const RAMANATHA_SWAMI_TEMPLE_ID = 35;
 const AGNI_TEERTHAM_ID = 36;
+const FIVE_FACED_HANUMAN_TEMPLE_ID = 37;
 const PAMBAN_BRIDGE_ID = 40;
 const GANDHAMADHANA_PARVATHAM_ID = 38;
 const ALAGAR_KOYIL_ID = 28;
@@ -176,7 +177,7 @@ async function openHotspotPreview(page: any, hotspotId: number, hotspotName: str
 
   const hotspotCard = page.locator(`[data-hotspot-id="${hotspotId}"]`).first();
   await expect(hotspotCard, `${hotspotName} hotspot card should be visible`).toBeVisible({ timeout: 30000 });
-  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+  await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
   await expect(page.getByText(/selected for fit here/i)).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(new RegExp(hotspotName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")).first()).toBeVisible({ timeout: 30000 });
@@ -185,7 +186,7 @@ async function openHotspotPreview(page: any, hotspotId: number, hotspotName: str
 async function confirmFitHereViaUi(page: any, hotspotId: number, hotspotName: string, anchorSelector: string): Promise<string> {
   const hotspotCard = page.locator(`[data-hotspot-id="${hotspotId}"]`).first();
   await expect(hotspotCard, `${hotspotName} hotspot card should be visible`).toBeVisible({ timeout: 30000 });
-  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+  await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
   const anchor = page.locator(anchorSelector).first();
   await expect(anchor, `Fit Here anchor for ${hotspotName} should be visible`).toBeVisible({ timeout: 30000 });
@@ -266,6 +267,66 @@ async function previewExactAnchorAndReadResponse(page: any, anchorSelector: stri
   };
 }
 
+async function confirmDay3RamanathaBeforeFirstAttractionViaApi(
+  request: APIRequestContext,
+  token: string,
+): Promise<number> {
+  const planId = 9706;
+  const routeId = await getRouteIdForDay(request, token, QUOTE_ID, 3);
+
+  const details = await fetchItineraryDetails(request, token, QUOTE_ID);
+  const dayThree = (details.days || []).find((day: any) => Number(day?.dayNumber || 0) === 3);
+  const firstAttraction = Array.isArray(dayThree?.segments)
+    ? dayThree.segments.find((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+    : null;
+  expect(firstAttraction, "Day 3 should have a first attraction").toBeTruthy();
+
+  const previewResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-preview`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      routeId,
+      selectedHotspotId: RAMANATHA_SWAMI_TEMPLE_ID,
+      anchor: {
+        anchorType: "BETWEEN_ROWS",
+        anchorIntent: "AFTER_START",
+        anchorIndex: 0,
+        anchorFrom: "Start Your Day",
+        anchorTo: String(firstAttraction?.name || "First attraction"),
+        anchorLabel: `Before first attraction: ${String(firstAttraction?.name || "First attraction")}`,
+        beforeHotspotId: Number(firstAttraction?.hotspotId || 0) || null,
+        beforeRouteHotspotId: Number(firstAttraction?.routeHotspotId || 0) || null,
+        afterHotspotId: null,
+        afterRouteHotspotId: null,
+        afterRowType: "start",
+        beforeRowType: "attraction",
+      },
+      allowP3Removal: true,
+      allowP1P2Removal: true,
+    },
+  });
+
+  expect(previewResponse.ok(), "Day 3 Ramanatha preview should succeed").toBeTruthy();
+  const previewJson = await previewResponse.json();
+  expect(previewJson?.canConfirm).toBe(true);
+  expect(previewJson?.attemptId).toBeTruthy();
+
+  const confirmResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-confirm`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      attemptId: previewJson.attemptId,
+      acknowledgedRemovedHotspotIds: Array.isArray(previewJson?.requiresRemovalAcknowledgementHotspotIds)
+        ? previewJson.requiresRemovalAcknowledgementHotspotIds
+        : [],
+    },
+  });
+
+  expect(confirmResponse.ok(), "Day 3 Ramanatha confirm should succeed").toBeTruthy();
+  const confirmJson = await confirmResponse.json();
+  expect(confirmJson?.success).toBe(true);
+
+  return routeId;
+}
+
 test("day 2 Dhanushkodi after Alagar stays rejected when the exact anchor still cannot be preserved", async ({
   page,
   request,
@@ -316,7 +377,7 @@ test("day 2 Dhanushkodi after Alagar stays rejected when the exact anchor still 
 
   const hotspotCard = page.locator(`[data-hotspot-id="${SELECTED_HOTSPOT_ID}"]`).first();
   await expect(hotspotCard).toBeVisible({ timeout: 30000 });
-  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+  await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
   await expect(page.getByText(/selected for fit here/i)).toBeVisible({ timeout: 30000 });
   await expect(page.getByText(/dhanushkodi/i).first()).toBeVisible({ timeout: 30000 });
@@ -428,7 +489,7 @@ test("day 2 Dhanushkodi after Flower keeps the clicked exact-anchor timeline", a
 
   const hotspotCard = page.locator(`[data-hotspot-id="${SELECTED_HOTSPOT_ID}"]`).first();
   await expect(hotspotCard).toBeVisible({ timeout: 30000 });
-  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+  await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
   const anchor = page
     .locator('[data-testid="fit-here-anchor"][data-anchor-intent="AFTER_ATTRACTION"][data-anchor-from*="Flower"][data-anchor-to*="Ariyamaan"]')
@@ -539,7 +600,7 @@ test("day 2 Fit Here confirm saves the same preview timeline for the Dhanushkodi
 
     const hotspotCard = page.locator(`[data-hotspot-id="${SELECTED_HOTSPOT_ID}"]`).first();
     await expect(hotspotCard).toBeVisible({ timeout: 30000 });
-    await hotspotCard.getByRole("button", { name: /preview/i }).click();
+    await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
     await expect(page.getByText(/selected for fit here/i)).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/dhanushkodi/i).first()).toBeVisible({ timeout: 30000 });
@@ -676,7 +737,7 @@ test("day 2 Ramanatha Fit Here confirm saves the exact preview timeline without 
 
   const hotspotCard = page.locator(`[data-hotspot-id="${RAMANATHA_SWAMI_TEMPLE_ID}"]`).first();
   await expect(hotspotCard).toBeVisible({ timeout: 30000 });
-  await hotspotCard.getByRole("button", { name: /preview/i }).click();
+  await hotspotCard.getByRole("button", { name: /^preview$/i }).click();
 
   const anchor = page
     .locator(`[data-testid="fit-here-anchor"][data-anchor-intent="AFTER_ATTRACTION"][data-anchor-from*="Pamban"]`)
@@ -1242,4 +1303,111 @@ test("day 3 AFTER_START Fit Here keeps Agni before the first attraction instead 
 
   expect(previewJson?.selectedAnchor?.anchorIntent).toBe("AFTER_START");
   expect(Number(previewJson?.selectedAnchor?.beforeHotspotId || 0)).toBeGreaterThan(0);
+});
+
+test("day 3 exact-anchor Fit Here after Dhanushkodi shows removal evidence and keeps Agni after Dhanushkodi", async ({
+  page,
+  request,
+  baseURL,
+}) => {
+  test.setTimeout(240000);
+
+  const appBaseUrl = baseURL ?? "http://localhost:8080";
+  const token = await seedAuthToken(page, request);
+  const planId = 9706;
+
+  await resetItineraryBasicInfo(request, token);
+  await deleteManualHotspotIfPresent(request, token, planId, AGNI_TEERTHAM_ID);
+  await deleteManualHotspotIfPresent(request, token, planId, RAMANATHA_SWAMI_TEMPLE_ID);
+
+  try {
+    await confirmDay3RamanathaBeforeFirstAttractionViaApi(request, token);
+
+    await page.goto(`${appBaseUrl}/itinerary-details/${encodeURIComponent(QUOTE_ID)}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(page).toHaveURL(new RegExp(`/itinerary-details/${QUOTE_ID}$`), {
+      timeout: 30000,
+    });
+
+    const dayThreeCard = page.locator('#itinerary-day-3[data-day-number="3"]').first();
+    await expect(dayThreeCard).toBeVisible({ timeout: 30000 });
+    await dayThreeCard.scrollIntoViewIfNeeded();
+
+    const addHotspotButton = dayThreeCard.getByRole("button", {
+      name: /add hotspot|click to add hotspot/i,
+    }).first();
+    await expect(addHotspotButton).toBeVisible({ timeout: 30000 });
+    await addHotspotButton.click();
+
+    await expect(page.getByRole("heading", { name: /hotspot list/i })).toBeVisible({ timeout: 30000 });
+
+    const searchInput = page.getByPlaceholder(/search hotspot/i).first();
+    await expect(searchInput).toBeVisible({ timeout: 30000 });
+    await searchInput.fill("Agni");
+
+    const agniCard = page.locator(`[data-hotspot-id="${AGNI_TEERTHAM_ID}"]`).first();
+    await expect(agniCard).toBeVisible({ timeout: 30000 });
+    await agniCard.getByRole("button", { name: /^preview$/i }).click();
+
+    const { previewJson } = await previewExactAnchorAndReadResponse(
+      page,
+      '[data-testid="fit-here-anchor"][data-anchor-intent="AFTER_ATTRACTION"][data-anchor-from*="Dhanushkodi"]',
+    );
+
+    expect(previewJson?.resultType).toBe("FITS_WITH_OPTIONAL_REMOVAL");
+    expect(previewJson?.canConfirm).toBe(true);
+    expect(previewJson?.selectedAnchorPreserved).toBe(true);
+
+    const removedIds = [
+      ...(Array.isArray(previewJson?.removedHotspots) ? previewJson.removedHotspots : []),
+      ...(Array.isArray(previewJson?.resolution?.removedHotspots) ? previewJson.resolution.removedHotspots : []),
+    ].map((row: any) => getHotspotId(row));
+    expect(removedIds).toContain(FIVE_FACED_HANUMAN_TEMPLE_ID);
+
+    const finalizedTimeline = getPreviewTimeline(previewJson);
+    const attractionNames = finalizedTimeline
+      .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+      .map((row: any) => getSegmentName(row));
+    const dhanushkodiIndex = attractionNames.findIndex((name: string) => /Dhanushkodi/i.test(name));
+    const agniIndex = attractionNames.findIndex((name: string) => /Agni Teertham/i.test(name));
+    const fiveFacedIndex = attractionNames.findIndex((name: string) => /Five Faced/i.test(name));
+
+    expect(dhanushkodiIndex, "Preview timeline should contain Dhanushkodi").toBeGreaterThanOrEqual(0);
+    expect(agniIndex, "Preview timeline should contain Agni").toBeGreaterThanOrEqual(0);
+    expect(
+      agniIndex,
+      `Agni should remain after Dhanushkodi in the finalized preview timeline. Order was: ${attractionNames.join(" -> ")}`,
+    ).toBeGreaterThan(dhanushkodiIndex);
+    expect(fiveFacedIndex, "Removed Five Faced Hanuman Temple should not remain in finalized preview").toBe(-1);
+
+    const dialog = page.getByTestId("fit-here-preview-dialog");
+    await expect(dialog).toBeVisible({ timeout: 30000 });
+
+    const changes = page.getByTestId("fit-here-changes-required");
+    await expect(changes).toContainText(/Five Faced Hanuman Temple/i);
+    await expect(changes).toContainText(/removed/i);
+
+    const mainTimeline = page.getByTestId("fit-here-main-timeline");
+    await expect(mainTimeline).toContainText(/Dhanushkodi and/i);
+    await expect(mainTimeline).toContainText(/Agni Teertham/i);
+    await expect(mainTimeline).not.toContainText(/Five Faced Hanuman Temple/i);
+
+    const mainTimelineText = await mainTimeline.innerText();
+    expect(
+      mainTimelineText.indexOf("Agni Teertham"),
+      "Normal preview UI should render Agni after Dhanushkodi for the exact anchor",
+    ).toBeGreaterThan(mainTimelineText.indexOf("Dhanushkodi and"));
+
+    const removalAckCheckbox = dialog.getByTestId("fit-here-removal-ack-checkbox");
+    await expect(removalAckCheckbox).toHaveCount(1);
+
+    const confirmButton = dialog.getByRole("button", { name: /confirm fit here|confirm and remove hotspots/i }).first();
+    await expect(confirmButton).toBeDisabled();
+    await removalAckCheckbox.first().check();
+    await expect(confirmButton).toBeEnabled({ timeout: 30000 });
+  } finally {
+    await deleteManualHotspotIfPresent(request, token, planId, AGNI_TEERTHAM_ID);
+    await deleteManualHotspotIfPresent(request, token, planId, RAMANATHA_SWAMI_TEMPLE_ID);
+  }
 });

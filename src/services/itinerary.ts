@@ -107,6 +107,14 @@ export type ManualFitHerePreviewPayload = {
   allowP1P2Removal?: boolean;
 };
 
+export type ManualFitHereAutoPreviewPayload = {
+  routeId: number;
+  selectedHotspotId: number;
+  anchors: any[];
+  allowP3Removal?: boolean;
+  allowP1P2Removal?: boolean;
+};
+
 type LatestItineraryParams = {
   page: number;            // 1-based
   pageSize: number;        // length
@@ -665,6 +673,16 @@ export const ItineraryService = {
     payload: ManualFitHerePreviewPayload,
   ) {
     return api(`itineraries/${planId}/manual-hotspot/fit-preview`, {
+      method: "POST",
+      body: payload,
+    });
+  },
+
+  async previewManualHotspotAutoFitHere(
+    planId: number,
+    payload: ManualFitHereAutoPreviewPayload,
+  ) {
+    return api(`itineraries/${planId}/manual-hotspot/auto-fit-preview`, {
       method: "POST",
       body: payload,
     });

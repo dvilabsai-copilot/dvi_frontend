@@ -46,6 +46,7 @@ import {
   ManualFitHerePreviewDialog,
   ManualFitHerePreviewResponse,
 } from "@/components/itinerary/manual-fit/ManualFitHerePreviewDialog";
+import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
 import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
@@ -1415,6 +1416,19 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     anchorKey: null,
     retryPayload: null,
   });
+  const [autoFitHereModal, setAutoFitHereModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    failedReason: string | null;
+    results: any[];
+    selectedAnchorKey: string | null;
+  }>({
+    open: false,
+    loading: false,
+    failedReason: null,
+    results: [],
+    selectedAnchorKey: null,
+  });
   const [confirmFitHereLoading, setConfirmFitHereLoading] = useState(false);
 
   // Refs for scrolling
@@ -1461,9 +1475,12 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     [addHotspotModal.routeId, itinerary?.days],
   );
 
-  const isFitHereSelectionMode =
-    addHotspotModal.open &&
-    selectedHotspotAnchor != null;
+  const currentRouteForModal = useMemo(
+    () => itinerary?.days?.find((day) => Number(day.id) === Number(addHotspotModal.routeId || 0)) || null,
+    [addHotspotModal.routeId, itinerary?.days],
+  );
+
+  const isFitHereSelectionMode = addHotspotModal.open;
 
   const getFitHereSegmentLabel = useCallback((segment: ItinerarySegment | any): string => {
     if (!segment) return 'Timeline row';
@@ -2530,14 +2547,29 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       return backend;
     }
 
-    const sourceKey = String(hotspotFilterMeta?.sourceCityKey || '').trim().toLowerCase();
-    const destinationKey = String(hotspotFilterMeta?.destinationCityKey || '').trim().toLowerCase();
+    const sourceKey = String(
+      hotspotFilterMeta?.sourceCityKey ||
+      currentRouteForModal?.departure ||
+      addHotspotModal.locationName ||
+      '',
+    ).trim().toLowerCase();
+    const destinationKey = String(
+      hotspotFilterMeta?.destinationCityKey ||
+      currentRouteForModal?.arrival ||
+      '',
+    ).trim().toLowerCase();
     const hay = `${String(hotspot?.locationMap || '')} ${String(hotspot?.name || '')}`.toLowerCase();
 
     if (destinationKey && hay.includes(destinationKey)) return 'DESTINATION_CITY';
     if (sourceKey && hay.includes(sourceKey)) return 'SOURCE_CITY';
     return 'UNKNOWN';
-  }, [hotspotFilterMeta?.destinationCityKey, hotspotFilterMeta?.sourceCityKey]);
+  }, [
+    hotspotFilterMeta?.destinationCityKey,
+    hotspotFilterMeta?.sourceCityKey,
+    currentRouteForModal?.arrival,
+    currentRouteForModal?.departure,
+    addHotspotModal.locationName,
+  ]);
 
   const activePreviewHotspot = useMemo(
     () => availableHotspots.find((h) => Number(h.id) === Number(activePreviewHotspotId || 0)) || null,
@@ -3634,17 +3666,56 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       return 0;
     });
 
+  const sourceCityLabel = useMemo(() => {
+    const raw = String(
+      hotspotFilterMeta?.sourceCityKey ||
+      currentRouteForModal?.departure ||
+      addHotspotModal.locationName ||
+      '',
+    ).trim();
+    if (!raw) return 'source city';
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }, [
+    hotspotFilterMeta?.sourceCityKey,
+    currentRouteForModal?.departure,
+    addHotspotModal.locationName,
+  ]);
+
   const destinationCityLabel = useMemo(() => {
-    const raw = String(hotspotFilterMeta?.destinationCityKey || selectedHotspotAnchor?.anchorTo || '').trim();
+    const raw = String(
+      hotspotFilterMeta?.destinationCityKey ||
+      selectedHotspotAnchor?.anchorTo ||
+      currentRouteForModal?.arrival ||
+      '',
+    ).trim();
     if (!raw) return 'destination city';
     return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [hotspotFilterMeta?.destinationCityKey, selectedHotspotAnchor?.anchorTo]);
+  }, [
+    hotspotFilterMeta?.destinationCityKey,
+    selectedHotspotAnchor?.anchorTo,
+    currentRouteForModal?.arrival,
+  ]);
 
   const routeIsDifferentCity = useMemo(() => {
-    const source = String(hotspotFilterMeta?.sourceCityKey || '').trim().toLowerCase();
-    const destination = String(hotspotFilterMeta?.destinationCityKey || '').trim().toLowerCase();
+    const source = String(
+      hotspotFilterMeta?.sourceCityKey ||
+      currentRouteForModal?.departure ||
+      addHotspotModal.locationName ||
+      '',
+    ).trim().toLowerCase();
+    const destination = String(
+      hotspotFilterMeta?.destinationCityKey ||
+      currentRouteForModal?.arrival ||
+      '',
+    ).trim().toLowerCase();
     return source.length > 0 && destination.length > 0 && source !== destination;
-  }, [hotspotFilterMeta?.sourceCityKey, hotspotFilterMeta?.destinationCityKey]);
+  }, [
+    hotspotFilterMeta?.sourceCityKey,
+    hotspotFilterMeta?.destinationCityKey,
+    currentRouteForModal?.departure,
+    currentRouteForModal?.arrival,
+    addHotspotModal.locationName,
+  ]);
 
   const destinationInsertionSlotLabel = useMemo(() => {
     const preferredRaw = String(
@@ -3734,12 +3805,9 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
       }];
     }
 
-    const sourceLabel = `${formatCityLabel(
-      hotspotFilterMeta?.sourceCityKey || addHotspotModal.locationName,
-      'Source',
-    )} Hotspots`;
+    const sourceLabel = `${formatCityLabel(sourceCityLabel, 'Source')} Hotspots`;
     const destinationLabel = `${formatCityLabel(
-      hotspotFilterMeta?.destinationCityKey || destinationCityLabel,
+      destinationCityLabel,
       'Destination',
     )} Hotspots`;
     const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [
@@ -3767,9 +3835,7 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
   }, [
     routeIsDifferentCity,
     filteredHotspots.length,
-    hotspotFilterMeta?.sourceCityKey,
-    hotspotFilterMeta?.destinationCityKey,
-    addHotspotModal.locationName,
+    sourceCityLabel,
     destinationCityLabel,
     hotspotCityBuckets,
   ]);
@@ -8948,6 +9014,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       attempt: null,
       anchorKey: null,
     });
+    setAutoFitHereModal({
+      open: false,
+      loading: false,
+      failedReason: null,
+      results: [],
+      selectedAnchorKey: null,
+    });
 
     // Fetch available hotspots for this location
     setLoadingHotspots(true);
@@ -9069,6 +9142,50 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     ].join(":");
   };
 
+  const serializeFitHereAnchor = useCallback((anchor: HotspotAnchor) => ({
+    anchorType: anchor.anchorType || 'BETWEEN_ROWS',
+    anchorIntent: anchor.anchorIntent,
+    anchorIndex: anchor.anchorIndex,
+    anchorFrom: anchor.anchorFrom,
+    anchorTo: anchor.anchorTo,
+    anchorLabel: anchor.anchorLabel,
+    anchorTimeRange: anchor.anchorTimeRange,
+    afterRowType: anchor.afterRowType,
+    beforeRowType: anchor.beforeRowType,
+    afterHotspotId: anchor.afterHotspotId,
+    afterRouteHotspotId: anchor.afterRouteHotspotId,
+    beforeHotspotId: anchor.beforeHotspotId,
+    beforeRouteHotspotId: anchor.beforeRouteHotspotId,
+  }), []);
+
+  const buildAutoFitHereAnchorsForDay = useCallback((day: ItineraryDay): HotspotAnchor[] => {
+    const anchors: HotspotAnchor[] = [];
+
+    for (let index = 0; index < day.segments.length; index += 1) {
+      const anchor = buildFitHereAnchorForTimelineRow(day, index);
+
+      if (!anchor) continue;
+
+      if (
+        anchor.anchorIntent !== 'AFTER_START' &&
+        anchor.anchorIntent !== 'AFTER_ATTRACTION'
+      ) {
+        continue;
+      }
+
+      anchors.push(anchor);
+    }
+
+    const seen = new Set<string>();
+
+    return anchors.filter((anchor) => {
+      const key = buildFitHereAnchorKey(anchor);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [buildFitHereAnchorForTimelineRow]);
+
   const getFitHereTriedState = (resultType?: string): Omit<TriedAnchorState, 'anchorKey'> => {
     const normalized = String(resultType || '').toUpperCase();
 
@@ -9100,6 +9217,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       attempt: null,
       anchorKey: null,
       retryPayload: null,
+    });
+    setAutoFitHereModal({
+      open: false,
+      loading: false,
+      failedReason: null,
+      results: [],
+      selectedAnchorKey: null,
     });
     resetManualHotspotPreviewState();
     setActivePreviewHotspotId(null);
@@ -9198,6 +9322,86 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
   };
 
+  const handleAutoPreviewFitHere = async (hotspot: AvailableHotspot) => {
+    const planId = Number(itinerary?.planId || 0);
+    const day = selectedFitHereDay;
+
+    if (!(planId > 0)) {
+      toast.error('Plan ID missing.');
+      return;
+    }
+
+    if (!day) {
+      toast.error('Could not find the selected route day.');
+      return;
+    }
+
+    const anchors = buildAutoFitHereAnchorsForDay(day);
+
+    if (anchors.length === 0) {
+      toast.error('No valid Fit Here positions found for Auto-Preview.');
+      return;
+    }
+
+    stopFitHereProgressTimer();
+    setSelectedFitHotspot(hotspot);
+    setActivePreviewHotspotId(hotspot.id);
+    setSelectedHotspotIds([hotspot.id]);
+    resetManualHotspotPreviewStateButKeepActiveHotspot(hotspot.id);
+    setFitHereModal({
+      open: false,
+      loading: false,
+      loadingStepIndex: 0,
+      failedReason: null,
+      attempt: null,
+      anchorKey: null,
+      retryPayload: null,
+    });
+
+    setAutoFitHereModal({
+      open: true,
+      loading: true,
+      failedReason: null,
+      results: [],
+      selectedAnchorKey: null,
+    });
+
+    try {
+      const response: any = await ItineraryService.previewManualHotspotAutoFitHere(planId, {
+        routeId: Number(day.id),
+        selectedHotspotId: Number(hotspot.id),
+        anchors: anchors.map(serializeFitHereAnchor),
+        allowP3Removal: true,
+        allowP1P2Removal: true,
+      });
+
+      const results = Array.isArray(response?.results) ? response.results : [];
+      const selectedAnchorKey =
+        response?.bestAnchorKey ||
+        results.find((row: any) => row?.attempt?.canConfirm === true)?.anchorKey ||
+        results[0]?.anchorKey ||
+        null;
+
+      setAutoFitHereModal({
+        open: true,
+        loading: false,
+        failedReason: null,
+        results,
+        selectedAnchorKey,
+      });
+    } catch (error: any) {
+      setAutoFitHereModal({
+        open: true,
+        loading: false,
+        failedReason: error?.message || 'Could not run Auto-Preview.',
+        results: [],
+        selectedAnchorKey: null,
+      });
+
+      toast.error(error?.message || 'Could not run Auto-Preview.');
+    }
+  };
+
   const handleFitHereCancel = () => {
     stopFitHereProgressTimer();
     const attempt = fitHereModal.attempt;
@@ -9256,21 +9460,69 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     );
   };
 
+  const isExpiredOrMissingFitHereAttemptError = (error: any): boolean => {
+    const message = String(error?.message || "");
+    return (
+      message.includes("Fit Here preview attempt was not found")
+      || message.includes("Fit Here preview attempt expired")
+      || (
+        message.includes("/manual-hotspot/fit-confirm")
+        && message.includes("409")
+        && message.includes("preview attempt expired")
+      )
+    );
+  };
+
+  const getFitHereRefreshScrollStorageKey = useCallback(() => {
+    const normalizedQuoteId = String(quoteId || "").trim();
+    return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
+  }, [quoteId]);
+
+  const resolveActiveFitHereDayNumber = useCallback(
+    (attempt?: ManualFitHerePreviewResponse | null): number | null => {
+      const attemptRouteId = Number(
+        attempt?.routeId
+        || fitHereModal?.retryPayload?.day?.id
+        || addHotspotModal.routeId
+        || 0,
+      );
+
+      if (attemptRouteId > 0) {
+        const matchedDay = itinerary?.days?.find((day) => Number(day.id) === attemptRouteId);
+        const matchedDayNumber = Number(matchedDay?.dayNumber || 0);
+        if (matchedDayNumber > 0) {
+          return matchedDayNumber;
+        }
+      }
+
+      const fallbackDayNumber = Number(
+        fitHereModal?.retryPayload?.day?.dayNumber
+        || selectedFitHereDay?.dayNumber
+        || 0,
+      );
+
+      return fallbackDayNumber > 0 ? fallbackDayNumber : null;
+    },
+    [addHotspotModal.routeId, fitHereModal?.retryPayload?.day?.dayNumber, fitHereModal?.retryPayload?.day?.id, itinerary?.days, selectedFitHereDay?.dayNumber],
+  );
+
   const handleConfirmFitHere = async (
     options?: {
       allowClosedHotspotConflict?: boolean;
       allowTimingRisk?: boolean;
       acknowledgedRemovedHotspotIds?: number[];
     },
+    attemptOverride?: ManualFitHerePreviewResponse | null,
   ) => {
-    const attemptId = fitHereModal.attempt?.attemptId;
+    const selectedAttempt = attemptOverride || fitHereModal.attempt;
+    const attemptId = selectedAttempt?.attemptId;
     const planId = Number(itinerary?.planId || 0);
-    const selectedAttempt = fitHereModal.attempt;
     const confirmRemovedRows = [
       ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
       ...(Array.isArray(selectedAttempt?.resolution?.removedHotspots) ? selectedAttempt.resolution.removedHotspots : []),
       ...(Array.isArray(selectedAttempt?.resolution?.removedOptionalHotspots) ? selectedAttempt.resolution.removedOptionalHotspots : []),
       ...(Array.isArray(selectedAttempt?.resolution?.removedTopPriorityHotspots) ? selectedAttempt.resolution.removedTopPriorityHotspots : []),
+      ...(Array.isArray(selectedAttempt?.changesRequiredDisplay?.removedItems) ? selectedAttempt.changesRequiredDisplay.removedItems : []),
     ];
     const acknowledgedRemovedHotspotIds = Array.from(new Set(
       (Array.isArray(options?.acknowledgedRemovedHotspotIds) ? options?.acknowledgedRemovedHotspotIds : [])
@@ -9280,17 +9532,20 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     const hasTimingRisk =
       selectedAttempt?.timingRisk?.type === 'PARTIAL_STAY_AFTER_CLOSING'
       || selectedAttempt?.requiresTimingRiskConfirmation === true;
-    const hasPriorityRemoval = acknowledgedRemovedHotspotIds.length > 0;
+    const hasPriorityRemoval =
+      confirmRemovedRows.length > 0
+      || selectedAttempt?.requiresPriorityRemovalConfirmation === true
+      || acknowledgedRemovedHotspotIds.length > 0;
     const hasP3Removal = confirmRemovedRows.some((row: any) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       return priority === 3;
     });
     const hasP1P2Removal = confirmRemovedRows.some((row: any) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       return priority === 1 || priority === 2;
     });
     const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row: any) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
+      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       const reasonCode = String(row?.removalReasonCode || '').toUpperCase();
       return (priority === 1 || priority === 2) && reasonCode === 'UNPROVEN_REMOVAL';
     });
@@ -9324,9 +9579,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk,
         allowClosedHotspotConflict: options?.allowClosedHotspotConflict === true,
         allowPriorityRemoval:
-          selectedAttempt?.requiresPriorityRemovalConfirmation === true ||
-          selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true ||
-          acknowledgedRemovedHotspotIds.length > 0,
+          hasPriorityRemoval ||
+          selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true,
         acknowledgedRemovedHotspotIds,
       });
       const confirmedHotspotId = Number(
@@ -9478,6 +9732,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         anchorKey: null,
         retryPayload: null,
       });
+      setAutoFitHereModal({
+        open: false,
+        loading: false,
+        failedReason: null,
+        results: [],
+        selectedAnchorKey: null,
+      });
       setTriedFitHereAnchors({});
 
       if (quoteId) {
@@ -9504,6 +9765,19 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
     } catch (error: any) {
+      if (isExpiredOrMissingFitHereAttemptError(error)) {
+        const scrollDayNumber = resolveActiveFitHereDayNumber(selectedAttempt);
+        const scrollStorageKey = getFitHereRefreshScrollStorageKey();
+        if (scrollStorageKey && scrollDayNumber) {
+          window.sessionStorage.setItem(scrollStorageKey, String(scrollDayNumber));
+        }
+        toast.info('This Fit Here preview expired. Refreshing the itinerary now.');
+        window.setTimeout(() => {
+          window.location.reload();
+        }, 600);
+        return;
+      }
+
       if (isRetryableFitHereConfirmError(error)) {
         const retryPayload = fitHereModal.retryPayload;
         if (retryPayload) {
@@ -11596,6 +11870,25 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
     return () => window.clearTimeout(timer);
   }, [itinerary, pendingScrollDayNumber]);
+
+  useEffect(() => {
+    if (!itinerary?.days?.length || pendingScrollDayNumber) {
+      return;
+    }
+
+    const scrollStorageKey = getFitHereRefreshScrollStorageKey();
+    if (!scrollStorageKey) {
+      return;
+    }
+
+    const storedDayNumber = Number(window.sessionStorage.getItem(scrollStorageKey) || 0);
+    if (!storedDayNumber) {
+      return;
+    }
+
+    window.sessionStorage.removeItem(scrollStorageKey);
+    setPendingScrollDayNumber(storedDayNumber);
+  }, [getFitHereRefreshScrollStorageKey, itinerary?.days, pendingScrollDayNumber]);
 
   useEffect(() => {
     return () => {
@@ -14009,13 +14302,11 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
           <DialogHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <DialogTitle>Hotspot List</DialogTitle>
+                <DialogTitle>Fit Here Hotspot List</DialogTitle>
                 <DialogDescription>
                   {selectedPreviewCityContext === 'DESTINATION_CITY'
-                    ? `Destination-side slot: after reaching ${destinationCityLabel}`
-                    : (selectedHotspotAnchor
-                      ? `Select a hotspot to insert after ${selectedHotspotAnchor.anchorFrom || "current"} -> ${selectedHotspotAnchor.anchorTo || "next stop"}`
-                      : "Select a hotspot to add to your itinerary")}
+                    ? `Destination-side hotspots after reaching ${destinationCityLabel}. Preview checks one exact Fit Here position; Auto-Preview checks all valid positions.`
+                    : "Select a hotspot, then use Preview for one exact Fit Here position or Auto-Preview for all valid positions."}
                 </DialogDescription>
               </div>
               <input
@@ -14256,33 +14547,46 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                           Added
                                         </Button>
                                       ) : (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot}
-                                          onClick={() => {
-                                            if (isFitHereSelectionMode) {
-                                              setSelectedFitHotspot(hotspot);
-                                              setActivePreviewHotspotId(hotspot.id);
-                                              setSelectedHotspotIds([hotspot.id]);
-                                              resetManualHotspotPreviewStateButKeepActiveHotspot(hotspot.id);
-                                              toast.info('Now choose the exact Fit Here position from the timeline on the right.');
-                                              return;
-                                            }
+                                        <div className="flex gap-2">
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot}
+                                            onClick={() => {
+                                              if (isFitHereSelectionMode) {
+                                                handleSelectFitHotspot(hotspot);
+                                                toast.info('Now choose the exact Fit Here position from the timeline on the right.');
+                                                return;
+                                              }
 
-                                            handlePreviewHotspot(hotspot.id);
-                                          }}
-                                          className="bg-[#d546ab] hover:bg-[#c03d9f] text-white"
-                                        >
-                                          {isLoadingThis ? (
-                                            <>
-                                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                              Previewing
-                                            </>
-                                          ) : (
-                                            hotspot.buttonLabel || 'Preview'
+                                              handlePreviewHotspot(hotspot.id);
+                                            }}
+                                            className="bg-[#d546ab] hover:bg-[#c03d9f] text-white"
+                                          >
+                                            {isLoadingThis ? (
+                                              <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Previewing
+                                              </>
+                                            ) : (
+                                              hotspot.buttonLabel || 'Preview'
+                                            )}
+                                          </Button>
+                                          {isFitHereSelectionMode && (
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="outline"
+                                              disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot || autoFitHereModal.loading}
+                                              onClick={() => {
+                                                void handleAutoPreviewFitHere(hotspot);
+                                              }}
+                                              className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                            >
+                                              Auto-Preview
+                                            </Button>
                                           )}
-                                        </Button>
+                                        </div>
                                       )}
                                     </div>
                                   </div>
@@ -17686,6 +17990,34 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
         onClose={handleFitHereCancel}
         onConfirm={handleConfirmFitHere}
         onRetry={handleRetryFitHere}
+        confirmLoading={confirmFitHereLoading}
+      />
+
+      <AutoFitHerePreviewDialog
+        open={autoFitHereModal.open}
+        loading={autoFitHereModal.loading}
+        failedReason={autoFitHereModal.failedReason}
+        results={autoFitHereModal.results}
+        selectedAnchorKey={autoFitHereModal.selectedAnchorKey}
+        selectedHotspot={selectedFitHotspot}
+        onClose={() => {
+          setAutoFitHereModal({
+            open: false,
+            loading: false,
+            failedReason: null,
+            results: [],
+            selectedAnchorKey: null,
+          });
+        }}
+        onSelectAnchorKey={(anchorKey) => {
+          setAutoFitHereModal((prev) => ({
+            ...prev,
+            selectedAnchorKey: anchorKey,
+          }));
+        }}
+        onConfirm={(options, attempt) => {
+          void handleConfirmFitHere(options, attempt);
+        }}
         confirmLoading={confirmFitHereLoading}
       />
 
