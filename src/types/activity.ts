@@ -8,15 +8,20 @@ export interface SpecialDay {
   timeSlots: TimeSlot[];
 }
 
+export type ActivityPricingUnitType = "PER_ADULT" | "UNIT";
+
 export interface ActivityPricing {
   startDate: string;
   endDate: string;
+  pricingUnitType: ActivityPricingUnitType;
   adult: number;
   children: number;
   infant: number;
+  unitCost: number;
   foreignAdult: number;
   foreignChildren: number;
   foreignInfant: number;
+  foreignUnitCost: number;
 }
 
 export interface ActivityReview {

@@ -71,15 +71,20 @@ type FormSpecialDay = {
   timeSlots: FormTimeSlot[];
 };
 
+type ActivityPricingUnitType = "PER_ADULT" | "UNIT";
+
 type FormPricing = {
   startDate: string;
   endDate: string;
+  pricingUnitType: ActivityPricingUnitType;
   adult: number;
   children: number;
   infant: number;
+  unitCost: number;
   foreignAdult: number;
   foreignChildren: number;
   foreignInfant: number;
+  foreignUnitCost: number;
 };
 
 type FormReview = {
@@ -151,15 +156,18 @@ const getEmptyActivity = (): ActivityFormState => ({
   defaultAvailableTimes: [{ startTime: "", endTime: "" }],
   isSpecialDay: false,
   specialDays: [],
-  pricing: {
+    pricing: {
     startDate: "",
     endDate: "",
+    pricingUnitType: "PER_ADULT",
     adult: 0,
     children: 0,
     infant: 0,
+    unitCost: 0,
     foreignAdult: 0,
     foreignChildren: 0,
     foreignInfant: 0,
+    foreignUnitCost: 0,
   },
   reviews: [],
   status: true,
@@ -517,15 +525,18 @@ if (preview?.images?.length) {
       try {
         const pb = await ActivitiesAPI.getPriceBook(numericId);
         if (pb) {
-          base.pricing = {
+                    base.pricing = {
             startDate: pb.start_date ?? "",
             endDate: pb.end_date ?? "",
+            pricingUnitType: pb.pricing_unit_type ?? "PER_ADULT",
             adult: pb.indian?.adult_cost ?? 0,
             children: pb.indian?.child_cost ?? 0,
             infant: pb.indian?.infant_cost ?? 0,
+            unitCost: pb.indian?.unit_cost ?? 0,
             foreignAdult: pb.nonindian?.adult_cost ?? 0,
             foreignChildren: pb.nonindian?.child_cost ?? 0,
             foreignInfant: pb.nonindian?.infant_cost ?? 0,
+            foreignUnitCost: pb.nonindian?.unit_cost ?? 0,
           };
           // format into DD/MM/YYYY for the picker display
           const fmtDMY = (iso: string) => {
@@ -553,7 +564,10 @@ if (preview?.images?.length) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handlePricingChange = (field: keyof FormPricing, value: number) => {
+    const handlePricingChange = <K extends keyof FormPricing>(
+    field: K,
+    value: FormPricing[K]
+  ) => {
     setFormData((prev) => ({
       ...prev,
       pricing: { ...prev.pricing, [field]: value },
@@ -892,14 +906,17 @@ const handleReviewExcel = () => {
         if (!pb) return;
         setFormData((prev) => ({
           ...prev,
-          pricing: {
+                    pricing: {
             ...prev.pricing,
+            pricingUnitType: pb.pricing_unit_type ?? prev.pricing.pricingUnitType,
             adult: pb.indian?.adult_cost ?? prev.pricing.adult,
             children: pb.indian?.child_cost ?? prev.pricing.children,
             infant: pb.indian?.infant_cost ?? prev.pricing.infant,
+            unitCost: pb.indian?.unit_cost ?? prev.pricing.unitCost,
             foreignAdult: pb.nonindian?.adult_cost ?? prev.pricing.foreignAdult,
             foreignChildren: pb.nonindian?.child_cost ?? prev.pricing.foreignChildren,
             foreignInfant: pb.nonindian?.infant_cost ?? prev.pricing.foreignInfant,
+            foreignUnitCost: pb.nonindian?.unit_cost ?? prev.pricing.foreignUnitCost,
           },
         }));
       })
@@ -936,15 +953,18 @@ const handleReviewExcel = () => {
           hotspot_id: formData.hotspotId ?? 0,
           start_date: startDate,
           end_date: endDate,
+          pricing_unit_type: currentPricing.pricingUnitType,
           indian: {
             adult_cost: currentPricing.adult,
             child_cost: currentPricing.children,
             infant_cost: currentPricing.infant,
+            unit_cost: currentPricing.unitCost,
           },
           nonindian: {
             adult_cost: currentPricing.foreignAdult,
             child_cost: currentPricing.foreignChildren,
             infant_cost: currentPricing.foreignInfant,
+            unit_cost: currentPricing.foreignUnitCost,
           },
         });
         toast.success("Pricing saved");
@@ -983,14 +1003,52 @@ const handleReviewExcel = () => {
 
   const priceBookDates = getPriceBookDates();
 
-  const priceBookRows = [
-    { nationality: "Indian", priceType: "Adults", amount: formData.pricing.adult },
-    { nationality: "Indian", priceType: "Children", amount: formData.pricing.children },
-    { nationality: "Indian", priceType: "Infants", amount: formData.pricing.infant },
-    { nationality: "Non Indian", priceType: "Adults", amount: formData.pricing.foreignAdult },
-    { nationality: "Non Indian", priceType: "Children", amount: formData.pricing.foreignChildren },
-    { nationality: "Non Indian", priceType: "Infants", amount: formData.pricing.foreignInfant },
-  ];
+    const priceBookRows =
+    formData.pricing.pricingUnitType === "UNIT"
+      ? [
+          {
+            nationality: "Indian",
+            priceType: "Unit Cost",
+            amount: formData.pricing.unitCost,
+          },
+          {
+            nationality: "Non Indian",
+            priceType: "Unit Cost",
+            amount: formData.pricing.foreignUnitCost,
+          },
+        ]
+      : [
+          {
+            nationality: "Indian",
+            priceType: "Adults",
+            amount: formData.pricing.adult,
+          },
+          {
+            nationality: "Indian",
+            priceType: "Children",
+            amount: formData.pricing.children,
+          },
+          {
+            nationality: "Indian",
+            priceType: "Infants",
+            amount: formData.pricing.infant,
+          },
+          {
+            nationality: "Non Indian",
+            priceType: "Adults",
+            amount: formData.pricing.foreignAdult,
+          },
+          {
+            nationality: "Non Indian",
+            priceType: "Children",
+            amount: formData.pricing.foreignChildren,
+          },
+          {
+            nationality: "Non Indian",
+            priceType: "Infants",
+            amount: formData.pricing.foreignInfant,
+          },
+        ];
   const hotspotLabel = hotspotOptions.find((o) => o.id === formData.hotspotId)?.label?.split(" — ")[0] || formData.title || "Activity";
 
   useEffect(() => {
@@ -1104,19 +1162,22 @@ const persistPendingReviews = async (activityId: number) => {
 
       // ----------------- PRICEBOOK -----------------
       if (formData.pricing.startDate && formData.pricing.endDate) {
-        await ActivitiesAPI.savePriceBook(activityIdNum, {
+                await ActivitiesAPI.savePriceBook(activityIdNum, {
           hotspot_id: formData.hotspotId ?? 0,
           start_date: formData.pricing.startDate,
           end_date: formData.pricing.endDate,
+          pricing_unit_type: formData.pricing.pricingUnitType,
           indian: {
             adult_cost: formData.pricing.adult,
             child_cost: formData.pricing.children,
             infant_cost: formData.pricing.infant,
+            unit_cost: formData.pricing.unitCost,
           },
           nonindian: {
             adult_cost: formData.pricing.foreignAdult,
             child_cost: formData.pricing.foreignChildren,
             infant_cost: formData.pricing.foreignInfant,
+            unit_cost: formData.pricing.foreignUnitCost,
           },
         });
       }
@@ -1736,102 +1797,170 @@ const persistPendingReviews = async (activityId: number) => {
                 </div>
               </div>
 
-              {/* Indian Pricing */}
-              <div className="grid grid-cols-4 gap-6 items-end">
+                           {/* Pricing Type */}
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-end">
                 <div>
-                  <Label className="text-gray-500">Nationality</Label>
-                  <p className="text-primary font-medium">Indian</p>
-                </div>
-                <div>
-                  <Label className="text-primary">Adult</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.adult || ""}
-                    onChange={(e) =>
-                      handlePricingChange("adult", Number(e.target.value))
+                  <Label className="text-primary">Pricing Type</Label>
+                  <Select
+                    value={formData.pricing.pricingUnitType}
+                    onValueChange={(value: ActivityPricingUnitType) =>
+                      handlePricingChange("pricingUnitType", value)
                     }
                     disabled={isReadonly}
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Pricing Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PER_ADULT">Per Adult Cost</SelectItem>
+                      <SelectItem value="UNIT">Unit Cost</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div>
-                  <Label className="text-primary">Children</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.children || ""}
-                    onChange={(e) =>
-                      handlePricingChange("children", Number(e.target.value))
-                    }
-                    disabled={isReadonly}
-                  />
-                </div>
-                <div>
-                  <Label className="text-primary">Infant</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.infant || ""}
-                    onChange={(e) =>
-                      handlePricingChange("infant", Number(e.target.value))
-                    }
-                    disabled={isReadonly}
-                  />
+
+                <div className="rounded-lg border border-[#eadcff] bg-[#fff7fd] px-3 py-2 text-sm text-[#6b3a8d] md:col-span-2">
+                  {formData.pricing.pricingUnitType === "UNIT"
+                    ? "Use Unit Cost when the activity is charged once per private vehicle/unit, for example Mudumalai Jeep Safari private jeep."
+                    : "Use Per Adult Cost for regular guest-wise activity pricing. Existing child and infant prices are kept for old pricebook compatibility."}
                 </div>
               </div>
 
-              {/* Non-Indian Pricing */}
-              <div className="grid grid-cols-4 gap-6 items-end">
-                <div>
-                  <Label className="text-gray-500">Nationality</Label>
-                  <p className="text-primary font-medium">Non-Indian</p>
+              {formData.pricing.pricingUnitType === "UNIT" ? (
+                <div className="grid grid-cols-3 gap-6 items-end">
+                  <div>
+                    <Label className="text-gray-500">Nationality</Label>
+                    <p className="text-primary font-medium">Indian / Non-Indian</p>
+                  </div>
+
+                  <div>
+                    <Label className="text-primary">Indian Unit Cost</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter Unit Cost"
+                      value={formData.pricing.unitCost || ""}
+                      onChange={(e) =>
+                        handlePricingChange("unitCost", Number(e.target.value))
+                      }
+                      disabled={isReadonly}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-primary">Foreign Unit Cost</Label>
+                    <Input
+                      type="number"
+                      placeholder="Enter Foreign Unit Cost"
+                      value={formData.pricing.foreignUnitCost || ""}
+                      onChange={(e) =>
+                        handlePricingChange(
+                          "foreignUnitCost",
+                          Number(e.target.value)
+                        )
+                      }
+                      disabled={isReadonly}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-primary">Foreign Adult</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.foreignAdult || ""}
-                    onChange={(e) =>
-                      handlePricingChange(
-                        "foreignAdult",
-                        Number(e.target.value)
-                      )
-                    }
-                    disabled={isReadonly}
-                  />
-                </div>
-                <div>
-                  <Label className="text-primary">Foreign Children</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.foreignChildren || ""}
-                    onChange={(e) =>
-                      handlePricingChange(
-                        "foreignChildren",
-                        Number(e.target.value)
-                      )
-                    }
-                    disabled={isReadonly}
-                  />
-                </div>
-                <div>
-                  <Label className="text-primary">Foreign Infant</Label>
-                  <Input
-                    type="number"
-                    placeholder="Enter Price"
-                    value={formData.pricing.foreignInfant || ""}
-                    onChange={(e) =>
-                      handlePricingChange(
-                        "foreignInfant",
-                        Number(e.target.value)
-                      )
-                    }
-                    disabled={isReadonly}
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  {/* Indian Pricing */}
+                  <div className="grid grid-cols-4 gap-6 items-end">
+                    <div>
+                      <Label className="text-gray-500">Nationality</Label>
+                      <p className="text-primary font-medium">Indian</p>
+                    </div>
+                    <div>
+                      <Label className="text-primary">Adult</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.adult || ""}
+                        onChange={(e) =>
+                          handlePricingChange("adult", Number(e.target.value))
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-primary">Children</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.children || ""}
+                        onChange={(e) =>
+                          handlePricingChange("children", Number(e.target.value))
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-primary">Infant</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.infant || ""}
+                        onChange={(e) =>
+                          handlePricingChange("infant", Number(e.target.value))
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Non-Indian Pricing */}
+                  <div className="grid grid-cols-4 gap-6 items-end">
+                    <div>
+                      <Label className="text-gray-500">Nationality</Label>
+                      <p className="text-primary font-medium">Non-Indian</p>
+                    </div>
+                    <div>
+                      <Label className="text-primary">Foreign Adult</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.foreignAdult || ""}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            "foreignAdult",
+                            Number(e.target.value)
+                          )
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-primary">Foreign Children</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.foreignChildren || ""}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            "foreignChildren",
+                            Number(e.target.value)
+                          )
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-primary">Foreign Infant</Label>
+                      <Input
+                        type="number"
+                        placeholder="Enter Price"
+                        value={formData.pricing.foreignInfant || ""}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            "foreignInfant",
+                            Number(e.target.value)
+                          )
+                        }
+                        disabled={isReadonly}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
 
               {priceBookDates.length > 0 && (
                 <div className="pt-6 border-t">
