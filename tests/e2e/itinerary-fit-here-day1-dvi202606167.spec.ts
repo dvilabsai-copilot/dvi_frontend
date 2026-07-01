@@ -109,6 +109,13 @@ function getSegmentName(row: any): string {
   ).trim();
 }
 
+function findAttractionIndexByName(timeline: any[], pattern: RegExp): number {
+  return timeline.findIndex((row: any) => (
+    String(row?.type || "").toLowerCase() === "attraction"
+    && pattern.test(getSegmentName(row))
+  ));
+}
+
 async function getRouteIdForDay(
   request: APIRequestContext,
   token: string,
@@ -1178,4 +1185,61 @@ test.describe("day 2 fit here slowMo flows", () => {
       GANDHAMADHANA_PARVATHAM_ID,
     ]);
   });
+});
+
+test("day 3 AFTER_START Fit Here keeps Agni before the first attraction instead of drifting near hotel", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(180000);
+
+  const token = await seedAuthToken(page, request);
+  const planId = 9706;
+
+  await resetItineraryBasicInfo(request, token);
+
+  const dayThreeRouteId = await getRouteIdForDay(request, token, QUOTE_ID, 3);
+  const availableHotspots = await fetchAvailableHotspots(request, token, dayThreeRouteId);
+  const agni = availableHotspots.find((row) => Number(row?.id || 0) === AGNI_TEERTHAM_ID);
+  expect(agni, `Agni Teertham should be available for preview on Day 3 route ${dayThreeRouteId}`).toBeTruthy();
+
+  const previewResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-preview`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      routeId: dayThreeRouteId,
+      selectedHotspotId: AGNI_TEERTHAM_ID,
+      anchor: {
+        anchorType: "BETWEEN_ROWS",
+        anchorIntent: "AFTER_START",
+        anchorLabel: "Before first attraction: Five Faced Hanuman Temple",
+      },
+      allowP3Removal: true,
+      allowP1P2Removal: true,
+    },
+  });
+
+  expect(previewResponse.ok(), "Day 3 Agni preview should succeed").toBeTruthy();
+  const previewJson = await previewResponse.json();
+  const finalizedTimeline = getPreviewTimeline(previewJson);
+  expect(finalizedTimeline.length, "Preview timeline should not be empty").toBeGreaterThan(0);
+
+  const agniIndex = findAttractionIndexByName(finalizedTimeline, /Agni Teertham/i);
+  const fiveFacedIndex = findAttractionIndexByName(finalizedTimeline, /Five Faced/i);
+  const hotelIndex = finalizedTimeline.findIndex((row: any) => /hotel/i.test(getSegmentName(row)));
+
+  expect(agniIndex, "Agni should appear in finalized preview timeline").toBeGreaterThanOrEqual(0);
+  expect(fiveFacedIndex, "Five Faced Hanuman Temple should appear in finalized preview timeline").toBeGreaterThanOrEqual(0);
+  expect(
+    agniIndex < fiveFacedIndex,
+    `AFTER_START should place Agni before Five Faced. Preview order was: ${finalizedTimeline.map((row: any) => getSegmentName(row)).join(" -> ")}`,
+  ).toBe(true);
+  if (hotelIndex >= 0) {
+    expect(
+      agniIndex < hotelIndex,
+      "Agni should not drift to the hotel-side gap when the user selected BEFORE FIRST / AFTER START",
+    ).toBe(true);
+  }
+
+  expect(previewJson?.selectedAnchor?.anchorIntent).toBe("AFTER_START");
+  expect(Number(previewJson?.selectedAnchor?.beforeHotspotId || 0)).toBeGreaterThan(0);
 });
