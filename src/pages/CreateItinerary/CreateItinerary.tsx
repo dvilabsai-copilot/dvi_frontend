@@ -45,7 +45,10 @@ import {
   type RoomRow as TravellerRoomRow,
 } from "./helpers/useRoomsAndTravellers";
 import { useItineraryRoutes, RouteRow } from "./helpers/useItineraryRoutes";
-import { getEstimatedSaveMs } from "./helpers/saveProgress.constants";
+import {
+  getEstimatedSaveMs,
+  TRANSPORT_LOADING_MESSAGES,
+} from "./helpers/saveProgress.constants";
 
 // ----------------- types -----------------
 
@@ -556,7 +559,8 @@ export const CreateItinerary = () => {
   const [activeSaveType, setActiveSaveType] = useState<
     "itineary_basic_info" | "itineary_basic_info_with_optimized_route" | null
   >(null);
-  const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
+    const [estimatedSaveMs, setEstimatedSaveMs] = useState(0);
+  const [transportLoadingMessageIndex, setTransportLoadingMessageIndex] = useState(0);
   const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
   const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
   const [arrivalPolicyDecision, setArrivalPolicyDecision] = useState<{
@@ -620,15 +624,22 @@ const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
     }
   };
 
-  const startSaveProgress = (estimatedMs: number) => {
+    const startSaveProgress = (estimatedMs: number) => {
     stopSaveProgress();
     setSaveProgressPercent(1);
+    setTransportLoadingMessageIndex(0);
     const startedAt = Date.now();
 
     saveProgressTimerRef.current = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
       const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
       setSaveProgressPercent(Math.min(95, Math.max(1, pct)));
+
+      if (TRANSPORT_LOADING_MESSAGES.length > 0) {
+        setTransportLoadingMessageIndex(
+          Math.floor(elapsed / 1600) % TRANSPORT_LOADING_MESSAGES.length,
+        );
+      }
     }, 220);
   };
 
@@ -2020,6 +2031,7 @@ setSaveProgressPercent(100);
     isSavingRef.current = false;
     setIsSaving(false);
     setActiveSaveType(null);
+    setTransportLoadingMessageIndex(0);
   }
 };
 
@@ -2190,7 +2202,12 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         progressPercent={saveProgressPercent}
         estimatedSeconds={Math.round((estimatedSaveMs || 0) / 1000)}
         dayCount={Math.max(1, Number(pendingPayload?.plan?.no_of_days ?? noOfDays ?? 1))}
-        saveType={activeSaveType}
+                saveType={activeSaveType}
+        transportLoadingMessage={
+          TRANSPORT_LOADING_MESSAGES[
+            transportLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
+          ]
+        }
         onClose={handleConfirmClose}
         onSaveSameRoute={() => handleSaveWithType("itineary_basic_info")}
         onOptimizeRoute={() => handleSaveWithType("itineary_basic_info_with_optimized_route")}

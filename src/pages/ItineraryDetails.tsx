@@ -51,7 +51,10 @@ import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
-import { getEstimatedSaveMs } from "./CreateItinerary/helpers/saveProgress.constants";
+import {
+  getEstimatedSaveMs,
+  TRANSPORT_LOADING_MESSAGES,
+} from "./CreateItinerary/helpers/saveProgress.constants";
 
 // --------- Types aligned with CURRENT API RESPONSE ---------
 
@@ -1204,6 +1207,7 @@ const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
+  const [pageTransportLoadingMessageIndex, setPageTransportLoadingMessageIndex] = useState(0);
   const [pageReady, setPageReady] = useState<boolean>(false);
 const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
 const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
@@ -3963,8 +3967,9 @@ const [guideModal, setGuideModal] = useState<{
   const [loadingHotels, setLoadingHotels] = useState(false);
   const [isRebuildingHotels, setIsRebuildingHotels] = useState(false);
   const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
-  const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
+    const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
   const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
+  const [routeTimeLoadingMessageIndex, setRouteTimeLoadingMessageIndex] = useState(0);
   const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
   const routeTimeProgressTimerRef = useRef<number | null>(null);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
@@ -3990,23 +3995,48 @@ const [guideModal, setGuideModal] = useState<{
     }
   }, []);
 
-  const startRouteTimeProgress = useCallback((estimatedMs: number) => {
+    const startRouteTimeProgress = useCallback((estimatedMs: number) => {
     stopRouteTimeProgress();
     setRouteTimeProgressPercent(1);
+    setRouteTimeLoadingMessageIndex(0);
 
     const startedAt = Date.now();
     routeTimeProgressTimerRef.current = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
       const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
       setRouteTimeProgressPercent(Math.min(95, Math.max(1, pct)));
+
+      if (TRANSPORT_LOADING_MESSAGES.length > 0) {
+        setRouteTimeLoadingMessageIndex(
+          Math.floor(elapsed / 1600) % TRANSPORT_LOADING_MESSAGES.length,
+        );
+      }
     }, 220);
   }, [stopRouteTimeProgress]);
 
-  const getRouteTimeUpdateEstimateMs = useCallback((dayNumber: number) => {
-    const dayCount = Math.max(1, itinerary?.days?.length ?? dayNumber ?? 1);
-    const createEstimateMs = getEstimatedSaveMs(dayCount, "itineary_basic_info_with_optimized_route");
-    return Math.max(15000, createEstimateMs * 2);
-  }, [itinerary?.days?.length]);
+    useEffect(() => {
+    const shouldRotateTransportMessage =
+      shouldShowVehicles &&
+      (!pageReady ||
+        loading ||
+        vehicleBuildStatus === "PENDING" ||
+        vehicleBuildStatus === "PROCESSING");
+
+    if (!shouldRotateTransportMessage || TRANSPORT_LOADING_MESSAGES.length === 0) {
+      setPageTransportLoadingMessageIndex(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setPageTransportLoadingMessageIndex(
+        (prev) => (prev + 1) % TRANSPORT_LOADING_MESSAGES.length,
+      );
+    }, 1600);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [loading, pageReady, shouldShowVehicles, vehicleBuildStatus]);
 
   // Gallery modal state
   const [galleryModal, setGalleryModal] = useState<{
@@ -8243,8 +8273,9 @@ const applyRouteTimePatch = async (
   } catch (e: any) {
     console.error('Failed to update route times', e);
     toast.error(e?.message || 'Failed to update route times');
-  } finally {
+    } finally {
     stopRouteTimeProgress();
+    setRouteTimeLoadingMessageIndex(0);
     setIsApplyingRouteTimeUpdate(false);
   }
 };
@@ -12354,9 +12385,13 @@ const hotelTimelineLoading = Boolean(
       <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
         <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
-          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
-          <p className="mt-2 text-sm text-[#6c6c6c]">
-            We are preparing the latest itinerary data before showing the page.
+                    <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
+          <p className="mt-2 text-sm font-medium text-[#6c6c6c]">
+            {shouldShowVehicles
+              ? TRANSPORT_LOADING_MESSAGES[
+                  pageTransportLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
+                ]
+              : "We are preparing the latest itinerary data before showing the page."}
           </p>
         </div>
       </div>
@@ -12427,8 +12462,14 @@ const hotelTimelineLoading = Boolean(
               </div>
 
               <div className="text-sm font-semibold text-slate-800">Updating itinerary...</div>
+              <div className="min-h-[20px] text-xs font-medium text-slate-500">
+                {
+                  TRANSPORT_LOADING_MESSAGES[
+                    routeTimeLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
+                  ]
+                }
+              </div>
               <div className="text-xs text-slate-500">Estimated ~{Math.max(1, Math.round(routeTimeEstimatedMs / 1000))}s</div>
-
             </div>
           </div>
         </div>
