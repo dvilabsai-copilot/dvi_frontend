@@ -53,6 +53,7 @@ import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/service
 import { toast } from "sonner";
 import {
   getEstimatedSaveMs,
+  FINAL_ITINERARY_LOADING_MESSAGES,
   TRANSPORT_LOADING_MESSAGES,
 } from "./CreateItinerary/helpers/saveProgress.constants";
 
@@ -4016,20 +4017,26 @@ const [guideModal, setGuideModal] = useState<{
 
     useEffect(() => {
     const shouldRotateTransportMessage =
-      shouldShowVehicles &&
-      (!pageReady ||
-        loading ||
-        vehicleBuildStatus === "PENDING" ||
-        vehicleBuildStatus === "PROCESSING");
+        shouldShowVehicles &&
+        (!pageReady ||
+          loading ||
+          vehicleBuildStatus === "PENDING" ||
+          vehicleBuildStatus === "PROCESSING");
 
-    if (!shouldRotateTransportMessage || TRANSPORT_LOADING_MESSAGES.length === 0) {
+      const activePageLoadingMessages =
+        shouldShowVehicles &&
+        (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING")
+          ? TRANSPORT_LOADING_MESSAGES
+          : FINAL_ITINERARY_LOADING_MESSAGES;
+
+      if (!shouldRotateTransportMessage || activePageLoadingMessages.length === 0) {
       setPageTransportLoadingMessageIndex(0);
       return;
     }
 
     const timer = window.setInterval(() => {
       setPageTransportLoadingMessageIndex(
-        (prev) => (prev + 1) % TRANSPORT_LOADING_MESSAGES.length,
+          (prev) => (prev + 1) % activePageLoadingMessages.length,
       );
     }, 1600);
 
@@ -12349,6 +12356,9 @@ const hotelTimelineLoading = Boolean(
 );
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
+  const pageLoadingMessages = vehicleBuildInProgress
+    ? TRANSPORT_LOADING_MESSAGES
+    : FINAL_ITINERARY_LOADING_MESSAGES;
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
@@ -12387,9 +12397,9 @@ const hotelTimelineLoading = Boolean(
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
                     <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
           <p className="mt-2 text-sm font-medium text-[#6c6c6c]">
-            {shouldShowVehicles
-              ? TRANSPORT_LOADING_MESSAGES[
-                  pageTransportLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
+            {pageLoadingMessages.length > 0
+              ? pageLoadingMessages[
+                  pageTransportLoadingMessageIndex % pageLoadingMessages.length
                 ]
               : "We are preparing the latest itinerary data before showing the page."}
           </p>
