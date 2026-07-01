@@ -9,6 +9,7 @@ type Props = {
   estimatedSeconds: number;
   dayCount: number;
   saveType: "itineary_basic_info" | "itineary_basic_info_with_optimized_route" | null;
+  transportLoadingMessage?: string;
   onClose: () => void;
   onSaveSameRoute: () => void;
   onOptimizeRoute: () => void;
@@ -21,6 +22,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
   estimatedSeconds,
   dayCount,
   saveType,
+  transportLoadingMessage,
   onClose,
   onSaveSameRoute,
   onOptimizeRoute,
@@ -35,7 +37,8 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
     saveType === "itineary_basic_info_with_optimized_route"
       ? "Optimizing route"
       : "Saving itinerary";
-
+  const friendlyLoadingMessage =
+    transportLoadingMessage || "Preparing transportation options";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="relative w-full max-w-lg rounded-2xl bg-white p-8 text-center shadow-2xl">
@@ -100,6 +103,9 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
               </div>
             </div>
             <div className="text-sm font-semibold text-slate-800">{savingLabel}...</div>
+            <div className="min-h-[20px] text-xs font-medium text-slate-500">
+              {friendlyLoadingMessage}
+            </div>
           
           </div>
         )}
