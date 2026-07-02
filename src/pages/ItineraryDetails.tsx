@@ -1285,14 +1285,22 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
 
   // Add activity modal state
   type AvailableActivity = {
-    id: number;
-    title: string;
-    description: string;
-    costAdult: number;
-    costChild: number;
-    costForeignAdult: number;
-    costForeignChild: number;
-    duration: string | null;
+  id: number;
+  title: string;
+  description: string;
+  costAdult: number;
+  costChild: number;
+  costForeignAdult: number;
+  costForeignChild: number;
+  unitCost?: number;
+  pricingUnitType?: "PER_ADULT" | "UNIT";
+  priceUnitLabel?: string;
+  adultCount?: number;
+  childCount?: number;
+  totalAmount?: number;
+  totalPrice?: number;
+  priceDate?: string | null;
+  duration: string | null;
     timeSlots?: Array<{
       id: number;
       type: number;
@@ -8518,8 +8526,8 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     // Fetch available activities
     setLoadingActivities(true);
     try {
-      const activities = await ItineraryService.getAvailableActivities(hotspotId);
-      setAvailableActivities(activities as AvailableActivity[]);
+const activities = await ItineraryService.getAvailableActivities(hotspotId, planId, routeId);
+setAvailableActivities(activities as AvailableActivity[]);
     } catch (e: any) {
       console.error("Failed to load activities", e);
       toast.error(e?.message || "Failed to load activities");
@@ -8642,6 +8650,15 @@ if (policy.requiresPreviousDayBillingConfirmation) {
 
     return parts.length > 0 ? parts.join(' ') : '0 Min';
   }
+
+  const formatActivityMoney = (value: number | string | null | undefined) =>
+  `₹${Number(value || 0).toFixed(2)}`;
+
+const getActivityTotalAmount = (activity?: AvailableActivity | null) =>
+  Number(activity?.totalAmount ?? activity?.totalPrice ?? 0);
+
+const getSelectedPreviewActivity = () =>
+  availableActivities.find((activity) => activity.id === activityPreview?.activity?.id) || null;
 
   const handlePreviewActivity = async (activityId: number) => {
     if (!addActivityModal.planId || !addActivityModal.routeId ||
@@ -14150,11 +14167,22 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           <div className="mt-1 text-xs text-[#6c6c6c] line-clamp-2">
                             {activity.description}
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                            {activity.duration && <span>Duration: {formatActivityDuration(activity.duration)}</span>}
-                            {activity.costAdult > 0 && <span>Adult: ₹{activity.costAdult.toFixed(2)}</span>}
-                            {activity.costChild > 0 && <span>Child: ₹{activity.costChild.toFixed(2)}</span>}
-                          </div>
+<div className="mt-2 space-y-1 text-xs text-[#6c6c6c]">
+  {activity.duration && <div>Duration: {formatActivityDuration(activity.duration)}</div>}
+
+  {activity.pricingUnitType === "UNIT" ? (
+    <div>Unit - {formatActivityMoney(activity.unitCost)}</div>
+  ) : (
+    <>
+      <div>Adult - {formatActivityMoney(activity.costAdult)}</div>
+      <div>Children - {formatActivityMoney(activity.costChild)}</div>
+    </>
+  )}
+
+  <div className="font-semibold text-[#4a4260]">
+    Total Charges - {formatActivityMoney(getActivityTotalAmount(activity))}
+  </div>
+</div>
                         </button>
                       ))}
                     </div>
@@ -14194,16 +14222,65 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
 
                 {!previewingActivityId && activityPreview && (
                   <div className="flex-1 overflow-y-auto space-y-4" aria-live="polite">
-                    <div>
-                      <div className="font-semibold text-[#4a4260]">
-                        {activityPreview.activity?.title}
-                      </div>
-                      <div className="mt-1 text-xs text-[#6c6c6c]">
-                        Duration: {formatActivityDuration(activityPreview.activity?.duration)}
-                      </div>
-                    </div>
+<div>
+  <div className="font-semibold text-[#4a4260]">
+    {activityPreview.activity?.title}
+  </div>
+  <div className="mt-1 text-xs text-[#6c6c6c]">
+    Duration: {formatActivityDuration(activityPreview.activity?.duration)}
+  </div>
+</div>
 
-                    {/* ① Placement */}
+{(() => {
+  const selectedActivity = getSelectedPreviewActivity();
+  if (!selectedActivity) return null;
+
+  return (
+    <div className="rounded-lg border border-[#e5d9f2] bg-white p-3 space-y-2">
+      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">
+        Activity Cost
+      </div>
+
+      {selectedActivity.pricingUnitType === "UNIT" ? (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[#6c6c6c]">Unit</span>
+          <span className="font-medium text-[#4a4260]">
+            {formatActivityMoney(selectedActivity.unitCost)}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#6c6c6c]">
+              Adults ({selectedActivity.adultCount || 0})
+            </span>
+            <span className="font-medium text-[#4a4260]">
+              {formatActivityMoney(selectedActivity.costAdult)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#6c6c6c]">
+              Children ({selectedActivity.childCount || 0})
+            </span>
+            <span className="font-medium text-[#4a4260]">
+              {formatActivityMoney(selectedActivity.costChild)}
+            </span>
+          </div>
+        </>
+      )}
+
+      <div className="flex items-center justify-between border-t border-[#e5d9f2] pt-2 text-xs">
+        <span className="font-semibold text-[#4a4260]">Total Charges</span>
+        <span className="font-semibold text-[#d546ab]">
+          {formatActivityMoney(getActivityTotalAmount(selectedActivity))}
+        </span>
+      </div>
+    </div>
+  );
+})()}
+
+{/* ① Placement */}
                     <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-3 space-y-2">
                       <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
                       <div className="flex items-center justify-between text-xs">
@@ -14310,16 +14387,15 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                     )}
 
                     <Button
-                      className="w-full bg-[#d546ab] hover:bg-[#c03d9f] shrink-0"
-                      onClick={() => {
-                        const selectedActivity = availableActivities.find(
-                          (activity) => activity.id === activityPreview.activity?.id,
-                        );
-                        handleAddActivity(
-                          activityPreview.activity?.id,
-                          selectedActivity?.costAdult || 0,
-                        );
-                      }}
+  className="w-full bg-[#d546ab] hover:bg-[#c03d9f] shrink-0"
+  onClick={() => {
+    const selectedActivity = getSelectedPreviewActivity();
+
+    handleAddActivity(
+      activityPreview.activity?.id,
+      getActivityTotalAmount(selectedActivity),
+    );
+  }}
                       disabled={isAddingActivity}
                     >
                       {isAddingActivity ? (
