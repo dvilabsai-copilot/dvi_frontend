@@ -509,11 +509,18 @@ export const ItineraryService = {
     });
   },
 
-  async getAvailableActivities(hotspotId: number) {
-    return api(`itineraries/activities/available/${hotspotId}`, {
-      method: "GET",
-    });
-  },
+async getAvailableActivities(hotspotId: number, planId?: number, routeId?: number) {
+  const params = new URLSearchParams();
+
+  if (planId) params.set("planId", String(planId));
+  if (routeId) params.set("routeId", String(routeId));
+
+  const query = params.toString();
+
+  return api(`itineraries/activities/available/${hotspotId}${query ? `?${query}` : ""}`, {
+    method: "GET",
+  });
+},
 
   async previewActivityAddition(data: {
     planId: number;
