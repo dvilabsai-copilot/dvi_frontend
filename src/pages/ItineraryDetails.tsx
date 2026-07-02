@@ -4239,7 +4239,9 @@ useEffect(() => {
   const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
-const shouldRenderBottomHotelList = false;
+  // Keep the bottom hotel list enabled for hotel-bearing itineraries.
+  // The actual render is still gated by `shouldShowHotels` below.
+  const shouldRenderBottomHotelList = true;
  
 
   const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
