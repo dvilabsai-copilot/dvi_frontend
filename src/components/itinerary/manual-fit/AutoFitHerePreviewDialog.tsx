@@ -83,6 +83,36 @@ const getTimelineRowTime = (row: any): string =>
       "",
   ).trim();
 
+const getTimelineRowDistance = (row: any): string =>
+  String(
+    row?.distance ||
+      row?.hotspot_travelling_distance ||
+      row?.travelDistance ||
+      "",
+  ).trim();
+
+const getTimelineRowDuration = (row: any): string =>
+  String(
+    row?.duration ||
+      row?.hotspot_traveling_time ||
+      row?.travelDuration ||
+      "",
+  ).trim();
+
+const formatPreviewMinutes = (minutes: number): string => {
+  const safeMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+
+  if (hours > 0 && remainder > 0) {
+    return `${hours} Hour${hours === 1 ? "" : "s"} ${remainder} Min`;
+  }
+  if (hours > 0) {
+    return `${hours} Hour${hours === 1 ? "" : "s"}`;
+  }
+  return `${remainder} Min`;
+};
+
 const formatClockLabel = (value: unknown): string => {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -173,6 +203,55 @@ const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] =>
   }
 
   return [];
+};
+
+const getTimeRangeEndMinutes = (value: unknown): number | null => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\u2013|\u2014/g, "-");
+  const parts = normalized.split(" - ").map((part) => part.trim()).filter(Boolean);
+  const target = parts.length > 1 ? parts[parts.length - 1] : parts[0];
+  return parseFitPreviewTimeToMinutes(target);
+};
+
+const getTimeRangeStartMinutes = (value: unknown): number | null => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const normalized = raw.replace(/\u2013|\u2014/g, "-");
+  const parts = normalized.split(" - ").map((part) => part.trim()).filter(Boolean);
+  const target = parts[0] || "";
+  return parseFitPreviewTimeToMinutes(target);
+};
+
+const getHotelGapWarning = (timelineRows: any[]): {
+  previousRowName: string;
+  gapMinutes: number;
+} | null => {
+  const rows = Array.isArray(timelineRows) ? timelineRows : [];
+  const hotelIndex = rows.findIndex((row: any) => {
+    const type = String(row?.type || "").toLowerCase();
+    const name = getTimelineRowName(row).toLowerCase();
+    return type === "hotel" || name.includes("check-in at");
+  });
+
+  if (hotelIndex <= 0) return null;
+
+  const hotelRow = rows[hotelIndex];
+  const previousRow = rows[hotelIndex - 1];
+  const previousEndMinutes = getTimeRangeEndMinutes(getTimelineRowTime(previousRow));
+  const hotelStartMinutes = getTimeRangeStartMinutes(getTimelineRowTime(hotelRow));
+
+  if (previousEndMinutes == null || hotelStartMinutes == null) return null;
+
+  const gapMinutes = hotelStartMinutes - previousEndMinutes;
+  if (!Number.isFinite(gapMinutes) || gapMinutes < 90) return null;
+
+  return {
+    previousRowName: getTimelineRowName(previousRow),
+    gapMinutes,
+  };
 };
 
 const getRowHotspotId = (row: any): number =>
@@ -829,6 +908,7 @@ export function AutoFitHerePreviewDialog({
   const selectedState = deriveAutoPreviewAttemptState(selectedRow, baseTimeline);
   const timelineRows = selectedState.timelineRows;
   const removedItems = selectedState.displayedRemovedItems;
+  const hotelGapWarning = getHotelGapWarning(timelineRows);
   const resultConfig = getResultConfig(selectedAttempt?.resultType);
   const resultMessage = getFitHereResultMessage(selectedAttempt);
   const changesRequiredDisplay =
@@ -1025,7 +1105,7 @@ export function AutoFitHerePreviewDialog({
               </div>
 
               <div className="min-h-0 overflow-y-auto px-6 py-5">
-                <div className="space-y-5" data-testid="auto-fit-here-selected-details">
+                <div className="flex flex-col gap-5" data-testid="auto-fit-here-selected-details">
                   {selectedAttempt ? (
                     <section className={`rounded-2xl border p-4 ${resultConfig.wrapperClass}`}>
                       <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${resultConfig.badgeClass}`}>
@@ -1044,7 +1124,7 @@ export function AutoFitHerePreviewDialog({
                     </div>
                   )}
 
-                  <div className="lg:sticky lg:top-0 lg:z-20 lg:-mx-2 lg:bg-white/95 lg:px-2 lg:pb-2 lg:pt-1 lg:backdrop-blur-sm">
+                  <div className="order-3">
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                         <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Selected position</p>
@@ -1094,6 +1174,7 @@ export function AutoFitHerePreviewDialog({
                             These hotspot removals were tried while preserving the selected exact position, but the exact anchor still could not be kept.
                           </div>
                         ) : null}
+                        <div className="grid gap-3 sm:grid-cols-2">
                         {removedItems.map((item, index) => {
                           const checked = allRemovalAcknowledged;
                           const showAcknowledgementCheckbox = index === 0;
@@ -1105,7 +1186,7 @@ export function AutoFitHerePreviewDialog({
                                 checked
                                   ? "border-emerald-300 bg-emerald-50"
                                   : "border-amber-200 bg-amber-50 shadow-sm"
-                              }`}
+                              } ${showAcknowledgementCheckbox ? "sm:col-span-2" : ""}`}
                             >
                               {showAcknowledgementCheckbox ? (
                                 <input
@@ -1140,6 +1221,7 @@ export function AutoFitHerePreviewDialog({
                             </label>
                           );
                         })}
+                        </div>
                       </div>
                     )}
                       </div>
@@ -1147,7 +1229,7 @@ export function AutoFitHerePreviewDialog({
                   </div>
 
                   {selectedState.selectedOpeningConflict ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                    <div className="order-2 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
                       <p className="font-bold">
                         {selectedState.selectedOpeningConflict?.hotspotName || hotspotName} cannot be inserted here.
                       </p>
@@ -1169,10 +1251,15 @@ export function AutoFitHerePreviewDialog({
                   ) : null}
 
                   <div
-                    className="rounded-2xl border border-slate-200 bg-white p-4"
+                    className="order-1 rounded-2xl border border-slate-200 bg-white p-4"
                     data-testid="auto-fit-here-main-timeline"
                   >
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Finalized timeline</p>
+                    {hotelGapWarning ? (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                        Gap before hotel check-in: {formatPreviewMinutes(hotelGapWarning.gapMinutes)} after {hotelGapWarning.previousRowName}. Hotel travel distance/duration may be missing from the preview data.
+                      </div>
+                    ) : null}
                     {timelineRows.length === 0 ? (
                       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                         {selectedRow?.status === "FAILED"
@@ -1187,6 +1274,9 @@ export function AutoFitHerePreviewDialog({
                           const isRemoved = row?.isRemoved === true || String(row?.status || "").toUpperCase() === "REMOVED";
                           const operatingHours = getTimelineRowOperatingHours(row);
                           const isAttraction = String(row?.type || "").toLowerCase() === "attraction";
+                          const isTravel = String(row?.type || "").toLowerCase() === "travel";
+                          const travelDistance = getTimelineRowDistance(row);
+                          const travelDuration = getTimelineRowDuration(row);
 
                           return (
                             <div
@@ -1204,6 +1294,20 @@ export function AutoFitHerePreviewDialog({
                                   <p className="text-sm font-semibold text-slate-900">{getTimelineRowName(row)}</p>
                                   {getTimelineRowTime(row) ? (
                                     <p className="mt-1 text-xs text-slate-500">{getTimelineRowTime(row)}</p>
+                                  ) : null}
+                                  {isTravel && (travelDistance || travelDuration) ? (
+                                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-600">
+                                      {travelDistance ? (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                                          {travelDistance}
+                                        </span>
+                                      ) : null}
+                                      {travelDuration ? (
+                                        <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                                          {travelDuration}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   ) : null}
                                   {isAttraction && operatingHours ? (
                                     <p className="mt-1 text-xs font-semibold text-emerald-700">
