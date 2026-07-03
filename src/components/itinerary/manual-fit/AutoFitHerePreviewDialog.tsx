@@ -100,6 +100,13 @@ const formatDurationValue = (value: unknown): string => {
   const raw = String(value || "").trim();
   if (!raw) return "";
 
+  const hmsMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hmsMatch) {
+    const hours = Number(hmsMatch[1] || 0);
+    const minutes = Number(hmsMatch[2] || 0);
+    return formatPreviewMinutes((hours * 60) + minutes);
+  }
+
   const isoDate = new Date(raw);
   if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !Number.isNaN(isoDate.getTime())) {
     const hours = isoDate.getUTCHours();
@@ -107,13 +114,14 @@ const formatDurationValue = (value: unknown): string => {
     return formatPreviewMinutes((hours * 60) + minutes);
   }
 
-  const hmsMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (hmsMatch) {
-    const hours = Number(hmsMatch[1] || 0);
-    const minutes = Number(hmsMatch[2] || 0);
-    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
-      return formatPreviewMinutes((hours * 60) + minutes);
-    }
+  const localDateLabelMatch = raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
+  if (
+    localDateLabelMatch &&
+    /(?:sun|mon|tue|wed|thu|fri|sat)\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(raw)
+  ) {
+    const hours = Number(localDateLabelMatch[1] || 0);
+    const minutes = Number(localDateLabelMatch[2] || 0);
+    return formatPreviewMinutes((hours * 60) + minutes);
   }
 
   return raw;
