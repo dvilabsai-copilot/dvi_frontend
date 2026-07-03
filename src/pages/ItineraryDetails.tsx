@@ -8576,6 +8576,13 @@ const applyRouteTimePatch = async (
       const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
 if (policy.requiresPreviousDayBillingConfirmation) {
           console.log('[ArrivalPolicy][confirm_required]', { planId, routeId, dayNumber, startTimeHms, endTimeHms });
+          setPendingRouteTimeUpdate({
+            planId,
+            routeId,
+            dayNumber,
+            startTimeHms,
+            endTimeHms,
+          });
           const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
           const routeDate = new Date(`${safeRouteDate}T00:00:00`);
           const previousDay = new Date(routeDate);
@@ -16989,6 +16996,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         open={arrivalPolicyConfirmModal.open}
         onOpenChange={(open) => {
           if (!open) {
+            setPendingRouteTimeUpdate(null);
             setArrivalPolicyConfirmModal({
               open: false,
               arrivalDate: '',
