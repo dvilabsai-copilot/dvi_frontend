@@ -6,10 +6,14 @@ import {
 } from "./booking-engine-test-utils";
 
 const QUOTE_ID = "DVI202606167";
+const SAME_CITY_QUOTE_ID = "DVI20260587";
 const SELECTED_HOTSPOT_ID = 42;
+const APJ_ABDUL_KALAM_ID = 41;
 const RAMANATHA_SWAMI_TEMPLE_ID = 35;
 const AGNI_TEERTHAM_ID = 36;
 const FIVE_FACED_HANUMAN_TEMPLE_ID = 37;
+const THIRUMALAI_NAYAKKAR_MAHAL_ID = 27;
+const GANDHI_MUSEUM_ID = 31;
 const PAMBAN_BRIDGE_ID = 40;
 const GANDHAMADHANA_PARVATHAM_ID = 38;
 const ALAGAR_KOYIL_ID = 28;
@@ -96,6 +100,22 @@ function getPreviewTimeline(json: any): any[] {
     return json.finalizedTimeline;
   }
   return Array.isArray(json?.proposedTimeline) ? json.proposedTimeline : [];
+}
+
+function firstAttractionId(timeline: any[]): number | null {
+  const row = (timeline || []).find((item: any) => {
+    const type = String(item?.type || "").toLowerCase();
+    return type === "attraction" || Number(item?.item_type || 0) === 4;
+  });
+
+  return row ? Number(row?.hotspotId || row?.locationId || row?.hotspot_ID || 0) || null : null;
+}
+
+function getAttractionIds(timeline: any[]): number[] {
+  return (timeline || [])
+    .filter((item: any) => String(item?.type || "").toLowerCase() === "attraction" || Number(item?.item_type || 0) === 4)
+    .map((item: any) => Number(item?.hotspotId || item?.locationId || item?.hotspot_ID || 0))
+    .filter((id: number) => Number.isFinite(id) && id > 0);
 }
 
 function getSegmentName(row: any): string {
@@ -801,6 +821,172 @@ test("day 2 Ramanatha Fit Here confirm saves the exact preview timeline without 
   expect(String(confirmSelectedRow?.timeRange || "")).toBe(previewSelectedTime);
 
   await expect(dialog).toHaveCount(0);
+});
+
+test("day 2 APJ exact-anchor Fit Here keeps APJ as the first attraction after start", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(240000);
+
+  const token = await seedAuthToken(page, request);
+  const details = await fetchItineraryDetails(request, token, QUOTE_ID);
+  const planId = Number(details.planId || 0);
+  const dayTwoRouteId = await getRouteIdForDay(request, token, QUOTE_ID, 2);
+
+  await deleteManualHotspotIfPresent(request, token, planId, APJ_ABDUL_KALAM_ID);
+
+  try {
+    const previewResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-preview`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        routeId: dayTwoRouteId,
+        selectedHotspotId: APJ_ABDUL_KALAM_ID,
+        anchor: {
+          anchorType: "BETWEEN_ROWS",
+          anchorIntent: "AFTER_START",
+          anchorLabel: "Before Meenakshi Amman Temple",
+          beforeHotspotId: 26,
+        },
+        allowP3Removal: true,
+        allowP1P2Removal: true,
+      },
+    });
+
+    expect(previewResponse.ok(), "APJ exact-anchor preview should succeed").toBeTruthy();
+    const previewJson = await previewResponse.json();
+    const previewTimeline = getPreviewTimeline(previewJson);
+
+    if (previewJson?.canConfirm === true) {
+      expect(firstAttractionId(previewTimeline), "APJ must be the first attraction in the confirmed exact-anchor preview").toBe(APJ_ABDUL_KALAM_ID);
+    } else {
+      expect(String(previewJson?.resultType || "")).toBe("CANNOT_FIT");
+      expect(previewJson?.canConfirm).toBe(false);
+      expect(previewJson?.selectedAnchorPreserved).toBe(false);
+      expect(previewJson?.authoritativeTimelineSource).toBe("EXACT_ANCHOR_NO_VALID_RESULT");
+      expect(Array.isArray(previewJson?.proposedTimeline) ? previewJson.proposedTimeline : []).toHaveLength(0);
+      expect(Array.isArray(previewJson?.finalizedTimeline) ? previewJson.finalizedTimeline : []).toHaveLength(0);
+    }
+  } finally {
+    await deleteManualHotspotIfPresent(request, token, planId, APJ_ABDUL_KALAM_ID);
+  }
+});
+
+test("day 2 APJ exact-anchor Fit Here after Meenakshi keeps the exact Meenakshi -> APJ -> Thirumalai order", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(240000);
+
+  const token = await seedAuthToken(page, request);
+  const details = await fetchItineraryDetails(request, token, QUOTE_ID);
+  const planId = Number(details.planId || 0);
+  const dayTwoRouteId = await getRouteIdForDay(request, token, QUOTE_ID, 2);
+
+  await deleteManualHotspotIfPresent(request, token, planId, APJ_ABDUL_KALAM_ID);
+
+  try {
+    const previewResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-preview`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        routeId: dayTwoRouteId,
+        selectedHotspotId: APJ_ABDUL_KALAM_ID,
+        anchor: {
+          anchorType: "BETWEEN_ROWS",
+          anchorIntent: "AFTER_ATTRACTION",
+          anchorIndex: 3,
+          anchorFrom: "Meenakshi Amman Temple",
+          anchorTo: "Thirumalai Nayakkar Mahal",
+          anchorLabel: "After Meenakshi Amman Temple",
+          anchorTimeRange: "09:30 AM - 11:00 AM",
+          afterRowType: "attraction",
+          beforeRowType: "hotspot",
+          afterHotspotId: 26,
+          afterRouteHotspotId: 133919,
+          beforeHotspotId: 27,
+          beforeRouteHotspotId: 133921,
+        },
+        allowP3Removal: true,
+        allowP1P2Removal: true,
+      },
+    });
+
+    const previewJson = await previewResponse.json();
+    const previewTimeline = getPreviewTimeline(previewJson);
+
+    if (previewJson?.canConfirm === true) {
+      const attractionIds = getAttractionIds(previewTimeline);
+      const meenakshiIndex = attractionIds.indexOf(26);
+      const apjIndex = attractionIds.indexOf(APJ_ABDUL_KALAM_ID);
+      const thirumalaiIndex = attractionIds.indexOf(27);
+
+      expect(meenakshiIndex).toBeGreaterThanOrEqual(0);
+      expect(apjIndex).toBe(meenakshiIndex + 1);
+      expect(thirumalaiIndex).toBe(apjIndex + 1);
+    } else {
+      expect(previewJson?.canConfirm).not.toBe(true);
+      expect(previewJson?.selectedAnchorPreserved).not.toBe(true);
+      if (previewJson?.authoritativeTimelineSource) {
+        expect(previewJson.authoritativeTimelineSource).toBe("EXACT_ANCHOR_NO_VALID_RESULT");
+      }
+      expect(Array.isArray(previewJson?.proposedTimeline) ? previewJson.proposedTimeline : []).toHaveLength(0);
+      expect(Array.isArray(previewJson?.finalizedTimeline) ? previewJson.finalizedTimeline : []).toHaveLength(0);
+    }
+  } finally {
+    await deleteManualHotspotIfPresent(request, token, planId, APJ_ABDUL_KALAM_ID);
+  }
+});
+
+test("same-city Gandhi exact-anchor Fit Here keeps the clicked anchor local", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(240000);
+
+  const token = await seedAuthToken(page, request);
+  const details = await fetchItineraryDetails(request, token, SAME_CITY_QUOTE_ID);
+  const planId = Number(details.planId || 0);
+  const dayTwoRouteId = await getRouteIdForDay(request, token, SAME_CITY_QUOTE_ID, 2);
+
+  await deleteManualHotspotIfPresent(request, token, planId, GANDHI_MUSEUM_ID);
+
+  try {
+    const previewResponse = await request.post(`${API_BASE_URL}/itineraries/${planId}/manual-hotspot/fit-preview`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        routeId: dayTwoRouteId,
+        selectedHotspotId: GANDHI_MUSEUM_ID,
+        anchor: {
+          anchorType: "BETWEEN_ROWS",
+          anchorIntent: "AFTER_ATTRACTION",
+          anchorLabel: "After Thirumalai Nayakkar Mahal",
+          afterHotspotId: THIRUMALAI_NAYAKKAR_MAHAL_ID,
+        },
+        allowP3Removal: true,
+        allowP1P2Removal: true,
+      },
+    });
+
+    expect(previewResponse.ok(), "Same-city Gandhi exact-anchor preview should succeed").toBeTruthy();
+    const previewJson = await previewResponse.json();
+    expect(String(previewJson?.resultType || "")).not.toBe("CANNOT_FIT");
+
+    const previewTimeline = getPreviewTimeline(previewJson);
+    const attractionIds = previewTimeline
+      .filter((row: any) => String(row?.type || "").toLowerCase() === "attraction")
+      .map((row: any) => Number(row?.hotspotId || row?.locationId || row?.hotspot_ID || 0))
+      .filter((id: number) => Number.isFinite(id) && id > 0);
+
+    const thirumalaiIndex = attractionIds.indexOf(THIRUMALAI_NAYAKKAR_MAHAL_ID);
+    const gandhiIndex = attractionIds.indexOf(GANDHI_MUSEUM_ID);
+
+    expect(thirumalaiIndex, "Thirumalai should remain in the same-city preview timeline").toBeGreaterThanOrEqual(0);
+    expect(gandhiIndex, "Gandhi Museum should remain in the same-city preview timeline").toBeGreaterThanOrEqual(0);
+    expect(gandhiIndex, "Gandhi Museum must stay immediately after the clicked Thirumalai anchor").toBeGreaterThan(thirumalaiIndex);
+    expect(firstAttractionId(previewTimeline), "Same-city previews should not fall back to a base-route lead row").not.toBeNull();
+  } finally {
+    await deleteManualHotspotIfPresent(request, token, planId, GANDHI_MUSEUM_ID);
+  }
 });
 
 test("day 2 UI Fit Here flow adds Ramanatha, Agni, and Gandhamadhana to the main timeline", async ({

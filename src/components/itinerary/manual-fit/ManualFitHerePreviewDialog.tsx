@@ -97,6 +97,7 @@ export type ManualFitHerePreviewResponse = {
       reason?: string | null;
     }>;
     noRemovalText?: string;
+    exactAnchorFailure?: boolean;
   } | null;
   removalPolicy?: {
     allowP3Removal?: boolean;
@@ -879,11 +880,15 @@ const buildDisplayedPreviewTimeline = (
   const routeTimeline = Array.isArray(baseTimeline)
     ? baseTimeline.map(mapBaseSegmentToPreviewRow).filter(Boolean)
     : [];
-  const hasExactAnchorMismatch =
-    attempt?.selectedAnchorPreserved === false ||
-    String(attempt?.exactAnchorMismatch?.message || "").trim().length > 0;
+  const isExactAnchorFailure =
+    String((attempt as any)?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
+    (attempt as any)?.changesRequiredDisplay?.exactAnchorFailure === true;
 
-  if (hasExactAnchorMismatch) {
+  if (isExactAnchorFailure) {
+    return [];
+  }
+
+  if (attempt?.selectedAnchorPreserved === false || String(attempt?.exactAnchorMismatch?.message || "").trim().length > 0) {
     const openingHoursRemovalPlan =
       attempt?.resolution?.manualInsertionFit?.lowPriorityOpeningHoursRemovalPlanPreview ||
       attempt?.resolution?.lowPriorityOpeningHoursRemovalPlanPreview ||
@@ -913,11 +918,15 @@ const buildDisplayedPreviewTimeline = (
     }
   }
 
-  const authoritative = finalizedTimeline.length > 0
-    ? finalizedTimeline
-    : (proposedTimeline.length > 0 ? proposedTimeline : routeTimeline);
+  if (finalizedTimeline.length > 0) {
+    return finalizedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+  }
 
-  return authoritative.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+  if (proposedTimeline.length > 0) {
+    return proposedTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
+  }
+
+  return routeTimeline.filter((row: any) => String(row?.type || "").toLowerCase() !== "waiting");
 };
 
 export function ManualFitHerePreviewDialog({
@@ -1074,6 +1083,9 @@ export function ManualFitHerePreviewDialog({
     const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || 0);
     return (priority === 1 || priority === 2) && attempt?.removalPolicy?.allowP1P2Removal !== true;
   });
+  const isExactAnchorFailure =
+    String((attempt as any)?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
+    (attempt as any)?.changesRequiredDisplay?.exactAnchorFailure === true;
   const changesRequiredDisplay =
     (attempt as any)?.changesRequiredDisplay ||
     attempt?.resolution?.changesRequiredDisplay ||
@@ -1416,8 +1428,14 @@ export function ManualFitHerePreviewDialog({
                           })}
                         </div>
                       ) : (
-                        <p className="text-sm font-semibold text-emerald-800">
-                          {changesRequiredDisplay?.noRemovalText || "No hotspot removed"}
+                        <p
+                          className={`text-sm font-semibold ${
+                            changesRequiredDisplay?.exactAnchorFailure ? "text-amber-800" : "text-emerald-800"
+                          }`}
+                        >
+                          {changesRequiredDisplay?.exactAnchorFailure
+                            ? (changesRequiredDisplay?.noRemovalText || "No direction-valid exact-anchor rescue unlocked this position.")
+                            : (changesRequiredDisplay?.noRemovalText || "No hotspot removed")}
                         </p>
                       )}
                       </div>
@@ -1468,110 +1486,118 @@ export function ManualFitHerePreviewDialog({
                       hasOpeningHoursRescueAttempts ? "cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/20" : ""
                     }`}
                   >
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-6">
-                      <div className="flex flex-col items-center">
-                        <div className="mb-2 h-3 w-3 rounded-full bg-emerald-700" />
-                        <span className="text-[11px] font-medium text-slate-500">Start</span>
+                    {timeline.length === 0 ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        {attempt?.changesRequiredDisplay?.exactAnchorFailure
+                          ? "No finalized timeline is shown because the selected hotspot could not be preserved at the exact Fit Here position."
+                          : "No finalized timeline preview was returned."}
                       </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-6">
+                        <div className="flex flex-col items-center">
+                          <div className="mb-2 h-3 w-3 rounded-full bg-emerald-700" />
+                          <span className="text-[11px] font-medium text-slate-500">Start</span>
+                        </div>
 
-                      {timeline.slice(0, 14).map((row: any, index: number) => {
-                        const name = getRowName(row);
-                        const rowHotspotId = Number(row?.hotspotId || row?.locationId || row?.hotspot_ID || 0);
-                        const isManual =
-                          row?.isManual === true ||
-                          row?.manual === true ||
-                          rowHotspotId === Number(attempt.selectedHotspotId);
-                        const isSelectedInsertedHotspot =
-                          rowHotspotId === Number(attempt.selectedHotspotId);
-                        const operatingHoursLabel = getRowOperatingHoursLabel(
-                          row,
-                          isSelectedInsertedHotspot ? selectedHotspot : undefined,
-                        );
-                        const isRemoved = row?.removed === true || row?.isRemoved === true;
-                        const isConflict = row?.isConflict === true || Number(row?.is_conflict || 0) === 1;
-                        const isManualConflict = isManual && isConflict;
-                        const isAttractionLike =
-                          String(row?.type || "").toLowerCase() === "attraction" ||
-                          Number(row?.item_type || 0) === 4;
+                        {timeline.slice(0, 14).map((row: any, index: number) => {
+                          const name = getRowName(row);
+                          const rowHotspotId = Number(row?.hotspotId || row?.locationId || row?.hotspot_ID || 0);
+                          const isManual =
+                            row?.isManual === true ||
+                            row?.manual === true ||
+                            rowHotspotId === Number(attempt.selectedHotspotId);
+                          const isSelectedInsertedHotspot =
+                            rowHotspotId === Number(attempt.selectedHotspotId);
+                          const operatingHoursLabel = getRowOperatingHoursLabel(
+                            row,
+                            isSelectedInsertedHotspot ? selectedHotspot : undefined,
+                          );
+                          const isRemoved = row?.removed === true || row?.isRemoved === true;
+                          const isConflict = row?.isConflict === true || Number(row?.is_conflict || 0) === 1;
+                          const isManualConflict = isManual && isConflict;
+                          const isAttractionLike =
+                            String(row?.type || "").toLowerCase() === "attraction" ||
+                            Number(row?.item_type || 0) === 4;
 
-                        return (
-                          <React.Fragment key={`${name}-${index}`}>
-                            <div className="hidden h-px w-8 bg-emerald-200 md:block" />
+                          return (
+                            <React.Fragment key={`${name}-${index}`}>
+                              <div className="hidden h-px w-8 bg-emerald-200 md:block" />
 
-                            <div
-                              className={[
-                                "flex min-w-[120px] max-w-[170px] flex-1 flex-col items-center rounded-lg border px-3 py-2 text-center",
-                                isManualConflict
-                                  ? "border-red-400 bg-red-50 ring-2 ring-red-400 ring-offset-2"
-                                  : isManual
-                                    ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-500 ring-offset-2"
-                                    : isRemoved
-                                      ? "border-dashed border-slate-300 bg-slate-50 opacity-50"
-                                      : isConflict
-                                        ? "border-red-300 bg-red-50"
-                                        : "border-slate-200 bg-slate-50",
-                              ].join(" ")}
-                            >
-                              <span
+                              <div
                                 className={[
-                                  "text-xs font-bold",
+                                  "flex min-w-[120px] max-w-[170px] flex-1 flex-col items-center rounded-lg border px-3 py-2 text-center",
                                   isManualConflict
-                                    ? "text-red-800"
+                                    ? "border-red-400 bg-red-50 ring-2 ring-red-400 ring-offset-2"
                                     : isManual
-                                      ? "text-emerald-800"
+                                      ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-500 ring-offset-2"
                                       : isRemoved
-                                        ? "text-slate-400 line-through"
+                                        ? "border-dashed border-slate-300 bg-slate-50 opacity-50"
                                         : isConflict
-                                          ? "text-red-800"
-                                          : "text-slate-800",
+                                          ? "border-red-300 bg-red-50"
+                                          : "border-slate-200 bg-slate-50",
                                 ].join(" ")}
                               >
-                                {getShortName(name)}
-                              </span>
-
-                              <span className="mt-1 text-[10px] text-slate-500">
-                                {getRowTime(row)}
-                              </span>
-
-                              {isAttractionLike ? (
-                                <span className="mt-1 text-[10px] font-medium text-emerald-800/80">
-                                  {`Op Hours ${operatingHoursLabel || "Not available"}`}
+                                <span
+                                  className={[
+                                    "text-xs font-bold",
+                                    isManualConflict
+                                      ? "text-red-800"
+                                      : isManual
+                                        ? "text-emerald-800"
+                                        : isRemoved
+                                          ? "text-slate-400 line-through"
+                                          : isConflict
+                                            ? "text-red-800"
+                                            : "text-slate-800",
+                                  ].join(" ")}
+                                >
+                                  {getShortName(name)}
                                 </span>
-                              ) : null}
 
-                              {isManualConflict ? (
-                                <span className="mt-1 text-[10px] font-bold uppercase text-red-700">
-                                  Cannot Insert
+                                <span className="mt-1 text-[10px] text-slate-500">
+                                  {getRowTime(row)}
                                 </span>
-                              ) : isManual ? (
-                                <span className="mt-1 text-[10px] font-bold uppercase text-emerald-700">
-                                  Inserted
-                                </span>
-                              ) : null}
 
-                              {isRemoved && (
-                                <span className="mt-1 text-[10px] font-bold uppercase text-red-600">
-                                  Removed
-                                </span>
-                              )}
+                                {isAttractionLike ? (
+                                  <span className="mt-1 text-[10px] font-medium text-emerald-800/80">
+                                    {`Op Hours ${operatingHoursLabel || "Not available"}`}
+                                  </span>
+                                ) : null}
 
-                              {isConflict && (
-                                <span className="mt-1 text-[10px] font-bold uppercase text-red-600">
-                                  Conflict
-                                </span>
-                              )}
-                            </div>
-                          </React.Fragment>
-                        );
-                      })}
+                                {isManualConflict ? (
+                                  <span className="mt-1 text-[10px] font-bold uppercase text-red-700">
+                                    Cannot Insert
+                                  </span>
+                                ) : isManual ? (
+                                  <span className="mt-1 text-[10px] font-bold uppercase text-emerald-700">
+                                    Inserted
+                                  </span>
+                                ) : null}
 
-                      <div className="hidden h-px w-8 bg-emerald-200 md:block" />
+                                {isRemoved && (
+                                  <span className="mt-1 text-[10px] font-bold uppercase text-red-600">
+                                    Removed
+                                  </span>
+                                )}
 
-                      <div className="flex flex-col items-center">
-                        <div className="mb-2 h-3 w-3 rounded-full bg-slate-500" />
-                        <span className="text-[11px] font-medium text-slate-500">Hotel</span>
+                                {isConflict && (
+                                  <span className="mt-1 text-[10px] font-bold uppercase text-red-600">
+                                    Conflict
+                                  </span>
+                                )}
+                              </div>
+                            </React.Fragment>
+                          );
+                        })}
+
+                        <div className="hidden h-px w-8 bg-emerald-200 md:block" />
+
+                        <div className="flex flex-col items-center">
+                          <div className="mb-2 h-3 w-3 rounded-full bg-slate-500" />
+                          <span className="text-[11px] font-medium text-slate-500">Hotel</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                     {hasOpeningHoursRescueAttempts ? (
                       <p className="mt-3 text-xs font-semibold text-emerald-700">
                         Click timeline to {showRescueAttempts ? "hide" : "view"} rescue attempts.

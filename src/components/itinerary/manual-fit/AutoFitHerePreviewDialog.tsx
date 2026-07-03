@@ -24,11 +24,13 @@ type AutoFitHerePreviewResultRow = {
     afterHotspotId?: number | null;
   } | null;
   attempt?: ManualFitHerePreviewResponse | null;
-  status?: "COMPLETED" | "FAILED";
+  status?: "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
   score?: number;
   rankReason?: string;
   removedCount?: number;
   error?: string;
+  progressText?: string;
+  elapsedMs?: number;
 };
 
 type AutoFitHerePreviewDialogProps = {
@@ -39,6 +41,14 @@ type AutoFitHerePreviewDialogProps = {
   selectedAnchorKey: string | null;
   selectedHotspot?: any | null;
   baseTimeline?: any[] | null;
+  loadingAnchorCount?: number;
+  loadingStartedAtMs?: number | null;
+  performanceSummary?: {
+    totalElapsedMs?: number;
+    avgAnchorMs?: number;
+    slowestAnchorLabel?: string | null;
+    slowestAnchorMs?: number;
+  } | null;
   onClose: () => void;
   onSelectAnchorKey: (anchorKey: string) => void;
   onConfirm: (
@@ -50,19 +60,6 @@ type AutoFitHerePreviewDialogProps = {
   ) => void;
   confirmLoading?: boolean;
 };
-
-const AUTO_PREVIEW_LOADING_STEPS = [
-  "Reading current itinerary timeline",
-  "Checking selected hotspot details",
-  "Checking insertion position",
-  "Calculating travel from previous stop",
-  "Calculating travel to next stop",
-  "Checking arrival time",
-  "Checking opening and closing hours",
-  "Checking Priority protection",
-  "Checking optional hotspot removal options",
-  "Building proposed timeline preview",
-];
 
 const getTimelineRowName = (row: any): string =>
   String(
@@ -91,8 +88,39 @@ const getTimelineRowDistance = (row: any): string =>
       "",
   ).trim();
 
+const formatDurationValue = (value: unknown): string => {
+  if (!value) return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const hours = value.getUTCHours();
+    const minutes = value.getUTCMinutes();
+    return formatPreviewMinutes((hours * 60) + minutes);
+  }
+
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const isoDate = new Date(raw);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !Number.isNaN(isoDate.getTime())) {
+    const hours = isoDate.getUTCHours();
+    const minutes = isoDate.getUTCMinutes();
+    return formatPreviewMinutes((hours * 60) + minutes);
+  }
+
+  const hmsMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hmsMatch) {
+    const hours = Number(hmsMatch[1] || 0);
+    const minutes = Number(hmsMatch[2] || 0);
+    if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+      return formatPreviewMinutes((hours * 60) + minutes);
+    }
+  }
+
+  return raw;
+};
+
 const getTimelineRowDuration = (row: any): string =>
-  String(
+  formatDurationValue(
     row?.duration ||
       row?.hotspot_traveling_time ||
       row?.travelDuration ||
@@ -160,6 +188,14 @@ const getTimelineRowOperatingHours = (row: any): string => {
 };
 
 const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] => {
+  const hasExactAnchorMismatch =
+    (String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
+      attempt?.changesRequiredDisplay?.exactAnchorFailure === true) &&
+    attempt?.canConfirm !== true;
+  if (hasExactAnchorMismatch) {
+    return [];
+  }
+
   if (Array.isArray(attempt?.finalizedTimeline) && attempt.finalizedTimeline.length > 0) {
     return attempt.finalizedTimeline;
   }
@@ -168,41 +204,116 @@ const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] =>
     return attempt.proposedTimeline;
   }
 
-  const hasExactAnchorMismatch =
-    attempt?.selectedAnchorPreserved === false ||
-    String(attempt?.exactAnchorMismatch?.message || "").trim().length > 0;
+  return [];
+};
 
-  if (hasExactAnchorMismatch) {
-    const dayEndRemovalPlan =
-      attempt?.resolution?.manualInsertionFit?.lowPriorityRemovalPlanPreview ||
-      (attempt as any)?.manualInsertionFit?.lowPriorityRemovalPlanPreview ||
-      null;
-    const openingHoursRemovalPlan =
-      attempt?.resolution?.manualInsertionFit?.lowPriorityOpeningHoursRemovalPlanPreview ||
-      attempt?.resolution?.lowPriorityOpeningHoursRemovalPlanPreview ||
-      (attempt as any)?.manualInsertionFit?.lowPriorityOpeningHoursRemovalPlanPreview ||
-      null;
-    const rescueAttempts = [
-      ...(Array.isArray(dayEndRemovalPlan?.simulationAttempts) ? dayEndRemovalPlan.simulationAttempts : []),
-      ...(Array.isArray(dayEndRemovalPlan?.rejectedAttempts) ? dayEndRemovalPlan.rejectedAttempts : []),
-      ...(Array.isArray(openingHoursRemovalPlan?.simulationAttempts) ? openingHoursRemovalPlan.simulationAttempts : []),
-      ...(Array.isArray(openingHoursRemovalPlan?.rejectedAttempts) ? openingHoursRemovalPlan.rejectedAttempts : []),
-    ];
-    const preferredRescueAttempt =
-      rescueAttempts.find((attemptRow: any) => attemptRow?.resolved === true || attemptRow?.valid === true)
-      || rescueAttempts[rescueAttempts.length - 1]
-      || null;
-    const rescueTimeline = preferredRescueAttempt?.previewTimelineDisplay
-      || preferredRescueAttempt?.displayTimeline
-      || preferredRescueAttempt?.previewTimeline
-      || [];
+const extractCheckinHotelLabel = (row: any): string => {
+  const raw = String(
+    row?.hotelName ||
+    row?.name ||
+    row?.title ||
+    row?.text ||
+    "Hotel",
+  ).trim();
 
-    if (Array.isArray(rescueTimeline) && rescueTimeline.length > 0) {
-      return rescueTimeline;
+  const stripped = raw
+    .replace(/^check-?in\s+(?:to|at)\s+/i, "")
+    .replace(/^hotel\s*:\s*/i, "")
+    .trim();
+
+  return stripped || "Hotel";
+};
+
+const formatPreviewClockLabelFromMinutes = (totalMinutes: number): string => {
+  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
+  const hours24 = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  const suffix = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = hours24 % 12 || 12;
+  return `${String(hours12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${suffix}`;
+};
+
+const reconcileHotelTravelInTimeline = (timelineRows: any[]): any[] => {
+  const rows = Array.isArray(timelineRows) ? [...timelineRows] : [];
+  if (rows.length === 0) return rows;
+
+  const isCheckinRow = (row: any): boolean => {
+    const type = String(row?.type || "").toLowerCase();
+    const label = getTimelineRowName(row).toLowerCase();
+    return type === "hotel" || type === "checkin" || label.includes("check-in at");
+  };
+
+  const isTravelRow = (row: any): boolean =>
+    String(row?.type || "").toLowerCase() === "travel";
+
+  for (let checkinIndex = 0; checkinIndex < rows.length; checkinIndex += 1) {
+    const checkinRow = rows[checkinIndex];
+    if (!isCheckinRow(checkinRow)) continue;
+
+    const hotelLabel = extractCheckinHotelLabel(checkinRow);
+    let previousIndex = checkinIndex - 1;
+    while (previousIndex >= 0 && String(rows[previousIndex]?.type || "").toLowerCase() === "hotspot") {
+      previousIndex -= 1;
     }
+    if (previousIndex < 0) continue;
+
+    const previousRow = rows[previousIndex];
+    const previousLabel = getTimelineRowName(previousRow);
+    const alreadyTravelToHotel =
+      isTravelRow(previousRow) &&
+      String(previousRow?.to || previousRow?.toName || previousRow?.displayToName || previousLabel || "")
+        .trim()
+        .toLowerCase() === hotelLabel.toLowerCase();
+
+    if (alreadyTravelToHotel || isCheckinRow(previousRow) || previousLabel.trim().toLowerCase() === hotelLabel.toLowerCase()) {
+      rows[checkinIndex] = {
+        ...checkinRow,
+        hotelName: hotelLabel,
+        name: `Check-in at ${hotelLabel}`,
+        text: `Check-in at ${hotelLabel}`,
+      };
+      continue;
+    }
+
+    const previousEndMinutes = getTimeRangeEndMinutes(getTimelineRowTime(previousRow));
+    const checkinStartMinutes = getTimeRangeStartMinutes(getTimelineRowTime(checkinRow));
+    if (previousEndMinutes == null || checkinStartMinutes == null || checkinStartMinutes < previousEndMinutes) {
+      rows[checkinIndex] = {
+        ...checkinRow,
+        hotelName: hotelLabel,
+        name: `Check-in at ${hotelLabel}`,
+        text: `Check-in at ${hotelLabel}`,
+      };
+      continue;
+    }
+
+    const gapMinutes = Math.max(0, checkinStartMinutes - previousEndMinutes);
+    const syntheticTravelRow = {
+      type: "travel",
+      from: previousRow?.to || previousRow?.name || previousLabel,
+      to: hotelLabel,
+      fromName: previousRow?.to || previousRow?.name || previousLabel,
+      toName: hotelLabel,
+      displayFromName: previousRow?.to || previousRow?.name || previousLabel,
+      displayToName: hotelLabel,
+      name: `Travel to ${hotelLabel}`,
+      text: `Travel to ${hotelLabel}`,
+      timeRange: `${formatPreviewClockLabelFromMinutes(previousEndMinutes)} - ${formatPreviewClockLabelFromMinutes(checkinStartMinutes)}`,
+      duration: gapMinutes > 0 ? formatPreviewMinutes(gapMinutes) : "",
+      isSyntheticHotelTravel: true,
+    };
+
+    rows.splice(checkinIndex, 0, syntheticTravelRow);
+    checkinIndex += 1;
+    rows[checkinIndex] = {
+      ...checkinRow,
+      hotelName: hotelLabel,
+      name: `Check-in at ${hotelLabel}`,
+      text: `Check-in at ${hotelLabel}`,
+    };
   }
 
-  return [];
+  return rows;
 };
 
 const getTimeRangeEndMinutes = (value: unknown): number | null => {
@@ -677,12 +788,13 @@ const deriveAutoPreviewAttemptState = (
   rescueAttemptUsed: boolean;
   hasReorderedTimeline: boolean;
   hasShiftedTimeline: boolean;
+  hasExactAnchorMismatch: boolean;
   summary: string;
   badgeText: string;
   badgeTone: "success" | "warning" | "danger" | "neutral";
 } => {
   const attempt = (row?.attempt || null) as ManualFitHerePreviewResponse | null;
-  const timelineRows = getTimelineRows(attempt);
+  const timelineRows = reconcileHotelTravelInTimeline(getTimelineRows(attempt));
   const backendSelectedOpeningConflict =
     attempt?.selectedOpeningConflict ||
     attempt?.resolution?.selectedOpeningConflict ||
@@ -763,9 +875,13 @@ const deriveAutoPreviewAttemptState = (
       reason: candidate?.reason || null,
     };
   });
+  const hasExactAnchorMismatch =
+    (String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
+      attempt?.changesRequiredDisplay?.exactAnchorFailure === true) &&
+    attempt?.canConfirm !== true;
   const timelineRemovedItems = buildTimelineRemovedItems(
-    baseTimeline,
-    timelineRows,
+    hasExactAnchorMismatch ? [] : baseTimeline,
+    hasExactAnchorMismatch ? [] : timelineRows,
     attempt?.selectedHotspotId,
   );
   const displayedRemovedItems = (
@@ -809,11 +925,14 @@ const deriveAutoPreviewAttemptState = (
     !hasUnauthorizedProtectedRemoval &&
     !isSelectedClosedAtAttemptedTime;
   const rescueAttemptUsed =
-    displayedRemovedItems.length === 0 &&
-    removedItemsFromRows.length === 0 &&
-    (!Array.isArray(changesRequiredDisplay?.removedItems) || changesRequiredDisplay.removedItems.length === 0) &&
-    !!preferredRescueAttempt &&
-    getAttemptRemovedItems(preferredRescueAttempt).length > 0;
+    hasExactAnchorMismatch ||
+    (
+      displayedRemovedItems.length === 0 &&
+      removedItemsFromRows.length === 0 &&
+      (!Array.isArray(changesRequiredDisplay?.removedItems) || changesRequiredDisplay.removedItems.length === 0) &&
+      !!preferredRescueAttempt &&
+      getAttemptRemovedItems(preferredRescueAttempt).length > 0
+    );
   let badgeText = "Cannot fit";
   let badgeTone: "success" | "warning" | "danger" | "neutral" = "neutral";
 
@@ -857,8 +976,9 @@ const deriveAutoPreviewAttemptState = (
     isSelectedClosedAtAttemptedTime,
     canConfirm,
     rescueAttemptUsed,
-    hasReorderedTimeline: hasTimelineReorder(baseTimeline, timelineRows),
-    hasShiftedTimeline: hasShiftedTimelineRows(timelineRows),
+    hasReorderedTimeline: hasExactAnchorMismatch ? false : hasTimelineReorder(baseTimeline, timelineRows),
+    hasShiftedTimeline: hasExactAnchorMismatch ? false : hasShiftedTimelineRows(timelineRows),
+    hasExactAnchorMismatch,
     summary,
     badgeText,
     badgeTone,
@@ -873,28 +993,31 @@ export function AutoFitHerePreviewDialog({
   selectedAnchorKey,
   selectedHotspot,
   baseTimeline = null,
+  loadingAnchorCount = 0,
+  loadingStartedAtMs = null,
+  performanceSummary = null,
   onClose,
   onSelectAnchorKey,
   onConfirm,
   confirmLoading = false,
 }: AutoFitHerePreviewDialogProps) {
-  const [loadingStepIndex, setLoadingStepIndex] = React.useState(0);
+  const [loadingElapsedMs, setLoadingElapsedMs] = React.useState(0);
   const [removalsAcknowledged, setRemovalsAcknowledged] = React.useState(false);
 
   React.useEffect(() => {
-    if (!open || !loading) {
-      setLoadingStepIndex(0);
+    if (!open || !loading || !loadingStartedAtMs) {
+      setLoadingElapsedMs(0);
       return;
     }
 
-    const timer = window.setInterval(() => {
-      setLoadingStepIndex((prev) => Math.min(prev + 1, AUTO_PREVIEW_LOADING_STEPS.length - 1));
-    }, 700);
-
-    return () => {
-      window.clearInterval(timer);
+    const tick = () => {
+      setLoadingElapsedMs(Math.max(0, Date.now() - loadingStartedAtMs));
     };
-  }, [loading, open]);
+
+    tick();
+    const timer = window.setInterval(tick, 500);
+    return () => window.clearInterval(timer);
+  }, [loading, loadingStartedAtMs, open]);
 
   React.useEffect(() => {
     setRemovalsAcknowledged(false);
@@ -906,6 +1029,7 @@ export function AutoFitHerePreviewDialog({
     null;
   const selectedAttempt = (selectedRow?.attempt || null) as ManualFitHerePreviewResponse | null;
   const selectedState = deriveAutoPreviewAttemptState(selectedRow, baseTimeline);
+  const hasAnyConfirmableResult = results.some((row) => deriveAutoPreviewAttemptState(row, baseTimeline).canConfirm);
   const timelineRows = selectedState.timelineRows;
   const removedItems = selectedState.displayedRemovedItems;
   const hotelGapWarning = getHotelGapWarning(timelineRows);
@@ -923,12 +1047,17 @@ export function AutoFitHerePreviewDialog({
           .filter((id: number) => id > 0)
       : []),
   ]));
-  const requiresRemovalAcknowledgement = plannedRemovalIds.length > 0;
+  const requiresRemovalAcknowledgement = selectedState.canConfirm && plannedRemovalIds.length > 0;
   const allRemovalAcknowledged = !requiresRemovalAcknowledgement || removalsAcknowledged;
   const canConfirm = selectedState.canConfirm && (!requiresRemovalAcknowledgement || allRemovalAcknowledged);
-  const confirmButtonLabel = removedItems.length > 0
-    ? "Confirm and Remove Hotspots"
-    : "Confirm Fit Here";
+  const confirmButtonLabel = !canConfirm
+    ? "Cannot Confirm This Position"
+    : removedItems.length > 0
+      ? "Confirm and Remove Hotspots"
+      : "Confirm Fit Here";
+  const elapsedSeconds = Math.max(1, Math.round(loadingElapsedMs / 1000));
+  const completedLoadingRows = results.filter((row) => row?.status === "COMPLETED" || row?.status === "FAILED");
+  const runningLoadingRow = results.find((row) => row?.status === "RUNNING") || null;
   const hotspotName = String(
     selectedHotspot?.name ||
       selectedHotspot?.title ||
@@ -982,22 +1111,58 @@ export function AutoFitHerePreviewDialog({
                   <div>
                     <p className="text-sm font-bold text-slate-900">Ranking every valid position...</p>
                     <p className="mt-1 text-xs text-slate-600">
-                      We are reusing the existing Fit Here preview engine for each anchor and sorting the best outcome first.
+                      We are checking {loadingAnchorCount > 0 ? loadingAnchorCount : "all"} possible Fit Here position{loadingAnchorCount === 1 ? "" : "s"} one by one and sorting the cleanest outcome first.
+                    </p>
+                    <p className="mt-1 text-xs font-medium text-emerald-800">
+                      Elapsed: {elapsedSeconds}s • Completed {completedLoadingRows.length}/{loadingAnchorCount || results.length || 0}
                     </p>
                   </div>
                 </div>
 
+                <div className="mt-4 rounded-xl border border-emerald-100 bg-white/70 px-4 py-3 text-xs text-slate-700">
+                  <p className="font-semibold text-slate-900">
+                    Current backend work
+                  </p>
+                  <p className="mt-1">
+                    {runningLoadingRow?.anchor?.anchorLabel
+                      ? `Checking position: ${runningLoadingRow.anchor.anchorLabel}`
+                      : "Preparing the next valid Fit Here position."}
+                  </p>
+                  {runningLoadingRow?.progressText ? (
+                    <p className="mt-2 text-slate-600">
+                      {runningLoadingRow.progressText}
+                    </p>
+                  ) : null}
+                </div>
+
                 <div className="mt-5 space-y-2">
-                  {AUTO_PREVIEW_LOADING_STEPS.map((step, index) => {
-                    const isActive = index === loadingStepIndex;
-                    const isDone = index < loadingStepIndex;
+                  {results.map((row, index) => {
+                    const status = String(row?.status || "PENDING").toUpperCase();
+                    const isActive = status === "RUNNING";
+                    const isDone = status === "COMPLETED";
+                    const isFailed = status === "FAILED";
+                    const label = String(
+                      row?.anchor?.anchorLabel ||
+                      row?.anchor?.anchorFrom ||
+                      `Position ${index + 1}`,
+                    ).trim();
+                    const subText =
+                      isActive
+                        ? row?.progressText
+                        : isDone
+                          ? `${row?.elapsedMs ? `${(Number(row.elapsedMs) / 1000).toFixed(1)}s` : "Done"}${row?.removedCount ? ` • ${row.removedCount} removal${row.removedCount === 1 ? "" : "s"}` : ""}`
+                          : isFailed
+                            ? (row?.error || "This position could not be previewed.")
+                            : (row?.progressText || "Waiting to simulate this position.");
 
                     return (
                       <div
-                        key={step}
+                        key={row.anchorKey || `${label}-${index}`}
                         className={`rounded-xl border px-3 py-2 text-sm ${
                           isActive
                             ? "border-emerald-300 bg-white text-emerald-900"
+                            : isFailed
+                              ? "border-red-200 bg-red-50 text-red-800"
                             : isDone
                               ? "border-emerald-100 bg-emerald-100/60 text-slate-800"
                               : "border-slate-100 bg-slate-50 text-slate-500"
@@ -1006,13 +1171,20 @@ export function AutoFitHerePreviewDialog({
                         <div className="flex items-center gap-2">
                           {isActive ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : isFailed ? (
+                            <AlertTriangle className="h-4 w-4" />
                           ) : isDone ? (
                             <CheckCircle2 className="h-4 w-4" />
                           ) : (
                             <MapPin className="h-4 w-4" />
                           )}
-                          <span>{step}</span>
+                          <span>{label}</span>
                         </div>
+                        {subText ? (
+                          <p className="mt-1 pl-6 text-xs text-slate-600">
+                            {subText}
+                          </p>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -1027,6 +1199,18 @@ export function AutoFitHerePreviewDialog({
                   <p className="mt-1 text-sm text-slate-600">
                     The cleanest confirmable position is ranked first.
                   </p>
+                  {performanceSummary?.totalElapsedMs ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Ranked {results.length} position{results.length === 1 ? "" : "s"} in{" "}
+                      {(Number(performanceSummary.totalElapsedMs) / 1000).toFixed(1)}s
+                      {Number(performanceSummary.avgAnchorMs || 0) > 0
+                        ? ` • Avg ${(Number(performanceSummary.avgAnchorMs) / 1000).toFixed(1)}s per position`
+                        : ""}
+                      {performanceSummary.slowestAnchorLabel && Number(performanceSummary.slowestAnchorMs || 0) > 0
+                        ? ` • Slowest: ${performanceSummary.slowestAnchorLabel} (${(Number(performanceSummary.slowestAnchorMs) / 1000).toFixed(1)}s)`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
 
                 {failedReason ? (
@@ -1067,8 +1251,10 @@ export function AutoFitHerePreviewDialog({
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-sm font-semibold text-slate-900">{getAnchorLabel(row)}</p>
                               {isBest ? (
-                                <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
-                                  Best
+                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase text-white ${
+                                  hasAnyConfirmableResult ? "bg-emerald-700" : "bg-slate-600"
+                                }`}>
+                                  {hasAnyConfirmableResult ? "Best" : "Closest Attempt"}
                                 </span>
                               ) : null}
                             </div>
@@ -1139,7 +1325,9 @@ export function AutoFitHerePreviewDialog({
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Changes required</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                              {changesRequiredDisplay?.title || "Changes required"}
+                            </p>
                             <p className="mt-2 text-xs font-semibold text-slate-600">
                               {changesRequiredDisplay?.removalOrderLabel || "Removal order checked: Non-manual / Priority 4 -> Priority 3 -> Priority 2 -> Priority 1"}
                             </p>
@@ -1165,8 +1353,10 @@ export function AutoFitHerePreviewDialog({
                         Some later timeline rows were pushed forward after insertion. Check the finalized sequence below.
                       </div>
                     ) : null}
-                    {removedItems.length === 0 ? (
-                      <p className="mt-2 text-sm text-slate-700">No hotspot removed</p>
+                        {removedItems.length === 0 ? (
+                      <p className="mt-2 text-sm text-slate-700">
+                        {changesRequiredDisplay?.noRemovalText || "No hotspot removed"}
+                      </p>
                     ) : (
                       <div className="mt-3 space-y-3">
                         {selectedState.rescueAttemptUsed ? (
@@ -1177,15 +1367,17 @@ export function AutoFitHerePreviewDialog({
                         <div className="grid gap-3 sm:grid-cols-2">
                         {removedItems.map((item, index) => {
                           const checked = allRemovalAcknowledged;
-                          const showAcknowledgementCheckbox = index === 0;
+                          const showAcknowledgementCheckbox = requiresRemovalAcknowledgement && index === 0;
 
                           return (
                             <label
                               key={item.hotspotId}
                               className={`flex items-start gap-3 rounded-xl border p-3 transition ${
-                                checked
+                                showAcknowledgementCheckbox && checked
                                   ? "border-emerald-300 bg-emerald-50"
-                                  : "border-amber-200 bg-amber-50 shadow-sm"
+                                  : selectedState.canConfirm
+                                    ? "border-amber-200 bg-amber-50 shadow-sm"
+                                    : "border-slate-200 bg-slate-50"
                               } ${showAcknowledgementCheckbox ? "sm:col-span-2" : ""}`}
                             >
                               {showAcknowledgementCheckbox ? (
@@ -1211,6 +1403,12 @@ export function AutoFitHerePreviewDialog({
                                 {showAcknowledgementCheckbox ? (
                                   <p className="mt-1 text-xs text-slate-600">
                                     This acknowledges {removedItems.length} hotspot{removedItems.length === 1 ? "" : "s"} removed from the finalized route.
+                                  </p>
+                                ) : !selectedState.canConfirm ? (
+                                  <p className="mt-1 text-xs text-slate-600">
+                                    {selectedState.hasExactAnchorMismatch
+                                      ? "This hotspot was only removed during failed anchor-preserving rescue attempts and does not unlock this position."
+                                      : "This hotspot was part of a failed rescue attempt and does not unlock confirmation for this position."}
                                   </p>
                                 ) : null}
                                 <p className="mt-1 text-xs text-slate-600">
@@ -1254,7 +1452,9 @@ export function AutoFitHerePreviewDialog({
                     className="order-1 rounded-2xl border border-slate-200 bg-white p-4"
                     data-testid="auto-fit-here-main-timeline"
                   >
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Finalized timeline</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {selectedState.hasExactAnchorMismatch ? "Anchor-preserving result" : "Finalized timeline"}
+                    </p>
                     {hotelGapWarning ? (
                       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
                         Gap before hotel check-in: {formatPreviewMinutes(hotelGapWarning.gapMinutes)} after {hotelGapWarning.previousRowName}. Hotel travel distance/duration may be missing from the preview data.
@@ -1264,7 +1464,9 @@ export function AutoFitHerePreviewDialog({
                       <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                         {selectedRow?.status === "FAILED"
                           ? selectedRow?.error || "This position could not be previewed."
-                          : selectedAttempt?.rejectedReasons?.[0] || "No finalized timeline available for this position."}
+                          : selectedState.hasExactAnchorMismatch
+                            ? "No valid anchor-preserving finalized timeline exists for this selected position."
+                            : selectedAttempt?.rejectedReasons?.[0] || "No finalized timeline available for this position."}
                       </div>
                     ) : (
                       <div className="mt-3 space-y-3">
@@ -1349,7 +1551,11 @@ export function AutoFitHerePreviewDialog({
                         acknowledgedRemovedHotspotIds: allRemovalAcknowledged ? plannedRemovalIds : [],
                       }, selectedAttempt);
                     }}
-                    className={removedItems.length > 0 ? "bg-amber-600 text-white hover:bg-amber-700" : ""}
+                    className={!canConfirm
+                      ? "bg-slate-200 text-slate-500 hover:bg-slate-200"
+                      : removedItems.length > 0
+                        ? "bg-amber-600 text-white hover:bg-amber-700"
+                        : ""}
                   >
                     {confirmLoading ? "Confirming..." : confirmButtonLabel}
                   </Button>
