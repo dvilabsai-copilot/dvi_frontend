@@ -948,10 +948,33 @@ const formatPreviewDuration = (value: any): string => {
   const raw = String(value || '').trim();
   if (!raw) return '';
 
+  const hmsMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hmsMatch) {
+    const hours = Number(hmsMatch[1] || 0);
+    const minutes = Number(hmsMatch[2] || 0);
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
+    if (minutes > 0) parts.push(`${minutes} Min`);
+    return parts.join(' ') || '';
+  }
+
   const isoDate = new Date(raw);
   if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !Number.isNaN(isoDate.getTime())) {
     const hours = isoDate.getUTCHours();
     const minutes = isoDate.getUTCMinutes();
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
+    if (minutes > 0) parts.push(`${minutes} Min`);
+    return parts.join(' ') || '';
+  }
+
+  const localDateLabelMatch = raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
+  if (
+    localDateLabelMatch &&
+    /(?:sun|mon|tue|wed|thu|fri|sat)\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(raw)
+  ) {
+    const hours = Number(localDateLabelMatch[1] || 0);
+    const minutes = Number(localDateLabelMatch[2] || 0);
     const parts: string[] = [];
     if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
     if (minutes > 0) parts.push(`${minutes} Min`);
@@ -2049,6 +2072,82 @@ const [guideModal, setGuideModal] = useState<{
       || (manualPreviewState as any)?.normalizedDecision
       || null;
   }, [activePreviewResolution, manualPreviewState]);
+
+  const previewRemovedHotspotDetails = useMemo(() => {
+    const rows = [
+      ...(Array.isArray(activePreviewResolution?.removedHotspots) ? activePreviewResolution.removedHotspots : []),
+      ...(Array.isArray(activePreviewResolution?.removedOptionalHotspots) ? activePreviewResolution.removedOptionalHotspots : []),
+      ...(Array.isArray(activePreviewResolution?.removedTopPriorityHotspots) ? activePreviewResolution.removedTopPriorityHotspots : []),
+      ...(Array.isArray((activePreviewResolution as any)?.changesRequiredDisplay?.removedItems)
+        ? (activePreviewResolution as any).changesRequiredDisplay.removedItems
+        : []),
+    ];
+
+    const seen = new Set<string>();
+
+    return rows
+      .map((row: any) => {
+        const hotspotId = Number(
+          row?.hotspotId ||
+          row?.hotspot_ID ||
+          row?.hotspot_id ||
+          row?.locationId ||
+          row?.id ||
+          0,
+        );
+        const name = String(row?.name || row?.hotspotName || row?.hotspot_name || '').trim();
+        const priorityValue = Number(
+          row?.priority ||
+          row?.workPriority ||
+          row?.effectivePriority ||
+          0,
+        );
+        const key = hotspotId > 0 ? String(hotspotId) : name.toLowerCase();
+
+        return {
+          hotspotId,
+          key,
+          name,
+          priorityLabel: Number.isFinite(priorityValue) && priorityValue > 0
+            ? `Work Priority ${priorityValue}`
+            : String(row?.workPriorityLabel || row?.priorityLabel || '').trim() || null,
+          workPriorityLabel: Number.isFinite(priorityValue) && priorityValue > 0
+            ? `Work Priority ${priorityValue}`
+            : String(row?.workPriorityLabel || '').trim() || null,
+          reason: String(row?.fitFailureExplanation || row?.reason || row?.message || '').trim() || null,
+          removalReasonCode: String(row?.removalReasonCode || '').trim() || null,
+        };
+      })
+      .filter((row) => {
+        if (!row.name || !row.key) return false;
+        if (seen.has(row.key)) return false;
+        seen.add(row.key);
+        return true;
+      });
+  }, [activePreviewResolution]);
+
+  const optionalPreviewRemovedHotspotDetails = useMemo(() => {
+    const optionalRows = Array.isArray(activePreviewResolution?.removedOptionalHotspots)
+      ? activePreviewResolution.removedOptionalHotspots
+      : [];
+
+    const optionalKeys = new Set(
+      optionalRows.map((row: any) => {
+        const hotspotId = Number(
+          row?.hotspotId ||
+          row?.hotspot_ID ||
+          row?.hotspot_id ||
+          row?.locationId ||
+          row?.id ||
+          0,
+        );
+        const name = String(row?.name || row?.hotspotName || row?.hotspot_name || '').trim().toLowerCase();
+        return hotspotId > 0 ? String(hotspotId) : name;
+      }),
+    );
+
+    return previewRemovedHotspotDetails.filter((row) => optionalKeys.has(row.key));
+  }, [activePreviewResolution, previewRemovedHotspotDetails]);
 
   const pendingPriorityReplacementHotspotId = useMemo(() => {
     const needsReplacementApproval = (resolution: any): boolean => {
@@ -15728,18 +15827,30 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                 )}
                 {!pendingPriorityReplacementHotspotId && (
                   <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
-                    {Array.isArray(activePreviewResolution?.removedHotspots)
-                      && activePreviewResolution.removedHotspots.length > 0
+                    {previewRemovedHotspotDetails.length > 0
                       && activePreviewValidation?.readyToApply === false && (
                       <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                         <p className="font-bold">P3 hotspot removed, but manual hotspot still has a timing conflict</p>
-                        <p className="mt-1">
-                          Removed:{' '}
-                          {activePreviewResolution.removedHotspots
-                            .map((row: any) => row?.name)
-                            .filter(Boolean)
-                            .join(', ')}
-                          . You can force add only if you want to keep the selected manual hotspot as a conflict.
+                        <ul className="mt-2 space-y-2">
+                          {previewRemovedHotspotDetails.map((row) => (
+                            <li key={`preview-removed-summary-${row.key}`} className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                              <p className="font-semibold text-amber-900">
+                                {row.name}
+                                {row.workPriorityLabel || row.priorityLabel ? ` • ${row.workPriorityLabel || row.priorityLabel}` : ''}
+                              </p>
+                              {row.reason ? (
+                                <p className="mt-1 leading-4">{row.reason}</p>
+                              ) : null}
+                              {row.removalReasonCode ? (
+                                <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-amber-700">
+                                  {row.removalReasonCode}
+                                </p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="mt-2">
+                          You can force add only if you want to keep the selected manual hotspot as a conflict.
                         </p>
                       </div>
                     )}
@@ -15806,25 +15917,27 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                             </ul>
                           </div>
                         ) : null}
-                        {(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
-                          && activePreviewResolution.removedOptionalHotspots.length > 0)
-                        || (Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
-                          && activePreviewResolution.removedTopPriorityHotspots.length > 0) ? (
+                        {previewRemovedHotspotDetails.length > 0 ? (
                           <div className="mt-2 text-xs text-red-700 leading-4">
                             <p className="font-semibold text-red-800">Removed while trying to fit:</p>
-                            <p className="mt-1 font-medium">
-                              {[
-                                ...(Array.isArray(activePreviewResolution?.removedOptionalHotspots)
-                                  ? activePreviewResolution.removedOptionalHotspots
-                                  : []),
-                                ...(Array.isArray(activePreviewResolution?.removedTopPriorityHotspots)
-                                  ? activePreviewResolution.removedTopPriorityHotspots
-                                  : []),
-                              ]
-                                .map((row: any) => row?.name)
-                                .filter(Boolean)
-                                .join(', ')}
-                            </p>
+                            <ul className="mt-1 space-y-2">
+                              {previewRemovedHotspotDetails.map((row) => (
+                                <li key={`preview-removed-detail-${row.key}`} className="rounded-lg border border-red-200 bg-white/70 p-2">
+                                  <p className="font-semibold text-red-900">
+                                    {row.name}
+                                    {row.workPriorityLabel || row.priorityLabel ? ` • ${row.workPriorityLabel || row.priorityLabel}` : ''}
+                                  </p>
+                                  {row.reason ? (
+                                    <p className="mt-1 leading-4">{row.reason}</p>
+                                  ) : null}
+                                  {row.removalReasonCode ? (
+                                    <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-red-700">
+                                      {row.removalReasonCode}
+                                    </p>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         ) : !isMatrixBuiltButNoFeasibleSlot ? (
                           <p className="text-xs text-red-700 mt-2 leading-4">
@@ -15843,18 +15956,30 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       </div>
                     ) : null}
 
-                    {Array.isArray(activePreviewResolution?.removedOptionalHotspots) && activePreviewResolution.removedOptionalHotspots.length > 0 ? (
+                    {optionalPreviewRemovedHotspotDetails.length > 0 ? (
                       <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
                         <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
                         <p className="text-xs text-amber-700 mt-1 leading-4">
                           To fit your selected hotspot(s), these optional hotspots will be removed:
                         </p>
-                        <p className="text-xs text-amber-800 mt-1 font-semibold leading-4 line-clamp-2">
-                          {activePreviewResolution.removedOptionalHotspots
-                            .map((row: any) => row?.name)
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
+                        <ul className="mt-2 space-y-2 text-xs text-amber-800">
+                          {optionalPreviewRemovedHotspotDetails.map((row) => (
+                            <li key={`optional-removed-${row.key}`} className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                              <p className="font-semibold">
+                                {row.name}
+                                {row.workPriorityLabel || row.priorityLabel ? ` • ${row.workPriorityLabel || row.priorityLabel}` : ''}
+                              </p>
+                              {row.reason ? (
+                                <p className="mt-1 leading-4">{row.reason}</p>
+                              ) : null}
+                              {row.removalReasonCode ? (
+                                <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-amber-700">
+                                  {row.removalReasonCode}
+                                </p>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     ) : null}
                   </div>
@@ -15922,8 +16047,13 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                               {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row: any, ri: number) => (
                                 <li key={ri} className="text-xs text-orange-900 leading-4">
                                   <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
-                                  {row?.priority ? <span className="ml-1 text-orange-700">(P{row.priority})</span> : null}
+                                  {row?.priority ? <span className="ml-1 text-orange-700">(Work Priority {row.priority})</span> : null}
                                   {row?.reason ? <span className="text-orange-700"> {'—'} {row.reason}</span> : null}
+                                  {row?.removalReasonCode ? (
+                                    <span className="ml-1 font-mono uppercase tracking-wide text-orange-700">
+                                      {row.removalReasonCode}
+                                    </span>
+                                  ) : null}
                                 </li>
                               ))}
                             </ul>
