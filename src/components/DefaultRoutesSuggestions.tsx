@@ -144,7 +144,7 @@ const formattedRouteDetails = firstRoute.days.map((day, idx) => ({
   date: day.date,
   source: day.sourceLocation,
   next: day.nextLocation,
-  via: "",
+  via: day.viaRoute || "",
   via_routes: [],
   directVisit: day.directVisit ? "Yes" : "No",
   no_of_km: 0,
@@ -260,7 +260,7 @@ onRouteSelect?.(firstRoute, 0);
     date: day.date,
     source: day.sourceLocation,
     next: day.nextLocation,
-    via: "",
+    via: day.viaRoute || "",
     via_routes: [],
     directVisit: day.directVisit ? "Yes" : "No",
     no_of_km: 0,
@@ -282,13 +282,14 @@ className={`px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
 
         {/* Editable Route Details Form */}
         <RouteDetailsBlock
-          routeDetails={routeDetails || []}
-          setRouteDetails={setRouteDetails || (() => {})}
-          locations={locations || []}
-          onOpenViaRoutes={onOpenViaRoutes}
-          departureLocation={departureLocation}
-          onDeleteDay={onDeleteDay}
-        />
+  routeDetails={routeDetails || []}
+  setRouteDetails={setRouteDetails || (() => {})}
+  locations={locations || []}
+  onOpenViaRoutes={onOpenViaRoutes}
+  departureLocation={departureLocation}
+  onDeleteDay={onDeleteDay}
+  hideIntercityKm={true}
+/>
       </div>
     );
   }

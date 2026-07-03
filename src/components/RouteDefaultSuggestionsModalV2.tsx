@@ -222,11 +222,21 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
                       <TableHeader className="bg-gray-100">
                         <TableRow>
                           <TableHead className="w-12">Day</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>From Location</TableHead>
-                          <TableHead>To Location</TableHead>
-                          <TableHead className="text-center">Via Route</TableHead>
-                          <TableHead className="text-center">Direct Visit</TableHead>
+<TableHead>Travel Date</TableHead>
+<TableHead>From</TableHead>
+<TableHead>To</TableHead>
+<TableHead
+  className="text-center"
+  title="Enroute Visits are sightseeing or stopovers during travel."
+>
+  Enroute Visits
+</TableHead>
+<TableHead
+  className="text-center"
+  title="Explore Destination means local sightseeing after arriving at the destination."
+>
+  Explore Destination
+</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
