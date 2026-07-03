@@ -275,16 +275,22 @@ export const RouteDefaultSuggestionsModal = ({
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="w-[80px]">Day</TableHead>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Source Destination</TableHead>
-                              <TableHead>Next Destination</TableHead>
-                              <TableHead className="text-center w-[80px]">
-                                Via Route
-                              </TableHead>
-                              <TableHead className="text-center w-[120px]">
-                                Direct Visit
-                              </TableHead>
+<TableHead className="w-[80px]">Day</TableHead>
+<TableHead>Travel Date</TableHead>
+<TableHead>From</TableHead>
+<TableHead>To</TableHead>
+<TableHead
+  className="text-center w-[120px]"
+  title="Enroute Visits are sightseeing or stopovers during travel."
+>
+  Enroute Visits
+</TableHead>
+<TableHead
+  className="text-center w-[140px]"
+  title="Explore Destination means local sightseeing after arriving at the destination."
+>
+  Explore Destination
+</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -301,10 +307,11 @@ export const RouteDefaultSuggestionsModal = ({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                      toast({
-                                        title: "Via Route",
-                                        description: "Select via route for Day " + row.day,
-                                      });
+                                     toast({
+  title: "Enroute Visits",
+  description:
+    "Select sightseeing or stopovers during travel for Day " + row.day,
+});
                                     }}
                                   >
                                     <span className="text-lg">⛳</span>

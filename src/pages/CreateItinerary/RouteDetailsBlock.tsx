@@ -516,7 +516,7 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
 
       <TableHead
         className="px-2 text-xs text-[#4a4260] text-center leading-tight"
-        title="Enroute Visits: Add sightseeing or stopovers during the journey from one destination to another."
+        title="Enroute Visits are sightseeing or stopovers during travel."
       >
         Enroute Visits <span className="cursor-help">ⓘ</span>
       </TableHead>
@@ -529,7 +529,7 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
 
       <TableHead
         className="px-2 text-xs text-[#4a4260] text-center leading-tight"
-        title="Explore Destination: Include local sightseeing and attractions after arriving at this destination."
+title="Explore Destination means local sightseeing after arriving at the destination."
       >
         Explore Destination <span className="cursor-help">ⓘ</span>
       </TableHead>
@@ -735,7 +735,7 @@ className={`w-full max-w-[260px] ${
   type="button"
   onClick={() => onOpenViaRoutes?.(row)}
   className="btn btn-outline-primary btn-sm"
-  title="Enroute Visits: Add sightseeing or stopovers during the journey from one destination to another."
+  title="Enroute Visits are sightseeing or stopovers during travel."
 >
   <i className="ti ti-route ti-tada-hover"></i>
 </button>

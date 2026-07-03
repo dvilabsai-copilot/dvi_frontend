@@ -1330,9 +1330,8 @@ const addDay = () => {
 
 
     const firstRoute = routeDetails[0];
-    if (!firstRoute?.source) errors.firstRouteSource = "Please fill first day Source location";
-    if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day Next Destination";
-
+    if (!firstRoute?.source) errors.firstRouteSource = "Please fill first day From location";
+if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destination";
     if (itineraryPreference === "vehicle" || itineraryPreference === "both") {
       const missingType = vehicles.some((v) => !v.type);
       if (missingType) errors.vehicleType = "Please select Vehicle Type for all rows";
