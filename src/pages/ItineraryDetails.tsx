@@ -53,9 +53,17 @@ import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/service
 import { toast } from "sonner";
 import {
   getEstimatedSaveMs,
-  FINAL_ITINERARY_LOADING_MESSAGES,
-  TRANSPORT_LOADING_MESSAGES,
 } from "./CreateItinerary/helpers/saveProgress.constants";
+
+const PAGE_LOADER_STAGE_DETAILS: Record<string, string> = {
+  "Building itinerary details": "Requesting the latest itinerary data for this quote.",
+  "Loading selected route": "Switching to the selected route and preparing its latest timeline.",
+  "Checking vehicle build status": "Checking whether vehicle pricing and distance rows are already prepared.",
+  "Building permit charges": "Preparing permit, state, and route-level transport charges.",
+  "Building vehicle details and pricing": "Recomputing vehicle rows, travel cost, and route pricing details.",
+  "Loading completed itinerary": "Reloading the finished itinerary so the page reflects the latest saved result.",
+  "Loading hotel selections": "Loading hotel selections and stay details for the current route.",
+};
 
 // --------- Types aligned with CURRENT API RESPONSE ---------
 
@@ -1222,7 +1230,12 @@ const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
-  const [pageTransportLoadingMessageIndex, setPageTransportLoadingMessageIndex] = useState(0);
+  const [pageLoaderDetail, setPageLoaderDetail] = useState<string>(
+    PAGE_LOADER_STAGE_DETAILS["Building itinerary details"],
+  );
+  const [pageLoaderHistory, setPageLoaderHistory] = useState<string[]>([
+    "Building itinerary details",
+  ]);
   const [pageReady, setPageReady] = useState<boolean>(false);
 const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
 const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
@@ -1465,12 +1478,23 @@ const [guideModal, setGuideModal] = useState<{
     failedReason: string | null;
     results: any[];
     selectedAnchorKey: string | null;
+    loadingAnchorCount?: number;
+    loadingStartedAtMs?: number | null;
+    performanceSummary?: {
+      totalElapsedMs?: number;
+      avgAnchorMs?: number;
+      slowestAnchorLabel?: string | null;
+      slowestAnchorMs?: number;
+    } | null;
   }>({
     open: false,
     loading: false,
     failedReason: null,
     results: [],
     selectedAnchorKey: null,
+    loadingAnchorCount: 0,
+    loadingStartedAtMs: null,
+    performanceSummary: null,
   });
   const [confirmFitHereLoading, setConfirmFitHereLoading] = useState(false);
 
@@ -3992,7 +4016,9 @@ const [guideModal, setGuideModal] = useState<{
   const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
     const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
   const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
-  const [routeTimeLoadingMessageIndex, setRouteTimeLoadingMessageIndex] = useState(0);
+  const [routeProgressTitle, setRouteProgressTitle] = useState("Updating itinerary");
+  const [routeProgressDetail, setRouteProgressDetail] = useState("Preparing the next step.");
+  const [routeProgressHistory, setRouteProgressHistory] = useState<string[]>([]);
   const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
   const routeTimeProgressTimerRef = useRef<number | null>(null);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
@@ -4018,54 +4044,38 @@ const [guideModal, setGuideModal] = useState<{
     }
   }, []);
 
-    const startRouteTimeProgress = useCallback((estimatedMs: number) => {
+  const pushPageLoaderStage = useCallback((stage: string, detail?: string) => {
+    setPageLoaderStage(stage);
+    setPageLoaderDetail(detail || PAGE_LOADER_STAGE_DETAILS[stage] || "Preparing the latest itinerary data.");
+    setPageLoaderHistory((prev) => (
+      prev[prev.length - 1] === stage ? prev : [...prev, stage].slice(-6)
+    ));
+  }, []);
+
+  const pushRouteProgressStage = useCallback((stage: string, detail?: string) => {
+    setRouteProgressDetail(detail || stage);
+    setRouteProgressHistory((prev) => (
+      prev[prev.length - 1] === stage ? prev : [...prev, stage].slice(-6)
+    ));
+  }, []);
+
+  const startRouteTimeProgress = useCallback((estimatedMs: number) => {
     stopRouteTimeProgress();
     setRouteTimeProgressPercent(1);
-    setRouteTimeLoadingMessageIndex(0);
 
     const startedAt = Date.now();
     routeTimeProgressTimerRef.current = window.setInterval(() => {
       const elapsed = Date.now() - startedAt;
       const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
       setRouteTimeProgressPercent(Math.min(95, Math.max(1, pct)));
-
-      if (TRANSPORT_LOADING_MESSAGES.length > 0) {
-        setRouteTimeLoadingMessageIndex(
-          Math.floor(elapsed / 1600) % TRANSPORT_LOADING_MESSAGES.length,
-        );
-      }
     }, 220);
   }, [stopRouteTimeProgress]);
 
-    useEffect(() => {
-    const shouldRotateTransportMessage =
-        shouldShowVehicles &&
-        (!pageReady ||
-          loading ||
-          vehicleBuildStatus === "PENDING" ||
-          vehicleBuildStatus === "PROCESSING");
-
-      const activePageLoadingMessages =
-        shouldShowVehicles &&
-        (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING")
-          ? TRANSPORT_LOADING_MESSAGES
-          : FINAL_ITINERARY_LOADING_MESSAGES;
-
-      if (!shouldRotateTransportMessage || activePageLoadingMessages.length === 0) {
-      setPageTransportLoadingMessageIndex(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setPageTransportLoadingMessageIndex(
-          (prev) => (prev + 1) % activePageLoadingMessages.length,
-      );
-    }, 1600);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [loading, pageReady, shouldShowVehicles, vehicleBuildStatus]);
+  const getRouteTimeUpdateEstimateMs = useCallback((dayNumber: number) => {
+    const dayCount = Math.max(1, itinerary?.days?.length ?? dayNumber ?? 1);
+    const createEstimateMs = getEstimatedSaveMs(dayCount, "itineary_basic_info_with_optimized_route");
+    return Math.max(15000, createEstimateMs * 2);
+  }, [itinerary?.days?.length]);
 
   // Gallery modal state
   const [galleryModal, setGalleryModal] = useState<{
@@ -5093,6 +5103,123 @@ useEffect(() => {
 
       let firstTravelSeen = false;
       let derivedHotelArrivalMinutes: number | null = null;
+      const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined, fallbackHotelName?: string | null): string => {
+        if (!segment) return day.arrival || day.departure || fallbackHotelName || 'Hotel';
+        if (segment.type === 'attraction') return segment.name;
+        if (segment.type === 'travel') return segment.to || segment.from || day.arrival || fallbackHotelName || 'Hotel';
+        if (segment.type === 'break') return segment.location || day.arrival || fallbackHotelName || 'Hotel';
+        if (segment.type === 'checkin') return segment.hotelName || fallbackHotelName || 'Hotel';
+        if (segment.type === 'start') return day.arrival || day.departure || fallbackHotelName || 'Hotel';
+        if (segment.type === 'return') return day.arrival || day.departure || fallbackHotelName || 'Hotel';
+        return day.arrival || day.departure || fallbackHotelName || 'Hotel';
+      };
+
+      const getSegmentEndMinutes = (segment: ItinerarySegment | undefined): number | null => {
+        if (!segment) return null;
+        if (segment.type === 'attraction') return parseDisplayMinutes(segment.visitTime, 'end');
+        if (segment.type === 'travel') return parseDisplayMinutes(segment.timeRange, 'end');
+        if (segment.type === 'break') return parseDisplayMinutes(segment.timeRange, 'end');
+        if (segment.type === 'checkin') return parseDisplayMinutes(segment.time);
+        if (segment.type === 'start') return parseDisplayMinutes(segment.timeRange, 'end');
+        if (segment.type === 'return') return parseDisplayMinutes(segment.time);
+        return null;
+      };
+
+      const ensureTravelBeforeCheckin = (
+        checkinIndex: number,
+        fallbackHotelName?: string | null,
+      ) => {
+        if (checkinIndex <= 0) return;
+
+        const checkin = segments[checkinIndex];
+        if (!checkin || checkin.type !== 'checkin') return;
+
+        const targetHotelName = String(
+          fallbackHotelName ||
+          checkin.hotelName ||
+          currentHotelName ||
+          'Hotel',
+        ).trim() || 'Hotel';
+
+        let previousRenderableIndex = -1;
+        for (let index = checkinIndex - 1; index >= 0; index -= 1) {
+          if (segments[index]?.type === 'hotspot') continue;
+          previousRenderableIndex = index;
+          break;
+        }
+
+        if (previousRenderableIndex < 0) {
+          segments[checkinIndex] = {
+            ...checkin,
+            hotelName: targetHotelName,
+          };
+          return;
+        }
+
+        const previousSegment = segments[previousRenderableIndex];
+        const previousLabel = getSegmentAnchorLabel(previousSegment, targetHotelName);
+
+        const alreadyArrivesAtHotel =
+          previousSegment.type === 'checkin' ||
+          (
+            previousSegment.type === 'travel' &&
+            normalizeTimelineLabel(previousSegment.to || '') === normalizeTimelineLabel(targetHotelName)
+          ) ||
+          normalizeTimelineLabel(previousLabel) === 'hotel' ||
+          normalizeTimelineLabel(previousLabel) === normalizeTimelineLabel(targetHotelName);
+
+        if (alreadyArrivesAtHotel) {
+          segments[checkinIndex] = {
+            ...checkin,
+            hotelName: targetHotelName,
+          };
+          return;
+        }
+
+        const previousEndMinutes = getSegmentEndMinutes(previousSegment);
+        const checkinMinutes = parseDisplayMinutes(checkin.time);
+        const scheduleGapMinutes =
+          previousEndMinutes !== null && checkinMinutes !== null
+            ? Math.max(0, checkinMinutes - previousEndMinutes)
+            : 0;
+        const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
+        const effectiveTravelMinutes =
+          estimatedTravelMinutes != null
+            ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
+            : Math.max(scheduleGapMinutes, 10);
+
+        if (previousEndMinutes === null) {
+          segments[checkinIndex] = {
+            ...checkin,
+            hotelName: targetHotelName,
+          };
+          return;
+        }
+
+        const travelEndMinutes = previousEndMinutes + effectiveTravelMinutes;
+        const adjustedCheckinMinutes =
+          checkinMinutes !== null
+            ? Math.max(checkinMinutes, travelEndMinutes)
+            : travelEndMinutes;
+
+        const travelSegment: TravelSegment = {
+          type: 'travel',
+          from: previousLabel,
+          to: targetHotelName,
+          timeRange: `${formatMinutesToDisplay(previousEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
+          distance: currentHotelDistance || '',
+          duration: formatMinutesDuration(effectiveTravelMinutes),
+          note: 'This may vary due to traffic conditions',
+        };
+
+        segments.splice(checkinIndex, 0, travelSegment);
+        segments[checkinIndex + 1] = {
+          ...checkin,
+          hotelName: targetHotelName,
+          hotelAddress: checkin.hotelAddress || '',
+          time: formatMinutesToDisplay(adjustedCheckinMinutes),
+        };
+      };
 
       segments = segments.map((segment) => {
         if (segment.type === 'travel') {
@@ -5176,6 +5303,17 @@ useEffect(() => {
         return segment;
       });
 
+      const lastCheckinIndex = (() => {
+        for (let index = segments.length - 1; index >= 0; index -= 1) {
+          if (segments[index]?.type === 'checkin') return index;
+        }
+        return -1;
+      })();
+
+      if (lastCheckinIndex >= 0) {
+        ensureTravelBeforeCheckin(lastCheckinIndex, currentHotelName);
+      }
+
       const earlyCheckinIndex = segments.findIndex((segment) => {
         if (segment.type !== 'checkin') return false;
         const timeMinutes = parseDisplayMinutes(segment.time);
@@ -5201,28 +5339,6 @@ useEffect(() => {
         ));
 
       if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel) {
-        const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined): string => {
-          if (!segment) return day.arrival || day.departure || currentHotelName;
-          if (segment.type === 'attraction') return segment.name;
-          if (segment.type === 'travel') return segment.to || segment.from || day.arrival || currentHotelName;
-          if (segment.type === 'break') return segment.location || day.arrival || currentHotelName;
-          if (segment.type === 'checkin') return segment.hotelName || currentHotelName;
-          if (segment.type === 'start') return day.arrival || day.departure || currentHotelName;
-          if (segment.type === 'return') return day.arrival || day.departure || currentHotelName;
-          return day.arrival || day.departure || currentHotelName;
-        };
-
-        const getSegmentEndMinutes = (segment: ItinerarySegment | undefined): number | null => {
-          if (!segment) return null;
-          if (segment.type === 'attraction') return parseDisplayMinutes(segment.visitTime, 'end');
-          if (segment.type === 'travel') return parseDisplayMinutes(segment.timeRange, 'end');
-          if (segment.type === 'break') return parseDisplayMinutes(segment.timeRange, 'end');
-          if (segment.type === 'checkin') return parseDisplayMinutes(segment.time);
-          if (segment.type === 'start') return parseDisplayMinutes(segment.timeRange, 'end');
-          if (segment.type === 'return') return parseDisplayMinutes(segment.time);
-          return null;
-        };
-
         const lateCheckinIndex = segments.findIndex((segment, segmentIndex) => (
           segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
         ));
@@ -7803,7 +7919,8 @@ const applyChildAgesToTemplate = (
     setVehicleBuildError(null);
 
     try {
-      setPageLoaderStage("Building itinerary details");
+      setPageLoaderHistory([]);
+      pushPageLoaderStage("Building itinerary details");
       const detailsRes = await getDetailsDeduped(requestedQuoteId);
       const initialDetails = detailsRes as ItineraryDetailsResponse;
       const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
@@ -7814,6 +7931,7 @@ const applyChildAgesToTemplate = (
       const finalizePage = async (details: ItineraryDetailsResponse) => {
         let hotelRes: ItineraryHotelDetailsResponse | null = null;
         if (useHotels) {
+          pushPageLoaderStage("Loading hotel selections");
           hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
         }
 
@@ -7884,7 +8002,7 @@ const shouldStrictlyRequireVehicleBuild =
   forceVehicleRebuild || isSuggestedRouteItinerary;
 
 try {
-  setPageLoaderStage("Checking vehicle build status");
+  pushPageLoaderStage("Checking vehicle build status");
   const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
   const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
     ? String(buildStatus?.status || "").toUpperCase()
@@ -7898,10 +8016,10 @@ try {
     return;
   }
 
-  setPageLoaderStage("Building permit charges");
+  pushPageLoaderStage("Building permit charges");
   await ItineraryService.buildPermitsSync(planId);
 
-  setPageLoaderStage("Building vehicle details and pricing");
+  pushPageLoaderStage("Building vehicle details and pricing");
   const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
   const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
   if (vehicleBuildState !== "READY") {
@@ -7909,7 +8027,7 @@ try {
   }
   setVehicleBuildStatus("READY");
 
-  setPageLoaderStage("Loading completed itinerary");
+  pushPageLoaderStage("Loading completed itinerary");
   const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
   const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
   if (!hasUsableVehicleRows(finalDetails)) {
@@ -7952,7 +8070,7 @@ try {
     }
   }
 }
-  }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary]);
+  }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -8245,8 +8363,25 @@ if (switchedRouteRef.current === quoteId) {
     }
 
     setIsRebuilding(true);
+    const rebuildDay = itinerary?.days?.find((d: any) => Number(d?.id) === Number(routeId)) || null;
+    const rebuildDayNumber = Number(rebuildDay?.dayNumber || 0);
+    const rebuildEstimateMs = Math.max(12000, getRouteTimeUpdateEstimateMs(rebuildDayNumber || 1));
+    setRouteProgressTitle(rebuildDayNumber > 0 ? `Rebuilding Day ${rebuildDayNumber} route` : "Rebuilding route");
+    setRouteProgressHistory([]);
+    setRouteTimeEstimatedMs(rebuildEstimateMs);
+    startRouteTimeProgress(rebuildEstimateMs);
+    pushRouteProgressStage(
+      rebuildDayNumber > 0 ? `Submitting rebuild request for Day ${rebuildDayNumber}` : "Submitting rebuild request",
+      rebuildDayNumber > 0
+        ? `Recomputing the saved route sequence, timings, and travel legs for Day ${rebuildDayNumber}.`
+        : "Recomputing the saved route sequence, timings, and travel legs.",
+    );
     try {
       await ItineraryService.rebuildRoute(planId, routeId);
+      pushRouteProgressStage(
+        rebuildDayNumber > 0 ? `Reloading rebuilt Day ${rebuildDayNumber} itinerary` : "Reloading rebuilt itinerary",
+        "Fetching the rebuilt timeline and updated route details from the backend.",
+      );
       toast.success("Route rebuilt successfully");
 
       // Reload itinerary data
@@ -8258,6 +8393,10 @@ if (switchedRouteRef.current === quoteId) {
         const nextItinerary = detailsRes as ItineraryDetailsResponse;
         setItinerary(nextItinerary);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
+        pushRouteProgressStage(
+          rebuildDayNumber > 0 ? `Applying rebuilt Day ${rebuildDayNumber} timeline` : "Applying rebuilt timeline",
+          "Refreshing the page with the rebuilt route, distances, and latest totals.",
+        );
         const rebuiltDay = Array.isArray((nextItinerary as any)?.days)
           ? (nextItinerary as any).days.find((d: any) => Number(d?.id) === Number(routeId))
           : null;
@@ -8269,6 +8408,7 @@ if (switchedRouteRef.current === quoteId) {
       console.error("Failed to rebuild route", e);
       toast.error(e?.message || "Failed to rebuild route");
     } finally {
+      stopRouteTimeProgress();
       setIsRebuilding(false);
     }
   };
@@ -8295,12 +8435,22 @@ const applyRouteTimePatch = async (
   setIsApplyingRouteTimeUpdate(true);
   const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
   setRouteTimeEstimatedMs(estimatedMs);
+  setRouteProgressTitle(`Updating Day ${dayNumber} timings`);
+  setRouteProgressHistory([]);
   startRouteTimeProgress(estimatedMs);
+  pushRouteProgressStage(
+    `Saving Day ${dayNumber} start/end time`,
+    `Updating Day ${dayNumber} timing window to ${startTimeHms.slice(0, 5)} - ${endTimeHms.slice(0, 5)} and triggering itinerary rebuild.`,
+  );
 
   try {
     const previousHotelDetails = hotelDetails;
 
     await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+    pushRouteProgressStage(
+      `Reloading updated Day ${dayNumber} itinerary`,
+      "Fetching the rebuilt day timeline after the new timing window was saved.",
+    );
 
     if (quoteId) {
       const detailsRes = await ItineraryService.getDetails(quoteId);
@@ -8318,6 +8468,10 @@ const applyRouteTimePatch = async (
       // Do not reload hotel details here.
       // Reloading hotelDetails can refresh supplier/TBO amount and change package cost.
       setHotelDetails(previousHotelDetails);
+      pushRouteProgressStage(
+        `Applying refreshed Day ${dayNumber} timeline`,
+        "Refreshing the page with the latest timings, route rows, and updated totals.",
+      );
     }
 
     setRouteTimeProgressPercent(100);
@@ -8329,7 +8483,6 @@ const applyRouteTimePatch = async (
     toast.error(e?.message || 'Failed to update route times');
     } finally {
     stopRouteTimeProgress();
-    setRouteTimeLoadingMessageIndex(0);
     setIsApplyingRouteTimeUpdate(false);
   }
 };
@@ -9272,6 +9425,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       failedReason: null,
       results: [],
       selectedAnchorKey: null,
+      loadingAnchorCount: 0,
+      loadingStartedAtMs: null,
+      performanceSummary: null,
     });
 
     // Fetch available hotspots for this location
@@ -9457,7 +9613,111 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     return { status: 'CANNOT_FIT', label: 'Tried: does not fit' };
   };
 
+  const getAutoPreviewRemovedRows = (attempt: any): any[] => {
+    const rows = [
+      ...(Array.isArray(attempt?.removedHotspots) ? attempt.removedHotspots : []),
+      ...(Array.isArray(attempt?.resolution?.removedHotspots) ? attempt.resolution.removedHotspots : []),
+      ...(Array.isArray(attempt?.changesRequiredDisplay?.removedItems) ? attempt.changesRequiredDisplay.removedItems : []),
+    ];
+
+    const seen = new Set<number>();
+
+    return rows.filter((row: any) => {
+      const id = Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || row?.locationId || 0);
+      if (!(id > 0) || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+
+  const getAutoPreviewHighestRemovedPriority = (attempt: any): number | null => {
+    const priorities = getAutoPreviewRemovedRows(attempt)
+      .map((row: any) => Number(row?.priority || row?.hotspotPriority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0))
+      .filter((priority: number) => [1, 2, 3].includes(priority));
+
+    return priorities.length > 0 ? Math.min(...priorities) : null;
+  };
+
+  const scoreAutoPreviewAttempt = (attempt: any): { score: number; reason: string; removedCount: number } => {
+    const resultType = String(attempt?.resultType || '').toUpperCase();
+    const removedRows = getAutoPreviewRemovedRows(attempt);
+    const removedCount = removedRows.length;
+    const highestRemovedPriority = getAutoPreviewHighestRemovedPriority(attempt);
+
+    let score = 0;
+    let reason = 'Cannot fit at this position.';
+
+    if (resultType === 'FITS_DIRECTLY' && attempt?.canConfirm === true) {
+      score = 1000;
+      reason = 'Clean fit. No hotspot removal required.';
+    } else if (resultType === 'FITS_WITH_OPTIONAL_REMOVAL' && attempt?.canConfirm === true) {
+      score = 800;
+      reason = 'Fits with confirmed changes.';
+    } else if (resultType === 'REQUIRES_P3_CONFIRMATION' && attempt?.canConfirm === true) {
+      score = 650;
+      reason = 'Fits with Priority 3 removal acknowledgement.';
+    } else if (resultType === 'PRIORITY_CONFLICT') {
+      score = 250;
+      reason = 'Protected hotspot impact detected.';
+    } else if (resultType === 'SELECTED_HOTSPOT_CLOSED_AT_ATTEMPTED_TIME') {
+      score = 150;
+      reason = 'Selected hotspot is closed at attempted time.';
+    } else if (attempt?.canConfirm === true) {
+      score = 500;
+      reason = 'Can confirm with warnings.';
+    }
+
+    score -= removedCount * 120;
+    if (highestRemovedPriority === 1) score -= 400;
+    if (highestRemovedPriority === 2) score -= 250;
+    if (highestRemovedPriority === 3) score -= 100;
+    if (attempt?.requiresTimingRiskConfirmation === true) score -= 150;
+    if (attempt?.requiresPriorityRemovalConfirmation === true) score -= 100;
+    if (attempt?.selectedOpeningConflict) score -= 150;
+
+    return {
+      score: Math.max(0, score),
+      reason,
+      removedCount,
+    };
+  };
+
+  const buildAutoPreviewAnchorProgressText = useCallback((day: ItineraryDay, anchor: HotspotAnchor): string => {
+    const attractionRows = day.segments
+      .map((segment, index) => ({ segment, index }))
+      .filter(({ segment }) => segment?.type === 'attraction');
+
+    const startIndex = anchor.anchorIntent === 'AFTER_START'
+      ? 0
+      : attractionRows.findIndex(({ segment }) => {
+          const hotspotId = Number((segment as AttractionSegment)?.hotspotId || (segment as AttractionSegment)?.locationId || 0);
+          const routeHotspotId = Number((segment as AttractionSegment)?.routeHotspotId || 0);
+          return (
+            hotspotId === Number(anchor.afterHotspotId || 0) ||
+            routeHotspotId === Number(anchor.afterRouteHotspotId || 0)
+          );
+        }) + 1;
+
+    const downstreamHotspots = attractionRows
+      .slice(Math.max(0, startIndex))
+      .map(({ segment }) => String((segment as AttractionSegment)?.name || '').trim())
+      .filter(Boolean);
+
+    const previewLabels = downstreamHotspots.slice(0, 4);
+    const hasHotel = day.segments.some((segment) => segment?.type === 'checkin');
+    if (hasHotel) {
+      previewLabels.push('Hotel check-in');
+    }
+
+    if (previewLabels.length === 0) {
+      return 'Rebuilding this position and validating the final timeline.';
+    }
+
+    return `Rebuilding downstream timeline: ${previewLabels.join(' -> ')}`;
+  }, []);
+
   const handleSelectFitHotspot = (hotspot: AvailableHotspot) => {
+    previewRequestIdRef.current += 1;
     stopFitHereProgressTimer();
     setSelectedFitHotspot(hotspot);
     setTriedFitHereAnchors({});
@@ -9596,6 +9856,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
 
     stopFitHereProgressTimer();
+    const requestId = ++previewRequestIdRef.current;
     setSelectedFitHotspot(hotspot);
     setActivePreviewHotspotId(hotspot.id);
     setSelectedHotspotIds([hotspot.id]);
@@ -9610,29 +9871,141 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       retryPayload: null,
     });
 
+    const initialRows = anchors.map((anchor, index) => ({
+      anchorKey: buildFitHereAnchorKey(anchor),
+      anchor: serializeFitHereAnchor(anchor),
+      attempt: null,
+      status: 'PENDING' as const,
+      score: 0,
+      rankReason: 'Waiting to simulate this position.',
+      removedCount: 0,
+      progressText: buildAutoPreviewAnchorProgressText(day, anchor),
+      elapsedMs: 0,
+      sortIndex: index,
+    }));
+
     setAutoFitHereModal({
       open: true,
       loading: true,
       failedReason: null,
-      results: [],
+      results: initialRows,
       selectedAnchorKey: null,
+      loadingAnchorCount: anchors.length,
+      loadingStartedAtMs: Date.now(),
+      performanceSummary: null,
     });
 
     try {
-      const response: any = await ItineraryService.previewManualHotspotAutoFitHere(planId, {
-        routeId: Number(day.id),
-        selectedHotspotId: Number(hotspot.id),
-        anchors: anchors.map(serializeFitHereAnchor),
-        allowP3Removal: true,
-        allowP1P2Removal: true,
+      const startedAtMs = Date.now();
+      const completedRows: any[] = [];
+
+      for (let index = 0; index < anchors.length; index += 1) {
+        if (requestId !== previewRequestIdRef.current) {
+          return;
+        }
+
+        const anchor = anchors[index];
+        const anchorKey = buildFitHereAnchorKey(anchor);
+        const anchorStartedAtMs = Date.now();
+        const serializedAnchor = serializeFitHereAnchor(anchor);
+
+        setAutoFitHereModal((prev) => ({
+          ...prev,
+          results: prev.results.map((row: any) => (
+            row.anchorKey === anchorKey
+              ? {
+                  ...row,
+                  status: 'RUNNING',
+                  rankReason: `Checking position ${index + 1} of ${anchors.length}`,
+                }
+              : row
+          )),
+        }));
+
+        try {
+          const attempt = await ItineraryService.previewManualHotspotFitHere(planId, {
+            routeId: Number(day.id),
+            selectedHotspotId: Number(hotspot.id),
+            anchor: serializedAnchor,
+            allowP3Removal: true,
+            allowP1P2Removal: true,
+          });
+
+          if (requestId !== previewRequestIdRef.current) {
+            return;
+          }
+
+          const ranking = scoreAutoPreviewAttempt(attempt);
+          const elapsedMs = Date.now() - anchorStartedAtMs;
+          const completedRow = {
+            anchorKey,
+            anchor: serializedAnchor,
+            attempt: attempt as any,
+            status: 'COMPLETED' as const,
+            score: ranking.score,
+            rankReason: ranking.reason,
+            removedCount: ranking.removedCount,
+            progressText: buildAutoPreviewAnchorProgressText(day, anchor),
+            elapsedMs,
+            sortIndex: index,
+          };
+          completedRows.push(completedRow);
+
+          setAutoFitHereModal((prev) => ({
+            ...prev,
+            results: prev.results.map((row: any) => (
+              row.anchorKey === anchorKey ? completedRow : row
+            )),
+          }));
+        } catch (error: any) {
+          if (requestId !== previewRequestIdRef.current) {
+            return;
+          }
+
+          const failedRow = {
+            anchorKey,
+            anchor: serializedAnchor,
+            attempt: null,
+            status: 'FAILED' as const,
+            score: 0,
+            rankReason: 'This position could not be previewed.',
+            removedCount: 0,
+            error: error?.message || 'Could not preview this Fit Here position.',
+            progressText: buildAutoPreviewAnchorProgressText(day, anchor),
+            elapsedMs: Date.now() - anchorStartedAtMs,
+            sortIndex: index,
+          };
+          completedRows.push(failedRow);
+
+          setAutoFitHereModal((prev) => ({
+            ...prev,
+            results: prev.results.map((row: any) => (
+              row.anchorKey === anchorKey ? failedRow : row
+            )),
+          }));
+        }
+      }
+
+      if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
+
+      const results = [...completedRows].sort((a, b) => {
+        if (Number(b.score || 0) !== Number(a.score || 0)) {
+          return Number(b.score || 0) - Number(a.score || 0);
+        }
+        return Number(a.sortIndex || 9999) - Number(b.sortIndex || 9999);
       });
 
-      const results = Array.isArray(response?.results) ? response.results : [];
       const selectedAnchorKey =
-        response?.bestAnchorKey ||
         results.find((row: any) => row?.attempt?.canConfirm === true)?.anchorKey ||
         results[0]?.anchorKey ||
         null;
+      const totalElapsedMs = Date.now() - startedAtMs;
+      const avgAnchorMs = results.length > 0
+        ? Math.round(results.reduce((sum, row: any) => sum + Number(row?.elapsedMs || 0), 0) / results.length)
+        : 0;
+      const slowestRow = [...results].sort((a, b) => Number(b?.elapsedMs || 0) - Number(a?.elapsedMs || 0))[0] || null;
 
       setAutoFitHereModal({
         open: true,
@@ -9640,14 +10013,29 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         failedReason: null,
         results,
         selectedAnchorKey,
+        loadingAnchorCount: anchors.length,
+        loadingStartedAtMs: null,
+        performanceSummary: {
+          totalElapsedMs,
+          avgAnchorMs,
+          slowestAnchorLabel: String(slowestRow?.anchor?.anchorLabel || '').trim() || null,
+          slowestAnchorMs: Number(slowestRow?.elapsedMs || 0) || null,
+        },
       });
     } catch (error: any) {
+      if (requestId !== previewRequestIdRef.current) {
+        return;
+      }
+
       setAutoFitHereModal({
         open: true,
         loading: false,
         failedReason: error?.message || 'Could not run Auto-Preview.',
-        results: [],
+        results: initialRows,
         selectedAnchorKey: null,
+        loadingAnchorCount: anchors.length,
+        loadingStartedAtMs: null,
+        performanceSummary: null,
       });
 
       toast.error(error?.message || 'Could not run Auto-Preview.');
@@ -9990,6 +10378,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         failedReason: null,
         results: [],
         selectedAnchorKey: null,
+        loadingAnchorCount: 0,
+        loadingStartedAtMs: null,
+        performanceSummary: null,
       });
       setTriedFitHereAnchors({});
 
@@ -12345,7 +12736,7 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
     setPageReady(true);
     setLoading(false);
     setLoadingHotels(true);
-    setPageLoaderStage("Loading selected route");
+    pushPageLoaderStage("Loading selected route");
 
     navigate(`/itinerary-details/${normalizedRouteQuoteId}`, { replace: true });
 
@@ -12412,9 +12803,6 @@ const hotelTimelineLoading = Boolean(
 );
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
-  const pageLoadingMessages = vehicleBuildInProgress
-    ? TRANSPORT_LOADING_MESSAGES
-    : FINAL_ITINERARY_LOADING_MESSAGES;
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
@@ -12451,14 +12839,39 @@ const hotelTimelineLoading = Boolean(
       <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
         <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
           <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
-                    <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
+          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
           <p className="mt-2 text-sm font-medium text-[#6c6c6c]">
-            {pageLoadingMessages.length > 0
-              ? pageLoadingMessages[
-                  pageTransportLoadingMessageIndex % pageLoadingMessages.length
-                ]
-              : "We are preparing the latest itinerary data before showing the page."}
+            {pageLoaderDetail || "We are preparing the latest itinerary data before showing the page."}
           </p>
+          {pageLoaderHistory.length > 0 ? (
+            <div className="mt-5 rounded-2xl border border-[#f2e6fb] bg-[#fcf7ff] p-4 text-left">
+              <p className="text-xs font-bold uppercase tracking-wide text-[#8f6aa8]">Progress log</p>
+              <div className="mt-3 space-y-2">
+                {pageLoaderHistory.map((step, index) => {
+                  const isLatest = index === pageLoaderHistory.length - 1;
+                  return (
+                    <div
+                      key={`${step}-${index}`}
+                      className={`rounded-xl border px-3 py-2 text-sm ${
+                        isLatest
+                          ? "border-[#d9b6f3] bg-white text-[#4a4260]"
+                          : "border-[#efe1fa] bg-[#faf5ff] text-[#7b6f8d]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isLatest ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-[#d546ab]" />
+                        ) : (
+                          <div className="h-2 w-2 rounded-full bg-[#d546ab]" />
+                        )}
+                        <span>{step}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -12496,15 +12909,13 @@ const hotelTimelineLoading = Boolean(
 
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
-      {isApplyingRouteTimeUpdate && (
+      {(isApplyingRouteTimeUpdate || isRebuilding) && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
           <div className="w-[340px] rounded-2xl bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffe9d6] text-2xl">
               ⏱
             </div>
-            <p className="text-sm text-slate-600">
-              Updating day timings and rebuilding itinerary
-            </p>
+            <p className="text-sm text-slate-600">{routeProgressTitle}</p>
             <div className="mt-5 flex flex-col items-center gap-3">
               <div className="relative h-28 w-28">
                 <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100" role="img" aria-label="Route update progress">
@@ -12527,15 +12938,42 @@ const hotelTimelineLoading = Boolean(
                 </div>
               </div>
 
-              <div className="text-sm font-semibold text-slate-800">Updating itinerary...</div>
+              <div className="text-sm font-semibold text-slate-800">
+                {routeProgressHistory[routeProgressHistory.length - 1] || "Updating itinerary..."}
+              </div>
               <div className="min-h-[20px] text-xs font-medium text-slate-500">
-                {
-                  TRANSPORT_LOADING_MESSAGES[
-                    routeTimeLoadingMessageIndex % TRANSPORT_LOADING_MESSAGES.length
-                  ]
-                }
+                {routeProgressDetail}
               </div>
               <div className="text-xs text-slate-500">Estimated ~{Math.max(1, Math.round(routeTimeEstimatedMs / 1000))}s</div>
+              {routeProgressHistory.length > 0 ? (
+                <div className="mt-1 w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Progress log</p>
+                  <div className="mt-2 space-y-2">
+                    {routeProgressHistory.map((step, index) => {
+                      const isLatest = index === routeProgressHistory.length - 1;
+                      return (
+                        <div
+                          key={`${step}-${index}`}
+                          className={`rounded-xl border px-3 py-2 text-xs ${
+                            isLatest
+                              ? "border-[#d9b6f3] bg-white text-[#4a4260]"
+                              : "border-slate-200 bg-white/70 text-slate-500"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isLatest ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#d546ab]" />
+                            ) : (
+                              <div className="h-2 w-2 rounded-full bg-[#d546ab]" />
+                            )}
+                            <span>{step}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -18381,13 +18819,20 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
         selectedAnchorKey={autoFitHereModal.selectedAnchorKey}
         selectedHotspot={selectedFitHotspot}
         baseTimeline={selectedFitHereDay?.segments || []}
+        loadingAnchorCount={autoFitHereModal.loadingAnchorCount || 0}
+        loadingStartedAtMs={autoFitHereModal.loadingStartedAtMs || null}
+        performanceSummary={autoFitHereModal.performanceSummary || null}
         onClose={() => {
+          previewRequestIdRef.current += 1;
           setAutoFitHereModal({
             open: false,
             loading: false,
             failedReason: null,
             results: [],
             selectedAnchorKey: null,
+            loadingAnchorCount: 0,
+            loadingStartedAtMs: null,
+            performanceSummary: null,
           });
         }}
         onSelectAnchorKey={(anchorKey) => {
