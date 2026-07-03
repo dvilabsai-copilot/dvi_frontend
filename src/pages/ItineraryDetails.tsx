@@ -4019,8 +4019,11 @@ const [guideModal, setGuideModal] = useState<{
   const [routeProgressTitle, setRouteProgressTitle] = useState("Updating itinerary");
   const [routeProgressDetail, setRouteProgressDetail] = useState("Preparing the next step.");
   const [routeProgressHistory, setRouteProgressHistory] = useState<string[]>([]);
-  const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
-  const routeTimeProgressTimerRef = useRef<number | null>(null);
+const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
+const [optimisticRouteTimesByRouteId, setOptimisticRouteTimesByRouteId] = useState<
+  Record<number, { startTime: string; endTime: string }>
+>({});
+const routeTimeProgressTimerRef = useRef<number | null>(null);
   const [isSelectingHotel, setIsSelectingHotel] = useState(false);
   const [hotelSearchQuery, setHotelSearchQuery] = useState("");
   const [selectedMealPlan, setSelectedMealPlan] = useState({
@@ -5477,14 +5480,19 @@ useEffect(() => {
       });
     }
     
-    return {
-      ...day,
-      segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
-        if (a.type === 'start' && b.type !== 'start') return -1;
-        if (b.type === 'start' && a.type !== 'start') return 1;
-        return 0;
-      }) : [],
-    };
+   const optimisticRouteTimes =
+  optimisticRouteTimesByRouteId[Number(day.id || 0)] || null;
+
+return {
+  ...day,
+  startTime: optimisticRouteTimes?.startTime || day.startTime,
+  endTime: optimisticRouteTimes?.endTime || day.endTime,
+  segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
+    if (a.type === 'start' && b.type !== 'start') return -1;
+    if (b.type === 'start' && a.type !== 'start') return 1;
+    return 0;
+  }) : [],
+};
   });
 
 const overallTripCostWithHotels = useMemo(() => {
@@ -8421,6 +8429,83 @@ if (switchedRouteRef.current === quoteId) {
     ));
   };
 
+const hmsToDisplayRouteTime = useCallback((hms: string): string => {
+  const [hourRaw = "0", minuteRaw = "0"] = String(hms || "").split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return "09:00 AM";
+  }
+
+  return formatMinutesToDisplay(hour * 60 + minute);
+}, []);
+
+const applyRouteTimeOverrideToItinerary = useCallback((
+  source: ItineraryDetailsResponse,
+  routeId: number,
+  dayNumber: number,
+  startTimeHms: string,
+  endTimeHms: string,
+): ItineraryDetailsResponse => {
+  const updatedStartTimeDisplay = hmsToDisplayRouteTime(startTimeHms);
+  const updatedEndTimeDisplay = hmsToDisplayRouteTime(endTimeHms);
+
+  return {
+    ...source,
+    days: Array.isArray(source.days)
+      ? source.days.map((day) => {
+          const isUpdatedDay =
+            Number(day.id) === Number(routeId) ||
+            Number(day.dayNumber) === Number(dayNumber);
+
+          if (!isUpdatedDay) {
+            return day;
+          }
+
+          return {
+            ...day,
+            startTime: updatedStartTimeDisplay,
+            endTime: updatedEndTimeDisplay,
+          };
+        })
+      : source.days,
+  };
+}, [hmsToDisplayRouteTime]);
+
+const applyOptimisticRouteTimes = useCallback((
+  routeId: number,
+  dayNumber: number,
+  startTimeHms: string,
+  endTimeHms: string,
+) => {
+  const routeIdKey = Number(routeId || 0);
+  const updatedStartTimeDisplay = hmsToDisplayRouteTime(startTimeHms);
+  const updatedEndTimeDisplay = hmsToDisplayRouteTime(endTimeHms);
+
+  if (routeIdKey > 0) {
+    setOptimisticRouteTimesByRouteId((prev) => ({
+      ...prev,
+      [routeIdKey]: {
+        startTime: updatedStartTimeDisplay,
+        endTime: updatedEndTimeDisplay,
+      },
+    }));
+  }
+
+  setItinerary((prev) => (
+    prev
+      ? applyRouteTimeOverrideToItinerary(
+          prev,
+          routeId,
+          dayNumber,
+          startTimeHms,
+          endTimeHms,
+        )
+      : prev
+  ));
+}, [applyRouteTimeOverrideToItinerary, hmsToDisplayRouteTime]);
+
 const applyRouteTimePatch = async (
   planId: number,
   routeId: number,
@@ -8433,6 +8518,9 @@ const applyRouteTimePatch = async (
   },
 ) => {
   setIsApplyingRouteTimeUpdate(true);
+
+  applyOptimisticRouteTimes(routeId, dayNumber, startTimeHms, endTimeHms);
+
   const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
   setRouteTimeEstimatedMs(estimatedMs);
   setRouteProgressTitle(`Updating Day ${dayNumber} timings`);
@@ -8446,7 +8534,14 @@ const applyRouteTimePatch = async (
   try {
     const previousHotelDetails = hotelDetails;
 
-    await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+    await ItineraryService.updateRouteTimes(
+      planId,
+      routeId,
+      startTimeHms,
+      endTimeHms,
+      options,
+    );
+
     pushRouteProgressStage(
       `Reloading updated Day ${dayNumber} itinerary`,
       "Fetching the rebuilt day timeline after the new timing window was saved.",
@@ -8454,20 +8549,23 @@ const applyRouteTimePatch = async (
 
     if (quoteId) {
       const detailsRes = await ItineraryService.getDetails(quoteId);
-      const nextItinerary = detailsRes as ItineraryDetailsResponse;
+      const nextItinerary = applyRouteTimeOverrideToItinerary(
+        detailsRes as ItineraryDetailsResponse,
+        routeId,
+        dayNumber,
+        startTimeHms,
+        endTimeHms,
+      );
 
       setItinerary({
         ...nextItinerary,
-        // After route time / hotspot changes, details API is the source of truth.
-        // Do not preserve stale vehicle rows or stale vehicle totals.
         vehicles: nextItinerary.vehicles,
         costBreakdown: nextItinerary.costBreakdown,
         overallCost: nextItinerary.overallCost,
       });
 
-      // Do not reload hotel details here.
-      // Reloading hotelDetails can refresh supplier/TBO amount and change package cost.
       setHotelDetails(previousHotelDetails);
+
       pushRouteProgressStage(
         `Applying refreshed Day ${dayNumber} timeline`,
         "Refreshing the page with the latest timings, route rows, and updated totals.",
@@ -8479,14 +8577,25 @@ const applyRouteTimePatch = async (
 
     toast.success(`Day ${dayNumber} times updated`);
   } catch (e: any) {
-    console.error('Failed to update route times', e);
-    toast.error(e?.message || 'Failed to update route times');
-    } finally {
+    console.error("Failed to update route times", e);
+
+    const errorMessage = String(e?.message || "");
+    const isInactiveVendorError = errorMessage
+      .toLowerCase()
+      .includes("selected vendor is no longer active");
+
+    if (isInactiveVendorError) {
+      toast.error(
+        "Time changed on screen, but backend save failed because the selected vendor is inactive.",
+      );
+    } else {
+      toast.error(errorMessage || "Failed to update route times");
+    }
+  } finally {
     stopRouteTimeProgress();
     setIsApplyingRouteTimeUpdate(false);
   }
 };
-
   const buildArrivalPolicyDecisionKey = (
     routeId?: number,
     routeDate?: string,
@@ -8547,12 +8656,14 @@ const applyRouteTimePatch = async (
     console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
 
     if (!hasTimeChanged) {
-      return;
-    }
+  return;
+}
 
-      // Day 1 early-morning gate is needed only for Hotel / Vehicle + Hotel itineraries.
-    // Vehicle-only itinerary should not show previous-day hotel billing popup.
-    if (requiresHotelBookingFlow && dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
+applyOptimisticRouteTimes(routeId, dayNumber, startTimeHms, endTimeHms);
+
+// Day 1 early-morning gate is needed only for Hotel / Vehicle + Hotel itineraries.
+// Vehicle-only itinerary should not show previous-day hotel billing popup.
+if (requiresHotelBookingFlow && dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
       const resolvedRouteDay =
         routeDay ||
         itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
@@ -8582,13 +8693,21 @@ if (policy.requiresPreviousDayBillingConfirmation) {
           previousDay.setDate(previousDay.getDate() - 1);
           const fmt = (d: Date) =>
             `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          setArrivalPolicyConfirmModal({
-            open: true,
-            arrivalDate: fmt(routeDate),
-            previousDayDate: fmt(previousDay),
-            request,
-          });
-          return;
+        setPendingRouteTimeUpdate({
+  planId,
+  routeId,
+  dayNumber,
+  startTimeHms,
+  endTimeHms,
+});
+
+setArrivalPolicyConfirmModal({
+  open: true,
+  arrivalDate: fmt(routeDate),
+  previousDayDate: fmt(previousDay),
+  request,
+});
+return;
         }
         // Policy resolved without needing confirmation – fall through to PATCH
       } catch (e: any) {
