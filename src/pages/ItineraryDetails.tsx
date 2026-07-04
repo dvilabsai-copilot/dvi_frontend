@@ -5869,6 +5869,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
   const moneyWithSymbol = (value?: number | string | null) => `₹ ${money(value)}`;
 
+  const getHotelPaxCount = () => {
+    const paxFromCostBreakdown = Number(itinerary.costBreakdown.hotelPaxCount || 0);
+    const paxFromItinerary =
+      Number(itinerary.adults || 0) + Number(itinerary.children || 0);
+
+    return Math.max(paxFromCostBreakdown || paxFromItinerary || 1, 1);
+  };
+
+  const getActivityAmountFromItineraryDays = () => {
+    return (itinerary.days || []).reduce((total, day) => {
+      return total + (day.segments || []).reduce((dayTotal, segment) => {
+        if (segment.type !== "attraction") return dayTotal;
+
+        const activities = Array.isArray(segment.activities)
+          ? segment.activities
+          : [];
+
+        return dayTotal + activities.reduce((sum, activity) => {
+          return sum + Number(activity.amount || 0);
+        }, 0);
+      }, 0);
+    }, 0);
+  };
+
   const getHotelBaseAmountForGroup = (group: ClipboardGroup) => {
     return group.hotels.reduce((sum, hotel) => {
       const rowTotal =
@@ -5888,7 +5912,17 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     const childWithoutBedAmount = Number(itinerary.costBreakdown.childWithoutBedCost || 0);
     const guideAmount = Number(itinerary.costBreakdown.totalGuideCost || 0);
     const hotspotAmount = Number(itinerary.costBreakdown.totalHotspotCost || 0);
-    const activityAmount = Number(itinerary.costBreakdown.totalActivityCost || 0);
+
+    const activityAmountFromCostBreakdown = Number(
+      itinerary.costBreakdown.totalActivityCost || 0,
+    );
+    const activityAmountFromDays = getActivityAmountFromItineraryDays();
+
+    const activityAmount =
+      activityAmountFromCostBreakdown > 0
+        ? activityAmountFromCostBreakdown
+        : activityAmountFromDays;
+
     const additionalMargin = Number(itinerary.costBreakdown.additionalMargin || 0);
 
     const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
@@ -5984,6 +6018,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
   const buildCostSectionHtml = (group: ClipboardGroup) => {
     const totals = getGroupFinancialTotals(group);
+    const hotelPaxCount = getHotelPaxCount();
+    const hotelPerPaxAmount =
+      hotelPaxCount > 0
+        ? Number(totals.hotelAmount || 0) / hotelPaxCount
+        : 0;
 
     return `
       <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}margin-top:18px;">
@@ -5991,8 +6030,8 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           shouldShowHotels
             ? `
               <tr>
-                <td style="${cellStyle}font-weight:700;">Total Room Cost (${escapeHtml(roomBreakdownRoomNights || 0)} * ${escapeHtml(
-                money(Number(totals.hotelAmount || 0) / Math.max(Number(roomBreakdownRoomNights || 1), 1)),
+                <td style="${cellStyle}font-weight:700;">Total Room Cost (${escapeHtml(hotelPaxCount)} Pax * ${escapeHtml(
+                money(hotelPerPaxAmount),
               )})</td>
                 <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.hotelAmount))}</td>
               </tr>
@@ -6039,6 +6078,17 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
               <tr>
                 <td style="${cellStyle}font-weight:700;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</td>
                 <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.vehicleAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          totals.activityAmount > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Total Activity Cost</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.activityAmount))}</td>
               </tr>
             `
             : ""
