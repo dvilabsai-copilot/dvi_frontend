@@ -10256,6 +10256,17 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     );
   };
 
+  const extractFitHereConfirmErrorCode = (error: any): string => {
+    const message = String(error?.message || "");
+    const codeMatch = message.match(/"code"\s*:\s*"([^"]+)"/i);
+    if (codeMatch?.[1]) {
+      return String(codeMatch[1]).trim();
+    }
+
+    const fallbackMatch = message.match(/MANUAL_INSERT_[A-Z0-9_]+/i);
+    return fallbackMatch?.[0] ? String(fallbackMatch[0]).trim() : "";
+  };
+
   const isExpiredOrMissingFitHereAttemptError = (error: any): boolean => {
     const message = String(error?.message || "");
     return (
@@ -10306,6 +10317,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     options?: {
       allowClosedHotspotConflict?: boolean;
       allowTimingRisk?: boolean;
+      allowPriorityRemoval?: boolean;
       acknowledgedRemovedHotspotIds?: number[];
     },
     attemptOverride?: ManualFitHerePreviewResponse | null,
@@ -10340,6 +10352,14 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       return priority === 1 || priority === 2;
     });
+    const selectedOpeningConflict =
+      selectedAttempt?.selectedOpeningConflict ||
+      selectedAttempt?.resolution?.selectedOpeningConflict ||
+      selectedAttempt?.resolution?.manualInsertionFit?.selectedOpeningConflict ||
+      null;
+    const canForceClosedHotspotConflict =
+      options?.allowClosedHotspotConflict === true ||
+      (selectedAttempt?.canForceConflict === true && !!selectedOpeningConflict);
     const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row: any) => {
       const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       const reasonCode = String(row?.removalReasonCode || '').toUpperCase();
@@ -10372,9 +10392,10 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     try {
       const confirmResult: any = await ItineraryService.confirmManualHotspotFitHere(planId, {
         attemptId,
-        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk,
-        allowClosedHotspotConflict: options?.allowClosedHotspotConflict === true,
+        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk || canForceClosedHotspotConflict,
+        allowClosedHotspotConflict: canForceClosedHotspotConflict,
         allowPriorityRemoval:
+          options?.allowPriorityRemoval === true ||
           hasPriorityRemoval ||
           selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true,
         acknowledgedRemovedHotspotIds,
@@ -10574,6 +10595,25 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         window.setTimeout(() => {
           window.location.reload();
         }, 600);
+        return;
+      }
+
+      const confirmErrorCode = extractFitHereConfirmErrorCode(error);
+      if (
+        confirmErrorCode === 'MANUAL_INSERT_SELECTED_HOTSPOT_CLOSING_NOT_RESOLVED' &&
+        !options?.allowClosedHotspotConflict &&
+        selectedAttempt?.attemptId &&
+        (selectedAttempt?.selectedOpeningConflict || selectedAttempt?.canForceConflict === true)
+      ) {
+        toast.info('Retrying the same Fit Here attempt with the approved conflict-save path.');
+        await handleConfirmFitHere(
+          {
+            allowTimingRisk: true,
+            allowClosedHotspotConflict: true,
+            acknowledgedRemovedHotspotIds,
+          },
+          selectedAttempt,
+        );
         return;
       }
 
