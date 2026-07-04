@@ -57,6 +57,11 @@ const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }
 const MAX_ADULTS_PER_ROOM = 3;
 const MAX_ROOMS = 6;
 
+const toSafeCount = (value: unknown, fallback = 0) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.max(numberValue, 0) : fallback;
+};
+
 export const RoomsBlock = ({
   itineraryPreference,
   rooms,
@@ -119,35 +124,67 @@ export const RoomsBlock = ({
     patch: Partial<Omit<RoomRow, "id">>
   ) => {
     setRooms((prev) =>
-      prev.map((r) => (r.id === roomId ? { ...r, ...patch } : r))
+      prev.map((r) => {
+        if (r.id !== roomId) return r;
+
+        return {
+          ...r,
+          ...patch,
+          adults:
+            patch.adults !== undefined
+              ? toSafeCount(patch.adults, r.adults)
+              : toSafeCount(r.adults),
+          children:
+            patch.children !== undefined
+              ? toSafeCount(patch.children, r.children)
+              : toSafeCount(r.children),
+          infants:
+            patch.infants !== undefined
+              ? toSafeCount(patch.infants, r.infants)
+              : toSafeCount(r.infants),
+          roomCount:
+            patch.roomCount !== undefined
+              ? Math.max(toSafeCount(patch.roomCount, r.roomCount), 1)
+              : Math.max(toSafeCount(r.roomCount, 1), 1),
+          childrenDetails: Array.isArray(patch.childrenDetails)
+            ? patch.childrenDetails
+            : Array.isArray(r.childrenDetails)
+              ? r.childrenDetails
+              : [],
+        };
+      })
     );
   };
 
-    const tryUpdateCounts = (
+  const tryUpdateCounts = (
     room: RoomRow,
     nextAdults: number,
     nextChildren: number,
     nextInfants: number,
     opts?: { skipValidate?: boolean }
   ) => {
+    const safeAdults = Math.max(toSafeCount(nextAdults, room.adults), 1);
+    const safeChildren = toSafeCount(nextChildren, room.children);
+    const safeInfants = toSafeCount(nextInfants, room.infants);
+
     if (!opts?.skipValidate) {
-      if (!validateCombination(nextAdults, nextChildren, nextInfants)) {
+      if (!validateCombination(safeAdults, safeChildren, safeInfants)) {
         return;
       }
     }
 
     const shouldShowMaxRoomOccupancyAlert =
-      !opts?.skipValidate &&
+           !opts?.skipValidate &&
       isMaxRoomOccupancyReachedCombination(
-        nextAdults,
-        nextChildren,
-        nextInfants
+        safeAdults,
+        safeChildren,
+        safeInfants
       );
 
     updateRoom(room.id, {
-      adults: nextAdults,
-      children: nextChildren,
-      infants: nextInfants,
+      adults: safeAdults,
+      children: safeChildren,
+      infants: safeInfants,
     });
 
     if (shouldShowMaxRoomOccupancyAlert) {
@@ -225,6 +262,15 @@ useEffect(() => {
     ];
   });
 }, [setRooms]);
+
+useEffect(() => {
+  const nextRoomCount = Math.max(
+    Number(rooms?.[0]?.roomCount || rooms?.length || 1),
+    1
+  );
+
+  setTargetRoomCount((prev) => (prev === nextRoomCount ? prev : nextRoomCount));
+}, [rooms?.length, rooms?.[0]?.roomCount]);
 
 
   const handleTotalRoomsChange = (value: number) => {
@@ -670,11 +716,11 @@ return (
         variant="ghost"
         className="h-7 px-2"
         onClick={() =>
-          tryUpdateCounts(
+                   tryUpdateCounts(
             room,
-            Math.max(room.adults - 1, 1),
-            room.children,
-            room.infants
+            Math.max(toSafeCount(room.adults, 1) - 1, 1),
+            toSafeCount(room.children),
+            toSafeCount(room.infants)
           )
         }
       >
@@ -688,11 +734,11 @@ return (
         variant="ghost"
         className="h-7 px-2"
         onClick={() =>
-          tryUpdateCounts(
+                  tryUpdateCounts(
             room,
-            room.adults + 1,
-            room.children,
-            room.infants
+            toSafeCount(room.adults, 1) + 1,
+            toSafeCount(room.children),
+            toSafeCount(room.infants)
           )
         }
       >
@@ -709,11 +755,11 @@ return (
       variant="outline"
       className="h-7 text-xs border-[#d39ce8] whitespace-nowrap"
       onClick={() =>
-        tryUpdateCounts(
+               tryUpdateCounts(
           room,
-          room.adults,
+          toSafeCount(room.adults, 1),
           1,
-          room.infants
+          toSafeCount(room.infants)
         )
       }
     >
@@ -726,11 +772,11 @@ return (
         variant="ghost"
         className="h-7 px-2"
         onClick={() =>
-          tryUpdateCounts(
+                tryUpdateCounts(
             room,
-            room.adults,
-            Math.max(room.children - 1, 0),
-            room.infants
+            toSafeCount(room.adults, 1),
+            Math.max(toSafeCount(room.children) - 1, 0),
+            toSafeCount(room.infants)
           )
         }
       >
@@ -746,11 +792,11 @@ return (
         variant="ghost"
         className="h-7 px-2"
         onClick={() =>
-          tryUpdateCounts(
+                 tryUpdateCounts(
             room,
-            room.adults,
-            room.children + 1,
-            room.infants
+            toSafeCount(room.adults, 1),
+            toSafeCount(room.children) + 1,
+            toSafeCount(room.infants)
           )
         }
       >
@@ -767,7 +813,12 @@ return (
         variant="outline"
         className="h-7 text-xs border-[#d39ce8]"
         onClick={() =>
-          tryUpdateCounts(room, room.adults, room.children, 1)
+                  tryUpdateCounts(
+            room,
+            toSafeCount(room.adults, 1),
+            toSafeCount(room.children),
+            1
+          )
         }
       >
         + Add Infant
@@ -779,11 +830,11 @@ return (
           variant="ghost"
           className="h-7 px-2"
           onClick={() =>
-            tryUpdateCounts(
+                        tryUpdateCounts(
               room,
-              room.adults,
-              room.children,
-              Math.max(room.infants - 1, 0),
+              toSafeCount(room.adults, 1),
+              toSafeCount(room.children),
+              Math.max(toSafeCount(room.infants) - 1, 0),
               { skipValidate: true }
             )
           }
@@ -798,11 +849,11 @@ return (
           variant="ghost"
           className="h-7 px-2"
           onClick={() =>
-            tryUpdateCounts(
+                     tryUpdateCounts(
               room,
-              room.adults,
-              room.children,
-              room.infants + 1
+              toSafeCount(room.adults, 1),
+              toSafeCount(room.children),
+              toSafeCount(room.infants) + 1
             )
           }
         >

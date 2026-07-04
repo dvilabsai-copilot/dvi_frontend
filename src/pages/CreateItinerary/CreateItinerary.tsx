@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { getToken } from "@/lib/api";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentOption, fetchAgents } from "@/services/accountsManagerApi";
@@ -316,26 +317,20 @@ function buildRoomsFromTravellers(travellers: any[]): TravellerRoomRow[] {
   const rooms = Array.from(roomMap.values()).sort((a, b) => a.id - b.id);
   const totalRoomCount = rooms.length || 1;
 
-  return rooms.map((room) => {
-    const totalPeople =
-      Number(room.adults || 0) +
-      Number(room.children || 0) +
-      Number(room.infants || 0);
-
-    return {
-      ...room,
-      roomCount: totalRoomCount,
-      adults: totalPeople >= 2 ? room.adults : room.adults + (2 - totalPeople),
-    };
-  });
+  return rooms.map((room) => ({
+    ...room,
+    roomCount: totalRoomCount,
+    adults: Math.max(Number(room.adults || 0), 0),
+    children: Math.max(Number(room.children || 0), 0),
+    infants: Math.max(Number(room.infants || 0), 0),
+    childrenDetails: Array.isArray(room.childrenDetails)
+      ? room.childrenDetails
+      : [],
+  }));
 }
 function buildRoomsFromPlanSummary(plan: any): TravellerRoomRow[] {
- const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
-const minimumAdultsForRooms = roomCount * 2;
-const totalAdults = Math.max(
-  Number(plan?.total_adult ?? minimumAdultsForRooms) || minimumAdultsForRooms,
-  minimumAdultsForRooms,
-);
+  const roomCount = Math.max(Number(plan?.preferred_room_count ?? 1) || 1, 1);
+  const totalAdults = Math.max(Number(plan?.total_adult ?? 0) || 0, 0);
   const totalChildren = Math.max(Number(plan?.total_children ?? 0) || 0, 0);
   const totalInfants = Math.max(Number(plan?.total_infants ?? 0) || 0, 0);
   const childrenWithBed = Math.max(Number(plan?.total_child_with_bed ?? 0) || 0, 0);
@@ -504,7 +499,8 @@ export const CreateItinerary = () => {
   const [mealPlanCode, setMealPlanCode] = useState<string>("__ALL__");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
-  const [tripEndDate, setTripEndDate] = useState<string>("");
+const [tripEndDate, setTripEndDate] = useState<string>("");
+const [travellingPax, setTravellingPax] = useState<number | "">("");
 
   // ✅ Start/End time used to build trip_start_date and trip_end_date payload
   const [startTime, setStartTime] = useState<string>("08:00");
@@ -519,6 +515,11 @@ export const CreateItinerary = () => {
 
   // rooms + travellers hook
   const { rooms, setRooms, addRoom, removeRoom, buildTravellers } = useRoomsAndTravellers();
+
+  const roomAdultTotal = rooms.reduce(
+    (sum, room) => sum + Math.max(Number(room.adults || 0), 0),
+    0
+  );
 
   // vehicles
   const [vehicles, setVehicles] = useState<VehicleRow[]>([
@@ -665,7 +666,13 @@ useEffect(() => {
     clearIfOk("itineraryTypeSelect", !!itineraryTypeSelect);
     clearIfOk("arrivalType", !!arrivalType);
 
-    clearIfOk("budget", budget !== "" && Number(budget) > 0);
+      clearIfOk("budget", budget !== "" && Number(budget) > 0);
+    clearIfOk(
+      "travellingPax",
+      travellingPax !== "" &&
+        Number(travellingPax) >= roomAdultTotal &&
+        roomAdultTotal > 0
+    );
 
     clearIfOk("entryTicketRequired", !!entryTicketRequired);
     clearIfOk("guideRequired", !!guideRequired);
@@ -703,16 +710,32 @@ useEffect(() => {
   itineraryTypeSelect,
   arrivalType,
   departureType,
-  budget,
-  entryTicketRequired,
+budget,
+travellingPax,
+entryTicketRequired,
   guideRequired,
   nationality,
   foodPreference,
   itineraryPreference,
   selectedHotelCategoryIds,
   routeDetails,
+  roomAdultTotal,
   vehicles,
 ]);
+
+useEffect(() => {
+  if (roomAdultTotal <= 0) return;
+
+  setTravellingPax((prev) => {
+    const currentValue = prev === "" ? 0 : Number(prev);
+
+    if (Number.isFinite(currentValue) && currentValue >= roomAdultTotal) {
+      return prev;
+    }
+
+    return roomAdultTotal;
+  });
+}, [roomAdultTotal]);
 
 useEffect(() => {
   return () => {
@@ -794,8 +817,18 @@ useEffect(() => {
             setStartTime(safeTimeFromISO(p.trip_start_date_and_time, "13:00"));
             setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
 
-            // ✅ budget in DB is expecting_budget
-            setBudget(p.expecting_budget ?? "");
+          // ✅ budget in DB is expecting_budget
+setBudget(p.expecting_budget ?? "");
+
+const savedTravellingPax = Number(
+  p.travelling_pax ??
+    p.total_travelling_pax ??
+    p.total_adults_travelling ??
+    p.total_adult ??
+    0
+);
+
+setTravellingPax(savedTravellingPax > 0 ? savedTravellingPax : "");
 
             setArrivalType(p.arrival_type != null ? String(p.arrival_type) : "");
             setDepartureType(p.departure_type != null ? String(p.departure_type) : "");
@@ -879,13 +912,13 @@ useEffect(() => {
             }
           }
         }
-      } catch (err) {
+          } catch (err) {
         console.error("Failed to load data", err);
       } finally {
         setLoading(false);
       }
     })();
-  }, [itineraryPlanId, setRouteDetails, setRooms]);
+  }, [itineraryPlanId, setRouteDetails, setRooms, isAgentLogin, loggedInAgentId]);
 
 useEffect(() => {
   if (itineraryPlanId) return;
@@ -1064,6 +1097,9 @@ useEffect(() => {
     departureLocation,
   });
 
+  const vehicleTravellingPax =
+    travellingPax === "" ? 0 : Number(travellingPax) || 0;
+
   if (
     exactPayload.sourceLocation.length === 0 ||
     exactPayload.nextVisitingLocation.length === 0
@@ -1075,10 +1111,11 @@ useEffect(() => {
 
   (async () => {
     try {
-      let result = await fetchEligibleVehicleTypes({
+          let result = await fetchEligibleVehicleTypes({
         itineraryPlanId: itineraryPlanId ?? null,
         sourceLocation: exactPayload.sourceLocation,
         nextVisitingLocation: exactPayload.nextVisitingLocation,
+        travellingPax: vehicleTravellingPax,
       });
 
       let hasVehicleTypes =
@@ -1101,10 +1138,11 @@ useEffect(() => {
         fallbackPayload.sourceLocation.length > 0 &&
         fallbackPayload.nextVisitingLocation.length > 0
       ) {
-        result = await fetchEligibleVehicleTypes({
+             result = await fetchEligibleVehicleTypes({
           itineraryPlanId: itineraryPlanId ?? null,
           sourceLocation: fallbackPayload.sourceLocation,
           nextVisitingLocation: fallbackPayload.nextVisitingLocation,
+          travellingPax: vehicleTravellingPax,
         });
 
         hasVehicleTypes =
@@ -1125,15 +1163,51 @@ useEffect(() => {
 
       if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
 
-      setVehicleTypes(
-        Array.isArray(result?.vehicleTypes) ? result.vehicleTypes : []
+           const nextVehicleTypes = Array.isArray(result?.vehicleTypes)
+        ? result.vehicleTypes
+        : [];
+
+      const nextSelectedVehicleIds = Array.isArray(result?.selectedVehicleIds)
+        ? result.selectedVehicleIds.map((id) => String(id))
+        : [];
+
+      setVehicleTypes(nextVehicleTypes);
+      setSelectedVehicleIds(nextSelectedVehicleIds);
+
+      const allowedVehicleTypeIds = new Set(
+        nextVehicleTypes.map((vehicleType) => String(vehicleType.id))
       );
 
-      setSelectedVehicleIds(
-        Array.isArray(result?.selectedVehicleIds)
-          ? result.selectedVehicleIds
-          : []
-      );
+      const preferredVehicleTypeId =
+        nextSelectedVehicleIds.find((id) => allowedVehicleTypeIds.has(String(id))) ||
+        nextVehicleTypes[0]?.id ||
+        "";
+
+      if (
+        preferredVehicleTypeId &&
+        (itineraryPreference === "vehicle" || itineraryPreference === "both")
+      ) {
+        setVehicles((prev) => {
+          const currentRows =
+            prev.length > 0 ? prev : [{ id: 1, type: "", count: 1 }];
+
+          return currentRows.map((vehicle, index) => {
+            const currentType = String(vehicle.type || "");
+            const currentTypeAllowed =
+              currentType && allowedVehicleTypeIds.has(currentType);
+
+            if (currentTypeAllowed) {
+              return vehicle;
+            }
+
+            return {
+              ...vehicle,
+              type: index === 0 ? String(preferredVehicleTypeId) : "",
+              count: vehicle.count || 1,
+            };
+          });
+        });
+      }
     } catch (error) {
       console.error("Failed to load eligible vehicle types", error);
 
@@ -1154,6 +1228,8 @@ useEffect(() => {
   departureLocation,
   itineraryTypeSelect,
   itineraryTypes,
+  travellingPax,
+  itineraryPreference,
 ]);
   // Handler for route suggestion selection
   const handleRouteSelection = (
@@ -1315,6 +1391,12 @@ const addDay = () => {
 
     if (budget === "" || Number(budget) <= 0) errors.budget = "Please enter a valid Budget";
 
+if (travellingPax === "" || Number(travellingPax) <= 0) {
+  errors.travellingPax = "Please enter Travelling Pax";
+} else if (Number(travellingPax) < roomAdultTotal) {
+  errors.travellingPax = `Travelling Pax cannot be less than Room Adults (${roomAdultTotal})`;
+}
+
     if (!entryTicketRequired) errors.entryTicketRequired = "Please select Entry Ticket Required option";
     if (!guideRequired) errors.guideRequired = "Please select Guide for Itinerary option";
     if (!nationality) errors.nationality = "Please select Nationality";
@@ -1367,10 +1449,13 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
       case "arrivalType":
         selector = "[data-field='arrivalType']";
         break;
-      case "budget":
-        selector = "[data-field='budget']";
-        break;
-      case "entryTicketRequired":
+   case "budget":
+  selector = "[data-field='budget']";
+  break;
+case "travellingPax":
+  selector = "[data-field='travellingPax']";
+  break;
+case "entryTicketRequired":
         selector = "[data-field='entryTicketRequired']";
         break;
       case "guideRequired":
@@ -1420,6 +1505,14 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
 const buildPayload = () => {
   const { totalAdults, totalChildren, totalInfants, travellerRows } =
     buildTravellers();
+
+   const requestedTravellingPax =
+    travellingPax === "" ? totalAdults : Number(travellingPax);
+
+  const travellingAdultCount =
+    Number.isFinite(requestedTravellingPax) && requestedTravellingPax > 0
+      ? Math.max(requestedTravellingPax, totalAdults)
+      : totalAdults;
 
   // ---- helper: always produce a valid numeric id (prevents NaN->null) ----
   const resolveOptionId = (raw: any, options: SimpleOption[]): number => {
@@ -1553,9 +1646,13 @@ const buildPayload = () => {
     meal_plan_lunch,
     meal_plan_dinner,
 
-    adult_count: totalAdults,
-    child_count: totalChildren,
-    infant_count: totalInfants,
+   adult_count: totalAdults,
+child_count: totalChildren,
+infant_count: totalInfants,
+
+travelling_pax: travellingAdultCount,
+total_travelling_pax: travellingAdultCount,
+total_adults_travelling: travellingAdultCount,
 
     special_instructions: specialInstructions || "",
   };
@@ -2107,7 +2204,52 @@ const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
         setSelectedHotelFacilityIds={setSelectedHotelFacilityIds}
         noOfNights={noOfNights}
         noOfDays={noOfDays}
-      />
+           />
+
+      <div
+        data-field="travellingPax"
+        className={`rounded-xl border bg-white p-4 shadow-sm ${
+          validationErrors.travellingPax ? "border-red-500" : "border-[#ead1f2]"
+        }`}
+      >
+        <label className="mb-2 block text-sm font-semibold text-[#4a4260]">
+          Travelling Pax / Total Adults Travelling <span className="text-red-500">*</span>
+        </label>
+
+             <Input
+          type="number"
+          min={roomAdultTotal > 0 ? roomAdultTotal : 1}
+          value={travellingPax}
+          onChange={(e) => {
+            const value = Number(e.target.value);
+
+            if (!Number.isFinite(value) || value <= 0) {
+              setTravellingPax("");
+              return;
+            }
+
+            setTravellingPax(Math.max(value, roomAdultTotal));
+          }}
+          onBlur={() => {
+            if (
+              roomAdultTotal > 0 &&
+              (travellingPax === "" || Number(travellingPax) < roomAdultTotal)
+            ) {
+              setTravellingPax(roomAdultTotal);
+            }
+          }}
+          placeholder="Enter total adults travelling"
+          className="h-10 max-w-xs"
+        />
+
+        <p className="mt-1 text-xs text-[#6c6c6c]">
+          This pax count will be used for vehicle selection and transport calculation.
+        </p>
+
+        {validationErrors.travellingPax && (
+          <p className="mt-1 text-xs text-red-500">{validationErrors.travellingPax}</p>
+        )}
+      </div>
 
       <div
         data-field="firstRouteSource"

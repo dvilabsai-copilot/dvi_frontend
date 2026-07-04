@@ -511,6 +511,14 @@ type ItineraryDetailsResponse = {
   adults: number;
   children: number;
   infants: number;
+
+  travellingPax?: number | null;
+  travelling_pax?: number | null;
+  totalTravellingPax?: number | null;
+  total_travelling_pax?: number | null;
+  totalAdultsTravelling?: number | null;
+  total_adults_travelling?: number | null;
+
   overallCost: string | number; // API is giving "15000.00"
 meal_plan_code?: string | null;
 
@@ -594,6 +602,28 @@ const getDisplayDistances = (day: ItineraryDay) => {
     sightseeingDistance: day.sightseeingDistance || "0.00 KM",
   };
 };
+
+const getTravellingPaxCount = (
+  itineraryData?: Partial<ItineraryDetailsResponse> | null
+): number => {
+  const rawTravellingPax =
+    (itineraryData as any)?.travellingPax ??
+    (itineraryData as any)?.travelling_pax ??
+    (itineraryData as any)?.totalTravellingPax ??
+    (itineraryData as any)?.total_travelling_pax ??
+    (itineraryData as any)?.totalAdultsTravelling ??
+    (itineraryData as any)?.total_adults_travelling ??
+    null;
+
+  const travellingPax = Number(rawTravellingPax);
+
+  if (Number.isFinite(travellingPax) && travellingPax > 0) {
+    return travellingPax;
+  }
+
+  return Number((itineraryData as any)?.adults || 0);
+};
+
 const getGuestFoodPreferenceText = (
   itineraryData: any,
   dayData?: any
@@ -4722,88 +4752,23 @@ useEffect(() => {
     itinerary?.roomCount,
   ]);
 
-  const roomBreakdownRoomNights = useMemo(() => {
-    const fallbackStayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
-    const fallbackRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
+ const roomBreakdownRoomNights = useMemo(() => {
+  const dayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
 
-    if (!hotelDetails?.hotels?.length) {
-      return fallbackStayCount * fallbackRoomCount;
-    }
+  const nightCount =
+    Number(itinerary?.nightCount || 0) > 0
+      ? Number(itinerary?.nightCount || 0)
+      : Math.max(dayCount - 1, 1);
 
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      1;
+  const roomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
 
-    const getStayDate = (hotel: ItineraryHotelRow): string => {
-      if (hotel.checkInDate) return String(hotel.checkInDate);
-      if (hotel.date) return String(hotel.date);
-      const dayText = String(hotel.day || '');
-      const parts = dayText.split(' | ');
-      return (parts[1] || dayText).trim();
-    };
-
-    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
-    hotelDetails.hotels
-      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-      .forEach((h) => {
-        const routeId = Number(h.itineraryRouteId || 0);
-        if (!routeId) return;
-        const stayDate = getStayDate(h);
-        const stayKey = `${routeId}::${stayDate}`;
-        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
-        groupedByStay.get(stayKey)!.push(h);
-      });
-
-    const matchSelectedHotelRow = (rows: ItineraryHotelRow[], routeId: number): ItineraryHotelRow | null => {
-      const selected = selectedHotelBookings[routeId];
-      if (!selected) return null;
-
-      return (
-        rows.find((h) => {
-          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
-          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
-          const amountMatch =
-            Number(selected.netAmount || 0) > 0 &&
-            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
-          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
-          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
-          const hotelNameMatch =
-            selected.hotelName &&
-            h.hotelName &&
-            selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
-
-          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
-        }) || null
-      );
-    };
-
-    let totalRoomNights = 0;
-    groupedByStay.forEach((rows, stayKey) => {
-      const routeId = Number(stayKey.split('::')[0] || 0);
-
-      const selectedMatch = routeId ? matchSelectedHotelRow(rows, routeId) : null;
-      const cheapest = rows.reduce((best, curr) => {
-        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-        return currTotal < bestTotal ? curr : best;
-      });
-
-      const chosen = selectedMatch || cheapest;
-      const rowRooms = Math.max(Number(chosen.noOfRooms || 0), 0);
-      const effectiveRooms = Math.max(rowRooms || fallbackRoomCount, 1);
-      totalRoomNights += effectiveRooms;
-    });
-
-    return totalRoomNights || fallbackStayCount * fallbackRoomCount;
-  }, [
-    hotelDetails,
-    activeHotelGroupType,
-    itinerary?.dayCount,
-    itinerary?.days?.length,
-    itinerary?.roomCount,
-    selectedHotelBookings,
-  ]);
+  return Math.max(nightCount, 1) * roomCount;
+}, [
+  itinerary?.dayCount,
+  itinerary?.nightCount,
+  itinerary?.days?.length,
+  itinerary?.roomCount,
+]);
 
   const computedVehicleAmount = useMemo(() => {
     if (!shouldShowVehicles) return 0;
@@ -13294,9 +13259,15 @@ const hotelTimelineLoading = Boolean(
               </span>
               <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
               <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
-              <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
+                            <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
+              <span>
+                Travelling Pax{" "}
+                <span className="font-semibold text-[#4a4260]">
+                  {getTravellingPaxCount(itinerary)}
+                </span>
+              </span>
               <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap gap-4">
-                <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
+                <span>Room Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
                 <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
                 <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
               </div>

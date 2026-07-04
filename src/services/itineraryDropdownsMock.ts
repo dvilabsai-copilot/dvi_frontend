@@ -224,6 +224,7 @@ export async function fetchEligibleVehicleTypes(args: {
   sourceLocation: string[];
   nextVisitingLocation: string[];
   itineraryPlanId?: number | null;
+  travellingPax?: number | null;
 }): Promise<{ vehicleTypes: SimpleOption[]; selectedVehicleIds: string[] }> {
   const sourceLocation = Array.isArray(args.sourceLocation)
     ? args.sourceLocation.map((value) => String(value ?? "").trim()).filter(Boolean)
@@ -236,10 +237,15 @@ export async function fetchEligibleVehicleTypes(args: {
     return { vehicleTypes: [], selectedVehicleIds: [] };
   }
 
+  const travellingPax = Number(args.travellingPax ?? 0);
+
   const payload = {
     itineraryPlanId: args.itineraryPlanId ?? null,
     sourceLocation,
     nextVisitingLocation,
+    travellingPax: Number.isFinite(travellingPax) && travellingPax > 0 ? travellingPax : null,
+    travelling_pax: Number.isFinite(travellingPax) && travellingPax > 0 ? travellingPax : null,
+    totalAdultsTravelling: Number.isFinite(travellingPax) && travellingPax > 0 ? travellingPax : null,
   };
 
   try {
