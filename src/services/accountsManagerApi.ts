@@ -150,17 +150,51 @@ export async function searchQuotes(
   });
 }
 
-// 4) Agent dropdown (now uses /agents module)
+// 4) Agent dropdown (uses full agent list so city/location label is available)
 export async function fetchAgents(
   travelExpertId?: number,
 ): Promise<AgentOption[]> {
-  const qs = travelExpertId
-    ? `?travelExpertId=${encodeURIComponent(String(travelExpertId))}`
-    : "";
-  return api(`${AGENTS_BASE_PATH}${qs}`, {
+  const qs = buildQuery({
+    page: 0,
+    limit: 1000,
+  });
+
+  const response = await api(`${AGENTS_BASE_PATH}/full${qs}`, {
     method: "GET",
     auth: true,
   });
+
+  const rows = Array.isArray(response)
+    ? response
+    : Array.isArray((response as any)?.data)
+      ? (response as any).data
+      : [];
+
+  return rows
+    .filter((agent: any) => {
+      if (!travelExpertId) return true;
+      return Number(agent.travel_expert_id || 0) === Number(travelExpertId);
+    })
+    .map((agent: any) => {
+      const agentName = String(agent.agent_name || agent.name || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const cityName = String(agent.city_label || agent.city || agent.location || "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const displayName =
+        cityName && !agentName.toLowerCase().includes(cityName.toLowerCase())
+          ? `${agentName} - ${cityName}`
+          : agentName;
+
+      return {
+        id: Number(agent.agent_ID || agent.id || agent.agent_id),
+        name: displayName || "Agent",
+      };
+    })
+    .filter((agent) => Number.isFinite(agent.id) && agent.id > 0);
 }
 
 // 5) Payment modes
