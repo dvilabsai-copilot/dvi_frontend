@@ -369,6 +369,24 @@ useEffect(() => {
     });
   };
 
+    const normalizeSuggestionLocationKey = (value: string) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+
+  const buildSuggestionLocationKeys = (value: string) => {
+    const trimmed = String(value || "").trim();
+    const fullKey = normalizeSuggestionLocationKey(trimmed);
+    const firstTokenKey = normalizeSuggestionLocationKey(
+      trimmed.split(",")[0] || ""
+    );
+
+    return Array.from(
+      new Set([fullKey, firstTokenKey].filter((item) => item.length > 0))
+    );
+  };
+
   const validateSuggestionDayLocations = async (days: string[]) => {
     const values = days
       .map((item) => item.trim())
@@ -376,23 +394,31 @@ useEffect(() => {
 
     if (values.length === 0) return true;
 
-    const sourceValue = selectedSource.trim();
-    if (!sourceValue) {
-      toast.warning("Please select a source location first");
-      return false;
-    }
-
     try {
-      const backendLocations = await locationsApi.searchDestinations("", sourceValue);
-      const backendSet = new Set(
-        backendLocations.map((item) => item.trim().toLowerCase())
-      );
+      const dropdowns = await locationsApi.dropdowns();
+
+      const backendLocations = [
+        ...(dropdowns.sources || []),
+        ...(dropdowns.destinations || []),
+        selectedSource,
+        selectedDestination,
+        ...(viaRoutePlaceOptions || []),
+      ];
+
+      const backendSet = new Set<string>();
+
+      backendLocations.forEach((locationName) => {
+        buildSuggestionLocationKeys(String(locationName || "")).forEach((key) => {
+          backendSet.add(key);
+        });
+      });
 
       const invalidLocations = Array.from(
         new Set(
-          values.filter(
-            (item) => !backendSet.has(item.trim().toLowerCase())
-          )
+          values.filter((item) => {
+            const itemKeys = buildSuggestionLocationKeys(item);
+            return !itemKeys.some((key) => backendSet.has(key));
+          })
         )
       );
 
