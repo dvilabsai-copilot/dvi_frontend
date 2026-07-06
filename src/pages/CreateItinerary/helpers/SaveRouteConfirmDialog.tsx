@@ -55,9 +55,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
         </div>
 
         <p className="text-sm text-slate-600">
-          Optimize route for  {" "}
-          <span className="font-semibold text-slate-900">better</span>{" "}
-          planning
+          We found a better route for a smoother travel experience.
         </p>
 
         {!isSaving ? (
@@ -68,7 +66,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
               disabled={isSaving}
               className="min-w-[170px] rounded-md bg-[#19b96b] px-6 py-2 text-sm font-semibold text-white shadow hover:bg-[#12a05b] disabled:opacity-60"
             >
-              Proceed with same Route
+              Continue with My Route
             </button>
 
             <button
@@ -77,7 +75,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
               disabled={isSaving}
               className="min-w-[170px] rounded-md bg-[#e0e0e0] px-6 py-2 text-sm font-semibold text-slate-700 hover:bg-[#d4d4d4] disabled:opacity-60"
             >
-              Optimize route
+              Show Better Route
             </button>
           </div>
         ) : (
