@@ -144,14 +144,14 @@ const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
   );
 
   const [driverFormVehicleType, setDriverFormVehicleType] = useState<string>("");
-  const [driverFormFields, setDriverFormFields] = useState({
-    driverBhatta: "",
-    foodCost: "",
-    accommodationCost: "",
-    extraCost: "",
-    morningCharges: "",
-    eveningCharges: "",
-  });
+const [driverFormFields, setDriverFormFields] = useState({
+  driverBhatta: "0",
+  foodCost: "0",
+  accommodationCost: "0",
+  extraCost: "0",
+  morningCharges: "0",
+  eveningCharges: "0",
+});
   const [driverFieldErrors, setDriverFieldErrors] = useState<DriverFieldErrors>({});
 
   // ---- Outstation KM Limit state ----
@@ -188,12 +188,20 @@ const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
   const [localFieldErrors, setLocalFieldErrors] = useState<LocalFieldErrors>({});
   const [localSaveLocked, setLocalSaveLocked] = useState(false);
 
-  const isValidNumberInput = (value: string): boolean => {
-    const trimmed = String(value ?? "").trim();
-    if (!trimmed) return false;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) && parsed >= 0;
-  };
+const isValidNumberInput = (value: string): boolean => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return false;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0;
+};
+
+const numberOrZero = (value: string): number => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return 0;
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
 
   useEffect(() => {
     if (vendorId) {
@@ -318,78 +326,60 @@ const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
   // Driver Cost modal handlers
   // ============================================================
 
-  const openAddDriverCost = () => {
-    setEditingDriverRow(null);
-    setDriverFormVehicleType("");
-    setDriverFormFields({
-      driverBhatta: "",
-      foodCost: "",
-      accommodationCost: "",
-      extraCost: "",
-      morningCharges: "",
-      eveningCharges: "",
-    });
-    setDriverFieldErrors({});
-    setShowDriverCostModal(true);
-  };
+ const openAddDriverCost = () => {
+  setEditingDriverRow(null);
+  setDriverFormVehicleType("");
+  setDriverFormFields({
+    driverBhatta: "0",
+    foodCost: "0",
+    accommodationCost: "0",
+    extraCost: "0",
+    morningCharges: "0",
+    eveningCharges: "0",
+  });
+  setDriverFieldErrors({});
+  setShowDriverCostModal(true);
+};
 
-  const openEditDriverCost = (row: DriverCostRow) => {
-    setEditingDriverRow(row);
-    setDriverFormVehicleType(row.vehicleType);
-    setDriverFormFields({
-      driverBhatta: row.driverBhatta,
-      foodCost: row.foodCost,
-      accommodationCost: row.accommodationCost,
-      extraCost: row.extraCost,
-      morningCharges: row.morningCharges,
-      eveningCharges: row.eveningCharges,
-    });
-    setDriverFieldErrors({});
-    setShowDriverCostModal(true);
-  };
+ const openEditDriverCost = (row: DriverCostRow) => {
+  setEditingDriverRow(row);
+  setDriverFormVehicleType(row.vehicleType);
+  setDriverFormFields({
+    driverBhatta: row.driverBhatta || "0",
+    foodCost: row.foodCost || "0",
+    accommodationCost: row.accommodationCost || "0",
+    extraCost: row.extraCost || "0",
+    morningCharges: row.morningCharges || "0",
+    eveningCharges: row.eveningCharges || "0",
+  });
+  setDriverFieldErrors({});
+  setShowDriverCostModal(true);
+};
 
   const handleSaveDriverCost = async () => {
     if (!vendorId) return;
 
-    const errors: DriverFieldErrors = {};
-    if (!String(driverFormVehicleType ?? "").trim()) {
-      errors.vehicleType = "This value is required.";
-    }
-    if (!isValidNumberInput(driverFormFields.driverBhatta)) {
-      errors.driverBhatta = "Please enter valid price";
-    }
-    if (!isValidNumberInput(driverFormFields.foodCost)) {
-      errors.foodCost = "Please enter valid cost";
-    }
-    if (!isValidNumberInput(driverFormFields.accommodationCost)) {
-      errors.accommodationCost = "Please enter valid cost";
-    }
-    if (!isValidNumberInput(driverFormFields.extraCost)) {
-      errors.extraCost = "Please enter valid cost";
-    }
-    if (!isValidNumberInput(driverFormFields.morningCharges)) {
-      errors.morningCharges = "Please enter valid price";
-    }
-    if (!isValidNumberInput(driverFormFields.eveningCharges)) {
-      errors.eveningCharges = "Please enter valid price";
-    }
+ const errors: DriverFieldErrors = {};
+if (!String(driverFormVehicleType ?? "").trim()) {
+  errors.vehicleType = "This value is required.";
+}
 
-    if (Object.keys(errors).length > 0) {
-      setDriverFieldErrors(errors);
-      return;
-    }
+if (Object.keys(errors).length > 0) {
+  setDriverFieldErrors(errors);
+  return;
+}
 
-    setDriverFieldErrors({});
-    setSaving(true);
-    try {
-     const payload = {
-  vehicle_type_id: Number(driverFormVehicleType),
-  driver_bhatta: Number(driverFormFields.driverBhatta),
-  food_cost: Number(driverFormFields.foodCost),
-  accommodation_cost: Number(driverFormFields.accommodationCost),
-  extra_cost: Number(driverFormFields.extraCost),
-  morning_charges: Number(driverFormFields.morningCharges),
-  evening_charges: Number(driverFormFields.eveningCharges),
+setDriverFieldErrors({});
+setSaving(true);
+try {
+ const payload = {
+vehicle_type_id: Number(driverFormVehicleType),
+driver_bhatta: numberOrZero(driverFormFields.driverBhatta),
+food_cost: numberOrZero(driverFormFields.foodCost),
+accommodation_cost: numberOrZero(driverFormFields.accommodationCost),
+extra_cost: numberOrZero(driverFormFields.extraCost),
+morning_charges: numberOrZero(driverFormFields.morningCharges),
+evening_charges: numberOrZero(driverFormFields.eveningCharges),
 };
 
 await api(
@@ -1254,129 +1244,84 @@ const handleDeleteLocal = async (rowId: number) => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="space-y-1">
+  <Label>Driver Bhatta (₹)</Label>
+  <Input
+    placeholder="Driver Bhatta"
+    value={driverFormFields.driverBhatta}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        driverBhatta: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Driver Food Cost (₹)</Label>
+  <Input
+    placeholder="Food Cost"
+    value={driverFormFields.foodCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        foodCost: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Driver Accomodation Cost (₹)</Label>
+  <Input
+    placeholder="Accomodation Cost"
+    value={driverFormFields.accommodationCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        accommodationCost: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Extra Cost (₹)</Label>
+  <Input
+    placeholder="Extra Cost"
+    value={driverFormFields.extraCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        extraCost: e.target.value,
+      }));
+    }}
+  />
+</div>
               <div className="space-y-1">
-                <Label>
-                  Driver Bhatta (₹) <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Driver Bhatta"
-                  className={driverFieldErrors.driverBhatta ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.driverBhatta}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      driverBhatta: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, driverBhatta: undefined }));
-                  }}
-                />
-                {driverFieldErrors.driverBhatta ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.driverBhatta}</p>
-                ) : null}
-              </div>
+  <Label>Early Morning Charges Per Hour (Before 6 AM) (₹)</Label>
+  <Input
+    placeholder="Early Morning Charges"
+    value={driverFormFields.morningCharges}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        morningCharges: e.target.value,
+      }));
+    }}
+  />
+</div>
               <div className="space-y-1">
-                <Label>
-                  Driver Food Cost (₹) <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Food Cost"
-                  className={driverFieldErrors.foodCost ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.foodCost}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      foodCost: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, foodCost: undefined }));
-                  }}
-                />
-                {driverFieldErrors.foodCost ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.foodCost}</p>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  Driver Accomodation Cost (₹){" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Accomodation Cost"
-                  className={driverFieldErrors.accommodationCost ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.accommodationCost}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      accommodationCost: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, accommodationCost: undefined }));
-                  }}
-                />
-                {driverFieldErrors.accommodationCost ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.accommodationCost}</p>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  Extra Cost (₹) <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Extra Cost"
-                  className={driverFieldErrors.extraCost ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.extraCost}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      extraCost: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, extraCost: undefined }));
-                  }}
-                />
-                {driverFieldErrors.extraCost ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.extraCost}</p>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  Early Morning Charges Per Hour (Before 6 AM) (₹){" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Early Morning Charges"
-                  className={driverFieldErrors.morningCharges ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.morningCharges}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      morningCharges: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, morningCharges: undefined }));
-                  }}
-                />
-                {driverFieldErrors.morningCharges ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.morningCharges}</p>
-                ) : null}
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  Evening Charges Per Hour (After 8 PM) (₹){" "}
-                  <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="Evening Charges"
-                  className={driverFieldErrors.eveningCharges ? "border-red-400 focus-visible:ring-red-300" : ""}
-                  value={driverFormFields.eveningCharges}
-                  onChange={(e) => {
-                    setDriverFormFields((prev) => ({
-                      ...prev,
-                      eveningCharges: e.target.value,
-                    }));
-                    setDriverFieldErrors((prev) => ({ ...prev, eveningCharges: undefined }));
-                  }}
-                />
-                {driverFieldErrors.eveningCharges ? (
-                  <p className="text-xs text-red-600">{driverFieldErrors.eveningCharges}</p>
-                ) : null}
-              </div>
+  <Label>Evening Charges Per Hour (After 8 PM) (₹)</Label>
+  <Input
+    placeholder="Evening Charges"
+    value={driverFormFields.eveningCharges}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        eveningCharges: e.target.value,
+      }));
+    }}
+  />
+</div>
             </div>
           </div>
 
