@@ -371,34 +371,24 @@ const isPercent = (value?: string) => {
   return Object.keys(errors).length === 0;
 };
 
-  const validateBranches = (): boolean => {
-    const allErrors: BranchErrors = {};
+ const validateBranches = (): boolean => {
+  const allErrors: BranchErrors = {};
 
-    for (let i = 0; i < branches.length; i += 1) {
-      const b = branches[i];
-      const errors: Partial<Record<keyof BranchForm, string>> = {};
+  for (let i = 0; i < branches.length; i += 1) {
+    const b = branches[i];
+    const errors: Partial<Record<keyof BranchForm, string>> = {};
 
-      if (!isFilled(b.name)) errors.name = "This value is required.";
-      if (!isFilled(b.location)) errors.location = "This value is required.";
-      if (!isFilled(b.email)) errors.email = "This value is required.";
-      if (!isFilled(b.primaryMobile)) errors.primaryMobile = "This value is required.";
-      if (!isFilled(b.altMobile)) errors.altMobile = "This value is required.";
-      if (!isFilled(b.countryId)) errors.countryId = "This value is required.";
-      if (!isFilled(b.stateId)) errors.stateId = "This value is required.";
-      if (!isFilled(b.cityId)) errors.cityId = "This value is required.";
-      if (!isFilled(b.pincode)) errors.pincode = "This value is required.";
-      if (!isFilled(b.gstType)) errors.gstType = "This value is required.";
-      if (!isFilled(b.gstPercent)) errors.gstPercent = "This value is required.";
-      if (!isFilled(b.address)) errors.address = "This value is required.";
+    if (!isFilled(b.name)) errors.name = "This value is required.";
+    if (!isFilled(b.location)) errors.location = "This value is required.";
 
-      if (Object.keys(errors).length > 0) {
-        allErrors[i] = errors;
-      }
+    if (Object.keys(errors).length > 0) {
+      allErrors[i] = errors;
     }
+  }
 
-    setBranchFieldErrors(allErrors);
-    return Object.keys(allErrors).length === 0;
-  };
+  setBranchFieldErrors(allErrors);
+  return Object.keys(allErrors).length === 0;
+};
 
   const handleSaveBasicInfo = async (): Promise<number | undefined> => {
     if (!validateBasicInfo()) return undefined;
