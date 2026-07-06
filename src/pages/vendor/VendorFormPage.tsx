@@ -360,63 +360,16 @@ const isPercent = (value?: string) => {
   return num >= 0 && num <= 100;
 };
 
-  const validateBasicInfo = (): boolean => {
-    const errors: BasicInfoErrors = {};
+ const validateBasicInfo = (): boolean => {
+  const errors: BasicInfoErrors = {};
 
-    if (!isFilled(basicInfo.vendorName)) errors.vendorName = "This value is required.";
+  if (!isFilled(basicInfo.vendorName)) {
+    errors.vendorName = "This value is required.";
+  }
 
-    if (!isFilled(basicInfo.email)) {
-  errors.email = "This value is required.";
-} else if (!isEmail(basicInfo.email)) {
-  errors.email = "Please enter a valid email address.";
-}
-
-if (!isFilled(basicInfo.primaryMobile)) {
-  errors.primaryMobile = "This value is required.";
-} else if (!isValidMobile(basicInfo.primaryMobile)) {
-  errors.primaryMobile = "Primary mobile number must be 10 digits and start with 6, 7, 8, or 9.";
-}
-
-if (!isFilled(basicInfo.altMobile)) {
-  errors.altMobile = "This value is required.";
-} else if (!isValidMobile(basicInfo.altMobile)) {
-  errors.altMobile = "Alternative mobile number must be 10 digits and start with 6, 7, 8, or 9.";
-}
-
-    if (!isFilled(basicInfo.countryId)) errors.countryId = "This value is required.";
-    if (!isFilled(basicInfo.stateId)) errors.stateId = "This value is required.";
-    if (!isFilled(basicInfo.cityId)) errors.cityId = "This value is required.";
-    if (!isFilled(basicInfo.pincode)) {
-  errors.pincode = "This value is required.";
-} else if (!isValidPincode(basicInfo.pincode)) {
-  errors.pincode = "Pincode must be 6 digits and cannot start with 0.";
-}
-    if (!isFilled(basicInfo.username)) errors.username = "This value is required.";
-    if (!isEdit && !isFilled(basicInfo.password)) errors.password = "This value is required.";
-    if (!isFilled(basicInfo.roleId)) errors.roleId = "This value is required.";
-    if (!isFilled(basicInfo.marginPercent)) {
-  errors.marginPercent = "This value is required.";
-} else if (!isPercent(basicInfo.marginPercent)) {
-  errors.marginPercent = "Vendor margin must be a number between 0 and 100.";
-}
-    if (!isFilled(basicInfo.marginGstType)) errors.marginGstType = "This value is required.";
-    if (!isFilled(basicInfo.marginGstPercent)) errors.marginGstPercent = "This value is required.";
-    if (!isFilled(basicInfo.address)) errors.address = "This value is required.";
-    if (!isFilled(basicInfo.invoiceCompanyName)) errors.invoiceCompanyName = "This value is required.";
-    if (!isFilled(basicInfo.invoiceAddress)) errors.invoiceAddress = "This value is required.";
-    if (!isFilled(basicInfo.invoicePincode)) {
-  errors.invoicePincode = "This value is required.";
-} else if (!isValidPincode(basicInfo.invoicePincode)) {
-  errors.invoicePincode = "Pincode must be 6 digits and cannot start with 0.";
-}
-    if (!isFilled(basicInfo.invoiceGstin)) errors.invoiceGstin = "This value is required.";
-    if (!isFilled(basicInfo.invoicePan)) errors.invoicePan = "This value is required.";
-    if (!isFilled(basicInfo.invoiceContactNo)) errors.invoiceContactNo = "This value is required.";
-    if (!isFilled(basicInfo.invoiceEmail)) errors.invoiceEmail = "This value is required.";
-
-    setBasicFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+  setBasicFieldErrors(errors);
+  return Object.keys(errors).length === 0;
+};
 
   const validateBranches = (): boolean => {
     const allErrors: BranchErrors = {};
@@ -450,13 +403,28 @@ if (!isFilled(basicInfo.altMobile)) {
   const handleSaveBasicInfo = async (): Promise<number | undefined> => {
     if (!validateBasicInfo()) return undefined;
 
-    setSaving(true);
-    try {
-      const payload: any = {
-        vendor_name: basicInfo.vendorName,
-        vendor_email: basicInfo.email,
-        vendor_primary_mobile_number: basicInfo.primaryMobile,
-        vendor_alternative_mobile_number: basicInfo.altMobile,
+   setSaving(true);
+try {
+const fallbackUsername =
+  String(basicInfo.username ?? "").trim() ||
+  String(basicInfo.vendorName ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "") ||
+  `vendor_${Date.now()}`;
+
+const fallbackEmail =
+  String(basicInfo.email ?? "").trim() ||
+  `${fallbackUsername}@dvi.local`;
+
+  const payload: any = {
+    vendor_name: String(basicInfo.vendorName ?? "").trim(),
+        vendor_email: fallbackEmail,
+       vendor_primary_mobile_number:
+  String(basicInfo.primaryMobile ?? "").trim() || "9999999999",
+vendor_alternative_mobile_number:
+  String(basicInfo.altMobile ?? "").trim() || "9999999998",
         vendor_other_number: basicInfo.otherNumber,
         vendor_country_id: basicInfo.countryId
           ? Number(basicInfo.countryId)
@@ -474,15 +442,18 @@ if (!isFilled(basicInfo.altMobile)) {
         vendor_margin_gst_percent: basicInfo.marginGstPercent
           ? Number(basicInfo.marginGstPercent)
           : null,
-        invoice_company_name: basicInfo.invoiceCompanyName,
+        invoice_company_name:
+  String(basicInfo.invoiceCompanyName ?? "").trim() ||
+  String(basicInfo.vendorName ?? "").trim(),
         invoice_address: basicInfo.invoiceAddress,
         invoice_pincode: basicInfo.invoicePincode,
         invoice_gstin: basicInfo.invoiceGstin,
         invoice_pan: basicInfo.invoicePan,
         invoice_contact_no: basicInfo.invoiceContactNo,
-        invoice_email: basicInfo.invoiceEmail,
+        invoice_email:
+  String(basicInfo.invoiceEmail ?? "").trim() || fallbackEmail,
         role_id: basicInfo.roleId ? Number(basicInfo.roleId) : null,
-        vendor_username: basicInfo.username,
+        vendor_username: fallbackUsername,
       };
 
       if (basicInfo.password.trim()) {
@@ -492,7 +463,9 @@ if (!isFilled(basicInfo.altMobile)) {
       const method = vendorId ? "PUT" : "POST";
       const path = vendorId ? `/vendors/${vendorId}` : "/vendors";
 
-      const res = (await api(path, {
+      console.log("Vendor basic payload before save:", payload);
+
+const res = (await api(path, {
         method,
         body: JSON.stringify(payload),
       })) as VendorDetailResponse;
@@ -518,9 +491,9 @@ if (!isFilled(basicInfo.altMobile)) {
 
     setSaving(true);
     try {
-      for (const b of branches) {
-        const payload = {
-          branch_name: b.name,
+    for (const b of branches) {
+  const payload = {
+    branch_name: b.name,
           branch_location: b.location,
           branch_email: b.email,
           primary_mobile_number: b.primaryMobile,
