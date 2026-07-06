@@ -151,9 +151,20 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
       <CardContent className="space-y-6">
         {branches.map((b, idx) => {
           const dd = dropdowns[idx] || { states: [], cities: [] };
-          const e = {
-  ...(fieldErrors[idx] || {}),
-  ...(liveErrors[idx] || {}),
+ const optionalLiveError = (
+  field: keyof BranchForm,
+  value: unknown
+): string => {
+  return String(value ?? "").trim() ? liveErrors[idx]?.[field] || "" : "";
+};
+
+const e: Partial<Record<keyof BranchForm, string>> = {
+  name: fieldErrors[idx]?.name || liveErrors[idx]?.name || "",
+  location: fieldErrors[idx]?.location || liveErrors[idx]?.location || "",
+  email: optionalLiveError("email", b.email),
+  primaryMobile: optionalLiveError("primaryMobile", b.primaryMobile),
+  altMobile: optionalLiveError("altMobile", b.altMobile),
+  pincode: optionalLiveError("pincode", b.pincode),
 };
           return (
             <div
@@ -202,8 +213,8 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.location ? <p className="text-xs text-red-600">{e.location}</p> : null}
                 </div>
                 <div>
-                  <Label>Email ID *</Label>
-                 <Input
+     <Label>Email ID</Label>
+<Input
   className={e.email ? inputErrorClass : ""}
   value={b.email}
   onChange={(event) => {
@@ -215,9 +226,8 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
       ...p,
       [idx]: {
         ...(p[idx] || {}),
-        email: !value.trim()
-          ? "This value is required."
-          : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+        email:
+          value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
             ? "Please enter a valid email address."
             : "",
       },
@@ -230,7 +240,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.email ? <p className="text-xs text-red-600">{e.email}</p> : null}
                 </div>
                 <div>
-                  <Label>Primary Mobile Number *</Label>
+                  <Label>Primary Mobile Number</Label>
                  <Input
   className={e.primaryMobile ? inputErrorClass : ""}
   value={b.primaryMobile}
@@ -243,9 +253,10 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
       ...p,
       [idx]: {
         ...(p[idx] || {}),
-        primaryMobile: /^[6-9]\d{9}$/.test(value)
-          ? ""
-          : "Primary mobile number must be 10 digits and start with 6, 7, 8, or 9.",
+        primaryMobile:
+  value && !/^[6-9]\d{9}$/.test(value)
+    ? "Primary mobile number must be 10 digits and start with 6, 7, 8, or 9."
+    : "",
       },
     }));
 
@@ -259,7 +270,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
 
               <div className="grid gap-4 md:grid-cols-4">
                 <div>
-                  <Label>Alternative Mobile Number *</Label>
+                  <Label>Alternative Mobile Number</Label>
                   <Input
   className={e.altMobile ? inputErrorClass : ""}
   value={b.altMobile}
@@ -272,9 +283,10 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
       ...p,
       [idx]: {
         ...(p[idx] || {}),
-        altMobile: /^[6-9]\d{9}$/.test(value)
-          ? ""
-          : "Alternative mobile number must be 10 digits and start with 6, 7, 8, or 9.",
+      altMobile:
+  value && !/^[6-9]\d{9}$/.test(value)
+    ? "Alternative mobile number must be 10 digits and start with 6, 7, 8, or 9."
+    : "",
       },
     }));
 
@@ -285,7 +297,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.altMobile ? <p className="text-xs text-red-600">{e.altMobile}</p> : null}
                 </div>
                 <div>
-                  <Label>Country *</Label>
+                  <Label>Country</Label>
                   <Select
                     value={b.countryId}
                     onValueChange={(val) => {
@@ -312,7 +324,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.countryId ? <p className="text-xs text-red-600">{e.countryId}</p> : null}
                 </div>
                 <div>
-                  <Label>State *</Label>
+                  <Label>State</Label>
                   <Select
                     value={b.stateId}
                     onValueChange={(val) => {
@@ -335,7 +347,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.stateId ? <p className="text-xs text-red-600">{e.stateId}</p> : null}
                 </div>
                 <div>
-                  <Label>City *</Label>
+                  <Label>City</Label>
                   <Select
                     value={b.cityId}
                     onValueChange={(val) => {
@@ -360,7 +372,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
 
               <div className="grid gap-4 md:grid-cols-4">
                 <div>
-                  <Label>Pincode *</Label>
+                  <Label>Pincode</Label>
                   <Input
   className={e.pincode ? inputErrorClass : ""}
   value={b.pincode}
@@ -373,9 +385,10 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
       ...p,
       [idx]: {
         ...(p[idx] || {}),
-        pincode: /^[1-9]\d{5}$/.test(value)
-          ? ""
-          : "Pincode must be 6 digits and cannot start with 0.",
+        pincode:
+  value && !/^[1-9]\d{5}$/.test(value)
+    ? "Pincode must be 6 digits and cannot start with 0."
+    : "",
       },
     }));
 
@@ -386,7 +399,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.pincode ? <p className="text-xs text-red-600">{e.pincode}</p> : null}
                 </div>
                 <div>
-                  <Label>GST Type *</Label>
+                  <Label>GST Type</Label>
                   <Select
                     value={b.gstType}
                     onValueChange={(val) => {
@@ -408,7 +421,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.gstType ? <p className="text-xs text-red-600">{e.gstType}</p> : null}
                 </div>
                 <div>
-                  <Label>GST% *</Label>
+                  <Label>GST%</Label>
                   <Select
                     value={b.gstPercent}
                     onValueChange={(val) => {
@@ -430,7 +443,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
                   {e.gstPercent ? <p className="text-xs text-red-600">{e.gstPercent}</p> : null}
                 </div>
                 <div>
-                  <Label>Address *</Label>
+                  <Label>Address</Label>
                   <Input
                     className={e.address ? inputErrorClass : ""}
                     value={b.address}
