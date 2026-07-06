@@ -4834,6 +4834,48 @@ useEffect(() => {
     return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
   }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty, shouldShowVehicles]);
 
+  const entryTicketBreakdownByLocation = useMemo(() => {
+    const grouped = new Map<string, { dayNumber: number; locationName: string; amount: number }>();
+
+    for (const day of itinerary?.days || []) {
+      const dayNumber = Number(day?.dayNumber || 0);
+      for (const segment of day?.segments || []) {
+        if (segment.type !== "attraction") continue;
+
+        const amount = Number(segment.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+
+        const locationName = String(segment.name || "Sightseeing Location").trim() || "Sightseeing Location";
+        const key = `${dayNumber}|${locationName.toLowerCase()}`;
+        const existing = grouped.get(key);
+
+        if (existing) {
+          existing.amount += amount;
+        } else {
+          grouped.set(key, { dayNumber, locationName, amount });
+        }
+      }
+    }
+
+    return Array.from(grouped.values())
+      .map((row) => ({
+        ...row,
+        amount: Number(row.amount.toFixed(2)),
+      }))
+      .sort((a, b) => {
+        if (a.dayNumber !== b.dayNumber) return a.dayNumber - b.dayNumber;
+        return a.locationName.localeCompare(b.locationName);
+      });
+  }, [itinerary?.days]);
+
+  const entryTicketLocationWiseTotal = useMemo(() => {
+    return Number(
+      entryTicketBreakdownByLocation
+        .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+        .toFixed(2),
+    );
+  }, [entryTicketBreakdownByLocation]);
+
   const hotelsForDisplay = useMemo(() => {
     const rows = Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : [];
 
@@ -5144,13 +5186,19 @@ useEffect(() => {
 
     const vehicleAmount = shouldShowVehicles ? toSafeMoney(computedVehicleAmount || 0) : 0;
 
+    const hotspotAmountFromCostBreakdown = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);
+    const effectiveEntryTicketAmount =
+      entryTicketBreakdownByLocation.length > 0
+        ? entryTicketLocationWiseTotal
+        : hotspotAmountFromCostBreakdown;
+
     const otherAmount = toSafeMoney(
       Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
       Number(itinerary?.costBreakdown?.extraBedCost || 0) +
       Number(itinerary?.costBreakdown?.childWithBedCost || 0) +
       Number(itinerary?.costBreakdown?.childWithoutBedCost || 0) +
       Number(itinerary?.costBreakdown?.totalGuideCost || 0) +
-      Number(itinerary?.costBreakdown?.totalHotspotCost || 0) +
+      Number(effectiveEntryTicketAmount || 0) +
       Number(itinerary?.costBreakdown?.totalActivityCost || 0) +
       Number(itinerary?.costBreakdown?.additionalMargin || 0)
     );
@@ -5175,7 +5223,17 @@ useEffect(() => {
   selectedVehicleTotalsByType,
   activeHotelListTotal,
   selectedHotelTotal,
+  entryTicketBreakdownByLocation.length,
+  entryTicketLocationWiseTotal,
 ]);
+
+  const effectiveEntryTicketAmount = useMemo(() => {
+    const fallback = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);
+    if (entryTicketBreakdownByLocation.length > 0) {
+      return Number(entryTicketLocationWiseTotal || 0);
+    }
+    return Number.isFinite(fallback) ? fallback : 0;
+  }, [entryTicketBreakdownByLocation.length, entryTicketLocationWiseTotal, itinerary?.costBreakdown?.totalHotspotCost]);
 
   const hotelHydratedDays = useMemo(() => {
     if (!itinerary?.days?.length) return [];
@@ -5893,6 +5951,40 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     }, 0);
   };
 
+  const getEntryTicketBreakdownFromItineraryDays = () => {
+    const grouped = new Map<string, { dayNumber: number; locationName: string; amount: number }>();
+
+    for (const day of itinerary.days || []) {
+      const dayNumber = Number(day?.dayNumber || 0);
+      for (const segment of day.segments || []) {
+        if (segment.type !== "attraction") continue;
+
+        const amount = Number(segment.amount || 0);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+
+        const locationName = String(segment.name || "Sightseeing Location").trim() || "Sightseeing Location";
+        const key = `${dayNumber}|${locationName.toLowerCase()}`;
+        const existing = grouped.get(key);
+
+        if (existing) {
+          existing.amount += amount;
+        } else {
+          grouped.set(key, { dayNumber, locationName, amount });
+        }
+      }
+    }
+
+    return Array.from(grouped.values())
+      .map((row) => ({
+        ...row,
+        amount: Number(row.amount.toFixed(2)),
+      }))
+      .sort((a, b) => {
+        if (a.dayNumber !== b.dayNumber) return a.dayNumber - b.dayNumber;
+        return a.locationName.localeCompare(b.locationName);
+      });
+  };
+
   const getHotelBaseAmountForGroup = (group: ClipboardGroup) => {
     return group.hotels.reduce((sum, hotel) => {
       const rowTotal =
@@ -5911,7 +6003,12 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     const childWithBedAmount = Number(itinerary.costBreakdown.childWithBedCost || 0);
     const childWithoutBedAmount = Number(itinerary.costBreakdown.childWithoutBedCost || 0);
     const guideAmount = Number(itinerary.costBreakdown.totalGuideCost || 0);
-    const hotspotAmount = Number(itinerary.costBreakdown.totalHotspotCost || 0);
+    const entryTicketBreakdown = getEntryTicketBreakdownFromItineraryDays();
+    const hotspotAmountFromCostBreakdown = Number(itinerary.costBreakdown.totalHotspotCost || 0);
+    const hotspotAmount =
+      entryTicketBreakdown.length > 0
+        ? entryTicketBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+        : hotspotAmountFromCostBreakdown;
 
     const activityAmountFromCostBreakdown = Number(
       itinerary.costBreakdown.totalActivityCost || 0,
@@ -5957,6 +6054,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
       childWithoutBedAmount,
       guideAmount,
       hotspotAmount,
+      entryTicketBreakdown,
       activityAmount,
       couponDiscount,
       agentMargin,
@@ -6080,6 +6178,30 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
                 <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.vehicleAmount))}</td>
               </tr>
             `
+            : ""
+        }
+
+        ${
+          totals.hotspotAmount > 0
+            ? `
+              <tr>
+                <td style="${cellStyle}font-weight:700;">Total Entry Ticket Cost</td>
+                <td style="${cellStyle}">${escapeHtml(moneyWithSymbol(totals.hotspotAmount))}</td>
+              </tr>
+            `
+            : ""
+        }
+
+        ${
+          Array.isArray(totals.entryTicketBreakdown) && totals.entryTicketBreakdown.length > 0
+            ? totals.entryTicketBreakdown
+                .map((item: any) => `
+                  <tr>
+                    <td style="${cellStyle}padding-left:18px;color:#5d5d5d;">Day ${escapeHtml(item.dayNumber || 0)} - ${escapeHtml(item.locationName || "Sightseeing Location")}</td>
+                    <td style="${cellStyle}color:#5d5d5d;">${escapeHtml(moneyWithSymbol(item.amount || 0))}</td>
+                  </tr>
+                `)
+                .join("")
             : ""
         }
 
@@ -14492,10 +14614,26 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                   <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}</span>
                 </div>
               )}
-              {itinerary.costBreakdown.totalHotspotCost !== undefined && itinerary.costBreakdown.totalHotspotCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Hotspot Cost</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalHotspotCost.toFixed(2)}</span>
+              {effectiveEntryTicketAmount > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-[#6c6c6c]">Total Entry Ticket Cost</span>
+                    <span className="text-[#4a4260]">₹ {effectiveEntryTicketAmount.toFixed(2)}</span>
+                  </div>
+
+                  {entryTicketBreakdownByLocation.length > 0 && (
+                    <div className="ml-3 space-y-1">
+                      {entryTicketBreakdownByLocation.map((row) => (
+                        <div
+                          key={`${row.dayNumber}-${row.locationName}`}
+                          className="flex justify-between text-xs"
+                        >
+                          <span className="text-[#7a7a7a]">Day {row.dayNumber} - {row.locationName}</span>
+                          <span className="text-[#5e5e5e]">₹ {Number(row.amount || 0).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {itinerary.costBreakdown.totalActivityCost !== undefined && itinerary.costBreakdown.totalActivityCost > 0 && (
