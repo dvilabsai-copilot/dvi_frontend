@@ -128,26 +128,59 @@ type LatestItineraryParams = {
 };
 
 export const ItineraryService = {
-  async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
+    async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
     const token = getToken();
     const res = await fetch(`${API_BASE_URL}/${path.replace(/^\/+/, '')}`, {
       method: "GET",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
+    const contentType = res.headers.get("content-type") || "";
+
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(
-        `Download failed: ${res.status} ${res.statusText} ${text}`.trim(),
-      );
+      let message = `Download failed: ${res.status} ${res.statusText}`.trim();
+
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.message) {
+          message = Array.isArray(parsed.message)
+            ? parsed.message.join(", ")
+            : String(parsed.message);
+        }
+      } catch {
+        if (text) message = `${message} ${text}`.trim();
+      }
+
+      throw new Error(message);
+    }
+
+    if (contentType.includes("application/json")) {
+      const text = await res.text().catch(() => "");
+      let message = "Download failed";
+
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed?.message) {
+          message = Array.isArray(parsed.message)
+            ? parsed.message.join(", ")
+            : String(parsed.message);
+        }
+      } catch {
+        if (text) message = text;
+      }
+
+      throw new Error(message);
     }
 
     const blob = await res.blob();
     const disposition = res.headers.get("content-disposition") || "";
     const nameMatch =
       disposition.match(/filename\*=(?:UTF-8'')?([^;]+)/i) ||
-      disposition.match(/filename=\"?([^"]+)\"?/i);
-    const fileName = decodeURIComponent((nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""));
+      disposition.match(/filename="?([^"]+)"?/i);
+    const fileName = decodeURIComponent(
+      (nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""),
+    );
     const url = window.URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
