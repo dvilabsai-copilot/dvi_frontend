@@ -196,11 +196,12 @@ const getTimelineRowOperatingHours = (row: any): string => {
 };
 
 const getTimelineRows = (attempt: ManualFitHerePreviewResponse | null): any[] => {
-  const hasExactAnchorMismatch =
-    (String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
-      attempt?.changesRequiredDisplay?.exactAnchorFailure === true) &&
+  const hasHardExactAnchorMismatch =
+    String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" &&
+    (!Array.isArray(attempt?.finalizedTimeline) || attempt.finalizedTimeline.length === 0) &&
+    (!Array.isArray(attempt?.proposedTimeline) || attempt.proposedTimeline.length === 0) &&
     attempt?.canConfirm !== true;
-  if (hasExactAnchorMismatch) {
+  if (hasHardExactAnchorMismatch) {
     return [];
   }
 
@@ -884,8 +885,9 @@ const deriveAutoPreviewAttemptState = (
     };
   });
   const hasExactAnchorMismatch =
-    (String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
-      attempt?.changesRequiredDisplay?.exactAnchorFailure === true) &&
+    String(attempt?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" &&
+    (!Array.isArray(attempt?.finalizedTimeline) || attempt.finalizedTimeline.length === 0) &&
+    (!Array.isArray(attempt?.proposedTimeline) || attempt.proposedTimeline.length === 0) &&
     attempt?.canConfirm !== true;
   const timelineRemovedItems = buildTimelineRemovedItems(
     hasExactAnchorMismatch ? [] : baseTimeline,
