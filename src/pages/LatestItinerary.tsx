@@ -35,7 +35,6 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 
 import { ItineraryService } from "@/services/itinerary";
-import { API_BASE_URL } from "@/lib/api";
 
 // ------------------------------------------------------------------
 // small local util (no date-fns)
@@ -85,7 +84,7 @@ export const LatestItinerary = () => {
     endDate: "",
   });
 
-  // sort (UI only for now; backend always sorts by latest plan ID desc)
+    // sort (UI only for now; backend always sorts by latest plan ID desc)
   const [sortConfig, setSortConfig] = useState<{
     field:
       | "sno"
@@ -102,6 +101,7 @@ export const LatestItinerary = () => {
     dir: "asc",
   });
 
+  const [downloadInProgressId, setDownloadInProgressId] = useState<number | null>(null);
   // Fetch filter options on mount
   useEffect(() => {
     const fetchFilterData = async () => {
@@ -302,7 +302,7 @@ export const LatestItinerary = () => {
     total === 0 ? 0 : (currentPage - 1) * Number(entriesPerPage) + 1;
   const endItem = Math.min(currentPage * Number(entriesPerPage), total);
 
-  const handleClearFilters = () => {
+    const handleClearFilters = () => {
     setFilters({
       origin: "",
       destination: "",
@@ -314,6 +314,28 @@ export const LatestItinerary = () => {
     setStartDateObj(undefined);
     setEndDateObj(undefined);
     setCurrentPage(1);
+  };
+
+  const handleDownloadExcel = async (itinerary: any) => {
+    const planId = Number(itinerary?.id || 0);
+
+    if (!planId) {
+      alert("Unable to download Excel. Invalid itinerary ID.");
+      return;
+    }
+
+    try {
+      setDownloadInProgressId(planId);
+      await ItineraryService.downloadAuthenticatedFile(
+        `itineraries/export/${planId}`,
+        `ITINERARY-${itinerary?.quoteId || planId}.xlsx`,
+      );
+    } catch (error: any) {
+      console.error("Failed to download itinerary Excel", error);
+      alert(error?.message || "Unable to download Excel. Please try again.");
+    } finally {
+      setDownloadInProgressId(null);
+    }
   };
 
   return (
@@ -676,15 +698,12 @@ export const LatestItinerary = () => {
                         </Link>
                         <button
                           title="Download Excel"
-                          onClick={() => {
-                            const exportUrl = `${API_BASE_URL}/itineraries/export/${itinerary.id}`;
-                            window.open(exportUrl, "_blank");
-                          }}
-                          className="h-6 w-6 rounded flex items-center justify-center text-[#555] hover:text-[#d546ab] hover:bg-[#f3e8ff] transition-colors"
+                          onClick={() => handleDownloadExcel(itinerary)}
+                          disabled={downloadInProgressId === itinerary.id}
+                          className="h-6 w-6 rounded flex items-center justify-center text-[#555] hover:text-[#d546ab] hover:bg-[#f3e8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Download className="h-3.5 w-3.5" />
                         </button>
-
                       </div>
                     </TableCell>
                     <TableCell className="text-sm break-words whitespace-normal">
