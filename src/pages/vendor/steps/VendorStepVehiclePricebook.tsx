@@ -497,77 +497,60 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       }));
 
 
-     const vendorTypeMap = new Map<string, Option>();
+      const vendorTypeMap = new Map<string, Option>(
+        (dcRes as any[])
+          .map((r: any) => ({
+            id: String(r.vendor_vehicle_type_ID ?? r.vehicle_type_id ?? ""),
+            label: String(r.vehicle_type_title ?? r.vehicle_type_name ?? r.vehicle_title ?? "").trim(),
+          }))
+          .filter((option) => option.id && option.label)
+          .map((option) => [option.id, option] as const),
+      );
+      const activeBaseTypeIds = new Set(
+        (dcRes as any[])
+          .map((r: any) => String(r.vehicle_type_id ?? "").trim())
+          .filter((id: string) => id.length > 0),
+      );
 
-(dcRes as any[]).forEach((r: any) => {
-  const title = String(
-    r.vehicle_type_title ??
-      r.vehicle_type_name ??
-      r.vehicle_title ??
-      ""
-  ).trim();
-
-  const baseVehicleTypeId = String(r.vehicle_type_id ?? "");
-  const vendorVehicleTypeId = String(r.vendor_vehicle_type_ID ?? "");
-
-  if (baseVehicleTypeId && !vendorTypeMap.has(baseVehicleTypeId)) {
-    vendorTypeMap.set(baseVehicleTypeId, {
-      id: baseVehicleTypeId,
-      label: title || baseVehicleTypeId,
-    });
-  }
-
-  if (vendorVehicleTypeId && !vendorTypeMap.has(vendorVehicleTypeId)) {
-    vendorTypeMap.set(vendorVehicleTypeId, {
-      id: vendorVehicleTypeId,
-      label: title || vendorVehicleTypeId,
-    });
-  }
-});
-
-const vendorTypeOptions = Array.from(vendorTypeMap.values()).filter(
-  (option, index, arr) =>
-    arr.findIndex((item) => item.label === option.label) === index,
-);
-
-if (vendorTypeOptions.length > 0) {
-  setVehicleTypeOptions(vendorTypeOptions);
-}
+      setVehicleTypeOptions(Array.from(vendorTypeMap.values()));
 
       setDriverCosts(dcRes as any[]);
       setEditableDriverRows(normalizedDriverRows);
-     setVehicleExtraRows(
-  (extraRes as any[]).map((r: any) => {
-    const vehicleTypeId = String(
-      r.vehicle_type_id ?? r.vendor_vehicle_type_id ?? ""
-    );
+      setVehicleExtraRows(
+        (extraRes as any[])
+          .map((r: any) => {
+            const vehicleTypeId = String(r.vehicle_type_id ?? r.vendor_vehicle_type_id ?? "").trim();
+            if (vehicleTypeId && !activeBaseTypeIds.has(vehicleTypeId)) {
+              return null;
+            }
 
-    const responseTitle = String(
-      r.vehicle_type_title ??
-        r.vehicle_type_name ??
-        r.vehicle_title ??
-        ""
-    ).trim();
+            const responseTitle = String(
+              r.vehicle_type_title ??
+                r.vehicle_type_name ??
+                r.vehicle_title ??
+                "",
+            ).trim();
 
-    const mappedTitle = vendorTypeMap.get(vehicleTypeId)?.label;
+            const mappedTitle = vendorTypeMap.get(vehicleTypeId)?.label;
 
-    const vehicleTypeTitle =
-      responseTitle && !/^\d+$/.test(responseTitle)
-        ? responseTitle
-        : mappedTitle || vehicleTypeId;
+            const vehicleTypeTitle =
+              responseTitle && !/^\d+$/.test(responseTitle)
+                ? responseTitle
+                : mappedTitle || vehicleTypeId;
 
-    return {
-      vendor_branch_id: r.vendor_branch_id,
-      vendor_branch_name: r.vendor_branch_name,
-      vehicle_type_id: r.vehicle_type_id,
-      vehicle_type_title: vehicleTypeTitle,
-      extra_km_charge: String(r.extra_km_charge ?? 0),
-      extra_hour_charge: String(r.extra_hour_charge ?? 0),
-      early_morning_charges: String(r.early_morning_charges ?? 0),
-      evening_charges: String(r.evening_charges ?? 0),
-    };
-  }),
-);
+            return {
+              vendor_branch_id: r.vendor_branch_id,
+              vendor_branch_name: r.vendor_branch_name,
+              vehicle_type_id: r.vehicle_type_id,
+              vehicle_type_title: vehicleTypeTitle,
+              extra_km_charge: String(r.extra_km_charge ?? 0),
+              extra_hour_charge: String(r.extra_hour_charge ?? 0),
+              early_morning_charges: String(r.early_morning_charges ?? 0),
+              evening_charges: String(r.evening_charges ?? 0),
+            };
+          })
+          .filter(Boolean),
+      );
       setLocalFormRows(localRowsRes as any[]);
       setOutstationFormRows(outRowsRes as any[]);
 
@@ -859,57 +842,86 @@ if (vendorTypeOptions.length > 0) {
     }
   };
 
+  const matchesVehicleFilter = (row: any, filter: string, filterLabel: string) => {
+    if (filter === "all") return true;
+
+    const rowTypeId = String(row.vehicle_type_id ?? row.vendor_vehicle_type_id ?? "");
+    const rowTitle = String(
+      row.vehicle_type_title ?? row.vehicle_type_name ?? row.vehicle_title ?? "",
+    )
+      .trim()
+      .toLowerCase();
+    const normalizedFilterLabel = String(filterLabel ?? "").trim().toLowerCase();
+
+    return (
+      rowTypeId === filter ||
+      (normalizedFilterLabel.length > 0 && rowTitle === normalizedFilterLabel)
+    );
+  };
+
   const groupedLocalRows = useMemo(() => {
     const filtered = localVehicleFilter === "all"
       ? localFormRows
-      : localFormRows.filter((r: any) => String(r.vehicle_type_id) === localVehicleFilter);
+      : localFormRows.filter((r: any) => matchesVehicleFilter(r, localVehicleFilter, vehicleTypeOptions.find((o) => o.id === localVehicleFilter)?.label ?? ""));
     return filtered.reduce((acc: Record<string, any[]>, row: any) => {
       const k = `${row.vendor_branch_id}:${row.vendor_branch_name || ""}`;
       if (!acc[k]) acc[k] = [];
       acc[k].push(row);
       return acc;
     }, {});
-  }, [localFormRows, localVehicleFilter]);
+  }, [localFormRows, localVehicleFilter, vehicleTypeOptions]);
 
   const groupedOutstationRows = useMemo(() => {
     const filtered = outstationVehicleFilter === "all"
       ? outstationFormRows
-      : outstationFormRows.filter((r: any) => String(r.vehicle_type_id) === outstationVehicleFilter);
+      : outstationFormRows.filter((r: any) => matchesVehicleFilter(r, outstationVehicleFilter, vehicleTypeOptions.find((o) => o.id === outstationVehicleFilter)?.label ?? ""));
     return filtered.reduce((acc: Record<string, any[]>, row: any) => {
       const k = `${row.vendor_branch_id}:${row.vendor_branch_name || ""}`;
       if (!acc[k]) acc[k] = [];
       acc[k].push(row);
       return acc;
     }, {});
-  }, [outstationFormRows, outstationVehicleFilter]);
+  }, [outstationFormRows, outstationVehicleFilter, vehicleTypeOptions]);
 
   const localVehicleTypeOptions = useMemo(() => {
     const seen = new Map<string, string>();
+    vehicleTypeOptions.forEach((opt) => {
+      if (opt.id && !seen.has(opt.id)) seen.set(opt.id, opt.label);
+    });
+
     localFormRows.forEach((r: any) => {
       const id = String(r.vehicle_type_id ?? "");
       if (id && !seen.has(id)) seen.set(id, String(r.vehicle_type_title ?? id));
     });
+
     return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
-  }, [localFormRows]);
+  }, [localFormRows, vehicleTypeOptions]);
 
   const filteredLocalPreviewRows = useMemo(() => {
     if (localVehicleFilter === "all") return localPreview.rows;
-    return localPreview.rows.filter((row) => String(row.vehicle_type_id ?? "") === localVehicleFilter);
-  }, [localPreview.rows, localVehicleFilter]);
+    const filterLabel = vehicleTypeOptions.find((o) => o.id === localVehicleFilter)?.label ?? "";
+    return localPreview.rows.filter((row) => matchesVehicleFilter(row, localVehicleFilter, filterLabel));
+  }, [localPreview.rows, localVehicleFilter, vehicleTypeOptions]);
 
   const outstationVehicleTypeOptions = useMemo(() => {
     const seen = new Map<string, string>();
+    vehicleTypeOptions.forEach((opt) => {
+      if (opt.id && !seen.has(opt.id)) seen.set(opt.id, opt.label);
+    });
+
     outstationFormRows.forEach((r: any) => {
       const id = String(r.vehicle_type_id ?? "");
       if (id && !seen.has(id)) seen.set(id, String(r.vehicle_type_title ?? id));
     });
+
     return Array.from(seen.entries()).map(([id, label]) => ({ id, label }));
-  }, [outstationFormRows]);
+  }, [outstationFormRows, vehicleTypeOptions]);
 
   const filteredOutstationPreviewRows = useMemo(() => {
     if (outstationVehicleFilter === "all") return outstationPreview.rows;
-    return outstationPreview.rows.filter((row) => String(row.vehicle_type_id ?? "") === outstationVehicleFilter);
-  }, [outstationPreview.rows, outstationVehicleFilter]);
+    const filterLabel = vehicleTypeOptions.find((o) => o.id === outstationVehicleFilter)?.label ?? "";
+    return outstationPreview.rows.filter((row) => matchesVehicleFilter(row, outstationVehicleFilter, filterLabel));
+  }, [outstationPreview.rows, outstationVehicleFilter, vehicleTypeOptions]);
 
   const rowKey = (r: any, type: "local" | "out") =>
     type === "local"

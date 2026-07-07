@@ -880,11 +880,12 @@ const buildDisplayedPreviewTimeline = (
   const routeTimeline = Array.isArray(baseTimeline)
     ? baseTimeline.map(mapBaseSegmentToPreviewRow).filter(Boolean)
     : [];
-  const isExactAnchorFailure =
-    String((attempt as any)?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" ||
-    (attempt as any)?.changesRequiredDisplay?.exactAnchorFailure === true;
+  const isHardExactAnchorFailure =
+    String((attempt as any)?.authoritativeTimelineSource || "").toUpperCase() === "EXACT_ANCHOR_NO_VALID_RESULT" &&
+    finalizedTimeline.length === 0 &&
+    proposedTimeline.length === 0;
 
-  if (isExactAnchorFailure) {
+  if (isHardExactAnchorFailure) {
     return [];
   }
 
