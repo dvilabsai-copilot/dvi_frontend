@@ -1494,13 +1494,29 @@ const buildPayload = () => {
       ? selectedHotelFacilityIds
       : [];
 
-  const food_type_id = resolveOptionId(foodPreference, foodPreferences);
-  const normalizedMealPlanCode = mealPlanCode === "__ALL__" ? "" : mealPlanCode;
-  const selectedMealPlan = mealPlanOptions.find((p) => p.code === normalizedMealPlanCode);
-  const meal_plan_breakfast = Number(selectedMealPlan?.includesBreakfast ?? 0) ? 1 : 0;
-  const meal_plan_lunch = Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
-  const meal_plan_dinner = Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
-  const meal_plan_code = normalizedMealPlanCode || selectedMealPlan?.code || undefined;
+ const food_type_id = resolveOptionId(foodPreference, foodPreferences);
+
+const shouldUseMealPlan = itineraryPreference !== "vehicle";
+
+const normalizedMealPlanCode =
+  shouldUseMealPlan && mealPlanCode !== "__ALL__" ? mealPlanCode : "";
+
+const selectedMealPlan = shouldUseMealPlan
+  ? mealPlanOptions.find((p) => p.code === normalizedMealPlanCode)
+  : undefined;
+
+const meal_plan_breakfast =
+  shouldUseMealPlan && Number(selectedMealPlan?.includesBreakfast ?? 0) ? 1 : 0;
+
+const meal_plan_lunch =
+  shouldUseMealPlan && Number(selectedMealPlan?.includesLunch ?? 0) ? 1 : 0;
+
+const meal_plan_dinner =
+  shouldUseMealPlan && Number(selectedMealPlan?.includesDinner ?? 0) ? 1 : 0;
+
+const meal_plan_code = shouldUseMealPlan
+  ? normalizedMealPlanCode || selectedMealPlan?.code || undefined
+  : undefined;
 
   const trip_start_date = tripStartDate
     ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)

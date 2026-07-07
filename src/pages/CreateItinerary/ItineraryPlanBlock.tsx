@@ -945,8 +945,12 @@ const handleHotelFacilityChange = (vals: string[]) => {
   removeRoom={removeRoom}
 />
 
-        {/* ROW 6 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+{/* ROW 6 */}
+<div
+  className={`grid grid-cols-1 gap-3 ${
+    itineraryPreference === "vehicle" ? "md:grid-cols-2" : "md:grid-cols-4"
+  }`}
+>
           <div
             className={validationErrors?.guideRequired ? "border border-red-500 rounded-md p-2" : ""}
             data-field="guideRequired"
@@ -991,58 +995,62 @@ const handleHotelFacilityChange = (vals: string[]) => {
             )}
           </div>
 
-          <div
-            className={
-              validationErrors?.foodPreference ? "border border-red-500 rounded-md p-2" : ""
-            }
-            data-field="foodPreference"
-          >
-            <Label className="text-sm block mb-1">Food Preferences *</Label>
-            <Select value={foodPreference} onValueChange={setFoodPreference}>
-              <SelectTrigger className="h-9 border-[#e5d7f6]">
-                <SelectValue placeholder="Vegetarian" />
-              </SelectTrigger>
-              <SelectContent
-                position="popper"
-                side="bottom"
-                align="start"
-                className="max-h-56 overflow-y-auto"
-              >
-                {foodPreferences.map((item) => (
-                  <SelectItem key={item.id} value={String(item.id)}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {validationErrors?.foodPreference && (
-              <p className="mt-1 text-xs text-red-500">{validationErrors.foodPreference}</p>
-            )}
-          </div>
+         {itineraryPreference !== "vehicle" && (
+  <div
+    className={
+      validationErrors?.foodPreference ? "border border-red-500 rounded-md p-2" : ""
+    }
+    data-field="foodPreference"
+  >
+    <Label className="text-sm block mb-1">Food Preferences *</Label>
+    <Select value={foodPreference} onValueChange={setFoodPreference}>
+      <SelectTrigger className="h-9 border-[#e5d7f6]">
+        <SelectValue placeholder="Vegetarian" />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        side="bottom"
+        align="start"
+        className="max-h-56 overflow-y-auto"
+      >
+        {foodPreferences.map((item) => (
+          <SelectItem key={item.id} value={String(item.id)}>
+            {item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+    {validationErrors?.foodPreference && (
+      <p className="mt-1 text-xs text-red-500">{validationErrors.foodPreference}</p>
+    )}
+  </div>
+)}
 
-          <div>
-            <Label className="text-sm block mb-1">Meal Plan</Label>
-            <Select value={mealPlanCode} onValueChange={setMealPlanCode}>
-              <SelectTrigger className="h-9 border-[#e5d7f6]">
-                <SelectValue placeholder="Select Meal Plan" />
-              </SelectTrigger>
-              <SelectContent
-                position="popper"
-                side="bottom"
-                align="start"
-                className="max-h-56 overflow-y-auto"
-              >
-                <SelectItem value="__ALL__">All Meal Plans</SelectItem>
-                {mealPlanOptions.map((item) => (
-                  <SelectItem key={item.code} value={item.code}>
-                    {item.description
-                      ? `${item.label} (${item.description})`
-                      : item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+  {itineraryPreference !== "vehicle" && (
+  <div>
+    <Label className="text-sm block mb-1">Meal Plan</Label>
+    <Select value={mealPlanCode} onValueChange={setMealPlanCode}>
+      <SelectTrigger className="h-9 border-[#e5d7f6]">
+        <SelectValue placeholder="Select Meal Plan" />
+      </SelectTrigger>
+      <SelectContent
+        position="popper"
+        side="bottom"
+        align="start"
+        className="max-h-56 overflow-y-auto"
+      >
+        <SelectItem value="__ALL__">All Meal Plans</SelectItem>
+        {mealPlanOptions.map((item) => (
+          <SelectItem key={item.code} value={item.code}>
+            {item.description
+              ? `${item.label} (${item.description})`
+              : item.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+)}
         </div>
 
         {/* ROW 7 */}
