@@ -521,25 +521,27 @@ const handleHotelFacilityChange = (vals: string[]) => {
             </RadioGroup>
           </div>
 
-          <div
-            className={`flex-1 ${
-              validationErrors?.agentId ? "border border-red-500 rounded-md p-2" : ""
-            }`}
-            data-field="agentId"
-          >
-            <Label className="text-sm block mb-1">Agent *</Label>
-            <AutoSuggestSelect
-              mode="single"
-              value={agentId ? String(agentId) : ""}
-              onChange={(val) => setAgentId(val ? Number(val as string) : null)}
-              options={agentOptions}
-              placeholder="Select Agent"
-              disabled={isAgentLocked}
-            />
-            {validationErrors?.agentId && (
-              <p className="mt-1 text-xs text-red-500">{validationErrors.agentId}</p>
-            )}
-          </div>
+                    {!isAgentLocked && (
+            <div
+              className={`flex-1 ${
+                validationErrors?.agentId ? "border border-red-500 rounded-md p-2" : ""
+              }`}
+              data-field="agentId"
+            >
+              <Label className="text-sm block mb-1">Agent *</Label>
+              <AutoSuggestSelect
+                mode="single"
+                value={agentId ? String(agentId) : ""}
+                onChange={(val) => setAgentId(val ? Number(val as string) : null)}
+                options={agentOptions}
+                placeholder="Select Agent"
+              />
+              {validationErrors?.agentId && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.agentId}</p>
+              )}
+            </div>
+          )}
+        
         </div>
 
         {/* ROW 2: Arrival | Departure */}
