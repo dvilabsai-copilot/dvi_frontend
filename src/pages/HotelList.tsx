@@ -3161,7 +3161,7 @@ const getExpandedRouteId = (): number => {
                                         {(() => {
                                           const providerKey = String(hotel.provider || '').trim().toLowerCase();
                                           const providerBadgeText =
-                                            providerKey === 'tbo' ? 'T'
+                                            providerKey === 'tbo' ? 'VSR'
                                               : providerKey === 'resavenue' ? 'RS'
                                               : providerKey === 'axisrooms' ? 'AX'
                                               : providerKey === 'hobse' ? 'HB'

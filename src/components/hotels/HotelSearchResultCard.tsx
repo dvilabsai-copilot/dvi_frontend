@@ -70,7 +70,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         {/* Provider Badge */}
         {hotel.provider && (
           <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-            {hotel.provider === 'tbo' ? 'TBO' : hotel.provider}
+            {hotel.provider === 'tbo' ? 'VSR' : hotel.provider}
           </div>
         )}
 
