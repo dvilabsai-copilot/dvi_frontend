@@ -506,9 +506,9 @@ export const CreateItinerary = () => {
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
-  // ✅ Start/End time used to build trip_start_date and trip_end_date payload
-  const [startTime, setStartTime] = useState<string>("08:00");
-  const [endTime, setEndTime] = useState<string>("20:00");
+// ✅ Start/End time used to build trip_start_date and trip_end_date payload
+const [startTime, setStartTime] = useState<string>("12:00");
+const [endTime, setEndTime] = useState<string>("12:00");
 
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
@@ -791,8 +791,8 @@ useEffect(() => {
             );
 
             // ✅ also prefill times
-            setStartTime(safeTimeFromISO(p.trip_start_date_and_time, "13:00"));
-            setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
+setStartTime(safeTimeFromISO(p.trip_start_date_and_time, "12:00"));
+setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
 
             // ✅ budget in DB is expecting_budget
             setBudget(p.expecting_budget ?? "");
