@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useNavigate } from "react-router-dom";
 import { ItineraryService } from "@/services/itinerary";
 import { Loader2, Building2, Car, CalendarDays, MapPin, Phone, Mail, BedDouble } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
   onClose,
   itineraryPlanId,
 }) => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<VoucherWorkspaceData | null>(null);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherSelection | null>(null);
@@ -269,23 +271,11 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
   };
 
   const handleDownloadHotelVoucher = async () => {
-    try {
-      await ItineraryService.downloadHotelVoucherPdf(itineraryPlanId);
-      toast.success("Hotel voucher download started");
-    } catch (error) {
-      console.error("Failed to download hotel voucher PDF", error);
-      toast.error("Failed to download hotel voucher");
-    }
+    window.open(`/pdf-preview/hotel-voucher/${itineraryPlanId}`, "_blank", "noopener,noreferrer");
   };
 
   const handleDownloadVehicleVoucher = async () => {
-    try {
-      await ItineraryService.downloadVehicleVoucherPdf(itineraryPlanId);
-      toast.success("Transport voucher download started");
-    } catch (error) {
-      console.error("Failed to download vehicle voucher PDF", error);
-      toast.error("Failed to download transport voucher");
-    }
+    window.open(`/pdf-preview/travel-voucher/${itineraryPlanId}`, "_blank", "noopener,noreferrer");
   };
 
   return (

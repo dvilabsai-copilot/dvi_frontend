@@ -127,9 +127,19 @@ type LatestItineraryParams = {
   staffId?: number | null;
 };
 
+export type PdfDocumentOptions = {
+  auth?: boolean;
+};
+
+export type PdfDocumentResult = {
+  fileName: string;
+  objectUrl: string;
+};
+
 export const ItineraryService = {
-    async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
-    const token = getToken();
+    async fetchPdfDocument(path: string, fallbackFileName: string, options: PdfDocumentOptions = {}): Promise<PdfDocumentResult> {
+    const auth = options.auth !== false;
+    const token = auth ? getToken() : "";
     const res = await fetch(`${API_BASE_URL}/${path.replace(/^\/+/, '')}`, {
       method: "GET",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -138,6 +148,11 @@ export const ItineraryService = {
     const contentType = res.headers.get("content-type") || "";
 
     if (!res.ok) {
+      if (res.status === 401 && auth) {
+        localStorage.removeItem("accessToken");
+        window.location.href = "/login";
+        throw new Error("Session expired. Please login again.");
+      }
       const text = await res.text().catch(() => "");
       let message = `Download failed: ${res.status} ${res.statusText}`.trim();
 
@@ -181,14 +196,22 @@ export const ItineraryService = {
     const fileName = decodeURIComponent(
       (nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""),
     );
-    const url = window.URL.createObjectURL(blob);
+    return {
+      fileName,
+      objectUrl: window.URL.createObjectURL(blob),
+    };
+  },
+
+    async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
+    const { fileName, objectUrl } = await this.fetchPdfDocument(path, fallbackFileName);
     const anchor = document.createElement("a");
-    anchor.href = url;
+    anchor.href = objectUrl;
     anchor.download = fileName;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.URL.revokeObjectURL(url);
+    setTimeout(() => window.URL.revokeObjectURL(objectUrl), 30000);
+    return fileName;
   },
 
   async create(data: any, type?: ItinerarySaveType) {

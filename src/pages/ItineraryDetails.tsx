@@ -6956,13 +6956,7 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
       toast.error("Itinerary plan is not available yet");
       return;
     }
-    try {
-      await ItineraryService.downloadPluckCardPdf(currentItineraryPlanId);
-      toast.success("Pluck card download started");
-    } catch (error) {
-      console.error("Failed to download pluck card PDF", error);
-      toast.error("Failed to download pluck card");
-    }
+    window.open(`/pdf-preview/pluck-card/${currentItineraryPlanId}`, "_blank", "noopener,noreferrer");
   };
 
   const handleDownloadInvoice = async (type: 'tax' | 'proforma') => {
@@ -6970,13 +6964,7 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
       toast.error("Itinerary plan is not available yet");
       return;
     }
-    try {
-      await ItineraryService.downloadInvoicePdf(currentItineraryPlanId, type);
-      toast.success(`${type === 'tax' ? 'Tax' : 'Proforma'} invoice download started`);
-    } catch (error) {
-      console.error("Failed to download invoice PDF", error);
-      toast.error(`Failed to download ${type} invoice`);
-    }
+    window.open(`/pdf-preview/invoice/${currentItineraryPlanId}?type=${encodeURIComponent(type)}`, "_blank", "noopener,noreferrer");
   };
 
   // ✅ Reference to hotel save function
@@ -19271,6 +19259,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
           )}
         </>
       )}
+
     </div>
   );
 };
