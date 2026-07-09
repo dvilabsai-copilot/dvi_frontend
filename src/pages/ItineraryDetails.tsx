@@ -36,6 +36,7 @@ import { VoucherDetailsModal } from "./VoucherDetailsModal";
 import { PluckCardModal } from "./PluckCardModal";
 import { InvoiceModal } from "./InvoiceModal";
 import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
+import { IncidentalExpensesHistorySection } from "./IncidentalExpensesHistorySection";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
@@ -1221,9 +1222,10 @@ const normalizeDateToYmd = (input?: string | null): string => {
 
 interface ItineraryDetailsProps {
   readOnly?: boolean; // If true, component is read-only (confirmed itinerary view)
+  presentationMode?: 'standard' | 'confirmed';
 }
 
-export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false }) => {
+export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
 const { id: quoteId } = useParams();
 const location = useLocation();
 const navigate = useNavigate();
@@ -1238,6 +1240,7 @@ const navigate = useNavigate();
     Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 ||
     itinerary?.isConfirmed === true;
   const hotelReadOnly = readOnly || isConfirmedItinerary;
+  const isConfirmedPresentation = presentationMode === 'confirmed' || readOnly || isConfirmedItinerary;
   const shouldShowHotels = (() => {
     const pref = Number(itinerary?.itineraryPreference ?? 0);
     return pref === 1 || pref === 3;
@@ -6936,6 +6939,7 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
   const [invoiceModal, setInvoiceModal] = useState(false);
   const [invoiceType, setInvoiceType] = useState<'tax' | 'proforma'>('tax');
   const [incidentalModal, setIncidentalModal] = useState(false);
+  const [incidentalHistoryRefreshToken, setIncidentalHistoryRefreshToken] = useState(0);
   const [isConfirmingQuotation, setIsConfirmingQuotation] = useState(false);
   const [walletBalance, setWalletBalance] = useState<string>('');
   const [walletBalanceAmount, setWalletBalanceAmount] = useState<number | null>(null);
@@ -13218,6 +13222,23 @@ const hotelTimelineLoading = Boolean(
 
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
+      {isConfirmedPresentation && (
+        <div className="mx-4 rounded-2xl border border-[#d9b6f3] bg-[#fcf7ff] px-4 py-3 text-[#4a4260] shadow-sm sm:mx-6 lg:mx-8">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8f6aa8]">Confirmed Quote</p>
+              <p className="mt-1 text-sm text-[#6c6c6c]">
+                Read-only confirmed itinerary view with quick document actions.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm font-medium text-[#6f42c1]">
+              <span className="rounded-full border border-[#e3d3f6] bg-white px-3 py-1">Top actions enabled</span>
+              <span className="rounded-full border border-[#e3d3f6] bg-white px-3 py-1">Main content locked</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(isApplyingRouteTimeUpdate || isRebuilding) && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
           <div className="w-[340px] rounded-2xl bg-white p-6 text-center shadow-2xl">
@@ -14470,6 +14491,15 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         </div>
       )}
 
+      {isConfirmedPresentation && itinerary?.planId && (
+        <div className="mt-6">
+          <IncidentalExpensesHistorySection
+            itineraryPlanId={itinerary.planId}
+            refreshToken={incidentalHistoryRefreshToken}
+          />
+        </div>
+      )}
+
       {/* Package Includes & Overall Cost */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Package Includes */}
@@ -14683,6 +14713,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       </div>
 
       {/* Action Buttons */}
+      {!isConfirmedPresentation && (
       <div className="flex flex-wrap gap-3 justify-center">
        {/* Clipboard Dropdown */}
 
@@ -14742,6 +14773,60 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
   </div>
 </div>
 
+        {isConfirmedPresentation ? (
+          <>
+            <Button
+              variant="outline"
+              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+              onClick={() => void handleDownloadPluckCard()}
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              Download Pluck Card
+            </Button>
+            <Button
+              variant="outline"
+              className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
+              onClick={() => setVoucherModal(true)}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Voucher Details
+            </Button>
+            <Button
+              variant="outline"
+              className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+              onClick={() => setIncidentalModal(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Incidental Expenses
+            </Button>
+            <Link to={modifyItineraryHref}>
+              <Button
+                variant="outline"
+                className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Extend Trip
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
+              onClick={() => void handleDownloadInvoice('tax')}
+            >
+              <Receipt className="mr-2 h-4 w-4" />
+              Invoice Tax
+            </Button>
+            <Button
+              variant="outline"
+              className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+              onClick={() => void handleDownloadInvoice('proforma')}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Invoice Proforma
+            </Button>
+          </>
+        ) : (
+          <>
              <Link to="/create-itinerary">
   <Button className="bg-[#28a745] hover:bg-[#218838]">
     Continue Planning
@@ -14811,7 +14896,11 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
             </button>
           </div>
         </div>
+
+          </>
+        )}
       </div>
+      )}
 
       <div className="buy-now">
         <button
@@ -19228,6 +19317,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
             isOpen={incidentalModal}
             onClose={() => setIncidentalModal(false)}
             itineraryPlanId={itinerary.planId}
+            onSuccess={() => setIncidentalHistoryRefreshToken((current) => current + 1)}
           />
           <CancelItineraryModal
             open={cancelModalOpen}

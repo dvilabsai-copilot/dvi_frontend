@@ -17,13 +17,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ItineraryService } from "@/services/itinerary";
-import { AlertCircle, IndianRupee, Loader2, Plus, Trash2, Wallet } from "lucide-react";
+import { AlertCircle, IndianRupee, Loader2, Plus, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 interface IncidentalExpensesModalProps {
   isOpen: boolean;
   onClose: () => void;
   itineraryPlanId: number;
+  onSuccess?: () => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -32,28 +33,17 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
-const formatDate = (value?: string | null) => {
-  if (!value) return '--';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '--';
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+const formatMoney = (value: number) => `₹ ${formatCurrency(value)}`;
 
 export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = ({
   isOpen,
   onClose,
   itineraryPlanId,
+  onSuccess,
 }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [availableData, setAvailableData] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
   const [availableMargin, setAvailableMargin] = useState<any>(null);
 
   const [formData, setFormData] = useState({
@@ -67,17 +57,14 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
     if (isOpen && itineraryPlanId) {
       void fetchInitialData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, itineraryPlanId]);
 
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [components, historyData] = await Promise.all([
-        ItineraryService.getIncidentalAvailableComponents(itineraryPlanId),
-        ItineraryService.getIncidentalHistory(itineraryPlanId),
-      ]);
+      const components = await ItineraryService.getIncidentalAvailableComponents(itineraryPlanId);
       setAvailableData(components);
-      setHistory(Array.isArray(historyData) ? historyData : []);
     } catch (error) {
       console.error("Error fetching incidental data:", error);
       toast.error("Failed to load incidental expenses data");
@@ -119,22 +106,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
     setAvailableMargin(null);
   };
 
-  const loadMargin = async (componentType: string, componentId?: string) => {
-    try {
-      const res = await ItineraryService.getIncidentalAvailableMargin(
-        itineraryPlanId,
-        Number(componentType),
-        componentId ? Number(componentId) : undefined,
-      );
-      setAvailableMargin(res);
-    } catch (error: any) {
-      console.error("Error fetching margin:", error);
-      setAvailableMargin(null);
-      toast.error(error?.message || "Failed to fetch available balance");
-    }
-  };
-
-  const handleTypeChange = async (value: string) => {
+  const handleTypeChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
       componentType: value,
@@ -142,23 +114,51 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
       amount: '',
     }));
     setAvailableMargin(null);
-
-    if (['1', '2', '3'].includes(value)) {
-      await loadMargin(value);
-    }
   };
 
-  const handleComponentChange = async (value: string) => {
+  const handleComponentChange = (value: string) => {
     setFormData((prev) => ({
       ...prev,
       componentId: value,
       amount: '',
     }));
-
-    if (['4', '5'].includes(formData.componentType)) {
-      await loadMargin(formData.componentType, value);
-    }
   };
+
+  useEffect(() => {
+    if (!isOpen || !itineraryPlanId || !formData.componentType) {
+      return;
+    }
+
+    const fetchSelectedMargin = async () => {
+      try {
+        setAvailableMargin(null);
+
+        if (['1', '2', '3'].includes(formData.componentType)) {
+          const res = await ItineraryService.getIncidentalAvailableMargin(
+            itineraryPlanId,
+            Number(formData.componentType),
+          );
+          setAvailableMargin(res);
+          return;
+        }
+
+        if (['4', '5'].includes(formData.componentType) && formData.componentId) {
+          const res = await ItineraryService.getIncidentalAvailableMargin(
+            itineraryPlanId,
+            Number(formData.componentType),
+            Number(formData.componentId),
+          );
+          setAvailableMargin(res);
+        }
+      } catch (error: any) {
+        console.error("Error fetching margin:", error);
+        setAvailableMargin(null);
+        toast.error(error?.message || "Failed to fetch available balance");
+      }
+    };
+
+    void fetchSelectedMargin();
+  }, [formData.componentType, formData.componentId, itineraryPlanId, isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +192,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
 
       toast.success("Incidental expense added successfully");
       resetForm();
-      await fetchInitialData();
+      onSuccess?.();
     } catch (error: any) {
       console.error("Error adding incidental expense:", error);
       toast.error(error?.message || "Failed to add incidental expense");
@@ -201,24 +201,9 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this incidental expense entry?")) {
-      return;
-    }
-
-    try {
-      await ItineraryService.deleteIncidentalHistory(id);
-      toast.success("Record deleted successfully");
-      await fetchInitialData();
-    } catch (error: any) {
-      console.error("Error deleting record:", error);
-      toast.error(error?.message || "Failed to delete record");
-    }
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Incidental Expenses</DialogTitle>
         </DialogHeader>
@@ -244,13 +229,9 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
                   </p>
                 </div>
 
-                <div className="grid min-w-[260px] grid-cols-2 gap-3">
+                <div className="grid min-w-[260px] grid-cols-1 gap-3">
                   <div className="rounded-2xl border border-[#f0dfc7] bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a1712d]">Entries</p>
-                    <p className="mt-2 text-2xl font-semibold text-[#513f2d]">{history.length}</p>
-                  </div>
-                  <div className="rounded-2xl border border-[#f0dfc7] bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a1712d]">Types</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#a1712d]">Available Types</p>
                     <p className="mt-2 text-2xl font-semibold text-[#513f2d]">
                       {availableData?.availableTypes?.length || 0}
                     </p>
@@ -264,7 +245,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Component Type</Label>
-                    <Select value={formData.componentType} onValueChange={(value) => void handleTypeChange(value)}>
+                    <Select value={formData.componentType} onValueChange={handleTypeChange}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose component type" />
                       </SelectTrigger>
@@ -282,7 +263,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
                     <Label>Select Item</Label>
                     <Select
                       value={formData.componentId}
-                      onValueChange={(value) => void handleComponentChange(value)}
+                      onValueChange={handleComponentChange}
                       disabled={!formData.componentType}
                     >
                       <SelectTrigger>
@@ -402,82 +383,11 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
                 </div>
               </div>
             </form>
-
-            <div className="overflow-hidden rounded-[28px] border border-[#eadff3] bg-white">
-              <div className="border-b border-[#eadff3] px-5 py-4">
-                <h3 className="text-lg font-semibold text-[#433953]">Incidental Expenses History</h3>
-                <p className="mt-1 text-sm text-[#6f677c]">
-                  Every added expense is logged here against its source component, with current balance context from the backend.
-                </p>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-sm">
-                  <thead className="bg-[#faf6ff] text-[#4d4560]">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold">Date</th>
-                      <th className="px-4 py-3 text-left font-semibold">Type</th>
-                      <th className="px-4 py-3 text-left font-semibold">Item</th>
-                      <th className="px-4 py-3 text-right font-semibold">Amount</th>
-                      <th className="px-4 py-3 text-right font-semibold">Used</th>
-                      <th className="px-4 py-3 text-right font-semibold">Balance</th>
-                      <th className="px-4 py-3 text-left font-semibold">Reason</th>
-                      <th className="px-4 py-3 text-center font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-[#7d748b]">
-                          No incidental expenses recorded yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      history.map((item) => (
-                        <tr
-                          key={item.confirmed_itinerary_incidental_expenses_history_ID}
-                          className="border-t border-[#f1e8fb] align-top"
-                        >
-                          <td className="px-4 py-4 text-[#4d4560]">{formatDate(item.createdon)}</td>
-                          <td className="px-4 py-4">
-                            <span className="rounded-full bg-[#f6efff] px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#7a55ab]">
-                              {item.component_type_label || 'Unknown'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-[#4d4560]">{item.item_name || '--'}</td>
-                          <td className="px-4 py-4 text-right font-semibold text-[#3f3654]">
-                            Rs. {formatCurrency(Number(item.amount || 0))}
-                          </td>
-                          <td className="px-4 py-4 text-right text-[#5a5268]">
-                            Rs. {formatCurrency(Number(item.total_payed || 0))}
-                          </td>
-                          <td className="px-4 py-4 text-right text-[#5a5268]">
-                            Rs. {formatCurrency(Number(item.total_balance || 0))}
-                          </td>
-                          <td className="px-4 py-4 text-[#5a5268]">{item.reason || '--'}</td>
-                          <td className="px-4 py-4 text-center">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
-                              onClick={() =>
-                                void handleDelete(Number(item.confirmed_itinerary_incidental_expenses_history_ID))
-                              }
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
         )}
       </DialogContent>
     </Dialog>
   );
 };
+
+export default IncidentalExpensesModal;

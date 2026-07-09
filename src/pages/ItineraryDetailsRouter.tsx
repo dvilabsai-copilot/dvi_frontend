@@ -131,7 +131,10 @@ export const ItineraryDetailsRouter: React.FC = () => {
         </div>
       }
     >
-      <ItineraryDetailsLazy readOnly={isConfirmed} />
+      <ItineraryDetailsLazy
+        readOnly={isConfirmed}
+        presentationMode={isConfirmed ? 'confirmed' : 'standard'}
+      />
     </Suspense>
   );
 };
