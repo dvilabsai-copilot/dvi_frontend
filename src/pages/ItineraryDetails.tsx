@@ -14355,8 +14355,8 @@ const canShowGuideActionButton =
               if (hotelReadOnly) return;
               setActiveHotelListTotal(Number(total || 0));
             }}
-            onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
-            hotelAvailability={hotelDetails.hotelAvailability}
+                       onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
+            hotelAvailability={undefined}
             quoteId={quoteId!}
             planId={itinerary.planId}
             onRefresh={refreshHotelData}
