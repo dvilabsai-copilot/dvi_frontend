@@ -66,6 +66,7 @@ import WalletHistory from "./pages/agent/WalletHistory";
 import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
+import PdfPreviewPage from "./pages/PdfPreviewPage";
 
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
@@ -131,6 +132,7 @@ const App = () => (
         <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
+          <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 
           {/* All routes below require auth */}
           <Route element={<RequireAuth />}>
@@ -207,6 +209,9 @@ const App = () => (
                 </MainLayout>
               }
             />
+            <Route path="/pdf-preview/travel-voucher/:id" element={<PdfPreviewPage />} />
+            <Route path="/pdf-preview/hotel-voucher/:id" element={<PdfPreviewPage />} />
+            <Route path="/pdf-preview/pluck-card/:id" element={<PdfPreviewPage />} />
 
             <Route
               path="/accounts-manager"
