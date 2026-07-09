@@ -183,6 +183,44 @@ function findIdByLabel(
   return opt ? String(opt.id) : undefined;
 }
 
+function getSafeTravellerCount(value: unknown, minimum = 0): number {
+  const numeric = Math.floor(Number(value));
+
+  if (!Number.isFinite(numeric)) {
+    return minimum;
+  }
+
+  return Math.max(minimum, numeric);
+}
+
+function buildVehicleOnlyTravellerRooms({
+  adults,
+  children,
+  infants,
+}: {
+  adults: number;
+  children: number;
+  infants: number;
+}): RoomRow[] {
+  return [
+    {
+      id: 1,
+      roomCount: 1,
+      adults: getSafeTravellerCount(adults, 1),
+      children: getSafeTravellerCount(children, 0),
+      infants: getSafeTravellerCount(infants, 0),
+      childrenDetails: Array.from(
+        { length: getSafeTravellerCount(children, 0) },
+        () => ({
+          age: "",
+          bedType: "Without Bed" as const,
+          hotelApprovalAccepted: false,
+        })
+      ),
+    },
+  ];
+}
+
 
   
 
@@ -257,6 +295,45 @@ const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
 const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+
+const vehicleOnlyTravellerTotals = useMemo(() => {
+  const totals = (rooms || []).reduce(
+    (acc, room) => {
+      acc.adults += getSafeTravellerCount(room.adults, 0);
+      acc.children += getSafeTravellerCount(room.children, 0);
+      acc.infants += getSafeTravellerCount(room.infants, 0);
+      return acc;
+    },
+    {
+      adults: 0,
+      children: 0,
+      infants: 0,
+    }
+  );
+
+  return {
+    adults: Math.max(totals.adults, 1),
+    children: totals.children,
+    infants: totals.infants,
+  };
+}, [rooms]);
+
+const handleVehicleOnlyTravellerChange = (
+  field: "adults" | "children" | "infants",
+  value: string
+) => {
+  const nextValue = getSafeTravellerCount(
+    value,
+    field === "adults" ? 1 : 0
+  );
+
+  const nextCounts = {
+    ...vehicleOnlyTravellerTotals,
+    [field]: nextValue,
+  };
+
+  setRooms(() => buildVehicleOnlyTravellerRooms(nextCounts));
+};
 
 const tripStartDateObj = parseDDMMYYYY(tripStartDate);
 const tripEndDateObj = parseDDMMYYYY(tripEndDate);
@@ -1068,6 +1145,55 @@ const handleHotelFacilityChange = (vals: string[]) => {
 />
           </div>
         </div>
+
+        {itineraryPreference === "vehicle" && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <Label className="text-sm block mb-1">
+                No. of Adults <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                className="h-9 border-[#e5d7f6]"
+                value={vehicleOnlyTravellerTotals.adults}
+                onChange={(e) =>
+                  handleVehicleOnlyTravellerChange("adults", e.target.value)
+                }
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm block mb-1">
+                No. of Children <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                className="h-9 border-[#e5d7f6]"
+                value={vehicleOnlyTravellerTotals.children}
+                onChange={(e) =>
+                  handleVehicleOnlyTravellerChange("children", e.target.value)
+                }
+              />
+            </div>
+
+            <div>
+              <Label className="text-sm block mb-1">
+                No. of Infants <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                className="h-9 border-[#e5d7f6]"
+                value={vehicleOnlyTravellerTotals.infants}
+                onChange={(e) =>
+                  handleVehicleOnlyTravellerChange("infants", e.target.value)
+                }
+              />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

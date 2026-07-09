@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { getToken } from "@/lib/api";
@@ -220,6 +220,170 @@ function buildVehicleRouteLocationPayload({
     sourceLocation: pairs.map((pair) => pair.source),
     nextVisitingLocation: pairs.map((pair) => pair.next),
   };
+}
+
+function getTravellerCountsFromRooms(rooms: TravellerRoomRow[]) {
+  return (rooms || []).reduce(
+    (acc, room) => {
+      const adults = Number(room?.adults || 0);
+      const children = Number(room?.children || 0);
+      const infants = Number(room?.infants || 0);
+
+      acc.totalAdults += Number.isFinite(adults) ? adults : 0;
+      acc.totalChildren += Number.isFinite(children) ? children : 0;
+      acc.totalInfants += Number.isFinite(infants) ? infants : 0;
+
+      return acc;
+    },
+    {
+      totalAdults: 0,
+      totalChildren: 0,
+      totalInfants: 0,
+    }
+  );
+}
+
+function getTotalTravellingPaxFromCounts(counts: {
+  totalAdults: number;
+  totalChildren: number;
+  totalInfants: number;
+}) {
+  return (
+    Number(counts.totalAdults || 0) +
+    Number(counts.totalChildren || 0) +
+    Number(counts.totalInfants || 0)
+  );
+}
+
+function getVehicleTypeIdsFromOptions(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+
+  return options
+    .map((item: any) => String(item?.id ?? "").trim())
+    .filter(Boolean);
+}
+
+function getPositiveNumber(value: unknown): number | null {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  return numeric;
+}
+
+function getVehicleOptionCapacity(option?: SimpleOption): number | null {
+  if (!option) return null;
+
+  const item = option as any;
+
+  const directCapacityKeys = [
+    "seating_capacity",
+    "seat_capacity",
+    "capacity",
+    "vehicle_capacity",
+    "pax_capacity",
+    "max_pax",
+    "max_pax_count",
+    "max_passengers",
+    "passenger_capacity",
+    "no_of_seats",
+    "total_seats",
+  ];
+
+  for (const key of directCapacityKeys) {
+    const value = getPositiveNumber(item?.[key]);
+
+    if (value !== null) {
+      return Math.floor(value);
+    }
+  }
+
+  const label = String(item?.label ?? item?.name ?? "").trim();
+  const labelLower = label.toLowerCase();
+
+  const labelledCapacityMatch = labelLower.match(
+    /(\d+)\s*(?:seater|seat|seats|pax|passenger|passengers)/i
+  );
+
+  if (labelledCapacityMatch?.[1]) {
+    return Number(labelledCapacityMatch[1]);
+  }
+
+  if (/bus|coach/.test(labelLower)) return 35;
+  if (/tempo|traveller|traveler/.test(labelLower)) return 10;
+  if (/innova|crysta/.test(labelLower)) return 6;
+  if (/ertiga|xl6/.test(labelLower)) return 6;
+  if (/\bmuv\b|\bsuv\b|xuv|scorpio|bolero/.test(labelLower)) return 6;
+  if (/sedan|dzire|swift|etios|aura|amaze|xcent/.test(labelLower)) return 4;
+  if (/hatchback|hatch/.test(labelLower)) return 4;
+
+  return null;
+}
+
+function getVehiclePaxValidationError({
+  vehicles,
+  vehicleTypes,
+  eligibleVehicleTypeIds,
+  totalTravellingPax,
+}: {
+  vehicles: VehicleRow[];
+  vehicleTypes: SimpleOption[];
+  eligibleVehicleTypeIds: string[];
+  totalTravellingPax: number;
+}) {
+  if (totalTravellingPax <= 0) return "";
+
+  const selectedVehicles = (vehicles || []).filter((vehicle) => !!vehicle.type);
+  if (selectedVehicles.length === 0) return "";
+
+  let allSelectedCapacitiesKnown = true;
+  let totalSelectedVehicleCapacity = 0;
+
+  for (const vehicle of selectedVehicles) {
+    const selectedVehicleType = (vehicleTypes || []).find(
+      (item) => String(item.id) === String(vehicle.type)
+    );
+
+    const capacityPerVehicle = getVehicleOptionCapacity(selectedVehicleType);
+
+    if (capacityPerVehicle === null) {
+      allSelectedCapacitiesKnown = false;
+      break;
+    }
+
+    const vehicleCount = Math.max(
+      1,
+      Math.floor(Number(vehicle.count || 1)) || 1
+    );
+
+    totalSelectedVehicleCapacity += capacityPerVehicle * vehicleCount;
+  }
+
+  if (allSelectedCapacitiesKnown) {
+    if (totalSelectedVehicleCapacity < totalTravellingPax) {
+      return `Selected vehicle capacity is ${totalSelectedVehicleCapacity} pax, but total travelling pax is ${totalTravellingPax}. Please increase vehicle count or select a bigger vehicle.`;
+    }
+
+    return "";
+  }
+
+  const apiEligibleVehicleTypeIds = new Set(
+    (eligibleVehicleTypeIds || []).map((id) => String(id))
+  );
+
+  const selectedVehicleNotEligible =
+    apiEligibleVehicleTypeIds.size > 0 &&
+    selectedVehicles.some(
+      (vehicle) => !apiEligibleVehicleTypeIds.has(String(vehicle.type))
+    );
+
+  if (selectedVehicleNotEligible) {
+    return `Selected vehicle is not sufficient for ${totalTravellingPax} travelling pax. Please select an eligible vehicle.`;
+  }
+
+  return "";
 }
 
 function resolveMealPlanCodeFromPlan(plan: any, mealPlans: MealPlanOption[]): string {
@@ -482,6 +646,7 @@ export const CreateItinerary = () => {
   const [mealPlanOptions, setMealPlanOptions] = useState<MealPlanOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [selectedVehicleIds, setSelectedVehicleIds] = useState<string[]>([]);
+  const [eligibleVehicleTypeIds, setEligibleVehicleTypeIds] = useState<string[]>([]);
   const [hotelCategoryOptions, setHotelCategoryOptions] = useState<SimpleOption[]>([]);
   const [hotelFacilityOptions, setHotelFacilityOptions] = useState<SimpleOption[]>([]);
 
@@ -520,10 +685,31 @@ const [endTime, setEndTime] = useState<string>("12:00");
   // rooms + travellers hook
   const { rooms, setRooms, addRoom, removeRoom, buildTravellers } = useRoomsAndTravellers();
 
+  const travellerCounts = useMemo(
+    () => getTravellerCountsFromRooms(rooms),
+    [rooms]
+  );
+
+  const totalTravellingPax = useMemo(
+    () => getTotalTravellingPaxFromCounts(travellerCounts),
+    [travellerCounts]
+  );
+
   // vehicles
   const [vehicles, setVehicles] = useState<VehicleRow[]>([
     { id: 1, type: "", count: 1 },
   ]);
+
+  const vehiclePaxValidationError = useMemo(
+    () =>
+      getVehiclePaxValidationError({
+        vehicles,
+        vehicleTypes,
+        eligibleVehicleTypeIds,
+        totalTravellingPax,
+      }),
+    [vehicles, vehicleTypes, eligibleVehicleTypeIds, totalTravellingPax]
+  );
 
   const [budget, setBudget] = useState<number | "">("");
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
@@ -688,7 +874,7 @@ useEffect(() => {
     // Vehicle type required only for vehicle/both
     const vehicleTypeOk =
       !(itineraryPreference === "vehicle" || itineraryPreference === "both") ||
-      vehicles.every((v) => !!v.type);
+      (vehicles.every((v) => !!v.type) && !vehiclePaxValidationError);
     clearIfOk("vehicleType", vehicleTypeOk);
 
     // If nothing changed, keep same reference to avoid rerender loops
@@ -712,6 +898,7 @@ useEffect(() => {
   selectedHotelCategoryIds,
   routeDetails,
   vehicles,
+  vehiclePaxValidationError,
 ]);
 
 useEffect(() => {
@@ -1064,12 +1251,21 @@ useEffect(() => {
     departureLocation,
   });
 
+  const vehicleTravellerPayload = {
+    adult_count: Number(travellerCounts.totalAdults || 0),
+    child_count: Number(travellerCounts.totalChildren || 0),
+    infant_count: Number(travellerCounts.totalInfants || 0),
+    total_pax: totalTravellingPax,
+    travelling_pax: totalTravellingPax,
+  };
+
   if (
     exactPayload.sourceLocation.length === 0 ||
     exactPayload.nextVisitingLocation.length === 0
   ) {
     setVehicleTypes([]);
     setSelectedVehicleIds([]);
+    setEligibleVehicleTypeIds([]);
     return;
   }
 
@@ -1079,10 +1275,15 @@ useEffect(() => {
         itineraryPlanId: itineraryPlanId ?? null,
         sourceLocation: exactPayload.sourceLocation,
         nextVisitingLocation: exactPayload.nextVisitingLocation,
-      });
+        ...vehicleTravellerPayload,
+      } as any);
 
       let hasVehicleTypes =
         Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
+
+      let apiEligibleVehicleTypeIds = hasVehicleTypes
+        ? getVehicleTypeIdsFromOptions(result?.vehicleTypes)
+        : [];
 
       const fallbackPayload = buildVehicleRouteLocationPayload({
         rows: routeDetails,
@@ -1105,10 +1306,15 @@ useEffect(() => {
           itineraryPlanId: itineraryPlanId ?? null,
           sourceLocation: fallbackPayload.sourceLocation,
           nextVisitingLocation: fallbackPayload.nextVisitingLocation,
-        });
+          ...vehicleTravellerPayload,
+        } as any);
 
         hasVehicleTypes =
           Array.isArray(result?.vehicleTypes) && result.vehicleTypes.length > 0;
+
+        apiEligibleVehicleTypeIds = hasVehicleTypes
+          ? getVehicleTypeIdsFromOptions(result?.vehicleTypes)
+          : [];
       }
 
       // ✅ Customize-only fallback:
@@ -1125,9 +1331,12 @@ useEffect(() => {
 
       if (!isMounted || vehicleTypeRequestRef.current !== requestId) return;
 
-      setVehicleTypes(
-        Array.isArray(result?.vehicleTypes) ? result.vehicleTypes : []
-      );
+      const nextVehicleTypes = Array.isArray(result?.vehicleTypes)
+        ? result.vehicleTypes
+        : [];
+
+      setVehicleTypes(nextVehicleTypes);
+      setEligibleVehicleTypeIds(apiEligibleVehicleTypeIds);
 
       setSelectedVehicleIds(
         Array.isArray(result?.selectedVehicleIds)
@@ -1140,6 +1349,7 @@ useEffect(() => {
       if (isMounted && vehicleTypeRequestRef.current === requestId) {
         setVehicleTypes([]);
         setSelectedVehicleIds([]);
+        setEligibleVehicleTypeIds([]);
       }
     }
   })();
@@ -1154,6 +1364,10 @@ useEffect(() => {
   departureLocation,
   itineraryTypeSelect,
   itineraryTypes,
+  travellerCounts.totalAdults,
+  travellerCounts.totalChildren,
+  travellerCounts.totalInfants,
+  totalTravellingPax,
 ]);
   // Handler for route suggestion selection
   const handleRouteSelection = (
@@ -1334,7 +1548,12 @@ const addDay = () => {
 if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destination";
     if (itineraryPreference === "vehicle" || itineraryPreference === "both") {
       const missingType = vehicles.some((v) => !v.type);
-      if (missingType) errors.vehicleType = "Please select Vehicle Type for all rows";
+
+      if (missingType) {
+        errors.vehicleType = "Please select Vehicle Type for all rows";
+      } else if (vehiclePaxValidationError) {
+        errors.vehicleType = vehiclePaxValidationError;
+      }
     }
 
     setValidationErrors(errors);
