@@ -32,6 +32,8 @@ export interface Agent {
   alternativeMobile?: string | null;
   gstin?: string | null;
   gstAttachment?: string | null;
+  totalCashWallet?: number;
+  totalCouponWallet?: number;
 }
 
 export interface AddAgentStaffInput {
@@ -84,6 +86,8 @@ type AgentFullItem = {
   subscription_plan_id?: number | null;
   travel_expert_id?: number | null;
   login_enabled?: boolean;
+  total_cash_wallet?: number | null;
+  total_coupon_wallet?: number | null;
 
   // Labels already computed by backend full endpoint
   country_label?: string | null;
@@ -144,6 +148,8 @@ const toAgentFromView = (v: AgentViewDTO): Agent => ({
   alternativeMobile: v.agent_alternative_mobile_number ?? "",
   gstin: v.agent_gst_number ?? "",
   gstAttachment: v.agent_gst_attachment ?? "",
+  totalCashWallet: Number(v.total_cash_wallet ?? 0),
+  totalCouponWallet: Number(v.total_coupon_wallet ?? 0),
 });
 
 /** Map an item from FULL list → table row */
@@ -339,13 +345,18 @@ function mapWalletRows(rows: any[] | undefined): WalletTransaction[] {
     transactionAmount: parseAmountToNumber(
       r.transactionAmount ?? r.transaction_amount ?? r.amount ?? r.value ?? 0,
     ),
-    transactionType:
-      r.transactionType ??
-      r.transaction_type ??
-      r.type ??
-      (parseAmountToNumber(r.transactionAmount ?? r.transaction_amount ?? r.amount ?? 0) >= 0
+    transactionType: (() => {
+      const rawType = String(r.transactionType ?? r.transaction_type ?? r.type ?? "")
+        .trim()
+        .toLowerCase();
+      const numericType = Number(r.transactionType ?? r.transaction_type ?? r.type ?? NaN);
+      if (rawType === "credit" || numericType === 1) return "Credit";
+      if (rawType === "debit" || numericType === 2) return "Debit";
+      if (numericType === 0) return "Credit";
+      return parseAmountToNumber(r.transactionAmount ?? r.transaction_amount ?? r.amount ?? 0) >= 0
         ? "Credit"
-        : "Debit"),
+        : "Debit";
+    })(),
     remark: r.remark ?? r.remarks ?? r.note ?? r.description ?? "",
   }));
 }

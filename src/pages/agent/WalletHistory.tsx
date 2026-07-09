@@ -37,7 +37,8 @@ function normalizeRows(rows: any[], type: "cash" | "coupon"): WalletRow[] {
   return (rows || []).map((tx: any, index: number): WalletRow => {
     const isCredit =
       String(tx?.transactionType ?? tx?.transaction_type ?? "").toLowerCase() === "credit" ||
-      Number(tx?.transactionType ?? tx?.transaction_type) === 1;
+      Number(tx?.transactionType ?? tx?.transaction_type) === 1 ||
+      Number(tx?.transactionType ?? tx?.transaction_type) === 0;
 
     return {
       id: String(tx?.id ?? tx?.cash_wallet_ID ?? tx?.coupon_wallet_ID ?? index + 1),
@@ -90,7 +91,9 @@ function TypeBadge({ value }: { value: "Credit" | "Debit" }) {
   return (
     <span
       className={`inline-flex min-w-[78px] items-center justify-center rounded-md px-3 py-1 text-sm font-medium ${
-        value === "Credit" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+        value === "Credit"
+          ? "bg-[#dcfce7] text-[#16a34a]"
+          : "bg-[#fee2e2] text-[#ef4444]"
       }`}
     >
       {value}
@@ -137,30 +140,30 @@ function WalletTable({
   }, [search, rows]);
 
   return (
-    <Card className="border border-[#eedcf6] shadow-sm">
+    <Card className="border border-[#eadff6] bg-white shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
       <div className="space-y-6 p-6">
-        <h2 className="text-[22px] font-semibold text-[#4a4a68]">{title}</h2>
+        <h2 className="text-[22px] font-semibold text-[#514a66]">{title}</h2>
 
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3 text-[18px] text-[#6d6d86]">
+          <div className="flex items-center gap-3 text-[18px] text-[#706882]">
             <span>Show</span>
-            <select className="h-10 rounded-md border border-input bg-background px-3 text-base" value={pageSize} disabled>
+            <select className="h-10 rounded-md border border-[#dccdf0] bg-white px-3 text-base text-[#514a66]" value={pageSize} disabled>
               <option value={10}>10</option>
             </select>
             <span>entries</span>
           </div>
 
-          <div className="flex items-center gap-3 text-[18px] text-[#6d6d86]">
+          <div className="flex items-center gap-3 text-[18px] text-[#706882]">
             <label htmlFor="wallet-search">Search:</label>
 
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a88bc7]" />
 
               <Input
                 id="wallet-search"
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full min-w-[220px] pl-9 md:w-[280px]"
+                className="w-full min-w-[220px] border-[#dccdf0] bg-white pl-9 text-[#514a66] shadow-sm md:w-[280px]"
               />
             </div>
           </div>
@@ -168,13 +171,13 @@ function WalletTable({
 
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-[#f6f2fa]">
+            <TableHeader className="bg-[#f8f3fc]">
               <TableRow>
-                <TableHead>Transaction Date</TableHead>
-                <TableHead>Transaction Amount</TableHead>
-                <TableHead>Transaction Type</TableHead>
-                {showTransactionId && <TableHead>Transaction ID</TableHead>}
-                <TableHead>Remark</TableHead>
+                <TableHead className="text-[#6b647f]">Transaction Date</TableHead>
+                <TableHead className="text-[#6b647f]">Transaction Amount</TableHead>
+                <TableHead className="text-[#6b647f]">Transaction Type</TableHead>
+                {showTransactionId && <TableHead className="text-[#6b647f]">Transaction ID</TableHead>}
+                <TableHead className="text-[#6b647f]">Remark</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -188,11 +191,11 @@ function WalletTable({
               ) : (
                 paginatedRows.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{formatDate(row.transactionDate)}</TableCell>
-                    <TableCell>{formatCurrency(row.transactionAmount)}</TableCell>
+                    <TableCell className="text-[#4f4b63]">{formatDate(row.transactionDate)}</TableCell>
+                    <TableCell className="text-[#4f4b63]">{formatCurrency(row.transactionAmount)}</TableCell>
                     <TableCell><TypeBadge value={row.transactionType} /></TableCell>
-                    {showTransactionId && <TableCell>{row.transactionId || "--"}</TableCell>}
-                    <TableCell>{row.remark}</TableCell>
+                    {showTransactionId && <TableCell className="text-[#4f4b63]">{row.transactionId || "--"}</TableCell>}
+                    <TableCell className="text-[#4f4b63]">{row.remark}</TableCell>
                   </TableRow>
                 ))
               )}
@@ -201,7 +204,7 @@ function WalletTable({
         </div>
 
         <div className="flex items-center justify-between pt-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-[#8e88a1]">
             Page {page} of {totalPages}
           </p>
 
@@ -209,6 +212,7 @@ function WalletTable({
             <Button
               variant="outline"
               size="sm"
+              className="border-[#eadff6] bg-[#f6effb] text-[#6f5a88] hover:bg-[#efe4f8] hover:text-[#5d3b8d]"
               onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
               disabled={page === 1}
             >
@@ -218,6 +222,7 @@ function WalletTable({
             <Button
               variant="outline"
               size="sm"
+              className="border-[#eadff6] bg-[#f6effb] text-[#6f5a88] hover:bg-[#efe4f8] hover:text-[#5d3b8d]"
               onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
               disabled={page === totalPages}
             >
@@ -323,20 +328,25 @@ const WalletHistory = () => {
   if (!walletData) return <div className="p-8 text-center text-red-500">Failed to load wallet data.</div>;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 bg-[#fbf8fe] p-6">
 
       <div className="flex justify-end">
-        <Button onClick={() => setTopUpOpen(true)}>+ Add Cash Wallet</Button>
+        <Button
+          onClick={() => setTopUpOpen(true)}
+          className="bg-gradient-to-r from-[#d64ab7] to-[#8b5cf6] text-white shadow-md hover:opacity-95"
+        >
+          + Add Cash Wallet
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Card className="p-6">
-          <p>Coupon Wallet</p>
-          <p className="text-xl font-bold">{formatCurrency(couponWalletTotal)}</p>
+        <Card className="border border-[#eddff6] bg-white p-6 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
+          <p className="text-[#8a6c9f]">Coupon Wallet</p>
+          <p className="text-2xl font-bold text-[#4f4766]">{formatCurrency(couponWalletTotal)}</p>
         </Card>
-        <Card className="p-6">
-          <p>Cash Wallet</p>
-          <p className="text-xl font-bold">{formatCurrency(cashWalletTotal)}</p>
+        <Card className="border border-[#dbeedc] bg-white p-6 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
+          <p className="text-[#6e8676]">Cash Wallet</p>
+          <p className="text-2xl font-bold text-[#4f4766]">{formatCurrency(cashWalletTotal)}</p>
         </Card>
       </div>
 
@@ -356,12 +366,12 @@ const WalletHistory = () => {
       />
 
       <Dialog open={topUpOpen} onOpenChange={setTopUpOpen}>
-        <DialogContent>
+        <DialogContent className="border-[#eadff6] bg-white">
           <DialogHeader>
-            <DialogTitle>Add Cash Wallet</DialogTitle>
+            <DialogTitle className="text-[#4f4766]">Add Cash Wallet</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="cash-topup-amount">Amount (INR)</Label>
+            <Label htmlFor="cash-topup-amount" className="text-[#4f4766]">Amount (INR)</Label>
             <Input
               id="cash-topup-amount"
               value={topUpAmount}
@@ -370,14 +380,21 @@ const WalletHistory = () => {
               min="1"
               step="0.01"
               placeholder="Enter amount"
+              className="border-[#dccdf0]"
             />
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[#8e88a1]">
               Gateway fees/tax can vary by payment method and will be shown by Razorpay at checkout.
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTopUpOpen(false)}>Cancel</Button>
-            <Button onClick={onTopUp} disabled={submitting}>
+            <Button
+              variant="outline"
+              onClick={() => setTopUpOpen(false)}
+              className="border-[#eadff6] bg-[#f6effb] text-[#6f5a88] hover:bg-[#efe4f8] hover:text-[#5d3b8d]"
+            >
+              Cancel
+            </Button>
+            <Button onClick={onTopUp} disabled={submitting} className="bg-gradient-to-r from-[#d64ab7] to-[#8b5cf6] text-white hover:opacity-95">
               {submitting ? "Processing..." : "Pay Now"}
             </Button>
           </DialogFooter>
