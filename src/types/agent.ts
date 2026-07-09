@@ -15,6 +15,8 @@ export interface Agent {
   gstin?: string;
   gstAttachment?: string;
   status: 0 | 1;
+  totalCashWallet?: number;
+  totalCouponWallet?: number;
 }
 
 export interface AgentListRow {

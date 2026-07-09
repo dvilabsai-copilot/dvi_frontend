@@ -6996,6 +6996,7 @@ const switchedRouteRef = useRef<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<{
     quotation_no: string;
     agent_name: string;
+    agent_display_name?: string;
     agent_id?: number;
   } | null>(null);
 
@@ -11858,6 +11859,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         setAgentInfo({
           quotation_no: customerInfo.quotation_no,
           agent_name: customerInfo.agent_name,
+          agent_display_name:
+            customerInfo.agent_display_name || customerInfo.agent_name,
           agent_id: agentId, // Use actual agent ID from plan
         });
         console.log('✅ [openConfirmQuotationModal] agentInfo set with agent_id:', agentId);
@@ -17996,7 +17999,9 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[#6c6c6c]">Agent Name:</span>
-                  <span className="font-medium text-[#4a4260]">{agentInfo.agent_name}</span>
+                  <span className="font-medium text-[#4a4260]">
+                    {agentInfo.agent_display_name || agentInfo.agent_name}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[#6c6c6c]">Wallet Balance:</span>

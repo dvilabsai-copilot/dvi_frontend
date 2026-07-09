@@ -485,47 +485,63 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
   if (!agent) return <div className="p-6 text-center py-12">Agent not found</div>;
 
   const agentName = `${agent.firstName} ${agent.lastName || ""}`.trim();
-  const couponTotal = (couponHistory || []).reduce((s, t) => s + t.transactionAmount, 0);
-  const cashTotal = (cashHistory || []).reduce((s, t) => s + t.transactionAmount, 0);
+  const cashHistoryBalance = (cashHistory || []).reduce((sum, tx) => {
+    const isCredit = String(tx.transactionType || "").trim().toLowerCase() === "credit";
+    return sum + (isCredit ? tx.transactionAmount : -tx.transactionAmount);
+  }, 0);
+  const couponHistoryBalance = (couponHistory || []).reduce((sum, tx) => {
+    const isCredit = String(tx.transactionType || "").trim().toLowerCase() === "credit";
+    return sum + (isCredit ? tx.transactionAmount : -tx.transactionAmount);
+  }, 0);
+  const couponTotal =
+    typeof agent.totalCouponWallet === "number" && agent.totalCouponWallet > 0
+      ? agent.totalCouponWallet
+      : couponHistoryBalance;
+  const cashTotal =
+    typeof agent.totalCashWallet === "number" && agent.totalCashWallet > 0
+      ? agent.totalCashWallet
+      : cashHistoryBalance;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 bg-[#fbf8fe] p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-primary">Edit Agent » {agentName}</h1>
-        <div className="text-sm text-muted-foreground">Dashboard &gt; Agent &gt; Edit Agent</div>
+        <h1 className="text-2xl font-bold text-[#4f4766]">Edit Agent » {agentName}</h1>
+        <div className="text-sm text-[#8e88a1]">Dashboard &gt; Agent &gt; Edit Agent</div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-white rounded-lg border shadow-sm p-4">
+      <div className="rounded-xl border border-[#eadff6] bg-white p-4 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
         <div className="flex items-center gap-2 flex-wrap">
           {TABS.map((tab, i) => (
             <div key={tab} className="flex items-center">
               <button
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition ${
-                  activeTab === i ? "bg-violet-500 text-white" : "text-gray-600 hover:bg-gray-100"
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                  activeTab === i
+                    ? "bg-gradient-to-r from-[#d64ab7] to-[#8b5cf6] text-white shadow-md"
+                    : "text-[#6f5a88] hover:bg-[#f6effb]"
                 }`}
                 onClick={() => setActiveTab(i)}
               >
                 <span
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                    activeTab === i ? "bg-white text-violet-500" : "bg-gray-200"
+                  className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                    activeTab === i ? "bg-white text-[#d64ab7]" : "bg-[#efe4f8] text-[#7a628e]"
                   }`}
                 >
                   {i + 1}
                 </span>
                 {tab}
               </button>
-              {i < TABS.length - 1 && <ChevronRight className="h-4 w-4 text-gray-400 mx-1" />}
+              {i < TABS.length - 1 && <ChevronRight className="mx-1 h-4 w-4 text-[#d0bedf]" />}
             </div>
           ))}
         </div>
       </div>
 
       {/* Tab Content */}
-      <div className="bg-white rounded-lg border shadow-sm p-6">
+      <div className="rounded-xl border border-[#eadff6] bg-white p-6 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
         {activeTab === 0 && (
           <>
-            <h2 className="text-lg font-semibold text-pink-600 mb-6">Basic Info</h2>
+            <h2 className="mb-6 text-lg font-semibold text-[#d64ab7]">Basic Info</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <Label>First Name *</Label>
@@ -634,8 +650,8 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                       <span
                         className={`px-2 py-1 rounded text-xs ${
                           String(s.paymentStatus).toLowerCase() === "paid"
-                            ? "bg-green-100 text-green-600"
-                            : "bg-orange-100 text-orange-600"
+                            ? "bg-[#dcfce7] text-[#16a34a]"
+                            : "bg-[#fde68a] text-[#c2410c]"
                         }`}
                       >
                         {s.paymentStatus}
@@ -655,7 +671,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
              <Button
   type="button"
   variant="outline"
-  className="border-primary text-primary"
+  className="border-[#d9c8ef] text-[#7a5a99] hover:bg-[#f6effb] hover:text-[#6b4c89]"
   onClick={openAddStaffModal}
 >
   <Plus className="mr-2 h-4 w-4" />
@@ -712,7 +728,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                       <Switch
                         checked={Number((s as any).status ?? 1) === 1}
                         onCheckedChange={(checked) => handleStaffStatusChange(s, checked)}
-                        className="data-[state=checked]:bg-violet-500"
+                        className="data-[state=checked]:bg-[#d64ab7]"
                       />
                     </TableCell>
                   </TableRow>
@@ -726,19 +742,19 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
           <>
             <div className="flex items-center justify-between mb-6">
               <div className="flex gap-4">
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 min-w-[200px]">
+                <div className="min-w-[200px] rounded-lg border border-[#eddff6] bg-white p-4 shadow-sm">
                   <p className="text-2xl font-bold">₹ {couponTotal.toLocaleString()}</p>
-                  <p className="text-sm text-gray-500">Coupon Wallet</p>
+                  <p className="text-sm text-[#8a6c9f]">Coupon Wallet</p>
                 </div>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 min-w-[200px]">
+                <div className="min-w-[200px] rounded-lg border border-[#dbeedc] bg-white p-4 shadow-sm">
                   <p className="text-2xl font-bold">₹ {cashTotal.toFixed(2)}</p>
-                  <p className="text-sm text-gray-500">Cash Wallet</p>
+                  <p className="text-sm text-[#6e8676]">Cash Wallet</p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  className="border-primary text-primary"
+                  className="border-[#d9c8ef] text-[#7a5a99] hover:bg-[#f6effb] hover:text-[#6b4c89]"
                   onClick={() => {
                     setWalletType("cash");
                     setWalletModalOpen(true);
@@ -749,7 +765,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                 </Button>
                 <Button
                   variant="outline"
-                  className="border-primary text-primary"
+                  className="border-[#d9c8ef] text-[#7a5a99] hover:bg-[#f6effb] hover:text-[#6b4c89]"
                   onClick={() => {
                     setWalletType("coupon");
                     setWalletModalOpen(true);
@@ -761,7 +777,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
               </div>
             </div>
 
-            <h3 className="font-semibold mb-2">List of Cash wallet History</h3>
+            <h3 className="mb-2 font-semibold text-[#4f4766]">List of Cash wallet History</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -779,7 +795,15 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                     <TableCell>{t.transactionDate}</TableCell>
                     <TableCell>₹ {t.transactionAmount.toFixed(2)}</TableCell>
                     <TableCell>
-                      <span className="px-2 py-1 rounded bg-green-100 text-green-600 text-xs">{t.transactionType}</span>
+                      <span
+                        className={`rounded px-2 py-1 text-xs ${
+                          t.transactionType === "Credit"
+                            ? "bg-[#dcfce7] text-[#16a34a]"
+                            : "bg-[#fee2e2] text-[#ef4444]"
+                        }`}
+                      >
+                        {t.transactionType}
+                      </span>
                     </TableCell>
                     <TableCell>{t.remark}</TableCell>
                   </TableRow>
@@ -787,7 +811,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
               </TableBody>
             </Table>
 
-            <h3 className="font-semibold mt-6 mb-2">List of Coupon Wallet History</h3>
+            <h3 className="mb-2 mt-6 font-semibold text-[#4f4766]">List of Coupon Wallet History</h3>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -805,7 +829,15 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                     <TableCell>{t.transactionDate}</TableCell>
                     <TableCell>₹ {t.transactionAmount.toLocaleString()}</TableCell>
                     <TableCell>
-                      <span className="px-2 py-1 rounded bg-green-100 text-green-600 text-xs">{t.transactionType}</span>
+                      <span
+                        className={`rounded px-2 py-1 text-xs ${
+                          t.transactionType === "Credit"
+                            ? "bg-[#dcfce7] text-[#16a34a]"
+                            : "bg-[#fee2e2] text-[#ef4444]"
+                        }`}
+                      >
+                        {t.transactionType}
+                      </span>
                     </TableCell>
                     <TableCell>{t.remark}</TableCell>
                   </TableRow>
@@ -817,7 +849,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
 
    {activeTab === 3 && (
   <>
-    <h2 className="text-lg font-semibold text-pink-600 mb-4">Basic Info</h2>
+    <h2 className="mb-4 text-lg font-semibold text-[#d64ab7]">Basic Info</h2>
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <div>
@@ -924,7 +956,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
   </div>
 </div>
 
-    <h2 className="text-lg font-semibold text-pink-600 mb-4">
+    <h2 className="mb-4 text-lg font-semibold text-[#d64ab7]">
       General Configuration
     </h2>
 
@@ -1012,7 +1044,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
   </div>
 </div>
 
-    <h2 className="text-lg font-semibold text-pink-600 mb-4">
+    <h2 className="mb-4 text-lg font-semibold text-[#d64ab7]">
       Invoice Setting
     </h2>
 
