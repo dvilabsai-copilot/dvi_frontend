@@ -116,6 +116,33 @@ export const RouteDetailsBlock = ({
       });
   };
 
+  const normalizeLocationText = (value: string) =>
+    String(value || "")
+      .trim()
+      .replace(/\s*\([^)]*\)\s*$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const resolveMatchingOptionValue = (
+    options: AutoSuggestOption[],
+    selectedValue: string
+  ) => {
+    const trimmedValue = String(selectedValue || "").trim();
+    if (!trimmedValue) return "";
+
+    const exactMatch = options.find(
+      (opt) => String(opt.value || "").trim() === trimmedValue
+    );
+    if (exactMatch) return exactMatch.value;
+
+    const normalizedSelected = normalizeLocationText(trimmedValue).toLowerCase();
+    const normalizedMatch = options.find(
+      (opt) => normalizeLocationText(opt.value).toLowerCase() === normalizedSelected
+    );
+
+    return normalizedMatch?.value || "";
+  };
+
   // Global fallback options (like PHP selectize list)
   const globalLocationOptions: AutoSuggestOption[] = sanitizeOptions(
     locations.map((loc) => ({
@@ -576,11 +603,10 @@ const canDeleteThisRouteDay =
               }
 
               const safeOptions = sanitizeOptions(rowSpecificOptions);
-              const safeNextDestinationValue = safeOptions.some(
-                (opt) => opt.value === nextDestinationValue
-              )
-                ? nextDestinationValue
-                : undefined;
+              const safeNextDestinationValue = resolveMatchingOptionValue(
+                safeOptions,
+                nextDestinationValue
+              ) || undefined;
 
               return (
   <TableRow

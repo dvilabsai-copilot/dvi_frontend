@@ -1253,6 +1253,9 @@ const navigate = useNavigate();
   const requiresHotelBookingFlow = shouldShowHotels;
   const [hotelDetails, setHotelDetails] =
     useState<ItineraryHotelDetailsResponse | null>(null);
+  const [routeHotelDetailsByQuoteId, setRouteHotelDetailsByQuoteId] = useState<
+    Record<string, ItineraryHotelDetailsResponse | null>
+  >({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
@@ -1268,6 +1271,14 @@ const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
 const itineraryDaysCountRef = useRef(0);
 const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
 const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
+const routeHotelFetchPromisesRef = useRef<
+  Map<string, Promise<ItineraryHotelDetailsResponse | null>>
+>(new Map());
+const routeHotelPrefetchedRef = useRef<Set<string>>(new Set());
+const routeHotelFamilyKeyRef = useRef<string>("");
+const fetchCompleteHotelDetailsRef = useRef<
+  ((currentQuoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null
+>(null);
 const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
   // Hydrate route tabs immediately from the payload saved by Create Itinerary.
   if (typeof window === "undefined") return [];
@@ -1298,6 +1309,67 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     return [];
   }
 });
+
+const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(.*)-R(\d+)$/i);
+  return String(match?.[1] || raw).trim();
+}, []);
+
+const cacheRouteHotelDetails = useCallback(
+  (routeQuoteId: string, hotelRes: ItineraryHotelDetailsResponse | null) => {
+    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
+    if (!normalizedRouteQuoteId || !hotelRes) return;
+
+    setRouteHotelDetailsByQuoteId((prev) => {
+      if (prev[normalizedRouteQuoteId] === hotelRes) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [normalizedRouteQuoteId]: hotelRes,
+      };
+    });
+  },
+  [],
+);
+
+const loadAndCacheRouteHotelDetails = useCallback(
+  async (routeQuoteId: string): Promise<ItineraryHotelDetailsResponse | null> => {
+    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
+    if (!normalizedRouteQuoteId) return null;
+
+    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
+    if (cachedHotelDetails) {
+      return cachedHotelDetails;
+    }
+
+    const inFlight = routeHotelFetchPromisesRef.current.get(normalizedRouteQuoteId);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = (async () => {
+      const fetcher = fetchCompleteHotelDetailsRef.current;
+      if (!fetcher) {
+        throw new ReferenceError("fetchCompleteHotelDetails is not ready yet");
+      }
+
+      const hotelRes = (await fetcher(normalizedRouteQuoteId)) as ItineraryHotelDetailsResponse;
+      cacheRouteHotelDetails(normalizedRouteQuoteId, hotelRes);
+      return hotelRes;
+    })().finally(() => {
+      routeHotelFetchPromisesRef.current.delete(normalizedRouteQuoteId);
+    });
+
+    routeHotelFetchPromisesRef.current.set(normalizedRouteQuoteId, request);
+    return request;
+  },
+  [cacheRouteHotelDetails, routeHotelDetailsByQuoteId],
+);
 
   // Delete hotspot modal state
   const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
@@ -4483,6 +4555,10 @@ useEffect(() => {
 
     return merged;
   }, [dedupeHotelRows]);
+
+  useEffect(() => {
+    fetchCompleteHotelDetailsRef.current = fetchCompleteHotelDetails;
+  }, [fetchCompleteHotelDetails]);
 
   const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
     if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
@@ -7830,6 +7906,7 @@ const applyChildAgesToTemplate = (
         const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
         console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
       } else {
         setHotelDetails(null);
         setActiveHotelListTotal(0);
@@ -7840,7 +7917,7 @@ const applyChildAgesToTemplate = (
     } finally {
       setLoadingHotels(false);
     }
-  }, [quoteId, loadHotelDetailsForItinerary]);
+  }, [quoteId, cacheRouteHotelDetails, loadHotelDetailsForItinerary]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -8145,6 +8222,7 @@ const applyChildAgesToTemplate = (
       setItinerary(detailsRes as ItineraryDetailsResponse);
       const completeHotelRes = await fetchCompleteHotelDetails(quoteId);
       setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
+      cacheRouteHotelDetails(quoteId, completeHotelRes as ItineraryHotelDetailsResponse);
       toast.success('Hotels rebuilt successfully');
     } catch (e: any) {
       toast.error(e?.message || 'Failed to rebuild hotels');
@@ -8152,7 +8230,7 @@ const applyChildAgesToTemplate = (
       setLoadingHotels(false);
       setIsRebuildingHotels(false);
     }
-  }, [quoteId, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
+  }, [quoteId, cacheRouteHotelDetails, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
 
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
@@ -8203,6 +8281,7 @@ if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) re
 
 setItinerary(details);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
+        cacheRouteHotelDetails(requestedQuoteId, hotelRes as ItineraryHotelDetailsResponse | null);
         if (!useHotels) {
           setActiveHotelListTotal(0);
         }
@@ -8334,7 +8413,7 @@ try {
     }
   }
 }
-  }, [getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
+  }, [cacheRouteHotelDetails, getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -13022,6 +13101,80 @@ const itineraryRouteOptions = useMemo(() => {
   ).sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId));
 }, [latestRouteOptions]);
 
+const routeFamilyBaseQuoteId = useMemo(() => {
+  const fromApi = String((itinerary as any)?.routeFamilyBaseQuoteId || "").trim();
+  if (fromApi) return fromApi;
+
+  return normalizeRouteFamilyBaseQuoteId(
+    activeRouteQuoteId || quoteId || itinerary?.quoteId,
+  );
+}, [
+  activeRouteQuoteId,
+  itinerary,
+  normalizeRouteFamilyBaseQuoteId,
+  quoteId,
+]);
+
+useEffect(() => {
+  if (!routeFamilyBaseQuoteId) return;
+  if (routeHotelFamilyKeyRef.current === routeFamilyBaseQuoteId) return;
+
+  routeHotelFamilyKeyRef.current = routeFamilyBaseQuoteId;
+  routeHotelPrefetchedRef.current = new Set();
+  routeHotelFetchPromisesRef.current.clear();
+  setRouteHotelDetailsByQuoteId({});
+}, [routeFamilyBaseQuoteId]);
+
+useEffect(() => {
+  if (!itinerary || !shouldShowHotels || isConfirmedItinerary) return;
+
+  const routeQuoteIds = itineraryRouteOptions
+    .map((option) => String(option.quoteId || "").trim())
+    .filter((id) => id.startsWith("DVI"));
+
+  const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
+  const normalizedQuoteIds = Array.from(
+    new Set([currentQuoteId, ...routeQuoteIds].filter((id) => id.startsWith("DVI"))),
+  );
+
+  if (normalizedQuoteIds.length === 0) return;
+
+  let cancelled = false;
+
+  const warmRouteHotelCache = async () => {
+    for (const routeQuoteId of normalizedQuoteIds) {
+      if (cancelled) return;
+      if (routeHotelPrefetchedRef.current.has(routeQuoteId)) continue;
+
+      routeHotelPrefetchedRef.current.add(routeQuoteId);
+
+      try {
+        await loadAndCacheRouteHotelDetails(routeQuoteId);
+      } catch (error) {
+        routeHotelPrefetchedRef.current.delete(routeQuoteId);
+        console.warn("[ItineraryDetails] Failed to prefetch hotels for route quote", {
+          routeQuoteId,
+          error,
+        });
+      }
+    }
+  };
+
+  void warmRouteHotelCache();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  activeRouteQuoteId,
+  itinerary,
+  itineraryRouteOptions,
+  isConfirmedItinerary,
+  loadAndCacheRouteHotelDetails,
+  quoteId,
+  shouldShowHotels,
+]);
+
 const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
   const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
   const selectedRouteQuoteId = activeRouteQuoteId || quoteId || itinerary?.quoteId;
@@ -13077,12 +13230,15 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
       return;
     }
 
+    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
+    if (cachedHotelDetails) {
+      setHotelDetails(cachedHotelDetails);
+      return;
+    }
+
     setHotelDetails(null);
 
-    const hotelRes = await loadHotelDetailsForItinerary(
-      normalizedRouteQuoteId,
-      details
-    );
+    const hotelRes = await loadAndCacheRouteHotelDetails(normalizedRouteQuoteId);
 
     if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) {
       return;
@@ -13239,13 +13395,15 @@ const hotelTimelineLoading = Boolean(
         </div>
       )}
 
-      {(isApplyingRouteTimeUpdate || isRebuilding) && (
+      {(isApplyingRouteTimeUpdate || isRebuilding || isSwitchingRouteOption) && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
           <div className="w-[340px] rounded-2xl bg-white p-6 text-center shadow-2xl">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#ffe9d6] text-2xl">
               ⏱
             </div>
-            <p className="text-sm text-slate-600">{routeProgressTitle}</p>
+            <p className="text-sm text-slate-600">
+              {isSwitchingRouteOption ? "Loading selected route" : routeProgressTitle}
+            </p>
             <div className="mt-5 flex flex-col items-center gap-3">
               <div className="relative h-28 w-28">
                 <svg className="h-28 w-28 -rotate-90" viewBox="0 0 100 100" role="img" aria-label="Route update progress">
