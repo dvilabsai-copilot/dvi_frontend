@@ -18,6 +18,7 @@ export type ViaRouteItem = {
 
 export type RouteRow = {
   id: number;
+  itinerary_route_id?: number;
   day: number;
   date: string;
   source: string;
@@ -54,6 +55,7 @@ export function useItineraryRoutes({
   const [routeDetails, setRouteDetails] = useState<RouteRow[]>([
   {
     id: 1,
+    itinerary_route_id: undefined,
     day: 1,
     date: "",
     source: "",
@@ -101,16 +103,17 @@ export function useItineraryRoutes({
         const existing = prev[i];
 
       nextRoutes.push({
-  id: existing?.id ?? i + 1,
-  day: i + 1,
-  date: toDDMMYYYY(currentDate),
-  source: existing?.source ?? "",
-  via_routes: existing?.via_routes ?? [],
-  next: existing?.next ?? "",
-  via: existing?.via ?? "",
-  no_of_km: existing?.no_of_km ?? 0,
-  directVisit: existing?.directVisit ?? "No",
-});
+        id: existing?.id ?? i + 1,
+        itinerary_route_id: existing?.itinerary_route_id,
+        day: i + 1,
+        date: toDDMMYYYY(currentDate),
+        source: existing?.source ?? "",
+        via_routes: existing?.via_routes ?? [],
+        next: existing?.next ?? "",
+        via: existing?.via ?? "",
+        no_of_km: existing?.no_of_km ?? 0,
+        directVisit: existing?.directVisit ?? "No",
+      });
       }
 
       // Prefill DAY 1 source from Arrival

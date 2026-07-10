@@ -58,6 +58,7 @@ type ValidationErrors = {
 
 type VehicleRow = {
   id: number;
+  vehicle_details_id?: number;
   type: string;
   count: number;
 };
@@ -102,6 +103,28 @@ function csvToNumberArray(v: unknown): number[] {
   return csvToStringArray(v)
     .map((s) => Number(s))
     .filter((n) => Number.isFinite(n));
+}
+
+function resolveFirstNonEmptyNumberList(...values: unknown[]): number[] {
+  for (const value of values) {
+    const ids = csvToNumberArray(value);
+    if (ids.length > 0) {
+      return ids;
+    }
+  }
+
+  return [];
+}
+
+function resolveFirstNonEmptyStringList(...values: unknown[]): string[] {
+  for (const value of values) {
+    const items = csvToStringArray(value);
+    if (items.length > 0) {
+      return items;
+    }
+  }
+
+  return [];
 }
 
 function normalizeRouteLocationList(values: string[]): string[] {
@@ -1015,14 +1038,30 @@ setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
 
 
             setSpecialInstructions(p.special_instructions ?? "");
-            // ✅ PREFILL: categories/facilities come as CSV strings from DB
-            setSelectedHotelCategoryIds(csvToNumberArray(p.preferred_hotel_category));
-            setSelectedHotelFacilityIds(csvToStringArray(p.hotel_facilities));
+            // ✅ PREFILL: keep hotel category/facility selections stable across edit reloads.
+            setSelectedHotelCategoryIds(
+              resolveFirstNonEmptyNumberList(
+                p.preferred_hotel_category,
+                p.preferredHotelCategory,
+                existing?.preferred_hotel_category,
+                existing?.preferredHotelCategory,
+              ),
+            );
+            setSelectedHotelFacilityIds(
+              resolveFirstNonEmptyStringList(
+                p.hotel_facilities,
+                p.hotelFacilities,
+                existing?.hotel_facilities,
+                existing?.hotelFacilities,
+              ),
+            );
 
             if (Array.isArray(existing.routes) && existing.routes.length) {
               setRouteDetails(
   existing.routes.map((r: any, idx: number): RouteRow => ({
     id: idx + 1,
+    itinerary_route_id:
+      Number(r.itinerary_route_ID || r.itinerary_route_id || 0) || undefined,
     day: r.no_of_days ?? idx + 1,
     date: r.itinerary_route_date
       ? safeDateFromISO(r.itinerary_route_date)
@@ -1052,6 +1091,8 @@ setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
               setVehicles(
                 existing.vehicles.map((v: any, idx: number): VehicleRow => ({
                   id: idx + 1,
+                  vehicle_details_id:
+                    Number(v.vehicle_details_ID || v.vehicle_details_id || 0) || undefined,
                   type: v.vehicle_type_id ? String(v.vehicle_type_id) : "",
                   count: v.vehicle_count ?? 1,
                 }))
@@ -1686,6 +1727,7 @@ const buildPayload = () => {
       : 3;
 
   const routes = routeDetails.map((r) => ({
+    itinerary_route_id: r.itinerary_route_id ?? 0,
     location_name: r.source || "",
     next_visiting_location: r.next || "",
     itinerary_route_date: r.date
@@ -1769,7 +1811,7 @@ const meal_plan_code = shouldUseMealPlan
     pick_up_date_and_time,
 
     arrival_type: arrivalType ? Number(arrivalType) : 0,
-    departure_type: arrivalType ? Number(arrivalType) : 0,  // ✅ Auto-default to arrivalType
+    departure_type: departureType ? Number(departureType) : 0,
 
     no_of_nights: noOfNights,
     no_of_days: noOfDays,
@@ -1809,6 +1851,7 @@ const meal_plan_code = shouldUseMealPlan
     vehicles:
       itineraryPreference === "vehicle" || itineraryPreference === "both"
         ? vehicles.map((v) => ({
+            vehicle_details_id: v.vehicle_details_id ?? 0,
             vehicle_type_id: v.type ? Number(v.type) : 0,
             vehicle_count: v.count ?? 1,
           }))
@@ -2109,6 +2152,26 @@ const extractCreatedQuoteId = (response: any): string => {
     ""
   );
 };
+
+const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string => {
+  const candidates = [
+    response?.routeFamilyBaseQuoteId,
+    response?.route_family_base_quote_id,
+    response?.data?.routeFamilyBaseQuoteId,
+    response?.data?.route_family_base_quote_id,
+    response?.result?.routeFamilyBaseQuoteId,
+    response?.result?.route_family_base_quote_id,
+    quoteId,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  const first = candidates[0] || "";
+  if (!first) return "";
+
+  const familyMatch = first.match(/^(.*)-R\d+$/i);
+  return familyMatch?.[1] ? String(familyMatch[1]).trim() : first;
+};
 const isSavingRef = useRef(false);
 
 const handleSaveWithType = async (
@@ -2146,18 +2209,37 @@ const shouldCreateAllRouteOptions =
   suggestedDefaultRoutes.length > 1;
 let res: any = null;
 let createdRouteOptions: Array<{ quoteId: string; label: string }> = [];
+let sharedRouteFamilyBaseQuoteId = "";
 
 if (shouldCreateAllRouteOptions) {
   const createSuggestedRouteOption = async (route: RouteData, index: number) => {
     // Route 1 (index 0): use the user-edited finalPayload directly.
     // Route 2+ (index > 0): build payload from the raw suggested route data.
-    const routePayload =
+    const baseRoutePayload =
       index === 0
         ? finalPayload
         : buildPayloadForSuggestedRoute(route, finalPayload);
 
+    const routePayload = {
+      ...baseRoutePayload,
+      plan: {
+        ...(baseRoutePayload?.plan || {}),
+        route_variant_index: index + 1,
+        route_variant_count: suggestedDefaultRoutes.length,
+        route_family_base_quote_id: sharedRouteFamilyBaseQuoteId || undefined,
+      },
+    };
+
     const routeRes: any = await ItineraryService.create(routePayload, type);
     const createdQuoteId = extractCreatedQuoteId(routeRes);
+    const createdRouteFamilyBaseQuoteId = extractRouteFamilyBaseQuoteId(
+      routeRes,
+      createdQuoteId
+    );
+
+    if (!sharedRouteFamilyBaseQuoteId && createdRouteFamilyBaseQuoteId) {
+      sharedRouteFamilyBaseQuoteId = createdRouteFamilyBaseQuoteId;
+    }
 
     if (!createdQuoteId) {
       console.warn("⚠️ Suggested route created but quote ID was not found", {
