@@ -23,10 +23,11 @@ export type VehicleAvailabilityCell = {
   isVehicleAssigned: boolean;
   assignedVehicleId: number | null;
 
-  hasDriver: boolean;
-  driverId: number | null;
+ hasDriver: boolean;
+driverId: number | null;
+driverAssignmentId: number | null;
 
-  routeSegments: VehicleAvailabilityRouteSegment[];
+routeSegments: VehicleAvailabilityRouteSegment[];
   customerName?: string | null;
   customerContactNo?: string | null;
   customerLabel?: string | null;
@@ -312,6 +313,26 @@ export type ReassignDriverPayload = {
 
 export async function reassignDriver(body: ReassignDriverPayload) {
   return api(`/vehicle-availability/reassign-driver`, {
+    method: "POST",
+    body,
+    auth: true,
+  });
+}
+
+// ==============================
+// BLOCK VEHICLE AVAILABILITY
+// ==============================
+export type BlockVehicleAvailabilityPayload = {
+  vehicleId: number;
+  dateFrom: string; // YYYY-MM-DD
+  dateTo: string; // YYYY-MM-DD
+  reason?: string;
+};
+
+export async function blockVehicleAvailability(
+  body: BlockVehicleAvailabilityPayload,
+): Promise<{ success: boolean; message?: string }> {
+  return api(`/vehicle-availability/block`, {
     method: "POST",
     body,
     auth: true,

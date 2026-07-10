@@ -1,5 +1,6 @@
 // FILE: src/App.tsx
 
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -32,6 +33,7 @@ import Login from "./pages/Login";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
 import DailyMomentDayView from "./pages/daily-moment-tracker/DailyMomentDayView";
+import { fetchDriverAssignmentShareDetails } from "@/services/dailyMomentTracker";
 import VendorsPage from "./pages/vendor/VendorsPage";
 import VendorFormPage from "./pages/vendor/VendorFormPage";
 import DriversPage from "./pages/drivers/DriversPage";
@@ -113,6 +115,71 @@ const RequireAuth = () => {
   return <Outlet />;
 };
 
+const DriverDailyMomentRedirect = () => {
+  const { driverAssignmentId } = useParams<{
+    driverAssignmentId: string;
+  }>();
+
+  const [planId, setPlanId] = useState<number | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const assignmentId = Number(driverAssignmentId || 0);
+
+    if (!assignmentId) {
+      setError("Invalid driver assignment ID.");
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchDriverAssignmentShareDetails(assignmentId)
+      .then((result) => {
+        if (cancelled) return;
+
+        const resolvedPlanId = Number(result.itineraryPlanId || 0);
+
+        if (!resolvedPlanId) {
+          setError("Itinerary plan was not found.");
+          return;
+        }
+
+        setPlanId(resolvedPlanId);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err?.message || "Unable to load shared trip.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [driverAssignmentId]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!planId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-sm text-slate-600">
+          Loading Daily Moment…
+        </div>
+      </div>
+    );
+  }
+
+  return <Navigate to={`/daily-moment/public/${planId}`} replace />;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -130,12 +197,22 @@ const App = () => (
         <DynamicMeta />
 
         <Routes>
-          {/* Public */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
+       {/* Public */}
+<Route path="/login" element={<Login />} />
+<Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 
-          {/* All routes below require auth */}
-          <Route element={<RequireAuth />}>
+<Route
+  path="/daily-moment/driver/:driverAssignmentId"
+  element={<DriverDailyMomentRedirect />}
+/>
+
+<Route
+  path="/daily-moment/public/:id"
+  element={<DailyMomentDayView />}
+/>
+
+{/* All routes below require auth */}
+<Route element={<RequireAuth />}>
             <Route
               path="/"
               element={
