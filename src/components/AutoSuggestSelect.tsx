@@ -109,7 +109,9 @@ export const AutoSuggestSelect = forwardRef<
       }
     }, 0);
 
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+    };
   } else {
     setQuery("");
     setHighlightIndex(0);
@@ -250,7 +252,7 @@ useEffect(() => {
   };
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative z-[120] isolate">
       {/* Trigger */}
       <button
         ref={triggerRef}
@@ -276,7 +278,7 @@ useEffect(() => {
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute left-0 right-0 mt-1 z-50 rounded-md border border-[#f0e7ff] bg-white shadow-sm p-2">
+        <div className="absolute left-0 right-0 top-full mt-1 z-[9999] rounded-md border border-[#f0e7ff] bg-white shadow-sm p-2">
           <Input
             ref={inputRef}
             placeholder="Type to search..."
