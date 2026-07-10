@@ -27,6 +27,14 @@ export type VehicleAvailabilityCell = {
   driverId: number | null;
 
   routeSegments: VehicleAvailabilityRouteSegment[];
+  customerName?: string | null;
+  customerContactNo?: string | null;
+  customerLabel?: string | null;
+  hotelName?: string | null;
+  tripStartLabel?: string | null;
+  tripEndLabel?: string | null;
+  tripStartTime?: string | null;
+  tripEndTime?: string | null;
 };
 
 export type VehicleAvailabilityRow = {
@@ -52,18 +60,29 @@ export type VehicleAvailabilityQuery = {
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
   vendorId?: number;
+  vendorIds?: number[];
   vehicleTypeId?: number;
+  vehicleTypeIds?: number[];
 
   // UI filters (backend must support if you want server-side filtering)
   agentId?: number;
+  agentIds?: number[];
   locationLabel?: string;
+  locationLabels?: string[];
   locationId?: string; // backward compatibility alias
 };
 
-function buildQueryString(params: Record<string, string | number | undefined | null>) {
+function buildQueryString(params: Record<string, string | number | Array<string | number> | undefined | null>) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === "") continue;
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (item === undefined || item === null || item === "") continue;
+        q.append(k, String(item));
+      }
+      continue;
+    }
     q.set(k, String(v));
   }
   const s = q.toString();
@@ -106,9 +125,10 @@ export async function fetchVendorBranches(vendorId: number): Promise<SimpleOptio
 }
 
 // Vendor-specific vehicle types (Selectize equivalent)
-export async function fetchVendorVehicleTypes(vendorId: number): Promise<SimpleOption[]> {
+export async function fetchVendorVehicleTypes(vendorId: number | number[]): Promise<SimpleOption[]> {
+  const vendorIds = Array.isArray(vendorId) ? vendorId : [vendorId];
   return api(
-    `/vehicle-availability/vendor-vehicle-types${buildQueryString({ vendorId })}`,
+    `/vehicle-availability/vendor-vehicle-types${buildQueryString({ vendorId: vendorIds[0], vendorIds })}`,
     { auth: true },
   );
 }
