@@ -420,12 +420,51 @@ export type DayViewPlan = {
 
 // ─── Day-View fetch ───────────────────────────────────────────────────────────
 
+export type DriverAssignmentShareDetails = {
+  driverAssignmentId: number;
+  itineraryPlanId: number;
+  driverId: number;
+  vehicleId: number;
+  vendorId: number;
+};
+
+export async function fetchDriverAssignmentShareDetails(
+  driverAssignmentId: number,
+): Promise<DriverAssignmentShareDetails> {
+  const url =
+    `${API_BASE_URL}/api/v1/daily-moment-tracker/driver-assignment/${driverAssignmentId}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to load driver assignment: ${res.status} ${await safeReadText(res)}`,
+    );
+  }
+
+  return res.json();
+}
+
 export async function fetchDayView(planId: number): Promise<DayViewPlan> {
   const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/day-view/${planId}`;
-  const res = await fetch(url, { headers: { ...getAuthHeaders() } });
+
+  const res = await fetch(url, {
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
   if (!res.ok) {
-    throw new Error(`Failed to load day view: ${res.status} ${await safeReadText(res)}`);
+    throw new Error(
+      `Failed to load day view: ${res.status} ${await safeReadText(res)}`,
+    );
   }
+
   return res.json();
 }
 

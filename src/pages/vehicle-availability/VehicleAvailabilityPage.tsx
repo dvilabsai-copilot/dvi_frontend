@@ -2,15 +2,17 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { Pencil } from "lucide-react";
+import { Ban, Pencil, Share2 } from "lucide-react";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 import {
   assignVehicle,
+  blockVehicleAvailability,
   fetchAgents,
   fetchDriversForAssign,
   fetchVehicleAvailability,
   fetchVehiclesForAssign,
   fetchVehicleTypes,
+  fetchVendorVehicleTypes,
   fetchVendors,
   fetchLocations,
   SimpleOption,
@@ -290,8 +292,13 @@ export default function VehicleAvailabilityPage() {
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [addDriverOpen, setAddDriverOpen] = useState(false);
 
-  const [assigning, setAssigning] = useState(false);
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
+const [assigning, setAssigning] = useState(false);
+const [assignModalOpen, setAssignModalOpen] = useState(false);
+
+const [blocking, setBlocking] = useState(false);
+const [blockModalOpen, setBlockModalOpen] = useState(false);
+const [blockContext, setBlockContext] = useState<SelectedCell>(null);
+const [blockReason, setBlockReason] = useState("");
   const [assignContext, setAssignContext] = useState<SelectedCell>(null);
   const [assignVehicleId, setAssignVehicleId] = useState<number | "">("");
   const [assignDriverId, setAssignDriverId] = useState<number | "">("");
@@ -418,7 +425,64 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
     }
   }
 
-  async function openAssignModal(row: VehicleAvailabilityRow, cell: VehicleAvailabilityCell) {
+ async function handleShareLink(cell: VehicleAvailabilityCell) {
+  const driverAssignmentId = Number(cell.driverAssignmentId || 0);
+
+  if (!driverAssignmentId) {
+    setError("Driver assignment ID is missing.");
+    return;
+  }
+
+ const shareUrl =
+  `${window.location.origin}/daily-moment/driver/${driverAssignmentId}`;
+
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    window.alert("Driver Daily Moment link copied successfully.");
+  } catch {
+    window.prompt("Copy Driver Daily Moment link:", shareUrl);
+  }
+}
+
+  function openBlockModal(
+    row: VehicleAvailabilityRow,
+    cell: VehicleAvailabilityCell,
+  ) {
+    setBlockContext({ row, cell });
+    setBlockReason("");
+    setBlockModalOpen(true);
+  }
+
+  async function submitBlockVehicle() {
+    if (!blockContext) return;
+
+    try {
+      setBlocking(true);
+      setError("");
+
+      await blockVehicleAvailability({
+        vehicleId: blockContext.row.vehicleId,
+        dateFrom: blockContext.cell.date,
+        dateTo: blockContext.cell.date,
+        reason: blockReason.trim() || undefined,
+      });
+
+      setBlockModalOpen(false);
+      setBlockContext(null);
+      setBlockReason("");
+
+      await loadChart();
+    } catch (e: any) {
+      setError(e?.message || "Failed to block vehicle.");
+    } finally {
+      setBlocking(false);
+    }
+  }
+
+  async function openAssignModal(
+    row: VehicleAvailabilityRow,
+    cell: VehicleAvailabilityCell
+  ) {
     if (!cell.itineraryPlanId) return;
     const existingVehicleId = cell.isVehicleAssigned ? cell.assignedVehicleId : null;
     const existingDriverId = cell.hasDriver ? cell.driverId : null;
@@ -876,30 +940,59 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                               </div>
                             ) : null}
 
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="mb-1 text-xs text-slate-700">
-                                  Driver - {cell.hasDriver ? "Assigned" : "Not Assigned"}
-                                </div>
-                                <span className={clsx(
-                                  "inline-flex rounded px-2 py-[2px] text-[10px] font-semibold",
-                                  cell.isVehicleAssigned ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700",
-                                )}>
-                                  {cell.isVehicleAssigned ? "Assigned" : "Unassigned"}
-                                </span>
-                              </div>
+                     <div>
+  <div className="mb-1 text-xs text-slate-700">
+    Driver - {cell.hasDriver ? "Assigned" : "Not Assigned"}
+  </div>
 
-                              {cell.isVehicleAssigned ? (
-                                <button
-                                  type="button"
-                                  className="rounded p-1 text-slate-600 hover:bg-slate-100"
-                                  onClick={() => openAssignModal(row, cell)}
-                                  title="Edit assignment"
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                              ) : null}
-                            </div>
+  <div className="flex flex-wrap items-center gap-2">
+    <span
+      className={clsx(
+        "inline-flex rounded px-2 py-[4px] text-[10px] font-semibold",
+        cell.isVehicleAssigned
+          ? "bg-emerald-100 text-emerald-800"
+          : "bg-slate-100 text-slate-700",
+      )}
+    >
+      {cell.isVehicleAssigned ? "Assigned" : "Unassigned"}
+    </span>
+
+    {cell.isVehicleAssigned && cell.hasDriver ? (
+      <button
+        type="button"
+        onClick={() => handleShareLink(cell)}
+        className="inline-flex items-center gap-1 rounded bg-gradient-to-r from-purple-600 to-pink-500 px-2 py-[4px] text-[10px] font-semibold text-white hover:opacity-90"
+        title="Copy driver daily moment link"
+      >
+        <Share2 size={12} />
+        Share Link
+      </button>
+    ) : null}
+
+    {cell.isVehicleAssigned ? (
+      <button
+        type="button"
+        onClick={() => openBlockModal(row, cell)}
+        className="inline-flex items-center gap-1 rounded bg-amber-500 px-2 py-[4px] text-[10px] font-semibold text-white hover:bg-amber-600"
+        title="Block vehicle for this date"
+      >
+        <Ban size={12} />
+        Block
+      </button>
+    ) : null}
+
+    {cell.isVehicleAssigned ? (
+      <button
+        type="button"
+        className="rounded p-1 text-slate-600 hover:bg-slate-100"
+        onClick={() => openAssignModal(row, cell)}
+        title="Edit assignment"
+      >
+        <Pencil size={14} />
+      </button>
+    ) : null}
+  </div>
+</div>
                           </div>
                         )}
                       </td>
@@ -989,8 +1082,69 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         </div>
       ) : null}
 
+            {blockModalOpen && blockContext ? (
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => {
+            if (blocking) return;
+            setBlockModalOpen(false);
+            setBlockContext(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-slate-900">
+              Block Vehicle
+            </h2>
+
+            <div className="mt-2 text-sm text-slate-600">
+              {blockContext.row.registrationNumber} — {blockContext.cell.date}
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1 block text-sm text-slate-700">
+                Reason
+              </label>
+
+              <textarea
+                className="min-h-[100px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-purple-400"
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="Enter blocking reason"
+              />
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={blocking}
+                className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 disabled:opacity-60"
+                onClick={() => {
+                  setBlockModalOpen(false);
+                  setBlockContext(null);
+                  setBlockReason("");
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={blocking}
+                className="rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+                onClick={submitBlockVehicle}
+              >
+                {blocking ? "Blocking..." : "Block Vehicle"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <AddVehicleModal
-          open={addVehicleOpen}
+        open={addVehicleOpen}
           onClose={() => setAddVehicleOpen(false)}
           onCreated={() => {
             // refresh chart so the newly added vehicle can appear
