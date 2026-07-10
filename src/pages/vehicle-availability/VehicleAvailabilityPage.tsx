@@ -1,6 +1,7 @@
 // REPLACE-WHOLE-FILE: src/pages/VehicleAvailability/VehicleAvailabilityPage.tsx
 
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Pencil } from "lucide-react";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 import {
@@ -617,6 +618,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                   )
                 }
                 placeholder="Choose Vendor"
+                stackingZIndex={120}
               />
             </div>
 
@@ -634,6 +636,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                   )
                 }
                 placeholder="Choose Vehicle Types"
+                stackingZIndex={120}
               />
             </div>
 
@@ -651,6 +654,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                   )
                 }
                 placeholder="Select Agent"
+                stackingZIndex={120}
               />
             </div>
 
@@ -664,6 +668,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
                   setLocationLabels((next as string[]).filter((label) => label.trim().length > 0))
                 }
                 placeholder="Choose Location"
+                stackingZIndex={120}
               />
             </div>
 
