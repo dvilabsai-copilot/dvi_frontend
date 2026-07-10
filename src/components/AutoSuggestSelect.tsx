@@ -30,6 +30,7 @@ type AutoSuggestSelectProps = {
   readOnly?: boolean;
   scrollToValue?: string;
   openOnFocus?: boolean;
+  stackingZIndex?: number;
 };
 
 export const AutoSuggestSelect = forwardRef<
@@ -49,6 +50,7 @@ export const AutoSuggestSelect = forwardRef<
       readOnly = false,
       scrollToValue,
       openOnFocus = true,
+      stackingZIndex = 50,
     },
     ref
   ) => {
@@ -252,7 +254,11 @@ useEffect(() => {
   };
 
   return (
-    <div ref={wrapperRef} className="relative z-[120] isolate">
+    <div
+      ref={wrapperRef}
+      className={open ? "relative isolate" : "relative"}
+      style={open ? { zIndex: stackingZIndex } : undefined}
+    >
       {/* Trigger */}
       <button
         ref={triggerRef}
