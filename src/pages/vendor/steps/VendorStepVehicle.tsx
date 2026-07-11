@@ -203,18 +203,26 @@ const [vehicleDocuments,setVehicleDocuments]=useState<File[]>([]);
 const [isUploadModalOpen,setIsUploadModalOpen]=useState(false);
 const [uploadDocumentType,setUploadDocumentType]=useState("");
 const [uploadDocumentFile,setUploadDocumentFile]=useState<File|null>(null);
+useEffect(() => {
+  if (!selectedBranch || !isAddMode || editingVehicleId) return;
 
-useEffect(()=>{
-if(!selectedBranch || !isAddMode || editingVehicleId) return;
+  setVehicleForm((prev) => ({
+    ...prev,
+    country: selectedBranch.countryId
+      ? String(selectedBranch.countryId)
+      : prev.country,
+    state: selectedBranch.stateId
+      ? String(selectedBranch.stateId)
+      : prev.state,
+    city: selectedBranch.cityId
+      ? String(selectedBranch.cityId)
+      : prev.city,
 
-setVehicleForm(prev=>({
-...prev,
-country:selectedBranch.countryId ? String(selectedBranch.countryId) : prev.country,
-state:selectedBranch.stateId ? String(selectedBranch.stateId) : prev.state,
-city:selectedBranch.cityId ? String(selectedBranch.cityId) : prev.city,
-vehicleOrigin:prev.vehicleOrigin || String(selectedBranch.location || selectedBranch.name || ""),
-}));
-},[selectedBranch,isAddMode,editingVehicleId]);
+    // Vehicle Origin is independent from Branch Location
+    vehicleOrigin: prev.vehicleOrigin,
+    vehicleLocationId: prev.vehicleLocationId,
+  }));
+}, [selectedBranch, isAddMode, editingVehicleId]);
 
 useEffect(() => {
 if (!vendorId) return;
@@ -578,10 +586,18 @@ setIsVehicleListOpen(false);
 const handleOpenAddVehicle = () => {
 setEditingVehicleId(null);
 setVehicleForm({
-...emptyVehicleForm,
-country:selectedBranch?.countryId ? String(selectedBranch.countryId) : "",
-state:selectedBranch?.stateId ? String(selectedBranch.stateId) : "",
-city:selectedBranch?.cityId ? String(selectedBranch.cityId) : "",
+  ...emptyVehicleForm,
+  country: selectedBranch?.countryId
+    ? String(selectedBranch.countryId)
+    : "",
+  state: selectedBranch?.stateId
+    ? String(selectedBranch.stateId)
+    : "",
+  city: selectedBranch?.cityId
+    ? String(selectedBranch.cityId)
+    : "",
+  vehicleOrigin: "",
+  vehicleLocationId: "",
 });
 setVehicleDocuments([]);
 setVehicleFormErrors({});
@@ -853,7 +869,11 @@ ownerPincode:v.owner_pincode || "",
 country:String(v.owner_country || ""),
 state:String(v.owner_state || ""),
 city:String(v.owner_city || ""),
-vehicleOrigin:String(v.vehicle_origin || v.vehicle_orign || ""),
+vehicleOrigin: String(
+  v.vehicle_origin ||
+  v.vehicle_orign ||
+  ""
+),
 chassisNumber:v.chassis_number || "",
 vehicleExpiryDate:v.vehicle_fc_expiry_date ? v.vehicle_fc_expiry_date.split("T")[0] : "",
 fuelType:String(v.fuel_type || ""),
@@ -875,7 +895,9 @@ setVehicleFormErrors({});
 
 };
 
-const handleSaveVehicle=async()=>{
+const handleSaveVehicle = async (
+  continueToNextStep: boolean = false
+) => {
 
 if(!vendorId){
 alert("Vendor id missing. Please save Basic Info first.");
@@ -974,7 +996,7 @@ owner_pincode:vehicleForm.ownerPincode,
 owner_country:vehicleForm.country ? Number(vehicleForm.country) : null,
 owner_state:vehicleForm.state,
 owner_city:vehicleForm.city,
-vehicle_origin:vehicleForm.vehicleOrigin,
+vehicle_origin: String(vehicleForm.vehicleOrigin || "").trim(),
 chassis_number:vehicleForm.chassisNumber,
 vehicle_fc_expiry_date:vehicleForm.vehicleExpiryDate ? new Date(vehicleForm.vehicleExpiryDate) : null,
 fuel_type:vehicleForm.fuelType ? Number(vehicleForm.fuelType) : null,
@@ -987,7 +1009,9 @@ insurance_start_date:vehicleForm.insuranceStartDate ? new Date(vehicleForm.insur
 insurance_end_date:vehicleForm.insuranceEndDate ? new Date(vehicleForm.insuranceEndDate) : null,
 insurance_contact_no:vehicleForm.insuranceContactNumber,
 RTO_code:vehicleForm.rtoCode,
-vehicle_location_id:vehicleForm.vehicleLocationId ? Number(vehicleForm.vehicleLocationId) : null,
+vehicle_location_id: vehicleForm.vehicleLocationId
+  ? Number(vehicleForm.vehicleLocationId)
+  : null,
 };
 
 if(editingVehicleId){
@@ -1003,23 +1027,42 @@ body:JSON.stringify(payload),
 }
 
 await fetchVehicles();
+
 setIsAddMode(false);
 setIsVehicleListOpen(true);
 setEditingVehicleId(null);
+
 setVehicleForm({
-...emptyVehicleForm,
-country:selectedBranch?.countryId ? String(selectedBranch.countryId) : "",
-state:selectedBranch?.stateId ? String(selectedBranch.stateId) : "",
-city:selectedBranch?.cityId ? String(selectedBranch.cityId) : "",
-vehicleOrigin:selectedBranch?.location || selectedBranch?.name || "",
+  ...emptyVehicleForm,
+  country: selectedBranch?.countryId
+    ? String(selectedBranch.countryId)
+    : "",
+  state: selectedBranch?.stateId
+    ? String(selectedBranch.stateId)
+    : "",
+  city: selectedBranch?.cityId
+    ? String(selectedBranch.cityId)
+    : "",
+  vehicleOrigin: "",
+  vehicleLocationId: "",
 });
+
 setVehicleDocuments([]);
 setVehicleFormErrors({});
 
-}catch(e){
-console.error("Failed to save vehicle",e);
-}finally{
-setSaving(false);
+if (continueToNextStep) {
+  onNext();
+}
+
+} catch (e: any) {
+  console.error("Failed to save vehicle", e);
+
+  alert(
+    e?.message ||
+    "Failed to save vehicle. Please check the entered details and try again."
+  );
+} finally {
+  setSaving(false);
 }
 
 };
@@ -1476,16 +1519,36 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       {vehicleFormErrors.city ? <p className="text-xs text-red-600">{vehicleFormErrors.city}</p> : null}
     </div>
 
-    <div className="space-y-1 md:col-span-2">
-      <label className="text-sm text-slate-600">Vehicle Origin</label>
-      <input
-        value={vehicleForm.vehicleOrigin}
-        onChange={(e)=>handleFieldChange("vehicleOrigin",e.target.value)}
-        placeholder="e.g. Bangalore, International Airport"
-        className={`w-full rounded border px-3 py-2 ${vehicleFormErrors.vehicleOrigin ? "border-red-400" : ""}`}
-      />
-      {vehicleFormErrors.vehicleOrigin ? <p className="text-xs text-red-600">{vehicleFormErrors.vehicleOrigin}</p> : null}
-    </div>
+ <div className="space-y-1 md:col-span-2">
+  <label className="text-sm text-slate-600">
+    Vehicle Origin
+  </label>
+
+  <input
+    value={vehicleForm.vehicleOrigin}
+    onChange={(e) => {
+      handleFieldChange("vehicleOrigin", e.target.value);
+
+      // The old stored-location ID belongs to the previous origin.
+      // Clear it so backend resolves the newly entered origin.
+      setVehicleForm((prev) => ({
+        ...prev,
+        vehicleOrigin: e.target.value,
+        vehicleLocationId: "",
+      }));
+    }}
+    placeholder="e.g. Bangalore, International Airport"
+    className={`w-full rounded border px-3 py-2 ${
+      vehicleFormErrors.vehicleOrigin ? "border-red-400" : ""
+    }`}
+  />
+
+  {vehicleFormErrors.vehicleOrigin ? (
+    <p className="text-xs text-red-600">
+      {vehicleFormErrors.vehicleOrigin}
+    </p>
+  ) : null}
+</div>
 
   <div className="space-y-1">
   <label className="text-sm text-slate-600">Chassis Number</label>
@@ -1749,12 +1812,12 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       Back
     </button>
 
-    <button
-      type="button"
-      onClick={handleSaveVehicle}
-      disabled={saving || !vendorId || !selectedBranchId}
-      className="rounded bg-violet-500 px-6 py-2 text-white"
-    >
+   <button
+  type="button"
+  onClick={() => void handleSaveVehicle(false)}
+  disabled={saving || !vendorId || !selectedBranchId}
+  className="rounded bg-violet-500 px-6 py-2 text-white disabled:opacity-60"
+>
       {saving ? "Saving..." : editingVehicleId ? "Update Vehicle" : "Save Vehicle"}
     </button>
   </div>
@@ -1809,8 +1872,26 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
 Back
 </button>
 
-<button onClick={onNext} className="bg-violet-500 text-white px-6 py-2 rounded">
-Skip & Continue
+<button
+  type="button"
+  onClick={() => {
+    if (isAddMode) {
+      void handleSaveVehicle(true);
+      return;
+    }
+
+    onNext();
+  }}
+  disabled={saving}
+  className="bg-violet-500 text-white px-6 py-2 rounded disabled:opacity-60"
+>
+  {saving
+    ? "Saving..."
+    : editingVehicleId
+      ? "Update & Continue"
+      : isAddMode
+        ? "Save & Continue"
+        : "Skip & Continue"}
 </button>
 
 </div>
