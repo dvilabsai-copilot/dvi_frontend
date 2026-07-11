@@ -1031,7 +1031,17 @@ setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
             setNationality(p.nationality != null ? String(p.nationality) : "");
 
             // ✅ foodPreference state holds option id
-            setFoodPreference(p.food_type != null ? String(p.food_type) : "");
+const savedFoodType = Number(p.food_type ?? 0);
+
+const matchedFoodOption = foodRes.find(
+  (item) => Number(item.id) === savedFoodType
+);
+
+setFoodPreference(
+  matchedFoodOption
+    ? String(matchedFoodOption.id)
+    : ""
+);
 
             setMealPlanCode(resolveMealPlanCodeFromPlan(p, mealPlansRes || []));
 
@@ -1682,28 +1692,64 @@ const buildPayload = () => {
     buildTravellers();
 
   // ---- helper: always produce a valid numeric id (prevents NaN->null) ----
-  const resolveOptionId = (raw: any, options: SimpleOption[]): number => {
-    const s = String(raw ?? "").trim();
-    if (!s) return 0;
+const resolveOptionId = (raw: any, options: SimpleOption[]): number => {
+  const value = String(raw ?? "").trim();
 
-    const direct = Number(s);
-    if (Number.isFinite(direct)) return direct;
+  if (!value) return 0;
 
-    const target = s.toLowerCase();
-    const match =
-      options.find(
-        (o) => String(o.label ?? "").trim().toLowerCase() === target,
-      ) ||
-      options.find((o) =>
-        String(o.label ?? "").trim().toLowerCase().includes(target),
-      ) ||
-      options.find((o) =>
-        target.includes(String(o.label ?? "").trim().toLowerCase()),
-      );
+  // Dropdown may already provide a numeric ID.
+  const directId = Number(value);
 
-    const idNum = Number((match as any)?.id);
-    return Number.isFinite(idNum) ? idNum : 0;
-  };
+  if (Number.isInteger(directId) && directId > 0) {
+    return directId;
+  }
+
+  // Treat spaces, hyphens and underscores as equivalent.
+  const normalizeLabel = (input: unknown) =>
+    String(input ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+
+  const normalizedValue = normalizeLabel(value);
+
+  const matchedOption = options.find((option: any) => {
+    const optionLabel = normalizeLabel(
+      option?.label ??
+      option?.name ??
+      option?.food_type_name ??
+      option?.foodTypeName
+    );
+
+    return optionLabel === normalizedValue;
+  });
+
+  const matchedId = Number(
+    (matchedOption as any)?.id ??
+    (matchedOption as any)?.food_type ??
+    (matchedOption as any)?.foodTypeId ??
+    0
+  );
+
+  if (Number.isInteger(matchedId) && matchedId > 0) {
+    return matchedId;
+  }
+
+  // Final fallback for APIs where the dropdown value itself is the label.
+const foodTypeByLabel: Record<string, number> = {
+  vegetarian: 1,
+  veg: 1,
+  nonvegetarian: 2,
+  nonveg: 2,
+  jain: 3,
+  vegan: 4,
+  egg: 5,
+  eggetarian: 5,
+  eggeterian: 5,
+};
+
+  return foodTypeByLabel[normalizedValue] ?? 0;
+};
 
   const itinerary_type =
     itineraryTypeSelect && itineraryTypeSelect !== ""
@@ -1755,7 +1801,15 @@ const buildPayload = () => {
       ? selectedHotelFacilityIds
       : [];
 
- const food_type_id = resolveOptionId(foodPreference, foodPreferences);
+const food_type_id = resolveOptionId(
+  foodPreference,
+  foodPreferences
+);
+if (!Number.isInteger(food_type_id) || food_type_id <= 0) {
+  throw new Error(
+    `Invalid food preference value: ${String(foodPreference)}`
+  );
+}
 
 const shouldUseMealPlan = itineraryPreference !== "vehicle";
 
@@ -2019,10 +2073,12 @@ const continueToRouteConfirmation = () => {
     continueToRouteConfirmation();
   };
 
-  const handleConfirmClose = () => {
-    if (isSaving) return;
-    setShowRouteConfirm(false);
-  };
+const handleConfirmClose = () => {
+  if (isSaving) return;
+
+  setShowRouteConfirm(false);
+  setPendingPayload(null);
+};
 
 const isDefaultItineraryTypeSelected = () => {
   const selectedType = itineraryTypes.find(
@@ -2183,15 +2239,18 @@ const handleSaveWithType = async (
     setIsSaving(true);
     setActiveSaveType(type);
 
-    const basePayload = pendingPayload ?? buildPayload();
-    const decision = arrivalPolicyDecisionRef.current;
-    const finalPayload = {
-      ...basePayload,
-      previousDayBillingDecisionProvided:
-        decision.previousDayBillingDecisionProvided,
-      previousDayBillingConfirmed:
-        decision.previousDayBillingConfirmed,
-    };
+  // Always rebuild from the latest form state.
+// Do not save using an older cached pendingPayload.
+const basePayload = buildPayload();
+const decision = arrivalPolicyDecisionRef.current;
+
+const finalPayload = {
+  ...basePayload,
+  previousDayBillingDecisionProvided:
+    decision.previousDayBillingDecisionProvided,
+  previousDayBillingConfirmed:
+    decision.previousDayBillingConfirmed,
+};
     const dayCount = Math.max(1, Number(finalPayload?.plan?.no_of_days ?? 1));
     const estimatedMs = getEstimatedSaveMs(dayCount, type);
     setEstimatedSaveMs(estimatedMs);
