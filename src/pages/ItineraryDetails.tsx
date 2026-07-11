@@ -48,6 +48,7 @@ import {
   ManualFitHerePreviewResponse,
 } from "@/components/itinerary/manual-fit/ManualFitHerePreviewDialog";
 import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
+import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
@@ -1266,6 +1267,11 @@ const navigate = useNavigate();
     "Building itinerary details",
   ]);
   const [pageReady, setPageReady] = useState<boolean>(false);
+  const [sourcePreviewOpen, setSourcePreviewOpen] = useState(false);
+  const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
+  const [sourcePreviewError, setSourcePreviewError] = useState<string | null>(null);
+  const [sourcePreviewMarkdown, setSourcePreviewMarkdown] = useState("");
+  const [sourcePreviewHeading, setSourcePreviewHeading] = useState("");
 const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
 const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
 const itineraryDaysCountRef = useRef(0);
@@ -1279,6 +1285,32 @@ const routeHotelFamilyKeyRef = useRef<string>("");
 const fetchCompleteHotelDetailsRef = useRef<
   ((currentQuoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null
 >(null);
+
+const openSourcePreview = useCallback(async (dayNo: number) => {
+  const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
+  if (!currentQuoteId) {
+    toast.error("Quote ID is not available for source preview.");
+    return;
+  }
+
+  setSourcePreviewOpen(true);
+  setSourcePreviewLoading(true);
+  setSourcePreviewError(null);
+  setSourcePreviewMarkdown("");
+  setSourcePreviewHeading("");
+
+  try {
+    const result = await ItineraryService.getHotspotScenarioMarkdown(currentQuoteId, dayNo);
+    setSourcePreviewMarkdown(String(result.markdown || ""));
+    setSourcePreviewHeading(String(result.heading || `${currentQuoteId} Day ${dayNo}`));
+  } catch (error: any) {
+    const message = String(error?.message || "Failed to load source preview.");
+    setSourcePreviewError(message);
+  } finally {
+    setSourcePreviewLoading(false);
+  }
+}, [activeRouteQuoteId, itinerary?.quoteId, quoteId]);
+
 const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
   // Hydrate route tabs immediately from the payload saved by Create Itinerary.
   if (typeof window === "undefined") return [];
@@ -13798,8 +13830,17 @@ const canShowGuideActionButton =
                 </>
               )}
             </Button>
-            )}
-        </div>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void openSourcePreview(day.dayNumber)}
+            className="border-slate-300 bg-slate-50 hover:bg-slate-100"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Source
+          </Button>
+      </div>
 
        <div className="mt-1 text-sm font-semibold text-[#d546ab]">
   Food Preference:{" "}
@@ -17987,6 +18028,35 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               Copy Clipboard
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={sourcePreviewOpen} onOpenChange={setSourcePreviewOpen}>
+        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Source Preview</DialogTitle>
+            <DialogDescription>
+              Markdown output for the selected quote and day
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {sourcePreviewHeading || "Loading source details..."}
+          </div>
+
+          <div className="max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
+            {sourcePreviewLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
+              </div>
+            ) : sourcePreviewError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {sourcePreviewError}
+              </div>
+            ) : (
+              <MarkdownPreview markdown={sourcePreviewMarkdown || "No markdown content returned."} />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

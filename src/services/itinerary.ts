@@ -8,6 +8,14 @@ export type ItinerarySaveType =
 
 export type ItineraryClipboardMode = "recommended" | "highlights" | "para";
 
+export type HotspotScenarioMarkdownResponse = {
+  quoteId: string;
+  dayNo: number | null;
+  markdown: string;
+  sourceFile: string;
+  heading: string;
+};
+
 export type HotelArrivalPolicyRequest = {
   itineraryPlanId?: number;
   itineraryRouteId?: number;
@@ -506,6 +514,24 @@ export const ItineraryService = {
     return api(url, {
       method: "GET",
     });
+  },
+
+  async getHotspotScenarioMarkdown(quoteId: string, dayNo?: number) {
+    const qs = new URLSearchParams();
+    if (dayNo && dayNo > 0) {
+      qs.set("day", String(dayNo));
+    }
+
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+
+    return api(`itineraries/hotspot-scenario-md/${encodeURIComponent(quoteId)}${suffix}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    }) as Promise<HotspotScenarioMarkdownResponse>;
   },
 
   async getConfirmedItinerary(confirmedId: number) {
