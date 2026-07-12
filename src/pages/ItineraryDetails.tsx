@@ -14916,55 +14916,61 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       <div className="flex flex-wrap gap-3 justify-center">
        {/* Clipboard Dropdown */}
 
-{itineraryPreference === 2 ? (
-  <Button
-    className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]"
-    onClick={() => void handleVehicleOnlyClipboardCopy("recommended")}
-  >
-    Clipboard
+<div className="relative group">
+  <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
+    Clipboard ▼
   </Button>
-) : (
-  <div className="relative group">
-    <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
-      Clipboard ▼
-    </Button>
 
-    <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType("recommended");
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📋</span> Copy Recommended
-      </button>
+  <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("recommended");
+          return;
+        }
 
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-        onClick={() => {
-          setClipboardType("highlights");
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>✨</span> Copy to Highlights
-      </button>
+        setClipboardType("recommended");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📋</span> Copy Recommended
+    </button>
 
-      <button
-        className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-        onClick={() => {
-          setClipboardType("para");
-          setSelectedHotels(buildDefaultClipboardSelection());
-          setClipboardModal(true);
-        }}
-      >
-        <span>📝</span> Copy to Para
-      </button>
-    </div>
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("highlights");
+          return;
+        }
+
+        setClipboardType("highlights");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>✨</span> Copy to Highlights
+    </button>
+
+    <button
+      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
+      onClick={() => {
+        if (itineraryPreference === 2) {
+          handleVehicleOnlyClipboardCopy("para");
+          return;
+        }
+
+        setClipboardType("para");
+        setSelectedHotels(buildDefaultClipboardSelection());
+        setClipboardModal(true);
+      }}
+    >
+      <span>📝</span> Copy to Para
+    </button>
   </div>
-)}
+</div>
 
         {isConfirmedPresentation ? (
           <>
