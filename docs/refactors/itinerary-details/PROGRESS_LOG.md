@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 37 — Hotel pagination controller
+
+### Baseline
+- Starting point: Iteration 36 scroll controller was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract the paginated hotel-row loader and merge logic from the page controller.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotelPaginationController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: loading guard, `ItineraryService.getHotelDetails` call, row/pagination merge, page cursor update, and failure cleanup now live in the hook.
+- Behaviour intentionally changed: No. Existing service arguments, merge semantics, and loading flag lifecycle are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,313 lines.
+- New `useHotelPaginationController.ts`: 44 lines.
+
+### Notes
+- The hook is intentionally limited to pagination; supplier search, room selection, arrival policy, and rebuild flows remain in the controller for later responsibility-level extraction.
+
 ## Iteration 36 — Itinerary scroll controller
 
 ### Baseline

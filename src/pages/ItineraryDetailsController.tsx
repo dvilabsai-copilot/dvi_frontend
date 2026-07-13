@@ -157,6 +157,7 @@ import { useItineraryDeletionState } from "./itinerary-details/hooks/useItinerar
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
 import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotalsSync";
 import { useItineraryScrollController } from "./itinerary-details/hooks/useItineraryScrollController";
+import { useHotelPaginationController } from "./itinerary-details/hooks/useHotelPaginationController";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -2961,32 +2962,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
   // Keep the bottom hotel list enabled for hotel-bearing itineraries.
   // The actual render is still gated by `shouldShowHotels` below.
   const shouldRenderBottomHotelList = true;
- 
 
-  const handleHotelLoadMore = async (groupType: number, routeId: number, nextPage: number) => {
-    if (!quoteId || isLoadingMoreHotels) return;
-    setIsLoadingMoreHotels(true);
-    try {
-      const data = await ItineraryService.getHotelDetails(quoteId, nextPage, 20, groupType, routeId);
-      const newRows: ItineraryHotelRow[] = data.hotels || [];
-      setHotelDetails((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          hotels: [...prev.hotels, ...newRows],
-          pagination: data.pagination ? { ...(prev.pagination || {}), ...data.pagination } : prev.pagination,
-          routePagination: data.routePagination
-            ? { ...(prev.routePagination || {}), ...data.routePagination }
-            : prev.routePagination,
-        };
-      });
-      setHotelPageByGroupRoute((prev) => ({ ...prev, [`${groupType}-${routeId}`]: nextPage }));
-    } catch (err) {
-      console.error('Load More hotels failed', err);
-    } finally {
-      setIsLoadingMoreHotels(false);
-    }
-  };
+  const { handleHotelLoadMore } = useHotelPaginationController({
+    quoteId: quoteId || null,
+    isLoadingMoreHotels,
+    setIsLoadingMoreHotels,
+    setHotelDetails,
+    setHotelPageByGroupRoute,
+  });
 
   const dedupeHotelRows = useCallback((rows: ItineraryHotelRow[]): ItineraryHotelRow[] => {
     const seen = new Set<string>();
