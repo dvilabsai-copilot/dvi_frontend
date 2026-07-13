@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 34 — Route-time progress controller
+
+### Baseline
+- Starting point: Iteration 33 destructive-action state hook was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract the route-time progress timer and history mechanics while preserving the existing hotel workflow state shape.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useRouteTimeProgressController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: interval cleanup, progress-stage history, percentage updates, and route-time estimate calculation now live in the hook.
+- Behaviour intentionally changed: No. The controller passes the same state setters and timer ref and receives the same callback names.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,393 lines.
+- New `useRouteTimeProgressController.ts`: 51 lines.
+
+### Notes
+- The hook keeps timing behavior local to the route-time workflow; remaining hotel search and route action handlers still need extraction.
+
 ## Iteration 33 — Destructive-action state hook
 
 ### Baseline

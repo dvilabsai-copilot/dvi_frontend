@@ -58,9 +58,6 @@ import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
-import {
-  getEstimatedSaveMs,
-} from "./CreateItinerary/helpers/saveProgress.constants";
 import type {
   Activity,
   AttractionSegment,
@@ -158,6 +155,7 @@ import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflo
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
+import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -2902,13 +2900,6 @@ const loadAndCacheRouteHotelDetails = useCallback(
       h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase())
   );
 
-  const stopRouteTimeProgress = useCallback(() => {
-    if (routeTimeProgressTimerRef.current !== null) {
-      window.clearInterval(routeTimeProgressTimerRef.current);
-      routeTimeProgressTimerRef.current = null;
-    }
-  }, []);
-
   const pushPageLoaderStage = useCallback((stage: string, detail?: string) => {
     setPageLoaderStage(stage);
     setPageLoaderDetail(detail || PAGE_LOADER_STAGE_DETAILS[stage] || "Preparing the latest itinerary data.");
@@ -2917,30 +2908,18 @@ const loadAndCacheRouteHotelDetails = useCallback(
     ));
   }, []);
 
-  const pushRouteProgressStage = useCallback((stage: string, detail?: string) => {
-    setRouteProgressDetail(detail || stage);
-    setRouteProgressHistory((prev) => (
-      prev[prev.length - 1] === stage ? prev : [...prev, stage].slice(-6)
-    ));
-  }, []);
-
-  const startRouteTimeProgress = useCallback((estimatedMs: number) => {
-    stopRouteTimeProgress();
-    setRouteTimeProgressPercent(1);
-
-    const startedAt = Date.now();
-    routeTimeProgressTimerRef.current = window.setInterval(() => {
-      const elapsed = Date.now() - startedAt;
-      const pct = Math.floor((elapsed / Math.max(estimatedMs, 1000)) * 100);
-      setRouteTimeProgressPercent(Math.min(95, Math.max(1, pct)));
-    }, 220);
-  }, [stopRouteTimeProgress]);
-
-  const getRouteTimeUpdateEstimateMs = useCallback((dayNumber: number) => {
-    const dayCount = Math.max(1, itinerary?.days?.length ?? dayNumber ?? 1);
-    const createEstimateMs = getEstimatedSaveMs(dayCount, "itineary_basic_info_with_optimized_route");
-    return Math.max(15000, createEstimateMs * 2);
-  }, [itinerary?.days?.length]);
+  const {
+    stopRouteTimeProgress,
+    pushRouteProgressStage,
+    startRouteTimeProgress,
+    getRouteTimeUpdateEstimateMs,
+  } = useRouteTimeProgressController({
+    dayCount: itinerary?.days?.length ?? 0,
+    timerRef: routeTimeProgressTimerRef,
+    setProgressPercent: setRouteTimeProgressPercent,
+    setProgressDetail: setRouteProgressDetail,
+    setProgressHistory: setRouteProgressHistory,
+  });
 
   const mediaShareState = useMediaShareState();
   const {
