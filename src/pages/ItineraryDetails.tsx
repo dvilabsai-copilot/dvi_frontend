@@ -49,6 +49,12 @@ import {
 } from "@/components/itinerary/manual-fit/ManualFitHerePreviewDialog";
 import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
+import {
+  buildAutoManualHotspotPreviewPayload,
+  buildExactManualHotspotPreviewPayload,
+  extractAutoPreviewResults,
+  pickBestAutoPreviewAnchorKey,
+} from "./itinerary-details/manual-hotspot-preview.shared";
 import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
@@ -10124,101 +10130,24 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setSelectedHotspotIds([]);
   };
 
-  const handleFitHereClick = async (day: ItineraryDay, anchor: HotspotAnchor) => {
-    if (!selectedFitHotspot) {
-      toast.error('Please select a hotspot first.');
-      return;
-    }
-
-    const planId = Number(itinerary?.planId || 0);
-    if (!(planId > 0)) {
-      toast.error('Plan ID missing.');
-      return;
-    }
-
-    const anchorKey = buildFitHereAnchorKey(anchor);
-    console.log('[FitHere] selected_anchor', {
-      hotspotId: selectedFitHotspot?.id,
-      anchor,
-    });
-    setFitHereModal({
-      open: true,
-      loading: true,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey,
-      retryPayload: {
-        day,
-        anchor,
-      },
-    });
-    startFitHereProgressTimer();
-
-    try {
-      const previewPayload = {
-        routeId: Number(day.id),
-        selectedHotspotId: Number(selectedFitHotspot.id),
-        anchor: {
-          anchorType: anchor.anchorType,
-          anchorIntent: anchor.anchorIntent,
-          anchorIndex: anchor.anchorIndex,
-          anchorFrom: anchor.anchorFrom,
-          anchorTo: anchor.anchorTo,
-          anchorLabel: anchor.anchorLabel,
-          anchorTimeRange: anchor.anchorTimeRange,
-          afterRowType: anchor.afterRowType,
-          beforeRowType: anchor.beforeRowType,
-          afterHotspotId: anchor.afterHotspotId,
-          afterRouteHotspotId: anchor.afterRouteHotspotId,
-          beforeHotspotId: anchor.beforeHotspotId,
-          beforeRouteHotspotId: anchor.beforeRouteHotspotId,
-          isBeforeHotel: false,
-        },
-        allowP3Removal: true,
-        allowP1P2Removal: true,
-      };
-      console.log("[FitHere] clicked anchor", previewPayload);
-
-      const response = await ItineraryService.previewManualHotspotFitHere(
-        planId,
-        previewPayload,
-      );
-      stopFitHereProgressTimer();
-
-      setFitHereModal({
-        open: true,
-        loading: false,
-        loadingStepIndex: 10,
-        failedReason: null,
-        attempt: response as ManualFitHerePreviewResponse,
-        anchorKey,
-        retryPayload: {
-          day,
-          anchor,
-        },
-      });
-    } catch (error: any) {
-      stopFitHereProgressTimer();
-      setFitHereModal({
-        open: true,
-        loading: false,
-        loadingStepIndex: 0,
-        failedReason: error?.message || 'Could not calculate Fit Here preview.',
-        attempt: null,
-        anchorKey,
-        retryPayload: {
-          day,
-          anchor,
-        },
-      });
-      toast.error(error?.message || 'Could not calculate Fit Here preview.');
-    }
+  const runAutoPreviewFitHere = async (
+    planId: number,
+    day: ItineraryDay,
+    hotspot: AvailableHotspot,
+    anchors: HotspotAnchor[],
+  ) => {
+    return ItineraryService.previewManualHotspotAutoFitHere(
+      planId,
+      buildAutoManualHotspotPreviewPayload(
+        Number(day.id),
+        Number(hotspot.id),
+        anchors.map((item) => serializeFitHereAnchor(item)),
+      ),
+    );
   };
 
-  const handleAutoPreviewFitHere = async (hotspot: AvailableHotspot) => {
+  const executeAutoPreviewFitHere = async (day: ItineraryDay, hotspot: AvailableHotspot) => {
     const planId = Number(itinerary?.planId || 0);
-    const day = selectedFitHereDay;
 
     if (!(planId > 0)) {
       toast.error('Plan ID missing.');
@@ -10278,116 +10207,17 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     });
 
     try {
-      const startedAtMs = Date.now();
-      const completedRows: any[] = [];
-
-      for (let index = 0; index < anchors.length; index += 1) {
-        if (requestId !== previewRequestIdRef.current) {
-          return;
-        }
-
-        const anchor = anchors[index];
-        const anchorKey = buildFitHereAnchorKey(anchor);
-        const anchorStartedAtMs = Date.now();
-        const serializedAnchor = serializeFitHereAnchor(anchor);
-
-        setAutoFitHereModal((prev) => ({
-          ...prev,
-          results: prev.results.map((row: any) => (
-            row.anchorKey === anchorKey
-              ? {
-                  ...row,
-                  status: 'RUNNING',
-                  rankReason: `Checking position ${index + 1} of ${anchors.length}`,
-                }
-              : row
-          )),
-        }));
-
-        try {
-          const attempt = await ItineraryService.previewManualHotspotFitHere(planId, {
-            routeId: Number(day.id),
-            selectedHotspotId: Number(hotspot.id),
-            anchor: serializedAnchor,
-            allowP3Removal: true,
-            allowP1P2Removal: true,
-          });
-
-          if (requestId !== previewRequestIdRef.current) {
-            return;
-          }
-
-          const ranking = scoreAutoPreviewAttempt(attempt);
-          const elapsedMs = Date.now() - anchorStartedAtMs;
-          const completedRow = {
-            anchorKey,
-            anchor: serializedAnchor,
-            attempt: attempt as any,
-            status: 'COMPLETED' as const,
-            score: ranking.score,
-            rankReason: ranking.reason,
-            removedCount: ranking.removedCount,
-            progressText: buildAutoPreviewAnchorProgressText(day, anchor),
-            elapsedMs,
-            sortIndex: index,
-          };
-          completedRows.push(completedRow);
-
-          setAutoFitHereModal((prev) => ({
-            ...prev,
-            results: prev.results.map((row: any) => (
-              row.anchorKey === anchorKey ? completedRow : row
-            )),
-          }));
-        } catch (error: any) {
-          if (requestId !== previewRequestIdRef.current) {
-            return;
-          }
-
-          const failedRow = {
-            anchorKey,
-            anchor: serializedAnchor,
-            attempt: null,
-            status: 'FAILED' as const,
-            score: 0,
-            rankReason: 'This position could not be previewed.',
-            removedCount: 0,
-            error: error?.message || 'Could not preview this Fit Here position.',
-            progressText: buildAutoPreviewAnchorProgressText(day, anchor),
-            elapsedMs: Date.now() - anchorStartedAtMs,
-            sortIndex: index,
-          };
-          completedRows.push(failedRow);
-
-          setAutoFitHereModal((prev) => ({
-            ...prev,
-            results: prev.results.map((row: any) => (
-              row.anchorKey === anchorKey ? failedRow : row
-            )),
-          }));
-        }
-      }
-
+      const response = await runAutoPreviewFitHere(planId, day, hotspot, anchors);
       if (requestId !== previewRequestIdRef.current) {
         return;
       }
 
-      const results = [...completedRows].sort((a, b) => {
-        if (Number(b.score || 0) !== Number(a.score || 0)) {
-          return Number(b.score || 0) - Number(a.score || 0);
-        }
-        return Number(a.sortIndex || 9999) - Number(b.sortIndex || 9999);
-      });
-
-      const selectedAnchorKey =
-        results.find((row: any) => row?.attempt?.canConfirm === true)?.anchorKey ||
-        results[0]?.anchorKey ||
-        null;
-      const totalElapsedMs = Date.now() - startedAtMs;
-      const avgAnchorMs = results.length > 0
-        ? Math.round(results.reduce((sum, row: any) => sum + Number(row?.elapsedMs || 0), 0) / results.length)
-        : 0;
-      const slowestRow = [...results].sort((a, b) => Number(b?.elapsedMs || 0) - Number(a?.elapsedMs || 0))[0] || null;
+      const results = extractAutoPreviewResults(response).map((row: any, index: number) => ({
+        ...row,
+        progressText: buildAutoPreviewAnchorProgressText(day, row?.anchor || anchors[index] || anchors[0]),
+        sortIndex: Number.isFinite(Number(row?.sortIndex)) ? Number(row?.sortIndex) : index,
+      }));
+      const selectedAnchorKey = pickBestAutoPreviewAnchorKey(response, results[0]?.anchorKey || null);
 
       setAutoFitHereModal({
         open: true,
@@ -10397,12 +10227,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         selectedAnchorKey,
         loadingAnchorCount: anchors.length,
         loadingStartedAtMs: null,
-        performanceSummary: {
-          totalElapsedMs,
-          avgAnchorMs,
-          slowestAnchorLabel: String(slowestRow?.anchor?.anchorLabel || '').trim() || null,
-          slowestAnchorMs: Number(slowestRow?.elapsedMs || 0) || null,
-        },
+        performanceSummary: (response as any)?.performanceSummary || null,
       });
     } catch (error: any) {
       if (requestId !== previewRequestIdRef.current) {
@@ -10422,6 +10247,106 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
       toast.error(error?.message || 'Could not run Auto-Preview.');
     }
+  };
+
+  const handleFitHereClick = async (day: ItineraryDay, anchor: HotspotAnchor) => {
+    if (!selectedFitHotspot) {
+      toast.error('Please select a hotspot first.');
+      return;
+    }
+
+    const planId = Number(itinerary?.planId || 0);
+    if (!(planId > 0)) {
+      toast.error('Plan ID missing.');
+      return;
+    }
+
+    const anchorKey = buildFitHereAnchorKey(anchor);
+    console.log('[FitHere] selected_anchor', {
+      hotspotId: selectedFitHotspot?.id,
+      anchor,
+    });
+    setFitHereModal({
+      open: true,
+      loading: true,
+      loadingStepIndex: 0,
+      failedReason: null,
+      attempt: null,
+      anchorKey,
+      retryPayload: {
+        day,
+        anchor,
+      },
+    });
+    startFitHereProgressTimer();
+
+    try {
+      const previewPayload = buildExactManualHotspotPreviewPayload(
+        Number(day.id),
+        Number(selectedFitHotspot.id),
+        {
+          anchorType: anchor.anchorType,
+          anchorIntent: anchor.anchorIntent,
+          anchorIndex: anchor.anchorIndex,
+          anchorFrom: anchor.anchorFrom,
+          anchorTo: anchor.anchorTo,
+          anchorLabel: anchor.anchorLabel,
+          anchorTimeRange: anchor.anchorTimeRange,
+          afterRowType: anchor.afterRowType,
+          beforeRowType: anchor.beforeRowType,
+          afterHotspotId: anchor.afterHotspotId,
+          afterRouteHotspotId: anchor.afterRouteHotspotId,
+          beforeHotspotId: anchor.beforeHotspotId,
+          beforeRouteHotspotId: anchor.beforeRouteHotspotId,
+        },
+      );
+      console.log("[FitHere] clicked anchor", previewPayload);
+
+      const response = await ItineraryService.previewManualHotspotFitHere(
+        planId,
+        previewPayload,
+      );
+      stopFitHereProgressTimer();
+
+      setFitHereModal({
+        open: true,
+        loading: false,
+        loadingStepIndex: 10,
+        failedReason: null,
+        attempt: response as ManualFitHerePreviewResponse,
+        anchorKey,
+        retryPayload: {
+          day,
+          anchor,
+        },
+      });
+    } catch (error: any) {
+      stopFitHereProgressTimer();
+      setFitHereModal({
+        open: true,
+        loading: false,
+        loadingStepIndex: 0,
+        failedReason: error?.message || 'Could not calculate Fit Here preview.',
+        attempt: null,
+        anchorKey,
+        retryPayload: {
+          day,
+          anchor,
+        },
+      });
+      toast.error(error?.message || 'Could not calculate Fit Here preview.');
+    }
+  };
+
+  const handleAutoPreviewFitHere = async (hotspot: AvailableHotspot) => {
+    const day = selectedFitHereDay;
+
+    if (!day) {
+      toast.error('Could not find the selected route day.');
+      return;
+    }
+
+    void executeAutoPreviewFitHere(day, hotspot);
   };
 
   const handleFitHereCancel = () => {
