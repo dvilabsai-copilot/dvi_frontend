@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 41 — Selected hotel summary derivation
+
+### Baseline
+- Starting point: Iteration 40 hotel details loader was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract selected-hotel total and route summary derivation from the page controller.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useSelectedHotelSummary.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: selected booking total, route-bucket matching, booking/code/name matching, and cheapest-row fallback calculations now live in the hook.
+- Behaviour intentionally changed: No. Existing matching precedence, amount calculations, and room-count fallback are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,105 lines.
+- New `useSelectedHotelSummary.ts`: 86 lines.
+
+### Notes
+- Hotel display derivation is now separate from hotel mutation workflows; arrival policy, room selection, and rebuild actions remain to be split.
+
 ## Iteration 40 — Hotel details loader
 
 ### Baseline

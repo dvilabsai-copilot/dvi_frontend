@@ -161,6 +161,7 @@ import { useHotelPaginationController } from "./itinerary-details/hooks/useHotel
 import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
+import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3007,73 +3008,12 @@ const loadAndCacheRouteHotelDetails = useCallback(
     dedupeHotelRows,
   });
 
-  const selectedHotelTotal = useMemo(
-    () => Object.values(selectedHotelBookings).reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
-    [selectedHotelBookings]
-  );
-
-  const selectedHotelMetaByRoute = useMemo(() => {
-    const map = new Map<number, { hotelName: string; hotelDistance: string | null; totalAmount: number; noOfRooms: number }>();
-    if (!hotelDetails?.hotels?.length) return map;
-    const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
-
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      1;
-
-    const routeBuckets = new Map<number, ItineraryHotelRow[]>();
-    hotelDetails.hotels
-      .filter((h) => h.groupType === preferredGroupType)
-      .forEach((h) => {
-        const routeId = Number(h.itineraryRouteId || 0);
-        if (!routeId) return;
-        if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
-        routeBuckets.get(routeId)!.push(h);
-      });
-
-    routeBuckets.forEach((rows, routeId) => {
-      const selected = selectedHotelBookings[routeId];
-
-      if (selected) {
-        const matched = rows.find((h) => {
-          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
-          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
-          const amountMatch = Number(selected.netAmount || 0) > 0 &&
-            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
-          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
-          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
-          const hotelNameMatch = selected.hotelName && h.hotelName && selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
-          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
-        });
-
-        map.set(routeId, {
-          hotelName: selected.hotelName || matched?.hotelName || "Hotel",
-          hotelDistance: matched?.hotelDistance || null,
-          totalAmount:
-            Number(selected.netAmount || 0) ||
-            Number(matched?.totalHotelCost || 0) + Number(matched?.totalHotelTaxAmount || 0),
-          noOfRooms: Math.max(Number(matched?.noOfRooms || 0), 0) || itineraryRoomCount,
-        });
-        return;
-      }
-
-      const cheapest = rows.reduce((best, curr) => {
-        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-        return currTotal < bestTotal ? curr : best;
-      });
-
-      map.set(routeId, {
-        hotelName: cheapest.hotelName || "Hotel",
-        hotelDistance: cheapest.hotelDistance || null,
-        totalAmount: Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0),
-        noOfRooms: Math.max(Number(cheapest.noOfRooms || 0), 0) || itineraryRoomCount,
-      });
-    });
-
-    return map;
-  }, [hotelDetails, selectedHotelBookings, activeHotelGroupType, itinerary?.roomCount]);
+  const { selectedHotelTotal, selectedHotelMetaByRoute } = useSelectedHotelSummary({
+    selectedHotelBookings,
+    hotelDetails,
+    activeHotelGroupType,
+    roomCount: itinerary?.roomCount,
+  });
 
   const computedHotelCost = useMemo(() => {
     if (hotelReadOnly) {
