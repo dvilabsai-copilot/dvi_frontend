@@ -605,6 +605,34 @@
 - Coupling discovered: vehicle retry still intentionally invokes the existing prepared-itinerary loader and preserves its state transitions.
 - Follow-up extraction: hotspot/Fit Here controller/view and vehicle workflow actions; final composition verification remains outstanding.
 
+## Iteration 30 — Verification and lint checkpoint
+
+### Baseline
+- Tests run: `npm run lint`, page/new-module TypeScript filter, `npm run build`, focused Playwright pair, and the broader itinerary suite.
+- Result: build and focused pair remain green; page/new-module typecheck has no new errors; broader suite and lint remain red for documented environment/repository issues.
+
+### Changes
+- Files created: none.
+- Files modified: `REGRESSION_LOG.md`, `PROGRESS_LOG.md`.
+- Code moved: none; recorded the final verification evidence for this loop budget.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no new errors from current page/runtime/new modules; existing repository errors remain documented.
+- Lint: 1,921 errors/122 warnings; not green.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: 34 tests, 9 passed, 2 skipped, 23 failed; documented in `REGRESSION_LOG.md`.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsRuntime.tsx`: 16,191 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional runtime still exceeds the 1,000-line source-file target, repository lint is red, and the broader suite has unresolved shared-data/environment failures. The branch is intentionally left at the last green application checkpoint for continued work.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline

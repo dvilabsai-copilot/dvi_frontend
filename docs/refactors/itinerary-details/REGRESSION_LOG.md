@@ -76,6 +76,23 @@ The all-hotspots preview now renders through `AllHotspotsPreviewDialog`; the dup
 ### Verification
 The exact-anchor Fit Here smoke and hotspot preview regression both pass.
 
+## 2026-07-14 — Iteration 30 lint checkpoint
+
+### Failure
+`npm run lint` remains red with 1,921 errors and 122 warnings across the repository.
+
+### Classification
+- pre-existing repository defect, with additional strict typing findings in the newly staged transitional hooks
+
+### Root cause
+The repository-wide command already fails in legacy source/tests and configuration comments. The staged transitional hooks also preserve several dynamic response shapes while their controller extraction is still in progress.
+
+### Resolution
+No lint suppression or blanket rule changes were added. The remaining hook typing cleanup is an explicit follow-up before final completion.
+
+### Verification
+`npm run build`, focused Playwright (2/2), and page/new-module typecheck remain green.
+
 ## 2026-07-14 — Broader itinerary Playwright suite checkpoint
 
 ### Failure
