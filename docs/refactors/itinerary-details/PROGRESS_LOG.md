@@ -1,5 +1,30 @@
 # Progress log
 
+## Iteration 31 — Explicit controller/runtime composition boundary
+
+### Baseline
+- Starting point: the stable page entrypoint already delegated to a single transitional implementation module, and the focused Playwright pair plus production build were green.
+- Scope: name the remaining implementation according to its actual responsibility and keep a thin runtime composition module at the router boundary.
+
+### Changes
+- Files renamed: `src/pages/ItineraryDetailsRuntime.tsx` → `src/pages/ItineraryDetailsController.tsx`.
+- Files created: `src/pages/ItineraryDetailsRuntime.tsx` (11-line composition boundary).
+- Behaviour intentionally changed: No. The runtime re-exports the controller's named/default component contract without changing props, routes, API calls, or JSX.
+
+### Verification
+- Typecheck: repository command still reports the documented unrelated errors; no new errors were introduced in the itinerary controller/runtime modules. The lazy router's existing prop inference diagnostics remain documented baseline debt.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 16,191 lines.
+
+### Notes
+- This is an architectural naming/boundary checkpoint, not completion. The controller still requires responsibility-by-responsibility extraction under the 1,000-line source-file ceiling.
+
 ## Iteration 0 — inspection and baseline
 
 ### Baseline

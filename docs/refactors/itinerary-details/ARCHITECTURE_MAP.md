@@ -55,6 +55,7 @@ Extracted presentational boundaries now include the loader/error states, media/s
 ## Current composition checkpoint
 
 - `src/pages/ItineraryDetails.tsx` is the stable 14-line router/HMR entrypoint. It preserves the named/default component exports and historical hotel/vehicle type re-exports.
-- `src/pages/ItineraryDetailsRuntime.tsx` is the transitional implementation module while the remaining workflows are split by responsibility. It currently consumes `ItineraryHeader`, `VehicleBuildErrorState`, `useHotspotState`, `useItineraryRouteState`, `useQuotationState`, `useHotelSelectionState`, `useHotelWorkflowState`, `useMediaShareState`, `useActivityState`, and `useGuideState`.
+- `src/pages/ItineraryDetailsRuntime.tsx` is the thin composition boundary for the route and preserves the router-facing named/default exports.
+- `src/pages/ItineraryDetailsController.tsx` is the explicitly named transitional controller module while the remaining workflows are split by responsibility. It currently consumes `ItineraryHeader`, `VehicleBuildErrorState`, `useHotspotState`, `useItineraryRouteState`, `useQuotationState`, `useHotelSelectionState`, `useHotelWorkflowState`, `useMediaShareState`, `useActivityState`, and `useGuideState`.
 - State ownership extracted so far: route/loading and route-option hydration; hotspot/Fit Here state and refs; quotation/wallet/passenger state; hotel selections/totals/pagination refs; gallery/video/clipboard/share state.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
