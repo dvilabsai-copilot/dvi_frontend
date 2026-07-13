@@ -111,3 +111,22 @@ No application or test weakening changes were made. Generated Playwright artifac
 
 ### Verification
 Focused pair remains 2/2 passed; production build passes; page/new-module typecheck remains free of new errors.
+
+## 2026-07-14 — Broader itinerary Playwright rerun after controller extractions
+
+### Failure
+The broader command ran 34 tests with 8 workers: 8 passed, 2 skipped, and 24 failed.
+
+### Classification
+- shared mutable test-data contention
+- environment issue
+- pre-existing backend/parity issue
+
+### Root cause
+The parallel run amplified the existing shared-record Fit Here/APJ mutations; parity still resolves PHP to its logout redirect while Nest resolves `/login`, and the vehicle-only flow still depends on backend processing/data visibility. These failures are outside the page composition changes; the focused characterization pair remains green.
+
+### Resolution
+No test weakening or application workaround was added. Generated result directories were removed and tracked Playwright metadata restored.
+
+### Verification
+Focused pair remains 2/2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.

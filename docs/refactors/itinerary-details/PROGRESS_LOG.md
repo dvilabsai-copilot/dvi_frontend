@@ -1,5 +1,26 @@
 # Progress log
 
+## Iteration 47 — Broader verification rerun
+
+### Baseline
+- Starting point: Iteration 46 room-night extraction was committed and the focused pair/build/typecheck were green.
+- Scope: rerun the broader itinerary Playwright set after the accumulated controller/state/computation extractions.
+
+### Changes
+- Files modified: `REGRESSION_LOG.md`, `FINAL_REPORT.md`, `PROGRESS_LOG.md`.
+- Code moved: none; this is a verification/documentation checkpoint.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Broader itinerary Playwright: 34 tests, 8 passed, 2 skipped, 24 failed under 8 workers; failures are classified in `REGRESSION_LOG.md` as shared-data contention/environment/parity issues.
+- Targeted Playwright: focused pair remains 2 passed.
+- Production build: passed with existing warnings.
+- Filtered page/new-module typecheck: no new diagnostics.
+- Generated Playwright artifacts were removed/restored.
+
+### Notes
+- Completion criteria are still not met: the transitional controller remains 13,861 lines, repository lint is red, and the broader suite has unresolved environment/data failures. Continue responsibility-level extraction.
+
 ## Iteration 46 — Room-night breakdown hook
 
 ### Baseline
