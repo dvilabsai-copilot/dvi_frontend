@@ -144,6 +144,7 @@ import { ItineraryDayHeader } from "./itinerary-details/components/ItineraryDayH
 import { ItinerarySegments } from "./itinerary-details/components/ItinerarySegments";
 import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
+import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -12712,15 +12713,7 @@ const canShowGuideActionButton =
       </div>
 
       {/* Special Instructions — outside the sticky summary and before hotel/vehicle lists */}
-      <div className="mx-4 mb-4 mt-4 rounded-lg border border-[#f1c4dd] bg-[#fff7fb] px-4 py-3 lg:mx-5">
-        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#d546ab]">
-          <AlertTriangle className="h-4 w-4" />
-          Special Instructions
-        </div>
-        <p className="whitespace-pre-line text-sm leading-6 text-[#4a4260]">
-          {specialInstructionsText || "No special instructions mentioned."}
-        </p>
-      </div>
+      <SpecialInstructionsSection text={specialInstructionsText} />
 
       {/* Hotel List (separate component) */}
       {shouldRenderBottomHotelList && shouldShowHotels && loadingHotels && (
