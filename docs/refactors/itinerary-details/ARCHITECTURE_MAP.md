@@ -51,3 +51,10 @@ Effects cover initial route/details loading, route switching, hotel hydration, s
 The repository already has itinerary E2E tests for loading/route options, hotspot modal/add/replacement/timing, Fit Here exact/automatic/confirm/replay, guide, hotel, vehicle, arrival policy, confirmation, and PHP/Nest parity. Unit tests are present for unrelated services/pages; no dedicated `ItineraryDetails` unit test was found.
 
 Extracted presentational boundaries now include the loader/error states, media/share/source dialogs, delete confirmation, clipboard dialog, all-hotspots preview, compact day header, and segment/timeline renderer.
+
+## Current composition checkpoint
+
+- `src/pages/ItineraryDetails.tsx` is the stable 14-line router/HMR entrypoint. It preserves the named/default component exports and historical hotel/vehicle type re-exports.
+- `src/pages/ItineraryDetailsRuntime.tsx` is the transitional implementation module while the remaining workflows are split by responsibility. It currently consumes `ItineraryHeader`, `useHotspotState`, `useItineraryRouteState`, `useQuotationState`, `useHotelSelectionState`, and `useMediaShareState`.
+- State ownership extracted so far: route/loading and route-option hydration; hotspot/Fit Here state and refs; quotation/wallet/passenger state; hotel selections/totals/pagination refs; gallery/video/clipboard/share state.
+- Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

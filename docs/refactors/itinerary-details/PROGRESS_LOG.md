@@ -453,6 +453,28 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 24 — Architecture checkpoint documentation
+
+### Baseline
+- Tests run: documentation-only checkpoint after the green Iteration 23 build/typecheck/focused Playwright verification.
+- Result: working tree was clean before documentation changes; no application behavior was changed.
+
+### Changes
+- Files created: none.
+- Files modified: `ARCHITECTURE_MAP.md`, `PROGRESS_LOG.md`.
+- Code moved: none; documented the stable 14-line router entrypoint, transitional runtime, extracted controllers/state hooks, and remaining high-risk boundaries.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck/build/Playwright: unchanged from Iteration 23; all passed with existing repository warnings/errors documented above.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsRuntime.tsx`: 16,325 lines.
+
+### Notes
+- This is a documentation checkpoint only; the refactor is not complete until the transitional runtime is split into domain controllers/views and the full verification suite is green.
+
 ## Iteration 23 — Media/share/clipboard state boundary
 
 ### Baseline
