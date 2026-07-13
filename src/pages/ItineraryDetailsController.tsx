@@ -159,6 +159,7 @@ import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotals
 import { useItineraryScrollController } from "./itinerary-details/hooks/useItineraryScrollController";
 import { useHotelPaginationController } from "./itinerary-details/hooks/useHotelPaginationController";
 import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
+import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -5513,21 +5514,7 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
     confirmRequiredAmount > 0 &&
     walletBalanceAmount < confirmRequiredAmount;
 
-  const handleDownloadPluckCard = async () => {
-    if (!currentItineraryPlanId) {
-      toast.error("Itinerary plan is not available yet");
-      return;
-    }
-    window.open(`/pdf-preview/pluck-card/${currentItineraryPlanId}`, "_blank", "noopener,noreferrer");
-  };
-
-  const handleDownloadInvoice = async (type: 'tax' | 'proforma') => {
-    if (!currentItineraryPlanId) {
-      toast.error("Itinerary plan is not available yet");
-      return;
-    }
-    window.open(`/pdf-preview/invoice/${currentItineraryPlanId}?type=${encodeURIComponent(type)}`, "_blank", "noopener,noreferrer");
-  };
+  const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
 
   // ✅ Reference to hotel save function
   const hotelSaveFunctionRef = React.useRef<(() => Promise<boolean>) | null>(null);

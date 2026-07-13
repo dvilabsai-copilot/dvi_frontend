@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 39 — Itinerary document actions
+
+### Baseline
+- Starting point: Iteration 38 guide data refresh extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: isolate the summary document preview actions from the page controller.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useItineraryDocumentActions.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: plan-id validation, toast fallback, and pluck-card/invoice `window.open` URLs now live in the hook.
+- Behaviour intentionally changed: No. Existing paths, query encoding, and blank-window options are unchanged.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,279 lines.
+- New `useItineraryDocumentActions.ts`: 20 lines.
+
+### Notes
+- This removes browser-window side effects from the controller; quotation confirmation and hotel workflows remain the primary large action clusters.
+
 ## Iteration 38 — Guide data refresh controller
 
 ### Baseline
