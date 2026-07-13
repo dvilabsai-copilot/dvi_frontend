@@ -253,7 +253,7 @@
 - Full itinerary Playwright: not run.
 
 ### Line counts
-- Before this iteration: 17,200; after: 17,095.
+- Before this iteration: 17,095; after: 16,806.
 - Largest new source file: `timeline.utils.ts`.
 
 ### Notes
@@ -262,5 +262,6 @@
 - Iteration 11: extracted the compact day header/guide summary into `ItineraryDayHeader`; route-time, guide, source, and hotspot callbacks remain passed through the page context.
 - Iteration 12: extracted the segment/timeline renderer into `ItinerarySegments`; focused Fit Here and hotspot preview flows pass after the boundary move.
 - Iteration 13: extracted `GuideAssignmentDialog`; guide state/save behavior remains controlled by the page handler and focused regressions pass.
+- Iteration 14: extracted `AddActivityDialog`; activity preview/add behavior remains controlled by the page handler and focused regressions pass.
 - Coupling discovered: `HotelList` continues to consume the named hotel/vehicle type exports from the page; those exports now need an explicit re-export boundary in a later cleanup.
 - Follow-up extraction: clipboard/all-hotspots dialogs and timeline/day card components.
