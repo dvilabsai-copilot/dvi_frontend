@@ -140,7 +140,7 @@ type HotspotSegment = {
   type: "hotspot";
   text: string;
   locationId?: number;
-  anchorType?: "BETWEEN_ROWS";
+  anchorType?: "BETWEEN_ROWS" | "after_travel";
   anchorIndex?: number;
   anchorFrom?: string;
   anchorTo?: string;
@@ -151,9 +151,9 @@ type HotspotSegment = {
 type FitHereAnchorIntent = "AFTER_START" | "AFTER_ATTRACTION";
 
 type HotspotAnchor = {
-  anchorType: "BETWEEN_ROWS";
+  anchorType: "BETWEEN_ROWS" | "after_travel";
   anchorIndex: number;
-  anchorIntent: FitHereAnchorIntent;
+  anchorIntent?: FitHereAnchorIntent;
   anchorFrom?: string;
   anchorTo?: string;
   anchorLabel?: string;
@@ -238,6 +238,8 @@ type ItineraryDay = {
   endTime: string; // "08:00 PM"
   viaRoutes?: ViaRouteItem[];
   segments: ItinerarySegment[];
+  needsRebuild?: boolean;
+  excludedHotspotIds?: number[];
 };
 
 type TriedAnchorState = {
@@ -1119,7 +1121,8 @@ const normalizeConfirmedTimelineToSegments = (
         const hotspotId = Number(row?.hotspotId || row?.hotspot_ID || row?.locationId || 0) || 0;
         const existingSegment = (context?.existingSegments || []).find((seg) => {
           if (String(seg?.type || '').toLowerCase() !== 'attraction') return false;
-          return Number(seg?.hotspotId ?? seg?.locationId ?? 0) === hotspotId;
+          const attraction = seg as AttractionSegment;
+          return Number(attraction?.hotspotId ?? attraction?.locationId ?? 0) === hotspotId;
         }) as AttractionSegment | undefined;
         const availableHotspot = (context?.availableHotspots || []).find((hotspot) => (
           Number(hotspot.id || 0) === hotspotId
@@ -1713,7 +1716,7 @@ const [guideModal, setGuideModal] = useState<{
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
   const priorityConfirmRef = useRef<HTMLDivElement>(null);
   const previewRequestIdRef = useRef(0);
-  const fitHereProgressTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const fitHereProgressTimerRef = useRef<number | null>(null);
 
   const stopFitHereProgressTimer = () => {
     if (fitHereProgressTimerRef.current) {
@@ -8566,6 +8569,8 @@ if (switchedRouteRef.current === quoteId) {
     try {
       const deletedMasterHotspotId = Number(deleteHotspotModal.masterHotspotId || 0);
       const deletedRouteId = Number(deleteHotspotModal.routeId);
+      const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
+      const confirmedRouteId = deletedRouteId;
 
       await ItineraryService.deleteHotspot(
         deleteHotspotModal.planId,
@@ -8603,7 +8608,8 @@ if (switchedRouteRef.current === quoteId) {
               ...day,
               segments: day.segments.filter((seg) => {
                 if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
-                const segHotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+                const attraction = seg as AttractionSegment;
+                const segHotspotId = Number(attraction?.hotspotId ?? attraction?.locationId ?? 0);
                 if (deletedMasterHotspotId <= 0) return true;
                 return segHotspotId !== deletedMasterHotspotId;
               }),
@@ -9824,6 +9830,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setFitHereModal({
       open: false,
       loading: false,
+      loadingStepIndex: 0,
+      failedReason: null,
       attempt: null,
       anchorKey: null,
     });
@@ -10813,7 +10821,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       allowTopPriorityRemoval?: boolean;
       selectedHotspotIds?: number[];
       forceRefresh?: boolean;
-      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH';
+      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH' | 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED';
     },
   ) => {
     const pId = options?.planId || addHotspotModal.planId;
@@ -11269,6 +11277,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       }
 
       if (addHotspotModal.routeId) {
+        const currentRoute = itinerary?.days?.find(
+          (day) => Number(day?.id || 0) === Number(addHotspotModal.routeId),
+        );
         const refreshRequest = selectedHotspotAnchor
           ? ItineraryService.getAvailableHotspotsForAnchor({
               planId: Number(addHotspotModal.planId || 0),
@@ -15721,6 +15732,8 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
             setFitHereModal({
               open: false,
               loading: false,
+              loadingStepIndex: 0,
+              failedReason: null,
               attempt: null,
               anchorKey: null,
             });

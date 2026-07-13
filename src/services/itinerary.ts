@@ -96,7 +96,7 @@ export interface StayExtensionPreviewResponse {
 }
 
 export type HotspotAnchorPayload = {
-  anchorType?: "after_travel";
+  anchorType?: "after_travel" | "BETWEEN_ROWS";
   anchorIndex?: number;
 };
 
@@ -695,7 +695,7 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
   async getAvailableHotspotsForAnchor(data: {
     planId: number;
     routeId: number;
-    anchorType: "after_travel";
+    anchorType: "after_travel" | "BETWEEN_ROWS";
     anchorIndex: number;
   }) {
     return api("itineraries/hotspots/available-for-anchor", {
