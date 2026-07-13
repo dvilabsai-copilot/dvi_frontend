@@ -311,20 +311,34 @@ const numberOrZero = (value: string): number => {
     );
   }, [outstationRows, outstationSearch, vehicleTypeOptions]);
 
-  const filteredLocalRows = useMemo(() => {
-    if (!localSearch.trim()) return localRows;
-    const q = localSearch.toLowerCase();
-    return localRows.filter(
-      (row) => {
-        const vtLabel = vehicleTypeOptions.find(o => o.id === row.vehicleType)?.label || "";
-        return vtLabel.toLowerCase().includes(q) || row.title.toLowerCase().includes(q);
-      }
-    );
-  }, [localRows, localSearch, vehicleTypeOptions]);
+ const filteredLocalRows = useMemo(() => {
+  if (!localSearch.trim()) return localRows;
+  const q = localSearch.toLowerCase();
 
-  // ============================================================
-  // Driver Cost modal handlers
-  // ============================================================
+  return localRows.filter((row) => {
+    const vtLabel =
+      vehicleTypeOptions.find((o) => o.id === row.vehicleType)?.label || "";
+
+    return (
+      vtLabel.toLowerCase().includes(q) ||
+      row.title.toLowerCase().includes(q)
+    );
+  });
+}, [localRows, localSearch, vehicleTypeOptions]);
+
+const driverCostVehicleTypeOptions = useMemo(() => {
+  const selectedVehicleTypeIds = new Set(
+    driverCostRows.map((row) => String(row.vehicleTypeId))
+  );
+
+  return vehicleTypeOptions.filter((option) =>
+    selectedVehicleTypeIds.has(String(option.id))
+  );
+}, [driverCostRows, vehicleTypeOptions]);
+
+// ============================================================
+// Driver Cost modal handlers
+// ============================================================
 
  const openAddDriverCost = () => {
   setEditingDriverRow(null);
@@ -1230,13 +1244,13 @@ const handleDeleteLocal = async (rowId: number) => {
                 >
                   <SelectValue placeholder="Choose Any One" />
                 </SelectTrigger>
-                <SelectContent>
-                  {vehicleTypeOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+   <SelectContent>
+  {vehicleTypeOptions.map((v) => (
+    <SelectItem key={v.id} value={v.id}>
+      {v.label}
+    </SelectItem>
+  ))}
+</SelectContent>
               </Select>
               {driverFieldErrors.vehicleType ? (
                 <p className="text-xs text-red-600">{driverFieldErrors.vehicleType}</p>
@@ -1384,12 +1398,18 @@ const handleDeleteLocal = async (rowId: number) => {
                   <SelectValue placeholder="Choose Vehicle Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vehicleTypeOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+  {driverCostVehicleTypeOptions.length === 0 ? (
+    <div className="px-3 py-2 text-sm text-gray-500">
+      Add vehicle type in Driver Cost first
+    </div>
+  ) : (
+    driverCostVehicleTypeOptions.map((v) => (
+      <SelectItem key={v.id} value={v.id}>
+        {v.label}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
               </Select>
               {outstationFieldErrors.vehicleType ? (
                 <p className="text-xs text-red-600">{outstationFieldErrors.vehicleType}</p>
@@ -1499,12 +1519,18 @@ const handleDeleteLocal = async (rowId: number) => {
                   <SelectValue placeholder="Choose Vehicle Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vehicleTypeOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+  {driverCostVehicleTypeOptions.length === 0 ? (
+    <div className="px-3 py-2 text-sm text-gray-500">
+      Add vehicle type in Driver Cost first
+    </div>
+  ) : (
+    driverCostVehicleTypeOptions.map((v) => (
+      <SelectItem key={v.id} value={v.id}>
+        {v.label}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
               </Select>
               {localFieldErrors.vehicleType ? (
                 <p className="text-xs text-red-600">{localFieldErrors.vehicleType}</p>
