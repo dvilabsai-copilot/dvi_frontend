@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 42 — Computed hotel cost hook
+
+### Baseline
+- Starting point: Iteration 41 selected hotel summary extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract displayed hotel-cost derivation across confirmed and draft workflows.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useComputedHotelCost.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: confirmed-tab/row totals, selected/list totals, supplier-row grouping, cheapest-row selection, room multipliers, and cost-breakdown fallback now live in the hook.
+- Behaviour intentionally changed: No. Existing precedence and fallback calculations are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,044 lines.
+- New `useComputedHotelCost.ts`: 67 lines.
+
+### Notes
+- Hotel cost selection is now independent of hotel mutation actions; financial quotation totals remain a separate high-coupling region.
+
 ## Iteration 41 — Selected hotel summary derivation
 
 ### Baseline

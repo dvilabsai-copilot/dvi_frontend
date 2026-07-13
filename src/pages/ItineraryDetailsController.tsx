@@ -162,6 +162,7 @@ import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefre
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
+import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3015,88 +3016,15 @@ const loadAndCacheRouteHotelDetails = useCallback(
     roomCount: itinerary?.roomCount,
   });
 
-  const computedHotelCost = useMemo(() => {
-    if (hotelReadOnly) {
-      const confirmedTabTotal = Number(hotelDetails?.hotelTabs?.[0]?.totalAmount || 0);
-      if (confirmedTabTotal > 0) {
-        return confirmedTabTotal;
-      }
-
-      const confirmedRowsTotal = (hotelDetails?.hotels || [])
-        .filter((hotel) => !hotel?.externalStay && normalizeHotelProvider(hotel) !== 'external')
-        .reduce(
-          (sum: number, hotel) =>
-            sum +
-            Number(hotel?.totalHotelCost || 0) +
-            Number(hotel?.totalHotelTaxAmount || 0),
-          0,
-        );
-
-      if (confirmedRowsTotal > 0) {
-        return confirmedRowsTotal;
-      }
-
-      return Number(
-        itinerary?.costBreakdown?.totalHotelAmount ||
-        itinerary?.costBreakdown?.totalRoomCost ||
-        0,
-      );
-    }
-
-    if (activeHotelListTotal > 0) return Number(activeHotelListTotal);
-    if (selectedHotelTotal > 0) return selectedHotelTotal;
-
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails?.hotelTabs?.[0]?.groupType ??
-      1;
-
-    const getStayDate = (hotel: ItineraryHotelRow): string => {
-      if (hotel.checkInDate) return String(hotel.checkInDate);
-      if (hotel.date) return String(hotel.date);
-      const dayText = String(hotel.day || '');
-      const parts = dayText.split(' | ');
-      return (parts[1] || dayText).trim();
-    };
-
-    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
-    (hotelDetails?.hotels || [])
-      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-      .forEach((h) => {
-        const routeId = Number(h.itineraryRouteId || 0);
-        if (!routeId) return;
-        const stayKey = `${routeId}::${getStayDate(h)}`;
-        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
-        groupedByStay.get(stayKey)!.push(h);
-      });
-
-    const itineraryRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
-
-    const totalFromHotelApi = Array.from(groupedByStay.values()).reduce((sum, rows) => {
-      const cheapest = rows.reduce((best, curr) => {
-        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-        return currTotal < bestTotal ? curr : best;
-      });
-
-      const baseAmount = Number(cheapest.totalHotelCost || 0) + Number(cheapest.totalHotelTaxAmount || 0);
-      const rowRooms = Math.max(Number(cheapest.noOfRooms || 0), 0);
-      const effectiveRooms = Math.max(rowRooms || itineraryRoomCount, 1);
-      return sum + baseAmount * effectiveRooms;
-    }, 0);
-
-    if (totalFromHotelApi > 0) return totalFromHotelApi;
-    return Number(itinerary?.costBreakdown?.totalHotelAmount || 0);
-  }, [
+  const computedHotelCost = useComputedHotelCost({
     hotelReadOnly,
     activeHotelListTotal,
     selectedHotelTotal,
     hotelDetails,
     activeHotelGroupType,
-    itinerary?.costBreakdown?.totalHotelAmount,
-    itinerary?.costBreakdown?.totalRoomCost,
-    itinerary?.roomCount,
-  ]);
+    roomCount: itinerary?.roomCount,
+    costBreakdown: itinerary?.costBreakdown,
+  });
 
   const roomBreakdownRoomNights = useMemo(() => {
     const fallbackStayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
