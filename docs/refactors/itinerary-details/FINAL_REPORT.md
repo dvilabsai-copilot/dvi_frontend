@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: approximately 16,191 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: approximately 13,861 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -17,4 +17,4 @@ Current facts:
 - Extracted boundaries now include loader/error, confirmed-quote banner, media/share/source, delete confirmation, all-hotspots preview, clipboard, day header, timeline segments, guide data refresh, itinerary document actions, guide/activity/package/special-instructions views, hotel details loading, selected-hotel summary derivation, computed hotel cost, computed vehicle totals, entry-ticket summary, financial totals, room-night breakdown, route/loading state, route-time progress mechanics, itinerary scroll mechanics, hotel pagination, hotspot/Fit Here state, quotation state, hotel selection/workflow state, media/share state, activity state, guide state, destructive-action modal state, vehicle totals synchronization, and vehicle-build error presentation.
 - Remaining work: split the transitional controller into domain controllers/views, remove compatibility fragments, extract vehicle actions/view and the large hotspot/Fit Here and quotation review sections, then run the full green verification loop.
 - Intentional behavior changes: none.
-- Documented blockers: repository-wide lint baseline (1,613 errors/77 warnings), existing unrelated type errors, and 23 broader-suite failures classified in `REGRESSION_LOG.md`.
+- Documented blockers: repository-wide lint baseline (1,921 errors/122 warnings), existing unrelated type errors, and 24 broader-suite failures classified in `REGRESSION_LOG.md`.
