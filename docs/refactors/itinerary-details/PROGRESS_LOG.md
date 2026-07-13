@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 46 — Room-night breakdown hook
+
+### Baseline
+- Starting point: Iteration 45 financial totals extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract room-night count derivation used by quotation/room summaries.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useRoomBreakdownNights.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: stay grouping, selected booking matching, cheapest-row fallback, room count fallback, and final room-night aggregation now live in the hook.
+- Behaviour intentionally changed: No. Existing match precedence and fallback arithmetic are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,861 lines.
+- New `useRoomBreakdownNights.ts`: 69 lines.
+
+### Notes
+- Hotel summary calculations now have named boundaries for cost, selection metadata, loading, room nights, and pagination; hotel mutation handlers remain next.
+
 ## Iteration 45 — Financial totals hook
 
 ### Baseline

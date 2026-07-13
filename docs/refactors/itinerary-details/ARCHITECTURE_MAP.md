@@ -73,4 +73,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Vehicle amount and quantity derivation are isolated in `useComputedVehicleTotals`, preserving selection-first and itinerary-cost fallback semantics.
 - Entry-ticket aggregation by attraction location is isolated in `useEntryTicketSummary`.
 - Backend/live-selection payable computation is isolated in `useFinancialTotals`, including rounding and entry-ticket substitution.
+- Room-night derivation is isolated in `useRoomBreakdownNights`, preserving selected-room matching and cheapest fallback behavior.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

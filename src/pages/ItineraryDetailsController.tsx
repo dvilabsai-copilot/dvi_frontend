@@ -166,6 +166,7 @@ import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotel
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
 import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
 import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
+import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3029,88 +3030,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
     costBreakdown: itinerary?.costBreakdown,
   });
 
-  const roomBreakdownRoomNights = useMemo(() => {
-    const fallbackStayCount = Number(itinerary?.dayCount || itinerary?.days?.length || 1);
-    const fallbackRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
-
-    if (!hotelDetails?.hotels?.length) {
-      return fallbackStayCount * fallbackRoomCount;
-    }
-
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      1;
-
-    const getStayDate = (hotel: ItineraryHotelRow): string => {
-      if (hotel.checkInDate) return String(hotel.checkInDate);
-      if (hotel.date) return String(hotel.date);
-      const dayText = String(hotel.day || '');
-      const parts = dayText.split(' | ');
-      return (parts[1] || dayText).trim();
-    };
-
-    const groupedByStay = new Map<string, ItineraryHotelRow[]>();
-    hotelDetails.hotels
-      .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-      .forEach((h) => {
-        const routeId = Number(h.itineraryRouteId || 0);
-        if (!routeId) return;
-        const stayDate = getStayDate(h);
-        const stayKey = `${routeId}::${stayDate}`;
-        if (!groupedByStay.has(stayKey)) groupedByStay.set(stayKey, []);
-        groupedByStay.get(stayKey)!.push(h);
-      });
-
-    const matchSelectedHotelRow = (rows: ItineraryHotelRow[], routeId: number): ItineraryHotelRow | null => {
-      const selected = selectedHotelBookings[routeId];
-      if (!selected) return null;
-
-      return (
-        rows.find((h) => {
-          const bookingCodeMatch = selected.bookingCode && h.bookingCode && selected.bookingCode === h.bookingCode;
-          const roomTypeMatch = selected.roomType && h.roomType && selected.roomType.trim() === h.roomType.trim();
-          const amountMatch =
-            Number(selected.netAmount || 0) > 0 &&
-            Number(selected.netAmount || 0) === (Number(h.totalHotelCost || 0) + Number(h.totalHotelTaxAmount || 0));
-          const strictBookingMatch = Boolean(bookingCodeMatch && (roomTypeMatch || amountMatch));
-          const hotelCodeMatch = selected.hotelCode && h.hotelCode && selected.hotelCode === h.hotelCode;
-          const hotelNameMatch =
-            selected.hotelName &&
-            h.hotelName &&
-            selected.hotelName.trim().toLowerCase() === h.hotelName.trim().toLowerCase();
-
-          return Boolean(strictBookingMatch || hotelCodeMatch || hotelNameMatch);
-        }) || null
-      );
-    };
-
-    let totalRoomNights = 0;
-    groupedByStay.forEach((rows, stayKey) => {
-      const routeId = Number(stayKey.split('::')[0] || 0);
-
-      const selectedMatch = routeId ? matchSelectedHotelRow(rows, routeId) : null;
-      const cheapest = rows.reduce((best, curr) => {
-        const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-        const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-        return currTotal < bestTotal ? curr : best;
-      });
-
-      const chosen = selectedMatch || cheapest;
-      const rowRooms = Math.max(Number(chosen.noOfRooms || 0), 0);
-      const effectiveRooms = Math.max(rowRooms || fallbackRoomCount, 1);
-      totalRoomNights += effectiveRooms;
-    });
-
-    return totalRoomNights || fallbackStayCount * fallbackRoomCount;
-  }, [
+  const roomBreakdownRoomNights = useRoomBreakdownNights({
     hotelDetails,
     activeHotelGroupType,
-    itinerary?.dayCount,
-    itinerary?.days?.length,
-    itinerary?.roomCount,
+    dayCount: itinerary?.dayCount,
+    daysLength: itinerary?.days?.length,
+    roomCount: itinerary?.roomCount,
     selectedHotelBookings,
-  ]);
+  });
 
   const { computedVehicleAmount, computedVehicleQty } = useComputedVehicleTotals({
     shouldShowVehicles,
