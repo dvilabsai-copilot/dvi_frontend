@@ -22,9 +22,8 @@
     "noFallthroughCasesInSwitch": false,
 
     /* 👇 important part for @/... imports */
-    "baseUrl": "./src",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src"]
