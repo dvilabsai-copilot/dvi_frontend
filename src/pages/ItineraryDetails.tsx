@@ -145,6 +145,7 @@ import { ItinerarySegments } from "./itinerary-details/components/ItinerarySegme
 import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
+import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -12883,35 +12884,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
 
       {/* Package Includes & Overall Cost */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Package Includes */}
-        <Card className="border-none shadow-none bg-white">
-          <CardContent className="pt-2">
-            <h2 className="text-lg font-semibold text-[#4a4260] mb-4">
-              Package Includes
-            </h2>
-            <div className="space-y-3 text-sm text-[#6c6c6c]">
-              <div>
-                <p className="font-medium text-[#4a4260] mb-1">
-                  Package Includes: (Inclusion)
-                </p>
-                <p>{itinerary.packageIncludes.description}</p>
-              </div>
-              <div>
-                <p className="font-medium text-[#4a4260] mb-1">
-                  If staying in the House boat At Alleppey/Kumarakom
-                </p>
-                <p className="whitespace-pre-line">
-                  {itinerary.packageIncludes.houseBoatNote}
-                </p>
-              </div>
-              <div>
-                <p className="font-medium text-[#4a4260]">
-                  {itinerary.packageIncludes.rateNote}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <PackageIncludesCard packageIncludes={itinerary.packageIncludes} />
 
         {/* Overall Cost */}
         <Card className="border-none shadow-none bg-gradient-to-br from-[#faf5ff] to-white">

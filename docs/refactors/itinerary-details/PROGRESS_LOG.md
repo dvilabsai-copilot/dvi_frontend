@@ -253,7 +253,7 @@
 - Full itinerary Playwright: not run.
 
 ### Line counts
-- Before this iteration: 16,806; after: 16,799.
+- Before this iteration: 16,799; after: 16,772.
 - Largest new source file: `timeline.utils.ts`.
 
 ### Notes
@@ -264,5 +264,6 @@
 - Iteration 13: extracted `GuideAssignmentDialog`; guide state/save behavior remains controlled by the page handler and focused regressions pass.
 - Iteration 14: extracted `AddActivityDialog`; activity preview/add behavior remains controlled by the page handler and focused regressions pass.
 - Iteration 15: extracted `SpecialInstructionsSection`; build/type baseline and the focused Fit Here smoke pass.
+- Iteration 16: extracted `PackageIncludesCard`; build/type baseline and the focused Fit Here smoke pass.
 - Coupling discovered: `HotelList` continues to consume the named hotel/vehicle type exports from the page; those exports now need an explicit re-export boundary in a later cleanup.
 - Follow-up extraction: clipboard/all-hotspots dialogs and timeline/day card components.
