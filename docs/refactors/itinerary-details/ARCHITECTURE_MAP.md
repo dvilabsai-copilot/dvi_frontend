@@ -75,4 +75,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Backend/live-selection payable computation is isolated in `useFinancialTotals`, including rounding and entry-ticket substitution.
 - Room-night derivation is isolated in `useRoomBreakdownNights`, preserving selected-room matching and cheapest fallback behavior.
 - Header summary cost formatting and special-instruction fallback lookup are isolated in `useItinerarySummaryValues`.
+- Para/recommendation hotel grouping is isolated in `useParaRecommendations`; clipboard selection initialization remains in the page workflow.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

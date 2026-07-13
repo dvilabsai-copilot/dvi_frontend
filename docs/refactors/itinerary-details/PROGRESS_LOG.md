@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 51 — Para recommendations hook
+
+### Baseline
+- Starting point: Iteration 50 lint baseline documentation was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract recommendation-group hotel derivation used by para/clipboard views.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useParaRecommendations.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: group bucketing, route ordering, cheapest-row selection, and four-tab recommendation shaping now live in the hook.
+- Behaviour intentionally changed: No. Existing group ordering, cheapest comparison, labels, and slice limit are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,824 lines.
+- New `useParaRecommendations.ts`: 27 lines.
+
+### Notes
+- Clipboard generation still depends on the controller's hotel selections and vehicle-only branches; those remain high-coupling follow-up boundaries.
+
 ## Iteration 50 — Lint baseline rerun
 
 ### Baseline

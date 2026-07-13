@@ -168,6 +168,7 @@ import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketS
 import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
 import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
+import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3734,40 +3735,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
 });
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
-  const paraRecommendations = useMemo(() => {
-    if (!hotelDetails?.hotelTabs?.length) return [];
-
-    const getRenderedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
-      const grouped = new Map<number, ItineraryHotelRow[]>();
-
-      hotelDetails.hotels
-        .filter((h) => h.groupType === groupType)
-        .forEach((hotel) => {
-          const routeId = Number(hotel.itineraryRouteId || 0);
-          if (!grouped.has(routeId)) {
-            grouped.set(routeId, []);
-          }
-          grouped.get(routeId)!.push(hotel);
-        });
-
-      return Array.from(grouped.entries())
-        .sort((a, b) => a[0] - b[0])
-        .map(([, hotelsForRoute]) => {
-          return hotelsForRoute.reduce((best, curr) => {
-            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-            return currTotal < bestTotal ? curr : best;
-          });
-        });
-    };
-
-    return hotelDetails.hotelTabs.slice(0, 4).map((tab, idx) => ({
-      label: `Recommended #${idx + 1}`,
-      groupType: tab.groupType,
-      tabLabel: tab.label,
-      hotels: getRenderedHotelsForGroup(tab.groupType),
-    }));
-  }, [hotelDetails]);
+  const paraRecommendations = useParaRecommendations(hotelDetails);
 
   const buildDefaultClipboardSelection = useCallback(() => {
     const next: Record<string, boolean> = {};
