@@ -453,6 +453,37 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 25 — Hotel workflow state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: hotel search/arrival-policy/room-selection state, route-time progress state, supplier hotel list state, and selected meal-plan state retain their existing defaults and setter semantics.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotelWorkflowState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: hotel workflow state and route-time progress state now originate from a dedicated hook; hotel filtering, API operations, timing policy, and supplier payload logic remain in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, hotel workflow state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,325; after: 16,271.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useHotelWorkflowState.ts` (39 lines).
+
+### Notes
+- Coupling discovered: the local runtime still owns hotel provider normalization and arrival-policy request sequencing; this iteration moved state only.
+- Follow-up extraction: vehicle workflow state/actions, hotspot/Fit Here controller, and quotation review view.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline

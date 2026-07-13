@@ -152,6 +152,7 @@ import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRo
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
+import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -2993,74 +2994,19 @@ const [guideModal, setGuideModal] = useState<{
     checkOut: string;
     distance: string;
   };
-
-  const [hotelSelectionModal, setHotelSelectionModal] = useState<{
-    open: boolean;
-    planId: number | null;
-    routeId: number | null;
-    routeDate: string;
-    cityCode?: string;
-    cityName?: string;
-    checkInDate?: string;
-    checkOutDate?: string;
-  }>({
-    open: false,
-    planId: null,
-    routeId: null,
-    routeDate: "",
-  });
-  const [hotelSearchChildAges, setHotelSearchChildAges] = useState<string[]>([]);
-  const [isResolvingArrivalPolicy, setIsResolvingArrivalPolicy] = useState(false);
-  const [latestArrivalPolicy, setLatestArrivalPolicy] = useState<HotelArrivalPolicyResponse | null>(null);
-  const [pendingRouteTimeUpdate, setPendingRouteTimeUpdate] = useState<{
-    planId: number;
-    routeId: number;
-    dayNumber: number;
-    startTimeHms: string;
-    endTimeHms: string;
-  } | null>(null);
-  const [lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey] = useState<string | null>(null);
-  const [arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal] = useState<{
-    open: boolean;
-    arrivalDate: string;
-    previousDayDate: string;
-    request: HotelArrivalPolicyRequest | null;
-  }>({
-    open: false,
-    arrivalDate: '',
-    previousDayDate: '',
-    request: null,
-  });
-
-  const [roomSelectionModal, setRoomSelectionModal] = useState<{
-    open: boolean;
-    itinerary_plan_hotel_details_ID: number;
-    itinerary_plan_id: number;
-    itinerary_route_id: number;
-    hotel_id: number;
-    group_type: number;
-    hotel_name: string;
-  } | null>(null);
-
-  const [availableHotels, setAvailableHotels] = useState<AvailableHotel[]>([]);
-  const [loadingHotels, setLoadingHotels] = useState(false);
-  const [isRebuildingHotels, setIsRebuildingHotels] = useState(false);
-  const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
-    const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
-  const [routeTimeEstimatedMs, setRouteTimeEstimatedMs] = useState(0);
-  const [routeProgressTitle, setRouteProgressTitle] = useState("Updating itinerary");
-  const [routeProgressDetail, setRouteProgressDetail] = useState("Preparing the next step.");
-  const [routeProgressHistory, setRouteProgressHistory] = useState<string[]>([]);
-  const [pendingScrollDayNumber, setPendingScrollDayNumber] = useState<number | null>(null);
-  const routeTimeProgressTimerRef = useRef<number | null>(null);
-  const [isSelectingHotel, setIsSelectingHotel] = useState(false);
-  const [hotelSearchQuery, setHotelSearchQuery] = useState("");
-  const [selectedMealPlan, setSelectedMealPlan] = useState({
-    all: false,
-    breakfast: false,
-    lunch: false,
-    dinner: false,
-  });
+  const hotelWorkflowState = useHotelWorkflowState();
+  const {
+    hotelSelectionModal, setHotelSelectionModal, hotelSearchChildAges, setHotelSearchChildAges,
+    isResolvingArrivalPolicy, setIsResolvingArrivalPolicy, latestArrivalPolicy, setLatestArrivalPolicy,
+    pendingRouteTimeUpdate, setPendingRouteTimeUpdate, lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey,
+    arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal, roomSelectionModal, setRoomSelectionModal,
+    availableHotels, setAvailableHotels, loadingHotels, setLoadingHotels, isRebuildingHotels, setIsRebuildingHotels,
+    isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate, routeTimeProgressPercent, setRouteTimeProgressPercent,
+    routeTimeEstimatedMs, setRouteTimeEstimatedMs, routeProgressTitle, setRouteProgressTitle,
+    routeProgressDetail, setRouteProgressDetail, routeProgressHistory, setRouteProgressHistory,
+    pendingScrollDayNumber, setPendingScrollDayNumber, routeTimeProgressTimerRef,
+    isSelectingHotel, setIsSelectingHotel, hotelSearchQuery, setHotelSearchQuery, selectedMealPlan, setSelectedMealPlan,
+  } = hotelWorkflowState;
 
   // Filter hotels based on search query
   const filteredHotels = availableHotels.filter(
