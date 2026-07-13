@@ -63,4 +63,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Destructive-action state is isolated in `useItineraryDeletionState`: hotspot deletion/rebuild flags, all-hotspots preview modal state, and activity deletion state remain independent from their API handlers and dialog rendering.
 - Route-time progress mechanics are isolated in `useRouteTimeProgressController`; the page retains only workflow decisions and passes the existing state setters/timer ref through.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
+- Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 36 — Itinerary scroll controller
+
+### Baseline
+- Starting point: Iteration 35 vehicle totals synchronization was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract sticky-summary measurement, section scroll helpers, and day-count ref synchronization.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useItineraryScrollController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: `ResizeObserver` setup/cleanup, smooth hotel/vehicle section scrolling, and itinerary day-count ref updates now live in the hook.
+- Behaviour intentionally changed: No. Existing refs, offsets, and scroll behavior are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,330 lines.
+- New `useItineraryScrollController.ts`: 50 lines.
+
+### Notes
+- The hook isolates browser measurement and navigation mechanics; route/hotel action workflows remain in the controller for later extraction.
+
 ## Iteration 35 — Vehicle totals synchronization hook
 
 ### Baseline

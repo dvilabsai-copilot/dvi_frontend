@@ -156,6 +156,7 @@ import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
 import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotalsSync";
+import { useItineraryScrollController } from "./itinerary-details/hooks/useItineraryScrollController";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -2945,40 +2946,16 @@ const loadAndCacheRouteHotelDetails = useCallback(
     setSelectedVehicleTotalsByType,
   });
 
-  useEffect(() => {
-    const el = summaryStickyRef.current;
-    if (!el) return;
-
-    const updateStickyHeight = () => {
-      setSummaryStickyHeight(Math.ceil(el.getBoundingClientRect().height));
-    };
-
-    updateStickyHeight();
-    const resizeObserver = new ResizeObserver(updateStickyHeight);
-    resizeObserver.observe(el);
-    window.addEventListener("resize", updateStickyHeight);
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", updateStickyHeight);
-    };
-  }, [itinerary?.quoteId]);
-
-
-  useEffect(() => {
-    itineraryDaysCountRef.current = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
-  }, [itinerary?.days]);
-
-  const scrollToSection = (el: HTMLDivElement | null) => {
-    if (!el) return;
-
-    const offset = summaryStickyHeight + 12;
-    const y = el.getBoundingClientRect().top + window.scrollY - offset;
-    window.scrollTo({ top: Math.max(y, 0), behavior: "smooth" });
-  };
-
-  const scrollToHotelList = () => scrollToSection(hotelListRef.current);
-  const scrollToVehicleList = () => scrollToSection(vehicleListRef.current);
+  const { scrollToHotelList, scrollToVehicleList } = useItineraryScrollController({
+    quoteId: itinerary?.quoteId,
+    days: itinerary?.days,
+    summaryStickyRef,
+    hotelListRef,
+    vehicleListRef,
+    summaryStickyHeight,
+    setSummaryStickyHeight,
+    itineraryDaysCountRef,
+  });
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
   // Keep the bottom hotel list enabled for hotel-bearing itineraries.
