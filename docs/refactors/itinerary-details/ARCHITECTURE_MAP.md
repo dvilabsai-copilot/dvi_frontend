@@ -67,4 +67,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.
 - Guide assignment loading and post-mutation itinerary refreshes are isolated in `useGuideDataRefresh`; guide modal/options mutations remain in the page workflow.
 - Pluck-card and invoice preview actions are isolated in `useItineraryDocumentActions`; the header receives the same callbacks and plan-id guard.
+- Complete hotel hydration, confirmed-hotel normalization, and preference-gated hotel loading are isolated in `useHotelDetailsLoader`; route-state refs still receive the current loader callback.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 40 — Hotel details loader
+
+### Baseline
+- Starting point: Iteration 39 document action extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract the coupled hotel hydration/normalization loaders while preserving the route-state callback ref.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotelDetailsLoader.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: full route pagination hydration, dedupe/merge loop, confirmed hotel response normalization, confirmed DB loading, and itinerary-preference gating now live in the hook.
+- Behaviour intentionally changed: No. Service calls, pagination size, normalization fields, and callback ref assignment are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,156 lines.
+- New `useHotelDetailsLoader.ts`: 129 lines.
+
+### Notes
+- This is the first larger hotel workflow extraction; hotel selection, arrival policy, room selection, and rebuild handlers remain for later responsibility-level splits.
+
 ## Iteration 39 — Itinerary document actions
 
 ### Baseline
