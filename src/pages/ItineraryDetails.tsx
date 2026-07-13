@@ -143,6 +143,7 @@ import { AllHotspotsPreviewDialog } from "./itinerary-details/components/AllHots
 import { ClipboardDialog } from "./itinerary-details/components/ClipboardDialog";
 import { ItineraryDayHeader } from "./itinerary-details/components/ItineraryDayHeader";
 import { ItinerarySegments } from "./itinerary-details/components/ItinerarySegments";
+import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -13639,118 +13640,12 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         onConfirm={handleDeleteActivity}
       />
 
-      <Dialog
-        open={guideModal.open}
-        onOpenChange={(open) => {
-          if (!open && !guideModal.saving) {
-            setGuideModal((prev) => ({
-              ...prev,
-              open: false,
-              loading: false,
-              saving: false,
-            }));
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {Number(guideModal.guideType || 0) === 1
-                ? (guideModal.routeGuideId ? "Update Guide for Full Itinerary" : "Add Guide for Full Itinerary")
-                : guideModal.routeGuideId
-                ? `Update Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`
-                : `Add Guide for "${formatHeaderDate(String(guideModal.day?.date || ""))}"`}
-            </DialogTitle>
-            <DialogDescription>
-  {Number(guideModal.guideType || 0) === 1
-    ? "Choose the guide language and slot for the full itinerary."
-    : "Choose the guide language and slot for this itinerary day."}
-</DialogDescription>
-          </DialogHeader>
-
-          {guideModal.loading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
-            </div>
-          ) : (
-            <div className="space-y-5 py-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-[#4a4260]">Language</label>
-                <Select
-                  value={guideModal.guideLanguage}
-                  onValueChange={(value) => setGuideModal((prev) => ({ ...prev, guideLanguage: value }))}
-                >
-                  <SelectTrigger className="border-[#e5d9f2] focus:ring-[#d546ab]">
-                    <SelectValue placeholder="Choose Language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {guideModal.options.languages.map((language) => (
-                      <SelectItem key={language.id} value={String(language.id)}>
-                        {language.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-     <div className="space-y-2">
-  <label className="text-sm font-medium text-[#4a4260]">Slot</label>
-  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-    {guideModal.options.slots.map((slot) => {
-      const selected = guideModal.guideSlots.includes(slot.id);
-      return (
-        <button
-          key={slot.id}
-          type="button"
-          className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-            selected
-              ? "border-[#d546ab] bg-[#fdf6ff] text-[#d546ab]"
-              : "border-[#e5d9f2] bg-white text-[#4a4260] hover:bg-[#faf7fc]"
-          }`}
-          onClick={() => {
-            setGuideModal((prev) => {
-              const exists = prev.guideSlots.includes(slot.id);
-              const guideSlots = exists
-                ? prev.guideSlots.filter((item) => item !== slot.id)
-                : [...prev.guideSlots, slot.id].sort((a, b) => a - b);
-              return { ...prev, guideSlots };
-            });
-          }}
-        >
-          {slot.label}
-        </button>
-      );
-    })}
-  </div>
-</div>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setGuideModal((prev) => ({ ...prev, open: false }))}
-              disabled={guideModal.saving}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => void handleSaveGuideAssignment()}
-              disabled={guideModal.loading || guideModal.saving}
-              className="bg-[#d546ab] hover:bg-[#bf3397]"
-            >
-              {guideModal.saving ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GuideAssignmentDialog
+        guideModal={guideModal}
+        setGuideModal={setGuideModal}
+        formatDate={(value) => formatHeaderDate(value)}
+        onSave={handleSaveGuideAssignment}
+      />
 
       <DeleteConfirmationDialog
         open={deleteGuideModal.open}
