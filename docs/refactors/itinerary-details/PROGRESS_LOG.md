@@ -978,6 +978,31 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 52 — Hotel rebuild mutation boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelDataController.ts`.
+- Moved hotel rebuild orchestration (rebuild request, details refresh, complete hotel hydration, loading state, and existing toast messages) out of `ItineraryDetailsController.tsx`.
+- Preserved the existing `ItineraryService` calls, group-type argument, cache update, and rebuild button callback contract.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useHotelDataController.ts`; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Lint: repository baseline remains failing; no lint-only changes made.
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,416 physical lines after extraction.
+- `useHotelDataController.ts`: 143 physical lines.
+
+### Notes
+
+- The hook currently owns the rebuild mutation while adjacent refresh/group-switch callbacks remain in the controller for a follow-up pass; this keeps the first mutation extraction small and behaviorally auditable.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

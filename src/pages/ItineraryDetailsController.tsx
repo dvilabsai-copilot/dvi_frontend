@@ -161,6 +161,7 @@ import { useHotelPaginationController } from "./itinerary-details/hooks/useHotel
 import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
+import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -6053,31 +6054,20 @@ const applyChildAgesToTemplate = (
     return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
 
-  const handleRebuildHotels = useCallback(async () => {
-    if (!quoteId || isRebuildingHotels) return;
-
-    try {
-      setIsRebuildingHotels(true);
-      setLoadingHotels(true);
-      toast.info('Rebuilding hotels...');
-
-      const [detailsRes] = await Promise.all([
-        ItineraryService.getDetails(quoteId),
-        ItineraryService.rebuildHotelDetails(quoteId, 1, 20, activeHotelGroupType || undefined),
-      ]);
-
-      setItinerary(detailsRes as ItineraryDetailsResponse);
-      const completeHotelRes = await fetchCompleteHotelDetails(quoteId);
-      setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
-      cacheRouteHotelDetails(quoteId, completeHotelRes as ItineraryHotelDetailsResponse);
-      toast.success('Hotels rebuilt successfully');
-    } catch (e) {
-      toast.error(e?.message || 'Failed to rebuild hotels');
-    } finally {
-      setLoadingHotels(false);
-      setIsRebuildingHotels(false);
-    }
-  }, [quoteId, cacheRouteHotelDetails, isRebuildingHotels, activeHotelGroupType, fetchCompleteHotelDetails]);
+  const { handleRebuildHotels } = useHotelDataController({
+    quoteId: quoteId || null,
+    activeHotelGroupType,
+    isRebuildingHotels,
+    setActiveHotelGroupType,
+    setActiveHotelListTotal,
+    setHotelDetails,
+    setIsRebuildingHotels,
+    setItinerary,
+    setLoadingHotels,
+    cacheRouteHotelDetails,
+    fetchCompleteHotelDetails,
+    loadHotelDetailsForItinerary,
+  });
 
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
