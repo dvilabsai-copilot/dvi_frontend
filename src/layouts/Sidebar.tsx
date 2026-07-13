@@ -143,6 +143,43 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   const setCollapsed = (v: boolean) => { setLocalCollapsed(v); onCollapsedChange?.(v); };
   const [sidebarWalletAmount, setSidebarWalletAmount] = useState<number>(0);
 
+  const toggleParentMenu = (itemId: string, trigger: HTMLButtonElement) => {
+    const willOpen = openParentId !== itemId;
+    setOpenParentId(willOpen ? itemId : null);
+
+    if (!willOpen) return;
+
+    const sidebarShell = trigger.closest("[data-sidebar-shell]");
+    if (!sidebarShell) return;
+
+    // SidebarContent remounts when its parent state changes, so query the live
+    // menu after React has rendered the expanded submenu.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const menu = sidebarShell.querySelector<HTMLElement>("[data-sidebar-nav]");
+        const menuItem = Array.from(
+          sidebarShell.querySelectorAll<HTMLElement>("[data-sidebar-item]"),
+        ).find((element) => element.dataset.sidebarItem === itemId);
+        if (!menu || !menuItem) return;
+
+        const menuRect = menu.getBoundingClientRect();
+        const itemRect = menuItem.getBoundingClientRect();
+        const edgePadding = 8;
+        let nextScrollTop = menu.scrollTop;
+
+        if (itemRect.bottom > menuRect.bottom - edgePadding) {
+          nextScrollTop += itemRect.bottom - menuRect.bottom + edgePadding;
+        } else if (itemRect.top < menuRect.top + edgePadding) {
+          nextScrollTop -= menuRect.top - itemRect.top + edgePadding;
+        }
+
+        if (nextScrollTop !== menu.scrollTop) {
+          menu.scrollTo({ top: Math.max(0, nextScrollTop), behavior: "smooth" });
+        }
+      });
+    });
+  };
+
   const token = localStorage.getItem("accessToken");
   const user = token ? parseJwt(token) : null;
   const role = user?.role;
@@ -184,7 +221,7 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
       </div>
 
       {/* MENU */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav data-sidebar-nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
           {filteredMenuItems.map((item) => {
             const Icon = item.icon;
@@ -192,8 +229,11 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
             if (item.hasSubmenu && item.children && !collapsed) {
               const isOpen = openParentId === item.id;
               return (
-                <li key={item.id}>
-                  <button onClick={() => setOpenParentId(prev => prev === item.id ? null : item.id)} className="flex items-center w-full gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]">
+                <li key={item.id} data-sidebar-item={item.id}>
+                  <button
+                    onClick={(event) => toggleParentMenu(item.id, event.currentTarget)}
+                    className="flex items-center w-full gap-3 px-4 py-2 rounded-lg hover:bg-[#f5e8ff]"
+                  >
                     <Icon className="h-5 w-5" />
                     <span className="flex-1 text-sm text-left">{item.title}</span>
                     <ChevronRight className={cn("h-4 w-4 transition-transform", isOpen && "rotate-90")} />
@@ -273,12 +313,13 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   return (
     <>
       <Sheet open={mobileOpen} onOpenChange={onMobileToggle}>
-        <SheetContent side="left" className="w-64 p-0 md:hidden">
+        <SheetContent data-sidebar-shell side="left" className="w-64 p-0 md:hidden">
           <SidebarContent />
         </SheetContent>
       </Sheet>
 
       <aside
+        data-sidebar-shell
         className="hidden md:flex fixed left-0 top-0 h-screen bg-white border-r flex-col transition-all duration-300"
         style={{ width: collapsed ? "5rem" : "16rem" }}
       >
