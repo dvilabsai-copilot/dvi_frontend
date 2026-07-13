@@ -154,6 +154,7 @@ import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelect
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
+import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -370,42 +371,12 @@ const loadAndCacheRouteHotelDetails = useCallback(
     activityName: "",
   });
   const [isDeletingActivity, setIsDeletingActivity] = useState(false);
- const [guideAssignments, setGuideAssignments] = useState<ItineraryGuideAssignment[]>([]);
-const [guideAvailability, setGuideAvailability] = useState<GuideAvailabilityResponse | null>(null);
-const [guideAvailabilityLoading, setGuideAvailabilityLoading] = useState(false);
-
-const [guideModal, setGuideModal] = useState<{
-    open: boolean;
-    loading: boolean;
-    saving: boolean;
-    planId: number | null;
-    day: ItineraryDay | null;
-    routeGuideId: number | null;
-    guideType: number;
-    guideLanguage: string;
-    guideSlots: number[];
-    options: GuideModalOptions;
-  }>({
-    open: false,
-    loading: false,
-    saving: false,
-    planId: null,
-    day: null,
-    routeGuideId: null,
-    guideType: 2,
-    guideLanguage: "",
-    guideSlots: [],
-    options: { languages: [], slots: [], assignment: null },
-  });
-  const [deleteGuideModal, setDeleteGuideModal] = useState<{
-    open: boolean;
-    assignment: ItineraryGuideAssignment | null;
-    deleting: boolean;
-  }>({
-    open: false,
-    assignment: null,
-    deleting: false,
-  });
+  const guideState = useGuideState();
+  const {
+    guideAssignments, setGuideAssignments, guideAvailability, setGuideAvailability,
+    guideAvailabilityLoading, setGuideAvailabilityLoading, guideModal, setGuideModal,
+    deleteGuideModal, setDeleteGuideModal,
+  } = guideState;
   const hotspotState = useHotspotState();
   const {
     addHotspotModal, setAddHotspotModal, loadingHotspots, setLoadingHotspots,

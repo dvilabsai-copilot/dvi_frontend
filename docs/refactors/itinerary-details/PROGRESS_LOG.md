@@ -515,6 +515,37 @@
 - Coupling discovered: the historical activity response shape is consumed dynamically by existing handlers; the state hook keeps that shape unchanged.
 - Follow-up extraction: guide workflow state/actions, vehicle state/actions, hotspot/Fit Here controller, and quotation review view.
 
+## Iteration 27 — Guide workflow state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: guide assignments, availability, add/edit modal, loading/saving, and delete confirmation state retain their existing defaults and setter semantics.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useGuideState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: guide workflow state now originates from a dedicated hook; availability loading, save/delete API calls, option normalization, and toasts remain in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, guide state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,231; after: 16,202.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useGuideState.ts` (14 lines).
+
+### Notes
+- Coupling discovered: guide availability and assignment rules remain in existing callbacks; this iteration moved state only.
+- Follow-up extraction: vehicle workflow state/actions and hotspot/Fit Here controller/view.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline
