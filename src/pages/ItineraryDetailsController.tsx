@@ -167,6 +167,7 @@ import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedV
 import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
 import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
 import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
+import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3726,24 +3727,11 @@ const loadAndCacheRouteHotelDetails = useCallback(
     };
   });
 
-const overallTripCostWithHotels = useMemo(() => {
-  return Number(financialTotals.netPayable || itinerary?.overallCost || 0).toFixed(2);
-}, [financialTotals.netPayable, itinerary?.overallCost]);
-
-const specialInstructionsText = useMemo(() => {
-  const source = itinerary as any;
-
-  const rawValue =
-    source?.special_instructions ??
-    source?.specialInstructions ??
-    source?.special_instruction ??
-    source?.specialInstruction ??
-    source?.plan?.special_instructions ??
-    source?.plan?.specialInstructions ??
-    "";
-
-  return String(rawValue || "").trim();
-}, [itinerary]);
+const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySummaryValues({
+  netPayable: financialTotals.netPayable,
+  overallCost: itinerary?.overallCost,
+  itinerary: itinerary as Record<string, unknown> | null,
+});
 
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useMemo(() => {

@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 49 — Itinerary summary values hook
+
+### Baseline
+- Starting point: Iteration 48 documentation facts were current and the branch was clean; previous focused/build/typecheck verification was green.
+- Scope: extract the small header summary formatting and special-instruction fallback lookup.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useItinerarySummaryValues.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: payable/overall-cost formatting and special-instruction field fallback resolution now live in the hook.
+- Behaviour intentionally changed: No. Existing fallback field order and two-decimal formatting are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,852 lines.
+- New `useItinerarySummaryValues.ts`: 20 lines.
+
+### Notes
+- This is a small summary boundary; the remaining high-risk controller regions are still hotspot/Fit Here actions/views, vehicle workflow, quotation submission, and compatibility fragments.
+
 ## Iteration 47 — Broader verification rerun
 
 ### Baseline
