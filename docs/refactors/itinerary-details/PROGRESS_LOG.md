@@ -390,3 +390,34 @@
 ### Notes
 - Coupling discovered: source preview and route-switch handlers still intentionally own their API sequencing in the runtime; this iteration moved state ownership only.
 - Follow-up extraction: route-switch/loading actions and hotel/vehicle controllers.
+
+## Iteration 21 — Quotation state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: quotation confirmation, wallet top-up, document modal, guest/passenger form, prebook, and acceptance state retain their existing defaults and setter semantics.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useQuotationState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: quotation-confirmation modal state, wallet state, guest/passenger form state, agent state, prebook state, and confirmation review state now originate from a dedicated hook. Existing validation, payload construction, and submission handlers remain in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, quotation state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,436; after: 16,389.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useQuotationState.ts` (62 lines).
+
+### Notes
+- Coupling discovered: confirmation derived totals and API submission remain in the runtime so request payload and validation semantics are unchanged.
+- Follow-up extraction: hotel/vehicle state and the large quotation review view.
