@@ -1,5 +1,25 @@
 # Progress log
 
+## Iteration 50 — Lint baseline rerun
+
+### Baseline
+- Starting point: Iteration 49 summary values extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: rerun repository lint and record the current baseline count.
+
+### Changes
+- Files modified: `REGRESSION_LOG.md`, `FINAL_REPORT.md`, `PROGRESS_LOG.md`.
+- Code moved: none; verification/documentation checkpoint only.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: failed with 1,925 errors and 110 warnings across the repository.
+- Targeted Playwright: focused pair remains 2 passed.
+- Production build: passed with existing warnings.
+- Filtered page/new-module typecheck: no new diagnostics.
+
+### Notes
+- Completion criteria remain open: the transitional controller is still 13,852 lines, repository lint is red, and broader E2E failures remain environment/data dependent.
+
 ## Iteration 49 — Itinerary summary values hook
 
 ### Baseline

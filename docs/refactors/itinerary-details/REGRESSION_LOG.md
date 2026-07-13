@@ -112,6 +112,23 @@ No application or test weakening changes were made. Generated Playwright artifac
 ### Verification
 Focused pair remains 2/2 passed; production build passes; page/new-module typecheck remains free of new errors.
 
+## 2026-07-14 — Iteration 49 lint rerun
+
+### Failure
+`npm run lint` remains red with 1,925 errors and 110 warnings.
+
+### Classification
+- repository-wide baseline debt
+
+### Root cause
+The command reports legacy `any` usage, configuration-comment diagnostics, and existing test/source warnings across the repository. The current page/controller extraction does not introduce a clean repository lint baseline.
+
+### Resolution
+No broad lint suppression or unrelated repository cleanup was added; typing cleanup remains a follow-up after the controller boundaries stabilize.
+
+### Verification
+Focused Playwright remains 2/2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.
+
 ## 2026-07-14 — Broader itinerary Playwright rerun after controller extractions
 
 ### Failure
