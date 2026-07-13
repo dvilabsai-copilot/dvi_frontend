@@ -62,10 +62,24 @@ const [stateOptions, setStateOptions] = useState<Option[]>([]);
     state: "",
   });
 
-  const [destinationCosts, setDestinationCosts] = useState<{ [key: string]: string }>({});
-  const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] = useState(false);
+  const [destinationCosts, setDestinationCosts] = useState<{
+  [key: string]: string;
+}>({});
+
+// Vehicle Type dropdown
+const [isVehicleTypeDropdownOpen, setIsVehicleTypeDropdownOpen] =
+  useState(false);
+const [vehicleTypeSearchText, setVehicleTypeSearchText] = useState("");
+const [highlightedVehicleTypeIndex, setHighlightedVehicleTypeIndex] =
+  useState(0);
+const vehicleTypeListRef = useRef<HTMLDivElement | null>(null);
+
+// State dropdown
+const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] =
+  useState(false);
 const [permitStateSearchText, setPermitStateSearchText] = useState("");
-const [highlightedPermitStateIndex, setHighlightedPermitStateIndex] = useState(0);
+const [highlightedPermitStateIndex, setHighlightedPermitStateIndex] =
+  useState(0);
 const permitStateListRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (vendorId) {
@@ -234,6 +248,92 @@ const permitVehicleTypeOptions = useMemo(() => {
     configuredIds.has(String(option.id))
   );
 }, [vehicleTypeOptions, driverCostVehicleTypeIds]);
+
+const selectedVehicleTypeLabel =
+  permitVehicleTypeOptions.find(
+    (vehicle) => vehicle.id === permitForm.vehicleType
+  )?.label || "";
+
+const filteredPermitVehicleTypeOptions = useMemo(() => {
+  const query = vehicleTypeSearchText.trim().toLowerCase();
+
+  if (!query) return permitVehicleTypeOptions;
+
+  return permitVehicleTypeOptions.filter((vehicle) =>
+    vehicle.label.toLowerCase().includes(query)
+  );
+}, [permitVehicleTypeOptions, vehicleTypeSearchText]);
+
+const handleVehicleTypeSelect = (vehicleTypeId: string) => {
+  handleFormChange("vehicleType", vehicleTypeId);
+  setVehicleTypeSearchText("");
+  setIsVehicleTypeDropdownOpen(false);
+};
+
+const handleVehicleTypeKeyDown = (
+  e: React.KeyboardEvent<HTMLInputElement>
+) => {
+  if (!filteredPermitVehicleTypeOptions.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+
+    setHighlightedVehicleTypeIndex((prev) => {
+      const nextIndex =
+        prev >= filteredPermitVehicleTypeOptions.length - 1 ? 0 : prev + 1;
+
+      requestAnimationFrame(() => {
+        const listEl = vehicleTypeListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-vehicle-type-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+
+    setHighlightedVehicleTypeIndex((prev) => {
+      const nextIndex =
+        prev <= 0 ? filteredPermitVehicleTypeOptions.length - 1 : prev - 1;
+
+      requestAnimationFrame(() => {
+        const listEl = vehicleTypeListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-vehicle-type-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+
+    const selectedVehicle =
+      filteredPermitVehicleTypeOptions[highlightedVehicleTypeIndex];
+
+    if (selectedVehicle) {
+      handleVehicleTypeSelect(selectedVehicle.id);
+    }
+  }
+
+  if (e.key === "Escape") {
+    setIsVehicleTypeDropdownOpen(false);
+  }
+};
 
 const selectedPermitStateLabel =
   stateOptions.find((state) => state.id === permitForm.state)?.label || "";
@@ -565,32 +665,98 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-1">
-          <Label>
-            Vehicle Type
-          </Label>
-          <Select
-            value={permitForm.vehicleType}
-            onValueChange={(v) => handleFormChange("vehicleType", v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Choose Vehicle Type" />
-            </SelectTrigger>
-         <SelectContent>
-  {permitVehicleTypeOptions.length === 0 ? (
-    <div className="px-3 py-2 text-sm text-gray-500">
-      Add vehicle type in Driver Cost first
-    </div>
-  ) : (
-    permitVehicleTypeOptions.map((v) => (
-      <SelectItem key={v.id} value={v.id}>
-        {v.label}
-      </SelectItem>
-    ))
-  )}
-</SelectContent>
-          </Select>
+      <div className="space-y-1">
+  <Label>Vehicle Type</Label>
+
+  <div
+    className="relative"
+    onBlur={(e) => {
+      const nextFocusedElement = e.relatedTarget as Node | null;
+
+      if (
+        !nextFocusedElement ||
+        !e.currentTarget.contains(nextFocusedElement)
+      ) {
+        setIsVehicleTypeDropdownOpen(false);
+      }
+    }}
+  >
+    <button
+      type="button"
+      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-left text-sm"
+      onClick={() => {
+        setIsVehicleTypeDropdownOpen((prev) => !prev);
+        setHighlightedVehicleTypeIndex(0);
+      }}
+    >
+      <span
+        className={
+          selectedVehicleTypeLabel ? "text-gray-900" : "text-gray-500"
+        }
+      >
+        {selectedVehicleTypeLabel || "Choose Vehicle Type"}
+      </span>
+
+      <span className="text-gray-500">⌄</span>
+    </button>
+
+    {isVehicleTypeDropdownOpen ? (
+      <div className="absolute left-0 top-[46px] z-[100] w-full rounded-xl border border-purple-200 bg-white p-2 shadow-lg">
+        <Input
+          value={vehicleTypeSearchText}
+          onChange={(e) => {
+            setVehicleTypeSearchText(e.target.value);
+            setHighlightedVehicleTypeIndex(0);
+          }}
+          onKeyDown={handleVehicleTypeKeyDown}
+          placeholder="Type to search..."
+          className="mb-2 h-12 rounded-lg border-purple-400 text-sm focus-visible:ring-2 focus-visible:ring-purple-500"
+          autoFocus
+        />
+
+        <div
+          ref={vehicleTypeListRef}
+          className="max-h-60 overflow-y-auto pr-1"
+        >
+          {filteredPermitVehicleTypeOptions.length > 0 ? (
+            filteredPermitVehicleTypeOptions.map((vehicle, index) => {
+              const isHighlighted =
+                index === highlightedVehicleTypeIndex;
+              const isSelected =
+                permitForm.vehicleType === vehicle.id;
+
+              return (
+                <button
+                  key={vehicle.id}
+                  type="button"
+                  data-vehicle-type-index={index}
+                  className={`block w-full rounded-md px-3 py-2 text-left text-sm ${
+                    isHighlighted || isSelected
+                      ? "bg-purple-100 text-purple-700"
+                      : "text-gray-800 hover:bg-purple-50"
+                  }`}
+                  onMouseEnter={() =>
+                    setHighlightedVehicleTypeIndex(index)
+                  }
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() =>
+                    handleVehicleTypeSelect(vehicle.id)
+                  }
+                >
+                  {vehicle.label}
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-3 py-3 text-sm text-gray-500">
+              No vehicle types found
+            </div>
+          )}
         </div>
+      </div>
+    ) : null}
+  </div>
+</div>
 
         <div className="space-y-1">
           <Label>
