@@ -297,3 +297,34 @@
 ### Notes
 - Coupling discovered: router lazy loading relies on both exports, so the wrapper intentionally keeps both names stable.
 - Follow-up extraction: split the transitional runtime into hotspot/Fit Here, hotel/vehicle, confirmation, and route/loading controllers and views; no further wrapper-only work is considered complete.
+
+## Iteration 18 — Header and trip-summary view
+
+### Baseline
+- Tests run: `npm run build`; focused hotspot Playwright pair.
+- Result: baseline build passed with existing warnings; both focused flows passed before and after the extraction.
+- Relevant behavior: route tabs, itinerary title/actions, confirmed-quote document actions, hotel rebuild action, passenger summary, and overall-trip-cost display remain connected to the same handlers and state.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/ItineraryHeader.tsx`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: the sticky header card and responsive trip summary now render in a focused component with typed props. The runtime retains all state, callbacks, and business rules.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsRuntime`, `ItineraryHeader`, or the stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,772; after: 16,565.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `ItineraryHeader.tsx` (293 lines).
+
+### Notes
+- Coupling discovered: the header depends on route switching, confirmed-document actions, hotel rebuild state, and summary calculations; these remain explicit typed inputs rather than moving business logic into the view.
+- Follow-up extraction: remove the remaining transitional dead compatibility fragment, then split hotspot/Fit Here state and preview UI into domain controllers/components.
