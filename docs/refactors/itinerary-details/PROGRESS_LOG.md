@@ -452,3 +452,34 @@
 ### Notes
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
+
+## Iteration 23 — Media/share/clipboard state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: gallery/video dialogs, clipboard/share dialogs, clipboard type, and rates-visibility state retain their existing defaults and setter semantics.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useMediaShareState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: media, clipboard, and share modal state now originates from a dedicated hook; generation, API, and toast handlers remain unchanged in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, media/share state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,345; after: 16,325.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useMediaShareState.ts` (18 lines).
+
+### Notes
+- Coupling discovered: clipboard generation still depends on hotel selections and vehicle-only branches in the runtime; this extraction intentionally moved state only.
+- Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
