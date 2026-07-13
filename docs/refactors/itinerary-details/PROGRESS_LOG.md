@@ -421,3 +421,34 @@
 ### Notes
 - Coupling discovered: confirmation derived totals and API submission remain in the runtime so request payload and validation semantics are unchanged.
 - Follow-up extraction: hotel/vehicle state and the large quotation review view.
+
+## Iteration 22 — Hotel selection state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: selected hotel bookings, clipboard hotel selection, active hotel group/totals, selected vehicle totals, cost popover, sticky/list refs, and hotel pagination retain their existing state shapes and defaults.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotelSelectionState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: multi-provider hotel selection state, vehicle totals state, hotel summary refs, and pagination state now originate from a dedicated state hook. Hotel calculations and API handlers remain in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, hotel selection hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,389; after: 16,345.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useHotelSelectionState.ts` (62 lines).
+
+### Notes
+- Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
+- Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.

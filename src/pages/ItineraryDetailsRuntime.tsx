@@ -150,6 +150,7 @@ import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader"
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
+import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3137,51 +3138,14 @@ const [guideModal, setGuideModal] = useState<{
   const [clipboardRatesVisible, setClipboardRatesVisible] = useState<boolean>(false);
 
   // Hotel Selection State (Multi-Provider)
-  // Structure: { [routeId]: { provider, hotelCode, bookingCode, roomType, netAmount, hotelName, checkInDate, checkOutDate, groupType } }
-  const [selectedHotelBookings, setSelectedHotelBookings] = useState<{
-    [routeId: number]: {
-      provider: string;
-      hotelCode: string;
-      bookingCode: string;
-      searchReference?: string;
-      roomId?: string;
-      rateId?: string;
-      roomType: string;
-      netAmount: number;
-      hotelName: string;
-      checkInDate: string;
-      checkOutDate: string;
-      searchInitiatedAt?: string;
-      groupType?: number;
-      isBookable?: boolean;
-      externalStay?: boolean;
-      availabilityStatus?: string;
-      availabilityMessage?: string | null;
-      routeId?: number;
-      multiNightBooking?: boolean;
-      stayKey?: string;
-      routeIds?: number[];
-      nights?: number;
-      nightlyRates?: Array<{
-        date: string;
-        amountAfterTax: number;
-        baseAmount?: number;
-        extraAdultCount?: number;
-        extraChildCount?: number;
-        extraAdultRate?: number;
-        extraChildRate?: number;
-      }>;
-      totalAmountAfterTax?: number;
-      mealPlan?: string;
-    }
-  }>({});
-
-  const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
-  const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
-  const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
-  const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
-    Record<number, { totalAmount: number; totalQty: number }>
-  >({});
+  const hotelSelectionState = useHotelSelectionState();
+  const {
+    selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
+    activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal,
+    selectedVehicleTotalsByType, setSelectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
+    summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight, setSummaryStickyHeight,
+    hotelPageByGroupRoute, setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
+  } = hotelSelectionState;
   const activeVehicleTypeIds = useMemo(() => {
     return new Set(
       (itinerary?.vehicles || [])
@@ -3189,14 +3153,6 @@ const [guideModal, setGuideModal] = useState<{
         .filter(Boolean)
     );
   }, [itinerary?.vehicles]);
-  const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
-  const summaryStickyRef = useRef<HTMLDivElement | null>(null);
-  const hotelListRef = useRef<HTMLDivElement | null>(null);
-  const vehicleListRef = useRef<HTMLDivElement | null>(null);
-  const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
-  /** page tracked per groupType for Load More */
-  const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
-  const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
 
   useEffect(() => {
     const el = summaryStickyRef.current;
