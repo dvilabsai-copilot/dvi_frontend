@@ -574,6 +574,37 @@
 ### Notes
 - The stable route boundary and multiple domain state hooks are committed, but the overall refactor is not complete until the transitional runtime is split into workflow-sized controllers/views and the documented full-suite blockers are resolved or externally confirmed.
 
+## Iteration 29 — Vehicle build error view
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: failed vehicle-build state retains the same error wording, retry action, loading transition, and page reload callback.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/VehicleBuildErrorState.tsx`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: the failed vehicle-build retry view now renders through a focused component; retry sequencing and state updates remain in the runtime callback.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, vehicle error component, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: broader 34-test run recorded separately (9 passed, 2 skipped, 23 documented failures).
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,202; after: 16,191.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `VehicleBuildErrorState.tsx` (20 lines).
+
+### Notes
+- Coupling discovered: vehicle retry still intentionally invokes the existing prepared-itinerary loader and preserves its state transitions.
+- Follow-up extraction: hotspot/Fit Here controller/view and vehicle workflow actions; final composition verification remains outstanding.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline
