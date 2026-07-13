@@ -148,6 +148,7 @@ import { SpecialInstructionsSection } from "./itinerary-details/components/Speci
 import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
+import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -190,12 +191,18 @@ const navigate = useNavigate();
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
 
-  const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(
-    null
-  );
-  const isConfirmedItinerary =
-    Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 ||
-    itinerary?.isConfirmed === true;
+  const routeState = useItineraryRouteState(quoteId);
+  const {
+    itinerary, setItinerary, hotelDetails, setHotelDetails, routeHotelDetailsByQuoteId, setRouteHotelDetailsByQuoteId,
+    loading, setLoading, error, setError, pageLoaderStage, setPageLoaderStage, pageLoaderDetail, setPageLoaderDetail,
+    pageLoaderHistory, setPageLoaderHistory, pageReady, setPageReady, sourcePreviewOpen, setSourcePreviewOpen,
+    sourcePreviewLoading, setSourcePreviewLoading, sourcePreviewError, setSourcePreviewError, sourcePreviewMarkdown,
+    setSourcePreviewMarkdown, sourcePreviewHeading, setSourcePreviewHeading, vehicleBuildStatus, setVehicleBuildStatus,
+    vehicleBuildError, setVehicleBuildError, activeRouteQuoteId, setActiveRouteQuoteId, isSwitchingRouteOption,
+    setIsSwitchingRouteOption, latestRouteOptions, setLatestRouteOptions, itineraryDaysCountRef,
+    routeHotelFetchPromisesRef, routeHotelPrefetchedRef, routeHotelFamilyKeyRef, fetchCompleteHotelDetailsRef,
+  } = routeState;
+  const isConfirmedItinerary = Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 || itinerary?.isConfirmed === true;
   const hotelReadOnly = readOnly || isConfirmedItinerary;
   const isConfirmedPresentation = presentationMode === 'confirmed' || readOnly || isConfirmedItinerary;
   const shouldShowHotels = (() => {
@@ -208,39 +215,6 @@ const navigate = useNavigate();
   })();
   const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
   const requiresHotelBookingFlow = shouldShowHotels;
-  const [hotelDetails, setHotelDetails] =
-    useState<ItineraryHotelDetailsResponse | null>(null);
-  const [routeHotelDetailsByQuoteId, setRouteHotelDetailsByQuoteId] = useState<
-    Record<string, ItineraryHotelDetailsResponse | null>
-  >({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pageLoaderStage, setPageLoaderStage] = useState<string>("Building itinerary details");
-  const [pageLoaderDetail, setPageLoaderDetail] = useState<string>(
-    PAGE_LOADER_STAGE_DETAILS["Building itinerary details"],
-  );
-  const [pageLoaderHistory, setPageLoaderHistory] = useState<string[]>([
-    "Building itinerary details",
-  ]);
-  const [pageReady, setPageReady] = useState<boolean>(false);
-  const [sourcePreviewOpen, setSourcePreviewOpen] = useState(false);
-  const [sourcePreviewLoading, setSourcePreviewLoading] = useState(false);
-  const [sourcePreviewError, setSourcePreviewError] = useState<string | null>(null);
-  const [sourcePreviewMarkdown, setSourcePreviewMarkdown] = useState("");
-  const [sourcePreviewHeading, setSourcePreviewHeading] = useState("");
-const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
-const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
-const itineraryDaysCountRef = useRef(0);
-const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
-const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);
-const routeHotelFetchPromisesRef = useRef<
-  Map<string, Promise<ItineraryHotelDetailsResponse | null>>
->(new Map());
-const routeHotelPrefetchedRef = useRef<Set<string>>(new Set());
-const routeHotelFamilyKeyRef = useRef<string>("");
-const fetchCompleteHotelDetailsRef = useRef<
-  ((currentQuoteId: string) => Promise<ItineraryHotelDetailsResponse>) | null
->(null);
 
 const openSourcePreview = useCallback(async (dayNo: number) => {
   const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
@@ -267,36 +241,6 @@ const openSourcePreview = useCallback(async (dayNo: number) => {
   }
 }, [activeRouteQuoteId, itinerary?.quoteId, quoteId]);
 
-const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteOption[]>(() => {
-  // Hydrate route tabs immediately from the payload saved by Create Itinerary.
-  if (typeof window === "undefined") return [];
-
-  try {
-    const stored = localStorage.getItem(`itinerary-route-options:${quoteId}`);
-    if (!stored) return [];
-
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed) || parsed.length === 0) return [];
-
-    return parsed
-      .map((option, index: number) => ({
-        quoteId: String(
-          option?.quoteId ||
-            option?.routeQuoteId ||
-            option?.quotationNo ||
-            option?.quotation_no ||
-            option?.itinerary_quote_ID ||
-            option?.itinerary_quote_id ||
-            option?.quote_id ||
-            ""
-        ).trim(),
-        label: option?.label || option?.routeName || `Route ${index + 1}`,
-      }))
-      .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
-  } catch {
-    return [];
-  }
-});
 
 const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
   const raw = String(value || "").trim();

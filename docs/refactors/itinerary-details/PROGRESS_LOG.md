@@ -359,3 +359,34 @@
 ### Notes
 - Coupling discovered: preview payloads remain intentionally untyped in the existing implementation because backend response variants are consumed throughout the page; the extraction preserved those shapes rather than reinterpret them.
 - Follow-up extraction: move hotspot preview/Fit Here actions and their large modal view into focused controllers/components.
+
+## Iteration 20 — Route/loading state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after the extraction.
+- Relevant behavior: initial itinerary/hotel loading, loader stages/history, route option hydration, route hotel caches, source-preview state, and vehicle-build state keep their existing defaults and refs.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useItineraryRouteState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: route/loading state, route-option local-storage hydration, hotel-cache refs, source-preview state, and vehicle-build state now originate from a dedicated hook; derived read-only/presentation flags remain in the runtime because they depend on page props.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, route state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,492; after: 16,436.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useItineraryRouteState.ts` (60 lines).
+
+### Notes
+- Coupling discovered: source preview and route-switch handlers still intentionally own their API sequencing in the runtime; this iteration moved state ownership only.
+- Follow-up extraction: route-switch/loading actions and hotel/vehicle controllers.
