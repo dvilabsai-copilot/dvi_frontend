@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 44 — Entry-ticket summary hook
+
+### Baseline
+- Starting point: Iteration 43 computed vehicle totals was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract attraction-segment entry-ticket aggregation and location-wise total derivation.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useEntryTicketSummary.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: attraction filtering, location grouping, amount rounding/sorting, and aggregate total now live in the hook.
+- Behaviour intentionally changed: No. Existing segment filters, labels, rounding, and sort order are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,995 lines.
+- New `useEntryTicketSummary.ts`: 37 lines.
+
+### Notes
+- Cost presentation now has isolated hotel, vehicle, and entry-ticket derivations; quotation financial totals remain the next larger computation cluster.
+
 ## Iteration 43 — Computed vehicle totals hook
 
 ### Baseline

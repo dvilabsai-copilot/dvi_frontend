@@ -164,6 +164,7 @@ import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetails
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
+import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3116,47 +3117,7 @@ const loadAndCacheRouteHotelDetails = useCallback(
     costBreakdown: itinerary?.costBreakdown,
   });
 
-  const entryTicketBreakdownByLocation = useMemo(() => {
-    const grouped = new Map<string, { dayNumber: number; locationName: string; amount: number }>();
-
-    for (const day of itinerary?.days || []) {
-      const dayNumber = Number(day?.dayNumber || 0);
-      for (const segment of day?.segments || []) {
-        if (segment.type !== "attraction") continue;
-
-        const amount = Number(segment.amount || 0);
-        if (!Number.isFinite(amount) || amount <= 0) continue;
-
-        const locationName = String(segment.name || "Sightseeing Location").trim() || "Sightseeing Location";
-        const key = `${dayNumber}|${locationName.toLowerCase()}`;
-        const existing = grouped.get(key);
-
-        if (existing) {
-          existing.amount += amount;
-        } else {
-          grouped.set(key, { dayNumber, locationName, amount });
-        }
-      }
-    }
-
-    return Array.from(grouped.values())
-      .map((row) => ({
-        ...row,
-        amount: Number(row.amount.toFixed(2)),
-      }))
-      .sort((a, b) => {
-        if (a.dayNumber !== b.dayNumber) return a.dayNumber - b.dayNumber;
-        return a.locationName.localeCompare(b.locationName);
-      });
-  }, [itinerary?.days]);
-
-  const entryTicketLocationWiseTotal = useMemo(() => {
-    return Number(
-      entryTicketBreakdownByLocation
-        .reduce((sum, row) => sum + Number(row.amount || 0), 0)
-        .toFixed(2),
-    );
-  }, [entryTicketBreakdownByLocation]);
+  const { entryTicketBreakdownByLocation, entryTicketLocationWiseTotal } = useEntryTicketSummary(itinerary?.days);
 
   const hotelsForDisplay = useMemo(() => {
     const rows = Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : [];
