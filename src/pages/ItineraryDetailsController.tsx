@@ -163,6 +163,7 @@ import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItiner
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
+import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3109,34 +3110,11 @@ const loadAndCacheRouteHotelDetails = useCallback(
     selectedHotelBookings,
   ]);
 
-  const computedVehicleAmount = useMemo(() => {
-    if (!shouldShowVehicles) return 0;
-
-    const selectedTotal = Object.values(selectedVehicleTotalsByType).reduce(
-      (sum, row) => sum + Number(row.totalAmount || 0),
-      0,
-    );
-
-    if (selectedTotal > 0) return selectedTotal;
-
-    return Number(
-      itinerary?.costBreakdown?.totalVehicleAmount ??
-      itinerary?.costBreakdown?.totalVehicleCost ??
-      0,
-    );
-  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleAmount, itinerary?.costBreakdown?.totalVehicleCost, shouldShowVehicles]);
-
-  const computedVehicleQty = useMemo(() => {
-    if (!shouldShowVehicles) return 0;
-
-    const selectedQty = Object.values(selectedVehicleTotalsByType).reduce(
-      (sum, row) => sum + Number(row.totalQty || 0),
-      0,
-    );
-
-    if (selectedQty > 0) return selectedQty;
-    return Number(itinerary?.costBreakdown?.totalVehicleQty || 0);
-  }, [selectedVehicleTotalsByType, itinerary?.costBreakdown?.totalVehicleQty, shouldShowVehicles]);
+  const { computedVehicleAmount, computedVehicleQty } = useComputedVehicleTotals({
+    shouldShowVehicles,
+    selectedVehicleTotalsByType,
+    costBreakdown: itinerary?.costBreakdown,
+  });
 
   const entryTicketBreakdownByLocation = useMemo(() => {
     const grouped = new Map<string, { dayNumber: number; locationName: string; amount: number }>();

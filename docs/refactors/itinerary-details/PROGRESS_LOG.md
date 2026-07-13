@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 43 — Computed vehicle totals hook
+
+### Baseline
+- Starting point: Iteration 42 computed hotel cost extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract vehicle amount and quantity derivation from the page controller.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useComputedVehicleTotals.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: selection totals reduction, vehicle-visibility gating, and itinerary cost-breakdown fallbacks now live in the hook.
+- Behaviour intentionally changed: No. Existing amount/quantity precedence and fallback fields are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,028 lines.
+- New `useComputedVehicleTotals.ts`: 32 lines.
+
+### Notes
+- Vehicle totals are now isolated from vehicle actions and presentation; the remaining vehicle build/assignment workflow is still in the controller.
+
 ## Iteration 42 — Computed hotel cost hook
 
 ### Baseline
