@@ -1003,6 +1003,29 @@
 
 - The hook currently owns the rebuild mutation while adjacent refresh/group-switch callbacks remain in the controller for a follow-up pass; this keeps the first mutation extraction small and behaviorally auditable.
 
+## Iteration 53 — Hotel refresh callback boundary
+
+### Changes
+
+- Moved `refreshVehicleData` and `handleHotelGroupTypeChange` into `useHotelDataController`.
+- Preserved the existing vehicle-row diagnostics, group-type API request, and fallback that retains known vehicle rows when a group-type response omits them.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or hotel data hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,365 physical lines after extraction.
+- `useHotelDataController.ts`: 143 physical lines.
+
+### Notes
+
+- The remaining `refreshHotelData` callback is intentionally deferred because its legacy diagnostic strings use repository mojibake; it will be removed with the surrounding hotel mutation workflow boundary once that region is extracted safely.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

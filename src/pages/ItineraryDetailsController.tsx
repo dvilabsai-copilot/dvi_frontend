@@ -5767,61 +5767,6 @@ const applyChildAgesToTemplate = (
     }
   }, [quoteId, cacheRouteHotelDetails, loadHotelDetailsForItinerary]);
 
-  const refreshVehicleData = useCallback(async () => {
-    if (!quoteId) return;
-
-    try {
-      const detailsRes = await ItineraryService.getDetails(quoteId);
-      console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
-        vehicleCount: Array.isArray((detailsRes as any)?.vehicles) ? (detailsRes as any).vehicles.length : 0,
-        vehicles: ((detailsRes as any)?.vehicles || []).map((v) => ({
-          vehicleTypeName: v.vehicleTypeName,
-          vendorEligibleId: v.vendorEligibleId,
-          totals: v.dayWisePricing?.map((d) => d.totalKms),
-          totalAmount: v.totalAmount,
-        })),
-      });
-      setItinerary(detailsRes as ItineraryDetailsResponse);
-    } catch (e) {
-      console.error("Failed to refresh vehicle data", e);
-    }
-  }, [quoteId]);
-
-  const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
-    if (!quoteId) return;
-
-    console.log("Hotel group type changed to:", groupType);
-    setActiveHotelGroupType(groupType);
-
-    try {
-      // Only refetch itinerary details with the selected group type to update costs
-      // Hotel data (hotels, hotelTabs) does NOT change by group type, only cost breakdown
-      const detailsRes = await ItineraryService.getDetails(quoteId, groupType);
-      setItinerary((prev) => {
-        const next = detailsRes as ItineraryDetailsResponse;
-        const pref = Number(next.itineraryPreference ?? 0);
-        const shouldKeepVehicleState =
-          (pref === 2 || pref === 3) &&
-          (!Array.isArray(next.vehicles) || next.vehicles.length === 0) &&
-          Array.isArray(prev?.vehicles) &&
-          prev.vehicles.length > 0;
-
-        if (!shouldKeepVehicleState) {
-          return next;
-        }
-
-        // Some groupType responses return hotel-cost updates without vehicle rows.
-        // Keep the last known vehicle list so vehicle UI does not disappear.
-        return {
-          ...next,
-          vehicles: prev!.vehicles,
-        };
-      });
-    } catch (e) {
-      console.error("Failed to update data for group type change", e);
-    }
-  }, [quoteId]);
-
   const handleGetSaveFunction = useCallback((saveFn: () => Promise<boolean>) => {
     hotelSaveFunctionRef.current = saveFn;
   }, []);
@@ -6054,7 +5999,11 @@ const applyChildAgesToTemplate = (
     return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
 
-  const { handleRebuildHotels } = useHotelDataController({
+  const {
+    handleHotelGroupTypeChange,
+    handleRebuildHotels,
+    refreshVehicleData,
+  } = useHotelDataController({
     quoteId: quoteId || null,
     activeHotelGroupType,
     isRebuildingHotels,
