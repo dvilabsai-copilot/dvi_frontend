@@ -62,268 +62,94 @@ import { toast } from "sonner";
 import {
   getEstimatedSaveMs,
 } from "./CreateItinerary/helpers/saveProgress.constants";
+import type {
+  Activity,
+  AttractionSegment,
+  AvailableHotspot,
+  BreakSegment,
+  CheckinSegment,
+  ConfirmedHotelResponseShape,
+  CostBreakdown,
+  FitHereAnchorIntent,
+  GuideAvailabilityDay,
+  GuideAvailabilityResponse,
+  GuideModalOptions,
+  HotspotAnchor,
+  HotspotSegment,
+  HotelAvailabilityMeta,
+  ItineraryDay,
+  ItineraryDetailsResponse,
+  ItineraryDetailsProps,
+  ItineraryGuideAssignment,
+  ItineraryHotelDetailsResponse,
+  ItineraryHotelRow,
+  ItineraryHotelTab,
+  ItineraryPlanRouteOption,
+  ItinerarySegment,
+  ItineraryVehicleRow,
+  PackageIncludes,
+  ReturnSegment,
+  StartSegment,
+  TravelSegment,
+  TriedAnchorState,
+  VehicleCostBreakdownItem,
+  ViaRouteItem,
+} from "./itinerary-details/itinerary-details.types";
+import {
+  getCheapestVehicleForType,
+  getVehicleAmountNumber,
+  isSupplierBookableHotel,
+  normalizeMealPlanLabel,
+} from "./itinerary-details/utils/domain.utils";
+import {
+  estimateHotelTravelMinutesFromDistance,
+  extractCheckinHotelName,
+  filterAvailableHotspotsForAnchor,
+  formatHeaderDate,
+  formatManualPolicyTime,
+  formatMinutesDuration,
+  formatMinutesToDisplay,
+  formatPreviewDuration,
+  getDisplayDistances,
+  getGuestFoodPreferenceText,
+  getHotspotFromLocationText,
+  getHotspotToLocationText,
+  getManualTimingPolicyFromPreview,
+  hasManualOpeningOrTimingConflict,
+  isAvailableHotspotForAnchorOrRoutePair,
+  isAvailableHotspotForRoutePair,
+  isEarlyMorningTime,
+  isManualRelaxedRouteFitPolicy,
+  isRouteMovementAvailableHotspot,
+  locationTokenMatchesCity,
+  normalizeCityKeyForHotspotFilter,
+  normalizeConfirmedTimelineToSegments,
+  normalizeDateToYmd,
+  normalizeDurationAgainstDistance,
+  normalizeTimelineLabel,
+  parseDisplayMinutes,
+  parseDisplayTimeToHms,
+  parseDistanceKmValue,
+  parseDurationMinutesValue,
+  splitHotspotLocationTokens,
+} from "./itinerary-details/utils/timeline.utils";
+import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
+import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
+import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
+import { GalleryDialog, VideoDialog } from "./itinerary-details/components/MediaDialogs";
+import { ShareEmailDialog, SourcePreviewDialog } from "./itinerary-details/components/ShareAndSourceDialogs";
+import { DeleteConfirmationDialog } from "./itinerary-details/components/DeleteConfirmationDialog";
+import { AllHotspotsPreviewDialog } from "./itinerary-details/components/AllHotspotsPreviewDialog";
+import { ClipboardDialog } from "./itinerary-details/components/ClipboardDialog";
+import { ItineraryDayHeader } from "./itinerary-details/components/ItineraryDayHeader";
+import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
-const PAGE_LOADER_STAGE_DETAILS: Record<string, string> = {
-  "Building itinerary details": "Requesting the latest itinerary data for this quote.",
-  "Loading selected route": "Switching to the selected route and preparing its latest timeline.",
-  "Checking vehicle build status": "Checking whether vehicle pricing and distance rows are already prepared.",
-  "Building permit charges": "Preparing permit, state, and route-level transport charges.",
-  "Building vehicle details and pricing": "Recomputing vehicle rows, travel cost, and route pricing details.",
-  "Loading completed itinerary": "Reloading the finished itinerary so the page reflects the latest saved result.",
-  "Loading hotel selections": "Loading hotel selections and stay details for the current route.",
-};
+// Preserve the historical type exports consumed by HotelList and other modules.
+export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
 
-// --------- Types aligned with CURRENT API RESPONSE ---------
-
-type StartSegment = {
-  type: "start";
-  title: string;
-  timeRange: string; // "12:00 AM - 12:00 AM"
-};
-
-type TravelSegment = {
-  type: "travel";
-  from: string;
-  to: string;
-  timeRange: string; // "06:30 AM - 06:45 AM"
-  distance: string;
-  duration: string; // "15 Min"
-  note?: string | null;
-  isConflict?: boolean;
-  conflictReason?: string | null;
-};
-
-type BreakSegment = {
-  type: "break";
-  location: string;
-  duration: string; // "1 Hour 30 Min"
-  timeRange: string; // "12:00 PM - 01:30 PM"
-};
-
-type Activity = {
-  id: number;
-  activityId: number;
-  title: string;
-  description: string;
-  amount: number;
-  startTime: string | null;
-  endTime: string | null;
-  duration: string | null;
-  image: string | null;
-  galleryImages?: string[];
-};
-
-type AttractionSegment = {
-  type: "attraction";
-  name: string;
-  description: string;
-  visitTime: string; // "06:45 AM - 08:45 AM"
-  duration: string; // "2 Hours"
-  priority?: number;
-  amount: number | null; // Entry cost
-  timings?: string;
-  image: string | null;
-  galleryImages?: string[];
-  videoUrl?: string | null;
-  planOwnWay?: boolean;
-  activities?: Activity[];
-  hasAvailableActivities?: boolean;
-  hotspotId?: number;
-  routeHotspotId?: number;
-  locationId?: number | null;
-  isConflict?: boolean;
-  conflictReason?: string | null;
-  isManual?: boolean;
-};
-
-type HotspotSegment = {
-  type: "hotspot";
-  text: string;
-  locationId?: number;
-  anchorType?: "BETWEEN_ROWS" | "after_travel";
-  anchorIndex?: number;
-  anchorFrom?: string;
-  anchorTo?: string;
-  anchorLabel?: string;
-  anchorTimeRange?: string | null;
-};
-
-type FitHereAnchorIntent = "AFTER_START" | "AFTER_ATTRACTION";
-
-type HotspotAnchor = {
-  anchorType: "BETWEEN_ROWS" | "after_travel";
-  anchorIndex: number;
-  anchorIntent?: FitHereAnchorIntent;
-  anchorFrom?: string;
-  anchorTo?: string;
-  anchorLabel?: string;
-  anchorTimeRange?: string | null;
-  afterRowType?: string;
-  beforeRowType?: string;
-  afterHotspotId?: number | null;
-  afterRouteHotspotId?: number | null;
-  beforeHotspotId?: number | null;
-  beforeRouteHotspotId?: number | null;
-  isBeforeHotel?: false;
-};
-
-type CheckinSegment = {
-  type: "checkin";
-  hotelName: string;
-  hotelAddress: string;
-  time: string | null; // "06:00 PM"
-};
-
-type ReturnSegment = {
-  type: "return";
-  time: string; // "08:00 PM"
-  note?: string | null;
-};
-
-type ItinerarySegment =
-  | StartSegment
-  | TravelSegment
-  | BreakSegment
-  | AttractionSegment
-  | HotspotSegment
-  | CheckinSegment
-  | ReturnSegment;
-
-type ViaRouteItem = {
-  id: number;
-  name: string;
-};
-
-type AvailableHotspot = {
-  id: number;
-  name: string;
-  amount: number;
-  description: string;
-  timeSpend: number;
-  locationMap: string | null;
-  hotspot_location?: string | null;
-  hotspot_to_location?: string | null;
-  hotspotLocation?: string | null;
-  hotspotToLocation?: string | null;
-  image?: string | null;
-  galleryImages?: string[];
-  videoUrl?: string | null;
-  timings?: string;
-  visitAgain?: boolean;
-  alreadyAdded?: boolean;
-  alreadyAddedOnOtherRoute?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE';
-  availabilityReason?: string;
-  actionDisabled?: boolean;
-  buttonLabel?: string;
-  priority?: number;
-  hotspotPriority?: number;
-  hotspot_priority?: number;
-  cityContext?: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN';
-  routeHotspotId?: number | null;
-  planOwnWay?: boolean;
-  isManual?: boolean;
-};
-
-type ItineraryDay = {
-  id: number;
-  dayNumber: number;
-  date: string; // ISO
-  departure: string | null;
-  arrival: string | null;
-  distance: string; // total distance
-  intercityDistance?: string; // only main destination-to-destination distance
-  sightseeingDistance?: string; // only sightseeing/local movement distance
-  startTime: string; // "12:00 PM"
-  endTime: string; // "08:00 PM"
-  viaRoutes?: ViaRouteItem[];
-  segments: ItinerarySegment[];
-  needsRebuild?: boolean;
-  excludedHotspotIds?: number[];
-};
-
-type TriedAnchorState = {
-  anchorKey: string;
-  status:
-    | "DIRECT_FIT"
-    | "REMOVES_OPTIONAL"
-    | "P3_CONFIRMATION"
-    | "PRIORITY_CONFLICT"
-    | "CANNOT_FIT";
-  label: string;
-  attemptId?: string;
-};
-
-type ItineraryGuideAssignment = {
-  routeGuideId: number;
-  planId: number;
-  routeId: number | null;
-  routeDate: string | null;
-  guideType: number;
-  guideId: number;
-  guideName: string;
-  guideLanguage: string;
-  guideLanguageIds: number[];
-  guideLanguageLabels: string[];
-  guideSlot: string;
-  guideSlotIds: number[];
-  guideSlotLabels: string[];
-  guideCost: number;
-};
-
-type GuideModalOptions = {
-  languages: Array<{ id: number; label: string }>;
-  slots: Array<{ id: number; label: string }>;
-  assignment?: ItineraryGuideAssignment | null;
-};
-
-type GuideAvailabilityDay = {
-  routeId: number;
-  routeDate: string | null;
-  available: boolean;
-};
-
-type GuideAvailabilityResponse = {
-  planId: number;
-  wholeItineraryAvailable: boolean;
-  hasAnyGuidePrice: boolean;
-  days: GuideAvailabilityDay[];
-};
-
-// --------- HOTELS (matches backend DTO) ---------
-
-export type ItineraryHotelRow = {
-  groupType: number;
-  itineraryRouteId: number;
-  day: string;
-  dayNumber?: number;
-  sortOrder?: number;
-  destination: string;
-  hotelId: number;
-  hotelName: string;
-  category: number | string;
-  roomType: string;
-  mealPlan: string;
-  totalHotelCost: number;
-  totalHotelTaxAmount: number;
-  noOfRooms?: number;
-  provider?: string; // Provider source (tbo, resavenue, hobse)
-  voucherCancelled?: boolean; // Whether voucher is cancelled
-
-  // Original draft hotel details ID. Existing cancellation API uses this.
-  itineraryPlanHotelDetailsId?: number;
-
-  // Confirmed hotel details table ID, useful for display/debug/future use.
-  confirmedItineraryPlanHotelDetailsId?: number;
-
-  // Normalized IDs passed into existing cancel flow.
-  hotelDetailsIds?: number[];
-
-  // Optional explicit flag from backend.
-  canCancelVoucher?: boolean;
-
-  date?: string;
+// Legacy hotel DTO fields are defined in itinerary-details.types.ts.
   // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
+/*
   hotelCode?: string; // HOBSE hotel code
   bookingCode?: string; // HOBSE booking code
   searchReference?: string;
@@ -341,973 +167,14 @@ export type ItineraryHotelRow = {
   displayRoomType?: string;
   displayMealPlan?: string;
 };
+*/
 
-export type ItineraryHotelTab = {
-  groupType: number;
-  label: string;
-  totalAmount: number;
-};
-
-type HotelAvailabilityMeta = {
-  hasSupplierHotels: boolean;
-  supplierHotelCount: number;
-  placeholderRowCount: number;
-  totalSearchRoutes: number;
-  emptySearchRoutes: number;
-  isPlaceholderOnly: boolean;
-  message: string;
-};
-
-const normalizeMealPlanLabel = (value?: string | null): string => {
-  const mealPlanLabelByCode: Record<string, string> = {
-    CP: 'CP - Continental Plan (Breakfast only)',
-    EP: 'EP - European Plan (Room only)',
-    MAP: 'MAP - Modified American Plan (Breakfast + Lunch or Dinner)',
-    AP: 'AP - American Plan (Breakfast + Lunch + Dinner)',
-  };
-
-  const raw = String(value || '').trim();
-  if (!raw || raw === '-') return mealPlanLabelByCode.EP;
-
-  const upper = raw.toUpperCase();
-  if (upper === 'CP' || upper.includes('CONTINENTAL PLAN')) return mealPlanLabelByCode.CP;
-  if (upper === 'MAP' || upper.includes('MODIFIED AMERICAN PLAN')) return mealPlanLabelByCode.MAP;
-  if (upper === 'AP' || upper === 'AMERICAN PLAN') return mealPlanLabelByCode.AP;
-  if (upper === 'EP' || upper.includes('EUROPEAN PLAN') || upper.includes('ROOM ONLY') || upper.includes('NO MEAL')) return mealPlanLabelByCode.EP;
-
-  if (upper.includes('ALL MEALS') || upper.includes('FULL BOARD') || upper.includes('FULLBOARD')) return mealPlanLabelByCode.AP;
-  if (upper.includes('HALF BOARD') || upper.includes('HALFBOARD')) return mealPlanLabelByCode.MAP;
-
-  const hasBreakfast = upper.includes('BREAKFAST');
-  const hasLunch = upper.includes('LUNCH');
-  const hasDinner = upper.includes('DINNER');
-
-  if (hasBreakfast && hasLunch && hasDinner) return mealPlanLabelByCode.AP;
-  if ((hasBreakfast && hasLunch) || (hasBreakfast && hasDinner) || (hasLunch && hasDinner)) return mealPlanLabelByCode.MAP;
-  if (hasBreakfast) return mealPlanLabelByCode.CP;
-
-  return mealPlanLabelByCode.EP;
-};
 
 // --------- VEHICLES ---------
 
-type VehicleCostBreakdownItem = {
-  label: string;
-  amount: string | number;
-};
-
-export type ItineraryVehicleRow = {
-  vendorName: string | null;
-  branchName: string | null;
-  vehicleOrigin: string | null;
-  totalQty: string;
-  totalAmount: string;
-  vehicleId?: number | null;
-  vehicleIds?: number[];
-  vehicleNumber?: string | null;
-  vehicleNumbers?: string[];
-  availableVehicleCount?: number;
-  vehicleRegistrationNumber?: string | null;
-  vehicleRegistrationStateCode?: string | null;
-  vehicleRegistrationStateName?: string | null;
-
-  // vehicle type information
-  vendorEligibleId?: number;
-  vehicleTypeId?: number;
-  vehicleTypeName?: string;
-  isAssigned?: boolean;
-
-  // per-vehicle charges (optional; fill from API)
-  rentalCharges?: number | string;
-  tollCharges?: number | string;
-  parkingCharges?: number | string;
-  driverCharges?: number | string;
-  permitCharges?: number | string;
-  before6amDriver?: number | string;
-  before6amVendor?: number | string;
-  after8pmDriver?: number | string;
-  after8pmVendor?: number | string;
-  breakdown?: VehicleCostBreakdownItem[];
-
-  // UI fields for the image + distance row
-  dayLabel?: string; // "Day-1 | 28 Nov 2025 | Outstation"
-  fromLabel?: string; // "CHENNAI INTERNATIONAL AIRPORT"
-  toLabel?: string; // "CHENNAI"
-  packageLabel?: string; // "Outstation - 250KM"
-  col1Distance?: string; // "30.22 KM"
-  col1Duration?: string; // "0 Min"
-  col2Distance?: string; // "0.00 KM"
-  col2Duration?: string; // "0 Min"
-  col3Distance?: string; // "30.22 KM"
-  col3Duration?: string; // "0 Min"
-  imageUrl?: string | null; // vehicle image if you ever have it
-};
-
-const getVehicleAmountNumber = (vehicle: ItineraryVehicleRow): number => {
-  const raw =
-    (vehicle as ItineraryVehicleRow & { grandTotal?: number | string }).grandTotal ??
-    (vehicle as ItineraryVehicleRow & { vehicleGrandTotal?: number | string }).vehicleGrandTotal ??
-    (vehicle as ItineraryVehicleRow & { totalAmount?: number | string }).totalAmount ??
-    (vehicle as ItineraryVehicleRow & { total_amount?: number | string }).total_amount ??
-    (vehicle as ItineraryVehicleRow & { TotalAmount?: number | string }).TotalAmount ??
-    (vehicle as ItineraryVehicleRow & { finalAmount?: number | string }).finalAmount ??
-    (vehicle as ItineraryVehicleRow & { amount?: number | string }).amount ??
-    0;
-
-  if (typeof raw === "number") {
-    return Number.isFinite(raw) ? raw : 0;
-  }
-
-  const cleaned = String(raw)
-    .replace(/,/g, "")
-    .replace(/[^\d.-]/g, "")
-    .trim();
-
-  const amount = Number(cleaned);
-  return Number.isFinite(amount) ? amount : 0;
-};
-
-const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
-  if (!vehicles.length) return null;
-
-  return vehicles.reduce((cheapest, current) => {
-    return getVehicleAmountNumber(current) < getVehicleAmountNumber(cheapest)
-      ? current
-      : cheapest;
-  }, vehicles[0]);
-};
-
-const isSupplierBookableHotel = (entry: any): boolean => {
-  if (!entry) return false;
-
-  const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
-  const hotelCode = String(entry?.hotelCode || entry?.hotelId || '').trim();
-  const provider = String(entry?.provider || '').trim().toLowerCase();
-  const bookingCode = String(
-    entry?.bookingCode ||
-      entry?.searchReference ||
-      entry?.roomTypes?.[0]?.roomCode ||
-      '',
-  ).trim();
-  const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
-  const amount = Number(entry?.netAmount) > 0
-    ? Number(entry.netAmount)
-    : Number(entry?.totalHotelCost || 0) + Number(entry?.totalHotelTaxAmount || 0) > 0
-      ? Number(entry.totalHotelCost || 0) + Number(entry.totalHotelTaxAmount || 0)
-      : Number(entry?.price || 0);
-
-  if (
-    entry?.externalStay === true ||
-    entry?.isBookable === false ||
-    availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
-    availabilityStatus === 'NOT_BOOKABLE' ||
-    provider === 'external' ||
-    provider === 'none' ||
-    provider === 'self-arranged' ||
-    hotelName === 'no hotels available' ||
-    !hotelCode ||
-    hotelCode === '0'
-  ) {
-    return false;
-  }
-
-  if (!['tbo', 'resavenue', 'hobse', 'axisrooms', 'staah'].includes(provider)) return false;
-  if (!Number.isFinite(amount) || amount <= 0) return false;
-  return provider !== 'tbo' || bookingCode.includes('!TB!');
-};
-
-type PackageIncludes = {
-  description: string | null;
-  houseBoatNote: string | null;
-  rateNote: string | null;
-};
-
-type CostBreakdown = {
-  // Hotel costs
-  totalRoomCost?: number | null;
-  roomCostPerPerson?: number | null;
-  hotelPaxCount?: number | null;
-  totalAmenitiesCost?: number | null;
-  extraBedCost?: number | null;
-  childWithBedCost?: number | null;
-  childWithoutBedCost?: number | null;
-  totalHotelAmount?: number | null;
-
-  // Vehicle costs
-  totalVehicleCost: number | null;
-  totalVehicleAmount: number | null;
-  totalVehicleQty?: number | null;
-
-  // Activity/Guide costs
-  totalGuideCost?: number | null;
-  totalHotspotCost?: number | null;
-  totalActivityCost?: number | null;
-
-  // Final calculations
-  additionalMargin: number | null;
-  totalAmount: number | null;
-  couponDiscount: number | null;
-  agentMargin: number | null;
-  totalRoundOff: number | null;
-  netPayable: number | null;
-  companyName: string | null;
-};
-
-// ----------------- Main API response types -----------------
-
-// ----------------- Main API response types -----------------
-
-type ItineraryPlanRouteOption = {
-  label?: string;
-  routeName?: string;
-  quoteId?: string;
-  quotationNo?: string;
-  quotation_no?: string;
-  routeQuoteId?: string;
-  itinerary_quote_ID?: string;
-  itinerary_quote_id?: string;
-  quote_id?: string;
-};
-
-type ItineraryDetailsResponse = {
-  // planId for routing back to create-itinerary
-  planId?: number;
-  itineraryPreference?: number;
-  routeOptions?: ItineraryPlanRouteOption[];
-  suggestedRoutes?: ItineraryPlanRouteOption[];
-  siblingRoutes?: ItineraryPlanRouteOption[];
-  confirmed_itinerary_plan_ID?: number;
-  guideForItinerary?: number;
-  isConfirmed?: boolean;
-  special_instructions?: string | null;
-  specialInstructions?: string | null;
-  special_instruction?: string | null;
-  specialInstruction?: string | null;
-  quoteId: string;
-  dateRange: string;
-  dayCount?: number;
-  nightCount?: number;
-  roomCount: number;
-  extraBed: number;
-  childWithBed: number;
-  childWithoutBed: number;
-  adults: number;
-  children: number;
-  infants: number;
-  overallCost: string | number; // API is giving "15000.00"
-meal_plan_code?: string | null;
-
-// Guest food preference from backend
-food_type?: string | null;
-foodType?: string | null;
-food_type_name?: string | null;
-foodTypeName?: string | null;
-guest_food_preference?: string | null;
-guestFoodPreference?: string | null;
-guest_food_preference_name?: string | null;
-guestFoodPreferenceName?: string | null;
-
-days: ItineraryDay[];
-
-  // VEHICLES
-  vehicles: ItineraryVehicleRow[];
-
-  packageIncludes: PackageIncludes;
-  costBreakdown: CostBreakdown;
-};
-
-// response shape from /itineraries/hotel_details/:quoteId
-type ItineraryHotelDetailsResponse = {
-  hotelRatesVisible: boolean;
-  showHotelMargins?: boolean;
-  hotelTabs: ItineraryHotelTab[];
-  hotels: ItineraryHotelRow[];
-  restrictedHotels?: ItineraryHotelRow[];
-  hotelAvailability?: HotelAvailabilityMeta;
-  pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
-  routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
-};
-
-type ConfirmedHotelResponseShape = {
-  quoteId?: string;
-  planId?: number;
-  hotelRatesVisible?: boolean;
-  showHotelMargins?: boolean;
-  hotelTabs?: ItineraryHotelTab[];
-  hotels?: any[];
-  hotelAvailability?: HotelAvailabilityMeta;
-};
-
-// Dedupe in-flight details requests per quote to prevent duplicate API calls
-// in React StrictMode/dev remount scenarios.
-const detailsInFlight = new Map<string, Promise<ItineraryDetailsResponse>>();
-const autoLoadStartedQuotes = new Set<string>();
-
-const getDetailsDeduped = (quoteId: string): Promise<ItineraryDetailsResponse> => {
-  const existing = detailsInFlight.get(quoteId);
-  if (existing) {
-    return existing;
-  }
-
-  const req = (ItineraryService.getDetails(quoteId) as Promise<ItineraryDetailsResponse>)
-    .finally(() => {
-      detailsInFlight.delete(quoteId);
-    });
-
-  detailsInFlight.set(quoteId, req);
-  return req;
-};
-
 // ----------------- Helper functions -----------------
-
-const formatHeaderDate = (iso: string) => {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const getDisplayDistances = (day: ItineraryDay) => {
-  return {
-    intercityDistance: day.intercityDistance || day.distance,
-    sightseeingDistance: day.sightseeingDistance || "0.00 KM",
-  };
-};
-const getGuestFoodPreferenceText = (
-  itineraryData: any,
-  dayData?: any
-): string => {
-  const rawValue =
-    dayData?.guest_food_preference_name ||
-    dayData?.guestFoodPreferenceName ||
-    dayData?.guest_food_preference ||
-    dayData?.guestFoodPreference ||
-    dayData?.food_preference_name ||
-    dayData?.foodPreferenceName ||
-    dayData?.food_preference ||
-    dayData?.foodPreference ||
-    dayData?.food_type_name ||
-    dayData?.foodTypeName ||
-    dayData?.food_type ||
-    dayData?.foodType ||
-    itineraryData?.guest_food_preference_name ||
-    itineraryData?.guestFoodPreferenceName ||
-    itineraryData?.guest_food_preference ||
-    itineraryData?.guestFoodPreference ||
-    itineraryData?.food_preference_name ||
-    itineraryData?.foodPreferenceName ||
-    itineraryData?.food_preference ||
-    itineraryData?.foodPreference ||
-    itineraryData?.food_type_name ||
-    itineraryData?.foodTypeName ||
-    itineraryData?.food_type ||
-    itineraryData?.foodType ||
-    "";
-
-  if (!rawValue) return "Not Mentioned";
-
-  if (typeof rawValue === "string") {
-    return rawValue.trim() || "Not Mentioned";
-  }
-
-  if (typeof rawValue === "number") {
-    return String(rawValue);
-  }
-
-  return (
-    rawValue?.name ||
-    rawValue?.label ||
-    rawValue?.title ||
-    rawValue?.food_type_name ||
-    rawValue?.foodTypeName ||
-    "Not Mentioned"
-  ).trim();
-};
-const parseDisplayTimeToHms = (displayTime: string): string => {
-  if (!displayTime) return "09:00:00";
-  const parts = displayTime.split(' ');
-  if (parts.length < 2) return "09:00:00";
-  const [time, ampm] = parts;
-  const timeParts = time.split(':');
-  if (timeParts.length < 2) return "09:00:00";
-  let hours = Number(timeParts[0]);
-  const minutes = Number(timeParts[1]);
-
-  if (ampm === 'PM' && hours < 12) hours += 12;
-  if (ampm === 'AM' && hours === 12) hours = 0;
-
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-};
-
-// Returns true for times in the 01:00–07:59 range (early morning, requires previous-day hotel)
-const isEarlyMorningTime = (hms: string): boolean => {
-  const [h = 0, m = 0] = hms.split(':').map(Number);
-  const totalMinutes = h * 60 + m;
-  return totalMinutes >= 60 && totalMinutes < 480;
-};
-
-const normalizeTimelineLabel = (value: unknown): string => {
-  return String(value ?? '').trim().toLowerCase();
-};
-
-const normalizeCityKeyForHotspotFilter = (value?: string | null): string => {
-  return String(value || '')
-    .split('|')[0]
-    .split(',')[0]
-    .toLowerCase()
-    .replace(/\b(international|domestic|airport|railway|station|bus stand|mattuthavani|arappalayam)\b/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-};
-
-const splitHotspotLocationTokens = (value?: string | null): string[] => {
-  return String(value || '')
-    .split('|')
-    .flatMap((part) => String(part || '').split(','))
-    .map(normalizeCityKeyForHotspotFilter)
-    .filter(Boolean);
-};
-
-const locationTokenMatchesCity = (
-  value: string | null | undefined,
-  cityKey: string,
-): boolean => {
-  if (!cityKey) return false;
-
-  return splitHotspotLocationTokens(value).some((token) => (
-    token === cityKey
-    || token.startsWith(`${cityKey} `)
-    || token.includes(` ${cityKey} `)
-    || token.endsWith(` ${cityKey}`)
-  ));
-};
-
-const getHotspotFromLocationText = (hotspot: AvailableHotspot): string => {
-  return String(
-    hotspot.hotspot_location
-    || hotspot.hotspotLocation
-    || hotspot.locationMap
-    || '',
-  ).trim();
-};
-
-const getHotspotToLocationText = (hotspot: AvailableHotspot): string => {
-  return String(
-    hotspot.hotspot_to_location
-    || hotspot.hotspotToLocation
-    || hotspot.hotspot_location
-    || hotspot.hotspotLocation
-    || hotspot.locationMap
-    || '',
-  ).trim();
-};
-
-const isRouteMovementAvailableHotspot = (hotspot: AvailableHotspot): boolean => {
-  const fromTokens = splitHotspotLocationTokens(getHotspotFromLocationText(hotspot));
-  const toTokens = splitHotspotLocationTokens(getHotspotToLocationText(hotspot));
-
-  if (!fromTokens.length || !toTokens.length) return false;
-
-  return fromTokens.join('|') !== toTokens.join('|');
-};
-
-const isAvailableHotspotForRoutePair = (
-  hotspot: AvailableHotspot,
-  sourceCity: string,
-  destinationCity: string,
-): boolean => {
-  const sourceKey = normalizeCityKeyForHotspotFilter(sourceCity);
-  const destinationKey = normalizeCityKeyForHotspotFilter(destinationCity);
-  const sameCityRoute =
-    !!sourceKey &&
-    !!destinationKey &&
-    sourceKey === destinationKey;
-
-  const fromText = getHotspotFromLocationText(hotspot);
-  const toText = getHotspotToLocationText(hotspot);
-
-  const fromMatchesSource = locationTokenMatchesCity(fromText, sourceKey);
-  const fromMatchesDestination = locationTokenMatchesCity(fromText, destinationKey);
-  const toMatchesSource = locationTokenMatchesCity(toText, sourceKey);
-  const toMatchesDestination = locationTokenMatchesCity(toText, destinationKey);
-
-  if (sameCityRoute) {
-    return (
-      fromMatchesSource ||
-      fromMatchesDestination ||
-      toMatchesSource ||
-      toMatchesDestination
-    );
-  }
-
-  return (
-    (fromMatchesSource && toMatchesDestination) ||
-    (fromMatchesDestination && toMatchesSource)
-  );
-};
-
-const isAvailableHotspotForAnchorOrRoutePair = (
-  hotspot: AvailableHotspot,
-  sourceCity: string,
-  destinationCity: string,
-  anchorFrom?: string | null,
-  anchorTo?: string | null,
-): boolean => {
-  if (!isRouteMovementAvailableHotspot(hotspot)) return true;
-
-  const sourceKey = normalizeCityKeyForHotspotFilter(sourceCity);
-  const destinationKey = normalizeCityKeyForHotspotFilter(destinationCity);
-
-  const sameCityRoute =
-    !!sourceKey &&
-    !!destinationKey &&
-    sourceKey === destinationKey;
-
-  const hasConcreteAnchorLeg =
-    String(anchorFrom || '').trim().length > 0 ||
-    String(anchorTo || '').trim().length > 0;
-
-  const anchorFromMatchesSource = locationTokenMatchesCity(anchorFrom || '', sourceKey);
-  const anchorFromMatchesDestination = locationTokenMatchesCity(anchorFrom || '', destinationKey);
-  const anchorToMatchesSource = locationTokenMatchesCity(anchorTo || '', sourceKey);
-  const anchorToMatchesDestination = locationTokenMatchesCity(anchorTo || '', destinationKey);
-
-  const anchorRepresentsRouteMovement =
-    !sameCityRoute &&
-    hasConcreteAnchorLeg &&
-    (
-      (anchorFromMatchesSource && anchorToMatchesDestination) ||
-      (anchorFromMatchesDestination && anchorToMatchesSource)
-    );
-
-  if (sameCityRoute) {
-    return false;
-  }
-
-  if (hasConcreteAnchorLeg && !anchorRepresentsRouteMovement) {
-    return false;
-  }
-
-  return isAvailableHotspotForRoutePair(
-    hotspot,
-    sourceCity,
-    destinationCity,
-  );
-};
-
-const filterAvailableHotspotsForAnchor = (
-  hotspots: AvailableHotspot[],
-  sourceCity: string,
-  destinationCity: string,
-  anchorFrom?: string | null,
-  anchorTo?: string | null,
-): AvailableHotspot[] => {
-  return hotspots.filter((hotspot) => {
-    if (!isRouteMovementAvailableHotspot(hotspot)) return true;
-
-    const keep = isAvailableHotspotForAnchorOrRoutePair(
-      hotspot,
-      sourceCity,
-      destinationCity,
-      anchorFrom,
-      anchorTo,
-    );
-
-    if (!keep) {
-      console.log('[AddHotspotModal] hiding_route_movement_hotspot_wrong_anchor', {
-        hotspotId: Number(hotspot?.id || 0),
-        hotspotName: hotspot?.name,
-        hotspotLocation: getHotspotFromLocationText(hotspot),
-        hotspotToLocation: getHotspotToLocationText(hotspot),
-        routeSourceName: sourceCity,
-        routeDestinationName: destinationCity,
-        anchorFromName: String(anchorFrom || '').trim() || null,
-        anchorToName: String(anchorTo || '').trim() || null,
-      });
-    }
-
-    return keep;
-  });
-};
-
-const parseDisplayMinutes = (value?: string | null, edge: 'start' | 'end' = 'start'): number | null => {
-  const raw = String(value ?? '').trim();
-  if (!raw) return null;
-
-  const timeText = raw.includes(' - ')
-    ? raw.split(' - ')[edge === 'start' ? 0 : 1]?.trim()
-    : raw;
-
-  if (!timeText) return null;
-
-  const hms = parseDisplayTimeToHms(timeText);
-  const [hours = 0, minutes = 0] = hms.split(':').map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  return hours * 60 + minutes;
-};
-
-const formatMinutesToDisplay = (totalMinutes: number): string => {
-  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
-  const hours24 = Math.floor(normalized / 60);
-  const minutes = normalized % 60;
-  const period = hours24 >= 12 ? 'PM' : 'AM';
-  const hours12 = hours24 % 12 || 12;
-  return `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`;
-};
-
-const formatManualPolicyTime = (value?: string | null): string => {
-  if (!value) return '';
-
-  const [hhRaw, mmRaw] = String(value).split(':');
-  const hh = Number(hhRaw);
-  const mm = Number(mmRaw || 0);
-
-  if (!Number.isFinite(hh)) return String(value);
-
-  const suffix = hh >= 12 ? 'PM' : 'AM';
-  const hour12 = hh % 12 === 0 ? 12 : hh % 12;
-
-  return `${hour12}:${String(mm).padStart(2, '0')} ${suffix}`;
-};
-
-const getManualTimingPolicyFromPreview = (preview) => {
-  return (
-    preview?.manualTimingPolicy
-    || preview?.validation?.manualTimingPolicy
-    || preview?.resolution?.manualTimingPolicy
-    || preview?.manualInsertionFit?.manualTimingPolicy
-    || preview?.resolution?.manualInsertionFit?.manualTimingPolicy
-    || null
-  );
-};
-
-const isManualRelaxedRouteFitPolicy = (preview): boolean => {
-  const policy = getManualTimingPolicyFromPreview(preview);
-  return (
-    policy?.mode === 'MANUAL_HOTSPOT'
-    && policy?.allowOffRouteWhenTimePermits === true
-  );
-};
-
-const hasManualOpeningOrTimingConflict = (validation): boolean => {
-  if (!validation) return false;
-
-  const selectedManualConflictCount = Number(validation?.selectedManualConflictCount || 0);
-  const openingHourConflictCount = Number(validation?.openingHourConflictCount || 0);
-  const unscheduledManualCount = Number(validation?.unscheduledManualCount || 0);
-  const reason = String(validation?.reason || '').toLowerCase();
-
-  return (
-    selectedManualConflictCount > 0
-    || openingHourConflictCount > 0
-    || (
-      unscheduledManualCount > 0
-      && (
-        reason.includes('opening')
-        || reason.includes('timing')
-        || reason.includes('time window')
-        || reason.includes('could not be scheduled')
-        || reason.includes('does not fit')
-      )
-    )
-  );
-};
-
-const formatPreviewDuration = (value): string => {
-  if (!value) return '';
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const hours = value.getUTCHours();
-    const minutes = value.getUTCMinutes();
-    const parts: string[] = [];
-    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
-    if (minutes > 0) parts.push(`${minutes} Min`);
-    return parts.join(' ') || '';
-  }
-
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-
-  const hmsMatch = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
-  if (hmsMatch) {
-    const hours = Number(hmsMatch[1] || 0);
-    const minutes = Number(hmsMatch[2] || 0);
-    const parts: string[] = [];
-    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
-    if (minutes > 0) parts.push(`${minutes} Min`);
-    return parts.join(' ') || '';
-  }
-
-  const isoDate = new Date(raw);
-  if (/^\d{4}-\d{2}-\d{2}T/.test(raw) && !Number.isNaN(isoDate.getTime())) {
-    const hours = isoDate.getUTCHours();
-    const minutes = isoDate.getUTCMinutes();
-    const parts: string[] = [];
-    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
-    if (minutes > 0) parts.push(`${minutes} Min`);
-    return parts.join(' ') || '';
-  }
-
-  const localDateLabelMatch = raw.match(/\b(\d{1,2}):(\d{2})(?::(\d{2}))?\b/);
-  if (
-    localDateLabelMatch &&
-    /(?:sun|mon|tue|wed|thu|fri|sat)\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(raw)
-  ) {
-    const hours = Number(localDateLabelMatch[1] || 0);
-    const minutes = Number(localDateLabelMatch[2] || 0);
-    const parts: string[] = [];
-    if (hours > 0) parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
-    if (minutes > 0) parts.push(`${minutes} Min`);
-    return parts.join(' ') || '';
-  }
-
-  return raw;
-};
-
-const extractCheckinHotelName = (value: unknown): string => {
-  const raw = String(value || '').trim();
-  if (!raw) return 'Hotel';
-
-  const withoutPrefix = raw
-    .replace(/^check-?in\s+(?:to|at)\s+/i, '')
-    .replace(/^hotel\s*:\s*/i, '')
-    .trim();
-
-  if (!withoutPrefix) return 'Hotel';
-  if (/^hotel$/i.test(withoutPrefix)) return 'Hotel';
-  return withoutPrefix;
-};
-
-const normalizeConfirmedTimelineToSegments = (
-  rows: any[],
-  context?: {
-    existingSegments?: ItinerarySegment[];
-    availableHotspots?: AvailableHotspot[];
-  },
-): ItinerarySegment[] => {
-  if (!Array.isArray(rows)) return [];
-
-  return rows
-    .map((row): ItinerarySegment | null => {
-      const type = String(row?.type || '').toLowerCase();
-      const itemType = Number(row?.item_type || 0);
-
-      if (type === 'start' || type === 'refreshment' || itemType === 1) {
-        return {
-          type: 'start',
-          title: String(row?.text || row?.title || 'Start Your Day'),
-          timeRange: String(row?.timeRange || ''),
-        };
-      }
-
-      if (type === 'travel' || itemType === 3 || itemType === 5) {
-        return {
-          type: 'travel',
-          from: String(row?.from || row?.fromName || row?.displayFromName || ''),
-          to: String(row?.to || row?.toName || row?.displayToName || row?.text || ''),
-          timeRange: String(row?.timeRange || ''),
-          distance: String(row?.distance || row?.hotspot_travelling_distance || ''),
-          duration: String(row?.duration || ''),
-          isConflict: row?.isConflict === true,
-          conflictReason: row?.conflictReason || null,
-        };
-      }
-
-      if (type === 'attraction' || itemType === 4) {
-        const hotspotId = Number(row?.hotspotId || row?.hotspot_ID || row?.locationId || 0) || 0;
-        const existingSegment = (context?.existingSegments || []).find((seg) => {
-          if (String(seg?.type || '').toLowerCase() !== 'attraction') return false;
-          const attraction = seg as AttractionSegment;
-          return Number(attraction?.hotspotId ?? attraction?.locationId ?? 0) === hotspotId;
-        }) as AttractionSegment | undefined;
-        const availableHotspot = (context?.availableHotspots || []).find((hotspot) => (
-          Number(hotspot.id || 0) === hotspotId
-        ));
-
-        return {
-          type: 'attraction',
-          name: String(
-            row?.name ||
-            row?.hotspot_name ||
-            row?.text ||
-            existingSegment?.name ||
-            availableHotspot?.name ||
-            '',
-          ),
-          description: String(
-            row?.description ||
-            row?.hotspot_description ||
-            row?.hotspotDescription ||
-            existingSegment?.description ||
-            availableHotspot?.description ||
-            '',
-          ),
-          visitTime: String(row?.visitTime || row?.timeRange || ''),
-          duration: formatPreviewDuration(
-            row?.duration ||
-            row?.hotspot_traveling_time ||
-            availableHotspot?.timeSpend ||
-            '',
-          ),
-          priority: Number(
-            row?.priority ||
-            row?.hotspot_priority ||
-            availableHotspot?.priority ||
-            availableHotspot?.hotspotPriority ||
-            0,
-          ) || undefined,
-          amount: Number(row?.amount || row?.hotspot_amout || availableHotspot?.amount || 0) || null,
-          timings: String(row?.timings || availableHotspot?.timings || ''),
-          image: row?.image || existingSegment?.image || availableHotspot?.image || null,
-          galleryImages: Array.isArray(row?.galleryImages)
-            ? row.galleryImages
-            : (Array.isArray(existingSegment?.galleryImages)
-              ? existingSegment.galleryImages
-              : (Array.isArray(availableHotspot?.galleryImages) ? availableHotspot.galleryImages : [])),
-          videoUrl: row?.videoUrl || existingSegment?.videoUrl || availableHotspot?.videoUrl || null,
-          planOwnWay: row?.planOwnWay === true || row?.isManual === true || existingSegment?.planOwnWay === true,
-          isManual: row?.isManual === true || row?.planOwnWay === true || existingSegment?.isManual === true,
-          hotspotId: hotspotId || undefined,
-          routeHotspotId: Number(
-            row?.routeHotspotId ||
-            row?.route_hotspot_ID ||
-            existingSegment?.routeHotspotId ||
-            0,
-          ) || undefined,
-          locationId: hotspotId || null,
-          isConflict: row?.isConflict === true,
-          conflictReason: row?.conflictReason || null,
-        };
-      }
-
-      if (type === 'hotel' || type === 'checkin' || itemType === 6) {
-        return {
-          type: 'checkin',
-          hotelName: extractCheckinHotelName(row?.hotelName || row?.text || 'Hotel'),
-          hotelAddress: String(row?.hotelAddress || ''),
-          time: String(row?.time || row?.timeRange || ''),
-        };
-      }
-
-      return null;
-    })
-    .filter(Boolean) as ItinerarySegment[];
-};
-
-const formatMinutesDuration = (minutes: number): string => {
-  const safeMinutes = Math.max(0, Math.round(minutes));
-  const hours = Math.floor(safeMinutes / 60);
-  const remainder = safeMinutes % 60;
-
-  if (hours > 0 && remainder > 0) return `${hours} Hours ${remainder} Min`;
-  if (hours > 0) return `${hours} Hours`;
-  return `${remainder} Min`;
-};
-
-const parseDistanceKmValue = (distanceText?: string | null): number | null => {
-  const raw = String(distanceText ?? '').trim().toLowerCase();
-  if (!raw) return null;
-
-  const value = Number.parseFloat(raw.replace(/[^0-9.]/g, ''));
-  if (!Number.isFinite(value) || value <= 0) return null;
-
-  if (raw.includes('km')) return value;
-  if (raw.includes('m')) return value / 1000;
-  return value;
-};
-
-const estimateHotelTravelMinutesFromDistance = (distanceText?: string | null): number | null => {
-  const distanceKm = parseDistanceKmValue(distanceText);
-  if (distanceKm === null) return null;
-
-  // Keep this conservative for city traffic conditions.
-  const assumedCitySpeedKmH = 25;
-  const estimated = Math.round((distanceKm / assumedCitySpeedKmH) * 60);
-  return Math.max(10, estimated);
-};
-
-const parseDurationMinutesValue = (durationValue: unknown): number | null => {
-  if (durationValue == null) return null;
-  if (typeof durationValue === 'number' && Number.isFinite(durationValue) && durationValue > 0) {
-    return Math.max(1, Math.round(durationValue));
-  }
-
-  const text = String(durationValue).trim().toLowerCase();
-  if (!text) return null;
-
-  const hourMatch = text.match(/(\d+(?:\.\d+)?)\s*h/);
-  const minMatch = text.match(/(\d+(?:\.\d+)?)\s*m/);
-
-  const hours = hourMatch ? Number.parseFloat(hourMatch[1]) : 0;
-  const minutes = minMatch ? Number.parseFloat(minMatch[1]) : 0;
-  const total = (Number.isFinite(hours) ? hours * 60 : 0) + (Number.isFinite(minutes) ? minutes : 0);
-  if (total > 0) return Math.max(1, Math.round(total));
-
-  const numeric = Number.parseFloat(text.replace(/[^0-9.]/g, ''));
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  return Math.max(1, Math.round(numeric));
-};
-
-const normalizeDurationAgainstDistance = (
-  distanceValue: unknown,
-  durationValue: unknown,
-  maxPlausibleSpeedKmH = 140,
-): number | null => {
-  const distanceKm = typeof distanceValue === 'number'
-    ? (Number.isFinite(distanceValue) && distanceValue > 0 ? distanceValue : null)
-    : parseDistanceKmValue(String(distanceValue ?? ''));
-  if (distanceKm === null) return parseDurationMinutesValue(durationValue);
-
-  const baseDurationMin = parseDurationMinutesValue(durationValue);
-  if (baseDurationMin === null) {
-    return estimateHotelTravelMinutesFromDistance(`${distanceKm} km`);
-  }
-
-  const impliedSpeed = distanceKm / (baseDurationMin / 60);
-  if (Number.isFinite(impliedSpeed) && impliedSpeed <= maxPlausibleSpeedKmH) {
-    return baseDurationMin;
-  }
-
-  return estimateHotelTravelMinutesFromDistance(`${distanceKm} km`) || baseDurationMin;
-};
-
-const normalizeDateToYmd = (input?: string | null): string => {
-  const raw = String(input || '').trim();
-  if (!raw) return '';
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw;
-  }
-
-  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-  if (dmy) {
-    const day = Number(dmy[1]);
-    const month = Number(dmy[2]);
-    const year = Number(dmy[3]);
-    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-  }
-
-  const parsed = new Date(raw);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().split('T')[0];
-  }
-
-  return '';
-};
-
 // ----------------- Main Component -----------------
 // Note: keep explicit named + default export shape for router/HMR compatibility.
-
-interface ItineraryDetailsProps {
-  readOnly?: boolean; // If true, component is read-only (confirmed itinerary view)
-  presentationMode?: 'standard' | 'confirmed';
-}
 
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
 const { id: quoteId } = useParams();
@@ -13260,6 +12127,36 @@ const hotelTimelineLoading = Boolean(
     !isSwitchingRouteOption
 );
 
+  const handleCopyClipboard = async () => {
+    const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
+    if (selectedCount === 0) {
+      toast.error(clipboardType === "para" ? "Please select at least one recommendation" : "Please select at least one hotel");
+      return;
+    }
+    if (!hotelDetails || !itinerary) return;
+    try {
+      const selectedGroups = getSelectedClipboardGroups(clipboardType);
+      const groupTypes = selectedGroups.map((group) => group.groupType);
+      const { html, plainText } = await ItineraryService.getClipboardContent(itinerary.quoteId, clipboardType, groupTypes);
+      if (!html || !plainText) {
+        toast.error("Failed to prepare clipboard content");
+        return;
+      }
+      const localClipboard = buildClipboardHtml(clipboardType);
+      let mergedHtml = mergeClipboardWithB2BRecommendedPackages(html, localClipboard.packageSectionsHtml || localClipboard.html);
+      if (clipboardType === "highlights") {
+        mergedHtml = replaceHighlightsHotspotDetailsHtml(mergedHtml, buildHighlightsHotspotDetailsHtml());
+      }
+      await copyHtmlToClipboard(mergedHtml, htmlToPlainText(mergedHtml));
+      toast.success("Formatted clipboard content copied!");
+      setClipboardModal(false);
+      setSelectedHotels({});
+    } catch (error) {
+      console.error("Failed to fetch clipboard content", error);
+      toast.error("Failed to prepare clipboard content");
+    }
+  };
+
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
@@ -13293,67 +12190,11 @@ const hotelTimelineLoading = Boolean(
   }
 
   if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
-    return (
-      <div className="min-h-[70vh] w-full max-w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-xl rounded-3xl border border-[#e5d9f2] bg-white p-8 text-center shadow-sm">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#d546ab]" />
-          <p className="mt-4 text-base font-semibold text-[#4a4260]">{pageLoaderStage || "Building itinerary details"}</p>
-          <p className="mt-2 text-sm font-medium text-[#6c6c6c]">
-            {pageLoaderDetail || "We are preparing the latest itinerary data before showing the page."}
-          </p>
-          {pageLoaderHistory.length > 0 ? (
-            <div className="mt-5 rounded-2xl border border-[#f2e6fb] bg-[#fcf7ff] p-4 text-left">
-              <p className="text-xs font-bold uppercase tracking-wide text-[#8f6aa8]">Progress log</p>
-              <div className="mt-3 space-y-2">
-                {pageLoaderHistory.map((step, index) => {
-                  const isLatest = index === pageLoaderHistory.length - 1;
-                  return (
-                    <div
-                      key={`${step}-${index}`}
-                      className={`rounded-xl border px-3 py-2 text-sm ${
-                        isLatest
-                          ? "border-[#d9b6f3] bg-white text-[#4a4260]"
-                          : "border-[#efe1fa] bg-[#faf5ff] text-[#7b6f8d]"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {isLatest ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-[#d546ab]" />
-                        ) : (
-                          <div className="h-2 w-2 rounded-full bg-[#d546ab]" />
-                        )}
-                        <span>{step}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    );
+    return <ItineraryPageLoader stage={pageLoaderStage} detail={pageLoaderDetail} history={pageLoaderHistory} />;
   }
 
   if (error || !itinerary) {
-    return (
-      <div className="w-full max-w-full flex flex-col items-center py-16 gap-4">
-        <p className="text-sm text-red-600">
-          {error || "Itinerary details not found"}
-        </p>
-        {itinerary?.planId && (
-          <Link to={`/create-itinerary?id=${itinerary.planId}`}>
-            <Button
-              variant="outline"
-              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Route List
-            </Button>
-          </Link>
-        )}
-      </div>
-    );
+    return <ItineraryDetailsErrorState error={error} planId={itinerary?.planId} />;
   }
 
   const backToListHref = itinerary.planId
@@ -13766,226 +12607,12 @@ const canShowGuideActionButton =
       className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm"
     >
              {/* Compact day header */}
-<div
-  id={`itinerary-day-${day.dayNumber}`}
-  data-day-number={day.dayNumber}
-  className="sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
-  style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
->
-  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
-    {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
-    <div className="contents">
-      <div className="order-1 flex flex-wrap items-center gap-x-4 gap-y-2 text-[#242133] lg:col-start-1 lg:row-start-1">
-        <div className="flex items-center gap-3">
-          <Calendar className="h-6 w-6 shrink-0 text-[#d546ab]" />
-          <h3 className="whitespace-nowrap text-base font-bold">
-            DAY {day.dayNumber}
-          </h3>
-        </div>
-
-        <span className="hidden h-8 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
-        <span className="whitespace-nowrap text-sm font-semibold sm:text-base">
-          {formatHeaderDate(day.date)}
-        </span>
-        {(routeNeedsRebuild === day.id || (day as any).needsRebuild === true || dayHasManualOverride) && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
-            disabled={isRebuilding}
-            className="h-8 border-yellow-300 bg-yellow-50 hover:bg-yellow-100"
-          >
-            {isRebuilding ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Rebuilding...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Rebuild Route
-              </>
-            )}
-          </Button>
-        )}
-      </div>
-
-      <div className="contents">
-        <div className="order-4 flex h-8 w-fit items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-4 shadow-sm lg:col-start-3 lg:row-start-2 lg:justify-self-center">
-          <Clock className="h-5 w-5 shrink-0 text-[#d546ab]" />
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
-              >
-                {day.startTime}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <TimePickerPopover
-                value={day.startTime}
-                label="Start Time"
-                onSave={async (newTime) => {
-                  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-                  await handleUpdateRouteTimesDirect(
-                    itinerary.planId || 0,
-                    day.id,
-                    day.dayNumber,
-                    newTime,
-                    day.endTime
-                  );
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <ArrowRight className="h-4 w-4 shrink-0 text-[#d546ab]" />
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
-              >
-                {day.endTime}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <TimePickerPopover
-                value={day.endTime}
-                label="End Time"
-                onSave={async (newTime) => {
-                  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-                  await handleUpdateRouteTimesDirect(
-                    itinerary.planId || 0,
-                    day.id,
-                    day.dayNumber,
-                    day.startTime,
-                    newTime
-                  );
-                }}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="order-5 flex flex-wrap items-center gap-3 lg:col-start-4 lg:row-start-2 lg:justify-self-end">
-        {!canShowGuideActionButton && (<Button
-          size="sm"
-          variant="outline"
-          onClick={() => void openSourcePreview(day.dayNumber)}
-          className="h-8 rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100"
-        >
-          <FileText className="mr-2 h-4 w-4" />
-          Source
-        </Button>)}
-
-        {canShowAddHotspotButton && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-            onClick={() =>
-              openAddHotspotModal(
-                itinerary.planId || 0,
-                day.id,
-                addHotspotCta?.locationId || 0,
-                addHotspotLocationName,
-                addHotspotCta?.anchorType === "after_travel" &&
-                  Number.isInteger(Number(addHotspotCta.anchorIndex))
-                  ? {
-                      anchorType: "after_travel",
-                      anchorIndex: Number(addHotspotCta.anchorIndex),
-                      anchorFrom: addHotspotCta?.anchorFrom,
-                      anchorTo: addHotspotCta?.anchorTo,
-                      anchorTimeRange: addHotspotCta?.anchorTimeRange,
-                    }
-                  : null
-              )
-            }
-          >
-            Add Hotspot
-          </Button>
-        )}
-
-        {!readOnly && canShowGuideActionButton && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-            onClick={() => {
-              if (isWholeItineraryGuideMode) {
-                handleWholeItineraryGuideClick();
-                return;
-              }
-
-              handleAddGuideClick(day);
-            }}
-          >
-            {currentGuideAssignment ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-            {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
-          </Button>
-        )}
-
-        </div>
-      </div>
-    </div>
-
-    <div className="contents">
-      <div className="order-1 flex shrink-0 items-center gap-2 text-sm lg:col-start-1 lg:row-start-2">
-        <Utensils className="h-5 w-5 text-[#d546ab]" />
-        <span className="font-semibold text-[#d546ab]">Food Preference:</span>
-        <span className="font-medium">{guestFoodPreferenceText}</span>
-      </div>
-
-        {canShowGuideActionButton && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => void openSourcePreview(day.dayNumber)}
-            className="order-2 h-8 w-fit rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100 lg:col-start-2 lg:row-start-2 lg:justify-self-start"
-          >
-            <FileText className="mr-2 h-4 w-4" />
-            Source
-          </Button>
-        )}
-
-        <div className="order-2 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-[#242133] lg:col-start-3 lg:row-start-1 lg:w-full">
-        <span className="flex shrink-0 items-center gap-2 font-semibold">
-          <MapPin className="h-5 w-5 text-[#d546ab]" />
-          {day.departure}
-        </span>
-
-        <ArrowRight className="h-4 w-4 shrink-0 text-[#d546ab]" />
-
-        {day.viaRoutes && day.viaRoutes.length > 0 && (
-          <>
-            <span
-              className="min-w-0 text-[#4a4260]"
-              title={day.viaRoutes.map((v) => v.name).join(", ")}
-            >
-              {day.viaRoutes.map((v) => v.name).join(", ")}
-            </span>
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#6c6c6c]" />
-          </>
-        )}
-
-        {day.viaRoutes && day.viaRoutes.length > 0 && (
-          <span className="hidden h-6 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
-        )}
-        <span className="shrink-0 font-medium">{day.arrival}</span>
-      </div>
-
-      <span className="order-2 flex h-8 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-[#d546ab] px-5 text-sm font-bold text-white lg:col-start-4 lg:row-start-1 lg:justify-self-end">
-        <Route className="h-4 w-4" />
-        {intercityDistance}
-      </span>
-    </div>
-  </div>
-</div>
+            <ItineraryDayHeader context={{
+              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirect,
+              canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName,
+              readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText,
+              intercityDistance, openGuideModal, setDeleteGuideModal,
+            }} />
 
             <Card className="border border-[#e5d9f2] bg-white">
               <CardContent className="pt-2">
@@ -15130,56 +13757,15 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         </button>
       </div>
 
-      {/* Delete Hotspot Modal */}
-      <Dialog
+      <DeleteConfirmationDialog
         open={deleteHotspotModal.open}
-        onOpenChange={(open) =>
-          setDeleteHotspotModal({ ...deleteHotspotModal, open })
-        }
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Hotspot</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{deleteHotspotModal.hotspotName}"?
-              This will also remove all associated activities.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                setDeleteHotspotModal({
-                  open: false,
-                  planId: null,
-                  routeId: null,
-                  routeHotspotId: null,
-                  masterHotspotId: null,
-                  hotspotName: "",
-                  hotspotWasPrebuilt: false,
-                })
-              }
-              disabled={isDeleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteHotspot}
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete Hotspot"
+        description={<>Are you sure you want to delete "{deleteHotspotModal.hotspotName}"? This will also remove all associated activities.</>}
+        deleting={isDeleting}
+        onOpenChange={(open) => setDeleteHotspotModal({ ...deleteHotspotModal, open })}
+        onCancel={() => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false })}
+        onConfirm={handleDeleteHotspot}
+      />
 
       {/* Add Activity Modal */}
       <Dialog
@@ -15501,53 +14087,15 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         </DialogContent>
       </Dialog>
 
-      {/* Delete Activity Modal */}
-      <Dialog
+      <DeleteConfirmationDialog
         open={deleteActivityModal.open}
-        onOpenChange={(open) =>
-          setDeleteActivityModal({ ...deleteActivityModal, open })
-        }
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Activity</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{deleteActivityModal.activityName}"?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                setDeleteActivityModal({
-                  open: false,
-                  planId: null,
-                  routeId: null,
-                  activityId: null,
-                  activityName: '',
-                })
-              }
-              disabled={isDeletingActivity}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteActivity}
-              disabled={isDeletingActivity}
-            >
-              {isDeletingActivity ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete Activity"
+        description={<>Are you sure you want to delete "{deleteActivityModal.activityName}"?</>}
+        deleting={isDeletingActivity}
+        onOpenChange={(open) => setDeleteActivityModal({ ...deleteActivityModal, open })}
+        onCancel={() => setDeleteActivityModal({ open: false, planId: null, routeId: null, activityId: null, activityName: '' })}
+        onConfirm={handleDeleteActivity}
+      />
 
       <Dialog
         open={guideModal.open}
@@ -15662,48 +14210,17 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <DeleteConfirmationDialog
         open={deleteGuideModal.open}
-        onOpenChange={(open) => {
-          if (!deleteGuideModal.deleting) {
-            setDeleteGuideModal((prev) => ({ ...prev, open }));
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Guide</DialogTitle>
-            <DialogDescription>
-              {Number(deleteGuideModal.assignment?.guideType || 0) === 1
-                ? "Are you sure you want to remove this whole-itinerary guide assignment?"
-                : "Are you sure you want to remove this guide assignment from the itinerary day?"}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setDeleteGuideModal({ open: false, assignment: null, deleting: false })}
-              disabled={deleteGuideModal.deleting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => void handleDeleteGuideAssignment()}
-              disabled={deleteGuideModal.deleting}
-            >
-              {deleteGuideModal.deleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        title="Delete Guide"
+        description={Number(deleteGuideModal.assignment?.guideType || 0) === 1
+          ? "Are you sure you want to remove this whole-itinerary guide assignment?"
+          : "Are you sure you want to remove this guide assignment from the itinerary day?"}
+        deleting={deleteGuideModal.deleting}
+        onOpenChange={(open) => { if (!deleteGuideModal.deleting) setDeleteGuideModal((prev) => ({ ...prev, open })); }}
+        onCancel={() => setDeleteGuideModal({ open: false, assignment: null, deleting: false })}
+        onConfirm={() => void handleDeleteGuideAssignment()}
+      />
 
       {/* Add Hotspot Modal */}
       <Dialog
@@ -17812,495 +16329,33 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
         />
       )}
 
-      {/* Gallery Modal */}
-      <Dialog
-        open={galleryModal.open}
-        onOpenChange={(open) => setGalleryModal({ ...galleryModal, open })}
-      >
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{galleryModal.title} - Gallery</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {galleryModal.images.length === 0 ? (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No images available
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {/* Main image */}
-                <div className="relative w-full bg-black rounded-lg overflow-hidden" style={{ height: 340 }}>
-                  <img
-                    src={galleryModal.images[galleryActiveIdx]}
-                    alt={`${galleryModal.title} ${galleryActiveIdx + 1}`}
-                    className="w-full h-full object-contain"
-                  />
-                  {galleryModal.images.length > 1 && (
-                    <>
-                      <button
-                        className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
-                        onClick={() => setGalleryActiveIdx(i => (i - 1 + galleryModal.images.length) % galleryModal.images.length)}
-                      >
-                        &#8249;
-                      </button>
-                      <button
-                        className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white rounded-full w-9 h-9 flex items-center justify-center text-lg"
-                        onClick={() => setGalleryActiveIdx(i => (i + 1) % galleryModal.images.length)}
-                      >
-                        &#8250;
-                      </button>
-                      <span className="absolute bottom-2 right-3 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
-                        {galleryActiveIdx + 1} / {galleryModal.images.length}
-                      </span>
-                    </>
-                  )}
-                </div>
-                {/* Thumbnails */}
-                {galleryModal.images.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto pb-1">
-                    {galleryModal.images.map((img, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setGalleryActiveIdx(idx)}
-                        className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-colors ${idx === galleryActiveIdx ? 'border-[#d546ab]' : 'border-transparent'
-                          }`}
-                      >
-                        <img
-                          src={img}
-                          alt={`Thumb ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setGalleryModal({ open: false, images: [], title: "" })
-              }
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GalleryDialog state={galleryModal} setState={setGalleryModal} activeIndex={galleryActiveIdx} setActiveIndex={setGalleryActiveIdx} />
+      <VideoDialog state={videoModal} setState={setVideoModal} />
+      <ClipboardDialog
+        open={clipboardModal}
+        preference={itineraryPreference}
+        clipboardType={clipboardType}
+        recommendations={paraRecommendations}
+        selectedHotels={selectedHotels}
+        onOpenChange={setClipboardModal}
+        onSelectionChange={setSelectedHotels}
+        onCopy={handleCopyClipboard}
+      />
 
-      {/* Video Modal */}
-      <Dialog
-        open={videoModal.open}
-        onOpenChange={(open) => setVideoModal({ ...videoModal, open })}
-      >
-        <DialogContent className="sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{videoModal.title} - Video</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {videoModal.videoUrl ? (
-              <div className="aspect-video">
-                <iframe
-                  src={videoModal.videoUrl}
-                  className="w-full h-full rounded-lg"
-                  allowFullScreen
-                  title={videoModal.title}
-                />
-              </div>
-            ) : (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No video available
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setVideoModal({ open: false, videoUrl: "", title: "" })
-              }
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Clipboard Modal */}
-      <Dialog
-  open={itineraryPreference === 2 ? false : clipboardModal}
-  onOpenChange={itineraryPreference === 2 ? undefined : setClipboardModal}
->
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {clipboardType === 'recommended' && 'Recommended Hotel for Recommended'}
-              {clipboardType === 'highlights' && 'Recommended Hotel for Highlights'}
-              {clipboardType === 'para' && 'Recommended Hotel for Para'}
-            </DialogTitle>
-            <DialogDescription>
-              Select recommended options to copy to clipboard
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-3">
-            {!paraRecommendations.length ? (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No hotel information available
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {paraRecommendations.map((item, idx) => {
-                  const key = `para-${idx}`;
-                  return (
-                    <div key={key} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id={`para-${key}`}
-                        className="h-6 w-6 cursor-pointer accent-[#5f259f] border-[#5f259f]"
-                        checked={selectedHotels[key] || false}
-                        onChange={(e) =>
-                          setSelectedHotels({ ...selectedHotels, [key]: e.target.checked })
-                        }
-                      />
-                      <label htmlFor={`para-${key}`} className="text-xl text-[#d546ab] font-medium cursor-pointer">
-                        {item.label}
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => {
-              setClipboardModal(false);
-              setSelectedHotels({});
-            }}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-              onClick={async () => {
-                const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
-
-                if (selectedCount === 0) {
-                  toast.error(
-                    clipboardType === "para"
-                      ? "Please select at least one recommendation"
-                      : "Please select at least one hotel"
-                  );
-                  return;
-                }
-
-                if (!hotelDetails || !itinerary) return;
-
-                try {
-                  const selectedGroups = getSelectedClipboardGroups(clipboardType);
-                  const groupTypes = selectedGroups.map((group) => group.groupType);
-
-                  const { html, plainText } = await ItineraryService.getClipboardContent(
-                    itinerary.quoteId,
-                    clipboardType,
-                    groupTypes,
-                  );
-
-                  if (!html || !plainText) {
-                    toast.error("Failed to prepare clipboard content");
-                    return;
-                  }
-
-                  // B2B parity:
-// Keep backend summary + hotspot + terms + signature,
-// but replace the middle recommendation area with:
-// Recommended Hotel - 1 -> Vehicle Details -> Cost,
-// Recommended Hotel - 2 -> Vehicle Details -> Cost,
-// Recommended Hotel - 3 -> Vehicle Details -> Cost,
-// Recommended Hotel - 4 -> Vehicle Details -> Cost.
-const localClipboard = buildClipboardHtml(clipboardType);
-
-let mergedHtml = mergeClipboardWithB2BRecommendedPackages(
-  html,
-  localClipboard.packageSectionsHtml || localClipboard.html,
-);
-
-if (clipboardType === "highlights") {
-  mergedHtml = replaceHighlightsHotspotDetailsHtml(
-    mergedHtml,
-    buildHighlightsHotspotDetailsHtml(),
-  );
-}
-
-const mergedPlainText = htmlToPlainText(mergedHtml);
-
-await copyHtmlToClipboard(mergedHtml, mergedPlainText)
-                    .then(() => {
-                      toast.success("Formatted clipboard content copied!");
-                      setClipboardModal(false);
-                      setSelectedHotels({});
-                    })
-                    .catch(() => {
-                      toast.error("Failed to copy clipboard content");
-                    });
-                } catch (error) {
-                  console.error("Failed to fetch clipboard content", error);
-                  toast.error("Failed to prepare clipboard content");
-                }
-              }}
-            >
-              Copy Clipboard
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={sourcePreviewOpen} onOpenChange={setSourcePreviewOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Source Preview</DialogTitle>
-            <DialogDescription>
-              Markdown output for the selected quote and day
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            {sourcePreviewHeading || "Loading source details..."}
-          </div>
-
-          <div className="max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4">
-            {sourcePreviewLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
-              </div>
-            ) : sourcePreviewError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {sourcePreviewError}
-              </div>
-            ) : (
-              <MarkdownPreview markdown={sourcePreviewMarkdown || "No markdown content returned."} />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Share via Email Modal */}
-      <Dialog open={shareModal} onOpenChange={setShareModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Share via Email</DialogTitle>
-            <DialogDescription>
-              Send itinerary details via email
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-[#4a4260] mb-2 block">
-                Recipient Email
-              </label>
-              <input
-                type="email"
-                className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                placeholder="email@example.com"
-                id="share-email-input"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-[#4a4260] mb-2 block">
-                Message (Optional)
-              </label>
-              <textarea
-                className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                rows={4}
-                placeholder="Add a personal message..."
-                id="share-email-message"
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShareModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-[#17a2b8] hover:bg-[#138496]"
-              onClick={() => {
-                const emailInput = document.getElementById('share-email-input') as HTMLInputElement;
-                const messageInput = document.getElementById('share-email-message') as HTMLTextAreaElement;
-
-                if (!emailInput?.value) {
-                  toast.error('Please enter recipient email');
-                  return;
-                }
-
-                const subject = encodeURIComponent(`Itinerary Details - ${quoteId}`);
-                const body = encodeURIComponent(
-                  `${messageInput?.value || 'Please find the itinerary details below:'}\n\n` +
-                  `Itinerary Link: ${window.location.href}`
-                );
-
-                window.open(`mailto:${emailInput.value}?subject=${subject}&body=${body}`, '_blank');
-                toast.success('Email client opened!');
-                setShareModal(false);
-              }}
-            >
-              Send Email
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* All Hotspots Preview Modal (Day Overview) */}
-      <Dialog
-        open={allHotspotsPreviewModal.open}
-        onOpenChange={(open) =>
-          setAllHotspotsPreviewModal(prev => ({ ...prev, open }))
-        }
-      >
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Preview Activity for All Hotspots</DialogTitle>
-            <DialogDescription>
-              {allHotspotsPreviewModal.data?.activity?.title} - Duration:{' '}
-              {formatActivityDuration(allHotspotsPreviewModal.data?.activity?.duration)}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-            {allHotspotsPreviewModal.loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
-              </div>
-            ) : allHotspotsPreviewModal.data?.hotspots && allHotspotsPreviewModal.data.hotspots.length > 0 ? (
-              allHotspotsPreviewModal.data.hotspots.map((hotspotPreview, idx: number) => (
-                <Card
-                  key={hotspotPreview.routeHotspotId}
-                  className={`border-2 ${hotspotPreview.isAlreadyAdded
-                      ? 'border-gray-300 bg-gray-50'
-                      : hotspotPreview.hasConflicts
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-green-500 bg-green-50'
-                    }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-[#4a4260]">
-                            {hotspotPreview.hotspotName
-                              ? `${hotspotPreview.hotspotName}`
-                              : `Hotspot #${idx + 1}`}
-                          </h4>
-                          <span
-                            className={`text-xs font-bold px-2 py-1 rounded-full ${hotspotPreview.isAlreadyAdded
-                                ? 'bg-gray-300 text-gray-700'
-                                : hotspotPreview.hasConflicts
-                                  ? 'bg-red-300 text-red-700'
-                                  : 'bg-green-300 text-green-700'
-                              }`}
-                          >
-                            {hotspotPreview.isAlreadyAdded
-                              ? 'Already Added'
-                              : hotspotPreview.hasConflicts
-                                ? 'Conflict'
-                                : 'Fits'}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-[#6c6c6c] mb-2">
-                          Hotspot Time Window:{' '}
-                          {formatPreviewTime(
-                            hotspotPreview.hotspotTiming.startTime
-                          )}{' '}
-                          -{' '}
-                          {formatPreviewTime(
-                            hotspotPreview.hotspotTiming.endTime
-                          )}
-                        </p>
-
-                        {!hotspotPreview.isAlreadyAdded &&
-                          hotspotPreview.proposedTiming && (
-                            <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-1 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-[#6c6c6c]">
-                                  Proposed Insertion:
-                                </span>
-                                <span className="font-medium text-[#4a4260]">
-                                  {formatPreviewTime(
-                                    hotspotPreview.proposedTiming
-                                      .startTime
-                                  )}{' '}
-                                  -{' '}
-                                  {formatPreviewTime(
-                                    hotspotPreview.proposedTiming.endTime
-                                  )}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-[#6c6c6c]">
-                                  Position:
-                                </span>
-                                <span className="font-medium text-[#4a4260]">
-                                  #{hotspotPreview.proposedTiming.order}
-                                </span>
-                              </div>
-                              {hotspotPreview.proposedTiming
-                                .willExtendHotspot && (
-                                  <div className="text-amber-700 font-medium">
+      <SourcePreviewDialog open={sourcePreviewOpen} setOpen={setSourcePreviewOpen} heading={sourcePreviewHeading} loading={sourcePreviewLoading} error={sourcePreviewError} markdown={sourcePreviewMarkdown} />
+      <ShareEmailDialog open={shareModal} setOpen={setShareModal} quoteId={String(quoteId || "")} />
+      {/* stale preview text retained temporarily for encoding-safe cleanup
                                     ⚠️ Will extend hotspot end time
-                                  </div>
-                                )}
-                            </div>
-                          )}
-
-                        {hotspotPreview.hasConflicts &&
-                          hotspotPreview.conflicts?.length > 0 && (
-                            <div className="bg-red-100 rounded-lg border border-red-200 p-3 mt-2 text-sm">
-                              <div className="font-semibold text-red-700 mb-1">
-                                {hotspotPreview.conflicts.length} Conflict
-                                {hotspotPreview.conflicts.length > 1
-                                  ? 's'
-                                  : ''}
-                                :
-                              </div>
-                              {hotspotPreview.conflicts.map(
-                                (c, cidx: number) => (
-                                  <div
-                                    key={cidx}
-                                    className="text-red-700 ml-3 text-xs"
-                                  >
                                     • {c.reason}
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <p className="text-sm text-[#6c6c6c] text-center py-8">
-                No hotspots found for this route
-              </p>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() =>
-                setAllHotspotsPreviewModal(prev => ({
-                  ...prev,
-                  open: false,
-                }))
-              }
-            >
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      */}
+      <AllHotspotsPreviewDialog
+        open={allHotspotsPreviewModal.open}
+        loading={allHotspotsPreviewModal.loading}
+        data={allHotspotsPreviewModal.data}
+        onOpenChange={(open) => setAllHotspotsPreviewModal(prev => ({ ...prev, open }))}
+        formatTime={formatPreviewTime}
+        formatDuration={formatActivityDuration}
+      />
 
       {/* Confirm Quotation Modal */}
       <Dialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal}>
