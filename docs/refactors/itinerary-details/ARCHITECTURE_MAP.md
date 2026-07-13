@@ -52,6 +52,8 @@ The repository already has itinerary E2E tests for loading/route options, hotspo
 
 Extracted presentational boundaries now include the loader/error states, media/share/source dialogs, delete confirmation, clipboard dialog, all-hotspots preview, compact day header, and segment/timeline renderer.
 
+The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; it owns only the visual context surface and has no workflow or API dependencies.
+
 ## Current composition checkpoint
 
 - `src/pages/ItineraryDetails.tsx` is the stable 14-line router/HMR entrypoint. It preserves the named/default component exports and historical hotel/vehicle type re-exports.

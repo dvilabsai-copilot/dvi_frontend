@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 32 — Confirmed quote banner presentation boundary
+
+### Baseline
+- Starting point: Iteration 31 controller/runtime boundary was committed; the focused hotspot pair and production build were green.
+- Scope: extract the confirmed/read-only context banner as a dedicated presentational responsibility.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/ConfirmedQuoteBanner.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: the confirmed quote banner JSX now lives in `ConfirmedQuoteBanner`; the controller keeps only the `isConfirmedPresentation` visibility decision.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,455 lines.
+- New `ConfirmedQuoteBanner.tsx`: 18 lines.
+
+### Notes
+- This is a focused view extraction; the controller remains above the 1,000-line ceiling and requires further workflow-level splits.
+
 ## Iteration 31 — Explicit controller/runtime composition boundary
 
 ### Baseline

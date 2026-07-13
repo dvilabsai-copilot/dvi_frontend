@@ -147,6 +147,7 @@ import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssig
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
 import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
+import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
@@ -11845,22 +11846,7 @@ const hotelTimelineLoading = Boolean(
 
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
-      {isConfirmedPresentation && (
-        <div className="mx-4 rounded-2xl border border-[#d9b6f3] bg-[#fcf7ff] px-4 py-3 text-[#4a4260] shadow-sm sm:mx-6 lg:mx-8">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8f6aa8]">Confirmed Quote</p>
-              <p className="mt-1 text-sm text-[#6c6c6c]">
-                Read-only confirmed itinerary view with quick document actions.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm font-medium text-[#6f42c1]">
-              <span className="rounded-full border border-[#e3d3f6] bg-white px-3 py-1">Top actions enabled</span>
-              <span className="rounded-full border border-[#e3d3f6] bg-white px-3 py-1">Main content locked</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {isConfirmedPresentation && <ConfirmedQuoteBanner />}
 
       {(isApplyingRouteTimeUpdate || isRebuilding || isSwitchingRouteOption) && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40">
