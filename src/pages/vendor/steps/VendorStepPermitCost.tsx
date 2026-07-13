@@ -49,9 +49,12 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [deletingRow, setDeletingRow] = useState<PermitRow | null>(null);
 
-  // Dropdowns
-  const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
-  const [stateOptions, setStateOptions] = useState<Option[]>([]);
+ // Dropdowns
+const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
+const [driverCostVehicleTypeIds, setDriverCostVehicleTypeIds] = useState<
+  number[]
+>([]);
+const [stateOptions, setStateOptions] = useState<Option[]>([]);
 
   /** ---------- ADD FORM STATE ---------- */
   const [permitForm, setPermitForm] = useState({
@@ -141,31 +144,55 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
     }
   };
 
-  const fetchDropdowns = async () => {
-    try {
-      const [vtRes, sRes] = await Promise.all([
-        api("/dropdowns/vehicle-types"),
-        api("/dropdowns/permit-states"),
-      ]);
-      const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
-      const stateItems = ((sRes as any)?.items ?? sRes ?? []) as any[];
+ const fetchDropdowns = async () => {
+  try {
+    const [vtRes, driverCostRes, sRes] = await Promise.all([
+      api("/dropdowns/vehicle-types"),
+      api(`/vendors/${vendorId}/vehicle-type-costs`),
+      api("/dropdowns/permit-states"),
+    ]);
 
-      setVehicleTypeOptions(
-        vehicleItems.map((v: any) => ({
+    const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+    const driverCostItems = (driverCostRes ?? []) as any[];
+    const stateItems = ((sRes as any)?.items ?? sRes ?? []) as any[];
+
+    setVehicleTypeOptions(
+      vehicleItems
+        .map((v: any) => ({
           id: String(v.id ?? v.vehicle_type_id ?? ""),
-          label: String(v.label ?? v.name ?? v.vehicle_type_title ?? ""),
+          label: String(
+            v.label ??
+              v.name ??
+              v.vehicle_type_title ??
+              v.vehicle_type_name ??
+              ""
+          ),
         }))
-      );
-      setStateOptions(
-        stateItems.map((s: any) => ({
+        .filter((v: Option) => v.id && v.label)
+    );
+
+    setDriverCostVehicleTypeIds(
+      Array.from(
+        new Set(
+          driverCostItems
+            .map((row: any) => Number(row.vehicle_type_id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        )
+      )
+    );
+
+    setStateOptions(
+      stateItems
+        .map((s: any) => ({
           id: String(s.id ?? s.state_id ?? ""),
           label: String(s.label ?? s.name ?? s.state_name ?? ""),
         }))
-      );
-    } catch (e) {
-      console.error("Failed to fetch dropdowns", e);
-    }
-  };
+        .filter((s: Option) => s.id && s.label)
+    );
+  } catch (e) {
+    console.error("Failed to fetch dropdowns", e);
+  }
+};
 
   const handleFormChange = (
     field: keyof typeof permitForm,
@@ -180,19 +207,35 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
     setIsAddMode(false);
   };
 
-  const filteredRows = useMemo(() => {
-    if (!searchText.trim()) return rows;
-    const q = searchText.toLowerCase();
-    return rows.filter(
-      (r) => {
-        const vtLabel = vehicleTypeOptions.find(o => o.id === r.vehicleType)?.label || "";
-        const sLabel = stateOptions.find(o => o.id === r.sourceState)?.label || "";
-        return vtLabel.toLowerCase().includes(q) || sLabel.toLowerCase().includes(q);
-      }
-    );
-  }, [rows, searchText, vehicleTypeOptions, stateOptions]);
+ const filteredRows = useMemo(() => {
+  if (!searchText.trim()) return rows;
+  const q = searchText.toLowerCase();
 
-  const selectedPermitStateLabel =
+  return rows.filter((r) => {
+    const vtLabel =
+      vehicleTypeOptions.find((o) => o.id === r.vehicleType)?.label || "";
+
+    const sLabel =
+      stateOptions.find((o) => o.id === r.sourceState)?.label || "";
+
+    return (
+      vtLabel.toLowerCase().includes(q) ||
+      sLabel.toLowerCase().includes(q)
+    );
+  });
+}, [rows, searchText, vehicleTypeOptions, stateOptions]);
+
+const permitVehicleTypeOptions = useMemo(() => {
+  const configuredIds = new Set(
+    driverCostVehicleTypeIds.map((id) => String(id))
+  );
+
+  return vehicleTypeOptions.filter((option) =>
+    configuredIds.has(String(option.id))
+  );
+}, [vehicleTypeOptions, driverCostVehicleTypeIds]);
+
+const selectedPermitStateLabel =
   stateOptions.find((state) => state.id === permitForm.state)?.label || "";
 
 const filteredPermitStateOptions = useMemo(() => {
@@ -533,13 +576,19 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             <SelectTrigger>
               <SelectValue placeholder="Choose Vehicle Type" />
             </SelectTrigger>
-            <SelectContent>
-              {vehicleTypeOptions.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+         <SelectContent>
+  {permitVehicleTypeOptions.length === 0 ? (
+    <div className="px-3 py-2 text-sm text-gray-500">
+      Add vehicle type in Driver Cost first
+    </div>
+  ) : (
+    permitVehicleTypeOptions.map((v) => (
+      <SelectItem key={v.id} value={v.id}>
+        {v.label}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
           </Select>
         </div>
 
