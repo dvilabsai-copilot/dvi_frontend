@@ -165,6 +165,7 @@ import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHo
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
 import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
+import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -3367,108 +3368,19 @@ const loadAndCacheRouteHotelDetails = useCallback(
     return orderedRows;
   }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
 
-  const financialTotals = useMemo(() => {
-    const toSafeMoney = (value?: number | string | null): number => {
-      const amount = Number(value || 0);
-      if (!Number.isFinite(amount)) return 0;
-      return Number(amount.toFixed(2));
-    };
-
-    const getRoundOffToNearestRupee = (amount: number): number => {
-      if (!Number.isFinite(amount)) return 0;
-
-      const roundedAmount = Math.round(amount);
-      return Number((roundedAmount - amount).toFixed(2));
-    };
-
-    const backendNetPayable = toSafeMoney(
-      itinerary?.costBreakdown?.netPayable ?? itinerary?.overallCost ?? 0,
-    );
-
-    const backendTotalAmount = toSafeMoney(itinerary?.costBreakdown?.totalAmount ?? 0);
-    const couponDiscount = toSafeMoney(itinerary?.costBreakdown?.couponDiscount || 0);
-    const agentMargin = toSafeMoney(itinerary?.costBreakdown?.agentMargin || 0);
-
-    const hasSelectedVehicleTotal =
-      Object.values(selectedVehicleTotalsByType).some(
-        (row) => Number(row.totalAmount || 0) > 0
-      );
-
-    const hasLiveHotelSelection =
-      activeHotelListTotal > 0 || selectedHotelTotal > 0;
-
-    if (backendNetPayable > 0 && !hasSelectedVehicleTotal && !hasLiveHotelSelection) {
-      const backendBaseTotalAmount =
-        backendTotalAmount > 0
-          ? backendTotalAmount
-          : toSafeMoney(backendNetPayable - agentMargin + couponDiscount);
-
-      const subtotalBeforeRoundOff = toSafeMoney(
-        backendBaseTotalAmount - couponDiscount + agentMargin,
-      );
-
-      const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
-      const netPayable = toSafeMoney(subtotalBeforeRoundOff + totalRoundOff);
-
-      return {
-        hotelAmount: toSafeMoney(itinerary?.costBreakdown?.totalHotelAmount || 0),
-        totalAmount: backendBaseTotalAmount,
-        netPayable,
-        totalRoundOff,
-      };
-    }
-
-    const hotelAmount = shouldShowHotels
-      ? toSafeMoney(
-          computedHotelCost ||
-          itinerary?.costBreakdown?.totalRoomCost ||
-          itinerary?.costBreakdown?.totalHotelAmount ||
-          0,
-        )
-      : 0;
-
-    const vehicleAmount = shouldShowVehicles ? toSafeMoney(computedVehicleAmount || 0) : 0;
-
-    const hotspotAmountFromCostBreakdown = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);
-    const effectiveEntryTicketAmount =
-      entryTicketBreakdownByLocation.length > 0
-        ? entryTicketLocationWiseTotal
-        : hotspotAmountFromCostBreakdown;
-
-    const otherAmount = toSafeMoney(
-      Number(itinerary?.costBreakdown?.totalAmenitiesCost || 0) +
-      Number(itinerary?.costBreakdown?.extraBedCost || 0) +
-      Number(itinerary?.costBreakdown?.childWithBedCost || 0) +
-      Number(itinerary?.costBreakdown?.childWithoutBedCost || 0) +
-      Number(itinerary?.costBreakdown?.totalGuideCost || 0) +
-      Number(effectiveEntryTicketAmount || 0) +
-      Number(itinerary?.costBreakdown?.totalActivityCost || 0) +
-      Number(itinerary?.costBreakdown?.additionalMargin || 0)
-    );
-
-    const totalAmount = toSafeMoney(hotelAmount + vehicleAmount + otherAmount);
-    const subtotalBeforeRoundOff = toSafeMoney(totalAmount - couponDiscount + agentMargin);
-    const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
-    const netPayable = toSafeMoney(subtotalBeforeRoundOff + totalRoundOff);
-
-    return {
-      hotelAmount,
-      totalAmount,
-      netPayable,
-      totalRoundOff,
-    };
- }, [
-  itinerary,
-  computedHotelCost,
-  computedVehicleAmount,
-  shouldShowHotels,
-  shouldShowVehicles,
-  selectedVehicleTotalsByType,
-  activeHotelListTotal,
-  selectedHotelTotal,
-  entryTicketBreakdownByLocation.length,
-  entryTicketLocationWiseTotal,
-]);
+  const financialTotals = useFinancialTotals({
+    costBreakdown: itinerary?.costBreakdown,
+    overallCost: itinerary?.overallCost,
+    computedHotelCost,
+    computedVehicleAmount,
+    shouldShowHotels,
+    shouldShowVehicles,
+    selectedVehicleTotalsByType,
+    activeHotelListTotal,
+    selectedHotelTotal,
+    entryTicketBreakdownCount: entryTicketBreakdownByLocation.length,
+    entryTicketLocationWiseTotal,
+  });
 
   const effectiveEntryTicketAmount = useMemo(() => {
     const fallback = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);

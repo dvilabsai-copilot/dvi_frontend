@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 45 — Financial totals hook
+
+### Baseline
+- Starting point: Iteration 44 entry-ticket summary extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract the high-coupling financial totals calculation while preserving backend and live-selection precedence.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useFinancialTotals.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: safe-money conversion, backend payable fast path, live hotel/vehicle totals, entry-ticket substitution, other-cost aggregation, and round-off calculation now live in the hook.
+- Behaviour intentionally changed: No. Existing field precedence, rounding, and output shape are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,923 lines.
+- New `useFinancialTotals.ts`: 81 lines.
+
+### Notes
+- The quotation totals surface now has a named computation boundary; wallet, passenger validation, and submission handlers remain in the controller.
+
 ## Iteration 44 — Entry-ticket summary hook
 
 ### Baseline
