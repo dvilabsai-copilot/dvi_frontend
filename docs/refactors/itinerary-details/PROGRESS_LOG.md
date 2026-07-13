@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 38 — Guide data refresh controller
+
+### Baseline
+- Starting point: Iteration 37 hotel pagination controller was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: extract guide assignment loading and the refresh-after-guide-change sequence.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useGuideDataRefresh.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: assignment API loading, invalid-plan handling, and concurrent assignment/details refresh now live in the hook.
+- Behaviour intentionally changed: No. Existing service calls, fallback arrays, and error handling are preserved.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,291 lines.
+- New `useGuideDataRefresh.ts`: 47 lines.
+
+### Notes
+- Guide assignment mutation and dialog orchestration remain coupled to the page until a later controller extraction can preserve their full dependency set.
+
 ## Iteration 37 — Hotel pagination controller
 
 ### Baseline

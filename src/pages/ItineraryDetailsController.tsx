@@ -158,6 +158,7 @@ import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRou
 import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotalsSync";
 import { useItineraryScrollController } from "./itinerary-details/hooks/useItineraryScrollController";
 import { useHotelPaginationController } from "./itinerary-details/hooks/useHotelPaginationController";
+import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -7701,38 +7702,12 @@ const getSelectedPreviewActivity = () =>
     });
   };
 
-  const loadGuideAssignments = useCallback(async (planId: number) => {
-    if (!(planId > 0)) {
-      setGuideAssignments([]);
-      return;
-    }
-
-    try {
-      const response = await ItineraryService.getGuideAssignments(planId) as ItineraryGuideAssignment[];
-      setGuideAssignments(Array.isArray(response) ? response : []);
-    } catch (e) {
-      console.error("Failed to load guide assignments", e);
-      setGuideAssignments([]);
-    }
-  }, []);
-
-  const refreshGuideData = useCallback(async () => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!(planId > 0)) return;
-
-    await Promise.all([
-      loadGuideAssignments(planId),
-      (async () => {
-        if (!quoteId) return;
-        try {
-          const detailsRes = await ItineraryService.getDetails(quoteId) as ItineraryDetailsResponse;
-          setItinerary(detailsRes);
-        } catch (e) {
-          console.error("Failed to refresh itinerary details after guide change", e);
-        }
-      })(),
-    ]);
-  }, [itinerary?.planId, loadGuideAssignments, quoteId]);
+  const { loadGuideAssignments, refreshGuideData } = useGuideDataRefresh({
+    quoteId,
+    itineraryPlanId: itinerary?.planId,
+    setGuideAssignments,
+    setItinerary,
+  });
 
   const openGuideModal = async (
     day?: ItineraryDay | null,
