@@ -484,6 +484,37 @@
 - Coupling discovered: the local runtime still owns hotel provider normalization and arrival-policy request sequencing; this iteration moved state only.
 - Follow-up extraction: vehicle workflow state/actions, hotspot/Fit Here controller, and quotation review view.
 
+## Iteration 26 — Activity workflow state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed after extraction.
+- Relevant behavior: activity modal, available activities, preview, add loading, and selected preview ID retain their existing defaults and setter semantics.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useActivityState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: activity workflow state now originates from a dedicated hook; activity API calls, preview transformation, mutation handlers, and toasts remain unchanged in the runtime.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, activity state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,271; after: 16,231.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useActivityState.ts` (15 lines).
+
+### Notes
+- Coupling discovered: the historical activity response shape is consumed dynamically by existing handlers; the state hook keeps that shape unchanged.
+- Follow-up extraction: guide workflow state/actions, vehicle state/actions, hotspot/Fit Here controller, and quotation review view.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline

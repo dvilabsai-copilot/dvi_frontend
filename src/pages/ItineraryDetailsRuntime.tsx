@@ -153,6 +153,7 @@ import { useQuotationState, type AdditionalPassenger } from "./itinerary-details
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
+import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -330,53 +331,12 @@ const loadAndCacheRouteHotelDetails = useCallback(
   const [isRebuilding, setIsRebuilding] = useState(false);
   const [excludedHotspotIds, setExcludedHotspotIds] = useState<number[]>([]);
 
-  // Add activity modal state
-  type AvailableActivity = {
-  id: number;
-  title: string;
-  description: string;
-  costAdult: number;
-  costChild: number;
-  costForeignAdult: number;
-  costForeignChild: number;
-  unitCost?: number;
-  pricingUnitType?: "PER_ADULT" | "UNIT";
-  priceUnitLabel?: string;
-  adultCount?: number;
-  childCount?: number;
-  totalAmount?: number;
-  totalPrice?: number;
-  priceDate?: string | null;
-  duration: string | null;
-    timeSlots?: Array<{
-      id: number;
-      type: number;
-      specialDate: string | null;
-      startTime: string | null;
-      endTime: string | null;
-    }>;
-  };
-
-  const [addActivityModal, setAddActivityModal] = useState<{
-    open: boolean;
-    planId: number | null;
-    routeId: number | null;
-    routeHotspotId: number | null;
-    hotspotId: number | null;
-    hotspotName: string;
-  }>({
-    open: false,
-    planId: null,
-    routeId: null,
-    routeHotspotId: null,
-    hotspotId: null,
-    hotspotName: "",
-  });
-  const [availableActivities, setAvailableActivities] = useState<AvailableActivity[]>([]);
-  const [loadingActivities, setLoadingActivities] = useState(false);
-  const [isAddingActivity, setIsAddingActivity] = useState(false);
-  const [activityPreview, setActivityPreview] = useState<any>(null);
-  const [previewingActivityId, setPreviewingActivityId] = useState<number | null>(null);
+  const activityState = useActivityState();
+  const {
+    addActivityModal, setAddActivityModal, availableActivities, setAvailableActivities,
+    loadingActivities, setLoadingActivities, isAddingActivity, setIsAddingActivity,
+    activityPreview, setActivityPreview, previewingActivityId, setPreviewingActivityId,
+  } = activityState;
 
   // All-hotspots preview modal state
   const [allHotspotsPreviewModal, setAllHotspotsPreviewModal] = useState<{
@@ -7672,7 +7632,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     setLoadingActivities(true);
     try {
 const activities = await ItineraryService.getAvailableActivities(hotspotId, planId, routeId);
-setAvailableActivities(activities as AvailableActivity[]);
+setAvailableActivities(activities as any[]);
     } catch (e) {
       console.error("Failed to load activities", e);
       toast.error(e?.message || "Failed to load activities");
@@ -7799,7 +7759,7 @@ setAvailableActivities(activities as AvailableActivity[]);
   const formatActivityMoney = (value: number | string | null | undefined) =>
   `₹${Number(value || 0).toFixed(2)}`;
 
-const getActivityTotalAmount = (activity?: AvailableActivity | null) =>
+const getActivityTotalAmount = (activity?: any | null) =>
   Number(activity?.totalAmount ?? activity?.totalPrice ?? 0);
 
 const getSelectedPreviewActivity = () =>
