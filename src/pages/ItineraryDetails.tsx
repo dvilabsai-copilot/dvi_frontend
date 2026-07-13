@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit, AlertTriangle, Route, Utensils } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
@@ -13580,77 +13580,68 @@ const hotelTimelineLoading = Boolean(
               </div>
             </div>
 
-            {/* Quote Info — row 1 */}
-            <div className="flex flex-col lg:flex-row justify-between gap-2 bg-[#f8f5fc] rounded-t-lg px-4 py-2 -mx-4 -mt-2">
-              <div className="flex flex-wrap items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-[#d546ab]">{itinerary.quoteId}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-[#6c6c6c]" />
-                  <span className="font-medium text-[#4a4260]">{itinerary.dateRange}</span>
-                  {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
-                    <span className="text-[#4a4260] font-medium">
-                      ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="text-right flex items-center gap-2 justify-end">
+            {/* Compact trip summary — one line at every viewport width */}
+            <div
+              className="-mx-4 -mt-2 overflow-x-auto rounded-lg bg-[#f8f5fc] [scrollbar-color:#d8cde3_transparent] [scrollbar-width:thin] sm:overflow-visible"
+              aria-label="Trip summary"
+            >
+              <div className="flex w-max min-w-full items-center justify-between gap-[clamp(0.5rem,1.1vw,1.25rem)] whitespace-nowrap px-3 py-2 text-[clamp(0.625rem,0.78vw,0.875rem)] text-[#6c6c6c] sm:px-4">
+                <span className="text-[clamp(0.975rem,1.3vw,1.4625rem)] font-bold text-[#d546ab]">{itinerary.quoteId}</span>
+
+                <span className="h-5 w-px shrink-0 bg-[#e1dfe6]" aria-hidden="true" />
+
+                <span className="flex items-center gap-1.5 font-medium text-[#4a4260]">
+                  <Calendar className="h-[1em] w-[1em] shrink-0 text-[#6c6c6c]" />
+                  {itinerary.dateRange}
+                </span>
+
+                {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+                  <span className="font-semibold text-[#4a4260]">
+                    ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+                  </span>
+                )}
+
                 {shouldShowRebuildHotelsButton && !hotelReadOnly && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleRebuildHotels}
                     disabled={isRebuildingHotels}
-                    className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
+                    className="h-7 rounded-lg border-[#d546ab] px-2 text-[inherit] text-[#d546ab] hover:bg-[#fdf6ff]"
                   >
                     {isRebuildingHotels ? (
                       <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                         Rebuilding...
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="mr-2 h-4 w-4" />
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                         Rebuild Hotels
                       </>
                     )}
                   </Button>
                 )}
-                <div>
-                  <span className="text-sm text-[#6c6c6c]">Overall Trip Cost : </span>
-                  <span className="text-xl font-bold text-[#d546ab]">₹ {overallTripCostWithHotels}</span>
-                </div>
-              </div>
-            </div>
 
-                       {/* Trip Details — row 2 (same bg) */}
-            <div className="flex flex-wrap gap-4 text-sm text-[#6c6c6c] bg-[#f8f5fc] px-4 py-2 -mx-4 rounded-b-lg">
-              <span>
-                <span>Room Count </span>
-                <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span>
-              </span>
-              <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
-              <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
-              <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
-              <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap gap-4">
+                <span>Room Count <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span></span>
+                <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
+                <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
+                <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
                 <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
                 <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
                 <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
+
+                <span className="h-5 w-px shrink-0 bg-[#e1dfe6]" aria-hidden="true" />
+
+                <span className="ml-auto shrink-0 text-right">
+                  Overall Trip Cost :{" "}
+                  <span className="text-[clamp(0.975rem,1.3vw,1.4625rem)] font-bold text-[#d546ab]">
+                    ₹ {overallTripCostWithHotels}
+                  </span>
+                </span>
               </div>
             </div>
 
-            {/* Special Instructions */}
-            <div className="mt-4 rounded-lg border border-[#f1c4dd] bg-[#fff7fb] px-4 py-3">
-              <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#d546ab]">
-                <AlertTriangle className="h-4 w-4" />
-                Special Instructions
-              </div>
-              <p className="whitespace-pre-line text-sm leading-6 text-[#4a4260]">
-                {specialInstructionsText || "No special instructions mentioned."}
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -13707,210 +13698,231 @@ const canShowGuideActionButton =
   );
 
   return (
-            
-            <Card
-              key={day.id}
-              id={`itinerary-day-${day.dayNumber}`}
-              data-day-number={day.dayNumber}
-              className="border border-[#e5d9f2] bg-white"
-            >
-              <CardContent className="pt-2">
-
-
-
-
-             {/* Day Header */}
+    <React.Fragment key={day.id}>
+             {/* Compact day header */}
 <div
-  className="sticky z-20 mb-3 mx-0 rounded-lg border border-[#59b9ea] bg-white px-4 py-4"
-  style={{ top: `${Math.max(summaryStickyHeight + 8, 8)}px` }}
+  id={`itinerary-day-${day.dayNumber}`}
+  data-day-number={day.dayNumber}
+  className="sticky z-20 mx-0 mb-3 mt-1 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 shadow-sm sm:px-5"
+  style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
-  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(260px,1fr)_auto_minmax(260px,1fr)] lg:items-center">
-    {/* LEFT: day/date/location */}
-    <div className="flex min-w-0 items-start gap-3">
-      <Calendar className="mt-1 h-5 w-5 shrink-0 text-[#d546ab]" />
+  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
+    {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
+    <div className="contents">
+      <div className="order-1 flex flex-wrap items-center gap-x-4 gap-y-2 text-[#242133] lg:col-start-1 lg:row-start-1">
+        <div className="flex items-center gap-3">
+          <Calendar className="h-6 w-6 shrink-0 text-[#d546ab]" />
+          <h3 className="whitespace-nowrap text-base font-bold">
+            DAY {day.dayNumber}
+          </h3>
+        </div>
 
-      <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-<h3 className="font-semibold leading-6 text-[#4a4260]">
-  DAY {day.dayNumber} - {formatHeaderDate(day.date)}
-</h3>
-
-{(routeNeedsRebuild === day.id || (day as any).needsRebuild === true || dayHasManualOverride) && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
-              disabled={isRebuilding}
-              className="bg-yellow-50 border-yellow-300 hover:bg-yellow-100"
-            >
-              {isRebuilding ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Rebuilding...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Rebuild Route
-                </>
-              )}
-            </Button>
-          )}
+        <span className="hidden h-8 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
+        <span className="whitespace-nowrap text-sm font-semibold sm:text-base">
+          {formatHeaderDate(day.date)}
+        </span>
+        {(routeNeedsRebuild === day.id || (day as any).needsRebuild === true || dayHasManualOverride) && (
           <Button
             size="sm"
             variant="outline"
-            onClick={() => void openSourcePreview(day.dayNumber)}
-            className="border-slate-300 bg-slate-50 hover:bg-slate-100"
+            onClick={() => handleRebuildRoute(itinerary.planId, day.id)}
+            disabled={isRebuilding}
+            className="h-8 border-yellow-300 bg-yellow-50 hover:bg-yellow-100"
           >
-            <FileText className="mr-2 h-4 w-4" />
-            Source
+            {isRebuilding ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Rebuilding...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Rebuild Route
+              </>
+            )}
           </Button>
+        )}
       </div>
 
-       <div className="mt-1 text-sm font-semibold text-[#d546ab]">
-  Food Preference:{" "}
-  <span className="font-medium text-[#4a4260]">
-    {guestFoodPreferenceText}
-  </span>
-</div>
-
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#6c6c6c]">
-          <span className="font-medium">{day.departure}</span>
-
-          {day.viaRoutes && day.viaRoutes.length > 0 && (
-            <>
-              <ArrowRight className="h-4 w-4 text-[#d546ab]" />
-              <span
-                className="text-[#4a4260]"
-                title={day.viaRoutes.map((v) => v.name).join(", ")}
+      <div className="contents">
+        <div className="order-4 flex h-8 w-fit items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-4 shadow-sm lg:col-start-3 lg:row-start-2 lg:justify-self-center">
+          <Clock className="h-5 w-5 shrink-0 text-[#d546ab]" />
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
               >
-                {day.viaRoutes.map((v) => v.name).join(", ")}
-              </span>
-            </>
-          )}
+                {day.startTime}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <TimePickerPopover
+                value={day.startTime}
+                label="Start Time"
+                onSave={async (newTime) => {
+                  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+                  await handleUpdateRouteTimesDirect(
+                    itinerary.planId || 0,
+                    day.id,
+                    day.dayNumber,
+                    newTime,
+                    day.endTime
+                  );
+                }}
+              />
+            </PopoverContent>
+          </Popover>
 
-          <MapPin className="h-3 w-3" />
-          <span className="font-medium">{day.arrival}</span>
+          <ArrowRight className="h-4 w-4 shrink-0 text-[#d546ab]" />
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="whitespace-nowrap text-sm font-semibold text-[#242133] hover:text-[#d546ab]"
+              >
+                {day.endTime}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <TimePickerPopover
+                value={day.endTime}
+                label="End Time"
+                onSave={async (newTime) => {
+                  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+                  await handleUpdateRouteTimesDirect(
+                    itinerary.planId || 0,
+                    day.id,
+                    day.dayNumber,
+                    day.startTime,
+                    newTime
+                  );
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+
+        <div className="order-5 flex flex-wrap items-center gap-3 lg:col-start-4 lg:row-start-2 lg:justify-self-end">
+        {!canShowGuideActionButton && (<Button
+          size="sm"
+          variant="outline"
+          onClick={() => void openSourcePreview(day.dayNumber)}
+          className="h-8 rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100"
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          Source
+        </Button>)}
+
+        {canShowAddHotspotButton && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            onClick={() =>
+              openAddHotspotModal(
+                itinerary.planId || 0,
+                day.id,
+                addHotspotCta?.locationId || 0,
+                addHotspotLocationName,
+                addHotspotCta?.anchorType === "after_travel" &&
+                  Number.isInteger(Number(addHotspotCta.anchorIndex))
+                  ? {
+                      anchorType: "after_travel",
+                      anchorIndex: Number(addHotspotCta.anchorIndex),
+                      anchorFrom: addHotspotCta?.anchorFrom,
+                      anchorTo: addHotspotCta?.anchorTo,
+                      anchorTimeRange: addHotspotCta?.anchorTimeRange,
+                    }
+                  : null
+              )
+            }
+          >
+            Add Hotspot
+          </Button>
+        )}
+
+        {!readOnly && canShowGuideActionButton && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-xl border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
+            onClick={() => {
+              if (isWholeItineraryGuideMode) {
+                handleWholeItineraryGuideClick();
+                return;
+              }
+
+              handleAddGuideClick(day);
+            }}
+          >
+            {currentGuideAssignment ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+            {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
+          </Button>
+        )}
+
         </div>
       </div>
     </div>
 
-    {/* CENTER: time */}
-    <div className="flex justify-start lg:justify-center">
-      <div className="flex items-center gap-3 rounded-full border border-[#e5d9f2] bg-white px-5 py-2 shadow-sm">
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-sm font-semibold text-[#4a4260] hover:text-[#d546ab]"
-            >
-              {day.startTime}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <TimePickerPopover
-              value={day.startTime}
-              label="Start Time"
-              onSave={async (newTime) => {
-                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-                await handleUpdateRouteTimesDirect(
-                  itinerary.planId || 0,
-                  day.id,
-                  day.dayNumber,
-                  newTime,
-                  day.endTime
-                );
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-
-        <ArrowRight className="h-4 w-4 text-[#d546ab]" />
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="text-sm font-semibold text-[#4a4260] hover:text-[#d546ab]"
-            >
-              {day.endTime}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <TimePickerPopover
-              value={day.endTime}
-              label="End Time"
-              onSave={async (newTime) => {
-                document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
-                await handleUpdateRouteTimesDirect(
-                  itinerary.planId || 0,
-                  day.id,
-                  day.dayNumber,
-                  day.startTime,
-                  newTime
-                );
-              }}
-            />
-          </PopoverContent>
-        </Popover>
+    <div className="contents">
+      <div className="order-1 flex shrink-0 items-center gap-2 text-sm lg:col-start-1 lg:row-start-2">
+        <Utensils className="h-5 w-5 text-[#d546ab]" />
+        <span className="font-semibold text-[#d546ab]">Food Preference:</span>
+        <span className="font-medium">{guestFoodPreferenceText}</span>
       </div>
-    </div>
 
-    {/* RIGHT: buttons + KM */}
-    <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-      {canShowAddHotspotButton && (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 rounded-full border-[#d546ab] px-4 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-          onClick={() =>
-            openAddHotspotModal(
-              itinerary.planId || 0,
-              day.id,
-              addHotspotCta?.locationId || 0,
-              addHotspotLocationName,
-              addHotspotCta?.anchorType === "after_travel" &&
-                Number.isInteger(Number(addHotspotCta.anchorIndex))
-                ? {
-                    anchorType: "after_travel",
-                    anchorIndex: Number(addHotspotCta.anchorIndex),
-                    anchorFrom: addHotspotCta?.anchorFrom,
-                    anchorTo: addHotspotCta?.anchorTo,
-                    anchorTimeRange: addHotspotCta?.anchorTimeRange,
-                  }
-                : null
-            )
-          }
-        >
-          Add Hotspot
-        </Button>
-      )}
-{!readOnly && canShowGuideActionButton && (
-  <Button
-    type="button"
-    variant="outline"
-    size="sm"
-    className="h-10 rounded-full border-[#d546ab] px-5 text-sm font-semibold text-[#d546ab] hover:bg-[#fdf6ff]"
-    onClick={() => {
-      if (isWholeItineraryGuideMode) {
-        handleWholeItineraryGuideClick();
-        return;
-      }
+        {canShowGuideActionButton && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void openSourcePreview(day.dayNumber)}
+            className="order-2 h-8 w-fit rounded-xl border-slate-200 bg-slate-50 px-4 font-semibold text-[#242133] hover:bg-slate-100 lg:col-start-2 lg:row-start-2 lg:justify-self-start"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Source
+          </Button>
+        )}
 
-      handleAddGuideClick(day);
-    }}
-  >
-    {currentGuideAssignment ? <Edit className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-    {currentGuideAssignment ? "Edit Guide" : "Add Guide"}
-  </Button>
-)}
-      <span className="rounded-full bg-[#d546ab] px-4 py-2 text-sm font-bold text-white whitespace-nowrap">
+        <div className="order-2 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-[#242133] lg:col-start-3 lg:row-start-1 lg:w-full">
+        <span className="flex shrink-0 items-center gap-2 font-semibold">
+          <MapPin className="h-5 w-5 text-[#d546ab]" />
+          {day.departure}
+        </span>
+
+        <ArrowRight className="h-4 w-4 shrink-0 text-[#d546ab]" />
+
+        {day.viaRoutes && day.viaRoutes.length > 0 && (
+          <>
+            <span
+              className="min-w-0 text-[#4a4260]"
+              title={day.viaRoutes.map((v) => v.name).join(", ")}
+            >
+              {day.viaRoutes.map((v) => v.name).join(", ")}
+            </span>
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-[#6c6c6c]" />
+          </>
+        )}
+
+        {day.viaRoutes && day.viaRoutes.length > 0 && (
+          <span className="hidden h-6 w-px bg-[#e1dfe6] sm:block" aria-hidden="true" />
+        )}
+        <span className="shrink-0 font-medium">{day.arrival}</span>
+      </div>
+
+      <span className="order-2 flex h-8 w-fit items-center gap-2 whitespace-nowrap rounded-xl bg-[#d546ab] px-5 text-sm font-bold text-white lg:col-start-4 lg:row-start-1 lg:justify-self-end">
+        <Route className="h-4 w-4" />
         {intercityDistance}
       </span>
     </div>
+  </div>
 </div>
-</div>
+
+            <Card className="border border-[#e5d9f2] bg-white">
+              <CardContent className="pt-2">
 
                 {currentGuideAssignment && (
                   <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
@@ -14452,12 +14464,25 @@ const canShowGuideActionButton =
                 </div>
               </CardContent>
             </Card>
+    </React.Fragment>
           );
         })}
           </>
         );
       })()}
       </div>
+
+      {/* Special Instructions — outside the sticky summary and before hotel/vehicle lists */}
+      <div className="mx-4 mb-4 mt-4 rounded-lg border border-[#f1c4dd] bg-[#fff7fb] px-4 py-3 lg:mx-5">
+        <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[#d546ab]">
+          <AlertTriangle className="h-4 w-4" />
+          Special Instructions
+        </div>
+        <p className="whitespace-pre-line text-sm leading-6 text-[#4a4260]">
+          {specialInstructionsText || "No special instructions mentioned."}
+        </p>
+      </div>
+
       {/* Hotel List (separate component) */}
       {shouldRenderBottomHotelList && shouldShowHotels && loadingHotels && (
         <div
