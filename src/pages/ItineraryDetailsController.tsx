@@ -157,6 +157,7 @@ import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
+import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -311,28 +312,13 @@ const loadAndCacheRouteHotelDetails = useCallback(
   [cacheRouteHotelDetails, routeHotelDetailsByQuoteId],
 );
 
-  // Delete hotspot modal state
-  const [deleteHotspotModal, setDeleteHotspotModal] = useState<{
-    open: boolean;
-    planId: number | null;
-    routeId: number | null;
-    routeHotspotId: number | null;
-    masterHotspotId: number | null;
-    hotspotName: string;
-    hotspotWasPrebuilt: boolean;
-  }>({
-    open: false,
-    planId: null,
-    routeId: null,
-    routeHotspotId: null,
-    masterHotspotId: null,
-    hotspotName: "",
-    hotspotWasPrebuilt: false,
-  });
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [routeNeedsRebuild, setRouteNeedsRebuild] = useState<number | null>(null);
-  const [isRebuilding, setIsRebuilding] = useState(false);
-  const [excludedHotspotIds, setExcludedHotspotIds] = useState<number[]>([]);
+  const {
+    deleteHotspotModal, setDeleteHotspotModal, isDeleting, setIsDeleting,
+    routeNeedsRebuild, setRouteNeedsRebuild, isRebuilding, setIsRebuilding,
+    excludedHotspotIds, setExcludedHotspotIds,
+    allHotspotsPreviewModal, setAllHotspotsPreviewModal,
+    deleteActivityModal, setDeleteActivityModal, isDeletingActivity, setIsDeletingActivity,
+  } = useItineraryDeletionState();
 
   const activityState = useActivityState();
   const {
@@ -341,38 +327,6 @@ const loadAndCacheRouteHotelDetails = useCallback(
     activityPreview, setActivityPreview, previewingActivityId, setPreviewingActivityId,
   } = activityState;
 
-  // All-hotspots preview modal state
-  const [allHotspotsPreviewModal, setAllHotspotsPreviewModal] = useState<{
-    open: boolean;
-    loading: boolean;
-    data: any | null;
-    planId: number | null;
-    routeId: number | null;
-    activityId: number | null;
-  }>({
-    open: false,
-    loading: false,
-    data: null,
-    planId: null,
-    routeId: null,
-    activityId: null,
-  });
-
-  // Delete activity modal state
-  const [deleteActivityModal, setDeleteActivityModal] = useState<{
-    open: boolean;
-    planId: number | null;
-    routeId: number | null;
-    activityId: number | null;
-    activityName: string;
-  }>({
-    open: false,
-    planId: null,
-    routeId: null,
-    activityId: null,
-    activityName: "",
-  });
-  const [isDeletingActivity, setIsDeletingActivity] = useState(false);
   const guideState = useGuideState();
   const {
     guideAssignments, setGuideAssignments, guideAvailability, setGuideAvailability,

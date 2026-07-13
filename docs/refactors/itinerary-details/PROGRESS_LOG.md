@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 33 — Destructive-action state hook
+
+### Baseline
+- Starting point: Iteration 32 confirmed-quote banner extraction was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: move modal state and in-flight flags for destructive itinerary actions into a dedicated state hook.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useItineraryDeletionState.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: hotspot deletion modal, activity deletion modal, all-hotspots preview modal, route rebuild flags, and deletion flags now originate from the hook.
+- Behaviour intentionally changed: No. Existing handlers and dialog props use the same state values and setters.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,410 lines.
+- New `useItineraryDeletionState.ts`: 75 lines.
+
+### Notes
+- The new hook intentionally preserves existing dynamic preview data typing while establishing a clear state ownership boundary; API handlers remain in the controller for the next workflow extraction.
+
 ## Iteration 32 — Confirmed quote banner presentation boundary
 
 ### Baseline
