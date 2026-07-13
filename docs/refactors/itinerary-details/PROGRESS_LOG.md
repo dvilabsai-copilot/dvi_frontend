@@ -328,3 +328,34 @@
 ### Notes
 - Coupling discovered: the header depends on route switching, confirmed-document actions, hotel rebuild state, and summary calculations; these remain explicit typed inputs rather than moving business logic into the view.
 - Follow-up extraction: remove the remaining transitional dead compatibility fragment, then split hotspot/Fit Here state and preview UI into domain controllers/components.
+
+## Iteration 19 — Hotspot and Fit Here state boundary
+
+### Baseline
+- Tests run: repository typecheck output filtered to page/new modules; `npm run build`; focused hotspot Playwright pair.
+- Result: no page/new-module type errors; build passed with existing warnings; both focused flows passed before and after extraction.
+- Relevant behavior: hotspot modal, preview, priority replacement, manual Fit Here, automatic Fit Here, matrix, and scroll state retain their existing initial values and setters.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotspotState.ts`.
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx`.
+- Code moved: the hotspot/Fit Here state and scrolling/request refs now live in a dedicated React state hook. Existing handlers and derived calculations consume the same named values through the hook return object.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the runtime, hotspot state hook, or stable page entrypoint; existing repository errors remain documented.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetailsRuntime.tsx before: 16,565; after: 16,492.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Largest new source file: `useHotspotState.ts` (91 lines).
+
+### Notes
+- Coupling discovered: preview payloads remain intentionally untyped in the existing implementation because backend response variants are consumed throughout the page; the extraction preserved those shapes rather than reinterpret them.
+- Follow-up extraction: move hotspot preview/Fit Here actions and their large modal view into focused controllers/components.
