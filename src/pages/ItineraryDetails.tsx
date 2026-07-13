@@ -140,7 +140,7 @@ type HotspotSegment = {
   type: "hotspot";
   text: string;
   locationId?: number;
-  anchorType?: "BETWEEN_ROWS";
+  anchorType?: "BETWEEN_ROWS" | "after_travel";
   anchorIndex?: number;
   anchorFrom?: string;
   anchorTo?: string;
@@ -151,9 +151,9 @@ type HotspotSegment = {
 type FitHereAnchorIntent = "AFTER_START" | "AFTER_ATTRACTION";
 
 type HotspotAnchor = {
-  anchorType: "BETWEEN_ROWS";
+  anchorType: "BETWEEN_ROWS" | "after_travel";
   anchorIndex: number;
-  anchorIntent: FitHereAnchorIntent;
+  anchorIntent?: FitHereAnchorIntent;
   anchorFrom?: string;
   anchorTo?: string;
   anchorLabel?: string;
@@ -238,6 +238,8 @@ type ItineraryDay = {
   endTime: string; // "08:00 PM"
   viaRoutes?: ViaRouteItem[];
   segments: ItinerarySegment[];
+  needsRebuild?: boolean;
+  excludedHotspotIds?: number[];
 };
 
 type TriedAnchorState = {
@@ -439,6 +441,79 @@ export type ItineraryVehicleRow = {
   col3Distance?: string; // "30.22 KM"
   col3Duration?: string; // "0 Min"
   imageUrl?: string | null; // vehicle image if you ever have it
+};
+
+const getVehicleAmountNumber = (vehicle: ItineraryVehicleRow): number => {
+  const raw =
+    (vehicle as ItineraryVehicleRow & { grandTotal?: number | string }).grandTotal ??
+    (vehicle as ItineraryVehicleRow & { vehicleGrandTotal?: number | string }).vehicleGrandTotal ??
+    (vehicle as ItineraryVehicleRow & { totalAmount?: number | string }).totalAmount ??
+    (vehicle as ItineraryVehicleRow & { total_amount?: number | string }).total_amount ??
+    (vehicle as ItineraryVehicleRow & { TotalAmount?: number | string }).TotalAmount ??
+    (vehicle as ItineraryVehicleRow & { finalAmount?: number | string }).finalAmount ??
+    (vehicle as ItineraryVehicleRow & { amount?: number | string }).amount ??
+    0;
+
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  const cleaned = String(raw)
+    .replace(/,/g, "")
+    .replace(/[^\d.-]/g, "")
+    .trim();
+
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
+  if (!vehicles.length) return null;
+
+  return vehicles.reduce((cheapest, current) => {
+    return getVehicleAmountNumber(current) < getVehicleAmountNumber(cheapest)
+      ? current
+      : cheapest;
+  }, vehicles[0]);
+};
+
+const isSupplierBookableHotel = (entry: any): boolean => {
+  if (!entry) return false;
+
+  const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
+  const hotelCode = String(entry?.hotelCode || entry?.hotelId || '').trim();
+  const provider = String(entry?.provider || '').trim().toLowerCase();
+  const bookingCode = String(
+    entry?.bookingCode ||
+      entry?.searchReference ||
+      entry?.roomTypes?.[0]?.roomCode ||
+      '',
+  ).trim();
+  const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
+  const amount = Number(entry?.netAmount) > 0
+    ? Number(entry.netAmount)
+    : Number(entry?.totalHotelCost || 0) + Number(entry?.totalHotelTaxAmount || 0) > 0
+      ? Number(entry.totalHotelCost || 0) + Number(entry.totalHotelTaxAmount || 0)
+      : Number(entry?.price || 0);
+
+  if (
+    entry?.externalStay === true ||
+    entry?.isBookable === false ||
+    availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
+    availabilityStatus === 'NOT_BOOKABLE' ||
+    provider === 'external' ||
+    provider === 'none' ||
+    provider === 'self-arranged' ||
+    hotelName === 'no hotels available' ||
+    !hotelCode ||
+    hotelCode === '0'
+  ) {
+    return false;
+  }
+
+  if (!['tbo', 'resavenue', 'hobse', 'axisrooms', 'staah'].includes(provider)) return false;
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  return provider !== 'tbo' || bookingCode.includes('!TB!');
 };
 
 type PackageIncludes = {
@@ -659,7 +734,8 @@ const parseDisplayTimeToHms = (displayTime: string): string => {
   const [time, ampm] = parts;
   const timeParts = time.split(':');
   if (timeParts.length < 2) return "09:00:00";
-  let [hours, minutes] = timeParts.map(Number);
+  let hours = Number(timeParts[0]);
+  const minutes = Number(timeParts[1]);
 
   if (ampm === 'PM' && hours < 12) hours += 12;
   if (ampm === 'AM' && hours === 12) hours = 0;
@@ -898,7 +974,7 @@ const formatManualPolicyTime = (value?: string | null): string => {
   return `${hour12}:${String(mm).padStart(2, '0')} ${suffix}`;
 };
 
-const getManualTimingPolicyFromPreview = (preview: any) => {
+const getManualTimingPolicyFromPreview = (preview) => {
   return (
     preview?.manualTimingPolicy
     || preview?.validation?.manualTimingPolicy
@@ -909,7 +985,7 @@ const getManualTimingPolicyFromPreview = (preview: any) => {
   );
 };
 
-const isManualRelaxedRouteFitPolicy = (preview: any): boolean => {
+const isManualRelaxedRouteFitPolicy = (preview): boolean => {
   const policy = getManualTimingPolicyFromPreview(preview);
   return (
     policy?.mode === 'MANUAL_HOTSPOT'
@@ -917,7 +993,7 @@ const isManualRelaxedRouteFitPolicy = (preview: any): boolean => {
   );
 };
 
-const hasManualOpeningOrTimingConflict = (validation: any): boolean => {
+const hasManualOpeningOrTimingConflict = (validation): boolean => {
   if (!validation) return false;
 
   const selectedManualConflictCount = Number(validation?.selectedManualConflictCount || 0);
@@ -941,7 +1017,7 @@ const hasManualOpeningOrTimingConflict = (validation: any): boolean => {
   );
 };
 
-const formatPreviewDuration = (value: any): string => {
+const formatPreviewDuration = (value): string => {
   if (!value) return '';
 
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -1016,7 +1092,7 @@ const normalizeConfirmedTimelineToSegments = (
   if (!Array.isArray(rows)) return [];
 
   return rows
-    .map((row: any): ItinerarySegment | null => {
+    .map((row): ItinerarySegment | null => {
       const type = String(row?.type || '').toLowerCase();
       const itemType = Number(row?.item_type || 0);
 
@@ -1043,9 +1119,10 @@ const normalizeConfirmedTimelineToSegments = (
 
       if (type === 'attraction' || itemType === 4) {
         const hotspotId = Number(row?.hotspotId || row?.hotspot_ID || row?.locationId || 0) || 0;
-        const existingSegment = (context?.existingSegments || []).find((seg: any) => {
+        const existingSegment = (context?.existingSegments || []).find((seg) => {
           if (String(seg?.type || '').toLowerCase() !== 'attraction') return false;
-          return Number(seg?.hotspotId ?? seg?.locationId ?? 0) === hotspotId;
+          const attraction = seg as AttractionSegment;
+          return Number(attraction?.hotspotId ?? attraction?.locationId ?? 0) === hotspotId;
         }) as AttractionSegment | undefined;
         const availableHotspot = (context?.availableHotspots || []).find((hotspot) => (
           Number(hotspot.id || 0) === hotspotId
@@ -1206,7 +1283,7 @@ const normalizeDateToYmd = (input?: string | null): string => {
     return raw;
   }
 
-  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  const dmy = raw.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dmy) {
     const day = Number(dmy[1]);
     const month = Number(dmy[2]);
@@ -1309,7 +1386,7 @@ const openSourcePreview = useCallback(async (dayNo: number) => {
     const result = await ItineraryService.getHotspotScenarioMarkdown(currentQuoteId, dayNo);
     setSourcePreviewMarkdown(String(result.markdown || ""));
     setSourcePreviewHeading(String(result.heading || `${currentQuoteId} Day ${dayNo}`));
-  } catch (error: any) {
+  } catch (error) {
     const message = String(error?.message || "Failed to load source preview.");
     setSourcePreviewError(message);
   } finally {
@@ -1329,7 +1406,7 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
     if (!Array.isArray(parsed) || parsed.length === 0) return [];
 
     return parsed
-      .map((option: any, index: number) => ({
+      .map((option, index: number) => ({
         quoteId: String(
           option?.quoteId ||
             option?.routeQuoteId ||
@@ -1342,7 +1419,7 @@ const [latestRouteOptions, setLatestRouteOptions] = useState<ItineraryPlanRouteO
         ).trim(),
         label: option?.label || option?.routeName || `Route ${index + 1}`,
       }))
-      .filter((option: any) => option.quoteId && option.quoteId.startsWith("DVI"));
+      .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
   } catch {
     return [];
   }
@@ -1639,7 +1716,7 @@ const [guideModal, setGuideModal] = useState<{
   const timelinePreviewRef = useRef<HTMLDivElement>(null);
   const priorityConfirmRef = useRef<HTMLDivElement>(null);
   const previewRequestIdRef = useRef(0);
-  const fitHereProgressTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
+  const fitHereProgressTimerRef = useRef<number | null>(null);
 
   const stopFitHereProgressTimer = () => {
     if (fitHereProgressTimerRef.current) {
@@ -2010,12 +2087,12 @@ const [guideModal, setGuideModal] = useState<{
 
     return selectedHotspotIds.map((hotspotId) => {
       const timeline = previewTimelinesByHotspot[hotspotId] || [];
-      const candidates = timeline.filter((seg: any) => (
+      const candidates = timeline.filter((seg) => (
         seg?.type === "attraction" && Number(seg?.locationId) === Number(hotspotId)
       ));
 
-      const hasConflictCandidate = candidates.some((seg: any) => seg?.isConflict === true);
-      const fromTimeline = candidates.sort((a: any, b: any) => {
+      const hasConflictCandidate = candidates.some((seg) => seg?.isConflict === true);
+      const fromTimeline = candidates.sort((a, b) => {
         const aConflict = a?.isConflict === true ? 1 : 0;
         const bConflict = b?.isConflict === true ? 1 : 0;
         if (aConflict !== bConflict) {
@@ -2068,12 +2145,12 @@ const [guideModal, setGuideModal] = useState<{
     ];
     const removedIds = new Set(
       removedRows
-        .map((row: any) => Number(row?.id ?? row?.hotspotId ?? row?.hotspot_ID ?? 0))
+        .map((row) => Number(row?.id ?? row?.hotspotId ?? row?.hotspot_ID ?? 0))
         .filter((id: number) => id > 0),
     );
 
     const routeScopedRows = sourceTimeline
-      .filter((row: any) => {
+      .filter((row) => {
         const rowRouteId = Number(
           row?.itinerary_route_ID ??
           row?.itineraryRouteId ??
@@ -2087,7 +2164,7 @@ const [guideModal, setGuideModal] = useState<{
         if (!Number.isFinite(rowRouteId) || rowRouteId <= 0) return true;
         return rowRouteId === Number(addHotspotModal.routeId);
       })
-      .filter((row: any) => {
+      .filter((row) => {
         if (removedIds.size === 0) return true;
 
         const hotspotId = Number(row?.hotspotId ?? row?.hotspot_ID ?? row?.locationId ?? 0);
@@ -2099,7 +2176,7 @@ const [guideModal, setGuideModal] = useState<{
         const text = String(row?.text || row?.name || '').toLowerCase();
         const toName = String(row?.toName || row?.to || row?.displayToName || '').toLowerCase();
 
-        return !removedRows.some((removed: any) => {
+        return !removedRows.some((removed) => {
           const removedName = String(removed?.name || '').toLowerCase().trim();
           return (
             removedName
@@ -2113,24 +2190,24 @@ const [guideModal, setGuideModal] = useState<{
       });
     const rows = [...routeScopedRows];
 
-    const anyHavePreviewOrder = rows.some((row: any) => (
+    const anyHavePreviewOrder = rows.some((row) => (
       Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder))
     ));
     if (anyHavePreviewOrder) {
-      return [...rows].sort((a: any, b: any) => (
+      return [...rows].sort((a, b) => (
         Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
         - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
       ));
     }
 
-    const hasMatrixOrderedRows = rows.some((row: any) => (
+    const hasMatrixOrderedRows = rows.some((row) => (
       row?.isMatrixSplitTravel === true || row?.isMatrixPositioned === true
     ));
     if (hasMatrixOrderedRows) {
       return rows;
     }
 
-    const parseStartMinutes = (value: any): number => {
+    const parseStartMinutes = (value): number => {
       const raw = String(value || '').trim();
       if (!raw || raw === '--' || /manual override/i.test(raw) || raw === 'Not schedulable') {
         return Number.POSITIVE_INFINITY;
@@ -2150,7 +2227,7 @@ const [guideModal, setGuideModal] = useState<{
       return hour * 60 + minute;
     };
 
-    const typePriority = (segment: any): number => {
+    const typePriority = (segment): number => {
       const rawType = String(segment?.type || segment?.itemType || '').toLowerCase();
       if (rawType === 'refreshment' || Number(segment?.item_type) === 1) return 0;
       if (rawType === 'travel' || Number(segment?.item_type) === 3) return 1;
@@ -2159,7 +2236,7 @@ const [guideModal, setGuideModal] = useState<{
       return 3;
     };
 
-    return rows.sort((a: any, b: any) => {
+    return rows.sort((a, b) => {
       const startDiff = parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange);
       if (startDiff !== 0) return startDiff;
       return typePriority(a) - typePriority(b);
@@ -2199,7 +2276,7 @@ const [guideModal, setGuideModal] = useState<{
     const seen = new Set<string>();
 
     return rows
-      .map((row: any) => {
+      .map((row) => {
         const hotspotId = Number(
           row?.hotspotId ||
           row?.hotspot_ID ||
@@ -2245,7 +2322,7 @@ const [guideModal, setGuideModal] = useState<{
       : [];
 
     const optionalKeys = new Set(
-      optionalRows.map((row: any) => {
+      optionalRows.map((row) => {
         const hotspotId = Number(
           row?.hotspotId ||
           row?.hotspot_ID ||
@@ -2263,7 +2340,7 @@ const [guideModal, setGuideModal] = useState<{
   }, [activePreviewResolution, previewRemovedHotspotDetails]);
 
   const pendingPriorityReplacementHotspotId = useMemo(() => {
-    const needsReplacementApproval = (resolution: any): boolean => {
+    const needsReplacementApproval = (resolution): boolean => {
       if (!resolution) return false;
       const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
         ? resolution.removedTopPriorityHotspots.length
@@ -2308,26 +2385,26 @@ const [guideModal, setGuideModal] = useState<{
     const enforceHotelOrderingSafety = (rows: any[]): any[] => {
       if (!Array.isArray(rows) || rows.length === 0) return rows;
 
-      const isHotelLike = (row: any): boolean => {
+      const isHotelLike = (row): boolean => {
         const type = String(row?.type || '').toLowerCase();
         const text = String(row?.text || row?.name || '').toLowerCase();
         return type === 'hotel' || Number(row?.item_type) === 6 || text.includes('check-in at hotel');
       };
-      const isRouteContent = (row: any): boolean => {
+      const isRouteContent = (row): boolean => {
         const type = String(row?.type || '').toLowerCase();
         return type === 'attraction' || type === 'travel' || Number(row?.item_type) === 3 || Number(row?.item_type) === 4;
       };
 
-      const hotelIndex = rows.findIndex((row: any) => isHotelLike(row));
+      const hotelIndex = rows.findIndex((row) => isHotelLike(row));
       if (hotelIndex < 0) return rows;
 
-      const hasLaterRouteContent = rows.slice(hotelIndex + 1).some((row: any) => isRouteContent(row));
+      const hasLaterRouteContent = rows.slice(hotelIndex + 1).some((row) => isRouteContent(row));
       if (!hasLaterRouteContent) return rows;
 
-      const anyHavePreviewOrder = rows.some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)));
+      const anyHavePreviewOrder = rows.some((row) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)));
       if (!anyHavePreviewOrder) return rows;
 
-      return [...rows].sort((a: any, b: any) => (
+      return [...rows].sort((a, b) => (
         Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
         - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
       ));
@@ -2336,26 +2413,26 @@ const [guideModal, setGuideModal] = useState<{
     const prunePrematureHotelTravelLegs = (rows: any[]): any[] => {
       if (!Array.isArray(rows) || rows.length === 0) return rows;
 
-      const isTravel = (row: any): boolean => {
+      const isTravel = (row): boolean => {
         const type = String(row?.type || '').toLowerCase();
         return type === 'travel' || Number(row?.item_type || 0) === 3 || Number(row?.item_type || 0) === 5;
       };
-      const isAttraction = (row: any): boolean => {
+      const isAttraction = (row): boolean => {
         const type = String(row?.type || '').toLowerCase();
         return type === 'attraction' || Number(row?.item_type || 0) === 4;
       };
-      const isHotelLike = (row: any): boolean => {
+      const isHotelLike = (row): boolean => {
         const type = String(row?.type || '').toLowerCase();
         const text = String(row?.text || row?.name || '').toLowerCase();
         return type === 'hotel' || type === 'checkin' || Number(row?.item_type || 0) === 6 || text.includes('check-in at ');
       };
-      const normalizeLabel = (value: any): string => String(value || '')
+      const normalizeLabel = (value): string => String(value || '')
         .toLowerCase()
         .replace(/^travel\s+to\s+/i, '')
         .replace(/^check-?in\s+at\s+/i, '')
         .replace(/\s+/g, ' ')
         .trim();
-      const parseStartMinutes = (value: any): number | null => {
+      const parseStartMinutes = (value): number | null => {
         const raw = String(value || '').trim();
         if (!raw) return null;
         const startPart = raw.split('-')[0]?.trim() || raw;
@@ -2368,7 +2445,7 @@ const [guideModal, setGuideModal] = useState<{
         if (ampm === 'PM' && h !== 12) h += 12;
         return (h * 60) + m;
       };
-      const parseEndMinutes = (value: any): number | null => {
+      const parseEndMinutes = (value): number | null => {
         const raw = String(value || '').trim();
         if (!raw || !raw.includes('-')) return null;
         const endPart = raw.split('-')[1]?.trim() || '';
@@ -2382,7 +2459,7 @@ const [guideModal, setGuideModal] = useState<{
         return (h * 60) + m;
       };
 
-      const hotelIndex = rows.findIndex((row: any) => isHotelLike(row));
+      const hotelIndex = rows.findIndex((row) => isHotelLike(row));
       if (hotelIndex <= 0) return rows;
 
       const hotelRow = rows[hotelIndex];
@@ -2402,7 +2479,7 @@ const [guideModal, setGuideModal] = useState<{
       })();
 
       const hotelTravelCandidates = rows
-        .map((row: any, index: number) => ({ row, index }))
+        .map((row, index: number) => ({ row, index }))
         .filter(({ row, index }) => {
           if (index >= hotelIndex || !isTravel(row)) return false;
           const target = normalizeLabel(row?.toName || row?.to || row?.text || row?.name);
@@ -2442,13 +2519,13 @@ const [guideModal, setGuideModal] = useState<{
 
       const filteredRows = dropSet.size === 0
         ? rows
-        : rows.filter((_: any, index: number) => !dropSet.has(index));
+        : rows.filter((_, index: number) => !dropSet.has(index));
 
       // When we keep computed C->B leg, align hotel/check-in to the travel end in preview.
-      const retainedTravel = filteredRows.find((row: any, index: number) => (
+      const retainedTravel = filteredRows.find((row, index: number) => (
         isTravel(row)
         && normalizeLabel(row?.toName || row?.to || row?.text || row?.name) === hotelLabel
-        && index < filteredRows.findIndex((candidate: any) => isHotelLike(candidate))
+        && index < filteredRows.findIndex((candidate) => isHotelLike(candidate))
       ));
       const retainedRange = String(retainedTravel?.timeRange || '').trim();
       const retainedEndText = retainedRange.includes(' - ')
@@ -2457,7 +2534,7 @@ const [guideModal, setGuideModal] = useState<{
 
       if (!retainedEndText) return filteredRows;
 
-      return filteredRows.map((row: any) => {
+      return filteredRows.map((row) => {
         if (!isHotelLike(row)) return row;
         return {
           ...row,
@@ -2470,7 +2547,7 @@ const [guideModal, setGuideModal] = useState<{
       if (!Array.isArray(rows) || rows.length === 0 || !selectedHotspotId) return rows;
 
       // Backend-provided matrix split travel rows already represent the correct route shape.
-      if (rows.some((row: any) => row?.isMatrixSplitTravel === true)) {
+      if (rows.some((row) => row?.isMatrixSplitTravel === true)) {
         return rows;
       }
 
@@ -2492,7 +2569,7 @@ const [guideModal, setGuideModal] = useState<{
       const fromName = String(safeChosen?.fromName || safeBest?.fromName || '').trim();
       if (!fromName) return rows;
 
-      const getSegHotspotId = (seg: any): number => Number(
+      const getSegHotspotId = (seg): number => Number(
         seg?.selectedHotspotId ??
         seg?.locationId ??
         seg?.hotspotId ??
@@ -2501,13 +2578,13 @@ const [guideModal, setGuideModal] = useState<{
         0,
       );
 
-      const selectedIdx = rows.findIndex((seg: any) => (
+      const selectedIdx = rows.findIndex((seg) => (
         String(seg?.type || '').toLowerCase() === 'attraction'
         && getSegHotspotId(seg) === selectedIdNum
       ));
       if (selectedIdx < 0) return rows;
 
-      const fromIdx = rows.findIndex((seg: any) => (
+      const fromIdx = rows.findIndex((seg) => (
         String(seg?.type || '').toLowerCase() === 'attraction'
         && String(seg?.text || '').trim() === fromName
       ));
@@ -2539,16 +2616,16 @@ const [guideModal, setGuideModal] = useState<{
     const removePlannedRemovalRows = (rows: any[]): any[] => {
       const removedIds = new Set(
         plannedRemovals
-          .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+          .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
           .filter((id: number) => Number.isFinite(id) && id > 0),
       );
       const removedNames = new Set(
         plannedRemovals
-          .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+          .map((row) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
           .filter(Boolean),
       );
 
-      return (rows || []).filter((row: any) => {
+      return (rows || []).filter((row) => {
         const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
         const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
 
@@ -2561,8 +2638,8 @@ const [guideModal, setGuideModal] = useState<{
     };
 
     const sortByPreviewOrder = (rows: any[]): any[] => {
-      if ((rows || []).some((row: any) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)))) {
-        return [...rows].sort((a: any, b: any) => (
+      if ((rows || []).some((row) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)))) {
+        return [...rows].sort((a, b) => (
           Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
           - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
         ));
@@ -2582,7 +2659,7 @@ const [guideModal, setGuideModal] = useState<{
       const orderedTimeline = prunePrematureHotelTravelLegs(
         enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline)),
       );
-      const insertedIndex = orderedTimeline.findIndex((row: any) => Number(
+      const insertedIndex = orderedTimeline.findIndex((row) => Number(
         row?.selectedHotspotId
         ?? row?.locationId
         ?? row?.hotspotId
@@ -2591,7 +2668,7 @@ const [guideModal, setGuideModal] = useState<{
         ?? 0,
       ) === Number(selectedHotspotId || 0));
 
-      console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row: any, index: number) => ({
+      console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row, index: number) => ({
         index,
         type: String(row?.type || '').toLowerCase(),
         text: String(row?.text || row?.name || ''),
@@ -2607,7 +2684,7 @@ const [guideModal, setGuideModal] = useState<{
     }
 
     const activeAttractionCount = activePreviewTimeline.filter(
-      (seg: any) => String(seg?.type || '').toLowerCase() === 'attraction',
+      (seg) => String(seg?.type || '').toLowerCase() === 'attraction',
     ).length;
     const selectedCount = selectedHotspotIds.length;
     const hasMatrixFit = Boolean(fit);
@@ -2633,7 +2710,7 @@ const [guideModal, setGuideModal] = useState<{
 
     const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
 
-    const parseStartMinutes = (value: any): number => {
+    const parseStartMinutes = (value): number => {
       const raw = String(value || '').trim();
       if (!raw || raw === '--') return Number.POSITIVE_INFINITY;
 
@@ -2651,7 +2728,7 @@ const [guideModal, setGuideModal] = useState<{
       return hour * 60 + minute;
     };
 
-    const sortedMerged = merged.sort((a: any, b: any) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
+    const sortedMerged = merged.sort((a, b) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
     return enforceHotelOrderingSafety(applyBestSlotOrdering(sortedMerged));
   }, [
     activePreviewResolution,
@@ -2683,10 +2760,10 @@ const [guideModal, setGuideModal] = useState<{
 
   const manualAttemptDisplayMeta = useMemo(() => {
     const attempts = Array.isArray(activeManualOptimizer?.attempts) ? activeManualOptimizer.attempts : [];
-    const authoritative = attempts.length > 0 && attempts.every((attempt: any) => (
+    const authoritative = attempts.length > 0 && attempts.every((attempt) => (
       String(attempt?.source || '').toUpperCase() === 'REAL_CLUSTER_SIMULATION'
     ));
-    const wrapperOnly = attempts.length > 0 && attempts.every((attempt: any) => (
+    const wrapperOnly = attempts.length > 0 && attempts.every((attempt) => (
       String(attempt?.source || '').toUpperCase() === 'CANDIDATE_WRAPPER'
     ));
     return { attempts, authoritative, wrapperOnly };
@@ -2715,18 +2792,18 @@ const [guideModal, setGuideModal] = useState<{
     const routeId = Number(addHotspotModal.routeId || 0);
     const routeDay = itinerary?.days?.find((day) => Number(day?.id) === routeId);
     const routeCheckin = Array.isArray(routeDay?.segments)
-      ? [...routeDay!.segments].reverse().find((segment: any) => String(segment?.type || '').toLowerCase() === 'checkin')
+      ? [...routeDay!.segments].reverse().find((segment) => String(segment?.type || '').toLowerCase() === 'checkin')
       : null;
     const routeCheckinName = sanitize((routeCheckin as any)?.hotelName);
     if (routeCheckinName) return routeCheckinName;
 
     const selectedRouteHotelName = sanitize(
       (hotelDetails?.hotels || [])
-        .filter((hotel: any) => Number(hotel?.itineraryRouteId) === routeId)
-        .filter((hotel: any) => Number(hotel?.itineraryPlanHotelDetailsId || 0) > 0)
-        .sort((a: any, b: any) => Number(b?.itineraryPlanHotelDetailsId || 0) - Number(a?.itineraryPlanHotelDetailsId || 0))
-        .map((hotel: any) => hotel?.hotelName)
-        .find((name: any) => sanitize(name).length > 0)
+        .filter((hotel) => Number(hotel?.itineraryRouteId) === routeId)
+        .filter((hotel) => Number(hotel?.itineraryPlanHotelDetailsId || 0) > 0)
+        .sort((a, b) => Number(b?.itineraryPlanHotelDetailsId || 0) - Number(a?.itineraryPlanHotelDetailsId || 0))
+        .map((hotel) => hotel?.hotelName)
+        .find((name) => sanitize(name).length > 0)
     );
     if (selectedRouteHotelName) return selectedRouteHotelName;
 
@@ -2734,7 +2811,7 @@ const [guideModal, setGuideModal] = useState<{
     if (fitName) return fitName;
 
     const hotelDetailsName = sanitize(
-      hotelDetails?.hotels?.find((hotel: any) => Number(hotel?.itineraryRouteId) === routeId)?.hotelName
+      hotelDetails?.hotels?.find((hotel) => Number(hotel?.itineraryRouteId) === routeId)?.hotelName
     );
     if (hotelDetailsName) return hotelDetailsName;
 
@@ -2885,7 +2962,7 @@ const [guideModal, setGuideModal] = useState<{
 
     return (
       selectedPreviewCityContext === 'DESTINATION_CITY'
-      || sources.some((source: any) => {
+      || sources.some((source) => {
         const code = String(source?.code || '').toUpperCase();
         const reason = String(source?.validation?.reason || source?.reason || '').toUpperCase();
         const cityContext = String(source?.hotspotCityContext || '').toUpperCase();
@@ -3231,9 +3308,6 @@ const [guideModal, setGuideModal] = useState<{
     };
   }, [
     activePreviewHotspotId,
-    activePreviewValidation?.readyToApply,
-    activePreviewValidation?.requiresPriorityConfirmation,
-    activePreviewValidation?.routeEndOverflowMinutes,
     isMatrixBuiltButNoFeasibleSlot,
     isMatrixMissingBlockedState,
     matrixApplyBlocked,
@@ -3242,6 +3316,7 @@ const [guideModal, setGuideModal] = useState<{
     manualPreviewState,
     activePreviewResolution,
     groupPreviewResolution,
+    activePreviewValidation,
   ]);
 
   const resolvedRemovalTimelineLeak = useMemo(() => {
@@ -3255,16 +3330,16 @@ const [guideModal, setGuideModal] = useState<{
 
     const removedIds = new Set(
       plannedRemovals
-        .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
+        .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
         .filter((id: number) => Number.isFinite(id) && id > 0),
     );
     const removedNames = new Set(
       plannedRemovals
-        .map((row: any) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
+        .map((row) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
         .filter(Boolean),
     );
 
-    return effectivePreviewTimeline.some((row: any) => {
+    return effectivePreviewTimeline.some((row) => {
       const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
       const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
       if (rowId > 0 && removedIds.has(rowId)) return true;
@@ -3280,7 +3355,7 @@ const [guideModal, setGuideModal] = useState<{
     const allSlots: any[] = Array.isArray(matrixFit?.allSlotResults)
       ? matrixFit.allSlotResults
       : [];
-    return allSlots.filter((slot: any) => (
+    return allSlots.filter((slot) => (
       Number(slot?.fromHotspotId) !== selectedIdNum
       && Number(slot?.toHotspotId) !== selectedIdNum
     ));
@@ -3293,7 +3368,7 @@ const [guideModal, setGuideModal] = useState<{
     const chosen = (matrixFit as any)?.chosenSlot ?? null;
     const best = (matrixFit as any)?.bestSlot ?? null;
 
-    const isInvalid = (slot: any): boolean => {
+    const isInvalid = (slot): boolean => {
       if (!slot) return true;
       return Number(slot?.fromHotspotId) === selectedIdNum || Number(slot?.toHotspotId) === selectedIdNum;
     };
@@ -3301,7 +3376,7 @@ const [guideModal, setGuideModal] = useState<{
     if (!isInvalid(chosen)) return chosen;
     if (!isInvalid(best)) return best;
 
-    return safeMatrixSlots.find((slot: any) => !isInvalid(slot)) || null;
+    return safeMatrixSlots.find((slot) => !isInvalid(slot)) || null;
   }, [matrixFit, matrixRequiresBuild, safeMatrixSlots, selectedHotspotId]);
 
   /** Helper: map route_fit_type to Tailwind badge classes */
@@ -3362,7 +3437,7 @@ const [guideModal, setGuideModal] = useState<{
     // Determine which slotIndex is best from matrix-fit payload
     const bestSlotIndex: number | null = matrixFit?.bestSlot?.slotIndex ?? null;
 
-    return rawSlots.map((slot: any, index: number) => {
+    return rawSlots.map((slot, index: number) => {
       const fromName = slot?.fromName || stopNames[index] || `Stop ${index + 1}`;
       const rawToName = String(slot?.toName || stopNames[index + 1] || 'Destination').trim();
       const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
@@ -3463,7 +3538,6 @@ const [guideModal, setGuideModal] = useState<{
     selectedHotspotId,
     matrixFit,
     matrixRequiresBuild,
-    safeMatrixSlots,
     destinationHotelDisplayName,
     manualPreviewState?.manualInsertionFit?.hotspotCityContext,
   ]);
@@ -3471,7 +3545,7 @@ const [guideModal, setGuideModal] = useState<{
 
   const activeAnchorFitInsight = useMemo(() => {
     if (matrixRequiresBuild) return null;
-    const bestSlot = normalizedInsertionSlots.find((slot: any) => slot?.isBest)
+    const bestSlot = normalizedInsertionSlots.find((slot) => slot?.isBest)
       || normalizedInsertionSlots[0]
       || null;
     const routeId = Number(addHotspotModal.routeId || 0);
@@ -3594,8 +3668,8 @@ const [guideModal, setGuideModal] = useState<{
     normalizedInsertionSlots,
     selectedHotspotId,
     matrixFit,
+    manualPreviewState,
     destinationHotelDisplayName,
-    manualPreviewState?.manualInsertionFit?.hotspotCityContext,
   ]);
 
 
@@ -3605,9 +3679,9 @@ const [guideModal, setGuideModal] = useState<{
 
     if (slots.length === 0) return null;
 
-    return slots.find((slot: any) => slot?.isBest)
+    return slots.find((slot) => slot?.isBest)
       || [...slots].sort(
-        (a: any, b: any) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
+        (a, b) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
       )[0]
       || null;
   }, [matrixRequiresBuild, normalizedInsertionSlots]);
@@ -3943,7 +4017,7 @@ const [guideModal, setGuideModal] = useState<{
       if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
       // Within same group: lower priority number = more important = shown first
       // Treat 0 as unset (worst) so it never floats above real P1-P18
-      const normP = (p: any) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
+      const normP = (p) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
       const pa = normP((a as any).priority);
       const pb = normP((b as any).priority);
       if (pa !== pb) return pa - pb;
@@ -4598,7 +4672,7 @@ useEffect(() => {
     fetchCompleteHotelDetailsRef.current = fetchCompleteHotelDetails;
   }, [fetchCompleteHotelDetails]);
 
-  const normalizeConfirmedHotelResponse = useCallback((payload: any): ItineraryHotelDetailsResponse => {
+  const normalizeConfirmedHotelResponse = useCallback((payload): ItineraryHotelDetailsResponse => {
     if (payload?.hotelTabs && Array.isArray(payload?.hotels)) {
       return {
         hotelRatesVisible: Boolean(payload?.hotelRatesVisible),
@@ -4611,7 +4685,7 @@ useEffect(() => {
 
     const hotels = Array.isArray(payload?.hotels) ? payload.hotels : [];
     const totalRoutes = itineraryDaysCountRef.current;
-    const supplierHotelCount = hotels.filter((hotel: any) => normalizeHotelProvider(hotel) !== 'external').length;
+    const supplierHotelCount = hotels.filter((hotel) => normalizeHotelProvider(hotel) !== 'external').length;
     const placeholderRowCount = hotels.length - supplierHotelCount;
 
     return {
@@ -4622,7 +4696,7 @@ useEffect(() => {
           groupType: 1,
           label: 'Booked Hotels',
           totalAmount: hotels.reduce(
-            (sum: number, hotel: any) =>
+            (sum: number, hotel) =>
               sum + Number(hotel?.totalHotelCost || 0) + Number(hotel?.totalHotelTaxAmount || 0),
             0,
           ),
@@ -4763,9 +4837,9 @@ useEffect(() => {
       }
 
       const confirmedRowsTotal = (hotelDetails?.hotels || [])
-        .filter((hotel: any) => !hotel?.externalStay && normalizeHotelProvider(hotel) !== 'external')
+        .filter((hotel) => !hotel?.externalStay && normalizeHotelProvider(hotel) !== 'external')
         .reduce(
-          (sum: number, hotel: any) =>
+          (sum: number, hotel) =>
             sum +
             Number(hotel?.totalHotelCost || 0) +
             Number(hotel?.totalHotelTaxAmount || 0),
@@ -4831,7 +4905,6 @@ useEffect(() => {
     hotelReadOnly,
     activeHotelListTotal,
     selectedHotelTotal,
-    selectedHotelMetaByRoute,
     hotelDetails,
     activeHotelGroupType,
     itinerary?.costBreakdown?.totalHotelAmount,
@@ -5035,7 +5108,7 @@ useEffect(() => {
       return raw.split('T')[0] || raw;
     };
 
-    const formatHotelDayLabel = (day: any, index: number): string => {
+    const formatHotelDayLabel = (day, index: number): string => {
       const dayNumber = Number(day?.dayNumber || index + 1);
       const dateOnly = normalizeDateOnly(day?.date);
 
@@ -5044,7 +5117,7 @@ useEffect(() => {
         : `Day ${dayNumber}`;
     };
 
-    const getHotelRouteId = (hotel: any): number =>
+    const getHotelRouteId = (hotel): number =>
       Number(
         hotel?.itineraryRouteId ||
         hotel?.routeId ||
@@ -5052,7 +5125,7 @@ useEffect(() => {
         0,
       );
 
-    const getHotelDayNumber = (hotel: any): number => {
+    const getHotelDayNumber = (hotel): number => {
       const explicitDayNumber = Number(
         hotel?.dayNumber ||
         hotel?.noOfDays ||
@@ -5073,7 +5146,7 @@ useEffect(() => {
         : 0;
     };
 
-    const getHotelDate = (hotel: any): string =>
+    const getHotelDate = (hotel): string =>
       normalizeDateOnly(
         hotel?.date ||
         hotel?.checkInDate ||
@@ -5082,7 +5155,7 @@ useEffect(() => {
         '',
       );
 
-    const isSameDestination = (hotel: any, day: any): boolean => {
+    const isSameDestination = (hotel, day): boolean => {
       const hotelDestination = normalizeText(hotel?.destination);
       const dayDestination = normalizeText(day?.arrival || day?.departure);
 
@@ -5097,25 +5170,25 @@ useEffect(() => {
 
     const usedHotelIndexes = new Set<number>();
 
-    const findHotelForDay = (day: any, dayIndex: number): ItineraryHotelRow | null => {
+    const findHotelForDay = (day, dayIndex: number): ItineraryHotelRow | null => {
       const routeId = Number(day?.id || 0);
       const dayNumber = Number(day?.dayNumber || dayIndex + 1);
       const dayDate = normalizeDateOnly(day?.date);
 
-      let matchedIndex = rows.findIndex((hotel: any, index: number) => {
+      let matchedIndex = rows.findIndex((hotel, index: number) => {
         if (usedHotelIndexes.has(index)) return false;
         return routeId > 0 && getHotelRouteId(hotel) === routeId;
       });
 
       if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel: any, index: number) => {
+        matchedIndex = rows.findIndex((hotel, index: number) => {
           if (usedHotelIndexes.has(index)) return false;
           return getHotelDayNumber(hotel) === dayNumber;
         });
       }
 
       if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel: any, index: number) => {
+        matchedIndex = rows.findIndex((hotel, index: number) => {
           if (usedHotelIndexes.has(index)) return false;
 
           const hotelDate = getHotelDate(hotel);
@@ -5147,7 +5220,7 @@ useEffect(() => {
 
       const hotelDetailsIds = Array.isArray(matched?.hotelDetailsIds)
         ? matched.hotelDetailsIds
-            .map((id: any) => Number(id))
+            .map((id) => Number(id))
             .filter((id: number) => Number.isFinite(id) && id > 0)
         : itineraryPlanHotelDetailsId > 0
           ? [itineraryPlanHotelDetailsId]
@@ -5181,11 +5254,11 @@ useEffect(() => {
     const totalDays = Number(itinerary?.dayCount || itinerary?.days?.length || 0);
 
     const orderedRows = itinerary.days
-      .filter((day: any, index: number) => {
+      .filter((day, index: number) => {
         const dayNumber = Number(day?.dayNumber || index + 1);
 
         if (totalDays > 0 && dayNumber === totalDays) {
-          return rows.some((hotel: any) => {
+          return rows.some((hotel) => {
             const routeId = Number(day?.id || 0);
             return (
               getHotelRouteId(hotel) === routeId ||
@@ -5196,7 +5269,7 @@ useEffect(() => {
 
         return true;
       })
-      .map((day: any, index: number) => {
+      .map((day, index: number) => {
         const routeId = Number(day?.id || 0);
         const dayNumber = Number(day?.dayNumber || index + 1);
         const dateOnly = normalizeDateOnly(day?.date);
@@ -5816,13 +5889,13 @@ const specialInstructionsText = useMemo(() => {
     }));
   }, [hotelDetails]);
 
-  const buildDefaultClipboardSelection = () => {
+  const buildDefaultClipboardSelection = useCallback(() => {
     const next: Record<string, boolean> = {};
     paraRecommendations.forEach((_item, idx) => {
       next[`para-${idx}`] = true;
     });
     return next;
-  };
+  }, [paraRecommendations]);
 
   useEffect(() => {
     setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
@@ -5871,7 +5944,7 @@ const specialInstructionsText = useMemo(() => {
     if (!hasAnySelected) {
       setSelectedHotels(buildDefaultClipboardSelection());
     }
-  }, [clipboardModal, paraRecommendations, selectedHotels]);
+  }, [clipboardModal, paraRecommendations, selectedHotels, buildDefaultClipboardSelection]);
 
   const escapeHtml = (value: unknown) => {
     return String(value ?? "")
@@ -5898,7 +5971,7 @@ const specialInstructionsText = useMemo(() => {
     return Number.isFinite(amount) ? amount : 0;
   };
 
-  const getWalletAmountFromResponse = (walletData: any): number => {
+  const getWalletAmountFromResponse = (walletData): number => {
     return parseWalletAmount(
       walletData?.balance ??
         walletData?.wallet_balance ??
@@ -5915,16 +5988,7 @@ const specialInstructionsText = useMemo(() => {
 
     return Number(amount.toFixed(2));
   };
- const getVehicleAmountNumber = (vehicle: any): number => {
-  const raw =
-    vehicle?.grandTotal ??
-    vehicle?.vehicleGrandTotal ??
-    vehicle?.totalAmount ??
-    vehicle?.total_amount ??
-    vehicle?.TotalAmount ??
-    vehicle?.finalAmount ??
-    vehicle?.amount ??
-    0;
+  /*
 
   if (typeof raw === "number") {
     return Number.isFinite(raw) ? raw : 0;
@@ -5941,17 +6005,8 @@ const specialInstructionsText = useMemo(() => {
   return Number.isFinite(amount) ? amount : 0;
 };
 
-const getCheapestVehicleForType = (vehicles: ItineraryVehicleRow[]) => {
-  if (!vehicles.length) return null;
-
-  return vehicles.reduce((cheapest, current) => {
-    return getVehicleAmountNumber(current) < getVehicleAmountNumber(cheapest)
-      ? current
-      : cheapest;
-  }, vehicles[0]);
-};
-
-  const getHotelSelectionAmount = (hotel: any): number => {
+  */
+  const getHotelSelectionAmount = (hotel): number => {
     const directTotal = Number(hotel?.totalAmount ?? hotel?.totalPrice ?? 0);
     if (Number.isFinite(directTotal) && directTotal > 0) {
       return toMoneyNumber(directTotal);
@@ -6312,7 +6367,7 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
         ${
           Array.isArray(totals.entryTicketBreakdown) && totals.entryTicketBreakdown.length > 0
             ? totals.entryTicketBreakdown
-                .map((item: any) => `
+                .map((item) => `
                   <tr>
                     <td style="${cellStyle}padding-left:18px;color:#5d5d5d;">Day ${escapeHtml(item.dayNumber || 0)} - ${escapeHtml(item.locationName || "Sightseeing Location")}</td>
                     <td style="${cellStyle}color:#5d5d5d;">${escapeHtml(moneyWithSymbol(item.amount || 0))}</td>
@@ -7151,14 +7206,14 @@ const switchedRouteRef = useRef<string | null>(null);
   const selectedTboHotelTotal = useMemo(
     () =>
       Object.values(selectedHotelBookings)
-        .filter((item: any) => normalizeHotelProvider(item) === 'tbo')
-        .reduce((sum, item: any) => sum + Number(item.netAmount || 0), 0),
+        .filter((item) => normalizeHotelProvider(item) === 'tbo')
+        .reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
     [selectedHotelBookings],
   );
   const hasSelectedTboHotels = useMemo(
     () =>
       Object.values(selectedHotelBookings).some(
-        (item: any) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === 'tbo',
+        (item) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === 'tbo',
       ),
     [selectedHotelBookings],
   );
@@ -7173,7 +7228,7 @@ const switchedRouteRef = useRef<string | null>(null);
       const fallbackRouteId = Number(routeIdRaw);
       const routeIds = Array.isArray(hotel?.routeIds)
         ? hotel.routeIds
-            .map((id: any) => Number(id))
+            .map((id) => Number(id))
             .filter((id: number) => Number.isFinite(id) && id > 0)
         : [];
 
@@ -7206,9 +7261,9 @@ const switchedRouteRef = useRef<string | null>(null);
       const routeIdNum = Number(routeId);
 
       if (!h?.multiNightBooking && selectedHotelCoveredRouteIds.has(routeIdNum)) {
-        const parentForRoute = Object.values(selectedHotelBookings).find((selected: any) => {
+        const parentForRoute = Object.values(selectedHotelBookings).find((selected) => {
           const routeIds = Array.isArray(selected?.routeIds)
-            ? selected.routeIds.map((id: any) => Number(id))
+            ? selected.routeIds.map((id) => Number(id))
             : [];
 
           return selected?.multiNightBooking && routeIds.includes(routeIdNum);
@@ -7232,18 +7287,18 @@ const switchedRouteRef = useRef<string | null>(null);
 
       const displayRouteIds = Array.isArray(h?.routeIds) && h.routeIds.length > 0
         ? h.routeIds
-            .map((id: any) => Number(id))
+            .map((id) => Number(id))
             .filter((id: number) => Number.isFinite(id) && id > 0)
         : [routeIdNum];
 
-      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row: any) =>
+      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row) =>
         displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
         normalizeHotelProvider(row) === selectedProvider &&
         isSupplierBookableHotel(row),
       );
 
       const matchedHotelRow =
-        routeRows.find((row: any) => {
+        routeRows.find((row) => {
           const rowBookingCode = String(row?.bookingCode || row?.searchReference || '').trim();
           const rowHotelCode = String(row?.hotelCode || '').trim();
           const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
@@ -7270,7 +7325,6 @@ const switchedRouteRef = useRef<string | null>(null);
       };
     });
   }, [
-    getCoveredRouteIdsFromHotelSelections,
     hotelDetails?.hotels,
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
@@ -7311,11 +7365,11 @@ const switchedRouteRef = useRef<string | null>(null);
       1;
 
     return hotelDetails.hotels
-      .filter((row: any) =>
+      .filter((row) =>
         Number(row?.groupType) === Number(preferredGroupType) &&
         !isSupplierBookableHotel(row),
       )
-      .map((row: any) => ({
+      .map((row) => ({
         routeId: Number(row?.itineraryRouteId || 0),
         destination: String(row?.destination || '').trim(),
         day: String(row?.day || '').trim(),
@@ -7348,7 +7402,7 @@ const switchedRouteRef = useRef<string | null>(null);
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
   type HotelProvider = 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' | 'staah';
 
-const inferHotelProvider = (entry: any): HotelProvider => {
+const inferHotelProvider = (entry): HotelProvider => {
   const provider = String(entry?.provider || '')
     .trim()
     .toLowerCase();
@@ -7369,15 +7423,15 @@ const inferHotelProvider = (entry: any): HotelProvider => {
 
   return 'tbo';
 };
-  function normalizeHotelProvider(entry: any): string {
+  function normalizeHotelProvider(entry): string {
     return String(entry?.provider || '').trim().toLowerCase();
   }
 
-  function getHotelCodeForBooking(entry: any): string {
+  function getHotelCodeForBooking(entry): string {
     return String(entry?.hotelCode || entry?.hotelId || '').trim();
   }
 
-  function getBookingCodeForBooking(entry: any): string {
+  function getBookingCodeForBooking(entry): string {
     return String(
       entry?.bookingCode ||
       entry?.searchReference ||
@@ -7386,7 +7440,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     ).trim();
   }
 
-  function parseStaahSearchReference(reference: any): {
+  function parseStaahSearchReference(reference): {
     propertyId: string;
     roomId: string;
     rateId: string;
@@ -7412,7 +7466,7 @@ const inferHotelProvider = (entry: any): HotelProvider => {
     return { propertyId, roomId, rateId };
   }
 
-function getHotelAmountForBooking(entry: any): number {
+function getHotelAmountForBooking(entry): number {
   const netAmount = Number(entry?.netAmount);
   if (Number.isFinite(netAmount) && netAmount > 0) {
     return netAmount;
@@ -7434,7 +7488,7 @@ function getHotelAmountForBooking(entry: any): number {
   return 0;
 }
 
-  function isNoHotelAvailableEntry(entry: any): boolean {
+  function isNoHotelAvailableEntry(entry): boolean {
     const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
     const hotelCode = getHotelCodeForBooking(entry);
     const provider = normalizeHotelProvider(entry);
@@ -7454,38 +7508,7 @@ function getHotelAmountForBooking(entry: any): number {
     );
   }
 
-  function isSupplierBookableHotel(entry: any): boolean {
-    if (!entry || isNoHotelAvailableEntry(entry)) {
-      return false;
-    }
-
-    const provider = normalizeHotelProvider(entry);
-    const hotelCode = getHotelCodeForBooking(entry);
-    const bookingCode = getBookingCodeForBooking(entry);
-    const amount = getHotelAmountForBooking(entry);
-
-    const supportedProviders = ['tbo', 'resavenue', 'hobse', 'axisrooms', 'staah'];
-
-    if (!supportedProviders.includes(provider)) {
-      return false;
-    }
-
-    if (!hotelCode || hotelCode === '0') {
-      return false;
-    }
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return false;
-    }
-
-    if (provider === 'tbo') {
-      return bookingCode.includes('!TB!');
-    }
-
-    return true;
-  }
-
-  const resolveConfirmNationality = (plan: any, fallbackNationality: string = 'IN'): string => {
+  const resolveConfirmNationality = (plan, fallbackNationality: string = 'IN'): string => {
     const explicitIso2 = String(
       plan?.nationality_iso2 ||
       plan?.nationality_shortname ||
@@ -7766,7 +7789,7 @@ const applyChildAgesToTemplate = (
     return text;
   };
 
-  const normalizePrebookItems = (value: any): string[] => {
+  const normalizePrebookItems = (value): string[] => {
     if (!value) {
       return [];
     }
@@ -7782,7 +7805,7 @@ const applyChildAgesToTemplate = (
       .filter(Boolean);
   };
 
-  const resolvePrebookInclusions = (hotel: any): string[] => {
+  const resolvePrebookInclusions = (hotel): string[] => {
     const candidateLists = [
       hotel?.inclusions,
       hotel?.Inclusions,
@@ -7800,7 +7823,7 @@ const applyChildAgesToTemplate = (
     return Array.from(new Set(merged.map((item) => String(item || '').trim()).filter(Boolean)));
   };
 
-  const resolvePrebookMealPlan = (hotel: any): string => {
+  const resolvePrebookMealPlan = (hotel): string => {
     const direct = [
       hotel?.mealPlan,
       hotel?.MealPlan,
@@ -7841,12 +7864,12 @@ const applyChildAgesToTemplate = (
     return '';
   };
 
-  const normalizeCancellationPolicyItems = (value: any): string[] => {
+  const normalizeCancellationPolicyItems = (value): string[] => {
     if (!value) {
       return [];
     }
 
-    const chargeLabel = (chargeType: string, amount: any) => {
+    const chargeLabel = (chargeType: string, amount) => {
       const normalizedType = String(chargeType || '').toLowerCase();
       const num = Number(amount);
       const safeAmount = Number.isFinite(num) ? num : amount;
@@ -7859,7 +7882,7 @@ const applyChildAgesToTemplate = (
       return String(safeAmount);
     };
 
-    const formatEntry = (item: any) => {
+    const formatEntry = (item) => {
       if (!item) return '';
 
       if (typeof item === 'string') {
@@ -7950,7 +7973,7 @@ const applyChildAgesToTemplate = (
         setActiveHotelListTotal(0);
       }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
-    } catch (e: any) {
+    } catch (e) {
       console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
     } finally {
       setLoadingHotels(false);
@@ -7964,15 +7987,15 @@ const applyChildAgesToTemplate = (
       const detailsRes = await ItineraryService.getDetails(quoteId);
       console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
         vehicleCount: Array.isArray((detailsRes as any)?.vehicles) ? (detailsRes as any).vehicles.length : 0,
-        vehicles: ((detailsRes as any)?.vehicles || []).map((v: any) => ({
+        vehicles: ((detailsRes as any)?.vehicles || []).map((v) => ({
           vehicleTypeName: v.vehicleTypeName,
           vendorEligibleId: v.vendorEligibleId,
-          totals: v.dayWisePricing?.map((d: any) => d.totalKms),
+          totals: v.dayWisePricing?.map((d) => d.totalKms),
           totalAmount: v.totalAmount,
         })),
       });
       setItinerary(detailsRes as ItineraryDetailsResponse);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to refresh vehicle data", e);
     }
   }, [quoteId]);
@@ -8007,7 +8030,7 @@ const applyChildAgesToTemplate = (
           vehicles: prev!.vehicles,
         };
       });
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to update data for group type change", e);
     }
   }, [quoteId]);
@@ -8087,7 +8110,7 @@ const applyChildAgesToTemplate = (
           : 'Hotel voucher cancelled successfully',
       );
       await refreshHotelData();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to cancel hotel vouchers', error);
       toast.error(error?.message || 'Failed to cancel hotel voucher(s)');
     }
@@ -8167,7 +8190,7 @@ const applyChildAgesToTemplate = (
         const routeIdNum = Number(routeIdRaw);
         const routeIds = Array.isArray((booking as any)?.routeIds)
           ? (booking as any).routeIds
-              .map((id: any) => Number(id))
+              .map((id) => Number(id))
               .filter((id: number) => Number.isFinite(id) && id > 0)
           : [];
 
@@ -8195,7 +8218,7 @@ const applyChildAgesToTemplate = (
       canonicalParents.forEach((parentBooking, canonicalRouteId) => {
         const routeIds = Array.isArray(parentBooking.routeIds)
           ? parentBooking.routeIds
-              .map((id: any) => Number(id))
+              .map((id) => Number(id))
               .filter((id: number) => Number.isFinite(id) && id > 0)
           : [];
 
@@ -8262,7 +8285,7 @@ const applyChildAgesToTemplate = (
       setHotelDetails(completeHotelRes as ItineraryHotelDetailsResponse);
       cacheRouteHotelDetails(quoteId, completeHotelRes as ItineraryHotelDetailsResponse);
       toast.success('Hotels rebuilt successfully');
-    } catch (e: any) {
+    } catch (e) {
       toast.error(e?.message || 'Failed to rebuild hotels');
     } finally {
       setLoadingHotels(false);
@@ -8273,7 +8296,7 @@ const applyChildAgesToTemplate = (
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
     if (!vehicles.length) return false;
-    return vehicles.some((vehicle: any) => {
+    return vehicles.some((vehicle) => {
       const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
       const vehicleTypeId = Number(vehicle?.vehicleTypeId || 0);
       const totalAmount = Number(vehicle?.totalAmount);
@@ -8332,7 +8355,7 @@ setItinerary(details);
         return;
       }
 
-      const extractRouteOptionQuoteId = (option: any) =>
+      const extractRouteOptionQuoteId = (option) =>
   String(
     option?.quoteId ||
       option?.routeQuoteId ||
@@ -8416,7 +8439,7 @@ try {
   }
 
   await finalizePage(finalDetails);
-} catch (vehicleBuildError: any) {
+} catch (vehicleBuildError) {
   if (shouldStrictlyRequireVehicleBuild) {
     throw vehicleBuildError;
   }
@@ -8433,7 +8456,7 @@ try {
 
   await finalizePage(initialDetails);
 }
-    } catch (e: any) {
+    } catch (e) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", e);
       setVehicleBuildStatus("FAILED");
@@ -8451,7 +8474,7 @@ try {
     }
   }
 }
-  }, [cacheRouteHotelDetails, getDetailsDeduped, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
+  }, [cacheRouteHotelDetails, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
 
   useEffect(() => {
     if (!quoteId) {
@@ -8528,7 +8551,7 @@ if (switchedRouteRef.current === quoteId) {
 
       setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
       return hotelRes;
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to load hotel details", error);
       toast.error("Failed to load hotel details");
       return null;
@@ -8546,6 +8569,8 @@ if (switchedRouteRef.current === quoteId) {
     try {
       const deletedMasterHotspotId = Number(deleteHotspotModal.masterHotspotId || 0);
       const deletedRouteId = Number(deleteHotspotModal.routeId);
+      const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
+      const confirmedRouteId = deletedRouteId;
 
       await ItineraryService.deleteHotspot(
         deleteHotspotModal.planId,
@@ -8581,9 +8606,10 @@ if (switchedRouteRef.current === quoteId) {
             if (Number(day.id) !== deletedRouteId) return day;
             return {
               ...day,
-              segments: day.segments.filter((seg: any) => {
+              segments: day.segments.filter((seg) => {
                 if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
-                const segHotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
+                const attraction = seg as AttractionSegment;
+                const segHotspotId = Number(attraction?.hotspotId ?? attraction?.locationId ?? 0);
                 if (deletedMasterHotspotId <= 0) return true;
                 return segHotspotId !== deletedMasterHotspotId;
               }),
@@ -8636,7 +8662,7 @@ if (switchedRouteRef.current === quoteId) {
         if (addHotspotModal.open && confirmedRouteId > 0) {
           try {
             const refreshedRoute = refreshedDetails?.days?.find(
-              (day: any) => Number(day?.id || 0) === confirmedRouteId,
+              (day) => Number(day?.id || 0) === confirmedRouteId,
             );
 
             const refreshedActiveIds = new Set<number>(
@@ -8644,8 +8670,8 @@ if (switchedRouteRef.current === quoteId) {
                 ? (refreshedRoute as any).segments
                 : []
               )
-                .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
-                .filter((seg: any) => {
+                .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
+                .filter((seg) => {
                   const deletedLike =
                     seg?.isDeleted === true ||
                     seg?.deleted === true ||
@@ -8659,7 +8685,7 @@ if (switchedRouteRef.current === quoteId) {
 
                   return !deletedLike;
                 })
-                .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+                .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
                 .filter((id: number) => Number.isFinite(id) && id > 0),
             );
 
@@ -8713,7 +8739,7 @@ if (switchedRouteRef.current === quoteId) {
           }
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to delete hotspot", e);
       toast.error(e?.message || "Failed to delete hotspot");
     } finally {
@@ -8726,14 +8752,14 @@ if (switchedRouteRef.current === quoteId) {
       quoteId,
       planId: itinerary?.planId,
       clickedRouteId: routeId,
-      currentDayIds: itinerary?.days?.map((d: any) => ({
+      currentDayIds: itinerary?.days?.map((d) => ({
         dayNumber: d.dayNumber,
         id: d.id,
         needsRebuild: d.needsRebuild,
         excludedHotspotIds: d.excludedHotspotIds,
       })),
     });
-    const currentRouteIds = new Set((itinerary?.days || []).map((d: any) => Number(d.id)));
+    const currentRouteIds = new Set((itinerary?.days || []).map((d) => Number(d.id)));
     if (!currentRouteIds.has(Number(routeId))) {
       if (quoteId) {
         const detailsRes = await ItineraryService.getDetails(quoteId);
@@ -8744,7 +8770,7 @@ if (switchedRouteRef.current === quoteId) {
     }
 
     setIsRebuilding(true);
-    const rebuildDay = itinerary?.days?.find((d: any) => Number(d?.id) === Number(routeId)) || null;
+    const rebuildDay = itinerary?.days?.find((d) => Number(d?.id) === Number(routeId)) || null;
     const rebuildDayNumber = Number(rebuildDay?.dayNumber || 0);
     const rebuildEstimateMs = Math.max(12000, getRouteTimeUpdateEstimateMs(rebuildDayNumber || 1));
     setRouteProgressTitle(rebuildDayNumber > 0 ? `Rebuilding Day ${rebuildDayNumber} route` : "Rebuilding route");
@@ -8779,13 +8805,13 @@ if (switchedRouteRef.current === quoteId) {
           "Refreshing the page with the rebuilt route, distances, and latest totals.",
         );
         const rebuiltDay = Array.isArray((nextItinerary as any)?.days)
-          ? (nextItinerary as any).days.find((d: any) => Number(d?.id) === Number(routeId))
+          ? (nextItinerary as any).days.find((d) => Number(d?.id) === Number(routeId))
           : null;
         if (rebuiltDay && (rebuiltDay as any).needsRebuild !== true) {
           setRouteNeedsRebuild((prev) => (Number(prev) === Number(routeId) ? null : prev));
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to rebuild route", e);
       toast.error(e?.message || "Failed to rebuild route");
     } finally {
@@ -8794,9 +8820,9 @@ if (switchedRouteRef.current === quoteId) {
     }
   };
 
-  const dayHasManualInserts = (day: any): boolean => {
+  const dayHasManualInserts = (day): boolean => {
     const segments = Array.isArray(day?.segments) ? day.segments : [];
-    return segments.some((seg: any) => (
+    return segments.some((seg) => (
       String(seg?.type || '').toLowerCase() === 'attraction'
       && (seg?.planOwnWay === true || seg?.isManual === true)
     ));
@@ -8859,7 +8885,7 @@ const applyRouteTimePatch = async (
     setPendingScrollDayNumber(dayNumber);
 
     toast.success(`Day ${dayNumber} times updated`);
-  } catch (e: any) {
+  } catch (e) {
     console.error('Failed to update route times', e);
     toast.error(e?.message || 'Failed to update route times');
     } finally {
@@ -8979,7 +9005,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
           return;
         }
         // Policy resolved without needing confirmation – fall through to PATCH
-      } catch (e: any) {
+      } catch (e) {
         toast.error(e?.message || 'Failed to resolve arrival policy');
         return;
       } finally {
@@ -9069,7 +9095,7 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     try {
 const activities = await ItineraryService.getAvailableActivities(hotspotId, planId, routeId);
 setAvailableActivities(activities as AvailableActivity[]);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to load activities", e);
       toast.error(e?.message || "Failed to load activities");
       setAvailableActivities([]);
@@ -9087,7 +9113,7 @@ setAvailableActivities(activities as AvailableActivity[]);
     let shouldSkipConflictCheck = false;
     if (activityPreview?.hasConflicts && activityPreview.activity?.id === activityId) {
       const conflictMessages = activityPreview.conflicts
-        .map((c: any) => c.reason)
+        .map((c) => c.reason)
         .join('\n\n');
 
       const confirm = window.confirm(
@@ -9150,7 +9176,7 @@ setAvailableActivities(activities as AvailableActivity[]);
           // Non-critical
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to add activity", e);
       toast.error(e?.message || "Failed to add activity");
     } finally {
@@ -9218,7 +9244,7 @@ const getSelectedPreviewActivity = () =>
       });
 
       setActivityPreview(preview);
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to preview activity", e);
       toast.error(e?.message || "Failed to preview activity");
       setActivityPreview(null);
@@ -9253,7 +9279,7 @@ const getSelectedPreviewActivity = () =>
         loading: false,
         data: preview,
       }));
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to preview activity for all hotspots", e);
       toast.error(e?.message || "Failed to preview activity");
       setAllHotspotsPreviewModal(prev => ({
@@ -9309,7 +9335,7 @@ const getSelectedPreviewActivity = () =>
           // Non-critical — silence hotel reload errors
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to delete activity", e);
       toast.error(e?.message || "Failed to delete activity");
     } finally {
@@ -9449,7 +9475,7 @@ setGuideModal((prev) => {
     guideSlots: resolvedGuideSlotIds,
   };
 });
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to load guide modal options", e);
       setGuideModal((prev) => ({ ...prev, loading: false, open: false }));
       toast.error(e?.message || "Failed to load guide options");
@@ -9735,7 +9761,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
     setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
     toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
-  } catch (e: any) {
+  } catch (e) {
     console.error("Failed to save guide assignment", e);
     setGuideModal((prev) => ({ ...prev, saving: false }));
     const rawMessage = String(e?.message || "");
@@ -9764,7 +9790,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       await refreshGuideData();
       setDeleteGuideModal({ open: false, assignment: null, deleting: false });
       toast.success("Guide deleted successfully");
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to delete guide assignment", e);
       setDeleteGuideModal((prev) => ({ ...prev, deleting: false }));
       toast.error(e?.message || "Failed to delete guide");
@@ -9804,6 +9830,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setFitHereModal({
       open: false,
       loading: false,
+      loadingStepIndex: 0,
+      failedReason: null,
       attempt: null,
       anchorKey: null,
     });
@@ -9830,8 +9858,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
       const routeActiveIds = new Set<number>(
         (Array.isArray((currentRoute as any)?.segments) ? (currentRoute as any).segments : [])
-          .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
-          .filter((seg: any) => {
+          .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
+          .filter((seg) => {
             const deletedLike =
               seg?.isDeleted === true ||
               seg?.deleted === true ||
@@ -9844,7 +9872,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
               String(seg?.status || '').toLowerCase() === 'excluded';
             return !deletedLike;
           })
-          .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+          .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
           .filter((id: number) => Number.isFinite(id) && id > 0)
       );
 
@@ -9897,9 +9925,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         const existingManualHotspotIds: number[] = Array.from(
           new Set(
             (Array.isArray((currentRoute as any).segments) ? (currentRoute as any).segments : [])
-              .filter((seg: any) => String(seg?.type || '').toLowerCase() === 'attraction')
-              .filter((seg: any) => seg?.planOwnWay === true || seg?.isManual === true)
-              .map((seg: any) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
+              .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
+              .filter((seg) => seg?.planOwnWay === true || seg?.isManual === true)
+              .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
               .filter((id: number): id is number => Number.isFinite(id) && id > 0),
           ),
         );
@@ -9910,7 +9938,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           setSelectedHotspotIds([]);
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to fetch available hotspots", e);
       toast.error(e?.message || "Failed to load available hotspots");
     } finally {
@@ -10001,7 +10029,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     return { status: 'CANNOT_FIT', label: 'Tried: does not fit' };
   };
 
-  const getAutoPreviewRemovedRows = (attempt: any): any[] => {
+  const getAutoPreviewRemovedRows = (attempt): any[] => {
     const rows = [
       ...(Array.isArray(attempt?.removedHotspots) ? attempt.removedHotspots : []),
       ...(Array.isArray(attempt?.resolution?.removedHotspots) ? attempt.resolution.removedHotspots : []),
@@ -10010,7 +10038,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
     const seen = new Set<number>();
 
-    return rows.filter((row: any) => {
+    return rows.filter((row) => {
       const id = Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || row?.locationId || 0);
       if (!(id > 0) || seen.has(id)) return false;
       seen.add(id);
@@ -10018,15 +10046,15 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     });
   };
 
-  const getAutoPreviewHighestRemovedPriority = (attempt: any): number | null => {
+  const getAutoPreviewHighestRemovedPriority = (attempt): number | null => {
     const priorities = getAutoPreviewRemovedRows(attempt)
-      .map((row: any) => Number(row?.priority || row?.hotspotPriority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0))
+      .map((row) => Number(row?.priority || row?.hotspotPriority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0))
       .filter((priority: number) => [1, 2, 3].includes(priority));
 
     return priorities.length > 0 ? Math.min(...priorities) : null;
   };
 
-  const scoreAutoPreviewAttempt = (attempt: any): { score: number; reason: string; removedCount: number } => {
+  const scoreAutoPreviewAttempt = (attempt): { score: number; reason: string; removedCount: number } => {
     const resultType = String(attempt?.resultType || '').toUpperCase();
     const removedRows = getAutoPreviewRemovedRows(attempt);
     const removedCount = removedRows.length;
@@ -10212,7 +10240,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         return;
       }
 
-      const results = extractAutoPreviewResults(response).map((row: any, index: number) => ({
+      const results = extractAutoPreviewResults(response).map((row, index: number) => ({
         ...row,
         progressText: buildAutoPreviewAnchorProgressText(day, row?.anchor || anchors[index] || anchors[0]),
         sortIndex: Number.isFinite(Number(row?.sortIndex)) ? Number(row?.sortIndex) : index,
@@ -10229,7 +10257,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         loadingStartedAtMs: null,
         performanceSummary: (response as any)?.performanceSummary || null,
       });
-    } catch (error: any) {
+    } catch (error) {
       if (requestId !== previewRequestIdRef.current) {
         return;
       }
@@ -10320,7 +10348,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           anchor,
         },
       });
-    } catch (error: any) {
+    } catch (error) {
       stopFitHereProgressTimer();
       setFitHereModal({
         open: true,
@@ -10388,7 +10416,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     void handleFitHereClick(retryPayload.day, retryPayload.anchor);
   };
 
-  const isRetryableFitHereConfirmError = (error: any): boolean => {
+  const isRetryableFitHereConfirmError = (error): boolean => {
     const message = String(error?.message || "");
     return (
       message.includes("Fit Here preview attempt was not found")
@@ -10407,7 +10435,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     );
   };
 
-  const extractFitHereConfirmErrorCode = (error: any): string => {
+  const extractFitHereConfirmErrorCode = (error): string => {
     const message = String(error?.message || "");
     const codeMatch = message.match(/"code"\s*:\s*"([^"]+)"/i);
     if (codeMatch?.[1]) {
@@ -10418,7 +10446,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     return fallbackMatch?.[0] ? String(fallbackMatch[0]).trim() : "";
   };
 
-  const isExpiredOrMissingFitHereAttemptError = (error: any): boolean => {
+  const isExpiredOrMissingFitHereAttemptError = (error): boolean => {
     const message = String(error?.message || "");
     return (
       message.includes("Fit Here preview attempt was not found")
@@ -10483,9 +10511,10 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       ...(Array.isArray(selectedAttempt?.resolution?.removedTopPriorityHotspots) ? selectedAttempt.resolution.removedTopPriorityHotspots : []),
       ...(Array.isArray(selectedAttempt?.changesRequiredDisplay?.removedItems) ? selectedAttempt.changesRequiredDisplay.removedItems : []),
     ];
+    const acknowledgedRemovedHotspotIdsSource = options?.acknowledgedRemovedHotspotIds;
     const acknowledgedRemovedHotspotIds = Array.from(new Set(
-      (Array.isArray(options?.acknowledgedRemovedHotspotIds) ? options?.acknowledgedRemovedHotspotIds : [])
-        .map((id: any) => Number(id))
+      (Array.isArray(acknowledgedRemovedHotspotIdsSource) ? acknowledgedRemovedHotspotIdsSource : [])
+        .map((id) => Number(id))
         .filter((id: number) => id > 0),
     ));
     const hasTimingRisk =
@@ -10495,11 +10524,11 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       confirmRemovedRows.length > 0
       || selectedAttempt?.requiresPriorityRemovalConfirmation === true
       || acknowledgedRemovedHotspotIds.length > 0;
-    const hasP3Removal = confirmRemovedRows.some((row: any) => {
+    const hasP3Removal = confirmRemovedRows.some((row) => {
       const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       return priority === 3;
     });
-    const hasP1P2Removal = confirmRemovedRows.some((row: any) => {
+    const hasP1P2Removal = confirmRemovedRows.some((row) => {
       const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       return priority === 1 || priority === 2;
     });
@@ -10511,7 +10540,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     const canForceClosedHotspotConflict =
       options?.allowClosedHotspotConflict === true ||
       (selectedAttempt?.canForceConflict === true && !!selectedOpeningConflict);
-    const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row: any) => {
+    const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row) => {
       const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
       const reasonCode = String(row?.removalReasonCode || '').toUpperCase();
       return (priority === 1 || priority === 2) && reasonCode === 'UNPROVEN_REMOVAL';
@@ -10566,13 +10595,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const persistedTimeline = Array.isArray(confirmResult?.routeTimeline)
         ? confirmResult.routeTimeline
         : (Array.isArray(confirmResult?.fullTimeline) ? confirmResult.fullTimeline : []);
-      const insertedTimelineRow = persistedTimeline.find((row: any) => (
+      const insertedTimelineRow = persistedTimeline.find((row) => (
         String(row?.type || '').toLowerCase() === 'attraction'
         && Number(row?.hotspotId ?? row?.locationId ?? 0) === confirmedHotspotId
         && (row?.planOwnWay === true || row?.isManual === true)
       ));
       const backendScheduledManualHotspot = Array.isArray(confirmResult?.resolution?.scheduledManualHotspots)
-        ? confirmResult.resolution.scheduledManualHotspots.find((row: any) =>
+        ? confirmResult.resolution.scheduledManualHotspots.find((row) =>
             Number(row?.hotspotId || row?.id || 0) === confirmedHotspotId
           )
         : null;
@@ -10592,7 +10621,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       ];
       const removedHotspotIds = Array.from(new Set(
         removedRows
-          .map((row: any) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || 0))
+          .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || 0))
           .filter((id: number) => id > 0),
       ));
 
@@ -10735,7 +10764,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         setItinerary(mergedDetails);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
-    } catch (error: any) {
+    } catch (error) {
       if (isExpiredOrMissingFitHereAttemptError(error)) {
         const scrollDayNumber = resolveActiveFitHereDayNumber(selectedAttempt);
         const scrollStorageKey = getFitHereRefreshScrollStorageKey();
@@ -10792,7 +10821,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       allowTopPriorityRemoval?: boolean;
       selectedHotspotIds?: number[];
       forceRefresh?: boolean;
-      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH';
+      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH' | 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED';
     },
   ) => {
     const pId = options?.planId || addHotspotModal.planId;
@@ -10837,7 +10866,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       console.log('[ManualHotspotModal] received_timeline', {
         hotspotId: Number(hotspotId),
         segments: fullTimeline.length,
-        hasPreviewOrder: fullTimeline.some((seg: any) => Number.isFinite(Number(seg?.matrixPreviewOrder ?? seg?.previewOrder))),
+        hasPreviewOrder: fullTimeline.some((seg) => Number.isFinite(Number(seg?.matrixPreviewOrder ?? seg?.previewOrder))),
       });
 
       const manualTimingPolicy = getManualTimingPolicyFromPreview(preview);
@@ -10886,7 +10915,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           `Preferred anchor ${requestedIndex} moved to ${resolvedIndex}${resolvedTimeRange ? ` (${resolvedTimeRange})` : ''} due to timing constraints.`
         );
       }
-    } catch (e: any) {
+    } catch (e) {
       if (requestId !== previewRequestIdRef.current) {
         return;
       }
@@ -11009,7 +11038,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       }
       resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
       await handlePreviewHotspot(candidateId, { forceRefresh: true, source: 'AFTER_MATRIX_BUILD' });
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error?.response?.data?.message || error?.message || 'Matrix build failed.');
     } finally {
       setIsBuildingMatrix(false);
@@ -11082,7 +11111,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       previewValidation?.readyToApply === false
       && previewValidation?.requiresPriorityConfirmation !== true;
 
-    const hasConflicts = selectedPreviewSegments.some((seg: any) => seg?.isConflict === true);
+    const hasConflicts = selectedPreviewSegments.some((seg) => seg?.isConflict === true);
     if (!forceConflictInsertion && hasConflicts) {
       toast.error("Selected hotspot still has timing conflicts in the proposed timeline.");
       return;
@@ -11248,6 +11277,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       }
 
       if (addHotspotModal.routeId) {
+        const currentRoute = itinerary?.days?.find(
+          (day) => Number(day?.id || 0) === Number(addHotspotModal.routeId),
+        );
         const refreshRequest = selectedHotspotAnchor
           ? ItineraryService.getAvailableHotspotsForAnchor({
               planId: Number(addHotspotModal.planId || 0),
@@ -11258,7 +11290,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           : ItineraryService.getAvailableHotspots(addHotspotModal.routeId);
 
         refreshRequest
-          .then((rows: any) => {
+          .then((rows) => {
             const refreshRows = Array.isArray(rows)
               ? rows
               : (Array.isArray(rows?.hotspots) ? rows.hotspots : []);
@@ -11282,7 +11314,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
             // Local optimistic update already applied; silent background sync failure.
           });
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to add hotspot", e);
       const rawMessage = String(e?.message || '').trim();
       let backendCode = '';
@@ -11425,7 +11457,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       if (policy.message) {
         toast.info(policy.message);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Failed to resolve arrival hotel policy from arrival-time change', e);
       toast.error(e?.message || 'Failed to resolve hotel arrival policy');
     } finally {
@@ -11451,7 +11483,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
       const m = input
         .trim()
-        .match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+        .match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
       if (!m) {
         return null;
       }
@@ -11613,7 +11645,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to select hotel", e);
       toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
     } finally {
@@ -11734,7 +11766,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         setItinerary(detailsRes as ItineraryDetailsResponse);
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("Failed to select hotel", e);
       toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
       throw e; // Re-throw for modal to handle
@@ -11821,7 +11853,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
       resetConfirmWalletTopUpPanel();
       await handleConfirmQuotation({ skipWalletCheck: true });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to add cash wallet amount", error);
       toast.error(getSafeErrorMessage(error, "Failed to add cash wallet amount."));
     } finally {
@@ -11864,7 +11896,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const planDetails = await api(`itineraries/edit/${itinerary.planId}`, { method: 'GET' });
 
       // ✅ FIX: Set agent_id from planDetails - try multiple possible field names
-      let agentId = planDetails?.plan?.agent_ID
+      const agentId = planDetails?.plan?.agent_ID
         || planDetails?.plan?.agent_id
         || planDetails?.agent_ID
         || planDetails?.agent_id
@@ -11937,13 +11969,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
       if (travellersFromPlan.length > 0) {
         const sortedTravellers = [...travellersFromPlan].sort(
-          (a: any, b: any) => Number(a?.traveller_details_ID || 0) - Number(b?.traveller_details_ID || 0),
+          (a, b) => Number(a?.traveller_details_ID || 0) - Number(b?.traveller_details_ID || 0),
         );
-        const adults = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 1);
-        const children = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 2);
-        const infants = sortedTravellers.filter((t: any) => Number(t?.traveller_type || 0) === 3);
+        const adults = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 1);
+        const children = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 2);
+        const infants = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 3);
 
-        const toPrefillPassenger = (title: string, traveller: any): AdditionalPassenger => {
+        const toPrefillPassenger = (title: string, traveller): AdditionalPassenger => {
           const ageNum = Number(traveller?.traveller_age);
           return {
             title,
@@ -11957,9 +11989,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
         // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
         if (requiresDetailedPassengerFlow) {
-          setAdditionalAdults(adults.slice(1).map((t: any) => toPrefillPassenger('Mr', t)));
-          setAdditionalChildren(children.map((t: any) => toPrefillPassenger('Ms', t)));
-          setAdditionalInfants(infants.map((t: any) => toPrefillPassenger('Ms', t)));
+          setAdditionalAdults(adults.slice(1).map((t) => toPrefillPassenger('Mr', t)));
+          setAdditionalChildren(children.map((t) => toPrefillPassenger('Ms', t)));
+          setAdditionalInfants(infants.map((t) => toPrefillPassenger('Ms', t)));
 
           const template = buildOccupanciesFromTravellers(
             travellersFromPlan,
@@ -12002,13 +12034,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
         const persistedSelections: typeof selectedHotelBookings = {};
         hotelDetails.hotels
-          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-          .forEach((h: any) => {
+          .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
+          .forEach((h) => {
             const routeId = Number(h.itineraryRouteId || 0);
             if (!routeId) return;
             if (Number(h?.itineraryPlanHotelDetailsId || 0) <= 0) return;
 
-            const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+            const routeDay = itinerary?.days?.find((d) => Number(d.id) === routeId);
             const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
             const checkOutDate = routeDay
               ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
@@ -12057,8 +12089,8 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
         const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
         hotelDetails.hotels
-          .filter((h: any) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-          .forEach((h: any) => {
+          .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
+          .forEach((h) => {
             const routeId = Number(h.itineraryRouteId || 0);
             if (!routeId) return;
             if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
@@ -12078,7 +12110,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
 
           if (!isSupplierBookableHotel(cheapest)) return;
 
-          const routeDay = itinerary?.days?.find((d: any) => Number(d.id) === routeId);
+          const routeDay = itinerary?.days?.find((d) => Number(d.id) === routeId);
           const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
           const checkOutDate = routeDay
             ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
@@ -12187,7 +12219,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           setIsPrebooking(false);
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error('Failed to load customer info', e);
       toast.error(e?.message || 'Failed to load customer information');
     } finally {
@@ -12333,7 +12365,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setIsConfirmingQuotation(true);
 
     try {
-      let autoSelectedHotels = { ...selectedHotelBookings };
+      const autoSelectedHotels = { ...selectedHotelBookings };
       const groupTypeValue =
         activeHotelGroupType ??
         Object.values(autoSelectedHotels)[0]?.groupType ??
@@ -12343,7 +12375,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         ? Array.from(
             new Set(
               Object.values(autoSelectedHotels)
-                .map((h: any) => String(h?.provider || '').trim().toLowerCase())
+                .map((h) => String(h?.provider || '').trim().toLowerCase())
                 .filter(Boolean),
             ),
           )
@@ -12353,9 +12385,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const skippedRouteIdsForConfirm: number[] = [];
 
       if (requiresHotelBookingFlow && hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        const routesWithHotels = new Set(hotelDetails.hotels.map((h: any) => h.itineraryRouteId));
+        const routesWithHotels = new Set(hotelDetails.hotels.map((h) => h.itineraryRouteId));
 
-        const toAutoSelection = (hotelRow: any, routeId: number) => {
+        const toAutoSelection = (hotelRow, routeId: number) => {
           const routeDay = itinerary?.days?.find((d) => d.id === routeId);
           const checkInDate = routeDay?.date || '';
           const checkOutDate = routeDay
@@ -12393,12 +12425,12 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           }
 
           const routeHotels = hotelDetails.hotels.filter(
-            (h: any) =>
+            (h) =>
               Number(h.itineraryRouteId) === Number(routeId) &&
               Number(h.groupType) === Number(groupTypeValue),
           );
           const persistedRouteSelection = routeHotels.find(
-            (h: any) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
+            (h) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
           );
 
           // Never overwrite an explicit in-memory user selection for this route.
@@ -12411,7 +12443,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           if (!autoSelectedHotels[routeId]) {
             const firstHotelForRoute = preferredProviderForConfirm
               ? routeHotels.find(
-                  (h: any) =>
+                  (h) =>
                     String(h?.provider || '')
                       .trim()
                       .toLowerCase() === preferredProviderForConfirm,
@@ -12513,7 +12545,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const childAgesForBooking = requiresDetailedPassengerFlow
         ? (
             confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-              ? confirmOccupanciesTemplate.flatMap((occ: any) =>
+              ? confirmOccupanciesTemplate.flatMap((occ) =>
                   Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
                 )
               : normalizedAdditionalChildren.map((c) => Number(c.age))
@@ -12688,7 +12720,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const hotelBookingsWithPrebookContext = requiresHotelBookingFlow
         ? hotelBookings.map((booking) => {
             const matchingPrebook = prebookHotelEntries.find(
-              (item: any) =>
+              (item) =>
                 Number(item?.routeId) === Number(booking.routeId) &&
                 String(item?.hotelCode || '') === String(booking.hotelCode || ''),
             );
@@ -12718,19 +12750,19 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       const selectedHotelRouteIds = requiresHotelBookingFlow
         ? Array.from(new Set(
             hotelBookingsWithPrebookContext
-            .flatMap((booking: any) =>
+            .flatMap((booking) =>
               Array.isArray(booking.routeIds) && booking.routeIds.length > 0
                 ? booking.routeIds
                 : [booking.routeId],
             )
-            .map((routeId: any) => Number(routeId || 0))
+            .map((routeId) => Number(routeId || 0))
             .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
           ))
         : [];
 
       const externalStayRouteIds = requiresHotelBookingFlow
         ? externalStayEntries
-            .map((entry: any) => Number(entry.routeId || 0))
+            .map((entry) => Number(entry.routeId || 0))
             .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
         : [];
 
@@ -12837,7 +12869,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       setHasAcceptedUpdatedPrice(false);
       setFormErrors({});
       setSelectedHotelBookings({});
-    } catch (e: any) {
+    } catch (e) {
       setLoadingHotels(false);
       console.error('Failed to confirm quotation', e);
       toast.error(getSafeErrorMessage(e, 'Failed to confirm quotation'));
@@ -12898,7 +12930,7 @@ useEffect(() => {
 
   const normalizeRouteOptionList = (rawOptions: any[]) => {
     const options = rawOptions
-      .map((option: any, index: number) => {
+      .map((option, index: number) => {
         const rawQuoteId =
           typeof option === "string"
             ? option
@@ -13009,7 +13041,7 @@ useEffect(() => {
 
       const rows = Array.isArray(res?.data) ? res.data : [];
       const relatedRows = currentPlanId
-        ? rows.filter((row: any) => {
+        ? rows.filter((row) => {
             const rowPlanId = Number(
               row?.planId ||
                 row?.plan_id ||
@@ -13202,7 +13234,7 @@ const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
     }
 
     setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-  } catch (e: any) {
+  } catch (e) {
     if (latestRouteRequestRef.current !== routeRequestId) {
       return;
     }
@@ -14053,7 +14085,7 @@ const canShowGuideActionButton =
                           const textLabels = extractTravelFromToFromText((segment as any)?.text);
                           const travelFromLabel = String(segment.from || textLabels.from || 'Route Start').trim();
                           const travelToRawLabel = String(segment.to || textLabels.to || extractTravelToFromText((segment as any)?.text) || 'Next Stop').trim();
-                          const travelToLabel = /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
+                           const travelToLabel = /hotel/i.test(travelToRawLabel) && destinationHotelDisplayName
                             ? destinationHotelDisplayName
                             : travelToRawLabel;
                           const travelDistanceLabel = segment.distance;
@@ -15371,7 +15403,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                       )}
                       {activityPreview.hasConflicts && activityPreview.conflicts?.length > 0 && (
                         <div className="space-y-1 text-xs text-red-700 mt-1">
-                          {activityPreview.conflicts.map((conflict: any, idx: number) => (
+                          {activityPreview.conflicts.map((conflict, idx: number) => (
                             <div key={idx}>• {conflict.reason}</div>
                           ))}
                         </div>
@@ -15385,7 +15417,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           ③ Day Cascade — everything after shifts +{activityPreview.cascade.shiftMinutes} min
                         </div>
                         <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
-                          {activityPreview.cascade.affectedSegments.map((seg: any, idx: number) => (
+                          {activityPreview.cascade.affectedSegments.map((seg, idx: number) => (
                             <div key={idx} className="flex items-center gap-2 text-xs py-1 border-b border-amber-100 last:border-0">
                               <span className={`shrink-0 w-16 text-center rounded px-1 py-0.5 font-medium ${seg.type === 'travel' ? 'bg-blue-100 text-blue-700'
                                   : seg.type === 'break' ? 'bg-yellow-100 text-yellow-700'
@@ -15700,6 +15732,8 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
             setFitHereModal({
               open: false,
               loading: false,
+              loadingStepIndex: 0,
+              failedReason: null,
               attempt: null,
               anchorKey: null,
             });
@@ -15807,7 +15841,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                         const isClosedTiming = !hasUsableTimings;
                         const hotspotTimeline = previewTimelinesByHotspot[hotspot.id] || [];
                         const hasConflict = hotspotTimeline.some(
-                          (seg: any) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
+                          (seg) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
                         );
                         const isLoadingThis = isPreviewingHotspotId === hotspot.id;
                         const manualMeta = currentRouteManualHotspotMetaById.get(hotspotId) || null;
@@ -16176,7 +16210,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           </p>
                         )}
                         <div className="mt-2 space-y-2">
-                          {manualAttemptDisplayMeta.attempts.slice(0, 6).map((attempt: any, idx: number) => (
+                          {manualAttemptDisplayMeta.attempts.slice(0, 6).map((attempt, idx: number) => (
                             <div
                               key={`${String(attempt?.strategyKey || 'attempt')}-${idx}`}
                               className={`rounded-md border px-2 py-2 text-[11px] ${
@@ -16291,7 +16325,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           <div className="mt-2 text-xs text-orange-700">
                             <p className="font-semibold text-orange-800 mb-1">Insertion attempts:</p>
                             <ul className="space-y-1 pl-3">
-                              {safeMatrixSlots.slice(0, 5).map((slot: any, idx: number) => (
+                              {safeMatrixSlots.slice(0, 5).map((slot, idx: number) => (
                                 <li key={idx} className="list-disc">
                                   {slot.fromName} → {((
                                     /^hotel$/i.test(String(slot.toName || '').trim())
@@ -16399,7 +16433,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                             <ul className="mt-1 list-disc pl-4 space-y-1">
                               {activePreviewResolution.unscheduledManualHotspots
                                 .slice(0, 3)
-                                .map((row: any, idx: number) => (
+                                .map((row, idx: number) => (
                                   <li key={`unscheduled-manual-${Number(row?.id || 0)}-${idx}`}>
                                     <span className="font-semibold">{row?.name || `Hotspot ${row?.id || ''}`}</span>
                                     {row?.reason ? `: ${row.reason}` : ''}
@@ -16535,7 +16569,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                           {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
                             (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
                             <ul className="mt-2 space-y-1">
-                              {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row: any, ri: number) => (
+                              {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row, ri: number) => (
                                 <li key={ri} className="text-xs text-orange-900 leading-4">
                                   <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
                                   {row?.priority ? <span className="ml-1 text-orange-700">(Work Priority {row.priority})</span> : null}
@@ -16560,7 +16594,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                         </div>
                       )}
 
-                      {effectivePreviewTimeline.map((seg: any, idx: number) => {
+                      {effectivePreviewTimeline.map((seg, idx: number) => {
                         const isUserSelected = seg?.isUserSelectedPreview === true;
                         const isConflictSegment = seg?.isConflict === true;
                         const selectedId = Number(seg?.selectedHotspotId || seg?.locationId || 0);
@@ -17061,7 +17095,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                     <p className="font-bold text-purple-900 text-xs">
                                       All insertion attempts ({normalizedInsertionSlots.length}):
                                     </p>
-                                    {normalizedInsertionSlots.map((slotOption: any, slotIdx: number) => {
+                                    {normalizedInsertionSlots.map((slotOption, slotIdx: number) => {
                                       const isBest = slotOption?.selectedAsBest === true || slotOption?.isBest === true;
                                       const fits = slotOption?.fitsOverall !== false;
                                       const routeFitTypeUpper = String(slotOption?.routeFitType || '').toUpperCase();
@@ -17243,7 +17277,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                         ? p3Rows
                                         : (removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows);
                                       const affectedPriorityHotspots = sourceRows
-                                        .map((row: any) => {
+                                        .map((row) => {
                                           const id = Number(row?.id ?? row?.hotspotId ?? row?.hotspot_id ?? 0);
                                           const name = String(row?.name || row?.hotspot_name || row?.hotspotName || '').trim();
                                           if (name) return name;
@@ -17254,7 +17288,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                       const affectedPriorityLabel = affectedPriorityHotspots.length > 0
                                         ? affectedPriorityHotspots.join(', ') : 'one or more priority hotspots';
                                       const pluralSuffix = affectedPriorityHotspots.length === 1 ? '' : 's';
-                                      const removedPriorityRowsWithValues = sourceRows.map((row: any) => Number(
+                                      const removedPriorityRowsWithValues = sourceRows.map((row) => Number(
                                         row?.priority
                                         ?? row?.effectivePriority
                                         ?? row?.normalizedPriority
@@ -17304,7 +17338,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
                                           const rows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
                                             ? pendingPriorityResolution.removedTopPriorityHotspots
                                             : [];
-                                          const isP3RemovalConfirmation = rows.some((row: any) => Number(
+                                          const isP3RemovalConfirmation = rows.some((row) => Number(
                                             row?.priority
                                             ?? row?.effectivePriority
                                             ?? row?.normalizedPriority
@@ -18137,7 +18171,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 <Loader2 className="h-8 w-8 animate-spin text-[#d546ab]" />
               </div>
             ) : allHotspotsPreviewModal.data?.hotspots && allHotspotsPreviewModal.data.hotspots.length > 0 ? (
-              allHotspotsPreviewModal.data.hotspots.map((hotspotPreview: any, idx: number) => (
+              allHotspotsPreviewModal.data.hotspots.map((hotspotPreview, idx: number) => (
                 <Card
                   key={hotspotPreview.routeHotspotId}
                   className={`border-2 ${hotspotPreview.isAlreadyAdded
@@ -18229,7 +18263,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                                 :
                               </div>
                               {hotspotPreview.conflicts.map(
-                                (c: any, cidx: number) => (
+                                (c, cidx: number) => (
                                   <div
                                     key={cidx}
                                     className="text-red-700 ml-3 text-xs"
@@ -18432,7 +18466,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                   </p>
                 </div>
                 <div className="space-y-2">
-                  {externalStayEntries.map((entry: any, index: number) => (
+                  {externalStayEntries.map((entry, index: number) => (
                     <div
                       key={`external-stay-${entry.routeId || 'na'}-${index}`}
                       className="rounded-md border border-amber-100 bg-white/80 px-3 py-2"
@@ -18466,7 +18500,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
                 <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
-                {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                {nonTboSelectedHotelEntries.map((hotel, index: number) => {
                   const detailRow = (hotel?.matchedHotelRow || hotel) as any;
                   const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
                   const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
@@ -18614,7 +18648,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
       </div>
     </div>
 
-    {prebookHotelEntries.map((hotel: any, index: number) => {
+    {prebookHotelEntries.map((hotel, index: number) => {
       const hotelAmenities = normalizePrebookItems(hotel?.amenities);
       const hotelRateConditions = normalizePrebookItems(hotel?.rateConditions);
       const hotelInclusions = resolvePrebookInclusions(hotel);
@@ -18741,7 +18775,7 @@ await copyHtmlToClipboard(mergedHtml, mergedPlainText)
                 {nonTboSelectedHotelEntries.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
-                    {nonTboSelectedHotelEntries.map((hotel: any, index: number) => {
+                    {nonTboSelectedHotelEntries.map((hotel, index: number) => {
                       const detailRow = (hotel?.matchedHotelRow || hotel) as any;
                       const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
                       const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
