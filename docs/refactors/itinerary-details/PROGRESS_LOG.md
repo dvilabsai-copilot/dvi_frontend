@@ -546,6 +546,34 @@
 - Coupling discovered: guide availability and assignment rules remain in existing callbacks; this iteration moved state only.
 - Follow-up extraction: vehicle workflow state/actions and hotspot/Fit Here controller/view.
 
+## Iteration 28 — Broader verification and final-report checkpoint
+
+### Baseline
+- Tests run: the 13-file itinerary Playwright suite (34 tests), plus the focused pair, production build, and page/new-module typecheck.
+- Result: focused pair 2/2 passed; broader suite 9 passed, 2 skipped, 23 failed for documented shared-data/environment/parity causes; build passed; no new page/new-module type errors.
+
+### Changes
+- Files created: none.
+- Files modified: `REGRESSION_LOG.md`, `FINAL_REPORT.md`, `PROGRESS_LOG.md`.
+- Code moved: none; recorded the broader-suite evidence and current transitional-runtime status.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no new errors from the page/runtime/new hooks; existing repository errors remain documented.
+- Lint: repository baseline remains failing (documented).
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: 34 tests, 9 passed, 2 skipped, 23 failed; failures documented rather than hidden.
+- Production build: passed with existing warnings.
+- Console/network check: focused flows passed without new page/runtime failures.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsRuntime.tsx`: 16,202 lines.
+
+### Notes
+- The stable route boundary and multiple domain state hooks are committed, but the overall refactor is not complete until the transitional runtime is split into workflow-sized controllers/views and the documented full-suite blockers are resolved or externally confirmed.
+
 ## Iteration 24 — Architecture checkpoint documentation
 
 ### Baseline

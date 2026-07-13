@@ -75,3 +75,22 @@ The all-hotspots preview now renders through `AllHotspotsPreviewDialog`; the dup
 
 ### Verification
 The exact-anchor Fit Here smoke and hotspot preview regression both pass.
+
+## 2026-07-14 — Broader itinerary Playwright suite checkpoint
+
+### Failure
+The repository itinerary suite command ran 34 tests: 9 passed, 2 skipped, and 23 failed. Failures clustered in shared mutable Fit Here/APJ records, PHP/Nest parity (`/login` versus PHP redirect), and vehicle-only test data not becoming visible before its assertion.
+
+### Classification
+- test-data issue
+- environment issue
+- pre-existing backend/parity issue
+
+### Root cause
+The failures reproduce against shared scenario records and external PHP/Nest parity assumptions; the focused characterization flows remain green. The suite also creates mutable itineraries and depends on backend processing timing/data availability outside this structural extraction.
+
+### Resolution
+No application or test weakening changes were made. Generated Playwright artifacts were removed and tracked metadata restored.
+
+### Verification
+Focused pair remains 2/2 passed; production build passes; page/new-module typecheck remains free of new errors.
