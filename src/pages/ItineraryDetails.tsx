@@ -13580,62 +13580,93 @@ const hotelTimelineLoading = Boolean(
               </div>
             </div>
 
-            {/* Compact trip summary — one line at every viewport width */}
+            {/* Responsive two-row trip summary */}
             <div
-              className="-mx-4 -mt-2 overflow-x-auto rounded-lg bg-[#f8f5fc] [scrollbar-color:#d8cde3_transparent] [scrollbar-width:thin] sm:overflow-visible"
+              className="-mx-6 -mt-2 rounded-lg bg-[#fff0fc]"
               aria-label="Trip summary"
             >
-              <div className="flex w-max min-w-full items-center justify-between gap-[clamp(0.5rem,1.1vw,1.25rem)] whitespace-nowrap px-3 py-2 text-[clamp(0.625rem,0.78vw,0.875rem)] text-[#6c6c6c] sm:px-4">
-                <span className="text-[clamp(0.975rem,1.3vw,1.4625rem)] font-bold text-[#d546ab]">{itinerary.quoteId}</span>
-
-                <span className="h-5 w-px shrink-0 bg-[#e1dfe6]" aria-hidden="true" />
-
-                <span className="flex items-center gap-1.5 font-medium text-[#4a4260]">
-                  <Calendar className="h-[1em] w-[1em] shrink-0 text-[#6c6c6c]" />
-                  {itinerary.dateRange}
-                </span>
-
-                {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
-                  <span className="font-semibold text-[#4a4260]">
-                    ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+              <div className="grid gap-x-6 gap-y-2 px-4 py-3 text-sm text-[#6c6c6c] sm:px-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                  <span className="shrink-0 text-lg font-bold text-[#d546ab] sm:text-xl">
+                    {itinerary.quoteId}
                   </span>
-                )}
 
-                {shouldShowRebuildHotelsButton && !hotelReadOnly && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRebuildHotels}
-                    disabled={isRebuildingHotels}
-                    className="h-7 rounded-lg border-[#d546ab] px-2 text-[inherit] text-[#d546ab] hover:bg-[#fdf6ff]"
-                  >
-                    {isRebuildingHotels ? (
-                      <>
-                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        Rebuilding...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                        Rebuild Hotels
-                      </>
-                    )}
-                  </Button>
-                )}
+                  <span className="hidden h-6 w-px shrink-0 bg-[#e1dfe6] sm:block" aria-hidden="true" />
 
-                <span>Room Count <span className="font-semibold text-[#4a4260]">{itinerary.roomCount}</span></span>
-                <span>Extra Bed <span className="font-semibold text-[#4a4260]">{itinerary.extraBed}</span></span>
-                <span>Child with bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithBed}</span></span>
-                <span>Child without bed <span className="font-semibold text-[#4a4260]">{itinerary.childWithoutBed}</span></span>
-                <span>Adults <span className="font-semibold text-[#4a4260]">{itinerary.adults}</span></span>
-                <span>Child <span className="font-semibold text-[#4a4260]">{itinerary.children}</span></span>
-                <span>Infants <span className="font-semibold text-[#4a4260]">{itinerary.infants}</span></span>
+                  <span className="flex min-w-0 items-center gap-2 font-semibold text-[#4a4260]">
+                    <Calendar className="h-5 w-5 shrink-0 text-[#6c6c6c]" />
+                    <span>{itinerary.dateRange}</span>
+                  </span>
 
-                <span className="h-5 w-px shrink-0 bg-[#e1dfe6]" aria-hidden="true" />
+                  {(itinerary.nightCount !== undefined || itinerary.dayCount !== undefined) && (
+                    <span className="shrink-0 font-semibold text-[#4a4260]">
+                      ({itinerary.nightCount ?? 0} N, {itinerary.dayCount ?? 0} D)
+                    </span>
+                  )}
 
-                <span className="ml-auto shrink-0 text-right">
+                  {shouldShowRebuildHotelsButton && !hotelReadOnly && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRebuildHotels}
+                      disabled={isRebuildingHotels}
+                      className="h-7 rounded-lg border-[#d546ab] px-2 text-[inherit] text-[#d546ab] hover:bg-[#fdf6ff]"
+                    >
+                      {isRebuildingHotels ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          Rebuilding...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                          Rebuild Hotels
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 md:justify-self-end">
+                  <span className="flex items-center gap-2">
+                    Adults
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.adults}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    Child
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.children}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    Infants
+                    <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                      {itinerary.infants}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                  {[
+                    ["Room Count", itinerary.roomCount],
+                    ["Extra Bed", itinerary.extraBed],
+                    ["Child with bed", itinerary.childWithBed],
+                    ["Child without bed", itinerary.childWithoutBed],
+                  ].map(([label, value]) => (
+                    <span key={String(label)} className="flex items-center gap-2">
+                      {label}
+                      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 font-semibold text-[#4a4260]">
+                        {value}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+
+                <span className="shrink-0 whitespace-nowrap text-left text-base font-medium text-[#4a4260] md:justify-self-end md:text-right">
                   Overall Trip Cost :{" "}
-                  <span className="text-[clamp(0.975rem,1.3vw,1.4625rem)] font-bold text-[#d546ab]">
+                  <span className="text-xl font-bold text-[#d546ab] sm:text-2xl">
                     ₹ {overallTripCostWithHotels}
                   </span>
                 </span>
@@ -13647,7 +13678,7 @@ const hotelTimelineLoading = Boolean(
       </div>
 
 {/* Daily Itinerary */}
-<div className="lg:pr-20">
+<div>
 {(() => {
   return (
     <>
@@ -13698,7 +13729,10 @@ const canShowGuideActionButton =
   );
 
   return (
-    <React.Fragment key={day.id}>
+    <section
+      key={day.id}
+      className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm"
+    >
              {/* Compact day header */}
 <div
   id={`itinerary-day-${day.dayNumber}`}
@@ -14464,7 +14498,7 @@ const canShowGuideActionButton =
                 </div>
               </CardContent>
             </Card>
-    </React.Fragment>
+    </section>
           );
         })}
           </>
