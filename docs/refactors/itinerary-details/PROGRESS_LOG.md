@@ -1,5 +1,32 @@
 # Progress log
 
+## Iteration 35 — Vehicle totals synchronization hook
+
+### Baseline
+- Starting point: Iteration 34 route-time progress controller was committed; build, filtered typecheck, and focused Playwright pair were green.
+- Scope: move the vehicle-total synchronization effects out of the page controller while leaving selection and API handlers untouched.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useVehicleTotalsSync.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: active vehicle-type derivation, quote reset, stale type cleanup, and cheapest-vehicle default seeding now live in the hook.
+- Behaviour intentionally changed: No. The same `selectedVehicleTotalsByType` setter receives equivalent updates.
+
+### Verification
+- Typecheck: no diagnostics from the controller, runtime, or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing warnings.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Composition `ItineraryDetailsRuntime.tsx`: 11 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,345 lines.
+- New `useVehicleTotalsSync.ts`: 64 lines.
+
+### Notes
+- This boundary isolates vehicle-derived state; vehicle action handlers and the vehicle-only presentation remain the next high-risk workflow area.
+
 ## Iteration 34 — Route-time progress controller
 
 ### Baseline

@@ -92,7 +92,6 @@ import type {
   ViaRouteItem,
 } from "./itinerary-details/itinerary-details.types";
 import {
-  getCheapestVehicleForType,
   getVehicleAmountNumber,
   isSupplierBookableHotel,
   normalizeMealPlanLabel,
@@ -156,6 +155,7 @@ import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
+import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotalsSync";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -2938,13 +2938,12 @@ const loadAndCacheRouteHotelDetails = useCallback(
     summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight, setSummaryStickyHeight,
     hotelPageByGroupRoute, setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
   } = hotelSelectionState;
-  const activeVehicleTypeIds = useMemo(() => {
-    return new Set(
-      (itinerary?.vehicles || [])
-        .map((v) => Number(v.vehicleTypeId || 0))
-        .filter(Boolean)
-    );
-  }, [itinerary?.vehicles]);
+  useVehicleTotalsSync({
+    quoteId: itinerary?.quoteId,
+    vehicles: itinerary?.vehicles,
+    shouldShowVehicles,
+    setSelectedVehicleTotalsByType,
+  });
 
   useEffect(() => {
     const el = summaryStickyRef.current;
@@ -2965,66 +2964,6 @@ const loadAndCacheRouteHotelDetails = useCallback(
     };
   }, [itinerary?.quoteId]);
 
-  useEffect(() => {
-    setSelectedVehicleTotalsByType({});
-  }, [itinerary?.quoteId]);
-
-  useEffect(() => {
-    setSelectedVehicleTotalsByType((prev) => {
-      const next: Record<number, { totalAmount: number; totalQty: number }> = {};
-      for (const [rawTypeId, value] of Object.entries(prev)) {
-        const typeId = Number(rawTypeId);
-        if (activeVehicleTypeIds.has(typeId)) {
-          next[typeId] = value;
-        }
-      }
-
-      if (Object.keys(next).length === Object.keys(prev).length) {
-        return prev;
-      }
-
-      return next;
-    });
-  }, [activeVehicleTypeIds]);
-useEffect(() => {
-  if (!shouldShowVehicles || !itinerary?.vehicles?.length) return;
-
-  const vehiclesByType = new Map<number, ItineraryVehicleRow[]>();
-
-  for (const vehicle of itinerary.vehicles) {
-    const typeId = Number(vehicle.vehicleTypeId || 0);
-    if (!typeId) continue;
-
-    if (!vehiclesByType.has(typeId)) {
-      vehiclesByType.set(typeId, []);
-    }
-
-    vehiclesByType.get(typeId)!.push(vehicle);
-  }
-
-  setSelectedVehicleTotalsByType((prev) => {
-    let changed = false;
-    const next: Record<number, { totalAmount: number; totalQty: number }> = {
-      ...prev,
-    };
-
-    vehiclesByType.forEach((vehicles, typeId) => {
-      if (next[typeId]?.totalAmount > 0) return;
-
-      const cheapestVehicle = getCheapestVehicleForType(vehicles);
-      if (!cheapestVehicle) return;
-
-      next[typeId] = {
-        totalAmount: getVehicleAmountNumber(cheapestVehicle),
-        totalQty: Number(cheapestVehicle.totalQty || 1),
-      };
-
-      changed = true;
-    });
-
-    return changed ? next : prev;
-  });
-}, [itinerary?.vehicles, shouldShowVehicles]);
 
   useEffect(() => {
     itineraryDaysCountRef.current = Array.isArray(itinerary?.days) ? itinerary.days.length : 0;
