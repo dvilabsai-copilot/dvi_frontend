@@ -20,3 +20,7 @@ The work is intentionally incremental. Each iteration moves one cohesive respons
 | 14 | Final orchestration | page composition | all controllers/components | High | full itinerary suite/build |
 
 The first source change is limited to declarations and imports. No API route, payload, toast text, validation rule, router prop, or business condition is changed.
+
+## Checkpoint status
+
+Completed through iteration 16: sequences 1–5, the timeline/day/segment boundary in sequence 6, and the dialog/presentational work in sequence 7. Remaining sequences are 8–14: workflow controllers, route/loading orchestration, hotel/vehicle and hotspot state, Fit Here, quotation confirmation, and final composition/verification.
