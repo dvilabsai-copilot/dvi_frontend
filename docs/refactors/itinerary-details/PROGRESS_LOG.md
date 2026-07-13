@@ -267,3 +267,33 @@
 - Iteration 16: extracted `PackageIncludesCard`; build/type baseline and the focused Fit Here smoke pass.
 - Coupling discovered: `HotelList` continues to consume the named hotel/vehicle type exports from the page; those exports now need an explicit re-export boundary in a later cleanup.
 - Follow-up extraction: clipboard/all-hotspots dialogs and timeline/day card components.
+
+## Iteration 17 — Stable page composition boundary
+
+### Baseline
+- Tests run: `npm run build`; `npx playwright test tests/e2e/itinerary-anchor-hotspot-smoke.spec.ts tests/e2e/itinerary-hotspot-modal-regression.spec.ts --project=chromium`.
+- Result: production build passed with existing warnings; both focused Playwright tests passed.
+- Relevant behavior: the router resolves the historical named/default page exports and passes `readOnly`/`presentationMode` props.
+
+### Changes
+- Files created: `src/pages/ItineraryDetails.tsx` (stable entrypoint wrapper).
+- Files modified: `src/pages/ItineraryDetailsRuntime.tsx` (implementation moved without code changes).
+- Code moved: the existing page implementation now sits behind a small route/HMR-compatible composition boundary; the wrapper preserves named and default exports and the historical type re-exports.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: repository baseline errors remain in unrelated existing modules; no new errors from the page/runtime boundary.
+- Lint: repository baseline remains failing; no lint-only changes made.
+- Unit tests: no dedicated unit script configured.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not run.
+- Production build: passed with existing warnings.
+- Console/network check: focused tests passed without new page/runtime failures.
+
+### Line counts
+- ItineraryDetails.tsx before: 16,772; after: 14.
+- Largest new source file: `ItineraryDetailsRuntime.tsx` (16,772 lines; transitional staging module to be split by workflow in subsequent iterations).
+
+### Notes
+- Coupling discovered: router lazy loading relies on both exports, so the wrapper intentionally keeps both names stable.
+- Follow-up extraction: split the transitional runtime into hotspot/Fit Here, hotel/vehicle, confirmation, and route/loading controllers and views; no further wrapper-only work is considered complete.
