@@ -157,6 +157,7 @@ import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActi
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
+import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7932,44 +7933,16 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setGroupPreviewResolution,
   });
 
-  const handleConfirmPriorityReplacement = async () => {
-    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
-    if (!targetHotspotId) return;
-
-    const needsReplacementApproval =
-      (
-        (Array.isArray(groupPreviewResolution?.removedTopPriorityHotspots) && groupPreviewResolution.removedTopPriorityHotspots.length > 0)
-        || (Array.isArray(groupPreviewResolution?.topPriorityAffected) && groupPreviewResolution.topPriorityAffected.length > 0)
-        || (Array.isArray((groupPreviewResolution as any)?.p3HotspotsToRemove) && (groupPreviewResolution as any).p3HotspotsToRemove.length > 0)
-        || groupPreviewResolution?.requiresP3RemovalConfirmation === true
-      );
-
-    if (needsReplacementApproval) {
-      await handlePreviewHotspot(targetHotspotId, {
-        allowTopPriorityRemoval: true,
-        selectedHotspotIds,
-      });
-
-      setForceReplacementApprovedByHotspot((prev) => ({
-        ...prev,
-        [targetHotspotId]: true,
-      }));
-      setTopPriorityReplacementApproved(true);
-      return;
-    }
-
-    setForceReplacementApprovedByHotspot((prev) => ({
-      ...prev,
-      [targetHotspotId]: true,
-    }));
-    setTopPriorityReplacementApproved(true);
-  };
-
-  const handleCancelPriorityReplacement = async () => {
-    const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;
-    if (!targetHotspotId) return;
-    await handleRemovePreviewHotspot(targetHotspotId);
-  };
+  const { handleConfirmPriorityReplacement, handleCancelPriorityReplacement } = useHotspotPriorityReplacementController({
+    groupPreviewResolution,
+    pendingPriorityReplacementHotspotId,
+    selectedHotspotId,
+    selectedHotspotIds,
+    handlePreviewHotspot,
+    handleRemovePreviewHotspot,
+    setForceReplacementApprovedByHotspot,
+    setTopPriorityReplacementApproved,
+  });
 
   const handleBuildMatrixAndPreviewAgain = useHotspotMatrixPreviewController({
     activePreviewHotspotId,

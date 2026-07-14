@@ -93,4 +93,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotspot deletion, optimistic timeline cleanup, exclusion updates, and modal refresh are isolated in `useHotspotDeleteMutation`; the controller retains only the Fit Here/rebuild decisions that surround that mutation.
 - Missing-city-matrix recovery and the follow-up manual hotspot re-preview are isolated in `useHotspotMatrixPreviewController`; the preview mutation itself remains the next hotspot action boundary.
 - Manual hotspot preview requests, request-staleness guards, timeline/resolution state, anchor-adjustment messaging, and preview cancellation are isolated in `useHotspotPreviewMutation`.
+- Protected-priority replacement approval and cancellation are isolated in `useHotspotPriorityReplacementController`; it re-previews with the existing approval flag and preserves the modal's state updates.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
