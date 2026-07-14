@@ -64,6 +64,7 @@ import { useDestinationHotelDisplayName } from "./itinerary-details/hooks/useDes
 import { useMatrixFitState } from "./itinerary-details/hooks/useMatrixFitState";
 import { usePreviewCityContext } from "./itinerary-details/hooks/usePreviewCityContext";
 import { useMatrixAvailabilityState } from "./itinerary-details/hooks/useMatrixAvailabilityState";
+import { usePreviewDecisionState } from "./itinerary-details/hooks/usePreviewDecisionState";
 import type {
   Activity,
   AttractionSegment,
@@ -841,60 +842,23 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     normalizedDecision,
   });
 
-  const previewValidationReasonText = useMemo(
-    () => getPreviewValidationReasonText({
-      resolution: activePreviewResolution,
-      validation: activePreviewValidation,
-      normalizedDecision,
-      manualPreviewState,
-      groupPreviewResolution,
-      matrixFit,
-      destinationHotelDisplayName,
-      isManualRelaxedRouteFitPolicy,
-    }),
-    [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution],
-  );
-
-  const matrixApplyBlocked = useMemo(
-    () => isMatrixApplyBlockedUtil({
-      normalizedDecision,
-      matrixFit,
-      matrixRequiresBuild,
-      matrixMissingBlocked: isMatrixMissingBlockedState,
-      matrixBuiltButNoFeasibleSlot: isMatrixBuiltButNoFeasibleSlot,
-      manualPreviewState,
-      activePreviewResolution,
-      groupPreviewResolution,
-      isManualRelaxedRouteFitPolicy,
-    }),
-    [isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit, matrixRequiresBuild, normalizedDecision, manualPreviewState, activePreviewResolution, groupPreviewResolution],
-  );
-
-  const decisionStatus = useMemo(() => {
-    return String(normalizedDecision?.decisionStatus || '').toUpperCase();
-  }, [normalizedDecision]);
-
-  const confirmActionConfig = useMemo(() => {
-    if (decisionStatus === 'MATRIX_UNAVAILABLE') {
-      return { label: 'Build Matrix First', disabled: true };
-    }
-    if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY') {
-      return { label: 'Cannot Add', disabled: true };
-    }
-    if (decisionStatus === 'OFF_ROUTE' || decisionStatus === 'BACKTRACK') {
-      const manualRelaxedRouteFit =
-        isManualRelaxedRouteFitPolicy(manualPreviewState)
-        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
-      return manualRelaxedRouteFit
-        ? { label: 'Confirm Add Hotspot', disabled: false }
-        : { label: 'Cannot Add - Off Route', disabled: true };
-    }
-    if (decisionStatus === 'NEEDS_RESCHEDULE') {
-      return { label: 'Add with Reschedule', disabled: false };
-    }
-    return { label: 'Confirm Add Hotspot', disabled: false };
-  }, [decisionStatus, manualPreviewState, activePreviewResolution, groupPreviewResolution]);
+  const {
+    previewValidationReasonText,
+    matrixApplyBlocked,
+    decisionStatus,
+    confirmActionConfig,
+  } = usePreviewDecisionState({
+    activePreviewResolution,
+    activePreviewValidation,
+    destinationHotelDisplayName,
+    groupPreviewResolution,
+    isMatrixBuiltButNoFeasibleSlot,
+    isMatrixMissingBlockedState,
+    matrixFit,
+    matrixRequiresBuild,
+    manualPreviewState,
+    normalizedDecision,
+  });
 
   const insertionDecisionSummary = useMemo(() => {
     if (!activePreviewHotspotId || !matrixFit) return null;

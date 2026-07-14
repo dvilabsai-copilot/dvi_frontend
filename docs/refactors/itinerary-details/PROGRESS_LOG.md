@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 207 - Preview decision state hook
+
+### Baseline
+- Starting checkpoint: `6353dc1` on `refactor/itinerary-details-continuation` with matrix availability extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewDecisionState.ts`.
+- Moved preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels out of `ItineraryDetailsController.tsx`.
+- Preserved validation-reason inputs, relaxed-route-fit handling, matrix-block reasons, and all confirmation labels/disabled states.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,733 lines (down from 5,766 at the previous iteration).
+- New `usePreviewDecisionState.ts`: 90 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 206 - Matrix availability state hook
 
 ### Baseline
