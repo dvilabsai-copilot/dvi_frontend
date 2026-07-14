@@ -215,6 +215,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review shaping are isolated in `useNonTboSelectedHotelEntries.ts`.
 - Destination hotel label resolution for hotspot previews and route-fit messaging is isolated in `useDestinationHotelDisplayName.ts`.
 - Matrix-build suggestion lookup, chosen-slot validity, and usable-matrix-data detection are isolated in `useMatrixFitState.ts`.
+- Hotspot city-context derivation, active preview hotspot lookup, context fallback, and destination-side preview detection are isolated in `usePreviewCityContext.ts`.
 - Image URL resolution, gallery initialization, and YouTube watch-to-embed conversion are isolated in `useMediaModalController.ts`.
 - Lazy hotel-detail hydration is isolated in `useEnsureHotelDetailsLoaded.ts`; the controller no longer owns its loading/error lifecycle.
 - Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.

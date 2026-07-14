@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 205 - Preview city-context hook
+
+### Baseline
+- Starting checkpoint: `1f81f58` on `refactor/itinerary-details-continuation` with matrix-fit state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewCityContext.ts`.
+- Moved hotspot city-context derivation, active preview hotspot lookup, backend/context fallback, and destination-side preview detection out of `ItineraryDetailsController.tsx`.
+- Preserved source/destination city precedence, route metadata inputs, destination insertion codes, and matrix source/slot fallbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,878 lines (down from 5,934 at the previous iteration).
+- New `usePreviewCityContext.ts`: 107 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 204 - Matrix fit state hook
 
 ### Baseline
