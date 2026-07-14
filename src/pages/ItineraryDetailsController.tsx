@@ -173,6 +173,7 @@ import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActi
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
+import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -7848,6 +7849,27 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setSelectedHotelBookings: (updater: (previous: Record<number, Record<string, unknown>>) => Record<number, Record<string, unknown>>) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
   });
 
+  const completeQuotationConfirmation = useQuotationConfirmationCompletion({
+    confirmDefaultNationality,
+    setConfirmQuotationModal,
+    setLoadingHotels,
+    setActiveHotelListTotal,
+    setSelectedVehicleTotalsByType,
+    setSelectedHotelBookings: (bookings) => setSelectedHotelBookings(bookings as unknown as typeof selectedHotelBookings),
+    setActiveHotelGroupType,
+    loadConfirmedHotelsFromDb,
+    setItinerary,
+    setHotelDetails,
+    setGuestDetails,
+    setAdditionalAdults,
+    setAdditionalChildren,
+    setAdditionalInfants,
+    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
+    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown>,
+    setHasAcceptedUpdatedPrice,
+    setFormErrors,
+  });
+
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error('Missing itinerary plan information');
@@ -8121,71 +8143,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         confirmPayload as unknown as Parameters<typeof ItineraryService.confirmQuotation>[0],
       );
 
-      toast.success(confirmResponse?.message || 'Quotation confirmed successfully!');
-      setConfirmQuotationModal(false);
-
-      setLoadingHotels(true);
-      setActiveHotelListTotal(0);
-      setSelectedVehicleTotalsByType({});
-      setSelectedHotelBookings({});
-      setActiveHotelGroupType(null);
-
-      const confirmedPlanId = Number(confirmResponse?.confirmed_itinerary_plan_ID || 0);
-
-      if (confirmedPlanId > 0) {
-        const confirmedHotelDetailsFromResponse =
-          confirmResponse?.confirmedHotelDetails ||
-          confirmResponse?.hotelDetails ||
-          null;
-
-        const refreshedHotelDetails = await loadConfirmedHotelsFromDb(
-          confirmedPlanId,
-          confirmedHotelDetailsFromResponse,
-        );
-
-        setItinerary((prev) => {
-          if (!prev) return prev;
-
-          return {
-            ...prev,
-            confirmed_itinerary_plan_ID: confirmedPlanId,
-            isConfirmed: true,
-          };
-        });
-
-        setHotelDetails(refreshedHotelDetails as ItineraryHotelDetailsResponse | null);
-      } else {
-        console.warn('[CONFIRM_QUOTATION_NO_CONFIRMED_PLAN_ID]', confirmResponse);
-      }
-
-      setLoadingHotels(false);
-
-      // Reset form and selected hotels
-      setGuestDetails({
-        salutation: 'Mr',
-        name: '',
-        contactNo: '',
-        age: '',
-        nationality: confirmDefaultNationality,
-        panNo: '',
-        passportNo: '',
-        alternativeContactNo: '',
-        emailId: '',
-        arrivalDateTime: '',
-        arrivalPlace: '',
-        arrivalFlightDetails: '',
-        departureDateTime: '',
-        departurePlace: '',
-        departureFlightDetails: '',
-      });
-      setAdditionalAdults([]);
-      setAdditionalChildren([]);
-      setAdditionalInfants([]);
-      setPrebookData(null);
-      prebookDataRef.current = null;
-      setHasAcceptedUpdatedPrice(false);
-      setFormErrors({});
-      setSelectedHotelBookings({});
+      await completeQuotationConfirmation(confirmResponse);
     } catch (e) {
       setLoadingHotels(false);
       console.error('Failed to confirm quotation', e);

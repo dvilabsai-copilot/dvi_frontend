@@ -1139,6 +1139,33 @@
 - Explicit in-session selections remain authoritative; persisted rows only fill uncovered routes and recommended cheapest rows fill remaining routes as before.
 - Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
 
+## Iteration 95 - Quotation confirmation completion
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useQuotationConfirmationCompletion.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: confirmation success toast/modal close, confirmed-plan hotel hydration, selection/loading cleanup, and guest/prebook form reset.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useQuotationConfirmationCompletion.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,864 lines.
+- New `useQuotationConfirmationCompletion.ts`: 120 lines.
+
+### Notes
+- Success sequencing, confirmed-plan fallback warning, reset defaults, and loading cleanup remain unchanged; only ownership moved.
+- Follow-up extraction: remaining quotation guards and vehicle workflow boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline
