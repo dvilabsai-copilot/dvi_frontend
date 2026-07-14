@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 7,656 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 5,869 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -16,6 +16,20 @@ Current facts:
 - Full itinerary Playwright suite (latest parallel rerun): 34 tests executed; 9 passed, 2 skipped, and 23 failed for documented shared-data/environment/parity issues. Focused pair remains 2/2 passed.
 - Extracted boundaries now include loader/error, confirmed-quote banner, media/share/source, delete confirmation, all-hotspots preview, clipboard, para recommendations, day header, timeline segments, guide modal/delete workflows, activity availability/preview/add/delete workflows, vehicle build/rebuild workflow, vehicle section/grouping composition, vehicle-only clipboard workflow, quotation passenger validation/payload construction, quotation passenger-form view, quotation travel-details view, quotation dialog footer view, quotation passenger-requirement notice, quotation prebook loading notice, quotation agent summary view, quotation rooming preview view, quotation prebook TBO hotel rows view, quotation prebook acceptance notice, quotation non-TBO acceptance notice, quotation hotel-selection preparation, quotation occupancy utilities, quotation confirmation payload construction, quotation hotel-booking row normalization, quotation prebook selection preparation, quotation confirmation completion/reset, quotation booking guards, quotation route/prebook context derivation, quotation confirmation modal shell, manual hotspot application, hotspot dialog header view, hotspot city-tabs view, hotspot list-state view, hotspot selection notice view, hotspot dialog footer view, hotspot apply-button view, Fit Here timeline-row/anchor composition, Fit Here empty-state guidance, Fit Here selected-hotspot header, Fit Here preview loading state, same-city rescheduling notice, route-fit feasibility notice, empty preview-timeline fallback, resolved-overflow header, resolved-overflow final-timeline notice, resolved-removal leak diagnostic, day-end overflow notice, wallet top-up actions view, wallet balance/panel/top-up workflow, route switching, hotel selection/search/voucher workflows, hotel refresh/rebuild, selection coverage, hotspot deletion/matrix recovery/preview/priority approval/Fit Here preview/dialog/error/confirmation state/reset/normalization/refresh helpers, computed totals, and the previously documented state/derived boundaries.
 - New in this checkpoint: staged itinerary loading, hotel hydration, vehicle-build handoff, stale-request guards, and loading/error cleanup are isolated in `usePreparedItineraryPageLoader.ts`.
+- New in this checkpoint: manual preview timeline ordering, hotel-travel pruning, planned-removal filtering, best-slot placement, and baseline merging are isolated in `useEffectivePreviewTimeline.ts`.
+- New in this checkpoint: selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling are isolated in `useHotelHydratedDays.ts`.
+- New in this checkpoint: confirmed/read-only hotel row matching, day/date reconciliation, placeholder rows, cancellation metadata, and draft supplier-row preservation are isolated in `useHotelsForDisplay.ts`.
+- New in this checkpoint: external-stay filtering, preferred hotel-group selection, and the shared no-supplier customer message are isolated in `useExternalStayEntries.ts`.
+- New in this checkpoint: non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review shaping are isolated in `useNonTboSelectedHotelEntries.ts`.
+- New in this checkpoint: destination hotel label resolution for hotspot previews and route-fit messaging is isolated in `useDestinationHotelDisplayName.ts`.
+- New in this checkpoint: matrix-build suggestion lookup, chosen-slot validity, and usable-matrix-data detection are isolated in `useMatrixFitState.ts`.
+- New in this checkpoint: hotspot city-context derivation, active preview hotspot lookup, context fallback, and destination-side preview detection are isolated in `usePreviewCityContext.ts`.
+- New in this checkpoint: matrix-required, missing-data, infeasible-slot, and build-button decisions are isolated in `useMatrixAvailabilityState.ts`.
+- New in this checkpoint: preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels are isolated in `usePreviewDecisionState.ts`.
+- New in this checkpoint: hotspot insertion outcome messaging, reschedule/overflow checks, and relaxed-route-fit summary decisions are isolated in `useInsertionDecisionSummary.ts`.
+- New in this checkpoint: resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation are isolated in `usePreviewSlotState.ts`.
+- New in this checkpoint: preferred normalized insertion-slot selection and distance-delta fallback ordering are isolated in `useBestInsertionSlot.ts`.
+- New in this checkpoint: route-day attraction timing and hotspot duration/timings/priority metadata merging are isolated in `usePreviewHotspotMeta.ts`.
 - New in this checkpoint: route rebuild mutation/progress and refresh behavior are isolated in `useRouteRebuildMutation.ts`.
 - New in this checkpoint: route-time PATCH progress, refresh, and hotel-detail preservation are isolated in `useRouteTimePatchMutation.ts`.
 - New in this checkpoint: arrival-policy decision-key derivation is shared through `routeArrivalPolicy.utils.ts`.
@@ -29,6 +43,24 @@ Current facts:
 - New in this checkpoint: confirmation-modal initialization, customer/agent hydration, recommended-hotel preselection, and TBO prebook orchestration are isolated in `useQuotationConfirmationModalController.ts`.
 - New in this checkpoint: quotation wallet gating, hotel-booking payload assembly, booking guards, confirmation submission, and final cleanup are isolated in `useQuotationConfirmationSubmission.ts`.
 - New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
+- New in this checkpoint: automatic Fit Here preview request lifecycle, anchor progress rows, stale-response protection, result selection, and modal transitions are isolated in `useAutoFitHerePreviewController`.
+- New in this checkpoint: Fit Here confirmation validation, mutation payload, optimistic timeline update, refresh handoff, expired-attempt recovery, and retry paths are isolated in `useFitHereConfirmationMutation`.
+- New in this checkpoint: Clipboard recommendation grouping and local hotel/vehicle/cost package HTML and plain-text composition are isolated in `useClipboardContentBuilder`.
+- New in this checkpoint: Hotel refresh, group switching, rebuild, and vehicle refresh mutations share the existing `useHotelDataController`; duplicate page-level hotel-refresh orchestration was removed.
+- New in this checkpoint: Display-day fallback selection, segment safeguards, diagnostics, and start-segment ordering are isolated in `useDisplayItineraryDays`.
+- New in this checkpoint: Source-markdown preview quote resolution, loading/reset transitions, retrieval, heading fallback, and errors are isolated in `useSourcePreviewController`.
+- New in this checkpoint: Route-hotel cache writes, cached-result reuse, in-flight request de-duplication, and fetch cleanup are isolated in `useRouteHotelDetailsCache`.
+- New in this checkpoint: Hotspot search matching, availability classification, previewability, and modal list ranking are isolated in `useFilteredHotspots`.
+- New in this checkpoint: Hotspot source/destination city labels and cross-city route detection are isolated in `useHotspotRouteCityContext`.
+- New in this checkpoint: Hotspot city buckets, grouped rows, tabs, active-tab visibility, and destination-context tab selection are isolated in `useHotspotCityPresentation`.
+- New in this checkpoint: Matrix/anchor insertion-slot label normalization and destination fallback text are isolated in `useDestinationInsertionSlotLabel`.
+- New in this checkpoint: Fit Here result-type normalization and tried-anchor status labels are isolated in `fitHereAttemptStatus.utils`.
+- New in this checkpoint: Fit Here hotspot selection invalidation and modal-reset orchestration are isolated in `useFitHereHotspotSelection`.
+- New in this checkpoint: Current-route attraction/manual hotspot IDs, exclusion filtering, and manual hotspot metadata derivation are isolated in `routeHotspotIds.utils`.
+- New in this checkpoint: current-route attraction/manual hotspot IDs, manual metadata, and already-added preview detection are isolated in `useCurrentRouteHotspotState.ts`.
+- New in this checkpoint: available-hotspot normalization defaults and modal-specific normalization options are isolated in `useNormalizedAvailableHotspots.ts`.
+- New in this checkpoint: active-anchor route-fit insight, destination-side naming, distance fallback, and status labels are isolated in `useActiveAnchorFitInsight.ts`.
+- New in this checkpoint: Fit Here anchor button presentation and tried-anchor status styling are isolated in `FitHereAnchorButton.tsx`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

@@ -7,6 +7,32 @@ import type {
 } from "../itinerary-details.types";
 import type { ManualFitHerePreviewResponse } from "@/components/itinerary/manual-fit/ManualFitHerePreviewDialog";
 
+export type AutoFitHereModalState = {
+  open: boolean;
+  loading: boolean;
+  failedReason: string | null;
+  results: any[];
+  selectedAnchorKey: string | null;
+  loadingAnchorCount?: number;
+  loadingStartedAtMs?: number | null;
+  performanceSummary?: {
+    totalElapsedMs?: number;
+    avgAnchorMs?: number;
+    slowestAnchorLabel?: string | null;
+    slowestAnchorMs?: number;
+  } | null;
+};
+
+export type FitHereModalState = {
+  open: boolean;
+  loading: boolean;
+  loadingStepIndex: number;
+  failedReason: string | null;
+  attempt: ManualFitHerePreviewResponse | null;
+  anchorKey: string | null;
+  retryPayload?: { day: ItineraryDay; anchor: any } | null;
+};
+
 export function useHotspotState() {
   const [addHotspotModal, setAddHotspotModal] = useState<{
     open: boolean;
@@ -39,30 +65,8 @@ export function useHotspotState() {
   const [activeHotspotCityTab, setActiveHotspotCityTab] = useState<"ALL" | "SOURCE_CITY" | "DESTINATION_CITY" | "UNKNOWN">("ALL");
   const [selectedFitHotspot, setSelectedFitHotspot] = useState<AvailableHotspot | null>(null);
   const [triedFitHereAnchors, setTriedFitHereAnchors] = useState<Record<string, TriedAnchorState>>({});
-  const [fitHereModal, setFitHereModal] = useState<{
-    open: boolean;
-    loading: boolean;
-    loadingStepIndex: number;
-    failedReason: string | null;
-    attempt: ManualFitHerePreviewResponse | null;
-    anchorKey: string | null;
-    retryPayload?: { day: ItineraryDay; anchor: any } | null;
-  }>({ open: false, loading: false, loadingStepIndex: 0, failedReason: null, attempt: null, anchorKey: null, retryPayload: null });
-  const [autoFitHereModal, setAutoFitHereModal] = useState<{
-    open: boolean;
-    loading: boolean;
-    failedReason: string | null;
-    results: any[];
-    selectedAnchorKey: string | null;
-    loadingAnchorCount?: number;
-    loadingStartedAtMs?: number | null;
-    performanceSummary?: {
-      totalElapsedMs?: number;
-      avgAnchorMs?: number;
-      slowestAnchorLabel?: string | null;
-      slowestAnchorMs?: number;
-    } | null;
-  }>({ open: false, loading: false, failedReason: null, results: [], selectedAnchorKey: null, loadingAnchorCount: 0, loadingStartedAtMs: null, performanceSummary: null });
+  const [fitHereModal, setFitHereModal] = useState<FitHereModalState>({ open: false, loading: false, loadingStepIndex: 0, failedReason: null, attempt: null, anchorKey: null, retryPayload: null });
+  const [autoFitHereModal, setAutoFitHereModal] = useState<AutoFitHereModalState>({ open: false, loading: false, failedReason: null, results: [], selectedAnchorKey: null, loadingAnchorCount: 0, loadingStartedAtMs: null, performanceSummary: null });
   const [confirmFitHereLoading, setConfirmFitHereLoading] = useState(false);
 
   const hotspotListRef = useRef<HTMLDivElement>(null);

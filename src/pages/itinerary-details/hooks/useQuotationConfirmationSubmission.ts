@@ -33,6 +33,7 @@ export function useQuotationConfirmationSubmission({
   additionalInfants,
   confirmOccupanciesTemplate,
   requiresHotelBookingFlow,
+  canConfirmQuotation,
   requiresDetailedPassengerFlow,
   hasAcceptedUpdatedPrice,
   shouldEnableWalletTopUpOnConfirm,
@@ -62,6 +63,7 @@ export function useQuotationConfirmationSubmission({
   additionalInfants: AdditionalPassenger[];
   confirmOccupanciesTemplate: Array<{ adults: number; children: number; childrenAges: number[] }> | null;
   requiresHotelBookingFlow: boolean;
+  canConfirmQuotation: boolean;
   requiresDetailedPassengerFlow: boolean;
   hasAcceptedUpdatedPrice: boolean;
   shouldEnableWalletTopUpOnConfirm: boolean;
@@ -86,6 +88,11 @@ export function useQuotationConfirmationSubmission({
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error("Missing itinerary plan information");
+      return;
+    }
+
+    if (!canConfirmQuotation) {
+      toast.error("A vehicle with valid rates must be selected before confirmation.");
       return;
     }
 

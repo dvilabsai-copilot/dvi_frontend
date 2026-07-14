@@ -7,6 +7,7 @@ interface FinancialTotalsOptions {
   computedVehicleAmount: number;
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
+  hasRequiredVehicleSelection: boolean;
   selectedVehicleTotalsByType: Record<number, { totalAmount?: number }>;
   activeHotelListTotal: number;
   selectedHotelTotal: number;
@@ -22,6 +23,7 @@ export const useFinancialTotals = ({
   computedVehicleAmount,
   shouldShowHotels,
   shouldShowVehicles,
+  hasRequiredVehicleSelection,
   selectedVehicleTotalsByType,
   activeHotelListTotal,
   selectedHotelTotal,
@@ -41,6 +43,7 @@ export const useFinancialTotals = ({
   const backendTotalAmount = toSafeMoney(costBreakdown?.totalAmount as number | string | null);
   const couponDiscount = toSafeMoney(costBreakdown?.couponDiscount as number | string | null);
   const agentMargin = toSafeMoney(costBreakdown?.agentMargin as number | string | null);
+  const effectiveAgentMargin = shouldShowVehicles && !hasRequiredVehicleSelection ? 0 : agentMargin;
   const hasSelectedVehicleTotal = Object.values(selectedVehicleTotalsByType).some((row) => Number(row.totalAmount || 0) > 0);
   const hasLiveHotelSelection = activeHotelListTotal > 0 || selectedHotelTotal > 0;
 
@@ -48,13 +51,14 @@ export const useFinancialTotals = ({
     const backendBaseTotalAmount = backendTotalAmount > 0
       ? backendTotalAmount
       : toSafeMoney(backendNetPayable - agentMargin + couponDiscount);
-    const subtotalBeforeRoundOff = toSafeMoney(backendBaseTotalAmount - couponDiscount + agentMargin);
+    const subtotalBeforeRoundOff = toSafeMoney(backendBaseTotalAmount - couponDiscount + effectiveAgentMargin);
     const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
     return {
       hotelAmount: toSafeMoney(costBreakdown?.totalHotelAmount as number | string | null),
       totalAmount: backendBaseTotalAmount,
       netPayable: toSafeMoney(subtotalBeforeRoundOff + totalRoundOff),
       totalRoundOff,
+      agentMargin: effectiveAgentMargin,
     };
   }
 
@@ -75,13 +79,14 @@ export const useFinancialTotals = ({
     Number(costBreakdown?.additionalMargin || 0),
   );
   const totalAmount = toSafeMoney(hotelAmount + vehicleAmount + otherAmount);
-  const subtotalBeforeRoundOff = toSafeMoney(totalAmount - couponDiscount + agentMargin);
+  const subtotalBeforeRoundOff = toSafeMoney(totalAmount - couponDiscount + effectiveAgentMargin);
   const totalRoundOff = getRoundOffToNearestRupee(subtotalBeforeRoundOff);
   return {
     hotelAmount,
     totalAmount,
     netPayable: toSafeMoney(subtotalBeforeRoundOff + totalRoundOff),
     totalRoundOff,
+    agentMargin: effectiveAgentMargin,
   };
-}, [activeHotelListTotal, computedHotelCost, computedVehicleAmount, costBreakdown, entryTicketBreakdownCount, entryTicketLocationWiseTotal, overallCost, selectedHotelTotal, selectedVehicleTotalsByType, shouldShowHotels, shouldShowVehicles]);
+}, [activeHotelListTotal, computedHotelCost, computedVehicleAmount, costBreakdown, entryTicketBreakdownCount, entryTicketLocationWiseTotal, hasRequiredVehicleSelection, overallCost, selectedHotelTotal, selectedVehicleTotalsByType, shouldShowHotels, shouldShowVehicles]);
 

@@ -78,11 +78,26 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Pending top-priority replacement detection is isolated in `previewPriority.utils`; approval state and confirmation effects remain controller-owned.
 - Automatic Fit Here removed-row extraction, priority detection, and attempt scoring are isolated in `autoPreviewScoring.utils`; preview orchestration remains controller-owned.
 - Automatic Fit Here downstream progress text is isolated in `autoPreviewProgress.utils`; request lifecycle and modal state remain controller-owned.
+- Automatic Fit Here preview request lifecycle, anchor progress rows, stale-response protection, result selection, and modal transitions are isolated in `useAutoFitHerePreviewController`; anchor discovery remains controller-owned.
+- Fit Here confirmation validation, mutation payload, optimistic timeline update, refresh handoff, expired-attempt recovery, and retry paths are isolated in `useFitHereConfirmationMutation`; confirmation state/reset/refresh helpers remain separate boundaries.
+- Clipboard recommendation grouping and local hotel/vehicle/cost package HTML and plain-text composition are isolated in `useClipboardContentBuilder`; remote clipboard retrieval and copy behavior remain in `useHotelClipboardAction`.
+- Hotel refresh, group switching, rebuild, and vehicle refresh mutations share the existing `useHotelDataController`; duplicate page-level hotel-refresh orchestration was removed.
+- Display-day fallback selection, segment safeguards, diagnostics, and start-segment ordering are isolated in `useDisplayItineraryDays`.
+- Source-markdown preview quote resolution, loading/reset transitions, retrieval, heading fallback, and errors are isolated in `useSourcePreviewController`.
+- Route-hotel cache writes, cached-result reuse, in-flight request de-duplication, and fetch cleanup are isolated in `useRouteHotelDetailsCache`.
+- Hotspot search matching, availability classification, previewability, and modal list ranking are isolated in `useFilteredHotspots`.
+- Hotspot source/destination city labels and cross-city route detection are isolated in `useHotspotRouteCityContext`.
+- Hotspot city buckets, grouped rows, tabs, active-tab visibility, and destination-context tab selection are isolated in `useHotspotCityPresentation`.
+- Matrix/anchor insertion-slot label normalization and destination fallback text are isolated in `useDestinationInsertionSlotLabel`.
+- Fit Here result-type normalization and tried-anchor status labels are isolated in `fitHereAttemptStatus.utils`.
+- Fit Here hotspot selection invalidation and modal-reset orchestration are isolated in `useFitHereHotspotSelection`.
+- Current-route attraction/manual hotspot IDs, exclusion filtering, and manual hotspot metadata derivation are isolated in `routeHotspotIds.utils`.
 - Active Fit Here preview route filtering, removal filtering, matrix ordering, and time/type fallback ordering are isolated in `activePreviewTimeline.utils`; resolution selection remains controller-owned.
 - Active preview resolution precedence (manual, group, then selected hotspot) is isolated in `activePreviewResolution.utils`; validation and normalized-decision derivation remain controller-owned.
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.
 - Fit Here matrix apply-blocking decisions, including relaxed-route bypasses and destination-side behavior, are isolated in `matrixApplyBlocked.utils`; confirmation controls remain controller-owned.
-- Insertion-slot normalization, route-fit labels, metrics fallback, and destination-side naming are isolated in `normalizedInsertionSlots.utils`; active anchor insight remains controller-owned.
+- Insertion-slot normalization, route-fit labels, metrics fallback, and destination-side naming are isolated in `normalizedInsertionSlots.utils`; active-anchor insight derivation is isolated in `useActiveAnchorFitInsight.ts`.
+- Fit Here anchor button presentation and tried-anchor status styling are isolated in `FitHereAnchorButton.tsx`; anchor selection remains injected from the controller.
 - The former inline insertion-slot implementation is no longer retained as a commented compatibility fragment; the utility is the sole implementation.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
@@ -194,6 +209,22 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - The legacy inline vehicle-only clipboard builder is removed; `useVehicleOnlyClipboardAction.ts` is the active vehicle-only clipboard boundary.
 - Activity preview time, duration, money, and total-amount formatting are pure helpers in `activityFormatting.utils.ts`; the controller retains only state-dependent activity selection.
 - Hotel-arrival policy resolution, confirmation-date preparation, arrival-time updates, and hotel-selection modal policy orchestration are isolated in `useHotelArrivalPolicyController.ts`.
+- Manual preview timeline ordering, hotel-travel pruning, planned-removal filtering, best-slot placement, and baseline merging are isolated in `useEffectivePreviewTimeline.ts`.
+- Selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling are isolated in `useHotelHydratedDays.ts`.
+- Confirmed/read-only hotel row matching, day/date reconciliation, placeholder rows, cancellation metadata, and draft supplier-row preservation are isolated in `useHotelsForDisplay.ts`.
+- External-stay filtering, preferred hotel-group selection, and the shared no-supplier customer message are isolated in `useExternalStayEntries.ts`.
+- Non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review shaping are isolated in `useNonTboSelectedHotelEntries.ts`.
+- Destination hotel label resolution for hotspot previews and route-fit messaging is isolated in `useDestinationHotelDisplayName.ts`.
+- Matrix-build suggestion lookup, chosen-slot validity, and usable-matrix-data detection are isolated in `useMatrixFitState.ts`.
+- Hotspot city-context derivation, active preview hotspot lookup, context fallback, and destination-side preview detection are isolated in `usePreviewCityContext.ts`.
+- Matrix-required, missing-data, infeasible-slot, and build-button decisions are isolated in `useMatrixAvailabilityState.ts`.
+- Preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels are isolated in `usePreviewDecisionState.ts`.
+- Hotspot insertion outcome messaging, reschedule/overflow checks, and relaxed-route-fit summary decisions are isolated in `useInsertionDecisionSummary.ts`.
+- Resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation are isolated in `usePreviewSlotState.ts`.
+- Preferred normalized insertion-slot selection and distance-delta fallback ordering are isolated in `useBestInsertionSlot.ts`.
+- Route-day attraction timing and hotspot duration/timings/priority metadata merging are isolated in `usePreviewHotspotMeta.ts`.
+- Current-route attraction/manual hotspot IDs, manual metadata, and already-added preview detection are isolated in `useCurrentRouteHotspotState.ts`.
+- Available-hotspot normalization defaults and modal-specific normalization options are isolated in `useNormalizedAvailableHotspots.ts`.
 - Image URL resolution, gallery initialization, and YouTube watch-to-embed conversion are isolated in `useMediaModalController.ts`.
 - Lazy hotel-detail hydration is isolated in `useEnsureHotelDetailsLoaded.ts`; the controller no longer owns its loading/error lifecycle.
 - Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.

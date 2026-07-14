@@ -89,6 +89,9 @@ export interface ItineraryVehicleRow {
   vehicleTypeId?: number;
   vehicleTypeName?: string;
   isAssigned?: boolean;
+  rateAvailable?: boolean;
+  missingRateTypes?: Array<'Local' | 'Outstation'>;
+  rateAvailabilityMessage?: string | null;
   selectedTimeLimitId?: number;
   availableSlabs?: Array<{
     timeLimitId: number;

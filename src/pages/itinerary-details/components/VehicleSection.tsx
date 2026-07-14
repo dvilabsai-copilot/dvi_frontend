@@ -7,6 +7,11 @@ interface VehicleSectionProps {
   vehicleListRef: RefObject<HTMLDivElement>;
   summaryStickyHeight: number;
   vehicles: ItineraryVehicleRow[];
+  vehicleRateAvailability?: Array<{
+    vehicleTypeId: number;
+    vehicleTypeName: string;
+    message: string;
+  }>;
   planId: number;
   dateRange?: string;
   days: ItineraryDay[];
@@ -21,6 +26,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   vehicleListRef,
   summaryStickyHeight,
   vehicles,
+  vehicleRateAvailability = [],
   planId,
   dateRange = "",
   days,
@@ -46,10 +52,41 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
     label: `Day ${day.dayNumber} - ${day.date ? new Date(day.date).toLocaleDateString('en-GB', { month: 'short', day: '2-digit' }) : ""}`,
   }));
 
+  const availabilityByType = new Map(
+    vehicleRateAvailability.map((item) => [Number(item.vehicleTypeId || 0), item]),
+  );
+  const renderTypeOrder = [
+    ...typeOrder,
+    ...vehicleRateAvailability
+      .map((item) => Number(item.vehicleTypeId || 0))
+      .filter((typeId) => typeId > 0 && !typeOrder.includes(typeId)),
+  ];
+
   return (
     <div ref={vehicleListRef} id="vehicle-list-section" style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}>
-      {typeOrder.map((typeId) => {
+      {renderTypeOrder.map((typeId) => {
         const rawVehicles = vehiclesByType.get(typeId) || [];
+        const availabilityMessage = availabilityByType.get(typeId);
+
+        if (rawVehicles.length === 0 && availabilityMessage) {
+          return (
+            <div
+              key={`vehicle-rate-message-${typeId}`}
+              className="bg-white rounded-lg shadow-sm border border-[#eadcf5] p-6 mt-4"
+            >
+              <h5 className="text-base font-bold uppercase">
+                VEHICLE LIST FOR{" "}
+                <span className="text-purple-600">"{availabilityMessage.vehicleTypeName}"</span>
+              </h5>
+              <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {availabilityMessage.message}
+              </div>
+            </div>
+          );
+        }
+
+        if (rawVehicles.length === 0) return null;
+
         const sortedVehicles = [...rawVehicles].sort((a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b));
         const cheapest = sortedVehicles[0];
         const vehicleKey = (vehicle: ItineraryVehicleRow) => String(

@@ -4484,3 +4484,817 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 184 - Automatic Fit Here preview controller hook
+
+### Baseline
+- Starting checkpoint: `ad3f9e6` on `refactor/itinerary-details-continuation`, fast-forwarded from the latest `main` updates.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useAutoFitHerePreviewController.ts`.
+- Moved automatic Fit Here anchor preparation, preview request lifecycle, stale-request protection, progress-row initialization, result selection, modal state transitions, and error feedback out of the page controller.
+- Exported the existing Fit Here modal state shapes from `useHotspotState` so the extracted hook can retain the existing setter and payload contracts.
+- Preserved plan/day validation, preview payload fields, selected-hotspot state, progress text, response ranking, stale-response handling, and toast messages.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook, hotspot state, or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,566 lines (down from 7,665 at the continuation-branch baseline).
+- New hook: 150 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 215 - Fit Here anchor button component
+
+### Baseline
+- Starting checkpoint: `e80df66` on `codex/itinerary-refactor-production-20260715` with active-anchor fit insight extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/components/FitHereAnchorButton.tsx`.
+- Moved Fit Here anchor markup, data attributes, click presentation, and tried-anchor status styling out of `ItineraryDetailsController.tsx`.
+- Preserved the injected `handleFitHereClick` callback and exact anchor/status rendering contract.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors from the new component or page controller; repository typecheck retains unrelated existing errors.
+- Focused Playwright verification is run for this checkpoint below.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,869 physical lines (down from 5,902 at the previous iteration).
+- New `FitHereAnchorButton.tsx`: 52 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 214 - Active-anchor fit insight hook
+
+### Baseline
+- Starting checkpoint: `8e48e10` on `codex/itinerary-refactor-production-20260715` with available-hotspot normalization extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useActiveAnchorFitInsight.ts`.
+- Moved active-anchor route-fit insight derivation, matrix chosen/best-slot handling, destination-side hotel naming, distance fallback, and status labels out of `ItineraryDetailsController.tsx`.
+- Preserved the existing insight return shape consumed by the Fit Here dialogs and notices.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+- Focused Playwright verification is run for this checkpoint below.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,902 physical lines (down from 5,984 at the previous iteration).
+- New `useActiveAnchorFitInsight.ts`: 149 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 213 - Available-hotspot normalization hook
+
+### Baseline
+- Starting checkpoint: `d27c3cb` on `refactor/itinerary-details-continuation` with current-route hotspot state extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useNormalizedAvailableHotspots.ts`.
+- Moved available-hotspot normalization defaults and modal-specific override wiring out of `ItineraryDetailsController.tsx`.
+- Preserved excluded-ID handling, active-route reconciliation, manual metadata enrichment, and callback options.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Focused Playwright remains green from the preceding checkpoint; this extraction is callback wiring only.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,984 physical lines (down from 5,992 at the previous iteration).
+- New `useNormalizedAvailableHotspots.ts`: 33 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 212 - Current-route hotspot state hook
+
+### Baseline
+- Starting checkpoint: `1b7514d` on `refactor/itinerary-details-continuation` with preview hotspot metadata extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useCurrentRouteHotspotState.ts`.
+- Moved current-route attraction/manual hotspot ID sets, manual hotspot metadata, and already-added preview detection out of `ItineraryDetailsController.tsx`.
+- Preserved excluded-ID filtering, modal-added IDs, route/day lookup, and set/map return contracts.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,992 physical lines (down from 5,999 at the previous iteration).
+- New `useCurrentRouteHotspotState.ts`: 52 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 211 - Preview hotspot metadata hook
+
+### Baseline
+- Starting checkpoint: `9690377` on `refactor/itinerary-details-continuation` with best insertion-slot extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewHotspotMeta.ts`.
+- Moved route-day attraction timing and available-hotspot duration/timings/priority metadata merging out of `ItineraryDetailsController.tsx`.
+- Preserved route-day precedence, duration-from-hours fallback, hotspot priority fallbacks, and map-key semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,999 physical lines (down from 6,035 at the previous iteration).
+- New `usePreviewHotspotMeta.ts`: 65 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 210 - Best insertion slot hook
+
+### Baseline
+- Starting checkpoint: `7b10c87` on `refactor/itinerary-details-continuation` with preview slot-state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useBestInsertionSlot.ts`.
+- Moved preferred normalized insertion-slot selection and distance-delta fallback ordering out of `ItineraryDetailsController.tsx`.
+- Preserved matrix-required gating, `isBest` precedence, and shortest-distance fallback.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,035 physical lines (down from 6,042 at the previous iteration).
+- New `useBestInsertionSlot.ts`: 24 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 209 - Preview slot state hook
+
+### Baseline
+- Starting checkpoint: `9ff235b` on `refactor/itinerary-details-continuation` with insertion decision summary extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewSlotState.ts`.
+- Moved resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation out of `ItineraryDetailsController.tsx`.
+- Preserved selected-hotspot exclusion, chosen/best fallback precedence, matrix-required gating, destination-hotel naming, and all normalized slot inputs.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,042 physical lines (down from 6,122 physical lines before this extraction).
+- New `usePreviewSlotState.ts`: 127 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 208 - Insertion decision summary hook
+
+### Baseline
+- Starting checkpoint: `0c524c2` on `refactor/itinerary-details-continuation` with preview decision-state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useInsertionDecisionSummary.ts`.
+- Moved hotspot insertion outcome messaging, reschedule/overflow conflict checks, and relaxed-route-fit summary decisions out of `ItineraryDetailsController.tsx`.
+- Preserved matrix-blocked precedence, priority-confirmation handling, opening/timing conflict messaging, and all user-facing summary text.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,679 lines (down from 5,733 at the previous iteration).
+- New `useInsertionDecisionSummary.ts`: 97 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 207 - Preview decision state hook
+
+### Baseline
+- Starting checkpoint: `6353dc1` on `refactor/itinerary-details-continuation` with matrix availability extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewDecisionState.ts`.
+- Moved preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels out of `ItineraryDetailsController.tsx`.
+- Preserved validation-reason inputs, relaxed-route-fit handling, matrix-block reasons, and all confirmation labels/disabled states.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,733 lines (down from 5,766 at the previous iteration).
+- New `usePreviewDecisionState.ts`: 90 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 206 - Matrix availability state hook
+
+### Baseline
+- Starting checkpoint: `3f57fa9` on `refactor/itinerary-details-continuation` with preview city-context extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useMatrixAvailabilityState.ts`.
+- Moved matrix-required, missing-data, infeasible-slot, and build-button decisions out of `ItineraryDetailsController.tsx`.
+- Preserved destination-side exemptions, existing-matrix non-feasible handling, scheduler failure exclusions, validation/decision fallbacks, and `canBuildMatrix` checks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,766 lines (down from 5,878 at the previous iteration).
+- New `useMatrixAvailabilityState.ts`: 155 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 205 - Preview city-context hook
+
+### Baseline
+- Starting checkpoint: `1f81f58` on `refactor/itinerary-details-continuation` with matrix-fit state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewCityContext.ts`.
+- Moved hotspot city-context derivation, active preview hotspot lookup, backend/context fallback, and destination-side preview detection out of `ItineraryDetailsController.tsx`.
+- Preserved source/destination city precedence, route metadata inputs, destination insertion codes, and matrix source/slot fallbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,878 lines (down from 5,934 at the previous iteration).
+- New `usePreviewCityContext.ts`: 107 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 204 - Matrix fit state hook
+
+### Baseline
+- Starting checkpoint: `8d8a339` on `refactor/itinerary-details-continuation` with destination hotel label extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useMatrixFitState.ts`.
+- Moved matrix-build suggestion lookup, chosen-slot validity rules, and usable-matrix-data detection out of `ItineraryDetailsController.tsx`.
+- Preserved destination-side insertion rules, single-hotspot before/after route-fit rules, city-endpoint fallback, and matrix-required guards.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,934 lines (down from 5,978 at the previous iteration).
+- New `useMatrixFitState.ts`: 69 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 203 - Destination hotel display-name hook
+
+### Baseline
+- Starting checkpoint: `2b31ea0` on `refactor/itinerary-details-continuation` with non-TBO selected hotel extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDestinationHotelDisplayName.ts`.
+- Moved destination hotel label resolution for hotspot previews and route-fit messaging out of `ItineraryDetailsController.tsx`.
+- Preserved selected-route hotel precedence, check-in/timeline fallback, matrix destination fallback, and placeholder-label filtering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,978 lines (down from 6,019 at the previous iteration).
+- New `useDestinationHotelDisplayName.ts`: 65 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 202 - Non-TBO selected hotel entries hook
+
+### Baseline
+- Starting checkpoint: `6924f8d` on `refactor/itinerary-details-continuation` with external-stay extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useNonTboSelectedHotelEntries.ts`.
+- Moved non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review display shaping out of `ItineraryDetailsController.tsx`.
+- Preserved provider/bookability checks, booking/hotel/room/amount matching precedence, displayed route IDs, and date/night fallbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,019 lines (down from 6,080 at the previous iteration).
+- New `useNonTboSelectedHotelEntries.ts`: 100 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 201 - External-stay entries hook
+
+### Baseline
+- Starting checkpoint: `362ce41` on `refactor/itinerary-details-continuation` with hotels-for-display extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useExternalStayEntries.ts`.
+- Moved external-stay filtering, preferred hotel-group selection, and the shared customer-facing no-supplier message out of `ItineraryDetailsController.tsx`.
+- Preserved availability status/message fallbacks and supplier-bookability rules.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,080 lines (down from 6,117 at the previous iteration).
+- New `useExternalStayEntries.ts`: 47 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 200 - Hotels-for-display hook
+
+### Baseline
+- Starting checkpoint: `59c8ab9` on `refactor/itinerary-details-continuation` with hotel hydrated-day extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotelsForDisplay.ts`.
+- Moved confirmed/read-only hotel row matching, day/date/destination reconciliation, placeholder-row generation, cancellation metadata, and draft supplier-row preservation out of `ItineraryDetailsController.tsx`.
+- Preserved route/day/date matching precedence, final-day filtering, group-type fallback, external-stay messaging, and hotel cancellation fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,117 lines (down from 6,312 at the previous iteration).
+- New `useHotelsForDisplay.ts`: 226 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 199 - Hotel hydrated-days hook
+
+### Baseline
+- Starting checkpoint: `ef5cca3` on `refactor/itinerary-details-continuation` with effective preview timeline extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotelHydratedDays.ts`.
+- Moved selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling out of `ItineraryDetailsController.tsx`.
+- Preserved route hotel metadata lookup, previous-hotel departure fallback, distance-based timing, check-in labels, and segment ordering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,312 lines (down from 6,623 at the previous iteration).
+- New `useHotelHydratedDays.ts`: 341 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 198 - Effective preview timeline hook
+
+### Baseline
+- Starting checkpoint: `45e5b0c` on `refactor/itinerary-details-continuation` with route hotspot ID and metadata utilities committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useEffectivePreviewTimeline.ts`.
+- Moved manual preview timeline ordering, hotel-travel pruning, planned-removal filtering, best-slot placement, and baseline merge decisions out of `ItineraryDetailsController.tsx`.
+- Preserved backend-resolved timeline precedence, matrix preview ordering, priority-confirm fallback behavior, and diagnostic logging.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,623 lines (down from 6,922 at the previous iteration).
+- New `useEffectivePreviewTimeline.ts`: 334 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 197 - Route hotspot ID and metadata utilities
+
+### Baseline
+- Starting checkpoint: `a4e5f26` on `refactor/itinerary-details-continuation` with Fit Here hotspot selection extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/routeHotspotIds.utils.ts`.
+- Moved current-route attraction IDs, manual-hotspot IDs, deleted/excluded filtering, and manual hotspot metadata derivation out of the page controller.
+- Preserved route matching, exclusion handling, manual flags, route-hotspot IDs, and modal-added hotspot merging.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New utility ESLint check passed.
+- Filtered TypeScript check found no errors in the utility or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,922 lines (down from 7,005 at the previous iteration).
+- New utility: 89 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 196 - Fit Here hotspot selection hook
+
+### Baseline
+- Starting checkpoint: `132a32e` on `refactor/itinerary-details-continuation` with Fit Here attempt-status extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFitHereHotspotSelection.ts`.
+- Moved selected-hotspot request invalidation, Fit Here modal reset, automatic-preview reset, and active-preview cleanup out of the page controller.
+- Preserved selection state, stale-request protection, timer cleanup, and all modal reset fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,005 lines (down from 7,018 at the previous iteration).
+- New hook: 50 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 195 - Fit Here attempt status utility
+
+### Baseline
+- Starting checkpoint: `49ace03` on `refactor/itinerary-details-continuation` with destination insertion-label extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/fitHereAttemptStatus.utils.ts`.
+- Moved Fit Here result-type normalization and tried-anchor status/label mapping out of the page controller.
+- Preserved all result classifications and user-facing labels.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New utility ESLint check passed.
+- Filtered TypeScript check found no errors in the utility or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,018 lines (down from 7,033 at the previous iteration).
+- New utility: 12 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 194 - Destination insertion label hook
+
+### Baseline
+- Starting checkpoint: `af4f262` on `refactor/itinerary-details-continuation` with hotspot city presentation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDestinationInsertionSlotLabel.ts`.
+- Moved matrix/anchor insertion-slot label normalization, destination-name replacement, and destination fallback text out of the page controller.
+- Preserved preferred-slot precedence, replacement formatting, destination hotel substitution, and destination-city fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,033 lines (down from 7,048 at the previous iteration).
+- New hook: 41 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 193 - Hotspot city presentation hook
+
+### Baseline
+- Starting checkpoint: `681b165` on `refactor/itinerary-details-continuation` with route-city context extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotspotCityPresentation.ts`.
+- Moved hotspot city buckets, grouped list rows, city tabs, active-tab visibility, and destination-preview tab selection effects out of the page controller.
+- Preserved source/destination/unknown grouping, tab labels/counts, active-tab fallback, and destination-context auto-selection.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,048 lines (down from 7,152 at the previous iteration).
+- New hook: 101 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 192 - Hotspot route-city context hook
+
+### Baseline
+- Starting checkpoint: `5b06a87` on `refactor/itinerary-details-continuation` with filtered-hotspot extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotspotRouteCityContext.ts`.
+- Moved source/destination city label normalization and cross-city route detection out of the page controller.
+- Preserved filter-metadata precedence, route fallback values, selected-anchor destination fallback, capitalization, and empty-label behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,152 lines (down from 7,191 at the previous iteration).
+- New hook: 39 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 191 - Filtered hotspot list hook
+
+### Baseline
+- Starting checkpoint: `e2d7ec4` on `refactor/itinerary-details-continuation` with route-hotel cache extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFilteredHotspots.ts`.
+- Moved hotspot search matching, deleted/added/previewable classification, priority ordering, and closed/visit-again sorting out of the page controller.
+- Preserved modal list ranking, active-route/manual membership checks, availability status handling, and priority fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,191 lines (down from 7,265 at the previous iteration).
+- New hook: 77 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 190 - Route hotel cache hook
+
+### Baseline
+- Starting checkpoint: `6745c57` on `refactor/itinerary-details-continuation` with source-preview extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useRouteHotelDetailsCache.ts`.
+- Moved route-hotel cache writes, cached-result reuse, in-flight request de-duplication, fetcher readiness checks, and cleanup out of the page controller.
+- Preserved cache keys, request sharing, reference cleanup, and hotel-detail hydration contracts used by route prefetch and page loading.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,265 lines (down from 7,302 at the previous iteration).
+- New hook: 44 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 189 - Source preview controller hook
+
+### Baseline
+- Starting checkpoint: `9347ef9` on `refactor/itinerary-details-continuation` with display-day derivation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useSourcePreviewController.ts`.
+- Moved source-markdown quote resolution, modal loading/reset transitions, service retrieval, heading fallback, and error cleanup out of the page controller.
+- Preserved active-route/itinerary quote fallback order, endpoint arguments, modal state updates, and toast/error behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,302 lines (down from 7,313 at the previous iteration).
+- New hook: 47 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 188 - Display-day derivation hook
+
+### Baseline
+- Starting checkpoint: `518610c` on `refactor/itinerary-details-continuation` with duplicate hotel-refresh ownership removed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDisplayItineraryDays.ts`.
+- Moved display-day fallback selection, segment-array safeguards, first-day diagnostics, and start-segment ordering out of the page controller.
+- Preserved hydrated-day fallback behavior, original-itinerary recovery, segment ordering, and diagnostics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,313 lines (down from 7,356 at the previous iteration).
+- New hook: 45 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 187 - Consolidate hotel refresh ownership
+
+### Baseline
+- Starting checkpoint: `f8a944b` on `refactor/itinerary-details-continuation` with clipboard composition extraction committed and pushed.
+
+### Changes
+- Removed the duplicate inline hotel-refresh mutation from `ItineraryDetailsController.tsx`.
+- Reused the existing `useHotelDataController` refresh callback for voucher refreshes, keeping hotel group changes, rebuilds, and vehicle refreshes under one hook instance.
+- Preserved hotel preference gating, detail hydration, route cache updates, loading cleanup, and existing service calls.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,356 lines (down from 7,387 at the previous iteration).
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 186 - Clipboard content builder hook
+
+### Baseline
+- Starting checkpoint: `b7f3903` on `refactor/itinerary-details-continuation` with Fit Here confirmation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useClipboardContentBuilder.ts`.
+- Moved selected recommendation grouping and local clipboard HTML/plain-text package composition out of the page controller.
+- Preserved selected-group filtering, vehicle/cost/hotel section composition, room counts, amount values, visibility flags, and clipboard action callback contracts.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,387 lines (down from 7,436 at the previous iteration).
+- New hook: 78 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 185 - Fit Here confirmation mutation hook
+
+### Baseline
+- Starting checkpoint: `4ee623a` on `refactor/itinerary-details-continuation` with the automatic Fit Here preview extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFitHereConfirmationMutation.ts`.
+- Moved Fit Here confirmation validation gates, API mutation payload, optimistic state application, success refresh handoff, expired-preview recovery, conflict retry, stale-preview recalculation, and loading cleanup out of the page controller.
+- Reused the existing confirmation analysis, state, reset, and refresh boundaries without changing their contracts.
+- Preserved protected-removal checks, priority/timing flags, session-storage scroll recovery, recursive conflict retry, toast messages, and service payload fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,436 lines (down from 7,566 at the previous iteration).
+- New hook: 176 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.

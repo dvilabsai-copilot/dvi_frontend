@@ -309,6 +309,9 @@ export type ItineraryVehicleRow = {
   vehicleTypeId?: number;
   vehicleTypeName?: string;
   isAssigned?: boolean;
+  rateAvailable?: boolean;
+  missingRateTypes?: Array<'Local' | 'Outstation'>;
+  rateAvailabilityMessage?: string | null;
 
   // per-vehicle charges (optional; fill from API)
   rentalCharges?: number | string;
@@ -431,6 +434,11 @@ days: ItineraryDay[];
 
   // VEHICLES
   vehicles: ItineraryVehicleRow[];
+  vehicleRateAvailability?: Array<{
+    vehicleTypeId: number;
+    vehicleTypeName: string;
+    message: string;
+  }>;
 
   packageIncludes: PackageIncludes;
   costBreakdown: CostBreakdown;

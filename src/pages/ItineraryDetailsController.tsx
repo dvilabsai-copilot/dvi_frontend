@@ -48,13 +48,31 @@ import {
 import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
-  buildAutoManualHotspotPreviewPayload,
   buildExactManualHotspotPreviewPayload,
-  extractAutoPreviewResults,
-  pickBestAutoPreviewAnchorKey,
 } from "./itinerary-details/manual-hotspot-preview.shared";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import { toast } from "sonner";
+import { useEffectivePreviewTimeline } from "./itinerary-details/hooks/useEffectivePreviewTimeline";
+import { useHotelHydratedDays } from "./itinerary-details/hooks/useHotelHydratedDays";
+import { useHotelsForDisplay } from "./itinerary-details/hooks/useHotelsForDisplay";
+import {
+  DEFAULT_EXTERNAL_STAY_MESSAGE,
+  useExternalStayEntries,
+} from "./itinerary-details/hooks/useExternalStayEntries";
+import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
+import { useDestinationHotelDisplayName } from "./itinerary-details/hooks/useDestinationHotelDisplayName";
+import { useMatrixFitState } from "./itinerary-details/hooks/useMatrixFitState";
+import { usePreviewCityContext } from "./itinerary-details/hooks/usePreviewCityContext";
+import { useMatrixAvailabilityState } from "./itinerary-details/hooks/useMatrixAvailabilityState";
+import { usePreviewDecisionState } from "./itinerary-details/hooks/usePreviewDecisionState";
+import { useInsertionDecisionSummary } from "./itinerary-details/hooks/useInsertionDecisionSummary";
+import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotState";
+import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
+import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
+import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
+import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
+import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
+import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
   AttractionSegment,
@@ -97,7 +115,6 @@ import {
   isAttractionCoveredByGuide as isAttractionCoveredByGuideUtil,
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
-import { normalizeAvailableHotspots as normalizeAvailableHotspotsUtil } from "./itinerary-details/utils/hotspotAvailability.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
 import {
   buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
@@ -163,14 +180,6 @@ import {
   splitHotspotLocationTokens,
 } from "./itinerary-details/utils/timeline.utils";
 import {
-  analyzeFitHereConfirmation,
-  extractFitHereConfirmErrorCode,
-  type FitHereConfirmOptions,
-  isExpiredOrMissingFitHereAttemptError,
-  isRetryableFitHereConfirmError,
-  normalizeFitHereConfirmationResult,
-} from "./itinerary-details/utils/fitHereConfirm.utils";
-import {
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
@@ -191,10 +200,6 @@ import {
   parseWalletAmount,
   toMoneyNumber,
 } from "./itinerary-details/utils/clipboardFormatting.utils";
-import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
-import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
-import { buildClipboardHotelPackageSectionHtml } from "./itinerary-details/utils/clipboardHotelPackageSection.utils";
-import { buildClipboardPlainText } from "./itinerary-details/utils/clipboardPlainText.utils";
 import {
   extractHotelSectionFromHtml,
   mergeClipboardWithB2BRecommendedPackages,
@@ -203,7 +208,6 @@ import {
 } from "./itinerary-details/utils/clipboardHtmlMerge.utils";
 import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils";
 import { copyHtmlToClipboard } from "./itinerary-details/utils/copyHtmlToClipboard.utils";
-import { buildSelectedClipboardGroups } from "./itinerary-details/utils/clipboardSelection.utils";
 import {
   getBookingCodeForBooking,
   getHotelAmountForBooking,
@@ -249,6 +253,23 @@ import { PackageIncludesCard } from "./itinerary-details/components/PackageInclu
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
+import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
+import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
+import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
+import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
+import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
+import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
+import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
+import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
+import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
+import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
+import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
+import {
+  buildCurrentRouteAttractionHotspotIds,
+  buildCurrentRouteManualHotspotIds,
+  buildCurrentRouteManualHotspotMetaById,
+} from "./itinerary-details/utils/routeHotspotIds.utils";
+import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -418,30 +439,16 @@ const location = useLocation();
   const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
   const requiresHotelBookingFlow = shouldShowHotels;
 
-const openSourcePreview = useCallback(async (dayNo: number) => {
-  const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
-  if (!currentQuoteId) {
-    toast.error("Quote ID is not available for source preview.");
-    return;
-  }
-
-  setSourcePreviewOpen(true);
-  setSourcePreviewLoading(true);
-  setSourcePreviewError(null);
-  setSourcePreviewMarkdown("");
-  setSourcePreviewHeading("");
-
-  try {
-    const result = await ItineraryService.getHotspotScenarioMarkdown(currentQuoteId, dayNo);
-    setSourcePreviewMarkdown(String(result.markdown || ""));
-    setSourcePreviewHeading(String(result.heading || `${currentQuoteId} Day ${dayNo}`));
-  } catch (error) {
-    const message = String(error?.message || "Failed to load source preview.");
-    setSourcePreviewError(message);
-  } finally {
-    setSourcePreviewLoading(false);
-  }
-}, [activeRouteQuoteId, itinerary?.quoteId, quoteId]);
+  const openSourcePreview = useSourcePreviewController({
+    activeRouteQuoteId,
+    quoteId,
+    itineraryQuoteId: itinerary?.quoteId,
+    setOpen: setSourcePreviewOpen,
+    setLoading: setSourcePreviewLoading,
+    setError: setSourcePreviewError,
+    setMarkdown: setSourcePreviewMarkdown,
+    setHeading: setSourcePreviewHeading,
+  });
 
 
 const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
@@ -452,58 +459,12 @@ const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
   return String(match?.[1] || raw).trim();
 }, []);
 
-const cacheRouteHotelDetails = useCallback(
-  (routeQuoteId: string, hotelRes: ItineraryHotelDetailsResponse | null) => {
-    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-    if (!normalizedRouteQuoteId || !hotelRes) return;
-
-    setRouteHotelDetailsByQuoteId((prev) => {
-      if (prev[normalizedRouteQuoteId] === hotelRes) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [normalizedRouteQuoteId]: hotelRes,
-      };
-    });
-  },
-  [],
-);
-
-const loadAndCacheRouteHotelDetails = useCallback(
-  async (routeQuoteId: string): Promise<ItineraryHotelDetailsResponse | null> => {
-    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-    if (!normalizedRouteQuoteId) return null;
-
-    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
-    if (cachedHotelDetails) {
-      return cachedHotelDetails;
-    }
-
-    const inFlight = routeHotelFetchPromisesRef.current.get(normalizedRouteQuoteId);
-    if (inFlight) {
-      return inFlight;
-    }
-
-    const request = (async () => {
-      const fetcher = fetchCompleteHotelDetailsRef.current;
-      if (!fetcher) {
-        throw new ReferenceError("fetchCompleteHotelDetails is not ready yet");
-      }
-
-      const hotelRes = (await fetcher(normalizedRouteQuoteId)) as ItineraryHotelDetailsResponse;
-      cacheRouteHotelDetails(normalizedRouteQuoteId, hotelRes);
-      return hotelRes;
-    })().finally(() => {
-      routeHotelFetchPromisesRef.current.delete(normalizedRouteQuoteId);
-    });
-
-    routeHotelFetchPromisesRef.current.set(normalizedRouteQuoteId, request);
-    return request;
-  },
-  [cacheRouteHotelDetails, routeHotelDetailsByQuoteId],
-);
+const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelDetailsCache({
+  routeHotelDetailsByQuoteId,
+  setRouteHotelDetailsByQuoteId,
+  routeHotelFetchPromisesRef,
+  fetchCompleteHotelDetailsRef,
+});
 
   const {
     deleteHotspotModal, setDeleteHotspotModal, isDeleting, setIsDeleting,
@@ -621,46 +582,12 @@ const loadAndCacheRouteHotelDetails = useCallback(
 
     const anchorKey = buildFitHereAnchorKey(anchor);
     const tried = triedFitHereAnchors[anchorKey];
-
     return (
-      <div
-        data-testid="fit-here-anchor"
-        data-anchor-index={anchor.anchorIndex}
-        data-anchor-intent={anchor.anchorIntent}
-        data-anchor-from={anchor.anchorFrom || ""}
-        data-anchor-to={anchor.anchorTo || ""}
-        data-anchor-label={anchor.anchorLabel || ""}
-        className="relative ml-8 mt-3 flex items-center gap-2"
-      >
-        <button
-          type="button"
-          title={anchor.anchorLabel || "Fit Here"}
-          onClick={() => void handleFitHereClick(day, anchor)}
-          className="group flex items-center gap-2 rounded-full border-2 border-emerald-200 bg-white px-4 py-1.5 text-xs font-bold text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 active:scale-95"
-        >
-          <span className="transition-transform group-hover:rotate-90">+</span>
-          Fit Here
-        </button>
-
-        {tried && (
-          <span
-            className={[
-              'rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm',
-              tried.status === 'DIRECT_FIT'
-                ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                : tried.status === 'REMOVES_OPTIONAL'
-                  ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                  : tried.status === 'P3_CONFIRMATION'
-                    ? 'border border-amber-200 bg-amber-50 text-amber-700'
-                    : tried.status === 'PRIORITY_CONFLICT'
-                      ? 'border border-red-200 bg-red-50 text-red-700'
-                      : 'border border-slate-200 bg-slate-100 text-slate-600',
-            ].join(' ')}
-          >
-            {tried.label}
-          </span>
-        )}
-      </div>
+      <FitHereAnchorButton
+        anchor={anchor}
+        tried={tried}
+        onClick={() => void handleFitHereClick(day, anchor)}
+      />
     );
   }
 
@@ -790,365 +717,16 @@ const loadAndCacheRouteHotelDetails = useCallback(
     }
   }, [pendingPriorityReplacementHotspotId]);
 
-  const effectivePreviewTimeline = useMemo(() => {
-    const enforceHotelOrderingSafety = (rows: any[]): any[] => {
-      if (!Array.isArray(rows) || rows.length === 0) return rows;
-
-      const isHotelLike = (row): boolean => {
-        const type = String(row?.type || '').toLowerCase();
-        const text = String(row?.text || row?.name || '').toLowerCase();
-        return type === 'hotel' || Number(row?.item_type) === 6 || text.includes('check-in at hotel');
-      };
-      const isRouteContent = (row): boolean => {
-        const type = String(row?.type || '').toLowerCase();
-        return type === 'attraction' || type === 'travel' || Number(row?.item_type) === 3 || Number(row?.item_type) === 4;
-      };
-
-      const hotelIndex = rows.findIndex((row) => isHotelLike(row));
-      if (hotelIndex < 0) return rows;
-
-      const hasLaterRouteContent = rows.slice(hotelIndex + 1).some((row) => isRouteContent(row));
-      if (!hasLaterRouteContent) return rows;
-
-      const anyHavePreviewOrder = rows.some((row) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)));
-      if (!anyHavePreviewOrder) return rows;
-
-      return [...rows].sort((a, b) => (
-        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
-        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
-      ));
-    };
-
-    const prunePrematureHotelTravelLegs = (rows: any[]): any[] => {
-      if (!Array.isArray(rows) || rows.length === 0) return rows;
-
-      const isTravel = (row): boolean => {
-        const type = String(row?.type || '').toLowerCase();
-        return type === 'travel' || Number(row?.item_type || 0) === 3 || Number(row?.item_type || 0) === 5;
-      };
-      const isAttraction = (row): boolean => {
-        const type = String(row?.type || '').toLowerCase();
-        return type === 'attraction' || Number(row?.item_type || 0) === 4;
-      };
-      const isHotelLike = (row): boolean => {
-        const type = String(row?.type || '').toLowerCase();
-        const text = String(row?.text || row?.name || '').toLowerCase();
-        return type === 'hotel' || type === 'checkin' || Number(row?.item_type || 0) === 6 || text.includes('check-in at ');
-      };
-      const normalizeLabel = (value): string => String(value || '')
-        .toLowerCase()
-        .replace(/^travel\s+to\s+/i, '')
-        .replace(/^check-?in\s+at\s+/i, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      const parseStartMinutes = (value): number | null => {
-        const raw = String(value || '').trim();
-        if (!raw) return null;
-        const startPart = raw.split('-')[0]?.trim() || raw;
-        const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-        if (!match) return null;
-        let h = Number(match[1]);
-        const m = Number(match[2]);
-        const ampm = String(match[3]).toUpperCase();
-        if (ampm === 'AM' && h === 12) h = 0;
-        if (ampm === 'PM' && h !== 12) h += 12;
-        return (h * 60) + m;
-      };
-      const parseEndMinutes = (value): number | null => {
-        const raw = String(value || '').trim();
-        if (!raw || !raw.includes('-')) return null;
-        const endPart = raw.split('-')[1]?.trim() || '';
-        const match = endPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-        if (!match) return null;
-        let h = Number(match[1]);
-        const m = Number(match[2]);
-        const ampm = String(match[3]).toUpperCase();
-        if (ampm === 'AM' && h === 12) h = 0;
-        if (ampm === 'PM' && h !== 12) h += 12;
-        return (h * 60) + m;
-      };
-
-      const hotelIndex = rows.findIndex((row) => isHotelLike(row));
-      if (hotelIndex <= 0) return rows;
-
-      const hotelRow = rows[hotelIndex];
-      const hotelNameFromCheckin = (() => {
-        const text = String(hotelRow?.text || hotelRow?.name || '').trim();
-        const match = text.match(/check-?in\s+at\s+(.+)/i);
-        return String(match?.[1] || '').trim();
-      })();
-      const hotelLabel = normalizeLabel(hotelNameFromCheckin || hotelRow?.toName || hotelRow?.name || 'hotel');
-      const hotelStart = parseStartMinutes(hotelRow?.timeRange);
-
-      const lastAttractionBeforeHotel = (() => {
-        for (let i = hotelIndex - 1; i >= 0; i -= 1) {
-          if (isAttraction(rows[i])) return i;
-        }
-        return -1;
-      })();
-
-      const hotelTravelCandidates = rows
-        .map((row, index: number) => ({ row, index }))
-        .filter(({ row, index }) => {
-          if (index >= hotelIndex || !isTravel(row)) return false;
-          const target = normalizeLabel(row?.toName || row?.to || row?.text || row?.name);
-          return target === hotelLabel;
-        });
-
-      if (hotelTravelCandidates.length <= 1) return rows;
-
-      const keepIndex = (() => {
-        const explicitMatrixHotelLeg = hotelTravelCandidates.find(({ row }) => (
-          row?.isMatrixSplitTravel === true
-          && String(row?.matrixTravelLeg || '').toUpperCase() === 'C_TO_B'
-        ));
-        if (explicitMatrixHotelLeg) {
-          return explicitMatrixHotelLeg.index;
-        }
-
-        const valid = hotelTravelCandidates
-          .map(({ row, index }) => {
-            const endMin = parseEndMinutes(row?.timeRange);
-            return { index, endMin };
-          })
-          .filter((entry) => hotelStart !== null && entry.endMin !== null && entry.endMin <= hotelStart);
-
-        if (valid.length > 0) {
-          return valid.sort((a, b) => Number(b.endMin || 0) - Number(a.endMin || 0))[0].index;
-        }
-
-        return hotelTravelCandidates[hotelTravelCandidates.length - 1].index;
-      })();
-
-      const dropSet = new Set<number>();
-      for (const { index } of hotelTravelCandidates) {
-        if (index !== keepIndex) dropSet.add(index);
-        if (index < lastAttractionBeforeHotel && index !== keepIndex) dropSet.add(index);
-      }
-
-      const filteredRows = dropSet.size === 0
-        ? rows
-        : rows.filter((_, index: number) => !dropSet.has(index));
-
-      // When we keep computed C->B leg, align hotel/check-in to the travel end in preview.
-      const retainedTravel = filteredRows.find((row, index: number) => (
-        isTravel(row)
-        && normalizeLabel(row?.toName || row?.to || row?.text || row?.name) === hotelLabel
-        && index < filteredRows.findIndex((candidate) => isHotelLike(candidate))
-      ));
-      const retainedRange = String(retainedTravel?.timeRange || '').trim();
-      const retainedEndText = retainedRange.includes(' - ')
-        ? String(retainedRange.split(' - ')[1] || '').trim()
-        : '';
-
-      if (!retainedEndText) return filteredRows;
-
-      return filteredRows.map((row) => {
-        if (!isHotelLike(row)) return row;
-        return {
-          ...row,
-          timeRange: `${retainedEndText} - ${retainedEndText}`,
-        };
-      });
-    };
-
-    const applyBestSlotOrdering = (rows: any[]): any[] => {
-      if (!Array.isArray(rows) || rows.length === 0 || !selectedHotspotId) return rows;
-
-      // Backend-provided matrix split travel rows already represent the correct route shape.
-      if (rows.some((row) => row?.isMatrixSplitTravel === true)) {
-        return rows;
-      }
-
-      const fit = (activePreviewResolution as any)?.manualInsertionFit;
-      const selectedIdNum = Number(selectedHotspotId);
-      const fitBest = fit?.bestSlot || null;
-      const fitChosen = fit?.chosenSlot || null;
-      const chosenInvalid = Boolean(
-        fitChosen
-        && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
-      );
-      const safeChosen = chosenInvalid ? null : fitChosen;
-      const safeBest = (fitBest
-        && Number(fitBest?.fromHotspotId) !== selectedIdNum
-        && Number(fitBest?.toHotspotId) !== selectedIdNum)
-        ? fitBest
-        : null;
-
-      const fromName = String(safeChosen?.fromName || safeBest?.fromName || '').trim();
-      if (!fromName) return rows;
-
-      const getSegHotspotId = (seg): number => Number(
-        seg?.selectedHotspotId ??
-        seg?.locationId ??
-        seg?.hotspotId ??
-        seg?.hotspot_ID ??
-        seg?.hotspot_id ??
-        0,
-      );
-
-      const selectedIdx = rows.findIndex((seg) => (
-        String(seg?.type || '').toLowerCase() === 'attraction'
-        && getSegHotspotId(seg) === selectedIdNum
-      ));
-      if (selectedIdx < 0) return rows;
-
-      const fromIdx = rows.findIndex((seg) => (
-        String(seg?.type || '').toLowerCase() === 'attraction'
-        && String(seg?.text || '').trim() === fromName
-      ));
-      if (fromIdx < 0) return rows;
-
-      const targetIdx = Math.min(fromIdx + 1, rows.length);
-      if (targetIdx === selectedIdx || targetIdx === (selectedIdx + 1)) return rows;
-
-      const reordered = [...rows];
-      const [selectedSeg] = reordered.splice(selectedIdx, 1);
-      const adjustedTargetIdx = selectedIdx < targetIdx ? targetIdx - 1 : targetIdx;
-      reordered.splice(adjustedTargetIdx, 0, selectedSeg);
-      return reordered;
-    };
-
-    const fit = (activePreviewResolution as any)?.manualInsertionFit
-      || (groupPreviewResolution as any)?.manualInsertionFit
-      || null;
-    const resolvedLowPriorityPlan = fit?.lowPriorityRemovalPlanPreview?.resolved === true;
-    const backendResolvedTimeline = Boolean(
-      resolvedLowPriorityPlan
-      || fit?.fullTimelineIsResolvedRemovalPlan === true
-      || fit?.timelineSource === 'LOW_PRIORITY_REMOVAL_FINAL_TIMELINE',
-    );
-    const plannedRemovals: any[] = Array.isArray(fit?.lowPriorityRemovalPlanPreview?.plannedRemovals)
-      ? fit.lowPriorityRemovalPlanPreview.plannedRemovals
-      : [];
-
-    const removePlannedRemovalRows = (rows: any[]): any[] => {
-      const removedIds = new Set(
-        plannedRemovals
-          .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
-          .filter((id: number) => Number.isFinite(id) && id > 0),
-      );
-      const removedNames = new Set(
-        plannedRemovals
-          .map((row) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
-          .filter(Boolean),
-      );
-
-      return (rows || []).filter((row) => {
-        const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
-        const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
-
-        if (rowId > 0 && removedIds.has(rowId)) return false;
-        for (const removedName of removedNames) {
-          if (removedName && rowText.includes(removedName)) return false;
-        }
-        return true;
-      });
-    };
-
-    const sortByPreviewOrder = (rows: any[]): any[] => {
-      if ((rows || []).some((row) => Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder)))) {
-        return [...rows].sort((a, b) => (
-          Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
-          - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
-        ));
-      }
-      return rows;
-    };
-
-    if (backendResolvedTimeline && activePreviewTimeline.length > 0) {
-      return prunePrematureHotelTravelLegs(
-        enforceHotelOrderingSafety(
-          sortByPreviewOrder(removePlannedRemovalRows(activePreviewTimeline)),
-        ),
-      );
-    }
-
-    if (activePreviewTimeline.length > 0) {
-      const orderedTimeline = prunePrematureHotelTravelLegs(
-        enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline)),
-      );
-      const insertedIndex = orderedTimeline.findIndex((row) => Number(
-        row?.selectedHotspotId
-        ?? row?.locationId
-        ?? row?.hotspotId
-        ?? row?.hotspot_ID
-        ?? row?.hotspot_id
-        ?? 0,
-      ) === Number(selectedHotspotId || 0));
-
-      console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row, index: number) => ({
-        index,
-        type: String(row?.type || '').toLowerCase(),
-        text: String(row?.text || row?.name || ''),
-        hotspotId: Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0) || null,
-        previewOrder: Number(row?.matrixPreviewOrder ?? row?.previewOrder ?? -1),
-      })));
-      console.log('[ManualHotspotModal] inserted_hotspot_position', {
-        selectedHotspotId: Number(selectedHotspotId || 0),
-        index: insertedIndex,
-      });
-
-      return orderedTimeline;
-    }
-
-    const activeAttractionCount = activePreviewTimeline.filter(
-      (seg) => String(seg?.type || '').toLowerCase() === 'attraction',
-    ).length;
-    const selectedCount = selectedHotspotIds.length;
-    const hasMatrixFit = Boolean(fit);
-    const isMinimalPreview = activeAttractionCount <= Math.max(1, selectedCount + 1);
-    const shouldMergeBaselineForMatrix = Boolean(
-      hasMatrixFit
-      && !backendResolvedTimeline
-      && activePreviewTimeline.length > 0
-      && isMinimalPreview,
-    );
-
-    // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
-    // In that case, show the default route timeline plus selected segments so users can review full context.
-    const useMergedBaselineDuringPriorityConfirm = Boolean(
-      pendingPriorityReplacementHotspotId
-      && activePreviewTimeline.length > 0
-      && activeAttractionCount <= Math.max(1, selectedCount + 1),
-    );
-
-    if (activePreviewTimeline.length > 0 && !useMergedBaselineDuringPriorityConfirm && !shouldMergeBaselineForMatrix) {
-      return enforceHotelOrderingSafety(sortByPreviewOrder(activePreviewTimeline));
-    }
-
-    const merged = [...defaultPreviewTimeline, ...selectedPreviewSegments];
-
-    const parseStartMinutes = (value): number => {
-      const raw = String(value || '').trim();
-      if (!raw || raw === '--') return Number.POSITIVE_INFINITY;
-
-      const startPart = raw.split('-')[0]?.trim() || raw;
-      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (!match) return Number.POSITIVE_INFINITY;
-
-      let hour = Number(match[1]);
-      const minute = Number(match[2]);
-      const ampm = match[3].toUpperCase();
-
-      if (ampm === 'AM' && hour === 12) hour = 0;
-      if (ampm === 'PM' && hour !== 12) hour += 12;
-
-      return hour * 60 + minute;
-    };
-
-    const sortedMerged = merged.sort((a, b) => parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange));
-    return enforceHotelOrderingSafety(applyBestSlotOrdering(sortedMerged));
-  }, [
+  const effectivePreviewTimeline = useEffectivePreviewTimeline({
     activePreviewResolution,
     activePreviewTimeline,
     defaultPreviewTimeline,
     groupPreviewResolution,
     pendingPriorityReplacementHotspotId,
     selectedHotspotId,
-    selectedHotspotIds.length,
+    selectedHotspotIds,
     selectedPreviewSegments,
-  ]);
+  });
 
   // ── Route-intelligence: manualInsertionFit from backend ─────────────────────
   const manualInsertionFit = useMemo(() => {
@@ -1187,891 +765,146 @@ const loadAndCacheRouteHotelDetails = useCallback(
     };
   }, [activePreviewResolution]);
 
-  const destinationHotelDisplayName = useMemo(() => {
-    const sanitize = (raw: unknown): string => {
-      const value = String(raw || '').trim();
-      if (!value) return '';
-      const lower = value.toLowerCase();
-      if (lower === 'hotel' || lower === 'no hotels available' || lower === 'hotel / route start') {
-        return '';
-      }
-      return value;
-    };
-
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const routeDay = itinerary?.days?.find((day) => Number(day?.id) === routeId);
-    const routeCheckin = Array.isArray(routeDay?.segments)
-      ? [...routeDay!.segments].reverse().find((segment) => String(segment?.type || '').toLowerCase() === 'checkin')
-      : null;
-    const routeCheckinName = sanitize((routeCheckin as any)?.hotelName);
-    if (routeCheckinName) return routeCheckinName;
-
-    const selectedRouteHotelName = sanitize(
-      (hotelDetails?.hotels || [])
-        .filter((hotel) => Number(hotel?.itineraryRouteId) === routeId)
-        .filter((hotel) => Number(hotel?.itineraryPlanHotelDetailsId || 0) > 0)
-        .sort((a, b) => Number(b?.itineraryPlanHotelDetailsId || 0) - Number(a?.itineraryPlanHotelDetailsId || 0))
-        .map((hotel) => hotel?.hotelName)
-        .find((name) => sanitize(name).length > 0)
-    );
-    if (selectedRouteHotelName) return selectedRouteHotelName;
-
-    const fitName = sanitize((matrixFit as any)?.destinationHotelName);
-    if (fitName) return fitName;
-
-    const hotelDetailsName = sanitize(
-      hotelDetails?.hotels?.find((hotel) => Number(hotel?.itineraryRouteId) === routeId)?.hotelName
-    );
-    if (hotelDetailsName) return hotelDetailsName;
-
-    const previewRows = Array.isArray(effectivePreviewTimeline)
-      ? [...(effectivePreviewTimeline as any[])].reverse()
-      : [];
-    for (const row of previewRows) {
-      const type = String(row?.type || '').toLowerCase();
-      if (type !== 'hotel' && type !== 'checkin' && Number(row?.item_type) !== 6) {
-        continue;
-      }
-
-      const rowName = sanitize(row?.hotelName || row?.toName || row?.to);
-      if (rowName) return rowName;
-
-      const rowText = String(row?.text || '').trim();
-      const match = rowText.match(/check-?in\s+(?:to|at)\s+(.+)/i);
-      const parsed = sanitize(match?.[1] || '');
-      if (parsed) return parsed;
-    }
-
-    return '';
-  }, [addHotspotModal.routeId, effectivePreviewTimeline, hotelDetails?.hotels, itinerary?.days, matrixFit]);
-
-  const matrixBuildSuggestion = useMemo(() => {
-    return (activePreviewResolution as any)?.missingMatrixBuildSuggestion
-      || (activePreviewResolution as any)?.resolution?.missingMatrixBuildSuggestion
-      || (groupPreviewResolution as any)?.missingMatrixBuildSuggestion
-      || (groupPreviewResolution as any)?.resolution?.missingMatrixBuildSuggestion
-      || null;
-  }, [activePreviewResolution, groupPreviewResolution]);
-
-  const hasValidChosenMatrixSlot = useMemo(() => {
-    const chosen = matrixFit?.chosenSlot;
-    if (!chosen) return false;
-    const routeFitType = String(chosen?.routeFitType || '').toUpperCase();
-    if (matrixFit?.destinationInsertionMode === true) {
-      return (
-        Number(chosen?.fromHotspotId || 0) > 0
-        && ['DESTINATION_SIDE_INSERTION', 'MINOR_DETOUR'].includes(routeFitType)
-      );
-    }
-
-    if (routeFitType === 'SINGLE_HOTSPOT_BEFORE') {
-      return (
-        matrixFit?.routeFitAvailable !== false
-        && Number(chosen?.toHotspotId || 0) > 0
-      );
-    }
-
-    if (routeFitType === 'SINGLE_HOTSPOT_AFTER') {
-      return (
-        matrixFit?.routeFitAvailable !== false
-        && Number(chosen?.fromHotspotId || 0) > 0
-      );
-    }
-
-    return (
-      matrixFit?.routeFitAvailable !== false
-      && ['ON_ROUTE', 'MINOR_DETOUR'].includes(routeFitType)
-      && Number(chosen?.fromHotspotId || 0) > 0
-      && Number(chosen?.toHotspotId || 0) > 0
-    );
-  }, [matrixFit]);
-
-  const matrixFitAlreadyHasUsableData = useMemo(() => {
-    const fit = matrixFit as any;
-    const chosen = fit?.chosenSlot || fit?.bestSlot || null;
-    const slotContext = String(chosen?.slotContext || '').toUpperCase();
-    const routeFitType = String(chosen?.routeFitType || '').toUpperCase();
-
-    return (
-      fit?.requiresMatrixBuild !== true
-      && (
-        fit?.hasAnyMatrixData === true
-        || fit?.hasFeasibleMatrixSlot === true
-        || (
-          fit?.cityEndpointInsertionMode === true
-          && ['CITY_TO_CITY', 'CITY_TO_HOTSPOT', 'HOTSPOT_TO_CITY'].includes(slotContext)
-          && ['ON_ROUTE', 'MINOR_DETOUR'].includes(routeFitType)
-        )
-      )
-    );
-  }, [matrixFit]);
-
-  const deriveHotspotCityContext = useCallback((hotspot: AvailableHotspot) => deriveHotspotCityContextUtil(hotspot, {
-    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
-    destinationCityKey: hotspotFilterMeta?.destinationCityKey,
-    departure: currentRouteForModal?.departure,
-    arrival: currentRouteForModal?.arrival,
-    locationName: addHotspotModal.locationName,
-  }), [
-    hotspotFilterMeta?.destinationCityKey,
-    hotspotFilterMeta?.sourceCityKey,
-    currentRouteForModal?.arrival,
-    currentRouteForModal?.departure,
-    addHotspotModal.locationName,
-  ]);
-
-  const activePreviewHotspot = useMemo(
-    () => availableHotspots.find((h) => Number(h.id) === Number(activePreviewHotspotId || 0)) || null,
-    [availableHotspots, activePreviewHotspotId],
-  );
-
-  const selectedPreviewCityContext = useMemo(() => {
-    const backend = String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase();
-    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
-      return backend as 'SOURCE_CITY' | 'DESTINATION_CITY';
-    }
-    if (!activePreviewHotspot) return null;
-    return deriveHotspotCityContext(activePreviewHotspot);
-  }, [manualPreviewState?.manualInsertionFit?.hotspotCityContext, activePreviewHotspot, deriveHotspotCityContext]);
-
-  const isDestinationSideManualPreview = useMemo(() => {
-    const sources: any[] = [
-      matrixFit,
-      manualPreviewState,
-      activePreviewResolution,
-      (activePreviewResolution as any)?.manualInsertionFit,
-      (activePreviewResolution as any)?.resolution?.manualInsertionFit,
-      groupPreviewResolution,
-      (groupPreviewResolution as any)?.manualInsertionFit,
-      (groupPreviewResolution as any)?.resolution?.manualInsertionFit,
-      (matrixFit as any)?.chosenSlot,
-      (matrixFit as any)?.bestSlot,
-      (matrixFit as any)?.requestedSlot,
-      (activePreviewResolution as any)?.manualInsertionFit?.chosenSlot,
-      (activePreviewResolution as any)?.manualInsertionFit?.bestSlot,
-      (activePreviewResolution as any)?.resolution?.manualInsertionFit?.chosenSlot,
-      (activePreviewResolution as any)?.resolution?.manualInsertionFit?.bestSlot,
-    ];
-
-    return (
-      selectedPreviewCityContext === 'DESTINATION_CITY'
-      || sources.some((source) => {
-        const code = String(source?.code || '').toUpperCase();
-        const reason = String(source?.validation?.reason || source?.reason || '').toUpperCase();
-        const cityContext = String(source?.hotspotCityContext || '').toUpperCase();
-        const slotSource = String(source?.source || '').toUpperCase();
-        const routeFitType = String(source?.routeFitType || '').toUpperCase();
-        const slotContext = String(source?.slotContext || '').toUpperCase();
-
-        return (
-          source?.destinationInsertionMode === true
-          || cityContext === 'DESTINATION_CITY'
-          || code === 'MANUAL_HOTSPOT_DESTINATION_INSERT_PREVIEW_READY'
-          || code === 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
-          || reason === 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
-          || slotSource === 'DESTINATION_CITY_AFTER_REACHED'
-          || slotSource === 'DESTINATION_CITY_REACHED_TO_HOTEL'
-          || slotSource === 'DESTINATION_CITY_ENDPOINT'
-          || routeFitType === 'DESTINATION_SIDE_INSERTION'
-          || slotContext === 'DESTINATION_CITY_TO_HOTEL'
-        );
-      })
-    );
-  }, [
+  const destinationHotelDisplayName = useDestinationHotelDisplayName({
+    addHotspotRouteId: addHotspotModal.routeId,
+    effectivePreviewTimeline,
+    hotelDetails,
+    itinerary,
     matrixFit,
-    manualPreviewState,
+  });
+
+  const {
+    matrixBuildSuggestion,
+    hasValidChosenMatrixSlot,
+    matrixFitAlreadyHasUsableData,
+  } = useMatrixFitState({
     activePreviewResolution,
     groupPreviewResolution,
+    matrixFit,
+  });
+
+  const {
+    deriveHotspotCityContext,
+    activePreviewHotspot,
     selectedPreviewCityContext,
-  ]);
-
-  const matrixRequiresBuild = useMemo(() => {
-    if (!matrixFit) return false;
-    if (isDestinationSideManualPreview) return false;
-    if (matrixFit?.destinationInsertionMode === true) return false;
-    if (matrixFit?.singleHotspotInsertionMode === true) return false;
-    if (matrixFit?.emptyRouteInsertionMode === true) return false;
-
-    const chosenRouteFitType = String(matrixFit?.chosenSlot?.routeFitType || '').toUpperCase();
-    if (chosenRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || chosenRouteFitType === 'SINGLE_HOTSPOT_AFTER') {
-      return false;
-    }
-
-    return matrixFit?.requiresMatrixBuild === true || matrixFit?.routeFitAvailable === false;
-  }, [isDestinationSideManualPreview, matrixFit]);
-
-  const isMatrixMissingBlockedState = useMemo(() => {
-    if (isDestinationSideManualPreview) {
-      return false;
-    }
-
-    const matrixCode = String(matrixFit?.code || '').toUpperCase();
-    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
-    const previewBlockReason = String((activePreviewResolution as any)?.previewBlockReason || '').toUpperCase();
-    const validationReason = String(activePreviewValidation?.reason || '').toUpperCase();
-
-    const matrixAlreadyBuiltButNotFeasible =
-      matrixCode === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
-      || previewCode === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
-      || previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
-      || validationReason === 'NO_FEASIBLE_ROUTE_SLOT'
-      || (
-        matrixFit?.requiresMatrixBuild !== true
-        && matrixFit?.hasAnyMatrixData === true
-        && matrixFit?.hasFeasibleMatrixSlot === false
-      );
-
-    if (matrixAlreadyBuiltButNotFeasible) {
-      return false;
-    }
-
-    if (matrixFitAlreadyHasUsableData) {
-      return false;
-    }
-
-    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
-
-    const previewSaysMatrixMissing =
-      validationReason === 'MATRIX_DATA_MISSING'
-      || decisionStatus === 'MATRIX_UNAVAILABLE'
-      || previewCode === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || previewCode === 'MATRIX_DATA_MISSING'
-      || previewBlockReason === 'MATRIX_MISSING'
-      || String((groupPreviewResolution as any)?.code || '').toUpperCase() === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || String((groupPreviewResolution as any)?.code || '').toUpperCase() === 'MATRIX_DATA_MISSING'
-      || String((groupPreviewResolution as any)?.previewBlockReason || '').toUpperCase() === 'MATRIX_MISSING';
-
-    if (!matrixFit) return previewSaysMatrixMissing;
-
-    if (matrixFit?.destinationInsertionMode === true && !previewSaysMatrixMissing) {
-      return false;
-    }
-
-    return (
-      matrixFit?.requiresMatrixBuild === true
-      || matrixCode === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || matrixCode === 'MATRIX_DATA_MISSING'
-      || previewSaysMatrixMissing
-    );
-  }, [
+    isDestinationSideManualPreview,
+  } = usePreviewCityContext({
+    activePreviewHotspotId,
     activePreviewResolution,
-    activePreviewValidation?.reason,
+    addHotspotModal,
+    availableHotspots,
+    currentRouteForModal,
+    groupPreviewResolution,
+    hotspotFilterMeta,
+    manualPreviewState,
+    matrixFit,
+  });
+
+  const {
+    matrixRequiresBuild,
+    isMatrixMissingBlockedState,
+    isMatrixBuiltButNoFeasibleSlot,
+    shouldShowBuildMatrixButton,
+  } = useMatrixAvailabilityState({
+    activePreviewResolution,
+    activePreviewValidation,
     groupPreviewResolution,
     isDestinationSideManualPreview,
     matrixFit,
     matrixFitAlreadyHasUsableData,
     normalizedDecision,
-  ]);
+  });
 
-  const isMatrixBuiltButNoFeasibleSlot = useMemo(() => {
-    if (isDestinationSideManualPreview) {
-      return false;
-    }
-
-    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
-    const unscheduledReason = String(
-      (activePreviewResolution as any)?.resolution?.unscheduledManualHotspots?.[0]?.reason
-      || (activePreviewResolution as any)?.unscheduledManualHotspots?.[0]?.reason
-      || '',
-    ).toUpperCase();
-
-    const schedulerProducedFinalFitFailure =
-      previewCode === 'MANUAL_HOTSPOT_CANNOT_FIT'
-      || unscheduledReason.includes('OPENING HOURS')
-      || unscheduledReason.includes('ROUTE TIME WINDOW');
-
-    if (schedulerProducedFinalFitFailure) {
-      return false;
-    }
-
-    return (
-      matrixFit?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
-      || (activePreviewResolution as any)?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
-      || (activePreviewResolution as any)?.previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
-      || (groupPreviewResolution as any)?.code === 'MANUAL_HOTSPOT_NO_FEASIBLE_ROUTE_SLOT'
-      || (groupPreviewResolution as any)?.previewBlockReason === 'NO_FEASIBLE_ROUTE_SLOT'
-      || (
-        matrixFit?.requiresMatrixBuild !== true
-        && matrixFit?.hasAnyMatrixData === true
-        && matrixFit?.hasFeasibleMatrixSlot === false
-      )
-    );
-  }, [activePreviewResolution, groupPreviewResolution, isDestinationSideManualPreview, matrixFit]);
-
-  const shouldShowBuildMatrixButton = useMemo(() => {
-    if (isDestinationSideManualPreview) {
-      return false;
-    }
-
-    if (isMatrixBuiltButNoFeasibleSlot) {
-      return false;
-    }
-
-    if (matrixFitAlreadyHasUsableData) {
-      return false;
-    }
-
-    const validationReason = String(activePreviewValidation?.reason || '').toUpperCase();
-    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
-
-    return (
-      isMatrixMissingBlockedState
-      || validationReason === 'MATRIX_DATA_MISSING'
-      || decisionStatus === 'MATRIX_UNAVAILABLE'
-      || (activePreviewResolution as any)?.canBuildMatrix === true
-      || (matrixFit as any)?.canBuildMatrix === true
-      || String((activePreviewResolution as any)?.code || '').toUpperCase() === 'MANUAL_HOTSPOT_MATRIX_DATA_MISSING'
-      || String((activePreviewResolution as any)?.code || '').toUpperCase() === 'MATRIX_DATA_MISSING'
-      || String((activePreviewResolution as any)?.previewBlockReason || '').toUpperCase() === 'MATRIX_MISSING'
-    );
-  }, [
+  const {
+    previewValidationReasonText,
+    matrixApplyBlocked,
+    decisionStatus,
+    confirmActionConfig,
+  } = usePreviewDecisionState({
     activePreviewResolution,
-    activePreviewValidation?.reason,
-    isDestinationSideManualPreview,
+    activePreviewValidation,
+    destinationHotelDisplayName,
+    groupPreviewResolution,
     isMatrixBuiltButNoFeasibleSlot,
     isMatrixMissingBlockedState,
-    matrixFitAlreadyHasUsableData,
     matrixFit,
+    matrixRequiresBuild,
+    manualPreviewState,
     normalizedDecision,
-  ]);
+  });
 
-  const previewValidationReasonText = useMemo(
-    () => getPreviewValidationReasonText({
-      resolution: activePreviewResolution,
-      validation: activePreviewValidation,
-      normalizedDecision,
-      manualPreviewState,
-      groupPreviewResolution,
-      matrixFit,
-      destinationHotelDisplayName,
-      isManualRelaxedRouteFitPolicy,
-    }),
-    [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution],
-  );
-
-  const matrixApplyBlocked = useMemo(
-    () => isMatrixApplyBlockedUtil({
-      normalizedDecision,
-      matrixFit,
-      matrixRequiresBuild,
-      matrixMissingBlocked: isMatrixMissingBlockedState,
-      matrixBuiltButNoFeasibleSlot: isMatrixBuiltButNoFeasibleSlot,
-      manualPreviewState,
-      activePreviewResolution,
-      groupPreviewResolution,
-      isManualRelaxedRouteFitPolicy,
-    }),
-    [isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit, matrixRequiresBuild, normalizedDecision, manualPreviewState, activePreviewResolution, groupPreviewResolution],
-  );
-
-  const decisionStatus = useMemo(() => {
-    return String(normalizedDecision?.decisionStatus || '').toUpperCase();
-  }, [normalizedDecision]);
-
-  const confirmActionConfig = useMemo(() => {
-    if (decisionStatus === 'MATRIX_UNAVAILABLE') {
-      return { label: 'Build Matrix First', disabled: true };
-    }
-    if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY') {
-      return { label: 'Cannot Add', disabled: true };
-    }
-    if (decisionStatus === 'OFF_ROUTE' || decisionStatus === 'BACKTRACK') {
-      const manualRelaxedRouteFit =
-        isManualRelaxedRouteFitPolicy(manualPreviewState)
-        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
-      return manualRelaxedRouteFit
-        ? { label: 'Confirm Add Hotspot', disabled: false }
-        : { label: 'Cannot Add - Off Route', disabled: true };
-    }
-    if (decisionStatus === 'NEEDS_RESCHEDULE') {
-      return { label: 'Add with Reschedule', disabled: false };
-    }
-    return { label: 'Confirm Add Hotspot', disabled: false };
-  }, [decisionStatus, manualPreviewState, activePreviewResolution, groupPreviewResolution]);
-
-  const insertionDecisionSummary = useMemo(() => {
-    if (!activePreviewHotspotId || !matrixFit) return null;
-    const canProceedWithReschedule = (
-      activePreviewValidation?.readyToApply === false
-      && activePreviewValidation?.requiresPriorityConfirmation !== true
-      && !matrixApplyBlocked
-    );
-    if (matrixRequiresBuild || isMatrixMissingBlockedState) {
-      return {
-        willInsert: false,
-        text: 'Will not be inserted: route-fit matrix is missing.',
-      };
-    }
-    if (isMatrixBuiltButNoFeasibleSlot) {
-      const manualRelaxedRouteFit =
-        isManualRelaxedRouteFitPolicy(manualPreviewState)
-        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
-      return {
-        willInsert: manualRelaxedRouteFit,
-        text: manualRelaxedRouteFit
-          ? 'Can be inserted manually. This adds extra distance/off-route travel, but timing will decide final fit.'
-          : 'Will not be inserted: hotspot is off-route/backtracking for current route.',
-      };
-    }
-    if (canProceedWithReschedule) {
-      const routeEndOverflowMinutes = Number(activePreviewValidation?.routeEndOverflowMinutes || 0);
-      const hasOpeningOrTimingConflict = hasManualOpeningOrTimingConflict(activePreviewValidation);
-
-      if (routeEndOverflowMinutes > 0) {
-        return {
-          willInsert: false,
-          text: `Cannot insert normally because the rebuilt route exceeds the allowed manual day end by ${routeEndOverflowMinutes} minutes.`,
-        };
-      }
-
-      if (hasOpeningOrTimingConflict) {
-        return {
-          willInsert: false,
-          text: 'Route-fit slot found, but the hotspot conflicts with opening/timing rules. Use force add only if you want to keep it as a conflict.',
-        };
-      }
-
-      return {
-        willInsert: true,
-        text: 'Route-fit slot found. Timeline can be recalculated within the manual timing window.',
-      };
-    }
-    if (matrixApplyBlocked || activePreviewValidation?.readyToApply === false) {
-      return {
-        willInsert: false,
-        text: 'Will not be inserted: current preview is not ready to apply.',
-      };
-    }
-    return {
-      willInsert: true,
-      text: 'Will be inserted when you click Add hotspot.',
-    };
-  }, [
+  const insertionDecisionSummary = useInsertionDecisionSummary({
     activePreviewHotspotId,
+    activePreviewResolution,
+    activePreviewValidation,
+    groupPreviewResolution,
     isMatrixBuiltButNoFeasibleSlot,
     isMatrixMissingBlockedState,
     matrixApplyBlocked,
     matrixFit,
     matrixRequiresBuild,
     manualPreviewState,
+  });
+
+  const {
+    resolvedRemovalTimelineLeak,
+    safeMatrixSlots,
+    effectiveFitSlot,
+    routeFitBadgeClass,
+    normalizedInsertionSlots,
+  } = usePreviewSlotState({
     activePreviewResolution,
-    groupPreviewResolution,
-    activePreviewValidation,
-  ]);
-
-  const resolvedRemovalTimelineLeak = useMemo(() => {
-    const resolved = (matrixFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true;
-    if (!resolved || !Array.isArray(effectivePreviewTimeline) || effectivePreviewTimeline.length === 0) return false;
-
-    const plannedRemovals: any[] = Array.isArray((matrixFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals)
-      ? (matrixFit as any).lowPriorityRemovalPlanPreview.plannedRemovals
-      : [];
-    if (plannedRemovals.length === 0) return false;
-
-    const removedIds = new Set(
-      plannedRemovals
-        .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || row?.locationId || 0))
-        .filter((id: number) => Number.isFinite(id) && id > 0),
-    );
-    const removedNames = new Set(
-      plannedRemovals
-        .map((row) => String(row?.name || row?.hotspotName || '').trim().toLowerCase())
-        .filter(Boolean),
-    );
-
-    return effectivePreviewTimeline.some((row) => {
-      const rowId = Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0);
-      const rowText = String(row?.text || row?.name || row?.to || row?.toName || '').trim().toLowerCase();
-      if (rowId > 0 && removedIds.has(rowId)) return true;
-      for (const removedName of removedNames) {
-        if (removedName && rowText.includes(removedName)) return true;
-      }
-      return false;
-    });
-  }, [effectivePreviewTimeline, matrixFit]);
-
-  const safeMatrixSlots = useMemo(() => {
-    const selectedIdNum = Number(selectedHotspotId || 0);
-    const allSlots: any[] = Array.isArray(matrixFit?.allSlotResults)
-      ? matrixFit.allSlotResults
-      : [];
-    return allSlots.filter((slot) => (
-      Number(slot?.fromHotspotId) !== selectedIdNum
-      && Number(slot?.toHotspotId) !== selectedIdNum
-    ));
-  }, [matrixFit, selectedHotspotId]);
-
-  const effectiveFitSlot = useMemo(() => {
-    if (matrixRequiresBuild) return null;
-    if (!matrixFit) return null;
-    const selectedIdNum = Number(selectedHotspotId || 0);
-    const chosen = (matrixFit as any)?.chosenSlot ?? null;
-    const best = (matrixFit as any)?.bestSlot ?? null;
-
-    const isInvalid = (slot): boolean => {
-      if (!slot) return true;
-      return Number(slot?.fromHotspotId) === selectedIdNum || Number(slot?.toHotspotId) === selectedIdNum;
-    };
-
-    if (!isInvalid(chosen)) return chosen;
-    if (!isInvalid(best)) return best;
-
-    return safeMatrixSlots.find((slot) => !isInvalid(slot)) || null;
-  }, [matrixFit, matrixRequiresBuild, safeMatrixSlots, selectedHotspotId]);
-
-  /** Helper: map route_fit_type to Tailwind badge classes */
-  const routeFitBadgeClass = (routeFitType: string | undefined): string => {
-    switch (routeFitType) {
-      case 'ON_ROUTE':    return 'bg-green-100 text-green-800';
-      case 'MINOR_DETOUR': return 'bg-amber-100 text-amber-700';
-      case 'BACKTRACK':   return 'bg-orange-100 text-orange-700';
-      case 'OFF_ROUTE':   return 'bg-red-100 text-red-700';
-      case 'DESTINATION_SIDE_INSERTION': return 'bg-blue-100 text-blue-700';
-      case 'MATRIX_UNAVAILABLE': return 'bg-gray-100 text-gray-600';
-      default:            return 'bg-gray-100 text-gray-500';
-    }
-  };
-
-  const normalizedInsertionSlots = useMemo(() => normalizeInsertionSlots({
-    matrixFit,
-    activePreviewResolution,
-    effectivePreviewTimeline: effectivePreviewTimeline as Record<string, unknown>[],
-    selectedHotspotAnchor,
-    selectedHotspotId,
-    matrixRequiresBuild,
     destinationHotelDisplayName,
-    manualInsertionHotspotCityContext: manualPreviewState?.manualInsertionFit?.hotspotCityContext,
-  }) as any[], [
-    activePreviewResolution,
     effectivePreviewTimeline,
-    selectedHotspotAnchor,
-    selectedHotspotId,
     matrixFit,
     matrixRequiresBuild,
-    destinationHotelDisplayName,
-    manualPreviewState?.manualInsertionFit?.hotspotCityContext,
-  ]);
+    manualPreviewState,
+    selectedHotspotAnchor,
+    selectedHotspotId,
+  });
+
       // ── From manualInsertionFit.allSlotResults ──
-  const activeAnchorFitInsight = useMemo(() => {
-    if (matrixRequiresBuild) return null;
-    const bestSlot = normalizedInsertionSlots.find((slot) => slot?.isBest)
-      || normalizedInsertionSlots[0]
-      || null;
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !selectedHotspotId) return null;
-
-    // Prefer matrix-fit chosen/best slot for inserted-hotspot labels.
-    const fitBest = (matrixFit as any)?.bestSlot ?? null;
-    const fitChosen = (matrixFit as any)?.chosenSlot ?? null;
-    const selectedIdNum = Number(selectedHotspotId || 0);
-    const chosenInvalid = Boolean(
-      fitChosen
-      && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
-    );
-    const safeChosen = chosenInvalid ? null : fitChosen;
-    const sourceSlot = safeChosen || fitBest;
-
-    if (sourceSlot) {
-      const fitType: string = sourceSlot.routeFitType || '';
-      const fitTypeUpper = String(fitType || '').toUpperCase();
-      const sourceLabelText = String(sourceSlot.displayLabel || sourceSlot.label || '').toLowerCase();
-      const sourceFinalReasonText = String(sourceSlot.finalDecisionReason || '').toLowerCase();
-      const sourceNoRouteTagged = sourceLabelText.includes('no route data')
-        || sourceFinalReasonText.includes('no route data');
-      const hasRouteDataForSlot = (
-        sourceSlot?.routePossible !== false
-        && fitTypeUpper !== 'UNKNOWN'
-        && fitTypeUpper !== 'MATRIX_UNAVAILABLE'
-        && !sourceNoRouteTagged
-      );
-      const label: string = sourceSlot.displayLabel || sourceSlot.label || fitType;
-      const detour: number | null = sourceSlot.roadDetourKm != null ? Number(sourceSlot.roadDetourKm) : null;
-      const isDestinationSidePreview = String((manualPreviewState as any)?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase() === 'DESTINATION_CITY';
-      const rawToName = String(sourceSlot?.toName || '').trim();
-      const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
-      const resolvedToName = (
-        isDestinationSidePreview
-        && destinationHotelDisplayName
-        && (
-          /^hotel$/i.test(rawToName)
-          || (matrixDestinationName.length > 0 && rawToName.toLowerCase() === matrixDestinationName)
-          || Number(sourceSlot?.destinationHotelId || 0) > 0
-        )
-      ) ? destinationHotelDisplayName : rawToName;
-      const tone = fitType === 'ON_ROUTE' || fitType === 'MINOR_DETOUR'
-        ? 'green' as const
-        : fitType === 'BACKTRACK'
-          ? 'amber' as const
-          : 'red' as const;
-      const hasNamedAnchors = String(sourceSlot?.fromName || '').trim().length > 0
-        && String(resolvedToName || '').trim().length > 0;
-      const between = hasNamedAnchors ? `${sourceSlot.fromName} → ${resolvedToName}` : null;
-      const extraLabel = hasRouteDataForSlot && detour != null ? `+${detour.toFixed(1)} km` : null;
-      return {
-        label,
-        tone: hasRouteDataForSlot ? tone : ('red' as const),
-        extraDistanceLabel: extraLabel,
-        anchorLegLabel: between,
-        insertedLabel: hasRouteDataForSlot ? label : 'No route data',
-        reason: sourceSlot.decisionReason || null,
-        source: (matrixFit as any)?.chosenSlotSource || null,
-        warning: (matrixFit as any)?.warning || null,
-        requestedSlot: (matrixFit as any)?.requestedSlot || null,
-        chosenSlot: safeChosen,
-      };
-    }
-
-    const distanceDelta = bestSlot?.distanceDelta ?? activePreviewResolution?.newHotspot?.distanceDelta;
-    const bestFits = bestSlot ? (bestSlot?.fitsOverall !== false) : true;
-    const bestReason = bestSlot?.timingReason || null;
-
-    if (!bestFits) {
-      return {
-        label: 'Not on the way',
-        tone: 'red' as const,
-        extraDistanceLabel: null,
-        anchorLegLabel: null,
-        insertedLabel: 'Selected slot is not feasible',
-        reason: bestReason,
-      };
-    }
-
-    // If backend provided distanceDelta, use it directly
-    if (Number.isFinite(distanceDelta) && distanceDelta !== null) {
-      const delta = Number(distanceDelta);
-      const isNeutral = Math.abs(delta) <= 0.5; // Within tolerance
-
-      if (isNeutral || delta <= 0) {
-        return {
-          label: 'Fits on the way',
-          tone: 'green' as const,
-          extraDistanceLabel: delta < -0.5 ? `~${Math.abs(delta).toFixed(1)} km shorter` : 'No extra backtrack',
-          anchorLegLabel: null,
-          insertedLabel: 'Inserted correctly between spots',
-        };
-      }
-
-      return {
-        label: 'Distance increased',
-        tone: 'red' as const,
-        extraDistanceLabel: `+${delta.toFixed(1)} km extra travel`,
-        anchorLegLabel: null,
-        insertedLabel: `Inserted with detour (+${delta.toFixed(1)} km)`,
-        reason: null,
-      };
-    }
-
-    // Fallback: no distance delta available from backend
-    return {
-      label: 'Inserted',
-      tone: 'amber' as const,
-      extraDistanceLabel: null,
-      anchorLegLabel: null,
-      insertedLabel: 'Inserted (distance unavailable)',
-      reason: null,
-    };
-  }, [
-    addHotspotModal.routeId,
-    activePreviewResolution,
+  const activeAnchorFitInsight = useActiveAnchorFitInsight({
     matrixRequiresBuild,
     normalizedInsertionSlots,
+    addHotspotRouteId: addHotspotModal.routeId,
     selectedHotspotId,
     matrixFit,
     manualPreviewState,
+    activePreviewResolution,
     destinationHotelDisplayName,
-  ]);
+  });
 
 
-  const bestInsertionSlot = useMemo(() => {
-    if (matrixRequiresBuild) return null;
-    const slots = normalizedInsertionSlots;
+  const bestInsertionSlot = useBestInsertionSlot({
+    matrixRequiresBuild,
+    normalizedInsertionSlots,
+  });
 
-    if (slots.length === 0) return null;
+  const previewHotspotMetaById = usePreviewHotspotMeta({
+    addHotspotRouteId: addHotspotModal.routeId,
+    availableHotspots,
+    itineraryDays: itinerary?.days,
+  });
 
-    return slots.find((slot) => slot?.isBest)
-      || [...slots].sort(
-        (a, b) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
-      )[0]
-      || null;
-  }, [matrixRequiresBuild, normalizedInsertionSlots]);
+  const {
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotIds,
+    currentRouteManualHotspotMetaById,
+    isCurrentPreviewAlreadyAdded,
+  } = useCurrentRouteHotspotState({
+    activePreviewHotspotId,
+    addedInModalHotspotIds,
+    excludedHotspotIds,
+    itineraryDays: itinerary?.days,
+    routeId: addHotspotModal.routeId,
+  });
 
-  const previewHotspotMetaById = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const day = itinerary?.days?.find((d) => Number(d.id) === routeId);
-    const map = new Map<number, { visitTime?: string | null; duration?: string | null; timings?: string | null; priority?: number | null }>();
-
-    const daySegments = Array.isArray(day?.segments) ? day!.segments : [];
-    for (const seg of daySegments as any[]) {
-      if (String(seg?.type || '').toLowerCase() !== 'attraction') continue;
-      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-
-      map.set(hotspotId, {
-        visitTime: seg?.visitTime || null,
-        duration: seg?.duration || null,
-        timings: seg?.timings || null,
-        priority: Number.isFinite(Number(seg?.priority)) ? Number(seg.priority) : null,
-      });
-    }
-
-    for (const hotspot of availableHotspots) {
-      const hotspotId = Number(hotspot?.id || 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-
-      const existing = map.get(hotspotId) || {};
-      const durationFromHours = Number(hotspot?.timeSpend || 0) > 0
-        ? formatMinutesDuration(Math.round(Number(hotspot.timeSpend) * 60))
-        : null;
-
-      map.set(hotspotId, {
-        visitTime: existing.visitTime || null,
-        duration: existing.duration || durationFromHours,
-        timings: existing.timings || hotspot?.timings || null,
-        priority:
-          existing.priority ??
-          (Number.isFinite(Number((hotspot as any)?.priority)) ? Number((hotspot as any).priority) : null) ??
-          (Number.isFinite(Number((hotspot as any)?.hotspotPriority)) ? Number((hotspot as any).hotspotPriority) : null) ??
-          (Number.isFinite(Number((hotspot as any)?.hotspot_priority)) ? Number((hotspot as any).hotspot_priority) : null),
-      });
-    }
-
-    return map;
-  }, [addHotspotModal.routeId, availableHotspots, itinerary?.days]);
-
-  const currentRouteAttractionHotspotIds = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
-    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
-    const ids = new Set<number>();
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
-      const routeSeg = seg as any;
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-      // Skip deleted/excluded rows
-      if (
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded'
-      ) {
-        continue;
-      }
-      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (Number.isFinite(id) && id > 0 && !excludedSet.has(id)) ids.add(id);
-    }
-    return ids;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
-
-  const currentRouteManualHotspotIds = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
-    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
-    const ids = new Set<number>();
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
-      const routeSeg = seg as any;
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-      // Skip deleted/excluded rows
-      if (
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded'
-      ) {
-        continue;
-      }
-      const isManual = routeSeg?.planOwnWay === true || routeSeg?.isManual === true;
-      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (Number.isFinite(id) && id > 0 && isManual && !excludedSet.has(id)) {
-        ids.add(id);
-      }
-    }
-    for (const id of addedInModalHotspotIds) {
-      ids.add(Number(id));
-    }
-    return ids;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds, addedInModalHotspotIds]);
-
-  const currentRouteManualHotspotMetaById = useMemo(() => {
-    const map = new Map<number, {
-      hotspotId: number;
-      routeHotspotId: number | null;
-      isManual: boolean;
-    }>();
-
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const day = itinerary?.days?.find((d) => Number(d.id) === routeId) || null;
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-
-    for (const seg of day?.segments || []) {
-      const routeSeg = seg as any;
-
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-
-      const hotspotId = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-      if (excludedSet.has(hotspotId)) continue;
-
-      const isDeleted =
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded';
-
-      if (isDeleted) continue;
-
-      const isManual =
-        routeSeg?.planOwnWay === true ||
-        routeSeg?.isManual === true;
-
-      if (!isManual) continue;
-
-      map.set(hotspotId, {
-        hotspotId,
-        routeHotspotId: Number(routeSeg?.routeHotspotId || 0) || null,
-        isManual: true,
-      });
-    }
-
-    return map;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
-
-  const isCurrentPreviewAlreadyAdded = useMemo(() => {
-    const id = Number(activePreviewHotspotId || 0);
-    if (!id) return false;
-    return currentRouteAttractionHotspotIds.has(id) || addedInModalHotspotIds.has(id);
-  }, [activePreviewHotspotId, addedInModalHotspotIds, currentRouteAttractionHotspotIds]);
-
-  // Helper to normalize available hotspots after fetching.
-  const normalizeAvailableHotspots = useCallback((
-    hotspots: AvailableHotspot[],
-    options?: { routeId?: number | null; excludedIds?: number[]; activeIds?: Set<number> },
-  ): AvailableHotspot[] => normalizeAvailableHotspotsUtil(
-    hotspots,
-    {
-      excludedIds: excludedHotspotIds,
-      activeIds: currentRouteAttractionHotspotIds,
-      manualMetaById: currentRouteManualHotspotMetaById,
-    },
-    options,
-  ), [excludedHotspotIds, currentRouteAttractionHotspotIds, currentRouteManualHotspotMetaById]);
+  const normalizeAvailableHotspots = useNormalizedAvailableHotspots({
+    excludedHotspotIds,
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotMetaById,
+  });
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
@@ -2099,308 +932,47 @@ const loadAndCacheRouteHotelDetails = useCallback(
     }
   }, [hotspotSearchQuery, addHotspotModal.open]);
 
-  // Filter hotspots based on search query, keep no-timing hotspots visible,
-  // then sort: non-closed first, visitAgain at bottom, closed/no-timing last.
-  const filteredHotspots = availableHotspots
-    .filter(
-      (h) => {
-        const query = hotspotSearchQuery.toLowerCase();
-        const matchesQuery =
-          h.name.toLowerCase().includes(query) ||
-          h.description.toLowerCase().includes(query);
-        return matchesQuery;
-      }
-    )
-    .sort((a, b) => {
-      const aTimingText = String(a.timings || '').trim().toLowerCase();
-      const bTimingText = String(b.timings || '').trim().toLowerCase();
-      const aClosed = aTimingText.length === 0 || aTimingText === 'no timings available';
-      const bClosed = bTimingText.length === 0 || bTimingText === 'no timings available';
+  const filteredHotspots = useFilteredHotspots({
+    availableHotspots,
+    searchQuery: hotspotSearchQuery,
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotIds,
+    addedInModalHotspotIds,
+  });
 
-      const isDeletedFromTimeline = (h: AvailableHotspot): boolean => {
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const availabilityReason = String(h.availabilityReason || '').trim().toLowerCase();
-        return (
-          backendStatus === 'EXCLUDED_BY_ROUTE'
-          || availabilityReason.includes('excluded for this route')
-          || availabilityReason.includes('currently excluded')
-        );
-      };
+  const { sourceCityLabel, destinationCityLabel, routeIsDifferentCity } = useHotspotRouteCityContext({
+    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
+    destinationCityKey: hotspotFilterMeta?.destinationCityKey,
+    routeDeparture: currentRouteForModal?.departure,
+    routeArrival: currentRouteForModal?.arrival,
+    modalLocationName: addHotspotModal.locationName,
+    selectedAnchorTo: selectedHotspotAnchor?.anchorTo,
+  });
 
-      const isAddedInCurrentRoute = (h: AvailableHotspot): boolean => {
-        const hotspotId = Number(h?.id || 0);
-        const deletedFromTimeline = isDeletedFromTimeline(h);
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const isAddedOnOtherRoute =
-          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
-        return (
-          !deletedFromTimeline
-          && (
-            currentRouteAttractionHotspotIds.has(hotspotId)
-            || addedInModalHotspotIds.has(hotspotId)
-            || (h.alreadyAdded === true && !isAddedOnOtherRoute)
-            || backendStatus === 'ACTIVE_THIS_ROUTE'
-          )
-        );
-      };
+  const destinationInsertionSlotLabel = useDestinationInsertionSlotLabel({
+    matrixFit,
+    selectedAnchorSlot: (selectedHotspotAnchor as { slot?: unknown } | null)?.slot,
+    selectedPreviewCityContext,
+    destinationCityLabel,
+    destinationHotelDisplayName,
+  });
 
-      const canPreview = (h: AvailableHotspot): boolean => {
-        const deletedFromTimeline = isDeletedFromTimeline(h);
-        const added = isAddedInCurrentRoute(h);
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const isAddedOnOtherRoute =
-          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
-        const disabled = added || (h.actionDisabled === true && !isAddedOnOtherRoute && !deletedFromTimeline);
-        const timingText = String(h.timings || '').trim().toLowerCase();
-        const closed = timingText.length === 0 || timingText === 'no timings available';
-        return !disabled && !closed;
-      };
-
-      const getSortRank = (h: AvailableHotspot): number => {
-        if (canPreview(h)) return 1; // Group 1: Previewable (available to add)
-        const added = isAddedInCurrentRoute(h);
-        const hotspotId = Number(h.id || 0);
-        if (
-          added &&
-          (
-            currentRouteManualHotspotIds.has(hotspotId) ||
-            addedInModalHotspotIds.has(hotspotId) ||
-            h.isManual === true ||
-            h.planOwnWay === true
-          )
-        ) return 2; // Group 2: Manually added on this route
-        return 3; // Group 3: Closed or Auto-added / Prebuilt
-      };
-
-      const rankA = getSortRank(a);
-      const rankB = getSortRank(b);
-
-      if (rankA !== rankB) return rankA - rankB;
-
-      if (aClosed !== bClosed) return aClosed ? 1 : -1;
-      // visitAgain (already visited) goes to the bottom
-      if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
-      // Within same group: lower priority number = more important = shown first
-      // Treat 0 as unset (worst) so it never floats above real P1-P18
-      const normP = (p) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
-      const pa = normP((a as any).priority);
-      const pb = normP((b as any).priority);
-      if (pa !== pb) return pa - pb;
-      return 0;
-    });
-
-  const sourceCityLabel = useMemo(() => {
-    const raw = String(
-      hotspotFilterMeta?.sourceCityKey ||
-      currentRouteForModal?.departure ||
-      addHotspotModal.locationName ||
-      '',
-    ).trim();
-    if (!raw) return 'source city';
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [
-    hotspotFilterMeta?.sourceCityKey,
-    currentRouteForModal?.departure,
-    addHotspotModal.locationName,
-  ]);
-
-  const destinationCityLabel = useMemo(() => {
-    const raw = String(
-      hotspotFilterMeta?.destinationCityKey ||
-      selectedHotspotAnchor?.anchorTo ||
-      currentRouteForModal?.arrival ||
-      '',
-    ).trim();
-    if (!raw) return 'destination city';
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [
-    hotspotFilterMeta?.destinationCityKey,
-    selectedHotspotAnchor?.anchorTo,
-    currentRouteForModal?.arrival,
-  ]);
-
-  const routeIsDifferentCity = useMemo(() => {
-    const source = String(
-      hotspotFilterMeta?.sourceCityKey ||
-      currentRouteForModal?.departure ||
-      addHotspotModal.locationName ||
-      '',
-    ).trim().toLowerCase();
-    const destination = String(
-      hotspotFilterMeta?.destinationCityKey ||
-      currentRouteForModal?.arrival ||
-      '',
-    ).trim().toLowerCase();
-    return source.length > 0 && destination.length > 0 && source !== destination;
-  }, [
-    hotspotFilterMeta?.sourceCityKey,
-    hotspotFilterMeta?.destinationCityKey,
-    currentRouteForModal?.departure,
-    currentRouteForModal?.arrival,
-    addHotspotModal.locationName,
-  ]);
-
-  const destinationInsertionSlotLabel = useMemo(() => {
-    const preferredRaw = String(
-      matrixFit?.chosenSlot?.attemptedSlotLabel
-      || matrixFit?.bestSlot?.attemptedSlotLabel
-      || (selectedHotspotAnchor as any)?.slot
-      || ''
-    ).trim();
-    const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim();
-    const escapedDestinationName = matrixDestinationName
-      ? matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      : '';
-    const preferred = preferredRaw
-      .replace(/^Will\s+be\s+inserted\s+/i, '')
-      .replace(/^Insert\s+after\s+/i, 'After ')
-      .replace(/->\s*Hotel(\b|$)/i, destinationHotelDisplayName ? `-> ${destinationHotelDisplayName}` : '-> Hotel')
-      .replace(escapedDestinationName ? new RegExp(escapedDestinationName, 'gi') : /$^/, destinationHotelDisplayName || matrixDestinationName)
-      .trim();
-    if (preferred.length > 0) return preferred;
-    if (selectedPreviewCityContext === 'DESTINATION_CITY') {
-      return `After reaching ${destinationCityLabel}`;
-    }
-    return '';
-  }, [matrixFit, selectedHotspotAnchor, selectedPreviewCityContext, destinationCityLabel, destinationHotelDisplayName]);
-
-  const hotspotListRows = useMemo(() => {
-    if (!routeIsDifferentCity) {
-      return filteredHotspots.map((hotspot) => ({ kind: 'hotspot' as const, hotspot }));
-    }
-
-    const source: AvailableHotspot[] = [];
-    const destination: AvailableHotspot[] = [];
-    const other: AvailableHotspot[] = [];
-
-    for (const hotspot of filteredHotspots) {
-      const context = deriveHotspotCityContext(hotspot);
-      if (context === 'SOURCE_CITY') source.push(hotspot);
-      else if (context === 'DESTINATION_CITY') destination.push(hotspot);
-      else other.push(hotspot);
-    }
-
-    const sourceLabel = `${String(hotspotFilterMeta?.sourceCityKey || 'Source').replace(/^./, (c: string) => c.toUpperCase())} Hotspots`;
-    const destinationLabel = `${destinationCityLabel} Hotspots`;
-    const rows: Array<{ kind: 'header'; label: string } | { kind: 'hotspot'; hotspot: AvailableHotspot }> = [];
-    if (source.length > 0) {
-      rows.push({ kind: 'header', label: sourceLabel });
-      rows.push(...source.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    if (destination.length > 0) {
-      rows.push({ kind: 'header', label: destinationLabel });
-      rows.push(...destination.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    if (other.length > 0) {
-      rows.push({ kind: 'header', label: 'Other Hotspots' });
-      rows.push(...other.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    return rows;
-  }, [routeIsDifferentCity, filteredHotspots, deriveHotspotCityContext, hotspotFilterMeta?.sourceCityKey, destinationCityLabel]);
-
-  const hotspotCityBuckets = useMemo(() => {
-    const source: AvailableHotspot[] = [];
-    const destination: AvailableHotspot[] = [];
-    const other: AvailableHotspot[] = [];
-
-    for (const hotspot of filteredHotspots) {
-      const context = deriveHotspotCityContext(hotspot);
-      if (context === 'SOURCE_CITY') source.push(hotspot);
-      else if (context === 'DESTINATION_CITY') destination.push(hotspot);
-      else other.push(hotspot);
-    }
-
-    return { source, destination, other };
-  }, [filteredHotspots, deriveHotspotCityContext]);
-
-  const hotspotCityTabs = useMemo(() => {
-    const formatCityLabel = (value: unknown, fallback: string) => {
-      const raw = String(value || '').trim();
-      if (!raw) return fallback;
-      return raw.charAt(0).toUpperCase() + raw.slice(1);
-    };
-
-    if (!routeIsDifferentCity) {
-      return [{
-        key: 'ALL' as const,
-        label: 'All Hotspots',
-        count: filteredHotspots.length,
-      }];
-    }
-
-    const sourceLabel = `${formatCityLabel(sourceCityLabel, 'Source')} Hotspots`;
-    const destinationLabel = `${formatCityLabel(
-      destinationCityLabel,
-      'Destination',
-    )} Hotspots`;
-    const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [
-      {
-        key: 'SOURCE_CITY',
-        label: sourceLabel,
-        count: hotspotCityBuckets.source.length,
-      },
-      {
-        key: 'DESTINATION_CITY',
-        label: destinationLabel,
-        count: hotspotCityBuckets.destination.length,
-      },
-    ];
-
-    if (hotspotCityBuckets.other.length > 0) {
-      tabs.push({
-        key: 'UNKNOWN',
-        label: 'Other Hotspots',
-        count: hotspotCityBuckets.other.length,
-      });
-    }
-
-    return tabs;
-  }, [
+  const {
+    hotspotListRows,
+    hotspotCityBuckets,
+    hotspotCityTabs,
+    visibleHotspotsForActiveTab,
+  } = useHotspotCityPresentation({
+    filteredHotspots,
     routeIsDifferentCity,
-    filteredHotspots.length,
     sourceCityLabel,
     destinationCityLabel,
-    hotspotCityBuckets,
-  ]);
-
-  const visibleHotspotsForActiveTab = useMemo(() => {
-    if (!routeIsDifferentCity || activeHotspotCityTab === 'ALL') return filteredHotspots;
-    if (activeHotspotCityTab === 'SOURCE_CITY') return hotspotCityBuckets.source;
-    if (activeHotspotCityTab === 'DESTINATION_CITY') return hotspotCityBuckets.destination;
-    return hotspotCityBuckets.other;
-  }, [routeIsDifferentCity, activeHotspotCityTab, filteredHotspots, hotspotCityBuckets]);
-
-  useEffect(() => {
-    if (!routeIsDifferentCity) {
-      if (activeHotspotCityTab !== 'ALL') {
-        setActiveHotspotCityTab('ALL');
-      }
-      return;
-    }
-
-    const validKeys = new Set(hotspotCityTabs.map((tab) => tab.key));
-
-    if (
-      selectedPreviewCityContext === 'DESTINATION_CITY' &&
-      validKeys.has('DESTINATION_CITY') &&
-      activeHotspotCityTab !== 'DESTINATION_CITY'
-    ) {
-      setActiveHotspotCityTab('DESTINATION_CITY');
-      return;
-    }
-
-    if (!validKeys.has(activeHotspotCityTab as any)) {
-      const first = hotspotCityTabs[0];
-      if (first) {
-        setActiveHotspotCityTab(first.key);
-      }
-    }
-  }, [
-    routeIsDifferentCity,
-    hotspotCityTabs,
+    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
     activeHotspotCityTab,
     selectedPreviewCityContext,
-  ]);
+    setActiveHotspotCityTab,
+    deriveHotspotCityContext,
+  });
 
   // Hotel selection modal state
   type AvailableHotel = {
@@ -2490,6 +1062,29 @@ const loadAndCacheRouteHotelDetails = useCallback(
   });
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
+  const vehicleTypeIdsRequiringSelection = useMemo(() => {
+    const typeIds = new Set<number>();
+    (itinerary?.vehicles || []).forEach((vehicle) => {
+      const typeId = Number(vehicle.vehicleTypeId || 0);
+      if (typeId > 0) typeIds.add(typeId);
+    });
+    (itinerary?.vehicleRateAvailability || []).forEach((item) => {
+      const typeId = Number(item.vehicleTypeId || 0);
+      if (typeId > 0) typeIds.add(typeId);
+    });
+    return typeIds;
+  }, [itinerary?.vehicleRateAvailability, itinerary?.vehicles]);
+  const hasRequiredVehicleSelection = !shouldShowVehicles || (
+    vehicleTypeIdsRequiringSelection.size > 0 &&
+    vehicleTypeIdsRequiringSelection.size === Object.keys(selectedVehicleTotalsByType).filter(
+      (typeId) => Number(selectedVehicleTotalsByType[Number(typeId)]?.totalAmount || 0) > 0,
+    ).length &&
+    Array.from(vehicleTypeIdsRequiringSelection).every(
+      (typeId) => Number(selectedVehicleTotalsByType[typeId]?.totalAmount || 0) > 0,
+    ) &&
+    (itinerary?.vehicleRateAvailability?.length || 0) === 0
+  );
+  const canConfirmQuotation = hasRequiredVehicleSelection;
   // Keep the bottom hotel list enabled for hotel-bearing itineraries.
   // The actual render is still gated by `shouldShowHotels` below.
   const shouldRenderBottomHotelList = true;
@@ -2569,253 +1164,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
 
   const { entryTicketBreakdownByLocation, entryTicketLocationWiseTotal } = useEntryTicketSummary(itinerary?.days);
 
-  const hotelsForDisplay = useMemo(() => {
-    const rows = Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : [];
-
-    if (!shouldShowHotels || !itinerary?.days?.length || !hotelDetails) {
-      return rows;
-    }
-
-    const activeGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      rows?.[0]?.groupType ??
-      1;
-
-    // Draft mode must keep the original supplier hotel rows.
-    // Otherwise the hotel selection screen collapses to one row per day
-    // and users cannot choose from all supplier options.
-    if (!hotelReadOnly) {
-      return rows;
-    }
-
-    const normalizeText = (value: unknown): string =>
-      String(value || '')
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, ' ');
-
-    const normalizeDateOnly = (value: unknown): string => {
-      const raw = String(value || '').trim();
-      if (!raw) return '';
-
-      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-        return raw;
-      }
-
-      const parsed = new Date(raw);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed.toISOString().split('T')[0];
-      }
-
-      return raw.split('T')[0] || raw;
-    };
-
-    const formatHotelDayLabel = (day, index: number): string => {
-      const dayNumber = Number(day?.dayNumber || index + 1);
-      const dateOnly = normalizeDateOnly(day?.date);
-
-      return dateOnly
-        ? `Day ${dayNumber} | ${dateOnly}`
-        : `Day ${dayNumber}`;
-    };
-
-    const getHotelRouteId = (hotel): number =>
-      Number(
-        hotel?.itineraryRouteId ||
-        hotel?.routeId ||
-        hotel?.itinerary_route_id ||
-        0,
-      );
-
-    const getHotelDayNumber = (hotel): number => {
-      const explicitDayNumber = Number(
-        hotel?.dayNumber ||
-        hotel?.noOfDays ||
-        hotel?.no_of_days ||
-        0,
-      );
-
-      if (Number.isFinite(explicitDayNumber) && explicitDayNumber > 0) {
-        return explicitDayNumber;
-      }
-
-      const parsedFromText = Number(
-        String(hotel?.day || '').match(/day\s*(\d+)/i)?.[1] || 0,
-      );
-
-      return Number.isFinite(parsedFromText) && parsedFromText > 0
-        ? parsedFromText
-        : 0;
-    };
-
-    const getHotelDate = (hotel): string =>
-      normalizeDateOnly(
-        hotel?.date ||
-        hotel?.checkInDate ||
-        hotel?.itineraryRouteDate ||
-        hotel?.itinerary_route_date ||
-        '',
-      );
-
-    const isSameDestination = (hotel, day): boolean => {
-      const hotelDestination = normalizeText(hotel?.destination);
-      const dayDestination = normalizeText(day?.arrival || day?.departure);
-
-      if (!hotelDestination || !dayDestination) return false;
-
-      return (
-        hotelDestination === dayDestination ||
-        hotelDestination.includes(dayDestination) ||
-        dayDestination.includes(hotelDestination)
-      );
-    };
-
-    const usedHotelIndexes = new Set<number>();
-
-    const findHotelForDay = (day, dayIndex: number): ItineraryHotelRow | null => {
-      const routeId = Number(day?.id || 0);
-      const dayNumber = Number(day?.dayNumber || dayIndex + 1);
-      const dayDate = normalizeDateOnly(day?.date);
-
-      let matchedIndex = rows.findIndex((hotel, index: number) => {
-        if (usedHotelIndexes.has(index)) return false;
-        return routeId > 0 && getHotelRouteId(hotel) === routeId;
-      });
-
-      if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel, index: number) => {
-          if (usedHotelIndexes.has(index)) return false;
-          return getHotelDayNumber(hotel) === dayNumber;
-        });
-      }
-
-      if (matchedIndex < 0) {
-        matchedIndex = rows.findIndex((hotel, index: number) => {
-          if (usedHotelIndexes.has(index)) return false;
-
-          const hotelDate = getHotelDate(hotel);
-          const dateMatches = Boolean(dayDate && hotelDate && dayDate === hotelDate);
-
-          return dateMatches && isSameDestination(hotel, day);
-        });
-      }
-
-      if (matchedIndex < 0) {
-        return null;
-      }
-
-      usedHotelIndexes.add(matchedIndex);
-
-      const matched = rows[matchedIndex] as any;
-
-      const itineraryPlanHotelDetailsId = Number(
-        matched?.itineraryPlanHotelDetailsId ||
-        matched?.itinerary_plan_hotel_details_ID ||
-        0,
-      );
-
-      const confirmedItineraryPlanHotelDetailsId = Number(
-        matched?.confirmedItineraryPlanHotelDetailsId ||
-        matched?.confirmed_itinerary_plan_hotel_details_ID ||
-        0,
-      );
-
-      const hotelDetailsIds = Array.isArray(matched?.hotelDetailsIds)
-        ? matched.hotelDetailsIds
-            .map((id) => Number(id))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-        : itineraryPlanHotelDetailsId > 0
-          ? [itineraryPlanHotelDetailsId]
-          : [];
-
-      const voucherCancelled = matched?.voucherCancelled === true;
-
-      return {
-        ...matched,
-        groupType: Number(matched?.groupType || activeGroupType),
-        itineraryRouteId: routeId || getHotelRouteId(matched),
-        day: formatHotelDayLabel(day, dayIndex),
-        dayNumber,
-        sortOrder: dayNumber,
-        destination:
-          String(day?.arrival || day?.departure || '').trim() ||
-          matched?.destination ||
-          `Day ${dayNumber}`,
-        date: dayDate || matched?.date,
-
-        itineraryPlanHotelDetailsId,
-        confirmedItineraryPlanHotelDetailsId,
-        hotelDetailsIds,
-        voucherCancelled,
-        canCancelVoucher:
-          !voucherCancelled &&
-          (hotelDetailsIds.length > 0 || Number(routeId || 0) > 0),
-      } as ItineraryHotelRow;
-    };
-
-    const totalDays = Number(itinerary?.dayCount || itinerary?.days?.length || 0);
-
-    const orderedRows = itinerary.days
-      .filter((day, index: number) => {
-        const dayNumber = Number(day?.dayNumber || index + 1);
-
-        if (totalDays > 0 && dayNumber === totalDays) {
-          return rows.some((hotel) => {
-            const routeId = Number(day?.id || 0);
-            return (
-              getHotelRouteId(hotel) === routeId ||
-              getHotelDayNumber(hotel) === dayNumber
-            );
-          });
-        }
-
-        return true;
-      })
-      .map((day, index: number) => {
-        const routeId = Number(day?.id || 0);
-        const dayNumber = Number(day?.dayNumber || index + 1);
-        const dateOnly = normalizeDateOnly(day?.date);
-        const destination =
-          String(day?.arrival || day?.departure || '').trim() ||
-          `Day ${dayNumber}`;
-
-        const matchedHotel = findHotelForDay(day, index);
-
-        if (matchedHotel) {
-          return matchedHotel;
-        }
-
-        return {
-          groupType: activeGroupType,
-          itineraryRouteId: routeId,
-          day: formatHotelDayLabel(day, index),
-          dayNumber,
-          sortOrder: dayNumber,
-          destination,
-          hotelId: 0,
-          hotelName: 'No Hotels Available',
-          category: 0,
-          roomType: '',
-          mealPlan: '',
-          displayRoomType: '-',
-          displayMealPlan: '-',
-          totalHotelCost: 0,
-          totalHotelTaxAmount: 0,
-          provider: 'external',
-          isBookable: false,
-          externalStay: true,
-          availabilityStatus: 'NO_SUPPLIER_AVAILABILITY' as const,
-          availabilityMessage:
-            'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.',
-          voucherCancelled: false,
-          itineraryPlanHotelDetailsId: 0,
-          date: dateOnly,
-        } as ItineraryHotelRow;
-      });
-
-    return orderedRows;
-  }, [hotelDetails, itinerary, shouldShowHotels, activeHotelGroupType, hotelReadOnly]);
+  const hotelsForDisplay = useHotelsForDisplay({
+    hotelDetails,
+    itineraryDays: itinerary?.days,
+    itineraryDayCount: itinerary?.dayCount,
+    shouldShowHotels,
+    activeHotelGroupType,
+    hotelReadOnly,
+  });
 
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
@@ -2824,6 +1180,7 @@ const loadAndCacheRouteHotelDetails = useCallback(
     computedVehicleAmount,
     shouldShowHotels,
     shouldShowVehicles,
+    hasRequiredVehicleSelection,
     selectedVehicleTotalsByType,
     activeHotelListTotal,
     selectedHotelTotal,
@@ -2839,413 +1196,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
     return Number.isFinite(fallback) ? fallback : 0;
   }, [entryTicketBreakdownByLocation.length, entryTicketLocationWiseTotal, itinerary?.costBreakdown?.totalHotspotCost]);
 
-  const hotelHydratedDays = useMemo(() => {
-    if (!itinerary?.days?.length) return [];
+  const hotelHydratedDays = useHotelHydratedDays({
+    itineraryDays: itinerary?.days,
+    selectedHotelMetaByRoute,
+  });
 
-    return itinerary.days.map((day, dayIndex) => {
-      // ALWAYS ensure we have a segments array to process
-      let segments = Array.isArray(day.segments) ? [...day.segments] : [];
-      
-      // If no segments,  just return the day with empty segments
-      // (don't try to process hotel logic if there's nothing to process)
-      if (!segments || segments.length === 0) {
-        return {
-          ...day,
-          segments: [],
-        };
-      }
-      
-      const currentHotelName = selectedHotelMetaByRoute.get(day.id)?.hotelName?.trim() || null;
-      const currentHotelDistance = selectedHotelMetaByRoute.get(day.id)?.hotelDistance?.trim() || null;
-      const previousDay = dayIndex > 0 ? itinerary.days[dayIndex - 1] : null;
-      const previousHotelName = previousDay
-        ? selectedHotelMetaByRoute.get(previousDay.id)?.hotelName?.trim() || null
-        : null;
-
-      let firstTravelSeen = false;
-      let derivedHotelArrivalMinutes: number | null = null;
-      const getSegmentAnchorLabel = (segment: ItinerarySegment | undefined, fallbackHotelName?: string | null): string => {
-        if (!segment) return day.arrival || day.departure || fallbackHotelName || 'Hotel';
-        if (segment.type === 'attraction') return segment.name;
-        if (segment.type === 'travel') return segment.to || segment.from || day.arrival || fallbackHotelName || 'Hotel';
-        if (segment.type === 'break') return segment.location || day.arrival || fallbackHotelName || 'Hotel';
-        if (segment.type === 'checkin') return segment.hotelName || fallbackHotelName || 'Hotel';
-        if (segment.type === 'start') return day.arrival || day.departure || fallbackHotelName || 'Hotel';
-        if (segment.type === 'return') return day.arrival || day.departure || fallbackHotelName || 'Hotel';
-        return day.arrival || day.departure || fallbackHotelName || 'Hotel';
-      };
-
-      const getSegmentEndMinutes = (segment: ItinerarySegment | undefined): number | null => {
-        if (!segment) return null;
-        if (segment.type === 'attraction') return parseDisplayMinutes(segment.visitTime, 'end');
-        if (segment.type === 'travel') return parseDisplayMinutes(segment.timeRange, 'end');
-        if (segment.type === 'break') return parseDisplayMinutes(segment.timeRange, 'end');
-        if (segment.type === 'checkin') return parseDisplayMinutes(segment.time);
-        if (segment.type === 'start') return parseDisplayMinutes(segment.timeRange, 'end');
-        if (segment.type === 'return') return parseDisplayMinutes(segment.time);
-        return null;
-      };
-
-      const ensureTravelBeforeCheckin = (
-        checkinIndex: number,
-        fallbackHotelName?: string | null,
-      ) => {
-        if (checkinIndex <= 0) return;
-
-        const checkin = segments[checkinIndex];
-        if (!checkin || checkin.type !== 'checkin') return;
-
-        const targetHotelName = String(
-          fallbackHotelName ||
-          checkin.hotelName ||
-          currentHotelName ||
-          'Hotel',
-        ).trim() || 'Hotel';
-
-        let previousRenderableIndex = -1;
-        for (let index = checkinIndex - 1; index >= 0; index -= 1) {
-          if (segments[index]?.type === 'hotspot') continue;
-          previousRenderableIndex = index;
-          break;
-        }
-
-        if (previousRenderableIndex < 0) {
-          segments[checkinIndex] = {
-            ...checkin,
-            hotelName: targetHotelName,
-          };
-          return;
-        }
-
-        const previousSegment = segments[previousRenderableIndex];
-        const previousLabel = getSegmentAnchorLabel(previousSegment, targetHotelName);
-
-        const alreadyArrivesAtHotel =
-          previousSegment.type === 'checkin' ||
-          (
-            previousSegment.type === 'travel' &&
-            normalizeTimelineLabel(previousSegment.to || '') === normalizeTimelineLabel(targetHotelName)
-          ) ||
-          normalizeTimelineLabel(previousLabel) === 'hotel' ||
-          normalizeTimelineLabel(previousLabel) === normalizeTimelineLabel(targetHotelName);
-
-        if (alreadyArrivesAtHotel) {
-          segments[checkinIndex] = {
-            ...checkin,
-            hotelName: targetHotelName,
-          };
-          return;
-        }
-
-        const previousEndMinutes = getSegmentEndMinutes(previousSegment);
-        const checkinMinutes = parseDisplayMinutes(checkin.time);
-        const scheduleGapMinutes =
-          previousEndMinutes !== null && checkinMinutes !== null
-            ? Math.max(0, checkinMinutes - previousEndMinutes)
-            : 0;
-        const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
-        const effectiveTravelMinutes =
-          estimatedTravelMinutes != null
-            ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
-            : Math.max(scheduleGapMinutes, 10);
-
-        if (previousEndMinutes === null) {
-          segments[checkinIndex] = {
-            ...checkin,
-            hotelName: targetHotelName,
-          };
-          return;
-        }
-
-        const travelEndMinutes = previousEndMinutes + effectiveTravelMinutes;
-        const adjustedCheckinMinutes =
-          checkinMinutes !== null
-            ? Math.max(checkinMinutes, travelEndMinutes)
-            : travelEndMinutes;
-
-        const travelSegment: TravelSegment = {
-          type: 'travel',
-          from: previousLabel,
-          to: targetHotelName,
-          timeRange: `${formatMinutesToDisplay(previousEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
-          distance: currentHotelDistance || '',
-          duration: formatMinutesDuration(effectiveTravelMinutes),
-          note: 'This may vary due to traffic conditions',
-        };
-
-        segments.splice(checkinIndex, 0, travelSegment);
-        segments[checkinIndex + 1] = {
-          ...checkin,
-          hotelName: targetHotelName,
-          hotelAddress: checkin.hotelAddress || '',
-          time: formatMinutesToDisplay(adjustedCheckinMinutes),
-        };
-      };
-
-      segments = segments.map((segment) => {
-        if (segment.type === 'travel') {
-          const isFirstTravelOfDay = !firstTravelSeen;
-          firstTravelSeen = true;
-
-          let from = segment.from;
-          let to = segment.to;
-
-          if (currentHotelName && /\bhotel\b/i.test(String(segment.to || '').trim())) {
-            to = currentHotelName;
-          }
-
-          if (isFirstTravelOfDay && previousHotelName) {
-            const normalizedFrom = normalizeTimelineLabel(segment.from);
-            const normalizedDeparture = normalizeTimelineLabel(day.departure);
-            const normalizedArrival = normalizeTimelineLabel(day.arrival);
-
-            if (
-              /\bhotel\b/i.test(String(segment.from || '').trim()) ||
-              normalizedFrom === normalizedDeparture ||
-              normalizedFrom === normalizedArrival
-            ) {
-              from = previousHotelName;
-            }
-          } else if (currentHotelName && /\bhotel\b/i.test(String(segment.from || '').trim())) {
-            from = currentHotelName;
-          }
-
-          const isTravelToCurrentHotel =
-            !!currentHotelName &&
-            normalizeTimelineLabel(to) === normalizeTimelineLabel(currentHotelName);
-
-          if (isTravelToCurrentHotel) {
-            const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
-            const travelStartMinutes = parseDisplayMinutes(segment.timeRange, 'start');
-            const travelEndMinutes = parseDisplayMinutes(segment.timeRange, 'end');
-
-            if (
-              estimatedTravelMinutes != null &&
-              travelStartMinutes !== null &&
-              travelEndMinutes !== null
-            ) {
-              const scheduledTravelMinutes = Math.max(0, travelEndMinutes - travelStartMinutes);
-              const effectiveTravelMinutes = Math.max(scheduledTravelMinutes, estimatedTravelMinutes);
-              const adjustedTravelEndMinutes = travelStartMinutes + effectiveTravelMinutes;
-              derivedHotelArrivalMinutes = adjustedTravelEndMinutes;
-
-              return {
-                ...segment,
-                from,
-                to,
-                timeRange: `${formatMinutesToDisplay(travelStartMinutes)} - ${formatMinutesToDisplay(adjustedTravelEndMinutes)}`,
-                duration: formatMinutesDuration(effectiveTravelMinutes),
-                distance: currentHotelDistance || segment.distance,
-              };
-            }
-          }
-
-          return {
-            ...segment,
-            from,
-            to,
-          };
-        }
-
-        if (segment.type === 'checkin' && currentHotelName) {
-          const existingCheckinMinutes = parseDisplayMinutes(segment.time);
-          const adjustedCheckinMinutes =
-            derivedHotelArrivalMinutes != null && existingCheckinMinutes != null
-              ? Math.max(existingCheckinMinutes, derivedHotelArrivalMinutes)
-              : (derivedHotelArrivalMinutes ?? existingCheckinMinutes);
-
-          return {
-            ...segment,
-            hotelName: currentHotelName,
-            time: adjustedCheckinMinutes !== null ? formatMinutesToDisplay(adjustedCheckinMinutes) : segment.time,
-          };
-        }
-
-        return segment;
-      });
-
-      const lastCheckinIndex = (() => {
-        for (let index = segments.length - 1; index >= 0; index -= 1) {
-          if (segments[index]?.type === 'checkin') return index;
-        }
-        return -1;
-      })();
-
-      if (lastCheckinIndex >= 0) {
-        ensureTravelBeforeCheckin(lastCheckinIndex, currentHotelName);
-      }
-
-      const earlyCheckinIndex = segments.findIndex((segment) => {
-        if (segment.type !== 'checkin') return false;
-        const timeMinutes = parseDisplayMinutes(segment.time);
-        if (timeMinutes === null) return false;
-        return isEarlyMorningTime(parseDisplayTimeToHms(segment.time || ''));
-      });
-
-      const hasEarlyMorningArrival = dayIndex === 0 && earlyCheckinIndex >= 0;
-
-      const hasLateHotelTravel =
-        hasEarlyMorningArrival &&
-        currentHotelName &&
-        segments.some((segment, segmentIndex) => (
-          segmentIndex > earlyCheckinIndex &&
-          segment.type === 'travel' &&
-          normalizeTimelineLabel(segment.to) === normalizeTimelineLabel(currentHotelName)
-        ));
-
-      const hasLateCheckin =
-        hasEarlyMorningArrival &&
-        segments.some((segment, segmentIndex) => (
-          segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
-        ));
-
-      if (hasEarlyMorningArrival && currentHotelName && !hasLateHotelTravel) {
-        const lateCheckinIndex = segments.findIndex((segment, segmentIndex) => (
-          segmentIndex > earlyCheckinIndex && segment.type === 'checkin'
-        ));
-        const lateCheckinSegment = lateCheckinIndex >= 0 ? segments[lateCheckinIndex] as CheckinSegment : null;
-
-        const searchEndIndex = lateCheckinIndex >= 0 ? lateCheckinIndex : segments.length;
-        let anchorIndex = -1;
-        for (let index = searchEndIndex - 1; index > earlyCheckinIndex; index -= 1) {
-          if (segments[index]?.type === 'hotspot') continue;
-          anchorIndex = index;
-          break;
-        }
-
-        const anchorSegment = anchorIndex >= 0 ? segments[anchorIndex] : undefined;
-        const anchorLabel = getSegmentAnchorLabel(anchorSegment);
-        const anchorEndMinutes = getSegmentEndMinutes(anchorSegment);
-        const existingCheckinMinutes = lateCheckinSegment ? parseDisplayMinutes(lateCheckinSegment.time) : parseDisplayMinutes(day.endTime);
-        const dayEndMinutes = parseDisplayMinutes(day.endTime);
-        const desiredCheckinMinutes = existingCheckinMinutes ?? dayEndMinutes ?? anchorEndMinutes;
-        const estimatedTravelMinutes = estimateHotelTravelMinutesFromDistance(currentHotelDistance);
-
-        const tailAlreadyArrivesAtHotel =
-          !!anchorSegment &&
-          (
-            anchorSegment.type === 'checkin' ||
-            (
-              anchorSegment.type === 'travel' &&
-              normalizeTimelineLabel(anchorSegment.to || '') === normalizeTimelineLabel(currentHotelName)
-            ) ||
-            normalizeTimelineLabel(anchorLabel) === 'hotel' ||
-            normalizeTimelineLabel(anchorLabel) === normalizeTimelineLabel(currentHotelName)
-          );
-
-        if (!tailAlreadyArrivesAtHotel && anchorLabel && normalizeTimelineLabel(anchorLabel) !== normalizeTimelineLabel(currentHotelName)) {
-          const scheduleGapMinutes =
-            anchorEndMinutes !== null && desiredCheckinMinutes !== null
-              ? Math.max(0, desiredCheckinMinutes - anchorEndMinutes)
-              : 0;
-          const effectiveTravelMinutes =
-            estimatedTravelMinutes != null
-              ? Math.max(scheduleGapMinutes, estimatedTravelMinutes)
-              : scheduleGapMinutes;
-
-          if (anchorEndMinutes !== null) {
-            const travelEndMinutes = anchorEndMinutes + effectiveTravelMinutes;
-            const travelSegment: TravelSegment = {
-              type: 'travel',
-              from: anchorLabel,
-              to: currentHotelName,
-              timeRange: `${formatMinutesToDisplay(anchorEndMinutes)} - ${formatMinutesToDisplay(travelEndMinutes)}`,
-              distance: currentHotelDistance || '',
-              duration: formatMinutesDuration(effectiveTravelMinutes),
-              note: 'This may vary due to traffic conditions',
-            };
-            const adjustedCheckinMinutes = desiredCheckinMinutes !== null
-              ? Math.max(desiredCheckinMinutes, travelEndMinutes)
-              : travelEndMinutes;
-
-            if (lateCheckinIndex >= 0) {
-              segments.splice(lateCheckinIndex, 0, travelSegment);
-              segments[lateCheckinIndex + 1] = {
-                ...(segments[lateCheckinIndex + 1] as CheckinSegment),
-                hotelName: currentHotelName,
-                hotelAddress: '',
-                time: formatMinutesToDisplay(adjustedCheckinMinutes),
-              };
-            } else {
-              segments.push(travelSegment);
-              segments.push({
-                type: 'checkin',
-                hotelName: currentHotelName,
-                hotelAddress: '',
-                time: formatMinutesToDisplay(adjustedCheckinMinutes),
-              });
-            }
-          } else if (lateCheckinIndex < 0) {
-            segments.push({
-              type: 'checkin',
-              hotelName: currentHotelName,
-              hotelAddress: '',
-              time: desiredCheckinMinutes !== null ? formatMinutesToDisplay(desiredCheckinMinutes) : day.endTime || null,
-            });
-          }
-        } else if (lateCheckinIndex >= 0) {
-          segments[lateCheckinIndex] = {
-            ...(segments[lateCheckinIndex] as CheckinSegment),
-            hotelName: currentHotelName,
-            hotelAddress: '',
-          };
-        }
-      }
-
-      return {
-        ...day,
-        segments,
-      };
-    });
-  }, [itinerary?.days, selectedHotelMetaByRoute]);
-
-  // Ensure "start" segment always appears before first travel segment within each day
-  const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map((day, idx) => {
-    // CRITICAL SAFEGUARD: Ensure segments always exist as an array
-    const rawSegments = (() => {
-      // First try hotelHydratedDays/current day segments
-      if (day.segments && Array.isArray(day.segments) && day.segments.length > 0) {
-        return day.segments;
-      }
-      
-      // Fallback: try to get from original itinerary.days in case hotelHydratedDays lost them
-      if (itinerary?.days && itinerary.days.length > idx) {
-        const originalDay = itinerary.days[idx];
-        if (originalDay.segments && Array.isArray(originalDay.segments)) {
-          return originalDay.segments;
-        }
-      }
-      
-      // Last resort: empty array
-      return [];
-    })();
-    
-    // DEBUG: Log for first day
-    if (idx === 0 && rawSegments.length === 0) {
-      console.warn('[ItineraryDetails] DisplayDays: No segments found for day 0!', {
-        dayFromHydrated: day,
-        dayFromOriginal: itinerary?.days?.[0],
-        hotelHydratedDaysLength: hotelHydratedDays.length,
-        itineraryDaysLength: itinerary?.days?.length,
-      });
-    }
-    
-    if (idx === 0) {
-      console.log('[ItineraryDetails] DisplayDays day 0:', {
-        segmentCount: rawSegments.length,
-        hasSegments: rawSegments.length > 0,
-        types: rawSegments.map(s => s?.type),
-      });
-    }
-    
-    return {
-      ...day,
-      segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
-        if (a.type === 'start' && b.type !== 'start') return -1;
-        if (b.type === 'start' && a.type !== 'start') return 1;
-        return 0;
-      }) : [],
-    };
+  const displayDays = useDisplayItineraryDays({
+    hotelHydratedDays,
+    itineraryDays: itinerary?.days,
   });
 
 const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySummaryValues({
@@ -3314,80 +1272,19 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     }
   }, [clipboardModal, paraRecommendations, selectedHotels, buildDefaultClipboardSelection]);
 
-  type ClipboardMode = "recommended" | "highlights" | "para";
-
-  type ClipboardGroup = {
-    label: string;
-    groupType: number;
-    hotels: ItineraryHotelRow[];
-  };
-
-  const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
-    if (!hotelDetails) return [];
-    return buildSelectedClipboardGroups(paraRecommendations, selectedHotels);
-  };
-
-const buildClipboardHtml = (mode: ClipboardMode) => {
-  if (!hotelDetails || !itinerary) {
-    return { html: "", plainText: "", packageSectionsHtml: "" };
-  }
-
-  const selectedGroups = getSelectedClipboardGroups(mode);
-
-  if (!selectedGroups.length) {
-    return { html: "", plainText: "", packageSectionsHtml: "" };
-  }
-
-  const sectionTitle = "Recommended Hotel";
-
-  const tableStyle =
-    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#000;";
-  const borderStyle = "border:1px solid #b1b1b1;";
-  const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
-  const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
-  const centerTitleStyle =
-    "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
-
-  const packageSectionsHtml = selectedGroups
-    .map((group, groupIndex) => {
-      return buildClipboardHotelPackageSectionHtml({
-        hotels: group.hotels,
-        roomCount: itinerary.roomCount,
-        groupIndex,
-        sectionTitle,
-        vehicleSectionHtml: buildClipboardVehicleSectionHtml({
-          vehiclesValue: itinerary.vehicles,
-          daysValue: itinerary.days,
-          shouldShowVehicles,
-          styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-        }),
-        costSectionHtml: buildClipboardCostSectionHtml({
-          hotels: group.hotels,
-          itinerary,
-          shouldShowHotels,
-          shouldShowVehicles,
-          computedVehicleAmount,
-          computedVehicleQty,
-          styles: { tableStyle, cellStyle },
-        }),
-        styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-      });
-    })
-    .join("");
-
-  const plainText = buildClipboardPlainText({
-    groups: selectedGroups,
-    roomCount: itinerary.roomCount,
-    sectionTitle,
+  const {
+    getSelectedClipboardGroups,
+    buildClipboardHtml,
+  } = useClipboardContentBuilder({
+    hotelDetails,
+    itinerary,
+    paraRecommendations,
+    selectedHotels,
+    shouldShowHotels,
+    shouldShowVehicles,
+    computedVehicleAmount,
+    computedVehicleQty,
   });
-
-  return {
-    html: packageSectionsHtml,
-    plainText,
-    packageSectionsHtml,
-  };
-};
-
   const buildHighlightsHotspotDetailsHtml = useCallback(
     () => buildHighlightsHotspotDetailsHtmlUtil(itinerary?.days),
     [itinerary?.days],
@@ -3465,133 +1362,17 @@ const switchedRouteRef = useRef<string | null>(null);
   });
 
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = useMemo(() => {
-    return Object.entries(selectedHotelBookings)
-    .filter(([routeId, h]) => {
-      if (!isSupplierBookableHotel(h) || normalizeHotelProvider(h) === 'tbo') {
-        return false;
-      }
-
-      const routeIdNum = Number(routeId);
-
-      if (!h?.multiNightBooking && selectedHotelCoveredRouteIds.has(routeIdNum)) {
-        const parentForRoute = Object.values(selectedHotelBookings).find((selected) => {
-          const routeIds = Array.isArray(selected?.routeIds)
-            ? selected.routeIds.map((id) => Number(id))
-            : [];
-
-          return selected?.multiNightBooking && routeIds.includes(routeIdNum);
-        });
-
-        if (parentForRoute) {
-          return false;
-        }
-      }
-
-      return true;
-    })
-    .map(([routeId, h]: [string, any]) => {
-      const routeIdNum = parseInt(routeId, 10);
-      const selectedProvider = normalizeHotelProvider(h);
-      const selectedBookingCode = getBookingCodeForBooking(h);
-      const selectedHotelCode = getHotelCodeForBooking(h);
-      const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
-      const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
-      const selectedAmount = getHotelAmountForBooking(h);
-
-      const displayRouteIds = Array.isArray(h?.routeIds) && h.routeIds.length > 0
-        ? h.routeIds
-            .map((id) => Number(id))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-        : [routeIdNum];
-
-      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row) =>
-        displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
-        normalizeHotelProvider(row) === selectedProvider &&
-        isSupplierBookableHotel(row),
-      );
-
-      const matchedHotelRow =
-        routeRows.find((row) => {
-          const rowBookingCode = String(row?.bookingCode || row?.searchReference || '').trim();
-          const rowHotelCode = String(row?.hotelCode || '').trim();
-          const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
-          const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
-          const rowAmount = Number(row?.totalHotelCost || 0) + Number(row?.totalHotelTaxAmount || 0);
-
-          const bookingCodeMatch = selectedBookingCode !== '' && rowBookingCode !== '' && selectedBookingCode === rowBookingCode;
-          const hotelCodeMatch = selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode;
-          const hotelNameMatch = selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName;
-          const roomTypeMatch = selectedRoomType !== '' && rowRoomType !== '' && selectedRoomType === rowRoomType;
-          const amountMatch = selectedAmount > 0 && Math.abs(selectedAmount - rowAmount) <= 0.01;
-
-          return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
-        }) || routeRows[0] || null;
-
-      return {
-        routeId: routeIdNum,
-        ...h,
-        matchedHotelRow,
-        displayRouteIds,
-        displayNights: Number(h?.nights || displayRouteIds.length || 1),
-        displayCheckInDate: h?.checkInDate,
-        displayCheckOutDate: h?.checkOutDate,
-      };
-    });
-  }, [
-    hotelDetails?.hotels,
+  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
-  ]);
-  const DEFAULT_EXTERNAL_STAY_MESSAGE =
-    'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
+    hotelDetails,
+  });
 
-  useEffect(() => {
-    if (!confirmQuotationModal || requiresDetailedPassengerFlow) return;
-    setAdditionalAdults([]);
-    setAdditionalChildren([]);
-    setAdditionalInfants([]);
-    setFormErrors((prev) => {
-      const next = Object.fromEntries(
-        Object.entries(prev).filter(([key]) => {
-          return !(
-            key.startsWith('count-adult') ||
-            key.startsWith('count-child') ||
-            key.startsWith('count-infant') ||
-            key.startsWith('adult-') ||
-            key.startsWith('child-') ||
-            key.startsWith('infant-')
-          );
-        }),
-      );
-      return next;
-    });
-  }, [confirmQuotationModal, requiresDetailedPassengerFlow]);
+  const externalStayEntries = useExternalStayEntries({
+    hotelDetails,
+    activeHotelGroupType,
+  });
 
-  const externalStayEntries = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) {
-      return [];
-    }
-
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      1;
-
-    return hotelDetails.hotels
-      .filter((row) =>
-        Number(row?.groupType) === Number(preferredGroupType) &&
-        !isSupplierBookableHotel(row),
-      )
-      .map((row) => ({
-        routeId: Number(row?.itineraryRouteId || 0),
-        destination: String(row?.destination || '').trim(),
-        day: String(row?.day || '').trim(),
-        hotelName: String(row?.hotelName || '').trim(),
-        availabilityStatus: row?.availabilityStatus || 'NO_SUPPLIER_AVAILABILITY',
-        availabilityMessage: row?.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE,
-      }));
-  }, [activeHotelGroupType, hotelDetails]);
   const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
   const confirmPassengerMix = [
     Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
@@ -3652,36 +1433,25 @@ const switchedRouteRef = useRef<string | null>(null);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
 
-  // Refresh hotel data after hotel update
-  const refreshHotelData = useCallback(async () => {
-    if (!quoteId) return;
-
-    try {
-      setLoadingHotels(true);
-      console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const detailsRes = await ItineraryService.getDetails(quoteId);
-      const details = detailsRes as ItineraryDetailsResponse;
-      setItinerary(details);
-
-      const pref = Number(details.itineraryPreference ?? 3);
-      const useHotels = pref === 1 || pref === 3;
-
-      if (useHotels) {
-        const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
-      } else {
-        setHotelDetails(null);
-        setActiveHotelListTotal(0);
-      }
-      console.log("✅ [ItineraryDetails] State updated with new hotel data");
-    } catch (e) {
-      console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
-    } finally {
-      setLoadingHotels(false);
-    }
-  }, [quoteId, cacheRouteHotelDetails, loadHotelDetailsForItinerary]);
+  const {
+    handleHotelGroupTypeChange,
+    handleRebuildHotels,
+    refreshHotelData,
+    refreshVehicleData,
+  } = useHotelDataController({
+    quoteId: quoteId || null,
+    activeHotelGroupType,
+    isRebuildingHotels,
+    setActiveHotelGroupType,
+    setActiveHotelListTotal,
+    setHotelDetails,
+    setIsRebuildingHotels,
+    setItinerary,
+    setLoadingHotels,
+    cacheRouteHotelDetails,
+    fetchCompleteHotelDetails,
+    loadHotelDetailsForItinerary,
+  });
 
   const {
     handleCancelVoucherItems,
@@ -3739,27 +1509,11 @@ const switchedRouteRef = useRef<string | null>(null);
     return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
 
-  const {
-    handleHotelGroupTypeChange,
-    handleRebuildHotels,
-    refreshVehicleData,
-  } = useHotelDataController({
-    quoteId: quoteId || null,
-    activeHotelGroupType,
-    isRebuildingHotels,
-    setActiveHotelGroupType,
-    setActiveHotelListTotal,
-    setHotelDetails,
-    setIsRebuildingHotels,
-    setItinerary,
-    setLoadingHotels,
-    cacheRouteHotelDetails,
-    fetchCompleteHotelDetails,
-    loadHotelDetailsForItinerary,
-  });
-
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
+    if (!vehicles.length && (details?.vehicleRateAvailability?.length || 0) > 0) {
+      return true;
+    }
     if (!vehicles.length) return false;
     return vehicles.some((vehicle) => {
       const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
@@ -4152,175 +1906,23 @@ const getSelectedPreviewActivity = () =>
     });
   }, [buildFitHereAnchorForTimelineRow]);
 
-  const getFitHereTriedState = (resultType?: string): Omit<TriedAnchorState, 'anchorKey'> => {
-    const normalized = String(resultType || '').toUpperCase();
-
-    if (normalized === 'FITS_DIRECTLY') {
-      return { status: 'DIRECT_FIT', label: 'Tried: fits directly' };
-    }
-    if (normalized === 'FITS_WITH_OPTIONAL_REMOVAL') {
-      return { status: 'REMOVES_OPTIONAL', label: 'Tried: removes optional hotspot' };
-    }
-    if (normalized === 'REQUIRES_P3_CONFIRMATION') {
-      return { status: 'P3_CONFIRMATION', label: 'Tried: needs P3 confirmation' };
-    }
-    if (normalized === 'PRIORITY_CONFLICT') {
-      return { status: 'PRIORITY_CONFLICT', label: 'Tried: priority conflict' };
-    }
-
-    return { status: 'CANNOT_FIT', label: 'Tried: does not fit' };
-  };
-
   const getAutoPreviewRemovedRows = getAutoPreviewRemovedRowsUtil;
   const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;
   const scoreAutoPreviewAttempt = scoreAutoPreviewAttemptUtil;
 
   const buildAutoPreviewAnchorProgressText = useCallback(buildAutoPreviewAnchorProgressTextUtil, []);
 
-  const handleSelectFitHotspot = (hotspot: AvailableHotspot) => {
-    previewRequestIdRef.current += 1;
-    stopFitHereProgressTimer();
-    setSelectedFitHotspot(hotspot);
-    setTriedFitHereAnchors({});
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-      retryPayload: null,
-    });
-    setAutoFitHereModal({
-      open: false,
-      loading: false,
-      failedReason: null,
-      results: [],
-      selectedAnchorKey: null,
-    });
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(null);
-    setSelectedHotspotIds([]);
-  };
-
-  const runAutoPreviewFitHere = async (
-    planId: number,
-    day: ItineraryDay,
-    hotspot: AvailableHotspot,
-    anchors: HotspotAnchor[],
-  ) => {
-    return ItineraryService.previewManualHotspotAutoFitHere(
-      planId,
-      buildAutoManualHotspotPreviewPayload(
-        Number(day.id),
-        Number(hotspot.id),
-        anchors.map((item) => serializeFitHereAnchor(item)),
-      ),
-    );
-  };
-
-  const executeAutoPreviewFitHere = async (day: ItineraryDay, hotspot: AvailableHotspot) => {
-    const planId = Number(itinerary?.planId || 0);
-
-    if (!(planId > 0)) {
-      toast.error('Plan ID missing.');
-      return;
-    }
-
-    if (!day) {
-      toast.error('Could not find the selected route day.');
-      return;
-    }
-
-    const anchors = buildAutoFitHereAnchorsForDay(day);
-
-    if (anchors.length === 0) {
-      toast.error('No valid Fit Here positions found for Auto-Preview.');
-      return;
-    }
-
-    stopFitHereProgressTimer();
-    const requestId = ++previewRequestIdRef.current;
-    setSelectedFitHotspot(hotspot);
-    setActivePreviewHotspotId(hotspot.id);
-    setSelectedHotspotIds([hotspot.id]);
-    resetManualHotspotPreviewStateButKeepActiveHotspot(hotspot.id);
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-      retryPayload: null,
-    });
-
-    const initialRows = anchors.map((anchor, index) => ({
-      anchorKey: buildFitHereAnchorKey(anchor),
-      anchor: serializeFitHereAnchor(anchor),
-      attempt: null,
-      status: 'PENDING' as const,
-      score: 0,
-      rankReason: 'Waiting to simulate this position.',
-      removedCount: 0,
-      progressText: buildAutoPreviewAnchorProgressText(day, anchor),
-      elapsedMs: 0,
-      sortIndex: index,
-    }));
-
-    setAutoFitHereModal({
-      open: true,
-      loading: true,
-      failedReason: null,
-      results: initialRows,
-      selectedAnchorKey: null,
-      loadingAnchorCount: anchors.length,
-      loadingStartedAtMs: Date.now(),
-      performanceSummary: null,
-    });
-
-    try {
-      const response = await runAutoPreviewFitHere(planId, day, hotspot, anchors);
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-
-      const results = extractAutoPreviewResults(response).map((row, index: number) => ({
-        ...row,
-        progressText: buildAutoPreviewAnchorProgressText(day, row?.anchor || anchors[index] || anchors[0]),
-        sortIndex: Number.isFinite(Number(row?.sortIndex)) ? Number(row?.sortIndex) : index,
-      }));
-      const selectedAnchorKey = pickBestAutoPreviewAnchorKey(response, results[0]?.anchorKey || null);
-
-      setAutoFitHereModal({
-        open: true,
-        loading: false,
-        failedReason: null,
-        results,
-        selectedAnchorKey,
-        loadingAnchorCount: anchors.length,
-        loadingStartedAtMs: null,
-        performanceSummary: (response as any)?.performanceSummary || null,
-      });
-    } catch (error) {
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-
-      setAutoFitHereModal({
-        open: true,
-        loading: false,
-        failedReason: error?.message || 'Could not run Auto-Preview.',
-        results: initialRows,
-        selectedAnchorKey: null,
-        loadingAnchorCount: anchors.length,
-        loadingStartedAtMs: null,
-        performanceSummary: null,
-      });
-
-      toast.error(error?.message || 'Could not run Auto-Preview.');
-    }
-  };
+  const handleSelectFitHotspot = useFitHereHotspotSelection({
+    previewRequestIdRef,
+    stopFitHereProgressTimer,
+    setSelectedFitHotspot,
+    setTriedFitHereAnchors,
+    setFitHereModal,
+    setAutoFitHereModal,
+    resetManualHotspotPreviewState,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+  });
 
   const handleFitHereClick = useFitHerePreviewController({
     selectedFitHotspot,
@@ -4331,16 +1933,22 @@ const getSelectedPreviewActivity = () =>
     setFitHereModal,
   });
 
-  const handleAutoPreviewFitHere = async (hotspot: AvailableHotspot) => {
-    const day = selectedFitHereDay;
-
-    if (!day) {
-      toast.error('Could not find the selected route day.');
-      return;
-    }
-
-    void executeAutoPreviewFitHere(day, hotspot);
-  };
+  const handleAutoPreviewFitHere = useAutoFitHerePreviewController({
+    itineraryPlanId: itinerary?.planId,
+    selectedFitHereDay,
+    buildAutoFitHereAnchorsForDay,
+    buildFitHereAnchorKey,
+    serializeFitHereAnchor,
+    buildAutoPreviewAnchorProgressText,
+    setSelectedFitHotspot,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+    setFitHereModal,
+    setAutoFitHereModal,
+    previewRequestIdRef,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
+    stopFitHereProgressTimer,
+  });
 
   const { handleFitHereCancel, handleRetryFitHere } = useFitHereDialogController({
     fitHereModal,
@@ -4388,155 +1996,20 @@ const getSelectedPreviewActivity = () =>
     return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
   }, [quoteId]);
 
-  const resolveActiveFitHereDayNumber = useCallback(
-    (attempt?: ManualFitHerePreviewResponse | null): number | null => {
-      const attemptRouteId = Number(
-        attempt?.routeId
-        || fitHereModal?.retryPayload?.day?.id
-        || addHotspotModal.routeId
-        || 0,
-      );
-
-      if (attemptRouteId > 0) {
-        const matchedDay = itinerary?.days?.find((day) => Number(day.id) === attemptRouteId);
-        const matchedDayNumber = Number(matchedDay?.dayNumber || 0);
-        if (matchedDayNumber > 0) {
-          return matchedDayNumber;
-        }
-      }
-
-      const fallbackDayNumber = Number(
-        fitHereModal?.retryPayload?.day?.dayNumber
-        || selectedFitHereDay?.dayNumber
-        || 0,
-      );
-
-      return fallbackDayNumber > 0 ? fallbackDayNumber : null;
-    },
-    [addHotspotModal.routeId, fitHereModal?.retryPayload?.day?.dayNumber, fitHereModal?.retryPayload?.day?.id, itinerary?.days, selectedFitHereDay?.dayNumber],
-  );
-
-  const handleConfirmFitHere = async (
-    options?: FitHereConfirmOptions,
-    attemptOverride?: ManualFitHerePreviewResponse | null,
-  ) => {
-    const selectedAttempt = attemptOverride || fitHereModal.attempt;
-    const attemptId = selectedAttempt?.attemptId;
-    const planId = Number(itinerary?.planId || 0);
-    const {
-      confirmRemovedRows,
-      acknowledgedRemovedHotspotIds,
-      hasTimingRisk,
-      hasPriorityRemoval,
-      hasP3Removal,
-      hasP1P2Removal,
-      selectedOpeningConflict,
-      canForceClosedHotspotConflict,
-      hasUnprovenProtectedRemoval,
-    } = analyzeFitHereConfirmation(selectedAttempt, options);
-
-    if (!attemptId) {
-      toast.error('Preview attempt is missing.');
-      return;
-    }
-    if (!(planId > 0)) {
-      toast.error('Plan ID missing.');
-      return;
-    }
-    if (hasUnprovenProtectedRemoval) {
-      toast.error('This preview removes a protected hotspot without proven route-feasibility evidence. Please recalculate before confirming.');
-      return;
-    }
-    if (hasP3Removal && selectedAttempt?.removalPolicy?.allowP3Removal !== true) {
-      toast.error('This preview removes a Priority 3 hotspot without approval. Please recalculate with P3 removal allowed.');
-      return;
-    }
-    if (hasP1P2Removal && selectedAttempt?.removalPolicy?.allowP1P2Removal !== true) {
-      toast.error('This preview removes a Priority 1 / Priority 2 hotspot without approval. Please recalculate with protected removal allowed.');
-      return;
-    }
-
-    setConfirmFitHereLoading(true);
-    stopFitHereProgressTimer();
-    try {
-      const confirmResult: any = await ItineraryService.confirmManualHotspotFitHere(planId, {
-        attemptId,
-        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk || canForceClosedHotspotConflict,
-        allowClosedHotspotConflict: canForceClosedHotspotConflict,
-        allowPriorityRemoval:
-          options?.allowPriorityRemoval === true ||
-          hasPriorityRemoval ||
-          selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true,
-        acknowledgedRemovedHotspotIds,
-      });
-      const {
-        confirmedHotspotId,
-        confirmedRouteId,
-        persistedTimeline,
-        insertedRouteHotspotId,
-        removedHotspotIds,
-      } = normalizeFitHereConfirmationResult(confirmResult, selectedAttempt, selectedFitHotspot?.id || null, addHotspotModal.routeId);
-
-      const confirmedSegments = applyFitHereConfirmationState({
-        confirmedHotspotId,
-        confirmedRouteId,
-        insertedRouteHotspotId,
-        removedHotspotIds,
-        persistedTimeline,
-      });
-
-      toast.success('Hotspot inserted successfully. Timeline updated.');
-      resetFitHereAfterConfirmation();
-
-      await refreshAfterFitHereConfirmation(confirmedRouteId, confirmedSegments);
-    } catch (error) {
-      if (isExpiredOrMissingFitHereAttemptError(error)) {
-        const scrollDayNumber = resolveActiveFitHereDayNumber(selectedAttempt);
-        const scrollStorageKey = getFitHereRefreshScrollStorageKey();
-        if (scrollStorageKey && scrollDayNumber) {
-          window.sessionStorage.setItem(scrollStorageKey, String(scrollDayNumber));
-        }
-        toast.info('This Fit Here preview expired. Refreshing the itinerary now.');
-        window.setTimeout(() => {
-          window.location.reload();
-        }, 600);
-        return;
-      }
-
-      const confirmErrorCode = extractFitHereConfirmErrorCode(error);
-      if (
-        confirmErrorCode === 'MANUAL_INSERT_SELECTED_HOTSPOT_CLOSING_NOT_RESOLVED' &&
-        !options?.allowClosedHotspotConflict &&
-        selectedAttempt?.attemptId &&
-        (selectedAttempt?.selectedOpeningConflict || selectedAttempt?.canForceConflict === true)
-      ) {
-        toast.info('Retrying the same Fit Here attempt with the approved conflict-save path.');
-        await handleConfirmFitHere(
-          {
-            allowTimingRisk: true,
-            allowClosedHotspotConflict: true,
-            acknowledgedRemovedHotspotIds,
-          },
-          selectedAttempt,
-        );
-        return;
-      }
-
-      if (isRetryableFitHereConfirmError(error)) {
-        const retryPayload = fitHereModal.retryPayload;
-        if (retryPayload) {
-          toast.error('This preview changed on the server. Recalculating the latest Fit Here preview now.');
-          await handleFitHereClick(retryPayload.day, retryPayload.anchor);
-          return;
-        }
-      }
-      toast.error(error?.message || 'Could not confirm Fit Here insertion.');
-    } finally {
-      stopFitHereProgressTimer();
-      setConfirmFitHereLoading(false);
-    }
-  };
-
+  const handleConfirmFitHere = useFitHereConfirmationMutation({
+    itinerary,
+    fitHereModal,
+    selectedFitHotspot,
+    selectedFitHereDay,
+    fallbackRouteId: addHotspotModal.routeId,
+    handleFitHereClick,
+    stopFitHereProgressTimer,
+    setConfirmFitHereLoading,
+    resetFitHereAfterConfirmation,
+    applyFitHereConfirmationState,
+    refreshAfterFitHereConfirmation,
+    getFitHereRefreshScrollStorageKey,
+  });
   const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
     addHotspotModal,
     activePreviewHotspotId,
@@ -4800,6 +2273,7 @@ const getSelectedPreviewActivity = () =>
     additionalInfants,
     confirmOccupanciesTemplate,
     requiresHotelBookingFlow,
+    canConfirmQuotation,
     requiresDetailedPassengerFlow,
     hasAcceptedUpdatedPrice,
     shouldEnableWalletTopUpOnConfirm,
@@ -5343,11 +2817,14 @@ const canShowGuideActionButton =
         </div>
       )}
 
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (
+      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
+        ((itinerary.vehicles && itinerary.vehicles.length > 0) ||
+          (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length > 0)) && (
         <VehicleSection
           vehicleListRef={vehicleListRef}
           summaryStickyHeight={summaryStickyHeight}
           vehicles={itinerary.vehicles}
+          vehicleRateAvailability={itinerary.vehicleRateAvailability}
           planId={itinerary.planId}
           dateRange={itinerary.dateRange}
           days={itinerary.days || []}
@@ -5358,7 +2835,9 @@ const canShowGuideActionButton =
         />
       )}
 
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
+        (!itinerary.vehicles || itinerary.vehicles.length === 0) &&
+        (!itinerary.vehicleRateAvailability || itinerary.vehicleRateAvailability.length === 0) && (
         <div
           ref={vehicleListRef}
           id="vehicle-list-section"
@@ -5543,10 +3022,10 @@ const canShowGuideActionButton =
                   <span>- ₹ {itinerary.costBreakdown.couponDiscount!.toFixed(2)}</span>
                 </div>
               )}
-              {(itinerary.costBreakdown.agentMargin ?? 0) > 0 && (
+              {(financialTotals.agentMargin ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Agent Margin</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.agentMargin!.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.agentMargin.toFixed(2)}</span>
                 </div>
               )}
 
@@ -5705,7 +3184,8 @@ const canShowGuideActionButton =
         <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
           onClick={openConfirmQuotationModal}
-          disabled={isOpeningConfirmQuotation}
+          disabled={isOpeningConfirmQuotation || !canConfirmQuotation}
+          title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
         >
           {isOpeningConfirmQuotation ? (
             <>
@@ -6013,9 +3493,9 @@ const canShowGuideActionButton =
                                   </div>
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex justify-between items-start mb-2 gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <h4 className="font-semibold text-base text-[#4a4260] truncate">
+                                  <div className="mb-2">
+                                    <div className="min-w-0">
+                                      <h4 className="font-semibold text-base text-[#4a4260] break-words">
                                         {hotspot.name}
                                       </h4>
                                       <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -6043,13 +3523,13 @@ const canShowGuideActionButton =
                                           </span>
                                         )}
                                         {isAlsoOnOtherRoute && (
-                                          <span className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-blue-100 text-blue-800">
+                                          <span className="inline-flex shrink-0 whitespace-nowrap text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-blue-100 text-blue-800">
                                             Also used on another day
                                           </span>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="flex gap-2 shrink-0">
+                                    <div className="mt-2 flex flex-wrap gap-2">
                                       {isManualAddedOnCurrentRoute ? (
                                         <div className="flex items-center gap-2">
                                           <Button
@@ -6145,11 +3625,6 @@ const canShowGuideActionButton =
                                     {hotspot.description}
                                   </p>
                                   <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                                    {String(hotspot.availabilityReason || '').trim().length > 0 && (
-                                      <span className="text-[11px] text-[#4a4260]">
-                                        {hotspot.availabilityReason}
-                                      </span>
-                                    )}
                                     {hotspot.amount > 0 && (
                                       <span className="flex items-center">
                                         <Ticket className="h-3 w-3 mr-1" />
@@ -8278,6 +5753,7 @@ const canShowGuideActionButton =
             isConfirmingQuotation={isConfirmingQuotation}
             isPrebooking={isPrebooking}
             isWalletTopUpSubmitting={isWalletTopUpSubmitting}
+            canConfirmQuotation={canConfirmQuotation}
           />
       </QuotationConfirmationDialogShell>
 
