@@ -142,6 +142,7 @@ import {
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "./itinerary-details/utils/quotationHotelBookings.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
+import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
@@ -8002,20 +8003,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         return;
       }
 
-      const hotelBookingsWithPrebookContext = requiresHotelBookingFlow
-        ? hotelBookings.map((booking) => {
-            const matchingPrebook = prebookHotelEntries.find(
-              (item) =>
-                Number(item?.routeId) === Number(booking.routeId) &&
-                String(item?.hotelCode || '') === String(booking.hotelCode || ''),
-            );
-
-            return {
-              ...booking,
-              prebookContext: matchingPrebook?.prebookContext,
-            };
-          })
-        : [];
+      const routeContext = buildQuotationHotelRouteContext({
+        requiresHotelBookingFlow,
+        hotelBookings: hotelBookings as readonly Record<string, unknown>[],
+        prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
+        externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
+      });
+      const { hotelBookingsWithPrebookContext, selectedHotelRouteIds, externalStayRouteIds } = routeContext;
 
       if (requiresHotelBookingFlow) {
         console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
@@ -8031,25 +8025,6 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           netAmount: h.netAmount,
         })));
       }
-
-      const selectedHotelRouteIds = requiresHotelBookingFlow
-        ? Array.from(new Set(
-            hotelBookingsWithPrebookContext
-            .flatMap((booking) =>
-              Array.isArray(booking.routeIds) && booking.routeIds.length > 0
-                ? booking.routeIds
-                : [booking.routeId],
-            )
-            .map((routeId) => Number(routeId || 0))
-            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
-          ))
-        : [];
-
-      const externalStayRouteIds = requiresHotelBookingFlow
-        ? externalStayEntries
-            .map((entry) => Number(entry.routeId || 0))
-            .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
-        : [];
 
       const confirmPayload = buildQuotationConfirmationPayload({
         planId: itinerary.planId,

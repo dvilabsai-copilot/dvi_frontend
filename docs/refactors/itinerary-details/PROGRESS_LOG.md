@@ -1193,6 +1193,33 @@
 - Provider prompts, stale-session timeout, prebook mismatch threshold, acknowledgement requirement, fallback IP, and toast messages remain unchanged; only ownership moved.
 - Follow-up extraction: remaining quotation route/prebook context assembly and vehicle workflow boundaries.
 
+## Iteration 97 - Quotation route/prebook context
+
+### Baseline
+- Tests run: targeted controller/new-utility typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new utility; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/utils/quotationHotelRouteContext.utils.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: prebook-context matching and selected/external hotel route-id derivation for the final confirmation request.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `quotationHotelRouteContext.utils.ts`; unrelated repository errors remain.
+- Lint: new utility passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,772 lines.
+- New `quotationHotelRouteContext.utils.ts`: 53 lines.
+
+### Notes
+- Matching keys, route expansion, positive numeric filtering, and external-stay route handling remain unchanged; only pure derivation moved.
+- Follow-up extraction: remaining vehicle workflow boundaries and larger quotation modal/view composition.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline
