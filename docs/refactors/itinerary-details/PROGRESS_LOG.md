@@ -1735,6 +1735,32 @@
 ### Notes
 - Priority approval state, scrolling, and confirm actions remain controller-owned.
 
+## Iteration 148 - Automatic Fit Here scoring
+
+### Baseline
+- Starting point: Iteration 147 Fit Here priority replacement detection extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate automatic Fit Here removed-row extraction, highest-priority detection, and candidate scoring.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/autoPreviewScoring.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: removed-row deduplication, priority classification, result-type scoring, and risk penalties now live in pure utilities.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,729 lines.
+- New `autoPreviewScoring.utils.ts`: 56 lines.
+
+### Notes
+- Automatic preview request sequencing and confirmation state remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
