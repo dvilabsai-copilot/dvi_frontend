@@ -4195,3 +4195,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+## Iteration 171 — Quotation modal prefill boundary
+
+### Baseline
+- Starting checkpoint: `7b4038a` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/quotationModalPrefill.utils.ts`.
+- Moved confirmation-modal nationality/date prefill, traveller sorting, additional passenger construction, and occupancy-template derivation out of `openConfirmQuotationModal`.
+- Preserved primary-adult exclusion, passenger titles/ages/nationality, detailed-flow gating, and vehicle-only reset behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,316 lines (down from 9,350).
+- New utility: 74 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

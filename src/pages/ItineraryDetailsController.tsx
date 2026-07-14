@@ -172,7 +172,6 @@ import {
 } from "./itinerary-details/utils/fitHereConfirm.utils";
 import {
   applyChildAgesToTemplate,
-  buildOccupanciesFromTravellers,
   buildSupplierOccupancies,
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
@@ -183,7 +182,6 @@ import {
   getSafeErrorMessage,
   normalizeCancellationPolicyItems,
   normalizePrebookItems,
-  resolveConfirmNationality,
   resolvePrebookInclusions,
   resolvePrebookMealPlan,
 } from "./itinerary-details/utils/quotationConfirmationDetails.utils";
@@ -218,7 +216,7 @@ import {
   parseStaahSearchReference,
   type HotelProvider,
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
-import { formatQuotationDateTime } from "./itinerary-details/utils/quotationDateTime.utils";
+import { buildQuotationModalPrefill } from "./itinerary-details/utils/quotationModalPrefill.utils";
 import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
@@ -5167,67 +5165,35 @@ const getSelectedPreviewActivity = () =>
         return;
       }
 
-      let modalNationalityForSession = confirmDefaultNationality;
-
-      // Prefill arrival and departure details from plan
-      if (planDetails?.plan) {
-        const plan = planDetails.plan;
-        const modalNationality = resolveConfirmNationality(
-          plan,
-          guestDetails.nationality || confirmDefaultNationality || 'IN',
-        );
-        modalNationalityForSession = modalNationality;
-        setConfirmDefaultNationality(modalNationality);
-        setGuestDetails(prev => ({
+      const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
+      const hasPrefillSource = Boolean(planDetails?.plan) || travellersFromPlan.length > 0;
+      const modalPrefill = hasPrefillSource
+        ? buildQuotationModalPrefill({
+            plan: planDetails?.plan,
+            travellers: travellersFromPlan,
+            fallbackNationality: guestDetails.nationality || confirmDefaultNationality || 'IN',
+            roomCount: Number(itinerary?.roomCount || 1),
+            requiresDetailedPassengerFlow,
+          })
+        : null;
+      let modalNationalityForSession = modalPrefill?.nationality || confirmDefaultNationality;
+      if (modalPrefill && planDetails?.plan) {
+        setConfirmDefaultNationality(modalPrefill.nationality);
+        setGuestDetails((prev) => ({
           ...prev,
-          nationality: modalNationality,
-          arrivalDateTime: plan.trip_start_date_and_time ? formatQuotationDateTime(plan.trip_start_date_and_time) : '',
-          arrivalPlace: plan.arrival_location || '',
-          departureDateTime: plan.trip_end_date_and_time ? formatQuotationDateTime(plan.trip_end_date_and_time) : '',
-          departurePlace: plan.departure_location || '',
+          nationality: modalPrefill.nationality,
+          arrivalDateTime: modalPrefill.arrivalDateTime,
+          arrivalPlace: modalPrefill.arrivalPlace,
+          departureDateTime: modalPrefill.departureDateTime,
+          departurePlace: modalPrefill.departurePlace,
         }));
       }
-
-      let occupanciesTemplateFromPlan: Array<{ adults: number; children: number; childrenAges: number[] }> | null = null;
-      const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
-      if (travellersFromPlan.length > 0) {
-        const sortedTravellers = [...travellersFromPlan].sort(
-          (a, b) => Number(a?.traveller_details_ID || 0) - Number(b?.traveller_details_ID || 0),
-        );
-        const adults = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 1);
-        const children = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 2);
-        const infants = sortedTravellers.filter((t) => Number(t?.traveller_type || 0) === 3);
-
-        const toPrefillPassenger = (title: string, traveller): AdditionalPassenger => {
-          const ageNum = Number(traveller?.traveller_age);
-          return {
-            title,
-            name: '',
-            age: Number.isFinite(ageNum) ? String(Math.trunc(ageNum)) : '',
-            nationality: modalNationalityForSession,
-            panNo: '',
-            passportNo: '',
-          };
-        };
-
-        // Keep primary guest as Adult 1 row and prefill only additional passenger rows.
-        if (requiresDetailedPassengerFlow) {
-          setAdditionalAdults(adults.slice(1).map((t) => toPrefillPassenger('Mr', t)));
-          setAdditionalChildren(children.map((t) => toPrefillPassenger('Ms', t)));
-          setAdditionalInfants(infants.map((t) => toPrefillPassenger('Ms', t)));
-
-          const template = buildOccupanciesFromTravellers(
-            travellersFromPlan,
-            Number(itinerary?.roomCount || 1),
-          );
-          occupanciesTemplateFromPlan = template;
-          setConfirmOccupanciesTemplate(template);
-        } else {
-          setAdditionalAdults([]);
-          setAdditionalChildren([]);
-          setAdditionalInfants([]);
-          setConfirmOccupanciesTemplate(null);
-        }
+      let occupanciesTemplateFromPlan = modalPrefill?.occupancyTemplate || null;
+      if (travellersFromPlan.length > 0 && modalPrefill) {
+        setAdditionalAdults(modalPrefill.additionalAdults);
+        setAdditionalChildren(modalPrefill.additionalChildren);
+        setAdditionalInfants(modalPrefill.additionalInfants);
+        setConfirmOccupanciesTemplate(modalPrefill.occupancyTemplate);
       }
 
       if (isVehicleOnlyItinerary) {
