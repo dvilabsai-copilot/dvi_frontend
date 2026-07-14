@@ -103,5 +103,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Activity add/delete mutations and their independent itinerary/hotel refreshes are isolated in `useActivityMutationController`; preview and availability loading remain separate boundaries.
 - Vehicle-only clipboard fetch, hotel-row stripping, amount-label cleanup, highlights replacement, signature relocation, and clipboard copy are isolated in `useVehicleOnlyClipboardAction`; the former inline implementation has been removed.
 - Quotation passenger sanitization, primary/additional guest validation, age/title/nationality/PAN rules, and form-error/toast handling are isolated in `useQuotationPassengerValidation`.
+- Quotation confirmation hotel preparation is isolated in `useQuotationHotelSelectionPreparation`; persisted-route backfill, provider matching, external-stay fallback, and selected-booking state synchronization remain behaviorally unchanged.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

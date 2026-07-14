@@ -164,6 +164,7 @@ import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActi
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
+import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
@@ -8072,6 +8073,21 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setFormErrors,
   });
 
+  const prepareQuotationHotelSelections = useQuotationHotelSelectionPreparation({
+    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
+    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
+    activeHotelGroupType,
+    requiresHotelBookingFlow,
+    itineraryDays: itinerary?.days || [],
+    defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
+    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
+    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+    parseStaahSearchReference,
+    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
+    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
+    setSelectedHotelBookings: (updater: (previous: Record<number, Record<string, unknown>>) => Record<number, Record<string, unknown>>) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
+  });
+
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error('Missing itinerary plan information');
@@ -8119,108 +8135,9 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setIsConfirmingQuotation(true);
 
     try {
-      const autoSelectedHotels = { ...selectedHotelBookings };
-      const groupTypeValue =
-        activeHotelGroupType ??
-        Object.values(autoSelectedHotels)[0]?.groupType ??
-        hotelDetails?.hotelTabs?.[0]?.groupType ??
-        1;
-      const selectedProvidersForConfirm = requiresHotelBookingFlow
-        ? Array.from(
-            new Set(
-              Object.values(autoSelectedHotels)
-                .map((h) => String(h?.provider || '').trim().toLowerCase())
-                .filter(Boolean),
-            ),
-          )
-        : [];
-      const preferredProviderForConfirm =
-        selectedProvidersForConfirm.length === 1 ? selectedProvidersForConfirm[0] : '';
-      const skippedRouteIdsForConfirm: number[] = [];
-
-      if (requiresHotelBookingFlow && hotelDetails?.hotels && hotelDetails.hotels.length > 0) {
-        const routesWithHotels = new Set(hotelDetails.hotels.map((h) => h.itineraryRouteId));
-
-        const toAutoSelection = (hotelRow, routeId: number) => {
-          const routeDay = itinerary?.days?.find((d) => d.id === routeId);
-          const checkInDate = routeDay?.date || '';
-          const checkOutDate = routeDay
-            ? new Date(new Date(routeDay.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-            : '';
-
-          return {
-            provider: normalizeHotelProvider(hotelRow) || 'tbo',
-            hotelCode: String(hotelRow?.hotelCode || hotelRow?.hotelId || ''),
-            bookingCode: String(hotelRow?.bookingCode || hotelRow?.searchReference || ''),
-            searchReference: String(hotelRow?.searchReference || hotelRow?.bookingCode || '').trim() || undefined,
-            roomId:
-              parseStaahSearchReference(hotelRow?.searchReference || hotelRow?.bookingCode)?.roomId ||
-              undefined,
-            rateId:
-              parseStaahSearchReference(hotelRow?.searchReference || hotelRow?.bookingCode)?.rateId ||
-              undefined,
-            roomType: hotelRow?.roomType || 'Standard',
-            netAmount: getHotelSelectionAmount(hotelRow),
-            hotelName: hotelRow?.hotelName,
-            checkInDate,
-            checkOutDate,
-            searchInitiatedAt: new Date().toISOString(),
-            isBookable: hotelRow?.isBookable ?? isSupplierBookableHotel(hotelRow),
-            externalStay: hotelRow?.externalStay ?? !isSupplierBookableHotel(hotelRow),
-            availabilityStatus: hotelRow?.availabilityStatus || (isSupplierBookableHotel(hotelRow) ? 'AVAILABLE' : 'NO_SUPPLIER_AVAILABILITY'),
-            availabilityMessage: hotelRow?.availabilityMessage || (isSupplierBookableHotel(hotelRow) ? null : DEFAULT_EXTERNAL_STAY_MESSAGE),
-          };
-        };
-
-        routesWithHotels.forEach((routeId: number) => {
-          const coveredRouteIdsForConfirm = getCoveredRouteIdsFromHotelSelections(autoSelectedHotels);
-          if (coveredRouteIdsForConfirm.has(Number(routeId))) {
-            return;
-          }
-
-          const routeHotels = hotelDetails.hotels.filter(
-            (h) =>
-              Number(h.itineraryRouteId) === Number(routeId) &&
-              Number(h.groupType) === Number(groupTypeValue),
-          );
-          const persistedRouteSelection = routeHotels.find(
-            (h) => Number(h?.itineraryPlanHotelDetailsId || 0) > 0,
-          );
-
-          // Never overwrite an explicit in-memory user selection for this route.
-          // Persisted backend selection should only backfill missing routes.
-          if (persistedRouteSelection) {
-            autoSelectedHotels[routeId] = toAutoSelection(persistedRouteSelection, routeId);
-            return;
-          }
-
-          if (!autoSelectedHotels[routeId]) {
-            const firstHotelForRoute = preferredProviderForConfirm
-              ? routeHotels.find(
-                  (h) =>
-                    String(h?.provider || '')
-                      .trim()
-                      .toLowerCase() === preferredProviderForConfirm,
-                )
-              : routeHotels[0];
-
-            if (!firstHotelForRoute && preferredProviderForConfirm && routeHotels.length > 0) {
-              skippedRouteIdsForConfirm.push(routeId);
-            }
-
-            if (firstHotelForRoute) {
-              autoSelectedHotels[routeId] = toAutoSelection(firstHotelForRoute, routeId);
-            }
-          }
-        });
-
-        if (skippedRouteIdsForConfirm.length > 0) {
-          toast.error(
-            `Please select ${preferredProviderForConfirm.toUpperCase()} hotel(s) for route ID(s): ${skippedRouteIdsForConfirm.join(', ')}.`,
-          );
-          return;
-        }
-      }
+      const preparedHotels = prepareQuotationHotelSelections();
+      if (!preparedHotels) return;
+      const { autoSelectedHotels, groupTypeValue } = preparedHotels;
 
       const primaryName = normalizeNameParts(guestDetails.name);
       const passengers = [
@@ -8355,7 +8272,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
             checkOutDate: hotelData.checkOutDate,
             numberOfRooms: Number(itinerary.roomCount || 1),
             guestNationality: bookingGuestNationality,
-            netAmount: toMoneyNumber(hotelData.netAmount),
+            netAmount: toMoneyNumber(hotelData.netAmount as string | number),
             searchInitiatedAt: hotelData.searchInitiatedAt,
             isBookable: hotelData.isBookable,
             externalStay: hotelData.externalStay,
