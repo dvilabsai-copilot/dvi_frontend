@@ -180,10 +180,6 @@ import {
   parseWalletAmount,
   toMoneyNumber,
 } from "./itinerary-details/utils/clipboardFormatting.utils";
-import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
-import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
-import { buildClipboardHotelPackageSectionHtml } from "./itinerary-details/utils/clipboardHotelPackageSection.utils";
-import { buildClipboardPlainText } from "./itinerary-details/utils/clipboardPlainText.utils";
 import {
   extractHotelSectionFromHtml,
   mergeClipboardWithB2BRecommendedPackages,
@@ -192,7 +188,6 @@ import {
 } from "./itinerary-details/utils/clipboardHtmlMerge.utils";
 import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils";
 import { copyHtmlToClipboard } from "./itinerary-details/utils/copyHtmlToClipboard.utils";
-import { buildSelectedClipboardGroups } from "./itinerary-details/utils/clipboardSelection.utils";
 import {
   getBookingCodeForBooking,
   getHotelAmountForBooking,
@@ -240,6 +235,7 @@ import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader"
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
+import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -3305,80 +3301,19 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     }
   }, [clipboardModal, paraRecommendations, selectedHotels, buildDefaultClipboardSelection]);
 
-  type ClipboardMode = "recommended" | "highlights" | "para";
-
-  type ClipboardGroup = {
-    label: string;
-    groupType: number;
-    hotels: ItineraryHotelRow[];
-  };
-
-  const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
-    if (!hotelDetails) return [];
-    return buildSelectedClipboardGroups(paraRecommendations, selectedHotels);
-  };
-
-const buildClipboardHtml = (mode: ClipboardMode) => {
-  if (!hotelDetails || !itinerary) {
-    return { html: "", plainText: "", packageSectionsHtml: "" };
-  }
-
-  const selectedGroups = getSelectedClipboardGroups(mode);
-
-  if (!selectedGroups.length) {
-    return { html: "", plainText: "", packageSectionsHtml: "" };
-  }
-
-  const sectionTitle = "Recommended Hotel";
-
-  const tableStyle =
-    "border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.25;color:#000;";
-  const borderStyle = "border:1px solid #b1b1b1;";
-  const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
-  const headerCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
-  const centerTitleStyle =
-    "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
-
-  const packageSectionsHtml = selectedGroups
-    .map((group, groupIndex) => {
-      return buildClipboardHotelPackageSectionHtml({
-        hotels: group.hotels,
-        roomCount: itinerary.roomCount,
-        groupIndex,
-        sectionTitle,
-        vehicleSectionHtml: buildClipboardVehicleSectionHtml({
-          vehiclesValue: itinerary.vehicles,
-          daysValue: itinerary.days,
-          shouldShowVehicles,
-          styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-        }),
-        costSectionHtml: buildClipboardCostSectionHtml({
-          hotels: group.hotels,
-          itinerary,
-          shouldShowHotels,
-          shouldShowVehicles,
-          computedVehicleAmount,
-          computedVehicleQty,
-          styles: { tableStyle, cellStyle },
-        }),
-        styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-      });
-    })
-    .join("");
-
-  const plainText = buildClipboardPlainText({
-    groups: selectedGroups,
-    roomCount: itinerary.roomCount,
-    sectionTitle,
+  const {
+    getSelectedClipboardGroups,
+    buildClipboardHtml,
+  } = useClipboardContentBuilder({
+    hotelDetails,
+    itinerary,
+    paraRecommendations,
+    selectedHotels,
+    shouldShowHotels,
+    shouldShowVehicles,
+    computedVehicleAmount,
+    computedVehicleQty,
   });
-
-  return {
-    html: packageSectionsHtml,
-    plainText,
-    packageSectionsHtml,
-  };
-};
-
   const buildHighlightsHotspotDetailsHtml = useCallback(
     () => buildHighlightsHotspotDetailsHtmlUtil(itinerary?.days),
     [itinerary?.days],

@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 186 - Clipboard content builder hook
+
+### Baseline
+- Starting checkpoint: `b7f3903` on `refactor/itinerary-details-continuation` with Fit Here confirmation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useClipboardContentBuilder.ts`.
+- Moved selected recommendation grouping and local clipboard HTML/plain-text package composition out of the page controller.
+- Preserved selected-group filtering, vehicle/cost/hotel section composition, room counts, amount values, visibility flags, and clipboard action callback contracts.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,387 lines (down from 7,436 at the previous iteration).
+- New hook: 78 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 185 - Fit Here confirmation mutation hook
 
 ### Baseline
