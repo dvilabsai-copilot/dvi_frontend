@@ -4078,3 +4078,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 166 — Highlights hotspot HTML boundary
+
+### Baseline
+- Starting checkpoint: `db1f567` on `refactor/itinerary-details-checkpoint` with focused Playwright and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/highlightsHotspotHtml.utils.ts`.
+- Moved highlights-mode hotspot table rendering and backend hotspot-section replacement out of the controller.
+- Added a memoized itinerary-days adapter so existing callback consumers retain their no-argument contract.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,492 lines (down from 9,619).
+- New utility: 86 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.

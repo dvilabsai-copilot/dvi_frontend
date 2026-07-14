@@ -180,3 +180,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Clipboard plain-text generation is isolated in `clipboardPlainText.utils.ts`; group separators and hotel-row formatting are now pure and reusable.
 - Clipboard HTML extraction/insertion is isolated in `clipboardHtmlMerge.utils.ts`; hotel, vehicle, cost, and B2B package anchors are handled without controller-local string surgery.
 - HTML-to-plain-text conversion is isolated in `htmlToPlainText.utils.ts`; tag/entity/whitespace normalization is reusable and side-effect free.
+- Highlights-mode hotspot rendering and replacement are isolated in `highlightsHotspotHtml.utils.ts`; day/route/attraction formatting and backend section anchoring are outside the controller.
