@@ -189,6 +189,7 @@ import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationP
 import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
 import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
 import { HotspotListState } from "./itinerary-details/components/HotspotListState";
+import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11523,15 +11524,10 @@ const canShowGuideActionButton =
                     </details>
                   );
                 })}
-                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={hasAcceptedUpdatedPrice}
-                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                  />
-                  <span>I have reviewed the selected hotel details before final booking confirmation.</span>
-                </label>
+                <QuotationNonTboAcceptanceNotice
+                  accepted={hasAcceptedUpdatedPrice}
+                  setAccepted={setHasAcceptedUpdatedPrice}
+                />
               </div>
             )}
 

@@ -1349,6 +1349,33 @@
 ### Notes
 - Hotspot cards and Fit Here/matrix action controls remain the next high-coupling hotspot view boundary.
 
+## Iteration 114 — Non-TBO acceptance notice extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/acceptance-notice files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; non-TBO acceptance view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationNonTboAcceptanceNotice.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: the non-TBO selected-hotel acknowledgement checkbox now renders in a dedicated view; shared acceptance state remains unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationNonTboAcceptanceNotice.tsx`; unrelated repository errors remain.
+- Lint: new non-TBO acceptance component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,847 lines (down from 11,851 at the previous checkpoint).
+- New `QuotationNonTboAcceptanceNotice.tsx`: 19 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Non-TBO hotel card rendering remains coupled to legacy provider-display strings and is deferred until an encoding-safe typed extraction is available.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
