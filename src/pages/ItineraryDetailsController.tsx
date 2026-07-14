@@ -207,6 +207,7 @@ import {
 } from "./itinerary-details/utils/clipboardHtmlMerge.utils";
 import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils";
 import { copyHtmlToClipboard } from "./itinerary-details/utils/copyHtmlToClipboard.utils";
+import { buildSelectedClipboardGroups } from "./itinerary-details/utils/clipboardSelection.utils";
 import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
@@ -3298,14 +3299,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
 
   const getSelectedClipboardGroups = (_mode: ClipboardMode): ClipboardGroup[] => {
     if (!hotelDetails) return [];
-
-    return paraRecommendations
-      .filter((item, idx) => selectedHotels[`para-${idx}`])
-      .map((item) => ({
-        label: item.label,
-        groupType: item.groupType,
-        hotels: item.hotels,
-      }));
+    return buildSelectedClipboardGroups(paraRecommendations, selectedHotels);
   };
 
 const buildClipboardHtml = (mode: ClipboardMode) => {
