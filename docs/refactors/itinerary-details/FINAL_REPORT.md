@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 7,005 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 6,922 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -42,6 +42,7 @@ Current facts:
 - New in this checkpoint: Matrix/anchor insertion-slot label normalization and destination fallback text are isolated in `useDestinationInsertionSlotLabel`.
 - New in this checkpoint: Fit Here result-type normalization and tried-anchor status labels are isolated in `fitHereAttemptStatus.utils`.
 - New in this checkpoint: Fit Here hotspot selection invalidation and modal-reset orchestration are isolated in `useFitHereHotspotSelection`.
+- New in this checkpoint: Current-route attraction/manual hotspot IDs, exclusion filtering, and manual hotspot metadata derivation are isolated in `routeHotspotIds.utils`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

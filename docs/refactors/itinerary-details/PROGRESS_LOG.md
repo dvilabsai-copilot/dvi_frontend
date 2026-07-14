@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 197 - Route hotspot ID and metadata utilities
+
+### Baseline
+- Starting checkpoint: `a4e5f26` on `refactor/itinerary-details-continuation` with Fit Here hotspot selection extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/routeHotspotIds.utils.ts`.
+- Moved current-route attraction IDs, manual-hotspot IDs, deleted/excluded filtering, and manual hotspot metadata derivation out of the page controller.
+- Preserved route matching, exclusion handling, manual flags, route-hotspot IDs, and modal-added hotspot merging.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New utility ESLint check passed.
+- Filtered TypeScript check found no errors in the utility or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,922 lines (down from 7,005 at the previous iteration).
+- New utility: 89 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 196 - Fit Here hotspot selection hook
 
 ### Baseline

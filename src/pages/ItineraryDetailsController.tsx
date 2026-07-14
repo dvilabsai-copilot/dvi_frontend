@@ -244,6 +244,11 @@ import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspot
 import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
 import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
 import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
+import {
+  buildCurrentRouteAttractionHotspotIds,
+  buildCurrentRouteManualHotspotIds,
+  buildCurrentRouteManualHotspotMetaById,
+} from "./itinerary-details/utils/routeHotspotIds.utils";
 import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
@@ -1876,118 +1881,20 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     return map;
   }, [addHotspotModal.routeId, availableHotspots, itinerary?.days]);
 
-  const currentRouteAttractionHotspotIds = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
-    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
-    const ids = new Set<number>();
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
-      const routeSeg = seg as any;
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-      // Skip deleted/excluded rows
-      if (
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded'
-      ) {
-        continue;
-      }
-      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (Number.isFinite(id) && id > 0 && !excludedSet.has(id)) ids.add(id);
-    }
-    return ids;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
+  const currentRouteAttractionHotspotIds = useMemo(
+    () => buildCurrentRouteAttractionHotspotIds(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds),
+    [addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
+  );
 
-  const currentRouteManualHotspotIds = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !Array.isArray(itinerary?.days)) return new Set<number>();
-    const day = itinerary.days.find((d) => Number(d?.id) === routeId);
-    const ids = new Set<number>();
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-    for (const seg of Array.isArray(day?.segments) ? day!.segments : []) {
-      const routeSeg = seg as any;
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-      // Skip deleted/excluded rows
-      if (
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded'
-      ) {
-        continue;
-      }
-      const isManual = routeSeg?.planOwnWay === true || routeSeg?.isManual === true;
-      const id = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (Number.isFinite(id) && id > 0 && isManual && !excludedSet.has(id)) {
-        ids.add(id);
-      }
-    }
-    for (const id of addedInModalHotspotIds) {
-      ids.add(Number(id));
-    }
-    return ids;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds, addedInModalHotspotIds]);
+  const currentRouteManualHotspotIds = useMemo(
+    () => buildCurrentRouteManualHotspotIds(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds, addedInModalHotspotIds),
+    [addedInModalHotspotIds, addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
+  );
 
-  const currentRouteManualHotspotMetaById = useMemo(() => {
-    const map = new Map<number, {
-      hotspotId: number;
-      routeHotspotId: number | null;
-      isManual: boolean;
-    }>();
-
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const day = itinerary?.days?.find((d) => Number(d.id) === routeId) || null;
-    const excludedSet = new Set(excludedHotspotIds.map(Number));
-
-    for (const seg of day?.segments || []) {
-      const routeSeg = seg as any;
-
-      if (String(routeSeg?.type || '').toLowerCase() !== 'attraction') continue;
-
-      const hotspotId = Number(routeSeg?.hotspotId ?? routeSeg?.locationId ?? 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-      if (excludedSet.has(hotspotId)) continue;
-
-      const isDeleted =
-        routeSeg?.isDeleted === true ||
-        routeSeg?.deleted === true ||
-        routeSeg?.isExcluded === true ||
-        routeSeg?.excluded === true ||
-        routeSeg?.removed === true ||
-        routeSeg?.deletedAt != null ||
-        routeSeg?.deleted_at != null ||
-        String(routeSeg?.status || '').toLowerCase() === 'deleted' ||
-        String(routeSeg?.status || '').toLowerCase() === 'excluded';
-
-      if (isDeleted) continue;
-
-      const isManual =
-        routeSeg?.planOwnWay === true ||
-        routeSeg?.isManual === true;
-
-      if (!isManual) continue;
-
-      map.set(hotspotId, {
-        hotspotId,
-        routeHotspotId: Number(routeSeg?.routeHotspotId || 0) || null,
-        isManual: true,
-      });
-    }
-
-    return map;
-  }, [addHotspotModal.routeId, itinerary?.days, excludedHotspotIds]);
+  const currentRouteManualHotspotMetaById = useMemo(
+    () => buildCurrentRouteManualHotspotMetaById(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds),
+    [addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
+  );
 
   const isCurrentPreviewAlreadyAdded = useMemo(() => {
     const id = Number(activePreviewHotspotId || 0);
