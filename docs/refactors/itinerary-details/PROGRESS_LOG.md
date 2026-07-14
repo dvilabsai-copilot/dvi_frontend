@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 198 - Effective preview timeline hook
+
+### Baseline
+- Starting checkpoint: `45e5b0c` on `refactor/itinerary-details-continuation` with route hotspot ID and metadata utilities committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useEffectivePreviewTimeline.ts`.
+- Moved manual preview timeline ordering, hotel-travel pruning, planned-removal filtering, best-slot placement, and baseline merge decisions out of `ItineraryDetailsController.tsx`.
+- Preserved backend-resolved timeline precedence, matrix preview ordering, priority-confirm fallback behavior, and diagnostic logging.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,623 lines (down from 6,922 at the previous iteration).
+- New `useEffectivePreviewTimeline.ts`: 334 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 197 - Route hotspot ID and metadata utilities
 
 ### Baseline
