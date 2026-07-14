@@ -198,6 +198,7 @@ import { HotspotFitHereSelectionHeader } from "./itinerary-details/components/Ho
 import { HotspotPreviewLoadingState } from "./itinerary-details/components/HotspotPreviewLoadingState";
 import { HotspotPreviewRescheduleNotice } from "./itinerary-details/components/HotspotPreviewRescheduleNotice";
 import { HotspotPreviewRouteFitNotice } from "./itinerary-details/components/HotspotPreviewRouteFitNotice";
+import { HotspotPreviewEmptyTimeline } from "./itinerary-details/components/HotspotPreviewEmptyTimeline";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -11009,9 +11010,7 @@ const canShowGuideActionButton =
                       </div>
                     </>
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-32 text-[#6c6c6c] border-2 border-dashed rounded-lg">
-                      <p className="text-sm">No timeline available for this route.</p>
-                    </div>
+                    <HotspotPreviewEmptyTimeline />
                   )}
                 </div>
               </div>

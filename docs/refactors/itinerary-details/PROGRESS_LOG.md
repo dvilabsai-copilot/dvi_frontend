@@ -1111,6 +1111,32 @@
 ### Notes
 - Legacy mojibake checkmark/overflow labels remain untouched; future extraction must preserve their encoded display exactly.
 
+## Iteration 124 — Empty preview timeline fallback
+
+### Baseline
+- Starting point: Iteration 123 route-fit feasibility notice extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the fallback rendered when no preview timeline is available.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewEmptyTimeline.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: empty-timeline copy and presentation now live in a component; the existing timeline-length branch remains unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,779 lines.
+- New `HotspotPreviewEmptyTimeline.tsx`: 10 lines.
+
+### Notes
+- Remaining larger preview blocks include legacy mojibake labels and should be extracted only with exact encoding preservation.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
