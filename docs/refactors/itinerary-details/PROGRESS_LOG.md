@@ -1086,6 +1086,26 @@
 - `ItineraryDetailsController.tsx`: 15,226 physical lines after extraction.
 - `useHotelSelectionCoverage.ts`: 39 physical lines.
 
+## Iteration 57 — Formatted hotel clipboard action
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelClipboardAction.ts`.
+- Moved selected-hotel validation, clipboard API retrieval, package HTML merge, highlights replacement, copy, state reset, and existing toast/error behavior out of `ItineraryDetailsController.tsx`.
+- Preserved clipboard mode routing (`recommended`, `highlights`, `para`) and backend group-type payload construction.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or clipboard hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,213 physical lines after extraction.
+- `useHotelClipboardAction.ts`: 68 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

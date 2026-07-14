@@ -164,6 +164,7 @@ import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataCo
 import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
 import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
 import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
+import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -10820,35 +10821,21 @@ const hotelTimelineLoading = Boolean(
     !isSwitchingRouteOption
 );
 
-  const handleCopyClipboard = async () => {
-    const selectedCount = Object.values(selectedHotels).filter(Boolean).length;
-    if (selectedCount === 0) {
-      toast.error(clipboardType === "para" ? "Please select at least one recommendation" : "Please select at least one hotel");
-      return;
-    }
-    if (!hotelDetails || !itinerary) return;
-    try {
-      const selectedGroups = getSelectedClipboardGroups(clipboardType);
-      const groupTypes = selectedGroups.map((group) => group.groupType);
-      const { html, plainText } = await ItineraryService.getClipboardContent(itinerary.quoteId, clipboardType, groupTypes);
-      if (!html || !plainText) {
-        toast.error("Failed to prepare clipboard content");
-        return;
-      }
-      const localClipboard = buildClipboardHtml(clipboardType);
-      let mergedHtml = mergeClipboardWithB2BRecommendedPackages(html, localClipboard.packageSectionsHtml || localClipboard.html);
-      if (clipboardType === "highlights") {
-        mergedHtml = replaceHighlightsHotspotDetailsHtml(mergedHtml, buildHighlightsHotspotDetailsHtml());
-      }
-      await copyHtmlToClipboard(mergedHtml, htmlToPlainText(mergedHtml));
-      toast.success("Formatted clipboard content copied!");
-      setClipboardModal(false);
-      setSelectedHotels({});
-    } catch (error) {
-      console.error("Failed to fetch clipboard content", error);
-      toast.error("Failed to prepare clipboard content");
-    }
-  };
+  const handleCopyClipboard = useHotelClipboardAction({
+    selectedHotels,
+    clipboardType,
+    hotelDetails,
+    itinerary,
+    getSelectedClipboardGroups,
+    buildClipboardHtml,
+    mergeClipboardWithB2BRecommendedPackages,
+    replaceHighlightsHotspotDetailsHtml,
+    buildHighlightsHotspotDetailsHtml,
+    copyHtmlToClipboard,
+    htmlToPlainText,
+    setClipboardModal,
+    setSelectedHotels,
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
