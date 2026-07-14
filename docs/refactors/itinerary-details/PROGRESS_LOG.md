@@ -1342,6 +1342,27 @@
 ### Line counts
 
 - `ItineraryDetailsController.tsx`: 14,792 physical lines after extraction.
+
+## Iteration 70 — Add-hotspot modal controller
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useAddHotspotModalController.ts`.
+- Moved add-hotspot modal initialization, Fit Here preview-state reset, route active/excluded ID derivation, available-hotspot API loading/filtering/normalization, and existing error/toast behavior out of `ItineraryDetailsController.tsx`.
+- Preserved anchor payloads, route-pair filtering, manual-hotspot preselection reset, and availability normalization options.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or add-hotspot hook; existing repository errors remain documented.
+- Focused ESLint: passed for the add-hotspot hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,673 physical lines after extraction.
+- `useAddHotspotModalController.ts`: 134 physical lines.
 - `useWalletTopUpController.ts`: 113 physical lines.
 
 ## Iteration 25 — Hotel workflow state boundary

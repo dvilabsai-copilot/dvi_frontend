@@ -89,4 +89,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Activity preview API workflows are isolated in `useActivityPreviewController`; add/delete activity mutations remain separate controller responsibilities.
 - Wallet top-up continuation is isolated in `useWalletTopUpController`; balance refresh, shortfall handling, reset, and confirmation handoff preserve the existing quotation workflow.
 - Activity availability loading and modal initialization are isolated in `useActivityAvailabilityLoader`; activity add/preview/delete workflows remain separately bounded.
+- Add-hotspot modal hydration and available-hotspot normalization are isolated in `useAddHotspotModalController`; Fit Here action mutations remain a separate high-risk boundary.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

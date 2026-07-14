@@ -154,6 +154,7 @@ import { useGuideModalController } from "./itinerary-details/hooks/useGuideModal
 import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
+import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
@@ -7191,145 +7192,25 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     void loadGuideAssignments(planId);
   }, [itinerary?.planId, loadGuideAssignments]);
 
-  const openAddHotspotModal = async (
-    planId: number,
-    routeId: number,
-    locationId: number,
-    locationName: string,
-    anchor?: HotspotAnchor | null,
-  ) => {
-    previewRequestIdRef.current += 1;
-    setAddHotspotModal({
-      open: true,
-      planId,
-      routeId,
-      locationId,
-      locationName,
-    });
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(null);
-    setAddedInModalHotspotIds(new Set());
-    setSelectedHotspotAnchor(anchor || null);
-    setSelectedFitHotspot(null);
-    setTriedFitHereAnchors({});
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-    });
-    setAutoFitHereModal({
-      open: false,
-      loading: false,
-      failedReason: null,
-      results: [],
-      selectedAnchorKey: null,
-      loadingAnchorCount: 0,
-      loadingStartedAtMs: null,
-      performanceSummary: null,
-    });
-
-    // Fetch available hotspots for this location
-    setLoadingHotspots(true);
-    try {
-      // Calculate route excluded IDs and active IDs BEFORE fetching, to avoid stale state
-      const currentRoute = itinerary?.days.find((d) => Number(d.id) === Number(routeId));
-
-      const routeExcludedIds: number[] = Array.isArray((currentRoute as any)?.excluded_hotspot_ids)
-        ? (currentRoute as any).excluded_hotspot_ids.map(Number)
-        : [];
-
-      const routeActiveIds = new Set<number>(
-        (Array.isArray((currentRoute as any)?.segments) ? (currentRoute as any).segments : [])
-          .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
-          .filter((seg) => {
-            const deletedLike =
-              seg?.isDeleted === true ||
-              seg?.deleted === true ||
-              seg?.isExcluded === true ||
-              seg?.excluded === true ||
-              seg?.removed === true ||
-              seg?.deletedAt != null ||
-              seg?.deleted_at != null ||
-              String(seg?.status || '').toLowerCase() === 'deleted' ||
-              String(seg?.status || '').toLowerCase() === 'excluded';
-            return !deletedLike;
-          })
-          .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
-          .filter((id: number) => Number.isFinite(id) && id > 0)
-      );
-
-      setExcludedHotspotIds(routeExcludedIds);
-
-      const hotspotResponse = anchor
-        ? await ItineraryService.getAvailableHotspotsForAnchor({
-            planId,
-            routeId,
-            anchorType: anchor.anchorType,
-            anchorIndex: Number(anchor.anchorIndex),
-          })
-        : await ItineraryService.getAvailableHotspots(routeId);
-
-      const hotspots = Array.isArray(hotspotResponse)
-        ? hotspotResponse
-        : (Array.isArray((hotspotResponse as any)?.hotspots)
-          ? (hotspotResponse as any).hotspots
-          : []);
-      const responseFilterMeta = Array.isArray(hotspotResponse)
-        ? null
-        : ((hotspotResponse as any)?.hotspotFilterMeta || null);
-
-      setHotspotFilterMeta(responseFilterMeta);
-      console.log('[AddHotspotModal] hotspot_filter_meta', responseFilterMeta);
-
-      const routeSourceName = String((currentRoute as any)?.departure || '').trim();
-      const routeDestinationName = String((currentRoute as any)?.arrival || '').trim();
-      const anchorFromName = String(anchor?.anchorFrom || '').trim();
-      const anchorToName = String(anchor?.anchorTo || '').trim();
-
-      const routePairFilteredHotspots = filterAvailableHotspotsForAnchor(
-        hotspots as AvailableHotspot[],
-        routeSourceName,
-        routeDestinationName,
-        anchorFromName,
-        anchorToName,
-      );
-
-      setAvailableHotspots(
-        normalizeAvailableHotspots(routePairFilteredHotspots, {
-          routeId,
-          excludedIds: routeExcludedIds,
-          activeIds: routeActiveIds,
-        })
-      );
-
-      if (currentRoute) {
-
-        const existingManualHotspotIds: number[] = Array.from(
-          new Set(
-            (Array.isArray((currentRoute as any).segments) ? (currentRoute as any).segments : [])
-              .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
-              .filter((seg) => seg?.planOwnWay === true || seg?.isManual === true)
-              .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
-              .filter((id: number): id is number => Number.isFinite(id) && id > 0),
-          ),
-        );
-
-        if (existingManualHotspotIds.length > 0) {
-          // Existing manual hotspots should appear as already added on the left list,
-          // but must not become preselected preview candidates in sequential mode.
-          setSelectedHotspotIds([]);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch available hotspots", e);
-      toast.error(e?.message || "Failed to load available hotspots");
-    } finally {
-      setLoadingHotspots(false);
-    }
-  };
+  const openAddHotspotModal = useAddHotspotModalController({
+    itinerary,
+    previewRequestIdRef,
+    resetManualHotspotPreviewState,
+    normalizeAvailableHotspots,
+    setAddHotspotModal,
+    setActivePreviewHotspotId,
+    setAddedInModalHotspotIds,
+    setSelectedHotspotAnchor,
+    setSelectedFitHotspot,
+    setTriedFitHereAnchors,
+    setFitHereModal,
+    setAutoFitHereModal,
+    setLoadingHotspots,
+    setExcludedHotspotIds,
+    setHotspotFilterMeta,
+    setAvailableHotspots,
+    setSelectedHotspotIds,
+  });
 
   const buildFitHereAnchorKey = (anchor: HotspotAnchor): string => {
     const from = String(anchor.anchorFrom || "UNKNOWN_FROM")
