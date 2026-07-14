@@ -126,6 +126,11 @@ import {
   parseDurationMinutesValue,
   splitHotspotLocationTokens,
 } from "./itinerary-details/utils/timeline.utils";
+import {
+  extractFitHereConfirmErrorCode,
+  isExpiredOrMissingFitHereAttemptError,
+  isRetryableFitHereConfirmError,
+} from "./itinerary-details/utils/fitHereConfirm.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
@@ -7409,49 +7414,6 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setFitHereModal,
     handleFitHereClick,
   });
-
-  const isRetryableFitHereConfirmError = (error): boolean => {
-    const message = String(error?.message || "");
-    return (
-      message.includes("Fit Here preview attempt was not found")
-      || (message.includes("404") && message.includes("/manual-hotspot/fit-confirm"))
-      || (
-        message.includes("/manual-hotspot/fit-confirm")
-        && message.includes("409")
-        && (
-          message.includes("Timeline changed after preview")
-          || message.includes("cannot be confirmed as a clean fit")
-          || message.includes("Fit Here confirm was rejected")
-          || message.includes("MANUAL_INSERT_")
-          || message.includes("MATRIX_SAFE_")
-        )
-      )
-    );
-  };
-
-  const extractFitHereConfirmErrorCode = (error): string => {
-    const message = String(error?.message || "");
-    const codeMatch = message.match(/"code"\s*:\s*"([^"]+)"/i);
-    if (codeMatch?.[1]) {
-      return String(codeMatch[1]).trim();
-    }
-
-    const fallbackMatch = message.match(/MANUAL_INSERT_[A-Z0-9_]+/i);
-    return fallbackMatch?.[0] ? String(fallbackMatch[0]).trim() : "";
-  };
-
-  const isExpiredOrMissingFitHereAttemptError = (error): boolean => {
-    const message = String(error?.message || "");
-    return (
-      message.includes("Fit Here preview attempt was not found")
-      || message.includes("Fit Here preview attempt expired")
-      || (
-        message.includes("/manual-hotspot/fit-confirm")
-        && message.includes("409")
-        && message.includes("preview attempt expired")
-      )
-    );
-  };
 
   const getFitHereRefreshScrollStorageKey = useCallback(() => {
     const normalizedQuoteId = String(quoteId || "").trim();
