@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 9,460 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 9,362 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -54,6 +54,7 @@ Current facts:
 - New in this checkpoint: highlights-mode hotspot rendering and replacement are isolated in `highlightsHotspotHtml.utils.ts` (day/route/attraction formatting and backend section anchoring).
 - New in this checkpoint: ClipboardItem writing and fallback text-copy behavior are isolated in `copyHtmlToClipboard.utils.ts`.
 - New in this checkpoint: Clipboard `para-*` selection filtering and group shaping are isolated in `clipboardSelection.utils.ts`.
+- New in this checkpoint: hotel booking normalization is isolated in `hotelBookingNormalization.utils.ts` (provider inference, booking/reference parsing, amount fallback, and no-availability classification).
 - Remaining work: split the transitional controller into domain controllers/views, remove compatibility fragments, extract vehicle actions/view and the large hotspot/Fit Here and quotation review sections, then run the full green verification loop.
 - Intentional behavior changes: none.
 - Documented blockers: repository-wide lint baseline (1,936 errors/107 warnings), existing unrelated type errors, and 23 broader-suite failures classified in `REGRESSION_LOG.md`.

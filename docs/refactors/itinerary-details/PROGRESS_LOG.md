@@ -4149,3 +4149,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 169 — Hotel booking normalization boundary
+
+### Baseline
+- Starting checkpoint: `8578d5d` on `refactor/itinerary-details-checkpoint` with focused Playwright and prior production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/hotelBookingNormalization.utils.ts`.
+- Moved provider inference, booking/hotel code extraction, Staah reference parsing, hotel amount fallback, and no-availability classification out of the quotation controller.
+- Preserved supplier/provider fallback and external-stay/no-bookability predicates.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,362 lines (down from 9,460).
+- New utility: 65 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.

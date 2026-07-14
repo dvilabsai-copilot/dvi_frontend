@@ -183,3 +183,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Highlights-mode hotspot rendering and replacement are isolated in `highlightsHotspotHtml.utils.ts`; day/route/attraction formatting and backend section anchoring are outside the controller.
 - ClipboardItem writing and fallback text-copy behavior are isolated in `copyHtmlToClipboard.utils.ts`; browser clipboard side effects are no longer defined inline in the controller.
 - Clipboard `para-*` selection filtering and group shaping are isolated in `clipboardSelection.utils.ts`; recommendation selection semantics remain generic and controller-light.
+- Hotel booking normalization is isolated in `hotelBookingNormalization.utils.ts`; provider inference, booking/reference parsing, amount fallback, and no-availability classification are pure.

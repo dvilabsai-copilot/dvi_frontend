@@ -209,6 +209,16 @@ import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils
 import { copyHtmlToClipboard } from "./itinerary-details/utils/copyHtmlToClipboard.utils";
 import { buildSelectedClipboardGroups } from "./itinerary-details/utils/clipboardSelection.utils";
 import {
+  getBookingCodeForBooking,
+  getHotelAmountForBooking,
+  getHotelCodeForBooking,
+  inferHotelProvider,
+  isNoHotelAvailableEntry,
+  normalizeHotelProvider,
+  parseStaahSearchReference,
+  type HotelProvider,
+} from "./itinerary-details/utils/hotelBookingNormalization.utils";
+import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
 } from "./itinerary-details/utils/highlightsHotspotHtml.utils";
@@ -3717,114 +3727,6 @@ const switchedRouteRef = useRef<string | null>(null);
   const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
   const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
   const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
-  type HotelProvider = 'tbo' | 'resavenue' | 'hobse' | 'axisrooms' | 'staah';
-
-const inferHotelProvider = (entry): HotelProvider => {
-  const provider = String(entry?.provider || '')
-    .trim()
-    .toLowerCase();
-
-  if (
-    provider === 'tbo' ||
-    provider === 'resavenue' ||
-    provider === 'hobse' ||
-    provider === 'axisrooms' ||
-    provider === 'staah'
-  ) {
-    return provider;
-  }
-
-  const bookingCode = String(entry?.bookingCode || '').trim().toUpperCase();
-  if (bookingCode.includes('!TB!')) return 'tbo';
-  if (bookingCode.startsWith('STAAH-')) return 'staah';
-
-  return 'tbo';
-};
-  function normalizeHotelProvider(entry): string {
-    return String(entry?.provider || '').trim().toLowerCase();
-  }
-
-  function getHotelCodeForBooking(entry): string {
-    return String(entry?.hotelCode || entry?.hotelId || '').trim();
-  }
-
-  function getBookingCodeForBooking(entry): string {
-    return String(
-      entry?.bookingCode ||
-      entry?.searchReference ||
-      entry?.roomTypes?.[0]?.roomCode ||
-      '',
-    ).trim();
-  }
-
-  function parseStaahSearchReference(reference): {
-    propertyId: string;
-    roomId: string;
-    rateId: string;
-  } | null {
-    const raw = String(reference || '').trim();
-    if (!raw.startsWith('STAAH-')) {
-      return null;
-    }
-
-    const parts = raw.split('-');
-    if (parts.length < 5) {
-      return null;
-    }
-
-    const propertyId = String(parts[1] || '').trim();
-    const roomId = String(parts[2] || '').trim();
-    const rateId = String(parts[3] || '').trim();
-
-    if (!propertyId || !roomId || !rateId) {
-      return null;
-    }
-
-    return { propertyId, roomId, rateId };
-  }
-
-function getHotelAmountForBooking(entry): number {
-  const netAmount = Number(entry?.netAmount);
-  if (Number.isFinite(netAmount) && netAmount > 0) {
-    return netAmount;
-  }
-
-  const totalHotelCost = Number(entry?.totalHotelCost || 0);
-  const totalHotelTaxAmount = Number(entry?.totalHotelTaxAmount || 0);
-  const computedAmount = totalHotelCost + totalHotelTaxAmount;
-
-  if (Number.isFinite(computedAmount) && computedAmount > 0) {
-    return computedAmount;
-  }
-
-  const price = Number(entry?.price);
-  if (Number.isFinite(price) && price > 0) {
-    return price;
-  }
-
-  return 0;
-}
-
-  function isNoHotelAvailableEntry(entry): boolean {
-    const hotelName = String(entry?.hotelName || '').trim().toLowerCase();
-    const hotelCode = getHotelCodeForBooking(entry);
-    const provider = normalizeHotelProvider(entry);
-    const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
-
-    return (
-      entry?.externalStay === true ||
-      entry?.isBookable === false ||
-      availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' ||
-      availabilityStatus === 'NOT_BOOKABLE' ||
-      provider === 'external' ||
-      provider === 'none' ||
-      provider === 'self-arranged' ||
-      hotelName === 'no hotels available' ||
-      !hotelCode ||
-      hotelCode === '0'
-    );
-  }
-
   const getPassengerFieldError = (
     label: 'adult' | 'child' | 'infant',
     index: number,
