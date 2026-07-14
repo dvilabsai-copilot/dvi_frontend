@@ -1579,6 +1579,32 @@
 ### Notes
 - Existing memoized wrappers remain in the controller to preserve callback identity at downstream dialog boundaries.
 
+## Iteration 142 - Fit Here timeline utilities
+
+### Baseline
+- Starting point: Iteration 141 Fit Here anchor utility extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate Fit Here timeline labels, time extraction, segment type guards, attraction IDs, and next-attraction lookup.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/fitHereTimeline.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: timeline row display helpers and attraction segment predicates now live in pure utilities; memoized wrappers preserve downstream callback identity.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,038 lines.
+- New `fitHereTimeline.utils.ts`: 57 lines.
+
+### Notes
+- Fit Here anchor construction and route-specific timing logic remain in the controller for the next boundary.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

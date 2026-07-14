@@ -104,6 +104,15 @@ import {
   serializeFitHereAnchor as serializeFitHereAnchorUtil,
 } from "./itinerary-details/utils/fitHereAnchor.utils";
 import {
+  findNextAttractionAfterIndex as findNextAttractionAfterIndexUtil,
+  getAttractionHotspotId as getAttractionHotspotIdUtil,
+  getAttractionRouteHotspotId as getAttractionRouteHotspotIdUtil,
+  getFitHereSegmentLabel as getFitHereSegmentLabelUtil,
+  getFitHereSegmentTime as getFitHereSegmentTimeUtil,
+  isFitHereAttractionSegment as isFitHereAttractionSegmentUtil,
+  isFitHereStartSegment as isFitHereStartSegmentUtil,
+} from "./itinerary-details/utils/fitHereTimeline.utils";
+import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
   filterAvailableHotspotsForAnchor,
@@ -502,69 +511,13 @@ const loadAndCacheRouteHotelDetails = useCallback(
 
   const isFitHereSelectionMode = addHotspotModal.open;
 
-  const getFitHereSegmentLabel = useCallback((segment: ItinerarySegment | any): string => {
-    if (!segment) return 'Timeline row';
-    if (segment.type === 'attraction') return String(segment.name || 'Hotspot');
-    if (segment.type === 'travel') {
-      const travelText = String(segment.to || segment.text || 'Travel').trim();
-      return travelText.startsWith('Travel') ? travelText : `Travel to ${travelText}`;
-    }
-    if (segment.type === 'checkin') return String(segment.hotelName || 'Hotel');
-    if (segment.type === 'break') return String(segment.location || 'Break');
-    if (segment.type === 'start') return String(segment.title || 'Route start');
-    if (segment.type === 'return') return 'Return';
-    return String(segment.text || segment.title || 'Timeline row');
-  }, []);
-
-  const getFitHereSegmentTime = useCallback((segment: ItinerarySegment | any): string => {
-    if (!segment) return '';
-    return String(
-      segment.visitTime ||
-      segment.timeRange ||
-      segment.time ||
-      '',
-    ).trim();
-  }, []);
-
-  const isFitHereStartSegment = useCallback((
-    segment: ItinerarySegment | null | undefined,
-  ): segment is StartSegment => {
-    return segment?.type === 'start';
-  }, []);
-
-  const isFitHereAttractionSegment = useCallback((
-    segment: ItinerarySegment | null | undefined,
-  ): segment is AttractionSegment => {
-    return segment?.type === 'attraction';
-  }, []);
-
-  const getAttractionHotspotId = useCallback((
-    segment: ItinerarySegment | null | undefined,
-  ): number | null => {
-    if (!isFitHereAttractionSegment(segment)) return null;
-    return Number(segment.hotspotId || segment.locationId || 0) || null;
-  }, [isFitHereAttractionSegment]);
-
-  const getAttractionRouteHotspotId = useCallback((
-    segment: ItinerarySegment | null | undefined,
-  ): number | null => {
-    if (!isFitHereAttractionSegment(segment)) return null;
-    return Number(segment.routeHotspotId || 0) || null;
-  }, [isFitHereAttractionSegment]);
-
-  const findNextAttractionAfterIndex = useCallback((
-    day: ItineraryDay,
-    startIndex: number,
-  ): AttractionSegment | null => {
-    for (let index = startIndex + 1; index < day.segments.length; index += 1) {
-      const candidate = day.segments[index];
-      if (candidate?.type === 'attraction') {
-        return candidate as AttractionSegment;
-      }
-    }
-
-    return null;
-  }, []);
+  const getFitHereSegmentLabel = useCallback(getFitHereSegmentLabelUtil, []);
+  const getFitHereSegmentTime = useCallback(getFitHereSegmentTimeUtil, []);
+  const isFitHereStartSegment = useCallback(isFitHereStartSegmentUtil, []);
+  const isFitHereAttractionSegment = useCallback(isFitHereAttractionSegmentUtil, []);
+  const getAttractionHotspotId = useCallback(getAttractionHotspotIdUtil, []);
+  const getAttractionRouteHotspotId = useCallback(getAttractionRouteHotspotIdUtil, []);
+  const findNextAttractionAfterIndex = useCallback(findNextAttractionAfterIndexUtil, []);
 
   const buildFitHereAnchorForTimelineRow = useCallback((
     day: ItineraryDay,
