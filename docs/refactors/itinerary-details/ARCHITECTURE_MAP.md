@@ -219,6 +219,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Matrix-required, missing-data, infeasible-slot, and build-button decisions are isolated in `useMatrixAvailabilityState.ts`.
 - Preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels are isolated in `usePreviewDecisionState.ts`.
 - Hotspot insertion outcome messaging, reschedule/overflow checks, and relaxed-route-fit summary decisions are isolated in `useInsertionDecisionSummary.ts`.
+- Resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation are isolated in `usePreviewSlotState.ts`.
 - Image URL resolution, gallery initialization, and YouTube watch-to-embed conversion are isolated in `useMediaModalController.ts`.
 - Lazy hotel-detail hydration is isolated in `useEnsureHotelDetailsLoaded.ts`; the controller no longer owns its loading/error lifecycle.
 - Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.

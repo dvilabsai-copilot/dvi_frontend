@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 209 - Preview slot state hook
+
+### Baseline
+- Starting checkpoint: `9ff235b` on `refactor/itinerary-details-continuation` with insertion decision summary extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewSlotState.ts`.
+- Moved resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation out of `ItineraryDetailsController.tsx`.
+- Preserved selected-hotspot exclusion, chosen/best fallback precedence, matrix-required gating, destination-hotel naming, and all normalized slot inputs.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,047 physical lines (down from 6,122 physical lines before this extraction).
+- New `usePreviewSlotState.ts`: 127 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 208 - Insertion decision summary hook
 
 ### Baseline
