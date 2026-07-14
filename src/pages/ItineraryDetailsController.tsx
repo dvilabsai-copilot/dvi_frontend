@@ -242,6 +242,7 @@ import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHot
 import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
 import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
 import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
+import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -2049,29 +2050,13 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     selectedAnchorTo: selectedHotspotAnchor?.anchorTo,
   });
 
-  const destinationInsertionSlotLabel = useMemo(() => {
-    const preferredRaw = String(
-      matrixFit?.chosenSlot?.attemptedSlotLabel
-      || matrixFit?.bestSlot?.attemptedSlotLabel
-      || (selectedHotspotAnchor as any)?.slot
-      || ''
-    ).trim();
-    const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim();
-    const escapedDestinationName = matrixDestinationName
-      ? matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      : '';
-    const preferred = preferredRaw
-      .replace(/^Will\s+be\s+inserted\s+/i, '')
-      .replace(/^Insert\s+after\s+/i, 'After ')
-      .replace(/->\s*Hotel(\b|$)/i, destinationHotelDisplayName ? `-> ${destinationHotelDisplayName}` : '-> Hotel')
-      .replace(escapedDestinationName ? new RegExp(escapedDestinationName, 'gi') : /$^/, destinationHotelDisplayName || matrixDestinationName)
-      .trim();
-    if (preferred.length > 0) return preferred;
-    if (selectedPreviewCityContext === 'DESTINATION_CITY') {
-      return `After reaching ${destinationCityLabel}`;
-    }
-    return '';
-  }, [matrixFit, selectedHotspotAnchor, selectedPreviewCityContext, destinationCityLabel, destinationHotelDisplayName]);
+  const destinationInsertionSlotLabel = useDestinationInsertionSlotLabel({
+    matrixFit,
+    selectedAnchorSlot: (selectedHotspotAnchor as { slot?: unknown } | null)?.slot,
+    selectedPreviewCityContext,
+    destinationCityLabel,
+    destinationHotelDisplayName,
+  });
 
   const {
     hotspotListRows,

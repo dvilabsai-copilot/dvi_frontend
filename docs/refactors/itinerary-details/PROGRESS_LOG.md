@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 194 - Destination insertion label hook
+
+### Baseline
+- Starting checkpoint: `af4f262` on `refactor/itinerary-details-continuation` with hotspot city presentation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDestinationInsertionSlotLabel.ts`.
+- Moved matrix/anchor insertion-slot label normalization, destination-name replacement, and destination fallback text out of the page controller.
+- Preserved preferred-slot precedence, replacement formatting, destination hotel substitution, and destination-city fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,033 lines (down from 7,048 at the previous iteration).
+- New hook: 41 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 193 - Hotspot city presentation hook
 
 ### Baseline
