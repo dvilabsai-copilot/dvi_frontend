@@ -1284,6 +1284,27 @@
 
 - No application or test weakening changes were made. This is a documentation-only verification checkpoint; the refactor remains in progress.
 
+## Iteration 67 — Activity availability loader boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useActivityAvailabilityLoader.ts`.
+- Moved activity modal opening, stale-preview reset, available-activity API loading, loading transitions, and existing toast/error behavior out of `ItineraryDetailsController.tsx`.
+- Preserved the hotspot/plan/route payload and modal state shape.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or activity availability hook; existing repository errors remain documented.
+- Focused ESLint: passed for the activity availability hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,811 physical lines after extraction.
+- `useActivityAvailabilityLoader.ts`: 42 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

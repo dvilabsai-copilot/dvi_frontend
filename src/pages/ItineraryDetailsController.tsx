@@ -153,6 +153,7 @@ import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
 import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
+import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
@@ -6662,39 +6663,13 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     });
   };
 
-  const openAddActivityModal = async (
-    planId: number,
-    routeId: number,
-    routeHotspotId: number,
-    hotspotId: number,
-    hotspotName: string
-  ) => {
-    setAddActivityModal({
-      open: true,
-      planId,
-      routeId,
-      routeHotspotId,
-      hotspotId,
-      hotspotName,
-    });
-
-    // Reset stale preview state whenever modal opens for a hotspot.
-    setActivityPreview(null);
-    setPreviewingActivityId(null);
-
-    // Fetch available activities
-    setLoadingActivities(true);
-    try {
-const activities = await ItineraryService.getAvailableActivities(hotspotId, planId, routeId);
-setAvailableActivities(activities as any[]);
-    } catch (e) {
-      console.error("Failed to load activities", e);
-      toast.error(e?.message || "Failed to load activities");
-      setAvailableActivities([]);
-    } finally {
-      setLoadingActivities(false);
-    }
-  };
+  const openAddActivityModal = useActivityAvailabilityLoader({
+    setAddActivityModal,
+    setActivityPreview,
+    setPreviewingActivityId,
+    setAvailableActivities,
+    setLoadingActivities,
+  });
 
   const handleAddActivity = async (activityId: number, amount: number) => {
     if (!addActivityModal.planId || !addActivityModal.routeId || !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
