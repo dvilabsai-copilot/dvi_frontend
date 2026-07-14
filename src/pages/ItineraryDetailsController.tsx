@@ -197,6 +197,7 @@ import {
 } from "./itinerary-details/utils/clipboardFormatting.utils";
 import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
 import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
+import { buildClipboardHotelPackageSectionHtml } from "./itinerary-details/utils/clipboardHotelPackageSection.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3344,60 +3345,18 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
 
   const packageSectionsHtml = selectedGroups
     .map((group, groupIndex) => {
-      const rowsHtml =
-        group.hotels.length > 0
-          ? group.hotels
-              .map((hotel, index) => {
-                return `
-                  <tr>
-                    <td style="${cellStyle}white-space:nowrap;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.destination)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(hotel.roomType)} - ${escapeHtml(itinerary.roomCount)}
-                    </td>
-                    <td style="${cellStyle}">
-                      ${escapeHtml(String(hotel.mealPlan || "").trim() || "CP")}
-                    </td>
-                  </tr>
-                `;
-              })
-              .join("")
-          : `
-            <tr>
-              <td colspan="5" style="${cellStyle}text-align:center;">No hotel available</td>
-            </tr>
-          `;
-
-      return `
-        <div style="${centerTitleStyle}margin-top:${groupIndex === 0 ? "10px" : "34px"};">
-          ${escapeHtml(sectionTitle)} - ${groupIndex + 1}
-        </div>
-
-        <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
-          <tr>
-            <th style="${headerCellStyle}width:20%;">Day</th>
-            <th style="${headerCellStyle}width:20%;">Destination</th>
-            <th style="${headerCellStyle}width:20%;">Hotel Name -<br/>Category</th>
-            <th style="${headerCellStyle}width:20%;">Room Type -<br/>Count</th>
-            <th style="${headerCellStyle}width:20%;">Meal Plan</th>
-          </tr>
-          ${rowsHtml}
-        </table>
-
-        ${buildClipboardVehicleSectionHtml({
+      return buildClipboardHotelPackageSectionHtml({
+        hotels: group.hotels,
+        roomCount: itinerary.roomCount,
+        groupIndex,
+        sectionTitle,
+        vehicleSectionHtml: buildClipboardVehicleSectionHtml({
           vehiclesValue: itinerary.vehicles,
           daysValue: itinerary.days,
           shouldShowVehicles,
           styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
-        })}
-        ${buildClipboardCostSectionHtml({
+        }),
+        costSectionHtml: buildClipboardCostSectionHtml({
           hotels: group.hotels,
           itinerary,
           shouldShowHotels,
@@ -3405,8 +3364,9 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           computedVehicleAmount,
           computedVehicleQty,
           styles: { tableStyle, cellStyle },
-        })}
-      `;
+        }),
+        styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
+      });
     })
     .join("");
 
