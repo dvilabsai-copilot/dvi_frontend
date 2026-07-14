@@ -55,6 +55,10 @@ import { toast } from "sonner";
 import { useEffectivePreviewTimeline } from "./itinerary-details/hooks/useEffectivePreviewTimeline";
 import { useHotelHydratedDays } from "./itinerary-details/hooks/useHotelHydratedDays";
 import { useHotelsForDisplay } from "./itinerary-details/hooks/useHotelsForDisplay";
+import {
+  DEFAULT_EXTERNAL_STAY_MESSAGE,
+  useExternalStayEntries,
+} from "./itinerary-details/hooks/useExternalStayEntries";
 import type {
   Activity,
   AttractionSegment,
@@ -2080,55 +2084,11 @@ const switchedRouteRef = useRef<string | null>(null);
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
   ]);
-  const DEFAULT_EXTERNAL_STAY_MESSAGE =
-    'No supplier hotel rooms are available for this city/date. Customer must arrange stay manually.';
+  const externalStayEntries = useExternalStayEntries({
+    hotelDetails,
+    activeHotelGroupType,
+  });
 
-  useEffect(() => {
-    if (!confirmQuotationModal || requiresDetailedPassengerFlow) return;
-    setAdditionalAdults([]);
-    setAdditionalChildren([]);
-    setAdditionalInfants([]);
-    setFormErrors((prev) => {
-      const next = Object.fromEntries(
-        Object.entries(prev).filter(([key]) => {
-          return !(
-            key.startsWith('count-adult') ||
-            key.startsWith('count-child') ||
-            key.startsWith('count-infant') ||
-            key.startsWith('adult-') ||
-            key.startsWith('child-') ||
-            key.startsWith('infant-')
-          );
-        }),
-      );
-      return next;
-    });
-  }, [confirmQuotationModal, requiresDetailedPassengerFlow]);
-
-  const externalStayEntries = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) {
-      return [];
-    }
-
-    const preferredGroupType =
-      activeHotelGroupType ??
-      hotelDetails.hotelTabs?.[0]?.groupType ??
-      1;
-
-    return hotelDetails.hotels
-      .filter((row) =>
-        Number(row?.groupType) === Number(preferredGroupType) &&
-        !isSupplierBookableHotel(row),
-      )
-      .map((row) => ({
-        routeId: Number(row?.itineraryRouteId || 0),
-        destination: String(row?.destination || '').trim(),
-        day: String(row?.day || '').trim(),
-        hotelName: String(row?.hotelName || '').trim(),
-        availabilityStatus: row?.availabilityStatus || 'NO_SUPPLIER_AVAILABILITY',
-        availabilityMessage: row?.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE,
-      }));
-  }, [activeHotelGroupType, hotelDetails]);
   const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
   const confirmPassengerMix = [
     Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,

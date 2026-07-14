@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 201 - External-stay entries hook
+
+### Baseline
+- Starting checkpoint: `362ce41` on `refactor/itinerary-details-continuation` with hotels-for-display extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useExternalStayEntries.ts`.
+- Moved external-stay filtering, preferred hotel-group selection, and the shared customer-facing no-supplier message out of `ItineraryDetailsController.tsx`.
+- Preserved availability status/message fallbacks and supplier-bookability rules.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,080 lines (down from 6,117 at the previous iteration).
+- New `useExternalStayEntries.ts`: 47 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 200 - Hotels-for-display hook
 
 ### Baseline

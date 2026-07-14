@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 6,117 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 6,080 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -19,6 +19,7 @@ Current facts:
 - New in this checkpoint: manual preview timeline ordering, hotel-travel pruning, planned-removal filtering, best-slot placement, and baseline merging are isolated in `useEffectivePreviewTimeline.ts`.
 - New in this checkpoint: selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling are isolated in `useHotelHydratedDays.ts`.
 - New in this checkpoint: confirmed/read-only hotel row matching, day/date reconciliation, placeholder rows, cancellation metadata, and draft supplier-row preservation are isolated in `useHotelsForDisplay.ts`.
+- New in this checkpoint: external-stay filtering, preferred hotel-group selection, and the shared no-supplier customer message are isolated in `useExternalStayEntries.ts`.
 - New in this checkpoint: route rebuild mutation/progress and refresh behavior are isolated in `useRouteRebuildMutation.ts`.
 - New in this checkpoint: route-time PATCH progress, refresh, and hotel-detail preservation are isolated in `useRouteTimePatchMutation.ts`.
 - New in this checkpoint: arrival-policy decision-key derivation is shared through `routeArrivalPolicy.utils.ts`.
