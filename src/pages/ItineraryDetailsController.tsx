@@ -69,6 +69,7 @@ import { useInsertionDecisionSummary } from "./itinerary-details/hooks/useInsert
 import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotState";
 import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
 import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
+import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
 import type {
   Activity,
   AttractionSegment,
@@ -1036,26 +1037,18 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     itineraryDays: itinerary?.days,
   });
 
-  const currentRouteAttractionHotspotIds = useMemo(
-    () => buildCurrentRouteAttractionHotspotIds(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds),
-    [addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
-  );
-
-  const currentRouteManualHotspotIds = useMemo(
-    () => buildCurrentRouteManualHotspotIds(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds, addedInModalHotspotIds),
-    [addedInModalHotspotIds, addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
-  );
-
-  const currentRouteManualHotspotMetaById = useMemo(
-    () => buildCurrentRouteManualHotspotMetaById(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds),
-    [addHotspotModal.routeId, excludedHotspotIds, itinerary?.days],
-  );
-
-  const isCurrentPreviewAlreadyAdded = useMemo(() => {
-    const id = Number(activePreviewHotspotId || 0);
-    if (!id) return false;
-    return currentRouteAttractionHotspotIds.has(id) || addedInModalHotspotIds.has(id);
-  }, [activePreviewHotspotId, addedInModalHotspotIds, currentRouteAttractionHotspotIds]);
+  const {
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotIds,
+    currentRouteManualHotspotMetaById,
+    isCurrentPreviewAlreadyAdded,
+  } = useCurrentRouteHotspotState({
+    activePreviewHotspotId,
+    addedInModalHotspotIds,
+    excludedHotspotIds,
+    itineraryDays: itinerary?.days,
+    routeId: addHotspotModal.routeId,
+  });
 
   // Helper to normalize available hotspots after fetching.
   const normalizeAvailableHotspots = useCallback((

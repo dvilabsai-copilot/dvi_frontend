@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 212 - Current-route hotspot state hook
+
+### Baseline
+- Starting checkpoint: `1b7514d` on `refactor/itinerary-details-continuation` with preview hotspot metadata extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useCurrentRouteHotspotState.ts`.
+- Moved current-route attraction/manual hotspot ID sets, manual hotspot metadata, and already-added preview detection out of `ItineraryDetailsController.tsx`.
+- Preserved excluded-ID filtering, modal-added IDs, route/day lookup, and set/map return contracts.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,992 physical lines (down from 5,999 at the previous iteration).
+- New `useCurrentRouteHotspotState.ts`: 52 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 211 - Preview hotspot metadata hook
 
 ### Baseline
