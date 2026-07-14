@@ -166,3 +166,16 @@ No application or test weakening changes were made. Generated result directories
 
 ### Verification
 Focused pair remains 2/2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.
+
+## 2026-07-14 - Broader itinerary rerun after activity, clipboard, and validation boundaries
+
+### Result
+The broader command again ran 34 tests with 8 workers: 9 passed, 2 skipped, and 23 failed.
+
+### Classification
+- Shared Fit Here/APJ test-data contention.
+- PHP/Nest parity redirect mismatch.
+- Vehicle-only backend processing/data visibility.
+
+### Resolution
+No application or test weakening changes were added; focused hotspot characterization remains green.

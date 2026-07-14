@@ -1166,6 +1166,25 @@
 - This cleanup removes the final duplicate vehicle-only clipboard path and leaves one owner for that workflow.
 - Follow-up extraction: quotation hotel-selection/prebook preparation and confirmation orchestration.
 
+## Iteration 87 - Broader regression checkpoint
+
+### Baseline
+- Tests run: `npx.cmd playwright test itinerary --project=chromium --workers=8`.
+- Result: 34 tests; 9 passed, 2 skipped, 23 failed. The focused hotspot pair remains 2/2 passed.
+
+### Classification
+- Shared Fit Here/APJ records are mutated by parallel tests.
+- PHP/Nest parity still differs at logout/login redirect resolution.
+- Vehicle-only test failures remain backend processing/data visibility issues.
+
+### Changes
+- Files modified: `REGRESSION_LOG.md`, `PROGRESS_LOG.md`.
+- Behaviour intentionally changed: No.
+
+### Notes
+- This is a verification-only checkpoint; no test weakening or application workaround was added.
+- Follow-up extraction: quotation hotel-selection/prebook preparation and confirmation orchestration.
+
 ## Iteration 84 - Vehicle-only clipboard action boundary
 
 ### Baseline
