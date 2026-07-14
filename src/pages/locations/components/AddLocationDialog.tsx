@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,7 +9,7 @@ import { LocationAutosuggestInput } from "./LocationAutosuggestInput";
 interface AddLocationDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payload: CreateLocationPayload) => void;
+  onSubmit: (payload: CreateLocationPayload) => Promise<void> | void;
 }
 
 export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialogProps) {
@@ -143,8 +144,15 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
                     <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={saving}>
-            {saving ? "Saving..." : "Save"}
+          <Button onClick={handleSubmit} disabled={saving} aria-busy={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="animate-spin" aria-hidden="true" />
+                Saving...
+              </>
+            ) : (
+              "Save"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

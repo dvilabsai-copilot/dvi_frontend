@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { AddLocationDialog } from "./components/AddLocationDialog";
 import { EditLocationDialog } from "./components/EditLocationDialog";
 import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
+import { ItineraryPageLoader } from "../itinerary-details/components/ItineraryPageLoader";
 
 const PAGE_SIZES = [10, 25, 50];
 const MIN_SAME_LOCATION_DISTANCE_KM = 10;
@@ -102,7 +103,12 @@ export default function LocationsPage() {
   const destinationOptions: AutoSuggestOption[] = locationOptions;
 
   // dialogs
-   const [addOpen, setAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [locationAddProgress, setLocationAddProgress] = useState<{
+    stage: string;
+    detail: string;
+    history: string[];
+  } | null>(null);
   const [editRow, setEditRow] = useState<LocationRow | null>(null);
   const [selectedRow, setSelectedRow] = useState<LocationRow | null>(null);
   const [renameInfo, setRenameInfo] = useState<{
@@ -430,19 +436,52 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     setSelectedRow(rowForTolls);
     await openTolls(rowForTolls);
   }
-    async function handleCreate(payload: CreateLocationPayload) {
-  const created = await locationsApi.create(payload);
+  async function handleCreate(payload: CreateLocationPayload) {
+    const startingTotal = total;
 
-  toast.success("Location added");
-  setAddOpen(false);
+    // Close the form immediately and use the same loader as itinerary details while
+    // the API creates the replicated location rows.
+    setAddOpen(false);
+    setLocationAddProgress({
+      stage: "Adding locations",
+      detail: "Saving the new location and preparing replicated routes.",
+      history: ["Saving location"],
+    });
 
-  focusLocationRecords(created.source_location, created.destination_location, "");
+    try {
+      const created = await locationsApi.create(payload);
+      const createdRows = created.rows;
 
-  setRows((prev) => [created, ...prev]);
-  setTotal((prev) => prev + 1);
+      if (!createdRows.length) {
+        setLocationAddProgress(null);
+        void Promise.all([loadDropdowns(), loadList()]);
+        toast.success("No new locations were added");
+        return;
+      }
 
-  await loadDropdowns();
-}
+      const totalToAdd = createdRows.length;
+
+      // The POST response already contains every replicated row. Do not animate
+      // through hundreds of rows after the response has completed.
+      const firstCreatedRow = createdRows[0];
+      setRows((previous) => [
+        firstCreatedRow,
+        ...previous.filter((existing) => existing.location_ID !== firstCreatedRow.location_ID),
+      ]);
+      setTotal(startingTotal + totalToAdd);
+      setLocationAddProgress(null);
+      toast.success(
+        `${totalToAdd} location${totalToAdd === 1 ? "" : "s"} added`
+      );
+
+      // Refresh the table and dropdowns without keeping the loader open.
+      void Promise.all([loadDropdowns(), loadList()]);
+    } catch (error) {
+      console.error("Error adding locations:", error);
+      setLocationAddProgress(null);
+      toast.error("Failed to add locations");
+    }
+  }
 
   async function handleUpdate(payload: Partial<LocationRow>) {
     if (!editRow) return;
@@ -632,6 +671,10 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
     );
     toast.success("Toll charges saved");
     setTollInfo({ open: false, row: null, items: [] });
+  }
+
+  if (locationAddProgress) {
+    return <ItineraryPageLoader {...locationAddProgress} />;
   }
 
   return (
