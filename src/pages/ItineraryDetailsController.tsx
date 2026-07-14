@@ -241,6 +241,7 @@ import { useSourcePreviewController } from "./itinerary-details/hooks/useSourceP
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
 import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
 import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
+import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -2072,143 +2073,22 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     return '';
   }, [matrixFit, selectedHotspotAnchor, selectedPreviewCityContext, destinationCityLabel, destinationHotelDisplayName]);
 
-  const hotspotListRows = useMemo(() => {
-    if (!routeIsDifferentCity) {
-      return filteredHotspots.map((hotspot) => ({ kind: 'hotspot' as const, hotspot }));
-    }
-
-    const source: AvailableHotspot[] = [];
-    const destination: AvailableHotspot[] = [];
-    const other: AvailableHotspot[] = [];
-
-    for (const hotspot of filteredHotspots) {
-      const context = deriveHotspotCityContext(hotspot);
-      if (context === 'SOURCE_CITY') source.push(hotspot);
-      else if (context === 'DESTINATION_CITY') destination.push(hotspot);
-      else other.push(hotspot);
-    }
-
-    const sourceLabel = `${String(hotspotFilterMeta?.sourceCityKey || 'Source').replace(/^./, (c: string) => c.toUpperCase())} Hotspots`;
-    const destinationLabel = `${destinationCityLabel} Hotspots`;
-    const rows: Array<{ kind: 'header'; label: string } | { kind: 'hotspot'; hotspot: AvailableHotspot }> = [];
-    if (source.length > 0) {
-      rows.push({ kind: 'header', label: sourceLabel });
-      rows.push(...source.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    if (destination.length > 0) {
-      rows.push({ kind: 'header', label: destinationLabel });
-      rows.push(...destination.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    if (other.length > 0) {
-      rows.push({ kind: 'header', label: 'Other Hotspots' });
-      rows.push(...other.map((hotspot) => ({ kind: 'hotspot' as const, hotspot })));
-    }
-    return rows;
-  }, [routeIsDifferentCity, filteredHotspots, deriveHotspotCityContext, hotspotFilterMeta?.sourceCityKey, destinationCityLabel]);
-
-  const hotspotCityBuckets = useMemo(() => {
-    const source: AvailableHotspot[] = [];
-    const destination: AvailableHotspot[] = [];
-    const other: AvailableHotspot[] = [];
-
-    for (const hotspot of filteredHotspots) {
-      const context = deriveHotspotCityContext(hotspot);
-      if (context === 'SOURCE_CITY') source.push(hotspot);
-      else if (context === 'DESTINATION_CITY') destination.push(hotspot);
-      else other.push(hotspot);
-    }
-
-    return { source, destination, other };
-  }, [filteredHotspots, deriveHotspotCityContext]);
-
-  const hotspotCityTabs = useMemo(() => {
-    const formatCityLabel = (value: unknown, fallback: string) => {
-      const raw = String(value || '').trim();
-      if (!raw) return fallback;
-      return raw.charAt(0).toUpperCase() + raw.slice(1);
-    };
-
-    if (!routeIsDifferentCity) {
-      return [{
-        key: 'ALL' as const,
-        label: 'All Hotspots',
-        count: filteredHotspots.length,
-      }];
-    }
-
-    const sourceLabel = `${formatCityLabel(sourceCityLabel, 'Source')} Hotspots`;
-    const destinationLabel = `${formatCityLabel(
-      destinationCityLabel,
-      'Destination',
-    )} Hotspots`;
-    const tabs: Array<{ key: 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN'; label: string; count: number }> = [
-      {
-        key: 'SOURCE_CITY',
-        label: sourceLabel,
-        count: hotspotCityBuckets.source.length,
-      },
-      {
-        key: 'DESTINATION_CITY',
-        label: destinationLabel,
-        count: hotspotCityBuckets.destination.length,
-      },
-    ];
-
-    if (hotspotCityBuckets.other.length > 0) {
-      tabs.push({
-        key: 'UNKNOWN',
-        label: 'Other Hotspots',
-        count: hotspotCityBuckets.other.length,
-      });
-    }
-
-    return tabs;
-  }, [
+  const {
+    hotspotListRows,
+    hotspotCityBuckets,
+    hotspotCityTabs,
+    visibleHotspotsForActiveTab,
+  } = useHotspotCityPresentation({
+    filteredHotspots,
     routeIsDifferentCity,
-    filteredHotspots.length,
     sourceCityLabel,
     destinationCityLabel,
-    hotspotCityBuckets,
-  ]);
-
-  const visibleHotspotsForActiveTab = useMemo(() => {
-    if (!routeIsDifferentCity || activeHotspotCityTab === 'ALL') return filteredHotspots;
-    if (activeHotspotCityTab === 'SOURCE_CITY') return hotspotCityBuckets.source;
-    if (activeHotspotCityTab === 'DESTINATION_CITY') return hotspotCityBuckets.destination;
-    return hotspotCityBuckets.other;
-  }, [routeIsDifferentCity, activeHotspotCityTab, filteredHotspots, hotspotCityBuckets]);
-
-  useEffect(() => {
-    if (!routeIsDifferentCity) {
-      if (activeHotspotCityTab !== 'ALL') {
-        setActiveHotspotCityTab('ALL');
-      }
-      return;
-    }
-
-    const validKeys = new Set(hotspotCityTabs.map((tab) => tab.key));
-
-    if (
-      selectedPreviewCityContext === 'DESTINATION_CITY' &&
-      validKeys.has('DESTINATION_CITY') &&
-      activeHotspotCityTab !== 'DESTINATION_CITY'
-    ) {
-      setActiveHotspotCityTab('DESTINATION_CITY');
-      return;
-    }
-
-    if (!validKeys.has(activeHotspotCityTab as any)) {
-      const first = hotspotCityTabs[0];
-      if (first) {
-        setActiveHotspotCityTab(first.key);
-      }
-    }
-  }, [
-    routeIsDifferentCity,
-    hotspotCityTabs,
+    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
     activeHotspotCityTab,
     selectedPreviewCityContext,
-  ]);
+    setActiveHotspotCityTab,
+    deriveHotspotCityContext,
+  });
 
   // Hotel selection modal state
   type AvailableHotel = {
