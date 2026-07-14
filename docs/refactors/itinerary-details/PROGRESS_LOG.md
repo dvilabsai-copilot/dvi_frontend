@@ -1187,6 +1187,27 @@
 - `ItineraryDetailsController.tsx`: 15,016 physical lines.
 - `useHotelSearchSelectionMutation.ts`: 159 physical lines.
 
+## Iteration 62 — Guide modal hydration boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useGuideModalController.ts`.
+- Moved guide modal opening, option retrieval, local-assignment slot precedence, language hydration, read-only/plan guards, and error cleanup out of `ItineraryDetailsController.tsx`.
+- Preserved guide assignment API arguments and existing toast wording.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or guide modal hook; existing repository errors remain documented.
+- Focused ESLint: passed for the guide modal hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,932 physical lines after extraction.
+- `useGuideModalController.ts`: 98 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

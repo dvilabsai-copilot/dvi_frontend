@@ -150,6 +150,7 @@ import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelect
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
+import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
@@ -6953,96 +6954,11 @@ const getSelectedPreviewActivity = () =>
     setItinerary,
   });
 
-  const openGuideModal = async (
-    day?: ItineraryDay | null,
-    assignment?: ItineraryGuideAssignment | null,
-    guideTypeOverride?: 1 | 2,
-  ) => {
-    if (readOnly) {
-      toast.error("Guide cannot be added in read-only mode");
-      return;
-    }
-
-    const planId = Number(itinerary?.planId || 0);
-    if (!(planId > 0)) {
-      toast.error("Plan ID not found");
-      return;
-    }
-
-    const guideType = Number(guideTypeOverride || assignment?.guideType || 2);
-
-    setGuideModal((prev) => ({
-      ...prev,
-      open: true,
-      loading: true,
-      planId,
-      day,
-      routeGuideId: assignment?.routeGuideId ?? null,
-      guideType,
-      guideLanguage: assignment?.guideLanguageIds?.[0] ? String(assignment.guideLanguageIds[0]) : "",
-      guideSlots: assignment?.guideSlotIds ?? [],
-      options: { languages: [], slots: [], assignment: assignment ?? null },
-    }));
-
-    try {
-  const options = await ItineraryService.getGuideAssignmentOptions(
-  planId,
-  assignment?.routeGuideId,
-) as GuideModalOptions;
-
-const apiAssignment = options?.assignment ?? null;
-const localAssignment = assignment ?? null;
-
-/*
-  Important:
-  For full-itinerary guide, the row may already have updated slots in frontend state.
-  API options can still return old guideSlotIds, so prefer local assignment slots first.
-*/
-const existing = localAssignment ?? apiAssignment ?? null;
-
-const localGuideSlotIds = Array.isArray(localAssignment?.guideSlotIds)
-  ? localAssignment.guideSlotIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
-  : [];
-
-const apiGuideSlotIds = Array.isArray(apiAssignment?.guideSlotIds)
-  ? apiAssignment.guideSlotIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
-  : [];
-
-const localLanguageId = Number(localAssignment?.guideLanguageIds?.[0] || 0);
-const apiLanguageId = Number(apiAssignment?.guideLanguageIds?.[0] || 0);
-
-setGuideModal((prev) => {
-  const resolvedGuideSlotIds =
-    localGuideSlotIds.length > 0
-      ? localGuideSlotIds
-      : apiGuideSlotIds.length > 0
-        ? apiGuideSlotIds
-        : prev.guideSlots;
-
-  return {
-    ...prev,
-    loading: false,
-    options: {
-      languages: Array.isArray(options?.languages) ? options.languages : [],
-      slots: Array.isArray(options?.slots) ? options.slots : [],
-      assignment: existing,
-    },
-    routeGuideId: existing?.routeGuideId ?? prev.routeGuideId,
-    guideLanguage:
-      localLanguageId > 0
-        ? String(localLanguageId)
-        : apiLanguageId > 0
-          ? String(apiLanguageId)
-          : prev.guideLanguage,
-    guideSlots: resolvedGuideSlotIds,
-  };
-});
-    } catch (e) {
-      console.error("Failed to load guide modal options", e);
-      setGuideModal((prev) => ({ ...prev, loading: false, open: false }));
-      toast.error(e?.message || "Failed to load guide options");
-    }
-  };
+  const openGuideModal = useGuideModalController({
+    readOnly,
+    itineraryPlanId: Number(itinerary?.planId || 0),
+    setGuideModal,
+  });
 
   const handleAddGuideClick = (day: ItineraryDay) => {
     const existing = guideAssignments.find((assignment) => (
