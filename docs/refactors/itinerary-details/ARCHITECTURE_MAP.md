@@ -141,5 +141,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Resolved-overflow final-timeline notice is isolated in `HotspotPreviewResolvedTimelineNotice.tsx`; preview data remains controller-owned.
 - Development-only resolved-removal leak diagnostic is isolated in `HotspotPreviewOverflowLeakNotice.tsx`; the existing environment/flag predicate remains controller-owned.
 - Day-end overflow timing explanation is isolated in `HotspotPreviewDayEndOverflowNotice.tsx`; overflow calculation remains controller-owned.
+- Quotation confirmation modal shell (open state, header, and content slot) is isolated in `QuotationConfirmationDialogShell.tsx`; guest/prebook content and submission footer remain controller-composed.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

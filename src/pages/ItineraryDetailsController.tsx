@@ -204,6 +204,7 @@ import { HotspotPreviewResolvedTimelineNotice } from "./itinerary-details/compon
 import { HotspotPreviewOverflowLeakNotice } from "./itinerary-details/components/HotspotPreviewOverflowLeakNotice";
 import { HotspotPreviewDayEndOverflowNotice } from "./itinerary-details/components/HotspotPreviewDayEndOverflowNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
+import { QuotationConfirmationDialogShell } from "./itinerary-details/QuotationConfirmationDialogShell";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11220,15 +11221,10 @@ const canShowGuideActionButton =
         formatDuration={formatActivityDuration}
       />
 
-      {/* Confirm Quotation Modal */}
-      <Dialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal}>
-        <DialogContent className="w-[96vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Guest Details</DialogTitle>
-            <DialogDescription>
-              Enter primary guest information and travel details
-            </DialogDescription>
-          </DialogHeader>
+      <QuotationConfirmationDialogShell
+        open={confirmQuotationModal}
+        onOpenChange={setConfirmQuotationModal}
+      >
 
           <div className="space-y-4 py-4">
             <QuotationAgentSummary
@@ -11654,8 +11650,7 @@ const canShowGuideActionButton =
             isPrebooking={isPrebooking}
             isWalletTopUpSubmitting={isWalletTopUpSubmitting}
           />
-        </DialogContent>
-      </Dialog>
+      </QuotationConfirmationDialogShell>
 
       <ManualFitHerePreviewDialog
         open={fitHereModal.open}

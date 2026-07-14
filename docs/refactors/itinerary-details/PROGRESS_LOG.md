@@ -1241,6 +1241,32 @@
 ### Notes
 - The legacy warning icon label remains in place to preserve its current encoded display.
 
+## Iteration 129 — Quotation confirmation dialog shell
+
+### Baseline
+- Starting point: Iteration 128 day-end overflow notice extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the quotation confirmation modal shell without moving encoded guest/prebook copy or submission behavior.
+
+### Changes
+- File created: `src/pages/itinerary-details/QuotationConfirmationDialogShell.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: quotation modal open state wiring, dialog header, content container, and shell layout now live in a typed component; all existing content and footer remain controller-composed as children.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,764 lines.
+- New `QuotationConfirmationDialogShell.tsx`: 31 lines.
+
+### Notes
+- A full quotation-content extraction remains queued; legacy mojibake strings made a whole-dialog move unsafe without changing displayed text.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
