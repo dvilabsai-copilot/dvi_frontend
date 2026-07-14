@@ -1166,6 +1166,27 @@
 - `ItineraryDetailsController.tsx`: 15,017 physical lines after extraction.
 - `useHotelSearchSelectionMutation.ts`: 126 physical lines.
 
+## Iteration 61 — Supplier-selection type hardening and lint checkpoint
+
+### Changes
+
+- Replaced newly introduced supplier-selection `any` types with explicit modal, meal-plan, search-result, and selected-booking shapes.
+- Removed an unnecessary route-switch hook dependency and kept all new extraction hooks clean under focused ESLint.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or extraction hooks; existing repository errors remain documented.
+- Focused ESLint: passed for the four latest workflow hooks.
+- Repository lint: failed at the current baseline with 1,936 errors and 107 warnings.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,016 physical lines.
+- `useHotelSearchSelectionMutation.ts`: 159 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

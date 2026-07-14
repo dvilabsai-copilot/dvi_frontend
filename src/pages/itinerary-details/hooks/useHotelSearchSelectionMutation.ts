@@ -3,23 +3,56 @@ import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 
+interface HotelSelectionModalState {
+  open?: boolean;
+  planId: number | null;
+  routeId: number | null;
+  routeDate?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+}
+
+interface MealPlanSelection {
+  all: boolean;
+  breakfast: boolean;
+  lunch: boolean;
+  dinner: boolean;
+}
+
+interface HotelSearchResultLike {
+  hotelCode?: string | number;
+  bookingCode?: string;
+  searchReference?: string;
+  provider?: string;
+  roomTypes?: Array<{ roomCode?: string | number; roomName?: string }>;
+  netAmount?: number;
+  totalCost?: number;
+  totalRoomCost?: number;
+  price?: number;
+  hotelName?: string;
+}
+
+interface SelectedHotelBooking {
+  [key: string]: unknown;
+}
+
 interface HotelSearchSelectionOptions {
   readOnly: boolean;
   quoteId: string | null;
   shouldShowHotels: boolean;
   selectedMealPlan: unknown;
-  hotelSelectionModal: any;
-  prebookDataRef: MutableRefObject<any | null>;
+  hotelSelectionModal: HotelSelectionModalState;
+  prebookDataRef: MutableRefObject<unknown | null>;
   parseStaahSearchReference: (reference: unknown) => { roomId?: string; rateId?: string };
-  isSupplierBookableHotel: (hotel: any) => boolean;
+  isSupplierBookableHotel: (hotel: unknown) => boolean;
   getSafeErrorMessage: (error: unknown, fallback: string) => string;
   setIsSelectingHotel: Dispatch<SetStateAction<boolean>>;
-  setSelectedHotelBookings: Dispatch<SetStateAction<Record<number, any>>>;
-  setPrebookData: Dispatch<SetStateAction<any>>;
+  setSelectedHotelBookings: Dispatch<SetStateAction<Record<number, SelectedHotelBooking>>>;
+  setPrebookData: Dispatch<SetStateAction<unknown>>;
   setHasAcceptedUpdatedPrice: Dispatch<SetStateAction<boolean>>;
-  setHotelSelectionModal: Dispatch<SetStateAction<any>>;
+  setHotelSelectionModal: Dispatch<SetStateAction<HotelSelectionModalState>>;
   setHotelSearchQuery: Dispatch<SetStateAction<string>>;
-  setSelectedMealPlan: Dispatch<SetStateAction<any>>;
+  setSelectedMealPlan: Dispatch<SetStateAction<MealPlanSelection>>;
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
 }
@@ -45,7 +78,7 @@ export const useHotelSearchSelectionMutation = ({
   setItinerary,
   setHotelDetails,
 }: HotelSearchSelectionOptions) => {
-  return useCallback(async (hotel: any, mealPlan?: any) => {
+  return useCallback(async (hotel: HotelSearchResultLike, mealPlan?: unknown) => {
     if (readOnly) {
       console.log("Cannot select hotel in read-only mode");
       return;
@@ -54,8 +87,8 @@ export const useHotelSearchSelectionMutation = ({
 
     setIsSelectingHotel(true);
     try {
-      const hotelId = parseInt(hotel.hotelCode) || 0;
-      const roomTypeId = hotel.roomTypes?.[0]?.roomCode ? parseInt(hotel.roomTypes[0].roomCode) : 1;
+      const hotelId = parseInt(String(hotel.hotelCode || ""), 10) || 0;
+      const roomTypeId = hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1;
       const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
       const checkOutDate = new Date(hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate);
       if (!hotelSelectionModal.checkOutDate) checkOutDate.setDate(checkOutDate.getDate() + 1);

@@ -10600,7 +10600,6 @@ const handleItineraryRouteOptionClick = useRouteOptionSwitchController({
   latestRouteRequestRef,
   switchedRouteRef,
   currentFetchRef,
-  shouldShowHotels,
   setIsSwitchingRouteOption,
   setActiveRouteQuoteId,
   setError,

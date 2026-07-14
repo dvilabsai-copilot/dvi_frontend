@@ -3,16 +3,30 @@ import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
 
+interface HotelSelectionModalState {
+  open?: boolean;
+  planId: number | null;
+  routeId: number | null;
+  routeDate?: string;
+}
+
+interface MealPlanSelection {
+  all: boolean;
+  breakfast: boolean;
+  lunch: boolean;
+  dinner: boolean;
+}
+
 interface HotelSelectionMutationOptions {
   readOnly: boolean;
   quoteId: string | null;
   shouldShowHotels: boolean;
   selectedMealPlan: unknown;
-  hotelSelectionModal: { planId: number | null; routeId: number | null };
+  hotelSelectionModal: HotelSelectionModalState;
   setIsSelectingHotel: Dispatch<SetStateAction<boolean>>;
-  setHotelSelectionModal: Dispatch<SetStateAction<any>>;
+  setHotelSelectionModal: Dispatch<SetStateAction<HotelSelectionModalState>>;
   setHotelSearchQuery: Dispatch<SetStateAction<string>>;
-  setSelectedMealPlan: Dispatch<SetStateAction<any>>;
+  setSelectedMealPlan: Dispatch<SetStateAction<MealPlanSelection>>;
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   getSafeErrorMessage: (error: unknown, fallback: string) => string;
