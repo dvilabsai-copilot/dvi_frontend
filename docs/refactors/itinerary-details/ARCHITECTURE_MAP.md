@@ -64,6 +64,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Route-time progress mechanics are isolated in `useRouteTimeProgressController`; the page retains only workflow decisions and passes the existing state setters/timer ref through.
 - Guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader`; guide assignment state remains controller-owned.
 - Guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation`; delete remains in `useGuideDeleteMutation`.
+- Canonical HotelList selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation`; hotel totals and quotation preparation remain separate consumers.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.

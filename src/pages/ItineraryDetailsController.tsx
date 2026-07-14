@@ -181,6 +181,7 @@ import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTim
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
+import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
 import {
   buildArrivalPolicyDecisionKey,
   getRequestArrivalPolicyDecisionKey,
@@ -5515,77 +5516,7 @@ function getHotelAmountForBooking(entry): number {
     }>;
     totalAmountAfterTax?: number;
   } | null>) => {
-    setSelectedHotelBookings((prev) => {
-      const next: Record<number, any> = { ...prev };
-
-      Object.entries(selections).forEach(([routeIdRaw, value]) => {
-        const routeIdNum = Number(routeIdRaw);
-
-        if (!Number.isFinite(routeIdNum) || routeIdNum <= 0) {
-          return;
-        }
-
-        if (value === null) {
-          delete next[routeIdNum];
-          return;
-        }
-
-        next[routeIdNum] = {
-          ...(next[routeIdNum] || {}),
-          ...value,
-          routeId: Number((value as any)?.routeId || routeIdNum),
-        };
-      });
-
-      const canonicalParents = new Map<number, any>();
-
-      Object.entries(next).forEach(([routeIdRaw, booking]) => {
-        const routeIdNum = Number(routeIdRaw);
-        const routeIds = Array.isArray((booking as any)?.routeIds)
-          ? (booking as any).routeIds
-              .map((id) => Number(id))
-              .filter((id: number) => Number.isFinite(id) && id > 0)
-          : [];
-
-        if (
-          !(booking as any)?.multiNightBooking ||
-          !routeIdNum ||
-          routeIds.length <= 1
-        ) {
-          return;
-        }
-
-        const canonicalRouteId = routeIds[0];
-        const currentParent = canonicalParents.get(canonicalRouteId);
-        const normalizedBooking = {
-          ...(booking as any),
-          routeId: canonicalRouteId,
-          routeIds,
-        };
-
-        if (!currentParent || routeIdNum === canonicalRouteId) {
-          canonicalParents.set(canonicalRouteId, normalizedBooking);
-        }
-      });
-
-      canonicalParents.forEach((parentBooking, canonicalRouteId) => {
-        const routeIds = Array.isArray(parentBooking.routeIds)
-          ? parentBooking.routeIds
-              .map((id) => Number(id))
-              .filter((id: number) => Number.isFinite(id) && id > 0)
-          : [];
-
-        routeIds.forEach((routeId: number) => {
-          if (routeId !== canonicalRouteId) {
-            delete next[routeId];
-          }
-        });
-
-        next[canonicalRouteId] = parentBooking;
-      });
-
-      return next;
-    });
+    setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 

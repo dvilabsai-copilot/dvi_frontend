@@ -1449,6 +1449,32 @@
 ### Notes
 - Guide assignment deletion remains isolated in `useGuideDeleteMutation`; modal selection and display derivation remain controller-owned.
 
+## Iteration 137 - Canonical hotel-selection merge
+
+### Baseline
+- Starting point: Iteration 136 guide assignment save mutation extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate HotelList selection merging and multi-night child-route cleanup while preserving the callback contract consumed by the page.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useHotelSelectionsChangeMutation.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: selection overlay, null-removal handling, canonical parent selection, and child-route cleanup now live in `mergeHotelSelections`.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,222 lines.
+- New `useHotelSelectionsChangeMutation.ts`: 106 lines.
+
+### Notes
+- The controller callback remains as a stable adapter for HotelList; downstream hotel totals and quotation preparation are unchanged.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
