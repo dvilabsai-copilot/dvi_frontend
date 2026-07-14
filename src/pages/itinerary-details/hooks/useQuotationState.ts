@@ -9,6 +9,24 @@ export type AdditionalPassenger = {
   passportNo: string;
 };
 
+export type GuestDetails = {
+  salutation: string;
+  name: string;
+  contactNo: string;
+  age: string;
+  nationality: string;
+  panNo: string;
+  passportNo: string;
+  alternativeContactNo: string;
+  emailId: string;
+  arrivalDateTime: string;
+  arrivalPlace: string;
+  arrivalFlightDetails: string;
+  departureDateTime: string;
+  departurePlace: string;
+  departureFlightDetails: string;
+};
+
 export function useQuotationState() {
   const [confirmQuotationModal, setConfirmQuotationModal] = useState(false);
   const [voucherModal, setVoucherModal] = useState(false);
@@ -31,7 +49,7 @@ export function useQuotationState() {
     agent_display_name?: string;
     agent_id?: number;
   } | null>(null);
-  const [guestDetails, setGuestDetails] = useState({
+  const [guestDetails, setGuestDetails] = useState<GuestDetails>({
     salutation: "Mr", name: "", contactNo: "", age: "", nationality: "IN", panNo: "", passportNo: "",
     alternativeContactNo: "", emailId: "", arrivalDateTime: "", arrivalPlace: "", arrivalFlightDetails: "",
     departureDateTime: "", departurePlace: "", departureFlightDetails: "",

@@ -978,6 +978,34 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 100 — Quotation passenger form view extraction
+
+### Baseline
+- Tests run: targeted typecheck filtered to the changed controller/form/state files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationPassengerForm.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `src/pages/itinerary-details/hooks/useQuotationState.ts`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: primary guest fields and conditional additional adult/child/infant form rows (including existing error rendering and immutable nationality/child-age behavior) now render through a typed component; state setters, default-passenger creation, and passenger-field error lookup remain supplied by the controller.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx`, `QuotationPassengerForm.tsx`, or `useQuotationState.ts`; unrelated repository errors remain.
+- Lint: new form component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not rerun; documented shared-data/environment failures remain unchanged.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,205 lines (down from 12,619 at the previous report checkpoint).
+- New `QuotationPassengerForm.tsx`: 470 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The component remains below the prompt’s 500-line normal component guidance and keeps all existing setter/update expressions intact to minimize behavioral risk.
+- Remaining high-risk boundaries are the quotation arrival/departure/review footer, hotspot/Fit Here composition, and hotel/vehicle workflow views.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
