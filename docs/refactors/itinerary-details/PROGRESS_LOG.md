@@ -1006,6 +1006,33 @@
 - The component remains below the prompt’s 500-line normal component guidance and keeps all existing setter/update expressions intact to minimize behavioral risk.
 - Remaining high-risk boundaries are the quotation arrival/departure/review footer, hotspot/Fit Here composition, and hotel/vehicle workflow views.
 
+## Iteration 101 — Quotation travel-details view extraction
+
+### Baseline
+- Tests run: targeted typecheck filtered to the changed controller/form/state files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; new view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationTravelDetailsForm.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: quotation arrival and departure date/time, place, and flight-detail fields now render in a typed view; the existing arrival date normalization handler is injected unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationTravelDetailsForm.tsx`; unrelated repository errors remain.
+- Lint: new travel-details component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not rerun; documented shared-data/environment failures remain unchanged.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,117 lines (down from 12,205 at the previous checkpoint).
+- New `QuotationTravelDetailsForm.tsx`: 111 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The modal footer still retains cancellation/reset and confirmation submission orchestration; the next quotation boundary is the review/footer composition.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
