@@ -100,6 +100,10 @@ import {
 import { normalizeAvailableHotspots as normalizeAvailableHotspotsUtil } from "./itinerary-details/utils/hotspotAvailability.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
 import {
+  buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
+  serializeFitHereAnchor as serializeFitHereAnchorUtil,
+} from "./itinerary-details/utils/fitHereAnchor.utils";
+import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
   filterAvailableHotspotsForAnchor,
@@ -5912,41 +5916,9 @@ const getSelectedPreviewActivity = () =>
     setSelectedHotspotIds,
   });
 
-  const buildFitHereAnchorKey = (anchor: HotspotAnchor): string => {
-    const from = String(anchor.anchorFrom || "UNKNOWN_FROM")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
+  const buildFitHereAnchorKey = buildFitHereAnchorKeyUtil;
 
-    const to = String(anchor.anchorTo || "UNKNOWN_TO")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-
-    return [
-      anchor.anchorType,
-      anchor.anchorIntent,
-      Number(anchor.anchorIndex ?? -1),
-      from,
-      to,
-    ].join(":");
-  };
-
-  const serializeFitHereAnchor = useCallback((anchor: HotspotAnchor) => ({
-    anchorType: anchor.anchorType || 'BETWEEN_ROWS',
-    anchorIntent: anchor.anchorIntent,
-    anchorIndex: anchor.anchorIndex,
-    anchorFrom: anchor.anchorFrom,
-    anchorTo: anchor.anchorTo,
-    anchorLabel: anchor.anchorLabel,
-    anchorTimeRange: anchor.anchorTimeRange,
-    afterRowType: anchor.afterRowType,
-    beforeRowType: anchor.beforeRowType,
-    afterHotspotId: anchor.afterHotspotId,
-    afterRouteHotspotId: anchor.afterRouteHotspotId,
-    beforeHotspotId: anchor.beforeHotspotId,
-    beforeRouteHotspotId: anchor.beforeRouteHotspotId,
-  }), []);
+  const serializeFitHereAnchor = useCallback(serializeFitHereAnchorUtil, []);
 
   const buildAutoFitHereAnchorsForDay = useCallback((day: ItineraryDay): HotspotAnchor[] => {
     const anchors: HotspotAnchor[] = [];

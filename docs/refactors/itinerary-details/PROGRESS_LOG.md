@@ -1553,6 +1553,32 @@
 ### Notes
 - The controller keeps the memoized adapter and passes current modal/route metadata explicitly.
 
+## Iteration 141 - Fit Here anchor utilities
+
+### Baseline
+- Starting point: Iteration 140 hotspot city-context utility extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate Fit Here anchor-key normalization and serialized anchor payload construction.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/fitHereAnchor.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: normalized anchor key construction and payload field projection now live in pure utilities.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,085 lines.
+- New `fitHereAnchor.utils.ts`: 34 lines.
+
+### Notes
+- Existing memoized wrappers remain in the controller to preserve callback identity at downstream dialog boundaries.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
