@@ -1166,6 +1166,33 @@
 - Success sequencing, confirmed-plan fallback warning, reset defaults, and loading cleanup remain unchanged; only ownership moved.
 - Follow-up extraction: remaining quotation guards and vehicle workflow boundaries.
 
+## Iteration 96 - Quotation booking guards
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useQuotationBookingGuards.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: mixed-provider approval, supplier/stale-session guards, TBO prebook presence and total checks, review acknowledgement, and client-IP resolution.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useQuotationBookingGuards.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,797 lines.
+- New `useQuotationBookingGuards.ts`: 121 lines.
+
+### Notes
+- Provider prompts, stale-session timeout, prebook mismatch threshold, acknowledgement requirement, fallback IP, and toast messages remain unchanged; only ownership moved.
+- Follow-up extraction: remaining quotation route/prebook context assembly and vehicle workflow boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline

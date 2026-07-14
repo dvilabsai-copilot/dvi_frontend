@@ -174,6 +174,7 @@ import { useActivityMutationController } from "./itinerary-details/hooks/useActi
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
 import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
+import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -7870,6 +7871,17 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setFormErrors,
   });
 
+  const validateQuotationBookingGuards = useQuotationBookingGuards({
+    requiresHotelBookingFlow,
+    externalStayCount: externalStayEntries.length,
+    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
+    prebookData,
+    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<Record<string, unknown> | null>,
+    hasAcceptedUpdatedPrice,
+    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
+    setHasAcceptedUpdatedPrice,
+  });
+
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error('Missing itinerary plan information');
@@ -7971,91 +7983,12 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         toMoneyNumber,
       });
 
-      const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
-      const nonTboRouteIds = hotelBookings
-        .filter((booking) => booking.provider !== 'tbo')
-        .map((booking) => Number(booking.routeId))
-        .filter((id) => Number.isFinite(id));
-
-      if (requiresHotelBookingFlow && tboCount > 0 && nonTboRouteIds.length > 0) {
-        const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
-        const shouldContinueWithMixedProviders = window.confirm(
-          `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
-        );
-        if (!shouldContinueWithMixedProviders) {
-          toast.error(
-            `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`,
-          );
-          return;
-        }
-        toast.warning('Proceeding with mixed-provider booking as confirmed.');
-      }
-
-      if (requiresHotelBookingFlow && hotelBookings.length === 0 && externalStayEntries.length === 0) {
-        toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');
-        return;
-      }
-
-      const staleHotel = requiresHotelBookingFlow
-        ? hotelBookings.find((booking) => {
-            if (!booking.searchInitiatedAt) {
-              return false;
-            }
-            const parsed = new Date(String(booking.searchInitiatedAt));
-            if (Number.isNaN(parsed.getTime())) {
-              return true;
-            }
-            return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
-          })
-        : null;
-
-      if (staleHotel) {
-        setPrebookData(null);
-        setHasAcceptedUpdatedPrice(false);
-        toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
-        return;
-      }
-
-      const clientIp = requiresHotelBookingFlow
-        ? await fetch('https://api.ipify.org?format=json')
-            .then((res) => res.json())
-            .then((data) => data.ip)
-            .catch(() => '192.168.1.1')
-        : undefined;
-
-      const effectivePrebookData = prebookDataRef.current || prebookData;
-      const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((b) => b.provider === 'tbo');
+      const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((booking) => booking.provider === 'tbo');
       console.log('hasTboBookings', hasTboBookings);
-      console.log(hotelBookings,'hotelBookings');
-      if (requiresHotelBookingFlow && hasTboBookings && !effectivePrebookData) {
-        toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
-        return;
-      }
-
-      const prebookTotal = Number(
-        effectivePrebookData?.updatedTotalPrice ||
-        effectivePrebookData?.finalPrice ||
-        effectivePrebookData?.totalAmount ||
-        0,
-      );
-      const currentTboTotal = hotelBookings
-        .filter((booking) => booking.provider === 'tbo')
-        .reduce((sum, booking) => sum + Number(booking.netAmount || 0), 0);
-      if (
-        requiresHotelBookingFlow &&
-        prebookTotal > 0 &&
-        Math.abs(prebookTotal - currentTboTotal) > 0.01 &&
-        !hasAcceptedUpdatedPrice
-      ) {
-        toast.warning('Accept updated prebook price before final confirmation.');
-        return;
-      }
-
-      // Require acknowledgement of review details before final booking
-      if (requiresHotelBookingFlow && !hasAcceptedUpdatedPrice) {
-        toast.warning('Please review and acknowledge the hotel details before final booking confirmation.');
-        return;
-      }
+      console.log(hotelBookings, 'hotelBookings');
+      const bookingGuardResult = await validateQuotationBookingGuards(hotelBookings);
+      if (!bookingGuardResult) return;
+      const { clientIp } = bookingGuardResult;
 
       const primaryGuest = {
         salutation: guestDetails.salutation,
