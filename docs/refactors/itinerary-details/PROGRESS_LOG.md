@@ -4511,6 +4511,30 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 219 - Fit Here timeline helpers hook
+
+### Baseline
+- Starting checkpoint: `5f457b3` on `refactor/itinerary-details-checkpoint` with vehicle availability utility extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFitHereTimelineHelpers.ts`.
+- Moved stable Fit Here segment labels/times, segment guards, attraction ID helpers, next-attraction lookup, and timeline-row anchor construction out of `ItineraryDetailsController.tsx`.
+- Preserved the callback contracts consumed by automatic and manual Fit Here flows.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,786 physical lines (down from 5,816 at the previous iteration).
+- New `useFitHereTimelineHelpers.ts`: 48 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 218 - Vehicle availability utility
 
 ### Baseline

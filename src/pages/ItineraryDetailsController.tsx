@@ -74,6 +74,7 @@ import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNor
 import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
+import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
 import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
@@ -123,16 +124,6 @@ import {
   buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
   serializeFitHereAnchor as serializeFitHereAnchorUtil,
 } from "./itinerary-details/utils/fitHereAnchor.utils";
-import {
-  findNextAttractionAfterIndex as findNextAttractionAfterIndexUtil,
-  getAttractionHotspotId as getAttractionHotspotIdUtil,
-  getAttractionRouteHotspotId as getAttractionRouteHotspotIdUtil,
-  getFitHereSegmentLabel as getFitHereSegmentLabelUtil,
-  getFitHereSegmentTime as getFitHereSegmentTimeUtil,
-  isFitHereAttractionSegment as isFitHereAttractionSegmentUtil,
-  isFitHereStartSegment as isFitHereStartSegmentUtil,
-} from "./itinerary-details/utils/fitHereTimeline.utils";
-import { buildFitHereAnchorForTimelineRow as buildFitHereAnchorForTimelineRowUtil } from "./itinerary-details/utils/fitHereAnchorBuilder.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import { getSelectedPreviewSegments as getSelectedPreviewSegmentsUtil } from "./itinerary-details/utils/fitHereSelectedPreview.utils";
 import {
@@ -553,32 +544,11 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
 
   const isFitHereSelectionMode = addHotspotModal.open;
 
-  const getFitHereSegmentLabel = useCallback(getFitHereSegmentLabelUtil, []);
-  const getFitHereSegmentTime = useCallback(getFitHereSegmentTimeUtil, []);
-  const isFitHereStartSegment = useCallback(isFitHereStartSegmentUtil, []);
-  const isFitHereAttractionSegment = useCallback(isFitHereAttractionSegmentUtil, []);
-  const getAttractionHotspotId = useCallback(getAttractionHotspotIdUtil, []);
-  const getAttractionRouteHotspotId = useCallback(getAttractionRouteHotspotIdUtil, []);
-  const findNextAttractionAfterIndex = useCallback(findNextAttractionAfterIndexUtil, []);
-
-  const buildFitHereAnchorForTimelineRow = useCallback(
-    (day: ItineraryDay, index: number) => buildFitHereAnchorForTimelineRowUtil(day, index, {
-      getSegmentLabel: getFitHereSegmentLabel,
-      getSegmentTime: getFitHereSegmentTime,
-      isStartSegment: isFitHereStartSegment,
-      isAttractionSegment: isFitHereAttractionSegment,
-      findNextAttraction: findNextAttractionAfterIndex,
-      getAttractionHotspotId,
-      getAttractionRouteHotspotId,
-    }), [
-      findNextAttractionAfterIndex,
-      getAttractionHotspotId,
-      getAttractionRouteHotspotId,
-      getFitHereSegmentLabel,
-      getFitHereSegmentTime,
-      isFitHereAttractionSegment,
-      isFitHereStartSegment,
-    ]);
+  const {
+    getFitHereSegmentLabel,
+    getFitHereSegmentTime,
+    buildFitHereAnchorForTimelineRow,
+  } = useFitHereTimelineHelpers();
 
   function renderFitHereButton(day: ItineraryDay, anchor: HotspotAnchor) {
     if (!selectedFitHotspot) return null;

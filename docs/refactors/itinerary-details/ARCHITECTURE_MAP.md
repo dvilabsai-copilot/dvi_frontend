@@ -101,6 +101,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Automatic Fit Here start/attraction anchor filtering and de-duplication are isolated in `useAutoFitHereAnchors.ts`; timeline-row anchor construction remains injected.
 - Vehicle-type selection requirements, rate-unavailable blocking, and quotation confirmation gating are isolated in `useVehicleRateSelectionGuard.ts`.
 - Vehicle-build usable-row detection and intentional no-rate-state handling are isolated in `vehicleAvailability.utils.ts`.
+- Stable Fit Here segment helpers and timeline-row anchor construction are isolated in `useFitHereTimelineHelpers.ts`.
 - The former inline insertion-slot implementation is no longer retained as a commented compatibility fragment; the utility is the sole implementation.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
