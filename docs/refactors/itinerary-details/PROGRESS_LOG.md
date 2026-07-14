@@ -1085,6 +1085,33 @@
 - Request field names, optional hotel-flow fields, passenger arrays, and prebook route metadata remain unchanged; only pure assembly moved.
 - Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
 
+## Iteration 93 - Quotation hotel-booking row utility
+
+### Baseline
+- Tests run: targeted controller/new-utility typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new utility; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/utils/quotationHotelBookings.utils.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: supplier-bookable filtering and provider-neutral hotel booking row construction, including occupancy, passenger, pricing, session, and multi-night metadata.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `quotationHotelBookings.utils.ts`; unrelated repository errors remain.
+- Lint: new utility passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,003 lines.
+- New `quotationHotelBookings.utils.ts`: 76 lines.
+
+### Notes
+- Provider inference, supplier-bookable guards, amount conversion, and attached passengers remain unchanged; only pure row normalization moved.
+- Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline

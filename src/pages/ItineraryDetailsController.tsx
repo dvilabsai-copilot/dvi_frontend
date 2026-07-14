@@ -140,6 +140,7 @@ import {
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
+import { buildQuotationHotelBookings } from "./itinerary-details/utils/quotationHotelBookings.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
@@ -8033,44 +8034,17 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         .trim()
         .toUpperCase();
 
-      const providerBookableSelections = requiresHotelBookingFlow
-        ? Object.entries(autoSelectedHotels).filter(([, hotelData]) =>
-            isSupplierBookableHotel(hotelData),
-          )
-        : [];
-
-      const hotelBookings: any[] = requiresHotelBookingFlow
-        ? providerBookableSelections.map(([routeId, hotelData]) => ({
-            occupancies: occupanciesForBooking,
-            provider: inferHotelProvider(hotelData),
-            routeId: parseInt(routeId, 10),
-            hotelCode: hotelData.hotelCode,
-            hotelName: hotelData.hotelName,
-            bookingCode: hotelData.bookingCode,
-            searchReference: hotelData.searchReference,
-            roomId: hotelData.roomId,
-            rateId: hotelData.rateId,
-            mealPlan: hotelData.mealPlan,
-            roomType: hotelData.roomType,
-            checkInDate: hotelData.checkInDate,
-            checkOutDate: hotelData.checkOutDate,
-            numberOfRooms: Number(itinerary.roomCount || 1),
-            guestNationality: bookingGuestNationality,
-            netAmount: toMoneyNumber(hotelData.netAmount as string | number),
-            searchInitiatedAt: hotelData.searchInitiatedAt,
-            isBookable: hotelData.isBookable,
-            externalStay: hotelData.externalStay,
-            availabilityStatus: hotelData.availabilityStatus,
-            availabilityMessage: hotelData.availabilityMessage,
-            multiNightBooking: hotelData.multiNightBooking,
-            stayKey: hotelData.stayKey,
-            routeIds: hotelData.routeIds,
-            nights: hotelData.nights,
-            nightlyRates: hotelData.nightlyRates,
-            totalAmountAfterTax: hotelData.totalAmountAfterTax,
-            passengers,
-          }))
-        : [];
+      const hotelBookings = buildQuotationHotelBookings({
+        autoSelectedHotels,
+        requiresHotelBookingFlow,
+        isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+        inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
+        occupancies: occupanciesForBooking,
+        roomCount: Number(itinerary.roomCount || 1),
+        guestNationality: bookingGuestNationality,
+        passengers: passengers as readonly Record<string, unknown>[],
+        toMoneyNumber,
+      });
 
       const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
       const nonTboRouteIds = hotelBookings
