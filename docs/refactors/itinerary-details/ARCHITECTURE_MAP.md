@@ -144,5 +144,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Quotation confirmation modal shell (open state, header, and content slot) is isolated in `QuotationConfirmationDialogShell.tsx`; guest/prebook content and submission footer remain controller-composed.
 - Staged itinerary loading, hotel hydration, vehicle-build handoff, stale-request guards, and loading/error cleanup are isolated in `usePreparedItineraryPageLoader.ts`; the controller injects stable state setters and workflow callbacks.
 - Route rebuild request/progress sequencing, details/hotel refresh, stale-route recovery, toast handling, and `needsRebuild` clearing are isolated in `useRouteRebuildMutation.ts`.
+- Route-time PATCH progress, itinerary refresh, hotel-detail preservation, scroll targeting, and success/error cleanup are isolated in `useRouteTimePatchMutation.ts`.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

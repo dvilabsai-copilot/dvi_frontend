@@ -177,6 +177,7 @@ import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotatio
 import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
+import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
@@ -5784,71 +5785,22 @@ if (switchedRouteRef.current === quoteId) {
     ));
   };
 
-const applyRouteTimePatch = async (
-  planId: number,
-  routeId: number,
-  dayNumber: number,
-  startTimeHms: string,
-  endTimeHms: string,
-  options?: {
-    previousDayBillingDecisionProvided?: boolean;
-    previousDayBillingConfirmed?: boolean;
-  },
-) => {
-  setIsApplyingRouteTimeUpdate(true);
-  const estimatedMs = getRouteTimeUpdateEstimateMs(dayNumber);
-  setRouteTimeEstimatedMs(estimatedMs);
-  setRouteProgressTitle(`Updating Day ${dayNumber} timings`);
-  setRouteProgressHistory([]);
-  startRouteTimeProgress(estimatedMs);
-  pushRouteProgressStage(
-    `Saving Day ${dayNumber} start/end time`,
-    `Updating Day ${dayNumber} timing window to ${startTimeHms.slice(0, 5)} - ${endTimeHms.slice(0, 5)} and triggering itinerary rebuild.`,
-  );
-
-  try {
-    const previousHotelDetails = hotelDetails;
-
-    await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
-    pushRouteProgressStage(
-      `Reloading updated Day ${dayNumber} itinerary`,
-      "Fetching the rebuilt day timeline after the new timing window was saved.",
-    );
-
-    if (quoteId) {
-      const detailsRes = await ItineraryService.getDetails(quoteId);
-      const nextItinerary = detailsRes as ItineraryDetailsResponse;
-
-      setItinerary({
-        ...nextItinerary,
-        // After route time / hotspot changes, details API is the source of truth.
-        // Do not preserve stale vehicle rows or stale vehicle totals.
-        vehicles: nextItinerary.vehicles,
-        costBreakdown: nextItinerary.costBreakdown,
-        overallCost: nextItinerary.overallCost,
-      });
-
-      // Do not reload hotel details here.
-      // Reloading hotelDetails can refresh supplier/TBO amount and change package cost.
-      setHotelDetails(previousHotelDetails);
-      pushRouteProgressStage(
-        `Applying refreshed Day ${dayNumber} timeline`,
-        "Refreshing the page with the latest timings, route rows, and updated totals.",
-      );
-    }
-
-    setRouteTimeProgressPercent(100);
-    setPendingScrollDayNumber(dayNumber);
-
-    toast.success(`Day ${dayNumber} times updated`);
-  } catch (e) {
-    console.error('Failed to update route times', e);
-    toast.error(e?.message || 'Failed to update route times');
-    } finally {
-    stopRouteTimeProgress();
-    setIsApplyingRouteTimeUpdate(false);
-  }
-};
+  const applyRouteTimePatch = useRouteTimePatchMutation({
+    quoteId: quoteId || null,
+    hotelDetails,
+    setIsApplyingRouteTimeUpdate,
+    getRouteTimeUpdateEstimateMs,
+    setRouteTimeEstimatedMs,
+    setRouteProgressTitle,
+    setRouteProgressHistory,
+    startRouteTimeProgress,
+    stopRouteTimeProgress,
+    pushRouteProgressStage,
+    setItinerary,
+    setHotelDetails,
+    setRouteTimeProgressPercent,
+    setPendingScrollDayNumber,
+  });
 
   const buildArrivalPolicyDecisionKey = (
     routeId?: number,

@@ -1319,6 +1319,32 @@
 ### Notes
 - Route-time updates and arrival-policy confirmation remain a separate high-risk mutation boundary for the next iteration.
 
+## Iteration 132 — Route-time PATCH mutation
+
+### Baseline
+- Starting point: Iteration 131 route rebuild mutation extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract route-time PATCH progress and refresh behavior while retaining arrival-policy orchestration in the controller.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useRouteTimePatchMutation.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: timing update request, progress stages, source-of-truth itinerary refresh, hotel-detail preservation, scroll target, success/error toasts, and cleanup now live in the hook.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,611 lines.
+- New `useRouteTimePatchMutation.ts`: 124 lines.
+
+### Notes
+- Arrival-policy decision gating and confirmation persistence remain the next route-time responsibility boundary.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
