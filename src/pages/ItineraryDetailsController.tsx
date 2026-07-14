@@ -54,7 +54,6 @@ import {
   extractAutoPreviewResults,
   pickBestAutoPreviewAnchorKey,
 } from "./itinerary-details/manual-hotspot-preview.shared";
-import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
 import type {
@@ -167,6 +166,7 @@ import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSel
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
+import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHotelSearchSelectionMutation";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -9181,127 +9181,26 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     getSafeErrorMessage,
   });
 
-  // Handle hotel selection from HotelSearchModal
-  const handleSelectHotelFromSearch = async (
-    hotel: HotelSearchResult,
-    mealPlan?: any
-  ) => {
-    if (readOnly) {
-      console.log('Cannot select hotel in read-only mode');
-      return;
-    }
-
-    if (!hotelSelectionModal.planId || !hotelSelectionModal.routeId) {
-      return;
-    }
-
-    setIsSelectingHotel(true);
-    try {
-      // For now, use hotelCode as hotelId. If backend expects different format, adjust here
-      const hotelId = parseInt(hotel.hotelCode) || 0;
-      const roomTypeId = hotel.roomTypes?.[0]?.roomCode ? parseInt(hotel.roomTypes[0].roomCode) : 1;
-
-      // Store hotel details for TBO confirmation (ALL hotel selections)
-      // Calculate checkout date (next day after check-in)
-      const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
-      const checkOutDate = new Date(
-        hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate,
-      );
-      if (!hotelSelectionModal.checkOutDate) {
-        checkOutDate.setDate(checkOutDate.getDate() + 1);
-      }
-
-      // Format dates to YYYY-MM-DD
-      const formatDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-      };
-
-      const selectedHotelPayload = {
-        provider: String(hotel.provider || 'tbo').trim().toLowerCase(),
-        hotelCode: String(hotel.hotelCode || ''),
-        bookingCode: String(hotel.bookingCode || hotel.searchReference || ''),
-        searchReference: String(hotel.searchReference || hotel.bookingCode || '').trim() || undefined,
-        roomId:
-          parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.roomId ||
-          String(hotel.roomTypes?.[0]?.roomCode || '').trim() ||
-          undefined,
-        rateId:
-          parseStaahSearchReference(hotel.searchReference || hotel.bookingCode)?.rateId ||
-          undefined,
-        roomType: hotel.roomTypes?.[0]?.roomName || 'Standard',
-        netAmount: hotel.netAmount || hotel.totalCost || hotel.totalRoomCost || hotel.price || 0,
-        hotelName: hotel.hotelName,
-        checkInDate: formatDate(checkInDate),
-        checkOutDate: formatDate(checkOutDate),
-        searchInitiatedAt: new Date().toISOString(),
-      };
-
-      if (!isSupplierBookableHotel(selectedHotelPayload)) {
-        toast.error('This hotel does not have a valid live supplier booking code. Please search again and select an available room.');
-        return;
-      }
-
-      // Store ALL selected hotels with provider info (multi-provider support)
-      setSelectedHotelBookings(prev => ({
-        ...prev,
-        [hotelSelectionModal.routeId]: {
-          ...selectedHotelPayload,
-          isBookable: true,
-          externalStay: false,
-          availabilityStatus: 'AVAILABLE',
-          availabilityMessage: null,
-        }
-      }));
-      setPrebookData(null);
-      prebookDataRef.current = null;
-      setHasAcceptedUpdatedPrice(false);
-
-      console.log('DEBUG: Hotel selected and stored', {
-        routeId: hotelSelectionModal.routeId,
-        hotelCode: hotel.hotelCode,
-        hotelName: hotel.hotelName,
-      });
-
-      await ItineraryService.selectHotel(
-        hotelSelectionModal.planId,
-        hotelSelectionModal.routeId,
-        hotelId,
-        roomTypeId,
-        mealPlan || selectedMealPlan
-      );
-
-      toast.success("Hotel selected successfully");
-
-      // Close modal
-      setHotelSelectionModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        routeDate: "",
-      });
-      setHotelSearchQuery("");
-      setSelectedMealPlan({ all: false, breakfast: false, lunch: false, dinner: false });
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
-    } catch (e) {
-      console.error("Failed to select hotel", e);
-      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
-      throw e; // Re-throw for modal to handle
-    } finally {
-      setIsSelectingHotel(false);
-    }
-  };
+  const handleSelectHotelFromSearch = useHotelSearchSelectionMutation({
+    readOnly,
+    quoteId: quoteId || null,
+    shouldShowHotels,
+    selectedMealPlan,
+    hotelSelectionModal,
+    prebookDataRef,
+    parseStaahSearchReference,
+    isSupplierBookableHotel,
+    getSafeErrorMessage,
+    setIsSelectingHotel,
+    setSelectedHotelBookings,
+    setPrebookData,
+    setHasAcceptedUpdatedPrice,
+    setHotelSelectionModal,
+    setHotelSearchQuery,
+    setSelectedMealPlan,
+    setItinerary,
+    setHotelDetails,
+  });
 
   const openVideoModal = (videoUrl: string, title: string) => {
     // Convert YouTube watch URLs to embed URLs

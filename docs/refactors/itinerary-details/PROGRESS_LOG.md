@@ -1146,6 +1146,26 @@
 - `ItineraryDetailsController.tsx`: 15,118 physical lines after extraction.
 - `useRouteOptionSwitchController.ts`: 123 physical lines.
 
+## Iteration 60 — Supplier-search hotel selection boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelSearchSelectionMutation.ts`.
+- Moved supplier-search hotel payload normalization, booking-code validation, selected-booking state update, prebook reset, selection API call, modal reset, and post-selection refresh out of `ItineraryDetailsController.tsx`.
+- Preserved provider/room/rate/search-reference fields, multi-provider flags, existing validation message, and error rethrow behavior for the search modal.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or supplier-search mutation hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,017 physical lines after extraction.
+- `useHotelSearchSelectionMutation.ts`: 126 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
