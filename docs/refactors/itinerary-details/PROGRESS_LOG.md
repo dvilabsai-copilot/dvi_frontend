@@ -1229,6 +1229,27 @@
 - `ItineraryDetailsController.tsx`: 14,918 physical lines after extraction.
 - `useGuideDeleteMutation.ts`: 44 physical lines.
 
+## Iteration 64 — Activity preview workflow boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useActivityPreviewController.ts`.
+- Moved single-activity preview and all-hotspots preview API calls, loading transitions, modal updates, and existing toast/error behavior out of `ItineraryDetailsController.tsx`.
+- Preserved activity/route/hotspot payload fields and preview reset semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or activity preview hook; existing repository errors remain documented.
+- Focused ESLint: passed for the activity preview hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,863 physical lines after extraction.
+- `useActivityPreviewController.ts`: 84 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

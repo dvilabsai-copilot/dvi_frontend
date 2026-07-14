@@ -152,6 +152,7 @@ import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflo
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
 import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
+import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
@@ -6817,68 +6818,12 @@ const getActivityTotalAmount = (activity?: any | null) =>
 const getSelectedPreviewActivity = () =>
   availableActivities.find((activity) => activity.id === activityPreview?.activity?.id) || null;
 
-  const handlePreviewActivity = async (activityId: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId ||
-      !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
-      return;
-    }
-
-    setPreviewingActivityId(activityId);
-    try {
-      const preview = await ItineraryService.previewActivityAddition({
-        planId: addActivityModal.planId,
-        routeId: addActivityModal.routeId,
-        routeHotspotId: addActivityModal.routeHotspotId,
-        hotspotId: addActivityModal.hotspotId,
-        activityId,
-      });
-
-      setActivityPreview(preview);
-    } catch (e) {
-      console.error("Failed to preview activity", e);
-      toast.error(e?.message || "Failed to preview activity");
-      setActivityPreview(null);
-    } finally {
-      setPreviewingActivityId(null);
-    }
-  };
-
-  const handleOpenPreviewAllHotspots = async (activityId: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId) {
-      return;
-    }
-
-    setAllHotspotsPreviewModal(prev => ({
-      ...prev,
-      loading: true,
-      open: true,
-      planId: addActivityModal.planId,
-      routeId: addActivityModal.routeId,
-      activityId: activityId,
-    }));
-
-    try {
-      const preview = await ItineraryService.previewActivityForAllHotspots({
-        planId: addActivityModal.planId,
-        routeId: addActivityModal.routeId,
-        activityId,
-      });
-
-      setAllHotspotsPreviewModal(prev => ({
-        ...prev,
-        loading: false,
-        data: preview,
-      }));
-    } catch (e) {
-      console.error("Failed to preview activity for all hotspots", e);
-      toast.error(e?.message || "Failed to preview activity");
-      setAllHotspotsPreviewModal(prev => ({
-        ...prev,
-        loading: false,
-        open: false,
-      }));
-    }
-  };
+  const { handleOpenPreviewAllHotspots, handlePreviewActivity } = useActivityPreviewController({
+    addActivityModal,
+    setPreviewingActivityId,
+    setActivityPreview,
+    setAllHotspotsPreviewModal,
+  });
 
   const handleDeleteActivity = async () => {
     if (!deleteActivityModal.planId || !deleteActivityModal.routeId || !deleteActivityModal.activityId) {
