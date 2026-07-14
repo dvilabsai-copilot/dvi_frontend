@@ -1657,6 +1657,32 @@
 ### Notes
 - Travel text fallback parsing remains injected from the controller to preserve its existing normalization contract.
 
+## Iteration 145 - Selected Fit Here preview segments
+
+### Baseline
+- Starting point: Iteration 144 Fit Here preview timeline mapping extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate selected-hotspot preview fallback, conflict preference, and time ordering.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/fitHereSelectedPreview.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: candidate filtering, conflict ordering, start-time ordering, and selected-hotspot fallback rows now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,871 lines.
+- New `fitHereSelectedPreview.utils.ts`: 56 lines.
+
+### Notes
+- Active preview resolution and removed-row filtering remain in the controller for a separate boundary.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

@@ -72,6 +72,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Fit Here timeline labels, times, type guards, attraction IDs, and next-attraction lookup are isolated in `fitHereTimeline.utils`; anchor construction remains controller-owned.
 - Fit Here anchor construction from start/attraction rows is isolated in `fitHereAnchorBuilder.utils`; route-specific preview orchestration remains controller-owned.
 - Day-segment-to-preview timeline mapping is isolated in `fitHerePreviewTimeline.utils`; selected/active preview reconciliation remains controller-owned.
+- Selected-hotspot preview segment fallback, conflict preference, and time ordering are isolated in `fitHereSelectedPreview.utils`; active preview reconciliation remains controller-owned.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.

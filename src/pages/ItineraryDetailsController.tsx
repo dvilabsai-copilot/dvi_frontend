@@ -114,6 +114,7 @@ import {
 } from "./itinerary-details/utils/fitHereTimeline.utils";
 import { buildFitHereAnchorForTimelineRow as buildFitHereAnchorForTimelineRowUtil } from "./itinerary-details/utils/fitHereAnchorBuilder.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
+import { getSelectedPreviewSegments as getSelectedPreviewSegmentsUtil } from "./itinerary-details/utils/fitHereSelectedPreview.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -641,60 +642,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
       .filter(Boolean);
   }, [addHotspotModal.routeId, itinerary?.days, mapDaySegmentToPreview]);
 
-  const selectedPreviewSegments = useMemo(() => {
-    const fallbackFor = (hotspotId: number) => {
-      const hotspot = availableHotspots.find((h) => Number(h.id) === Number(hotspotId));
-      return {
-        type: "attraction",
-        text: hotspot?.name || "Selected Hotspot",
-        timeRange: null,
-        locationId: hotspotId,
-        isConflict: false,
-        conflictReason: null,
-        isUserSelectedPreview: true,
-        selectedHotspotId: hotspotId,
-      };
-    };
-
-    return selectedHotspotIds.map((hotspotId) => {
-      const timeline = previewTimelinesByHotspot[hotspotId] || [];
-      const candidates = timeline.filter((seg) => (
-        seg?.type === "attraction" && Number(seg?.locationId) === Number(hotspotId)
-      ));
-
-      const hasConflictCandidate = candidates.some((seg) => seg?.isConflict === true);
-      const fromTimeline = candidates.sort((a, b) => {
-        const aConflict = a?.isConflict === true ? 1 : 0;
-        const bConflict = b?.isConflict === true ? 1 : 0;
-        if (aConflict !== bConflict) {
-          return hasConflictCandidate ? (bConflict - aConflict) : (aConflict - bConflict);
-        }
-        const toStartMinutes = (timeRange: string): number => {
-          const raw = String(timeRange || '').trim();
-          const startPart = raw.split('-')[0]?.trim() || raw;
-          const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-          if (!match) return Number.MAX_SAFE_INTEGER;
-          let h = Number(match[1]);
-          const m = Number(match[2]);
-          const ampm = match[3].toUpperCase();
-          if (ampm === 'AM' && h === 12) h = 0;
-          if (ampm === 'PM' && h !== 12) h += 12;
-          return (h * 60) + m;
-        };
-        return toStartMinutes(String(a?.timeRange || '')) - toStartMinutes(String(b?.timeRange || ''));
-      })[0];
-
-      if (!fromTimeline) {
-        return fallbackFor(hotspotId);
-      }
-
-      return {
-        ...fromTimeline,
-        isUserSelectedPreview: true,
-        selectedHotspotId: hotspotId,
-      };
-    });
-  }, [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds]);
+  const selectedPreviewSegments = useMemo(
+    () => getSelectedPreviewSegmentsUtil(
+      availableHotspots,
+      previewTimelinesByHotspot,
+      selectedHotspotIds,
+    ),
+    [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds],
+  );
 
   const activePreviewTimeline = useMemo(() => {
     const sourceTimeline = (Array.isArray(manualPreviewState?.fullTimeline) && manualPreviewState.fullTimeline.length > 0)
