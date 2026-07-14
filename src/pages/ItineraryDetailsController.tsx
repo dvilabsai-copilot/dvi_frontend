@@ -188,6 +188,7 @@ import { QuotationPrebookHotelRows } from "./itinerary-details/QuotationPrebookH
 import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationPrebookAcceptanceNotice";
 import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
 import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
+import { HotspotListState } from "./itinerary-details/components/HotspotListState";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -9249,15 +9250,12 @@ const canShowGuideActionButton =
                   activeTab={activeHotspotCityTab}
                   setActiveTab={setActiveHotspotCityTab}
                 />
-                {loadingHotspots ? (
-                  <p className="text-sm text-[#6c6c6c] text-center py-8">
-                    Loading available hotspots...
-                  </p>
-                ) : visibleHotspotsForActiveTab.length === 0 ? (
-                  <p className="text-sm text-[#6c6c6c] text-center py-8">
-                    {hotspotSearchQuery ? "No hotspots match your search" : "No hotspots available for this location"}
-                  </p>
-                ) : (
+                <HotspotListState
+                  loading={loadingHotspots}
+                  searchQuery={hotspotSearchQuery}
+                  hasVisibleHotspots={visibleHotspotsForActiveTab.length > 0}
+                />
+                {!loadingHotspots && visibleHotspotsForActiveTab.length > 0 && (
                   <div className="grid grid-cols-1 gap-4">
                     {visibleHotspotsForActiveTab.map((hotspot) => (
                       (() => {

@@ -1322,6 +1322,33 @@
 ### Notes
 - Hotspot card status/preview/delete actions remain coupled to Fit Here and matrix state for a later larger extraction.
 
+## Iteration 113 — Hotspot list-state extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/list-state files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; list-state view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotListState.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: loading and no-results messaging for the Add Hotspot list now render in a dedicated view; hotspot data and search state remain unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotListState.tsx`; unrelated repository errors remain.
+- Lint: new list-state component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,851 lines (down from 11,853 at the previous checkpoint).
+- New `HotspotListState.tsx`: 26 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Hotspot cards and Fit Here/matrix action controls remain the next high-coupling hotspot view boundary.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
