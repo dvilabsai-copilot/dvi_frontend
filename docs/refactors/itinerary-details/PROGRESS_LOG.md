@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 191 - Filtered hotspot list hook
+
+### Baseline
+- Starting checkpoint: `e2d7ec4` on `refactor/itinerary-details-continuation` with route-hotel cache extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFilteredHotspots.ts`.
+- Moved hotspot search matching, deleted/added/previewable classification, priority ordering, and closed/visit-again sorting out of the page controller.
+- Preserved modal list ranking, active-route/manual membership checks, availability status handling, and priority fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,191 lines (down from 7,265 at the previous iteration).
+- New hook: 77 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 190 - Route hotel cache hook
 
 ### Baseline

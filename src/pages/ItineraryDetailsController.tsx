@@ -239,6 +239,7 @@ import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboa
 import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
+import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -2029,95 +2030,13 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     }
   }, [hotspotSearchQuery, addHotspotModal.open]);
 
-  // Filter hotspots based on search query, keep no-timing hotspots visible,
-  // then sort: non-closed first, visitAgain at bottom, closed/no-timing last.
-  const filteredHotspots = availableHotspots
-    .filter(
-      (h) => {
-        const query = hotspotSearchQuery.toLowerCase();
-        const matchesQuery =
-          h.name.toLowerCase().includes(query) ||
-          h.description.toLowerCase().includes(query);
-        return matchesQuery;
-      }
-    )
-    .sort((a, b) => {
-      const aTimingText = String(a.timings || '').trim().toLowerCase();
-      const bTimingText = String(b.timings || '').trim().toLowerCase();
-      const aClosed = aTimingText.length === 0 || aTimingText === 'no timings available';
-      const bClosed = bTimingText.length === 0 || bTimingText === 'no timings available';
-
-      const isDeletedFromTimeline = (h: AvailableHotspot): boolean => {
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const availabilityReason = String(h.availabilityReason || '').trim().toLowerCase();
-        return (
-          backendStatus === 'EXCLUDED_BY_ROUTE'
-          || availabilityReason.includes('excluded for this route')
-          || availabilityReason.includes('currently excluded')
-        );
-      };
-
-      const isAddedInCurrentRoute = (h: AvailableHotspot): boolean => {
-        const hotspotId = Number(h?.id || 0);
-        const deletedFromTimeline = isDeletedFromTimeline(h);
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const isAddedOnOtherRoute =
-          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
-        return (
-          !deletedFromTimeline
-          && (
-            currentRouteAttractionHotspotIds.has(hotspotId)
-            || addedInModalHotspotIds.has(hotspotId)
-            || (h.alreadyAdded === true && !isAddedOnOtherRoute)
-            || backendStatus === 'ACTIVE_THIS_ROUTE'
-          )
-        );
-      };
-
-      const canPreview = (h: AvailableHotspot): boolean => {
-        const deletedFromTimeline = isDeletedFromTimeline(h);
-        const added = isAddedInCurrentRoute(h);
-        const backendStatus = String(h.availabilityStatus || '').trim().toUpperCase();
-        const isAddedOnOtherRoute =
-          h.alreadyAddedOnOtherRoute === true || backendStatus === 'ACTIVE_OTHER_ROUTE';
-        const disabled = added || (h.actionDisabled === true && !isAddedOnOtherRoute && !deletedFromTimeline);
-        const timingText = String(h.timings || '').trim().toLowerCase();
-        const closed = timingText.length === 0 || timingText === 'no timings available';
-        return !disabled && !closed;
-      };
-
-      const getSortRank = (h: AvailableHotspot): number => {
-        if (canPreview(h)) return 1; // Group 1: Previewable (available to add)
-        const added = isAddedInCurrentRoute(h);
-        const hotspotId = Number(h.id || 0);
-        if (
-          added &&
-          (
-            currentRouteManualHotspotIds.has(hotspotId) ||
-            addedInModalHotspotIds.has(hotspotId) ||
-            h.isManual === true ||
-            h.planOwnWay === true
-          )
-        ) return 2; // Group 2: Manually added on this route
-        return 3; // Group 3: Closed or Auto-added / Prebuilt
-      };
-
-      const rankA = getSortRank(a);
-      const rankB = getSortRank(b);
-
-      if (rankA !== rankB) return rankA - rankB;
-
-      if (aClosed !== bClosed) return aClosed ? 1 : -1;
-      // visitAgain (already visited) goes to the bottom
-      if (a.visitAgain !== b.visitAgain) return a.visitAgain ? 1 : -1;
-      // Within same group: lower priority number = more important = shown first
-      // Treat 0 as unset (worst) so it never floats above real P1-P18
-      const normP = (p) => { const n = Number(p ?? 0); return n > 0 ? n : 9999; };
-      const pa = normP((a as any).priority);
-      const pb = normP((b as any).priority);
-      if (pa !== pb) return pa - pb;
-      return 0;
-    });
+  const filteredHotspots = useFilteredHotspots({
+    availableHotspots,
+    searchQuery: hotspotSearchQuery,
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotIds,
+    addedInModalHotspotIds,
+  });
 
   const sourceCityLabel = useMemo(() => {
     const raw = String(
