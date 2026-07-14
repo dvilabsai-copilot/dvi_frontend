@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const USER_EMAIL = process.env.E2E_VENDOR_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_VENDOR_PASSWORD ?? 'Keerthi@2404ias';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
 
 async function maybeLogin(page: Page): Promise<void> {
   const signInHeading = page.getByRole('heading', { name: /sign\s*in/i }).first();

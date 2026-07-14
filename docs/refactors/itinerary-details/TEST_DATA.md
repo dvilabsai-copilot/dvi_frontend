@@ -10,7 +10,7 @@
 ## Known records
 
 - Default manual-hotspot smoke fallback: `DVI202604247` (`tests/e2e/manual-hotspot-test-utils.ts`). The helper can discover a better quote from the API when configured.
-- PHP/Nest parity fixture: `DVI202604230` (`tests/e2e/itinerary-php-nest-parity.spec.ts`).
+- PHP/Nest parity fixture: `DVI202604230` (`tests/e2e/legacy-environment/itinerary-php-nest-parity.spec.ts`).
 - Fit Here scenarios use configured `DVI202606167` and `DVI2026071` fixtures in their spec files; these are mutation-sensitive and must only run against the intended local test API.
 - `.env.e2e` scenario records include `DVI20260485`, `DVI202604155`, `DVI202604156`, `DVI20260321`, `DVI2026024`, `DVI202604106`, and `DVI202604157` for booking-rule/hotel/guide scenarios.
 

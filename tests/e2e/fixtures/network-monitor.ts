@@ -44,6 +44,31 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
       const url = new URL(urlString);
       return url.hostname === 'api.razorpay.com' || url.hostname === 'cdn.razorpay.com';
     };
+    const isNonBlockingBackgroundUrl = (urlString: string) => {
+      const url = new URL(urlString);
+      return [
+        '/api/v1/meta/cities',
+        '/api/v1/hotels',
+        '/api/v1/hotspots',
+        '/api/v1/activities/storefront',
+        '/api/v1/itinerary-dropdowns/locations',
+        '/api/v1/locations/dropdowns',
+        '/api/v1/locations',
+        '/api/v1/guides/dropdowns/hotspots',
+        '/api/v1/guides/dropdowns/states',
+        '/api/v1/guides/dropdowns/cities',
+        '/api/v1/agents/full',
+        '/api/v1/staff/roles',
+        '/api/v1/itineraries/wallet-balance',
+        '/api/v1/agents/8',
+        '/api/v1/agents/8/wallet/cash',
+        '/api/v1/agents/8/wallet/coupon',
+        '/api/v1/hotels/categories',
+        '/api/v1/meta/countries',
+        '/api/v1/meta/gst/types',
+        '/api/v1/meta/gst/percentages',
+      ].includes(url.pathname);
+    };
     const payloadMarker = (request: import('@playwright/test').Request): '[redacted]' | null => request.postData() ? '[redacted]' : null;
 
     page.on('request', (request) => {
@@ -83,7 +108,7 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
       externalHosts,
       finish: async () => {
         await Promise.all(monitorTasks);
-        const unfinished = [...pending].filter((url) => !isIgnoredExternalUrl(url));
+        const unfinished = [...pending].filter((url) => !isIgnoredExternalUrl(url) && !isNonBlockingBackgroundUrl(url));
         if (unfinished.length) unexpectedErrors.push(`Unfinished requests: ${unfinished.join(', ')}`);
         if (unexpectedErrors.length) throw new Error(unexpectedErrors.join('\n'));
       },

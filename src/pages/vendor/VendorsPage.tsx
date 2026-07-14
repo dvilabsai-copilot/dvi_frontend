@@ -442,6 +442,7 @@ const VendorsPage: React.FC = () => {
             <div className="hotel-search-box">
               <label>Search:</label>
               <input
+                placeholder="Search vendors"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);

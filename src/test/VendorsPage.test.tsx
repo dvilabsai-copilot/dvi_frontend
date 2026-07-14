@@ -71,11 +71,19 @@ describe('Vendors Page', () => {
     const addButton = screen.getByRole('button', { name: /Add Vendor/i });
     fireEvent.click(addButton);
 
-    expect(mockNavigate).toHaveBeenCalledWith('/vendor/add');
+    expect(mockNavigate).toHaveBeenCalledWith('/vendor/new');
   });
 
   it('filters vendors on search input', async () => {
-    (vendorService.listVendors as any).mockResolvedValue({ items: [], total: 0, page: 1, limit: 10 });
+    (vendorService.listVendors as any).mockResolvedValue({
+      items: [
+        { id: '1', name: 'Test Vendor', code: 'V001', mobile: '9876543210', totalBranch: 1, isActive: true },
+        { id: '2', name: 'Other Vendor', code: 'V002', mobile: '9876543211', totalBranch: 1, isActive: true },
+      ],
+      total: 2,
+      page: 1,
+      limit: 10,
+    });
 
     render(
       <BrowserRouter>
@@ -84,10 +92,12 @@ describe('Vendors Page', () => {
     );
 
     const searchInput = screen.getByPlaceholderText(/Search/i);
+    await waitFor(() => expect(screen.getByText('Other Vendor')).toBeInTheDocument());
     fireEvent.change(searchInput, { target: { value: 'Test' } });
 
     await waitFor(() => {
-      expect(vendorService.listVendors).toHaveBeenCalledWith(expect.objectContaining({ search: 'Test' }));
+      expect(screen.getByText('Test Vendor')).toBeInTheDocument();
+      expect(screen.queryByText('Other Vendor')).not.toBeInTheDocument();
     });
   });
 });

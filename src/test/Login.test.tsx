@@ -34,11 +34,11 @@ describe('Login Page', () => {
     
     expect(screen.getByText('Sign in')).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText('Password', { exact: true })).toBeInTheDocument();
   });
 
   it('submits the form successfully', async () => {
-    (authService.login as any).mockResolvedValue({ success: true });
+    vi.mocked(authService.login).mockResolvedValue({ success: true });
 
     render(
       <BrowserRouter>
@@ -47,7 +47,7 @@ describe('Login Page', () => {
     );
 
     fireEvent.change(screen.getByLabelText(/Email/i), { target: { value: 'admin@dvi.co.in' } });
-    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByLabelText('Password', { exact: true }), { target: { value: 'password123' } });
     fireEvent.click(screen.getByRole('button', { name: /Sign in/i }));
 
     await waitFor(() => {
@@ -57,7 +57,7 @@ describe('Login Page', () => {
   });
 
   it('shows error message on login failure', async () => {
-    (authService.login as any).mockRejectedValue(new Error('Invalid credentials'));
+    vi.mocked(authService.login).mockRejectedValue(new Error('Invalid credentials'));
 
     render(
       <BrowserRouter>

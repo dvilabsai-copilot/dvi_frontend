@@ -1,45 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-
-const USER_EMAIL = process.env.E2E_VENDOR_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_VENDOR_PASSWORD ?? 'Keerthi@2404ias';
-
-async function maybeLogin(page: Page): Promise<void> {
-  const signInHeading = page.getByRole('heading', { name: /sign\s*in/i }).first();
-
-  if ((await signInHeading.count()) === 0) return;
-
-  let emailInput = page.getByLabel(/email/i).first();
-  let passwordInput = page.getByLabel(/password/i).first();
-
-  if ((await emailInput.count()) === 0 || (await passwordInput.count()) === 0) {
-    emailInput = page
-      .locator('input[type="email"], input[name="email"], input[placeholder*="Email" i]')
-      .first();
-    passwordInput = page
-      .locator('input[type="password"], input[name="password"], input[placeholder*="Password" i]')
-      .first();
-  }
-
-  if ((await emailInput.count()) === 0 || (await passwordInput.count()) === 0) {
-    const textboxes = page.getByRole('textbox');
-    const count = await textboxes.count();
-    if (count < 2) throw new Error('Login form inputs not found');
-    emailInput = textboxes.nth(0);
-    passwordInput = textboxes.nth(1);
-  }
-
-  await emailInput.fill(USER_EMAIL);
-  await passwordInput.fill(USER_PASSWORD);
-
-  const loginButton = page.getByRole('button', { name: /log\s*in|login|sign\s*in/i }).first();
-  if ((await loginButton.count()) > 0) {
-    await loginButton.click();
-  } else {
-    await passwordInput.press('Enter');
-  }
-
-  await page.waitForLoadState('networkidle');
-}
+import { expect, test } from './fixtures/auth.fixture';
+import type { Locator } from '@playwright/test';
 
 async function selectFirstOption(selectEl: Locator): Promise<void> {
   await expect
@@ -77,22 +37,17 @@ async function waitForOptionCount(selectEl: Locator, minCount: number, timeoutMs
   return false;
 }
 
-test('vehicle availability add forms: validate and submit add driver/add vehicle', async ({ page, baseURL }) => {
+test('vehicle availability add forms: validate and submit add driver/add vehicle', async ({ adminPage: page, baseURL }) => {
   test.setTimeout(240000);
 
   const stamp = Date.now();
   const driverName = `PW VA Driver ${stamp}`;
   const driverMobile = `9${String(stamp).slice(-9)}`;
-  const registrationNo = `TN${String(stamp).slice(-6)}`;
+  const registrationNo = `TN${String(stamp).slice(-6)}${String(Math.floor(Math.random() * 90) + 10)}`;
 
   await page.goto(`${baseURL}/vehicle-availability`, { waitUntil: 'domcontentloaded' });
-  await maybeLogin(page);
-
-  if (!page.url().includes('/vehicle-availability')) {
-    await page.goto(`${baseURL}/vehicle-availability`, { waitUntil: 'domcontentloaded' });
-  }
-
-  await expect(page.getByText(/Vehicle Availability Chart/i)).toBeVisible();
+  await expect(page).toHaveURL(/\/vehicle-availability(?:$|[?#])/, { timeout: 30000 });
+  await expect(page.getByText(/Vehicle Availability Chart/i)).toBeVisible({ timeout: 30000 });
 
   // -------------------------
   // Add Driver modal

@@ -1,17 +1,19 @@
 import { test, expect } from '@playwright/test';
 
-const EMAIL = process.env.PROD_EMAIL || 'admin@dvi.co.in';
-const PASSWORD = process.env.PROD_PASSWORD || 'Keerthi@2404ias';
+const EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const CREATE_ITINERARY_ID = String(process.env.E2E_CREATE_ITINERARY_ID || '').trim();
+const ITINERARY_QUOTE_ID = String(process.env.E2E_ITINERARY_QUOTE_ID || '').trim();
 
 async function loginIfNeeded(page: import('@playwright/test').Page) {
-  await page.goto('/create-itinerary?id=259', { waitUntil: 'domcontentloaded' });
+  await page.goto(`/create-itinerary?id=${encodeURIComponent(CREATE_ITINERARY_ID)}`, { waitUntil: 'domcontentloaded' });
   if (page.url().includes('/login')) {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await page.getByRole('textbox').first().fill(EMAIL);
     await page.locator('input[type="password"]').first().fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await page.waitForURL((url) => !url.pathname.includes('/login'));
-    await page.goto('/create-itinerary?id=259', { waitUntil: 'domcontentloaded' });
+    await page.goto(`/create-itinerary?id=${encodeURIComponent(CREATE_ITINERARY_ID)}`, { waitUntil: 'domcontentloaded' });
   }
 }
 
@@ -25,6 +27,7 @@ async function setCreateStartTimeAndSave(page: import('@playwright/test').Page, 
 
 test.describe('Arrival Policy E2E', () => {
   test('Create itinerary: 06:00 shows confirmation modal and NO continues same-day flow', async ({ page }) => {
+    test.skip(!CREATE_ITINERARY_ID, 'Set E2E_CREATE_ITINERARY_ID for the arrival-policy create fixture.');
     await loginIfNeeded(page);
 
     await setCreateStartTimeAndSave(page, '06:00');
@@ -39,6 +42,7 @@ test.describe('Arrival Policy E2E', () => {
   });
 
   test('Create itinerary: 10:00 should not show confirmation modal', async ({ page }) => {
+    test.skip(!CREATE_ITINERARY_ID, 'Set E2E_CREATE_ITINERARY_ID for the arrival-policy create fixture.');
     await loginIfNeeded(page);
 
     await setCreateStartTimeAndSave(page, '10:00');
@@ -48,14 +52,15 @@ test.describe('Arrival Policy E2E', () => {
   });
 
   test('Details page: 13:30 no modal; 06:30 opens modal', async ({ page }) => {
-    await page.goto('/itinerary-details/DVI202604230', { waitUntil: 'domcontentloaded' });
+    test.skip(!ITINERARY_QUOTE_ID, 'Set E2E_ITINERARY_QUOTE_ID for the arrival-policy details fixture.');
+    await page.goto(`/itinerary-details/${encodeURIComponent(ITINERARY_QUOTE_ID)}`, { waitUntil: 'domcontentloaded' });
     if (page.url().includes('/login')) {
       await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
       await page.getByRole('textbox').first().fill(EMAIL);
       await page.locator('input[type="password"]').first().fill(PASSWORD);
       await page.getByRole('button', { name: 'Sign in' }).click();
       await page.waitForURL((url) => !url.pathname.includes('/login'));
-      await page.goto('/itinerary-details/DVI202604230', { waitUntil: 'domcontentloaded' });
+      await page.goto(`/itinerary-details/${encodeURIComponent(ITINERARY_QUOTE_ID)}`, { waitUntil: 'domcontentloaded' });
     }
 
     await page.getByRole('button', { name: /Confirm Quotation/i }).click();

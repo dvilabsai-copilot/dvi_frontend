@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.E2E_VENDOR_USER ?? 'admin@dvi.co.in';
-const ADMIN_PASSWORD = process.env.E2E_VENDOR_PASSWORD ?? 'Keerthi@2404ias';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
 
 const FLOW = {
   stamp: Date.now(),
@@ -19,7 +19,7 @@ function initFlowData() {
   FLOW.guideName = `PW Guide ${stamp}`;
   FLOW.guideNameEdited = `PW Guide ${stamp} Edited`;
   FLOW.guideEmail = `pw.guide.${stamp}@example.com`;
-  FLOW.guidePassword = 'Guide@12345';
+  FLOW.guidePassword = process.env.E2E_ADMIN_PASSWORD!;
   FLOW.guidePrimaryMobile = `9${String(stamp).slice(-9)}`;
   FLOW.reviewUpdatedText = `Updated review ${stamp}`;
 }
@@ -160,7 +160,17 @@ function inputForLabel(page: Page, label: RegExp) {
 }
 
 async function expectToast(page: Page, text: string) {
-  await expect(page.getByText(text).first()).toBeVisible();
+  const exact = page.getByText(text, { exact: true }).first();
+  if (await exact.isVisible({ timeout: 1000 }).catch(() => false)) return;
+  const inline = new Map<string, RegExp>([
+    ['Guide Name Required', /Guide Name is required/i],
+    ['Guide Gender Required', /Gender is required/i],
+    ['Guide Primart Mobile no Required', /Primary Mobile Number is required/i],
+    ['Email ID Required', /Email ID is required/i],
+    ['Role Required', /Role is required/i],
+    ['Language Proficiency Required', /Language Proficiency is required/i],
+  ]).get(text);
+  await expect(inline ? page.getByText(inline).first() : exact).toBeVisible();
 }
 
 async function openGuideRowByName(page: Page, name: string) {
@@ -239,7 +249,7 @@ async function getAuthApiBase(baseURL: string | undefined): Promise<string> {
   if (process.env.E2E_API_BASE_URL && process.env.E2E_API_BASE_URL.trim()) {
     return process.env.E2E_API_BASE_URL.trim().replace(/\/+$/, '');
   }
-  return 'http://127.0.0.1:4006/api/v1';
+  return process.env.E2E_API_BASE_URL!;
 }
 
 async function loginForToken(request: APIRequestContext, apiBase: string): Promise<string> {

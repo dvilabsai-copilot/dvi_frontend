@@ -1,5 +1,5 @@
 /**
- * E2E test: Hotel continuity across days for DVI202604230
+ * E2E test: Hotel continuity across days for a configured itinerary fixture.
  *
  * Verifies that:
  * 1. Each day's check-in card shows a real hotel name (not "Hotel" placeholder)
@@ -12,10 +12,10 @@
 
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const USER_EMAIL = process.env.E2E_HOTSPOT_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_HOTSPOT_PASSWORD ?? 'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
-const QUOTE_ID = process.env.E2E_ITINERARY_QUOTE_ID ?? 'DVI202604230';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
+const QUOTE_ID = String(process.env.E2E_ITINERARY_QUOTE_ID || '').trim();
 
 async function loginForToken(request: APIRequestContext): Promise<string> {
   const loginRes = await request.post(`${API_BASE_URL}/auth/login`, {
@@ -36,18 +36,19 @@ async function seedAuthToken(page: Page, request: APIRequestContext): Promise<st
   return token;
 }
 
-test.describe('Hotel day continuity - DVI202604230', () => {
+test.describe('Hotel day continuity - configured fixture', () => {
   test('each day check-in and travel-from/to match across all days', async ({
     page,
     request,
     baseURL,
   }) => {
+    test.skip(!QUOTE_ID, 'Set E2E_ITINERARY_QUOTE_ID for the hotel continuity fixture.');
     test.setTimeout(180_000);
 
     await seedAuthToken(page, request);
 
     // Navigate to itinerary details
-    const url = `${baseURL ?? 'http://localhost:8080'}/itinerary-details/${QUOTE_ID}`;
+    const url = `${baseURL ?? process.env.E2E_FRONTEND_BASE_URL!}/itinerary-details/${QUOTE_ID}`;
     await page.goto(url, { waitUntil: 'domcontentloaded' });
 
     // Wait for hotel data to load — the loading spinner should disappear
