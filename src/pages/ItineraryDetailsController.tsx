@@ -3799,11 +3799,6 @@ const canShowGuideActionButton =
                                     {hotspot.description}
                                   </p>
                                   <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                                    {String(hotspot.availabilityReason || '').trim().length > 0 && (
-                                      <span className="text-[11px] text-[#4a4260]">
-                                        {hotspot.availabilityReason}
-                                      </span>
-                                    )}
                                     {hotspot.amount > 0 && (
                                       <span className="flex items-center">
                                         <Ticket className="h-3 w-3 mr-1" />

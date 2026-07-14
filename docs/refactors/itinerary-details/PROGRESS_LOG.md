@@ -4531,7 +4531,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 6,047 physical lines (down from 6,122 physical lines before this extraction).
+- Transitional `ItineraryDetailsController.tsx`: 6,042 physical lines (down from 6,122 physical lines before this extraction).
 - New `usePreviewSlotState.ts`: 127 physical lines.
 
 ### Notes
