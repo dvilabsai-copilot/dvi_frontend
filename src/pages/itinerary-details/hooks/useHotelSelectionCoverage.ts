@@ -1,14 +1,19 @@
 import { useCallback, useMemo } from "react";
 
+interface HotelSelectionCoverageBooking {
+  routeIds?: number[];
+  multiNightBooking?: boolean;
+}
+
 interface HotelSelectionCoverageOptions {
-  selectedHotelBookings: Record<number, any>;
+  selectedHotelBookings: Record<number, HotelSelectionCoverageBooking>;
 }
 
 /** Derives every route covered by selected single-night or multi-night hotel bookings. */
 export const useHotelSelectionCoverage = ({
   selectedHotelBookings,
 }: HotelSelectionCoverageOptions) => {
-  const getCoveredRouteIdsFromHotelSelections = useCallback((selections: Record<number, any>) => {
+  const getCoveredRouteIdsFromHotelSelections = useCallback((selections: Record<number, HotelSelectionCoverageBooking>) => {
     const covered = new Set<number>();
 
     Object.entries(selections || {}).forEach(([routeIdRaw, hotel]) => {

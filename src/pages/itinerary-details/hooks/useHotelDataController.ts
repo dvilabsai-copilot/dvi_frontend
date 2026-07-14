@@ -72,11 +72,19 @@ export const useHotelDataController = ({
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
 
-    try {
+  try {
       const detailsRes = await ItineraryService.getDetails(quoteId);
+      const vehiclePayload = detailsRes as {
+        vehicles?: Array<{
+          vehicleTypeName?: string;
+          vendorEligibleId?: number;
+          dayWisePricing?: Array<{ totalKms?: number }>;
+          totalAmount?: number;
+        }>;
+      };
       console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
-        vehicleCount: Array.isArray((detailsRes as any)?.vehicles) ? (detailsRes as any).vehicles.length : 0,
-        vehicles: ((detailsRes as any)?.vehicles || []).map((vehicle) => ({
+        vehicleCount: Array.isArray(vehiclePayload.vehicles) ? vehiclePayload.vehicles.length : 0,
+        vehicles: (vehiclePayload.vehicles || []).map((vehicle) => ({
           vehicleTypeName: vehicle.vehicleTypeName,
           vendorEligibleId: vehicle.vendorEligibleId,
           totals: vehicle.dayWisePricing?.map((day) => day.totalKms),

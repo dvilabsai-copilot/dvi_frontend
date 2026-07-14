@@ -1305,6 +1305,24 @@
 - `ItineraryDetailsController.tsx`: 14,811 physical lines after extraction.
 - `useActivityAvailabilityLoader.ts`: 42 physical lines.
 
+## Iteration 68 — Focused hook lint hardening
+
+### Changes
+
+- Replaced the remaining explicit `any` diagnostics in `useHotelDataController` and `useHotelSelectionCoverage` with local vehicle/selection shapes.
+- No runtime behavior or API payloads changed.
+
+### Verification
+
+- Typecheck: no errors from the modified hooks or controller; existing repository errors remain documented.
+- Focused ESLint: all current extracted workflow hooks pass.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,811 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
