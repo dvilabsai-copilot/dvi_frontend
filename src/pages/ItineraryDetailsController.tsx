@@ -163,6 +163,7 @@ import { useActivityPreviewController } from "./itinerary-details/hooks/useActiv
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
+import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
@@ -8541,112 +8542,33 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
   };
 
+  const validateQuotationPassengers = useQuotationPassengerValidation({
+    guestDetails,
+    additionalAdults,
+    additionalChildren,
+    additionalInfants,
+    requiresDetailedPassengerFlow,
+    expectedAdults: Math.max(Number(itinerary?.adults || 0) - 1, 0),
+    expectedChildren: Math.max(Number(itinerary?.children || 0), 0),
+    expectedInfants: Math.max(Number(itinerary?.infants || 0), 0),
+    setFormErrors,
+  });
+
   const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
     if (!itinerary?.planId) {
       toast.error('Missing itinerary plan information');
       return;
     }
 
-    const nextErrors: Record<string, string> = {};
-    const requiredPrimaryFields: Array<[keyof typeof guestDetails, string]> = [
-      ['name', 'Primary guest name is required.'],
-      ['contactNo', 'Primary guest contact number is required.'],
-      ['nationality', 'Primary guest nationality is required.'],
-    ];
+    const validatedPassengers = validateQuotationPassengers();
+    if (!validatedPassengers) return;
+    const {
+      normalizedAdditionalAdults,
+      normalizedAdditionalChildren,
+      normalizedAdditionalInfants,
+    } = validatedPassengers;
 
-    requiredPrimaryFields.forEach(([key, message]) => {
-      if (!String(guestDetails[key] || '').trim()) {
-        nextErrors[`primary-${String(key)}`] = message;
-      }
-    });
-
-    if (!ALLOWED_TITLES.includes(guestDetails.salutation)) {
-      nextErrors['primary-salutation'] = 'Primary guest salutation is invalid.';
-    }
-
-    if (!validateNameParts(guestDetails.name)) {
-      nextErrors['primary-name'] = 'Primary guest first name/last name must each be 2-25 valid characters.';
-    }
-
-    if (!isValidIsoNationality(guestDetails.nationality)) {
-      nextErrors['primary-nationality'] = 'Primary guest nationality must be a valid ISO-2 code (example: IN).';
-    }
-
-    const primaryAge = Number(guestDetails.age);
-    if (!Number.isFinite(primaryAge) || primaryAge <= 0) {
-      nextErrors['primary-age'] = 'Primary guest age must be a valid number.';
-    }
-
-    const sanitizeAdditionalPassengers = (list: AdditionalPassenger[]) =>
-      list
-        .map((item) => ({
-          ...item,
-          title: String(item.title || '').trim(),
-          name: String(item.name || '').trim(),
-          age: String(item.age || '').trim(),
-          nationality: String(item.nationality || '').trim().toUpperCase(),
-          panNo: String(item.panNo || '').trim().toUpperCase(),
-          passportNo: String(item.passportNo || '').trim().toUpperCase(),
-        }))
-        .filter((item) => item.title || item.name || item.age || item.nationality || item.panNo || item.passportNo);
-
-    const normalizedAdditionalAdults = sanitizeAdditionalPassengers(additionalAdults);
-    const normalizedAdditionalChildren = sanitizeAdditionalPassengers(additionalChildren);
-    const normalizedAdditionalInfants = sanitizeAdditionalPassengers(additionalInfants);
-
-    const validateAdditionalPassengers = (
-      list: AdditionalPassenger[],
-      label: 'adult' | 'child' | 'infant',
-      expectedCount: number,
-      minAge: number,
-      maxAge: number,
-    ) => {
-      if (list.length !== expectedCount) {
-        nextErrors[`count-${label}`] = `Expected ${expectedCount} ${label}${expectedCount === 1 ? '' : 's'}, but found ${list.length}.`;
-      }
-
-      list.forEach((item, index) => {
-        if (!item.title) {
-          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is required.`;
-        } else if (!ALLOWED_TITLES.includes(item.title)) {
-          nextErrors[`${label}-${index}-title`] = `${label} ${index + 1} title is invalid.`;
-        }
-        if (!item.name.trim()) {
-          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} name is required.`;
-        } else if (!validateNameParts(item.name)) {
-          nextErrors[`${label}-${index}-name`] = `${label} ${index + 1} first/last name must each be 2-25 valid characters.`;
-        }
-        if (!item.nationality.trim()) {
-          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality is required.`;
-        } else if (!isValidIsoNationality(item.nationality)) {
-          nextErrors[`${label}-${index}-nationality`] = `${label} ${index + 1} nationality must be ISO-2 code (example: IN).`;
-        }
-        const parsedAge = Number(item.age);
-        if (!Number.isFinite(parsedAge) || parsedAge < minAge || parsedAge > maxAge) {
-          nextErrors[`${label}-${index}-age`] = `${label} ${index + 1} age must be between ${minAge} and ${maxAge}.`;
-        }
-        if (item.panNo && !isValidPan(item.panNo)) {
-          nextErrors[`${label}-${index}-panNo`] = `${label} ${index + 1} PAN must be valid format (example: ABCDE1234F).`;
-        }
-      });
-    };
-
-    if (requiresDetailedPassengerFlow) {
-      const expectedAdditionalAdults = Math.max(Number(itinerary.adults || 0) - 1, 0);
-      const expectedChildren = Math.max(Number(itinerary.children || 0), 0);
-      const expectedInfants = Math.max(Number(itinerary.infants || 0), 0);
-
-      validateAdditionalPassengers(normalizedAdditionalAdults, 'adult', expectedAdditionalAdults, 12, 120);
-      validateAdditionalPassengers(normalizedAdditionalChildren, 'child', expectedChildren, 2, 11);
-      validateAdditionalPassengers(normalizedAdditionalInfants, 'infant', expectedInfants, 0, 5);
-    }
-
-    if (Object.keys(nextErrors).length > 0) {
-      setFormErrors(nextErrors);
-      const firstError = Object.values(nextErrors)[0];
-      toast.error(firstError || 'Please fix guest details before confirming quotation.');
-      return;
-    }
+    
 
     setFormErrors({});
 
