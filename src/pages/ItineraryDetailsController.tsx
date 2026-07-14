@@ -160,14 +160,6 @@ import {
   splitHotspotLocationTokens,
 } from "./itinerary-details/utils/timeline.utils";
 import {
-  analyzeFitHereConfirmation,
-  extractFitHereConfirmErrorCode,
-  type FitHereConfirmOptions,
-  isExpiredOrMissingFitHereAttemptError,
-  isRetryableFitHereConfirmError,
-  normalizeFitHereConfirmationResult,
-} from "./itinerary-details/utils/fitHereConfirm.utils";
-import {
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
@@ -247,6 +239,7 @@ import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQu
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
+import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -4273,155 +4266,20 @@ const getSelectedPreviewActivity = () =>
     return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
   }, [quoteId]);
 
-  const resolveActiveFitHereDayNumber = useCallback(
-    (attempt?: ManualFitHerePreviewResponse | null): number | null => {
-      const attemptRouteId = Number(
-        attempt?.routeId
-        || fitHereModal?.retryPayload?.day?.id
-        || addHotspotModal.routeId
-        || 0,
-      );
-
-      if (attemptRouteId > 0) {
-        const matchedDay = itinerary?.days?.find((day) => Number(day.id) === attemptRouteId);
-        const matchedDayNumber = Number(matchedDay?.dayNumber || 0);
-        if (matchedDayNumber > 0) {
-          return matchedDayNumber;
-        }
-      }
-
-      const fallbackDayNumber = Number(
-        fitHereModal?.retryPayload?.day?.dayNumber
-        || selectedFitHereDay?.dayNumber
-        || 0,
-      );
-
-      return fallbackDayNumber > 0 ? fallbackDayNumber : null;
-    },
-    [addHotspotModal.routeId, fitHereModal?.retryPayload?.day?.dayNumber, fitHereModal?.retryPayload?.day?.id, itinerary?.days, selectedFitHereDay?.dayNumber],
-  );
-
-  const handleConfirmFitHere = async (
-    options?: FitHereConfirmOptions,
-    attemptOverride?: ManualFitHerePreviewResponse | null,
-  ) => {
-    const selectedAttempt = attemptOverride || fitHereModal.attempt;
-    const attemptId = selectedAttempt?.attemptId;
-    const planId = Number(itinerary?.planId || 0);
-    const {
-      confirmRemovedRows,
-      acknowledgedRemovedHotspotIds,
-      hasTimingRisk,
-      hasPriorityRemoval,
-      hasP3Removal,
-      hasP1P2Removal,
-      selectedOpeningConflict,
-      canForceClosedHotspotConflict,
-      hasUnprovenProtectedRemoval,
-    } = analyzeFitHereConfirmation(selectedAttempt, options);
-
-    if (!attemptId) {
-      toast.error('Preview attempt is missing.');
-      return;
-    }
-    if (!(planId > 0)) {
-      toast.error('Plan ID missing.');
-      return;
-    }
-    if (hasUnprovenProtectedRemoval) {
-      toast.error('This preview removes a protected hotspot without proven route-feasibility evidence. Please recalculate before confirming.');
-      return;
-    }
-    if (hasP3Removal && selectedAttempt?.removalPolicy?.allowP3Removal !== true) {
-      toast.error('This preview removes a Priority 3 hotspot without approval. Please recalculate with P3 removal allowed.');
-      return;
-    }
-    if (hasP1P2Removal && selectedAttempt?.removalPolicy?.allowP1P2Removal !== true) {
-      toast.error('This preview removes a Priority 1 / Priority 2 hotspot without approval. Please recalculate with protected removal allowed.');
-      return;
-    }
-
-    setConfirmFitHereLoading(true);
-    stopFitHereProgressTimer();
-    try {
-      const confirmResult: any = await ItineraryService.confirmManualHotspotFitHere(planId, {
-        attemptId,
-        allowTimingRisk: options?.allowTimingRisk === true || hasTimingRisk || canForceClosedHotspotConflict,
-        allowClosedHotspotConflict: canForceClosedHotspotConflict,
-        allowPriorityRemoval:
-          options?.allowPriorityRemoval === true ||
-          hasPriorityRemoval ||
-          selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true,
-        acknowledgedRemovedHotspotIds,
-      });
-      const {
-        confirmedHotspotId,
-        confirmedRouteId,
-        persistedTimeline,
-        insertedRouteHotspotId,
-        removedHotspotIds,
-      } = normalizeFitHereConfirmationResult(confirmResult, selectedAttempt, selectedFitHotspot?.id || null, addHotspotModal.routeId);
-
-      const confirmedSegments = applyFitHereConfirmationState({
-        confirmedHotspotId,
-        confirmedRouteId,
-        insertedRouteHotspotId,
-        removedHotspotIds,
-        persistedTimeline,
-      });
-
-      toast.success('Hotspot inserted successfully. Timeline updated.');
-      resetFitHereAfterConfirmation();
-
-      await refreshAfterFitHereConfirmation(confirmedRouteId, confirmedSegments);
-    } catch (error) {
-      if (isExpiredOrMissingFitHereAttemptError(error)) {
-        const scrollDayNumber = resolveActiveFitHereDayNumber(selectedAttempt);
-        const scrollStorageKey = getFitHereRefreshScrollStorageKey();
-        if (scrollStorageKey && scrollDayNumber) {
-          window.sessionStorage.setItem(scrollStorageKey, String(scrollDayNumber));
-        }
-        toast.info('This Fit Here preview expired. Refreshing the itinerary now.');
-        window.setTimeout(() => {
-          window.location.reload();
-        }, 600);
-        return;
-      }
-
-      const confirmErrorCode = extractFitHereConfirmErrorCode(error);
-      if (
-        confirmErrorCode === 'MANUAL_INSERT_SELECTED_HOTSPOT_CLOSING_NOT_RESOLVED' &&
-        !options?.allowClosedHotspotConflict &&
-        selectedAttempt?.attemptId &&
-        (selectedAttempt?.selectedOpeningConflict || selectedAttempt?.canForceConflict === true)
-      ) {
-        toast.info('Retrying the same Fit Here attempt with the approved conflict-save path.');
-        await handleConfirmFitHere(
-          {
-            allowTimingRisk: true,
-            allowClosedHotspotConflict: true,
-            acknowledgedRemovedHotspotIds,
-          },
-          selectedAttempt,
-        );
-        return;
-      }
-
-      if (isRetryableFitHereConfirmError(error)) {
-        const retryPayload = fitHereModal.retryPayload;
-        if (retryPayload) {
-          toast.error('This preview changed on the server. Recalculating the latest Fit Here preview now.');
-          await handleFitHereClick(retryPayload.day, retryPayload.anchor);
-          return;
-        }
-      }
-      toast.error(error?.message || 'Could not confirm Fit Here insertion.');
-    } finally {
-      stopFitHereProgressTimer();
-      setConfirmFitHereLoading(false);
-    }
-  };
-
+  const handleConfirmFitHere = useFitHereConfirmationMutation({
+    itinerary,
+    fitHereModal,
+    selectedFitHotspot,
+    selectedFitHereDay,
+    fallbackRouteId: addHotspotModal.routeId,
+    handleFitHereClick,
+    stopFitHereProgressTimer,
+    setConfirmFitHereLoading,
+    resetFitHereAfterConfirmation,
+    applyFitHereConfirmationState,
+    refreshAfterFitHereConfirmation,
+    getFitHereRefreshScrollStorageKey,
+  });
   const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
     addHotspotModal,
     activePreviewHotspotId,

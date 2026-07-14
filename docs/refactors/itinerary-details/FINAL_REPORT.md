@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 7,566 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 7,436 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -30,6 +30,7 @@ Current facts:
 - New in this checkpoint: quotation wallet gating, hotel-booking payload assembly, booking guards, confirmation submission, and final cleanup are isolated in `useQuotationConfirmationSubmission.ts`.
 - New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
 - New in this checkpoint: automatic Fit Here preview request lifecycle, anchor progress rows, stale-response protection, result selection, and modal transitions are isolated in `useAutoFitHerePreviewController`.
+- New in this checkpoint: Fit Here confirmation validation, mutation payload, optimistic timeline update, refresh handoff, expired-attempt recovery, and retry paths are isolated in `useFitHereConfirmationMutation`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

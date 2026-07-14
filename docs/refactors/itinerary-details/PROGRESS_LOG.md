@@ -4510,3 +4510,28 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
+## Iteration 185 - Fit Here confirmation mutation hook
+
+### Baseline
+- Starting checkpoint: `4ee623a` on `refactor/itinerary-details-continuation` with the automatic Fit Here preview extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFitHereConfirmationMutation.ts`.
+- Moved Fit Here confirmation validation gates, API mutation payload, optimistic state application, success refresh handoff, expired-preview recovery, conflict retry, stale-preview recalculation, and loading cleanup out of the page controller.
+- Reused the existing confirmation analysis, state, reset, and refresh boundaries without changing their contracts.
+- Preserved protected-removal checks, priority/timing flags, session-storage scroll recovery, recursive conflict retry, toast messages, and service payload fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,436 lines (down from 7,566 at the previous iteration).
+- New hook: 176 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
