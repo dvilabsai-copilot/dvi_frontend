@@ -1293,6 +1293,32 @@
 ### Notes
 - This is the first controller-level loading responsibility extracted after the presentation-only preview boundaries. Remaining work includes route-time/rebuild actions, hotel workflows, large hotspot/Fit Here rendering, quotation review content, and full-suite verification.
 
+## Iteration 131 — Route rebuild mutation
+
+### Baseline
+- Starting point: Iteration 130 prepared itinerary page-loader extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the route rebuild mutation and its progress/refresh lifecycle.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useRouteRebuildMutation.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: route validation, rebuild API call, progress stages, details/hotel refresh, stale-route recovery, success/error toasts, and rebuild-marker clearing now live in the hook.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,659 lines.
+- New `useRouteRebuildMutation.ts`: 147 lines.
+
+### Notes
+- Route-time updates and arrival-policy confirmation remain a separate high-risk mutation boundary for the next iteration.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

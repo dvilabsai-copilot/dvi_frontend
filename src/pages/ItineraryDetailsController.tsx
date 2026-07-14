@@ -176,6 +176,7 @@ import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/us
 import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
 import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
+import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
@@ -5758,78 +5759,22 @@ if (switchedRouteRef.current === quoteId) {
     setHotspotFilterMeta,
   });
 
-  const handleRebuildRoute = async (planId: number, routeId: number) => {
-    console.log('[REBUILD_ROUTE_CLICK]', {
-      quoteId,
-      planId: itinerary?.planId,
-      clickedRouteId: routeId,
-      currentDayIds: itinerary?.days?.map((d) => ({
-        dayNumber: d.dayNumber,
-        id: d.id,
-        needsRebuild: d.needsRebuild,
-        excludedHotspotIds: d.excludedHotspotIds,
-      })),
-    });
-    const currentRouteIds = new Set((itinerary?.days || []).map((d) => Number(d.id)));
-    if (!currentRouteIds.has(Number(routeId))) {
-      if (quoteId) {
-        const detailsRes = await ItineraryService.getDetails(quoteId);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-      }
-      toast.error('Itinerary changed. Please try rebuild again.');
-      return;
-    }
-
-    setIsRebuilding(true);
-    const rebuildDay = itinerary?.days?.find((d) => Number(d?.id) === Number(routeId)) || null;
-    const rebuildDayNumber = Number(rebuildDay?.dayNumber || 0);
-    const rebuildEstimateMs = Math.max(12000, getRouteTimeUpdateEstimateMs(rebuildDayNumber || 1));
-    setRouteProgressTitle(rebuildDayNumber > 0 ? `Rebuilding Day ${rebuildDayNumber} route` : "Rebuilding route");
-    setRouteProgressHistory([]);
-    setRouteTimeEstimatedMs(rebuildEstimateMs);
-    startRouteTimeProgress(rebuildEstimateMs);
-    pushRouteProgressStage(
-      rebuildDayNumber > 0 ? `Submitting rebuild request for Day ${rebuildDayNumber}` : "Submitting rebuild request",
-      rebuildDayNumber > 0
-        ? `Recomputing the saved route sequence, timings, and travel legs for Day ${rebuildDayNumber}.`
-        : "Recomputing the saved route sequence, timings, and travel legs.",
-    );
-    try {
-      await ItineraryService.rebuildRoute(planId, routeId);
-      pushRouteProgressStage(
-        rebuildDayNumber > 0 ? `Reloading rebuilt Day ${rebuildDayNumber} itinerary` : "Reloading rebuilt itinerary",
-        "Fetching the rebuilt timeline and updated route details from the backend.",
-      );
-      toast.success("Route rebuilt successfully");
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        const nextItinerary = detailsRes as ItineraryDetailsResponse;
-        setItinerary(nextItinerary);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-        pushRouteProgressStage(
-          rebuildDayNumber > 0 ? `Applying rebuilt Day ${rebuildDayNumber} timeline` : "Applying rebuilt timeline",
-          "Refreshing the page with the rebuilt route, distances, and latest totals.",
-        );
-        const rebuiltDay = Array.isArray((nextItinerary as any)?.days)
-          ? (nextItinerary as any).days.find((d) => Number(d?.id) === Number(routeId))
-          : null;
-        if (rebuiltDay && (rebuiltDay as any).needsRebuild !== true) {
-          setRouteNeedsRebuild((prev) => (Number(prev) === Number(routeId) ? null : prev));
-        }
-      }
-    } catch (e) {
-      console.error("Failed to rebuild route", e);
-      toast.error(e?.message || "Failed to rebuild route");
-    } finally {
-      stopRouteTimeProgress();
-      setIsRebuilding(false);
-    }
-  };
+  const handleRebuildRoute = useRouteRebuildMutation({
+    quoteId: quoteId || null,
+    itinerary,
+    shouldShowHotels,
+    setItinerary,
+    setHotelDetails,
+    setIsRebuilding,
+    setRouteProgressTitle,
+    setRouteProgressHistory,
+    setRouteTimeEstimatedMs,
+    setRouteNeedsRebuild,
+    getRouteTimeUpdateEstimateMs,
+    startRouteTimeProgress,
+    stopRouteTimeProgress,
+    pushRouteProgressStage,
+  });
 
   const dayHasManualInserts = (day): boolean => {
     const segments = Array.isArray(day?.segments) ? day.segments : [];
