@@ -1345,6 +1345,32 @@
 ### Notes
 - Arrival-policy decision gating and confirmation persistence remain the next route-time responsibility boundary.
 
+## Iteration 133 — Arrival-policy decision-key utilities
+
+### Baseline
+- Starting point: Iteration 132 route-time PATCH mutation extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: centralize arrival-policy decision-key normalization used by duplicate guards and confirmation actions.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/routeArrivalPolicy.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: route/date/start-time key construction and request fallback derivation now live in pure utilities shared by existing controller paths.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,576 lines.
+- New `routeArrivalPolicy.utils.ts`: 43 lines.
+
+### Notes
+- Arrival-policy async gating and persistence remain the next route-time responsibility boundary.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

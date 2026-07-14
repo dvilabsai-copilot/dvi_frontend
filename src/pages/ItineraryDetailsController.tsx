@@ -178,6 +178,10 @@ import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleB
 import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
+import {
+  buildArrivalPolicyDecisionKey,
+  getRequestArrivalPolicyDecisionKey,
+} from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
@@ -5802,45 +5806,6 @@ if (switchedRouteRef.current === quoteId) {
     setPendingScrollDayNumber,
   });
 
-  const buildArrivalPolicyDecisionKey = (
-    routeId?: number,
-    routeDate?: string,
-    startTimeHms?: string,
-  ) => {
-    const normalizedRouteId = Number(routeId || 0);
-    const normalizedRouteDate = normalizeDateToYmd(routeDate);
-    const normalizedStartTime = String(startTimeHms || '').trim();
-
-    if (!normalizedRouteId || !normalizedRouteDate || !normalizedStartTime) {
-      return null;
-    }
-
-    return `${normalizedRouteId}|${normalizedRouteDate}|${normalizedStartTime}`;
-  };
-
-  const getRequestArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) => {
-    if (!request) {
-      return null;
-    }
-
-    const arrivalTimeHms = (() => {
-      if (request.arrivalDateTime && request.arrivalDateTime.includes('T')) {
-        return request.arrivalDateTime.split('T')[1]?.slice(0, 8) || '';
-      }
-
-      const routeDay = itinerary?.days?.find(
-        (day) => Number(day.id) === Number(request.itineraryRouteId),
-      );
-      return parseDisplayTimeToHms(routeDay?.startTime || '');
-    })();
-
-    return buildArrivalPolicyDecisionKey(
-      request.itineraryRouteId,
-      request.routeDate,
-      arrivalTimeHms,
-    );
-  };
-
   const handleUpdateRouteTimesDirect = async (
     planId: number,
     routeId: number,
@@ -10897,7 +10862,7 @@ const canShowGuideActionButton =
           }
 
           const request = arrivalPolicyConfirmModal.request;
-          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request, itinerary);
 
           setArrivalPolicyConfirmModal({
             open: false,
@@ -10945,7 +10910,7 @@ const canShowGuideActionButton =
           }
 
           const request = arrivalPolicyConfirmModal.request;
-          const decisionKey = getRequestArrivalPolicyDecisionKey(request);
+          const decisionKey = getRequestArrivalPolicyDecisionKey(request, itinerary);
 
           setArrivalPolicyConfirmModal({
             open: false,
