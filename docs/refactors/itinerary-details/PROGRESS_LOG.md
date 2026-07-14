@@ -4392,3 +4392,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 180 - Media modal controller hook
+
+### Baseline
+- Starting checkpoint: `b7b1206` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useMediaModalController.ts`.
+- Moved image URL normalization, gallery initialization, and YouTube watch-to-embed conversion out of the page controller.
+- Preserved API-base joining, image filtering, gallery index reset, and video modal payload behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,712 lines (down from 8,740).
+- New hook: 49 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

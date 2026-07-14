@@ -270,6 +270,7 @@ import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebui
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
+import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
@@ -4617,26 +4618,11 @@ const getSelectedPreviewActivity = () =>
     setHotspotFilterMeta,
   });
 
-  const toImgSrc = (path: string | null | undefined): string | undefined => {
-    if (!path || !path.trim()) return undefined;
-    if (path.startsWith('http')) return path;
-    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
-    return `${apiBase}${path}`;
-  };
-
-  const openGalleryModal = (images: string[], title: string) => {
-    const apiBase = (import.meta.env.VITE_API_DVI_BASE_URL as string || '').replace(/\/$/, '');
-    const resolved = images
-      .filter(img => img && img.trim() !== '')
-      .map(img => img.startsWith('http') ? img : `${apiBase}${img}`);
-    setGalleryActiveIdx(0);
-    setGalleryModal({
-      open: true,
-      images: resolved,
-      title,
-    });
-  };
-
+  const { toImgSrc, openGalleryModal, openVideoModal } = useMediaModalController({
+    setGalleryModal,
+    setGalleryActiveIdx,
+    setVideoModal,
+  });
   const {
     applyArrivalPolicyDecision,
     resolveArrivalPolicyForArrivalTimeChange,
@@ -4694,20 +4680,6 @@ const getSelectedPreviewActivity = () =>
     setItinerary,
     setHotelDetails,
   });
-
-  const openVideoModal = (videoUrl: string, title: string) => {
-    // Convert YouTube watch URLs to embed URLs
-    let embedUrl = videoUrl;
-    const ytMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
-    if (ytMatch) {
-      embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
-    }
-    setVideoModal({
-      open: true,
-      videoUrl: embedUrl,
-      title,
-    });
-  };
 
   const {
     handleWalletTopUpAndContinue,
