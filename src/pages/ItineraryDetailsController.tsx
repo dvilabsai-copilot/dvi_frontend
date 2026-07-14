@@ -350,6 +350,7 @@ import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdo
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
+import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
 export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
@@ -402,6 +403,8 @@ const location = useLocation();
     routeHotelFetchPromisesRef, routeHotelPrefetchedRef, routeHotelFamilyKeyRef, fetchCompleteHotelDetailsRef,
   } = routeState;
   const isConfirmedItinerary = Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 || itinerary?.isConfirmed === true;
+  const canViewCostBreakdown = canViewItineraryCostBreakdown();
+  const isAgentLogin = getAuthenticatedRole() === 4;
   const hotelReadOnly = readOnly || isConfirmedItinerary;
   const isConfirmedPresentation = presentationMode === 'confirmed' || readOnly || isConfirmedItinerary;
   const shouldShowHotels = (() => {
@@ -5348,6 +5351,8 @@ const canShowGuideActionButton =
           planId={itinerary.planId}
           dateRange={itinerary.dateRange}
           days={itinerary.days || []}
+          canViewCostBreakdown={canViewCostBreakdown}
+          showVendorDetails={!isAgentLogin}
           onRefresh={refreshVehicleData}
           onSelectedTotalChange={handleVehicleSelectedTotalChange}
         />
@@ -5387,6 +5392,8 @@ const canShowGuideActionButton =
               OVERALL COST
             </h2>
             <div className="space-y-2 text-sm">
+              {canViewCostBreakdown && (
+                <>
               {/* ── Hotel Cost Group ── */}
               {shouldShowHotels && (() => {
                 const roomTotal = Number(financialTotals.hotelAmount || 0);
@@ -5467,7 +5474,7 @@ const canShowGuideActionButton =
 
 
               {/* ── Vehicle Cost Group ── */}
-{shouldShowVehicles && computedVehicleAmount > 0 && (
+{canViewCostBreakdown && shouldShowVehicles && computedVehicleAmount > 0 && (
   <div className="flex justify-between">
     <span className="text-[#6c6c6c]">
       Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
@@ -5519,6 +5526,9 @@ const canShowGuideActionButton =
               )}
 
               {/* ── Total Amount ── */}
+                </>
+              )}
+
               <div className="border-t border-[#e5d9f2] pt-3 mt-1">
                 <div className="flex justify-between font-semibold">
                   <span className="text-[#4a4260]">Total Amount</span>

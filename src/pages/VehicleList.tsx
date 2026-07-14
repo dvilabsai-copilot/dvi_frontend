@@ -391,6 +391,8 @@ export type VehicleListProps = {
   }) => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
   routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
+  canViewCostBreakdown?: boolean;
+  showVendorDetails?: boolean;
 };
 
 export const VehicleList: React.FC<VehicleListProps> = ({
@@ -402,6 +404,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   onSelectedTotalChange,
   dateRange,
   routes,
+  canViewCostBreakdown = true,
+  showVendorDetails = true,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [vehicleOriginTooltip, setVehicleOriginTooltip] = useState<{
@@ -922,8 +926,8 @@ const totalRows = [
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs w-12">#</th>
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Vendor Name</th>
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Branch Name</th>
+              {showVendorDetails && <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Vendor Name</th>}
+              {showVendorDetails && <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Branch Name</th>}
               <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[100px]">Vehicle Origin</th>
               <th className="text-center py-2 px-3 font-semibold text-gray-600 uppercase text-xs">Qty</th>
               <th className="text-right py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Total Amount</th>
@@ -953,13 +957,15 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
               return (
                 <React.Fragment key={rowKey}>
                   <tr
-                    onClick={() =>
-                      setExpandedVendorEligibleId((prev) => (prev === rowKey ? null : rowKey))
-                    }
-                    className="border-b border-gray-100 hover:bg-purple-50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (!canViewCostBreakdown) return;
+                      setExpandedVendorEligibleId((prev) => (prev === rowKey ? null : rowKey));
+                    }}
+                    className={`border-b border-gray-100 hover:bg-purple-50 transition-colors ${canViewCostBreakdown ? "cursor-pointer" : ""}`}
                   >
-                    <td className="py-3 px-3">
-                      <input
+                      <td className="py-3 px-3">
+                        {canViewCostBreakdown ? (
+                        <input
                         type="radio"
                         id={radioId}
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
@@ -970,11 +976,12 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                         }
                         onChange={() => handleRadioChange(v, index)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
-                      />
-                    </td>
-                    <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>
-                    <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>
+                          className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                        />
+                        ) : null}
+                      </td>
+                    {showVendorDetails && <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>}
+                    {showVendorDetails && <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>}
                     <td
                       className="py-3 px-3 text-gray-600 text-xs relative"
                       onMouseEnter={(e) => showVehicleOriginTooltip(index, e)}
@@ -1049,7 +1056,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                     </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
                     <td 
-                      className="py-3 px-3 text-right font-semibold text-gray-900"
+                      className={`py-3 px-3 text-right font-semibold text-gray-900 ${canViewCostBreakdown ? "" : "[&>span]:hidden"}`}
                       onMouseEnter={() => setHoveredTotalAmountIndex(index)}
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
@@ -1057,7 +1064,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       <span className="ml-2 text-xs text-gray-500">{isExpanded ? "▼" : "▶"}</span>
                       
                       {/* Hover Tooltip - Price Breakdown */}
-                      {hoveredTotalAmountIndex === index && (
+                       {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
                         <div className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]" 
                              style={{
                                bottom: 'auto',
@@ -1105,9 +1112,9 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                   </tr>
                   
                   {/* Expanded Row - PHP-style full pricing breakdown */}
-                  {isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
+                  {canViewCostBreakdown && isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
                     <tr className="border-b border-gray-100 bg-gray-50">
-                      <td colSpan={6} className="py-4 px-4">
+                      <td colSpan={showVendorDetails ? 6 : 4} className="py-4 px-4">
                         <div className="ml-6 space-y-3">
 
                           <div style={{ width: '100%' }} className="space-y-3">
