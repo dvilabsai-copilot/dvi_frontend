@@ -174,3 +174,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Clipboard and wallet formatting is isolated in `clipboardFormatting.utils.ts`; HTML escaping, currency parsing, wallet-response extraction, money rounding, and selected-hotel amount normalization remain pure and reusable.
 - Clipboard itinerary totals are isolated in `clipboardItineraryTotals.utils.ts`; money display, hotel pax derivation, activity aggregation, and entry-ticket grouping no longer live inside the HTML builder.
 - Clipboard financial totals are isolated in `clipboardFinancialTotals.utils.ts`; selected-group hotel costs, cost-breakdown aggregation, activity/hotspot fallback, vehicle totals, and net-payable rounding are now pure composition inputs.
+- Clipboard vehicle-row HTML is isolated in `clipboardVehicleSection.utils.ts`; date range, route fallback, amount formatting, and empty-state markup are no longer nested in the controller.

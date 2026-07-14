@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 9,985 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 9,938 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -45,6 +45,7 @@ Current facts:
 - New in this checkpoint: clipboard and wallet formatting is isolated in `clipboardFormatting.utils.ts` (HTML escaping, currency/wallet parsing, money rounding, wallet response extraction, and selected-hotel amount normalization).
 - New in this checkpoint: clipboard itinerary totals are isolated in `clipboardItineraryTotals.utils.ts` (money display, hotel pax derivation, activity aggregation, and entry-ticket grouping).
 - New in this checkpoint: clipboard financial totals are isolated in `clipboardFinancialTotals.utils.ts` (selected-group hotel costs, cost-breakdown aggregation, activity/hotspot fallback, vehicle totals, and net-payable rounding).
+- New in this checkpoint: clipboard vehicle-row HTML is isolated in `clipboardVehicleSection.utils.ts` (date range, route fallback, amount formatting, and empty-state markup).
 - Remaining work: split the transitional controller into domain controllers/views, remove compatibility fragments, extract vehicle actions/view and the large hotspot/Fit Here and quotation review sections, then run the full green verification loop.
 - Intentional behavior changes: none.
 - Documented blockers: repository-wide lint baseline (1,936 errors/107 warnings), existing unrelated type errors, and 23 broader-suite failures classified in `REGRESSION_LOG.md`.

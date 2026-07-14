@@ -201,6 +201,7 @@ import {
   getClipboardHotelPaxCount,
 } from "./itinerary-details/utils/clipboardItineraryTotals.utils";
 import { buildClipboardGroupFinancialTotals } from "./itinerary-details/utils/clipboardFinancialTotals.utils";
+import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3346,59 +3347,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const centerTitleStyle =
     "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
 
-  const buildVehicleSectionHtml = () => {
-    if (!shouldShowVehicles) return "";
-
-    const vehicleRowsHtml =
-      itinerary.vehicles?.length > 0
-        ? itinerary.vehicles
-            .map((vehicle) => {
-              const startDate =
-                itinerary.days?.[0]?.date ? formatHeaderDate(itinerary.days[0].date).replace(/^\w+,\s*/, "") : "";
-              const endDate =
-                itinerary.days?.[itinerary.days.length - 1]?.date
-                  ? formatHeaderDate(itinerary.days[itinerary.days.length - 1].date).replace(/^\w+,\s*/, "")
-                  : "";
-
-              const fromToText =
-                vehicle.fromLabel || vehicle.toLabel
-                  ? `${vehicle.fromLabel || ""} ==> ${vehicle.toLabel || ""}`
-                  : `${itinerary.days?.[0]?.departure || ""} ==> ${
-                      itinerary.days?.[itinerary.days.length - 1]?.arrival || ""
-                    }`;
-
-              return `
-                <tr>
-                  <td style="${cellStyle}">
-                    ${escapeHtml(vehicle.vehicleTypeName || "Vehicle")} (${escapeHtml(vehicle.totalQty || 1)}) -
-                    ${escapeHtml(fromToText)}
-                    ${startDate || endDate ? ` - ${escapeHtml(startDate)} ==> ${escapeHtml(endDate)}` : ""}
-                  </td>
-                  <td style="${cellStyle}font-weight:700;">
-                    ${escapeHtml(formatClipboardMoney(vehicle.totalAmount || 0))}
-                  </td>
-                </tr>
-              `;
-            })
-            .join("")
-        : `
-          <tr>
-            <td colspan="2" style="${cellStyle}text-align:center;">No Vehicle available</td>
-          </tr>
-        `;
-
-    return `
-      <div style="${centerTitleStyle}margin-top:22px;">Vehicle Details</div>
-      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}">
-        <tr>
-          <th style="${headerCellStyle}width:85%;">Vehicle Details</th>
-          <th style="${headerCellStyle}width:15%;">Total Amount</th>
-        </tr>
-        ${vehicleRowsHtml}
-      </table>
-    `;
-  };
-
   const buildCostSectionHtml = (group: ClipboardGroup) => {
     const totals = buildClipboardGroupFinancialTotals({
       hotels: group.hotels,
@@ -3589,7 +3537,12 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           ${rowsHtml}
         </table>
 
-        ${buildVehicleSectionHtml()}
+        ${buildClipboardVehicleSectionHtml({
+          vehiclesValue: itinerary.vehicles,
+          daysValue: itinerary.days,
+          shouldShowVehicles,
+          styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
+        })}
         ${buildCostSectionHtml(group)}
       `;
     })
