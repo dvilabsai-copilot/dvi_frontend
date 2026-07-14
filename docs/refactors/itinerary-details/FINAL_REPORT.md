@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 5,984 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 5,902 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -59,6 +59,7 @@ Current facts:
 - New in this checkpoint: Current-route attraction/manual hotspot IDs, exclusion filtering, and manual hotspot metadata derivation are isolated in `routeHotspotIds.utils`.
 - New in this checkpoint: current-route attraction/manual hotspot IDs, manual metadata, and already-added preview detection are isolated in `useCurrentRouteHotspotState.ts`.
 - New in this checkpoint: available-hotspot normalization defaults and modal-specific normalization options are isolated in `useNormalizedAvailableHotspots.ts`.
+- New in this checkpoint: active-anchor route-fit insight, destination-side naming, distance fallback, and status labels are isolated in `useActiveAnchorFitInsight.ts`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 214 - Active-anchor fit insight hook
+
+### Baseline
+- Starting checkpoint: `8e48e10` on `codex/itinerary-refactor-production-20260715` with available-hotspot normalization extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useActiveAnchorFitInsight.ts`.
+- Moved active-anchor route-fit insight derivation, matrix chosen/best-slot handling, destination-side hotel naming, distance fallback, and status labels out of `ItineraryDetailsController.tsx`.
+- Preserved the existing insight return shape consumed by the Fit Here dialogs and notices.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+- Focused Playwright verification is run for this checkpoint below.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,902 physical lines (down from 5,984 at the previous iteration).
+- New `useActiveAnchorFitInsight.ts`: 149 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 213 - Available-hotspot normalization hook
 
 ### Baseline

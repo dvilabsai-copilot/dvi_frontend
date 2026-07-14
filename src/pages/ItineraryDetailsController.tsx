@@ -71,6 +71,7 @@ import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertion
 import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
 import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
 import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
+import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
 import type {
   Activity,
   AttractionSegment,
@@ -896,134 +897,16 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   });
 
       // ── From manualInsertionFit.allSlotResults ──
-  const activeAnchorFitInsight = useMemo(() => {
-    if (matrixRequiresBuild) return null;
-    const bestSlot = normalizedInsertionSlots.find((slot) => slot?.isBest)
-      || normalizedInsertionSlots[0]
-      || null;
-    const routeId = Number(addHotspotModal.routeId || 0);
-    if (!routeId || !selectedHotspotId) return null;
-
-    // Prefer matrix-fit chosen/best slot for inserted-hotspot labels.
-    const fitBest = (matrixFit as any)?.bestSlot ?? null;
-    const fitChosen = (matrixFit as any)?.chosenSlot ?? null;
-    const selectedIdNum = Number(selectedHotspotId || 0);
-    const chosenInvalid = Boolean(
-      fitChosen
-      && (Number(fitChosen?.fromHotspotId) === selectedIdNum || Number(fitChosen?.toHotspotId) === selectedIdNum),
-    );
-    const safeChosen = chosenInvalid ? null : fitChosen;
-    const sourceSlot = safeChosen || fitBest;
-
-    if (sourceSlot) {
-      const fitType: string = sourceSlot.routeFitType || '';
-      const fitTypeUpper = String(fitType || '').toUpperCase();
-      const sourceLabelText = String(sourceSlot.displayLabel || sourceSlot.label || '').toLowerCase();
-      const sourceFinalReasonText = String(sourceSlot.finalDecisionReason || '').toLowerCase();
-      const sourceNoRouteTagged = sourceLabelText.includes('no route data')
-        || sourceFinalReasonText.includes('no route data');
-      const hasRouteDataForSlot = (
-        sourceSlot?.routePossible !== false
-        && fitTypeUpper !== 'UNKNOWN'
-        && fitTypeUpper !== 'MATRIX_UNAVAILABLE'
-        && !sourceNoRouteTagged
-      );
-      const label: string = sourceSlot.displayLabel || sourceSlot.label || fitType;
-      const detour: number | null = sourceSlot.roadDetourKm != null ? Number(sourceSlot.roadDetourKm) : null;
-      const isDestinationSidePreview = String((manualPreviewState as any)?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase() === 'DESTINATION_CITY';
-      const rawToName = String(sourceSlot?.toName || '').trim();
-      const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
-      const resolvedToName = (
-        isDestinationSidePreview
-        && destinationHotelDisplayName
-        && (
-          /^hotel$/i.test(rawToName)
-          || (matrixDestinationName.length > 0 && rawToName.toLowerCase() === matrixDestinationName)
-          || Number(sourceSlot?.destinationHotelId || 0) > 0
-        )
-      ) ? destinationHotelDisplayName : rawToName;
-      const tone = fitType === 'ON_ROUTE' || fitType === 'MINOR_DETOUR'
-        ? 'green' as const
-        : fitType === 'BACKTRACK'
-          ? 'amber' as const
-          : 'red' as const;
-      const hasNamedAnchors = String(sourceSlot?.fromName || '').trim().length > 0
-        && String(resolvedToName || '').trim().length > 0;
-      const between = hasNamedAnchors ? `${sourceSlot.fromName} → ${resolvedToName}` : null;
-      const extraLabel = hasRouteDataForSlot && detour != null ? `+${detour.toFixed(1)} km` : null;
-      return {
-        label,
-        tone: hasRouteDataForSlot ? tone : ('red' as const),
-        extraDistanceLabel: extraLabel,
-        anchorLegLabel: between,
-        insertedLabel: hasRouteDataForSlot ? label : 'No route data',
-        reason: sourceSlot.decisionReason || null,
-        source: (matrixFit as any)?.chosenSlotSource || null,
-        warning: (matrixFit as any)?.warning || null,
-        requestedSlot: (matrixFit as any)?.requestedSlot || null,
-        chosenSlot: safeChosen,
-      };
-    }
-
-    const distanceDelta = bestSlot?.distanceDelta ?? activePreviewResolution?.newHotspot?.distanceDelta;
-    const bestFits = bestSlot ? (bestSlot?.fitsOverall !== false) : true;
-    const bestReason = bestSlot?.timingReason || null;
-
-    if (!bestFits) {
-      return {
-        label: 'Not on the way',
-        tone: 'red' as const,
-        extraDistanceLabel: null,
-        anchorLegLabel: null,
-        insertedLabel: 'Selected slot is not feasible',
-        reason: bestReason,
-      };
-    }
-
-    // If backend provided distanceDelta, use it directly
-    if (Number.isFinite(distanceDelta) && distanceDelta !== null) {
-      const delta = Number(distanceDelta);
-      const isNeutral = Math.abs(delta) <= 0.5; // Within tolerance
-
-      if (isNeutral || delta <= 0) {
-        return {
-          label: 'Fits on the way',
-          tone: 'green' as const,
-          extraDistanceLabel: delta < -0.5 ? `~${Math.abs(delta).toFixed(1)} km shorter` : 'No extra backtrack',
-          anchorLegLabel: null,
-          insertedLabel: 'Inserted correctly between spots',
-        };
-      }
-
-      return {
-        label: 'Distance increased',
-        tone: 'red' as const,
-        extraDistanceLabel: `+${delta.toFixed(1)} km extra travel`,
-        anchorLegLabel: null,
-        insertedLabel: `Inserted with detour (+${delta.toFixed(1)} km)`,
-        reason: null,
-      };
-    }
-
-    // Fallback: no distance delta available from backend
-    return {
-      label: 'Inserted',
-      tone: 'amber' as const,
-      extraDistanceLabel: null,
-      anchorLegLabel: null,
-      insertedLabel: 'Inserted (distance unavailable)',
-      reason: null,
-    };
-  }, [
-    addHotspotModal.routeId,
-    activePreviewResolution,
+  const activeAnchorFitInsight = useActiveAnchorFitInsight({
     matrixRequiresBuild,
     normalizedInsertionSlots,
+    addHotspotRouteId: addHotspotModal.routeId,
     selectedHotspotId,
     matrixFit,
     manualPreviewState,
+    activePreviewResolution,
     destinationHotelDisplayName,
-  ]);
+  });
 
 
   const bestInsertionSlot = useBestInsertionSlot({
@@ -1212,6 +1095,29 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   });
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
+  const vehicleTypeIdsRequiringSelection = useMemo(() => {
+    const typeIds = new Set<number>();
+    (itinerary?.vehicles || []).forEach((vehicle) => {
+      const typeId = Number(vehicle.vehicleTypeId || 0);
+      if (typeId > 0) typeIds.add(typeId);
+    });
+    (itinerary?.vehicleRateAvailability || []).forEach((item) => {
+      const typeId = Number(item.vehicleTypeId || 0);
+      if (typeId > 0) typeIds.add(typeId);
+    });
+    return typeIds;
+  }, [itinerary?.vehicleRateAvailability, itinerary?.vehicles]);
+  const hasRequiredVehicleSelection = !shouldShowVehicles || (
+    vehicleTypeIdsRequiringSelection.size > 0 &&
+    vehicleTypeIdsRequiringSelection.size === Object.keys(selectedVehicleTotalsByType).filter(
+      (typeId) => Number(selectedVehicleTotalsByType[Number(typeId)]?.totalAmount || 0) > 0,
+    ).length &&
+    Array.from(vehicleTypeIdsRequiringSelection).every(
+      (typeId) => Number(selectedVehicleTotalsByType[typeId]?.totalAmount || 0) > 0,
+    ) &&
+    (itinerary?.vehicleRateAvailability?.length || 0) === 0
+  );
+  const canConfirmQuotation = hasRequiredVehicleSelection;
   // Keep the bottom hotel list enabled for hotel-bearing itineraries.
   // The actual render is still gated by `shouldShowHotels` below.
   const shouldRenderBottomHotelList = true;
@@ -1307,6 +1213,7 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     computedVehicleAmount,
     shouldShowHotels,
     shouldShowVehicles,
+    hasRequiredVehicleSelection,
     selectedVehicleTotalsByType,
     activeHotelListTotal,
     selectedHotelTotal,
@@ -2399,6 +2306,7 @@ const getSelectedPreviewActivity = () =>
     additionalInfants,
     confirmOccupanciesTemplate,
     requiresHotelBookingFlow,
+    canConfirmQuotation,
     requiresDetailedPassengerFlow,
     hasAcceptedUpdatedPrice,
     shouldEnableWalletTopUpOnConfirm,
@@ -3147,10 +3055,10 @@ const canShowGuideActionButton =
                   <span>- ₹ {itinerary.costBreakdown.couponDiscount!.toFixed(2)}</span>
                 </div>
               )}
-              {(itinerary.costBreakdown.agentMargin ?? 0) > 0 && (
+              {(financialTotals.agentMargin ?? 0) > 0 && (
                 <div className="flex justify-between">
                   <span className="text-[#6c6c6c]">Agent Margin</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.agentMargin!.toFixed(2)}</span>
+                  <span className="text-[#4a4260]">₹ {financialTotals.agentMargin.toFixed(2)}</span>
                 </div>
               )}
 
@@ -3309,7 +3217,8 @@ const canShowGuideActionButton =
         <Button
           className="bg-[#d546ab] hover:bg-[#c03d9f]"
           onClick={openConfirmQuotationModal}
-          disabled={isOpeningConfirmQuotation}
+          disabled={isOpeningConfirmQuotation || !canConfirmQuotation}
+          title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
         >
           {isOpeningConfirmQuotation ? (
             <>
@@ -5877,6 +5786,7 @@ const canShowGuideActionButton =
             isConfirmingQuotation={isConfirmingQuotation}
             isPrebooking={isPrebooking}
             isWalletTopUpSubmitting={isWalletTopUpSubmitting}
+            canConfirmQuotation={canConfirmQuotation}
           />
       </QuotationConfirmationDialogShell>
 
