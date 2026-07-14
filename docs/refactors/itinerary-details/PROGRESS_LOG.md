@@ -1086,6 +1086,32 @@
 - Approval flags and preview request semantics remain unchanged; only ownership moved.
 - Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
 
+## Iteration 78 - Fit Here confirmation analysis helper
+
+### Baseline
+- Tests run: targeted controller/new-module typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or updated utility; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `src/pages/itinerary-details/utils/fitHereConfirm.utils.ts`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: removal-row aggregation, acknowledgement normalization, timing/priority risk analysis, protected-removal detection, and conflict-force eligibility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `fitHereConfirm.utils.ts`; unrelated repository errors remain.
+- Lint: updated utility passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,137 lines.
+- `fitHereConfirm.utils.ts`: 97 lines.
+
+### Notes
+- Confirmation guard conditions and payload inputs remain unchanged; only pure analysis moved.
+- Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
+
 ## Iteration 77 - Fit Here confirmation error helpers
 
 ### Baseline

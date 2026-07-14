@@ -127,7 +127,9 @@ import {
   splitHotspotLocationTokens,
 } from "./itinerary-details/utils/timeline.utils";
 import {
+  analyzeFitHereConfirmation,
   extractFitHereConfirmErrorCode,
+  type FitHereConfirmOptions,
   isExpiredOrMissingFitHereAttemptError,
   isRetryableFitHereConfirmError,
 } from "./itinerary-details/utils/fitHereConfirm.utils";
@@ -7449,58 +7451,23 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
   );
 
   const handleConfirmFitHere = async (
-    options?: {
-      allowClosedHotspotConflict?: boolean;
-      allowTimingRisk?: boolean;
-      allowPriorityRemoval?: boolean;
-      acknowledgedRemovedHotspotIds?: number[];
-    },
+    options?: FitHereConfirmOptions,
     attemptOverride?: ManualFitHerePreviewResponse | null,
   ) => {
     const selectedAttempt = attemptOverride || fitHereModal.attempt;
     const attemptId = selectedAttempt?.attemptId;
     const planId = Number(itinerary?.planId || 0);
-    const confirmRemovedRows = [
-      ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
-      ...(Array.isArray(selectedAttempt?.resolution?.removedHotspots) ? selectedAttempt.resolution.removedHotspots : []),
-      ...(Array.isArray(selectedAttempt?.resolution?.removedOptionalHotspots) ? selectedAttempt.resolution.removedOptionalHotspots : []),
-      ...(Array.isArray(selectedAttempt?.resolution?.removedTopPriorityHotspots) ? selectedAttempt.resolution.removedTopPriorityHotspots : []),
-      ...(Array.isArray(selectedAttempt?.changesRequiredDisplay?.removedItems) ? selectedAttempt.changesRequiredDisplay.removedItems : []),
-    ];
-    const acknowledgedRemovedHotspotIdsSource = options?.acknowledgedRemovedHotspotIds;
-    const acknowledgedRemovedHotspotIds = Array.from(new Set(
-      (Array.isArray(acknowledgedRemovedHotspotIdsSource) ? acknowledgedRemovedHotspotIdsSource : [])
-        .map((id) => Number(id))
-        .filter((id: number) => id > 0),
-    ));
-    const hasTimingRisk =
-      selectedAttempt?.timingRisk?.type === 'PARTIAL_STAY_AFTER_CLOSING'
-      || selectedAttempt?.requiresTimingRiskConfirmation === true;
-    const hasPriorityRemoval =
-      confirmRemovedRows.length > 0
-      || selectedAttempt?.requiresPriorityRemovalConfirmation === true
-      || acknowledgedRemovedHotspotIds.length > 0;
-    const hasP3Removal = confirmRemovedRows.some((row) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
-      return priority === 3;
-    });
-    const hasP1P2Removal = confirmRemovedRows.some((row) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
-      return priority === 1 || priority === 2;
-    });
-    const selectedOpeningConflict =
-      selectedAttempt?.selectedOpeningConflict ||
-      selectedAttempt?.resolution?.selectedOpeningConflict ||
-      selectedAttempt?.resolution?.manualInsertionFit?.selectedOpeningConflict ||
-      null;
-    const canForceClosedHotspotConflict =
-      options?.allowClosedHotspotConflict === true ||
-      (selectedAttempt?.canForceConflict === true && !!selectedOpeningConflict);
-    const hasUnprovenProtectedRemoval = confirmRemovedRows.some((row) => {
-      const priority = Number(row?.priority || row?.hotspot_priority || row?.rawPriority || row?.workPriority || 0);
-      const reasonCode = String(row?.removalReasonCode || '').toUpperCase();
-      return (priority === 1 || priority === 2) && reasonCode === 'UNPROVEN_REMOVAL';
-    });
+    const {
+      confirmRemovedRows,
+      acknowledgedRemovedHotspotIds,
+      hasTimingRisk,
+      hasPriorityRemoval,
+      hasP3Removal,
+      hasP1P2Removal,
+      selectedOpeningConflict,
+      canForceClosedHotspotConflict,
+      hasUnprovenProtectedRemoval,
+    } = analyzeFitHereConfirmation(selectedAttempt, options);
 
     if (!attemptId) {
       toast.error('Preview attempt is missing.');
