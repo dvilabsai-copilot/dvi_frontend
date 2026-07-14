@@ -180,6 +180,7 @@ import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerFo
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter";
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
+import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11461,15 +11462,9 @@ const canShowGuideActionButton =
               visible={requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0)}
             />
 
-            {requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
-              <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
-                <div>
-                  <p className="text-sm font-medium text-[#4a4260]">Fetching latest prebook details...</p>
-                  <p className="text-xs text-[#6c6c6c]">Loading updated price, amenities, rate conditions, and inclusions.</p>
-                </div>
-              </div>
-            )}
+            <QuotationPrebookLoadingNotice
+              visible={requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData}
+            />
 
             {requiresHotelBookingFlow && externalStayEntries.length > 0 && (
               <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">

@@ -1087,6 +1087,33 @@
 ### Notes
 - This small view completes another independent quotation-dialog presentation boundary while preserving the larger prebook review body for a later typed extraction.
 
+## Iteration 104 — Quotation prebook loading notice extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/loading-notice files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; loading notice lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationPrebookLoadingNotice.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: the prebook-in-progress loading presentation now renders in a dedicated view; its existing modal-state visibility predicate remains unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationPrebookLoadingNotice.tsx`; unrelated repository errors remain.
+- Lint: new loading notice component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not rerun; documented shared-data/environment failures remain unchanged.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,081 lines (down from 12,086 at the previous checkpoint).
+- New `QuotationPrebookLoadingNotice.tsx`: 20 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The next high-coupling quotation boundary is the wallet top-up panel or supplier hotel review body; both require careful typed normalization of legacy provider data.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
