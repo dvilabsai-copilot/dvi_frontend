@@ -132,6 +132,7 @@ import {
   type FitHereConfirmOptions,
   isExpiredOrMissingFitHereAttemptError,
   isRetryableFitHereConfirmError,
+  normalizeFitHereConfirmationResult,
 } from "./itinerary-details/utils/fitHereConfirm.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
@@ -7503,50 +7504,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
           selectedAttempt?.removedPrioritySummary?.requiresPriorityRemovalConfirmation === true,
         acknowledgedRemovedHotspotIds,
       });
-      const confirmedHotspotId = Number(
-        confirmResult?.selectedHotspotId
-        || selectedAttempt?.selectedHotspotId
-        || selectedFitHotspot?.id
-        || 0,
-      );
-      const confirmedRouteId = Number(
-        confirmResult?.routeId
-        || selectedAttempt?.routeId
-        || addHotspotModal.routeId
-        || 0,
-      );
-      const persistedTimeline = Array.isArray(confirmResult?.routeTimeline)
-        ? confirmResult.routeTimeline
-        : (Array.isArray(confirmResult?.fullTimeline) ? confirmResult.fullTimeline : []);
-      const insertedTimelineRow = persistedTimeline.find((row) => (
-        String(row?.type || '').toLowerCase() === 'attraction'
-        && Number(row?.hotspotId ?? row?.locationId ?? 0) === confirmedHotspotId
-        && (row?.planOwnWay === true || row?.isManual === true)
-      ));
-      const backendScheduledManualHotspot = Array.isArray(confirmResult?.resolution?.scheduledManualHotspots)
-        ? confirmResult.resolution.scheduledManualHotspots.find((row) =>
-            Number(row?.hotspotId || row?.id || 0) === confirmedHotspotId
-          )
-        : null;
-
-      const insertedRouteHotspotId = Number(
-        confirmResult?.routeHotspotId
-        || backendScheduledManualHotspot?.routeHotspotId
-        || insertedTimelineRow?.routeHotspotId
-        || 0,
-      ) || null;
-      const removedRows = [
-        ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
-        ...(Array.isArray(confirmResult?.removedHotspots) ? confirmResult.removedHotspots : []),
-        ...(Array.isArray(confirmResult?.resolution?.removedHotspots) ? confirmResult.resolution.removedHotspots : []),
-        ...(Array.isArray(confirmResult?.resolution?.removedOptionalHotspots) ? confirmResult.resolution.removedOptionalHotspots : []),
-        ...(Array.isArray(confirmResult?.resolution?.removedTopPriorityHotspots) ? confirmResult.resolution.removedTopPriorityHotspots : []),
-      ];
-      const removedHotspotIds = Array.from(new Set(
-        removedRows
-          .map((row) => Number(row?.id || row?.hotspotId || row?.hotspot_ID || 0))
-          .filter((id: number) => id > 0),
-      ));
+      const {
+        confirmedHotspotId,
+        confirmedRouteId,
+        persistedTimeline,
+        insertedRouteHotspotId,
+        removedHotspotIds,
+      } = normalizeFitHereConfirmationResult(confirmResult, selectedAttempt, selectedFitHotspot?.id || null, addHotspotModal.routeId);
 
       if (confirmedHotspotId > 0) {
         setAddedInModalHotspotIds((prev) => {

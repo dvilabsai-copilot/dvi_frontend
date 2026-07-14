@@ -56,6 +56,56 @@ export const analyzeFitHereConfirmation = (
   return { confirmRemovedRows, acknowledgedRemovedHotspotIds, hasTimingRisk, hasPriorityRemoval, hasP3Removal, hasP1P2Removal, selectedOpeningConflict, canForceClosedHotspotConflict, hasUnprovenProtectedRemoval };
 };
 
+export interface FitHereConfirmationResultShape {
+  confirmedHotspotId: number;
+  confirmedRouteId: number;
+  persistedTimeline: unknown[];
+  insertedRouteHotspotId: number | null;
+  removedHotspotIds: number[];
+}
+
+export const normalizeFitHereConfirmationResult = (
+  confirmResult: unknown,
+  selectedAttempt: ManualFitHerePreviewResponse | null,
+  selectedFitHotspotId: number | null,
+  fallbackRouteId: number | null,
+): FitHereConfirmationResultShape => {
+  const result = (typeof confirmResult === "object" && confirmResult !== null ? confirmResult : {}) as Record<string, unknown>;
+  const resolution = (typeof result.resolution === "object" && result.resolution !== null ? result.resolution : {}) as Record<string, unknown>;
+  const confirmedHotspotId = Number(result.selectedHotspotId || selectedAttempt?.selectedHotspotId || selectedFitHotspotId || 0);
+  const confirmedRouteId = Number(result.routeId || selectedAttempt?.routeId || fallbackRouteId || 0);
+  const persistedTimeline = Array.isArray(result.routeTimeline) ? result.routeTimeline : (Array.isArray(result.fullTimeline) ? result.fullTimeline : []);
+  const insertedTimelineRow = persistedTimeline.find((row) => {
+    if (typeof row !== "object" || row === null) return false;
+    const record = row as Record<string, unknown>;
+    return String(record.type || "").toLowerCase() === "attraction"
+      && Number(record.hotspotId ?? record.locationId ?? 0) === confirmedHotspotId
+      && (record.planOwnWay === true || record.isManual === true);
+  });
+  const scheduledManualHotspots = Array.isArray(resolution.scheduledManualHotspots) ? resolution.scheduledManualHotspots : [];
+  const backendScheduledManualHotspot = scheduledManualHotspots.find((row) => {
+    if (typeof row !== "object" || row === null) return false;
+    const record = row as Record<string, unknown>;
+    return Number(record.hotspotId || record.id || 0) === confirmedHotspotId;
+  });
+  const getRecordValue = (row: unknown, key: string): unknown => (typeof row === "object" && row !== null ? (row as Record<string, unknown>)[key] : undefined);
+  const insertedRouteHotspotId = Number(
+    result.routeHotspotId
+    || getRecordValue(backendScheduledManualHotspot, "routeHotspotId")
+    || getRecordValue(insertedTimelineRow, "routeHotspotId")
+    || 0,
+  ) || null;
+  const removedRows = [
+    ...(Array.isArray(selectedAttempt?.removedHotspots) ? selectedAttempt.removedHotspots : []),
+    ...(Array.isArray(result.removedHotspots) ? result.removedHotspots : []),
+    ...(Array.isArray(resolution.removedHotspots) ? resolution.removedHotspots : []),
+    ...(Array.isArray(resolution.removedOptionalHotspots) ? resolution.removedOptionalHotspots : []),
+    ...(Array.isArray(resolution.removedTopPriorityHotspots) ? resolution.removedTopPriorityHotspots : []),
+  ];
+  const removedHotspotIds = Array.from(new Set(removedRows.map((row) => Number(getRecordValue(row, "id") || getRecordValue(row, "hotspotId") || getRecordValue(row, "hotspot_ID") || 0)).filter((id) => id > 0)));
+  return { confirmedHotspotId, confirmedRouteId, persistedTimeline, insertedRouteHotspotId, removedHotspotIds };
+};
+
 const errorMessage = (error: unknown): string => {
   if (typeof error === "object" && error !== null) {
     const message = (error as { message?: unknown }).message;
