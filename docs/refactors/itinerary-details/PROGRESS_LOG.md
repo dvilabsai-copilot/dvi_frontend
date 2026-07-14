@@ -1839,6 +1839,32 @@
 ### Notes
 - Validation and normalized-decision derivation remain controller-owned to preserve existing response-shape handling.
 
+## Iteration 152 - Preview validation reason utility
+
+### Baseline
+- Starting point: Iteration 151 active preview resolution precedence extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate preview validation reason selection and destination-hotel-name substitution.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/previewValidationReason.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: unscheduled/manual-cannot-fit messaging, normalized decision precedence, reason-code messages, relaxed-route copy, and destination-name replacement now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,569 lines.
+- New `previewValidationReason.utils.ts`: 35 lines.
+
+### Notes
+- Matrix apply gating, decision status, and confirmation controls remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

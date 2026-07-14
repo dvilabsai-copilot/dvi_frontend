@@ -128,6 +128,7 @@ import {
 import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
 import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePreviewTimeline.utils";
 import { resolveActivePreviewResolution } from "./itinerary-details/utils/activePreviewResolution.utils";
+import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -1473,46 +1474,19 @@ const loadAndCacheRouteHotelDetails = useCallback(
     normalizedDecision,
   ]);
 
-  const previewValidationReasonText = useMemo(() => {
-    const previewCode = String((activePreviewResolution as any)?.code || '').toUpperCase();
-    const unscheduledReason = String(
-      (activePreviewResolution as any)?.resolution?.unscheduledManualHotspots?.[0]?.reason
-      || (activePreviewResolution as any)?.unscheduledManualHotspots?.[0]?.reason
-      || '',
-    ).trim();
-
-    if (previewCode === 'MANUAL_HOTSPOT_CANNOT_FIT' && unscheduledReason) {
-      return unscheduledReason;
-    }
-
-    if (normalizedDecision?.primaryMessage) {
-      return String(normalizedDecision.primaryMessage);
-    }
-    const reason = String(activePreviewValidation?.reason || '').toUpperCase();
-    if (reason === 'NO_FEASIBLE_ROUTE_SLOT') {
-      const manualRelaxedRouteFit =
-        isManualRelaxedRouteFitPolicy(manualPreviewState)
-        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-        || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
-
-      return manualRelaxedRouteFit
-        ? 'This hotspot adds extra distance/off-route travel. Manual add allows this when the rebuilt day still finishes within the allowed timing window.'
-        : 'Matrix data exists, but this hotspot is off-route or backtracking for all current route segments.';
-    }
-    if (reason === 'MATRIX_DATA_MISSING') {
-      return 'Route-fit matrix data is missing for the selected hotspot and current route.';
-    }
-    if (reason === 'OSRM_ROUTE_CHECK_FAILED') {
-      return 'OSRM route validation failed while checking the source-city route anchor.';
-    }
-    const baseReason = activePreviewValidation?.reason || 'The rebuilt timeline still has timing, distance, or operating-window conflicts for this manual hotspot.';
-    const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim();
-    if (!destinationHotelDisplayName || !matrixDestinationName) {
-      return baseReason;
-    }
-    const escapedDestinationName = matrixDestinationName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return String(baseReason).replace(new RegExp(escapedDestinationName, 'gi'), destinationHotelDisplayName);
-  }, [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution]);
+  const previewValidationReasonText = useMemo(
+    () => getPreviewValidationReasonText({
+      resolution: activePreviewResolution,
+      validation: activePreviewValidation,
+      normalizedDecision,
+      manualPreviewState,
+      groupPreviewResolution,
+      matrixFit,
+      destinationHotelDisplayName,
+      isManualRelaxedRouteFitPolicy,
+    }),
+    [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution],
+  );
 
   const matrixApplyBlocked = useMemo(() => {
     const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
