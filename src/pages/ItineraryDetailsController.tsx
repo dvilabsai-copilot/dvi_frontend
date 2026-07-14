@@ -179,6 +179,7 @@ import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePre
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
+import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import {
   buildArrivalPolicyDecisionKey,
   getRequestArrivalPolicyDecisionKey,
@@ -5954,30 +5955,10 @@ const getSelectedPreviewActivity = () =>
     void openGuideModal(null, existing, 1);
   };
 
-  const loadGuideAvailability = useCallback(async (planId: number) => {
-    if (!(planId > 0)) {
-      setGuideAvailability(null);
-      return;
-    }
-
-    setGuideAvailabilityLoading(true);
-
-    try {
-      const response = await api(`/itineraries/${planId}/guides/availability`) as GuideAvailabilityResponse;
-
-console.log("[GuideAvailability]", {
-  planId,
-  response,
-});
-
-setGuideAvailability(response || null);
-    } catch (e) {
-      console.error("Failed to load guide availability", e);
-      setGuideAvailability(null);
-    } finally {
-      setGuideAvailabilityLoading(false);
-    }
-  }, []);
+  const loadGuideAvailability = useGuideAvailabilityLoader({
+    setGuideAvailability,
+    setGuideAvailabilityLoading,
+  });
 
   const getGuideAssignmentForDay = useCallback((day: ItineraryDay): ItineraryGuideAssignment | null => {
     const dayGuideAssignment =

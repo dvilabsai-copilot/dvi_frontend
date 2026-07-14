@@ -1397,6 +1397,32 @@
 ### Notes
 - Route-time mutation responsibilities are now separated into rebuild, PATCH, and arrival-policy controllers; larger hotel/hotspot/quotation views remain.
 
+## Iteration 135 - Guide availability loader
+
+### Baseline
+- Starting point: Iteration 134 arrival-policy route-time controller extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the guide availability API loader and its loading/error state transitions.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useGuideAvailabilityLoader.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: guide availability request, response assignment, error reset, and loading cleanup now live in the hook.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,452 lines.
+- New `useGuideAvailabilityLoader.ts`: 35 lines.
+
+### Notes
+- Guide assignment selection and mutation remain separate existing boundaries.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
