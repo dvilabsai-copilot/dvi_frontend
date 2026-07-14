@@ -74,6 +74,7 @@ import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNor
 import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
+import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
@@ -1498,26 +1499,7 @@ const switchedRouteRef = useRef<string | null>(null);
     return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
 
-  const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
-    const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
-    if (!vehicles.length && (details?.vehicleRateAvailability?.length || 0) > 0) {
-      return true;
-    }
-    if (!vehicles.length) return false;
-    return vehicles.some((vehicle) => {
-      const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
-      const vehicleTypeId = Number(vehicle?.vehicleTypeId || 0);
-      const totalAmount = Number(vehicle?.totalAmount);
-      const vendorName = String(vehicle?.vendorName || "").trim();
-      const vehicleOrigin = String(vehicle?.vehicleOrigin || "").trim();
-      return (
-        vendorEligibleId > 0 &&
-        vehicleTypeId > 0 &&
-        Number.isFinite(totalAmount) &&
-        (vendorName.length > 0 || vehicleOrigin.length > 0)
-      );
-    });
-  }, []);
+  const hasUsableVehicleRows = hasUsableVehicleRowsUtil;
 
   const prepareVehicleBuild = useVehicleBuildController({
     pushPageLoaderStage,

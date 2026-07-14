@@ -4511,6 +4511,30 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 218 - Vehicle availability utility
+
+### Baseline
+- Starting checkpoint: `05ea273` on `refactor/itinerary-details-checkpoint` with vehicle-rate selection guard extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/vehicleAvailability.utils.ts`.
+- Moved vehicle-build usable-row detection and intentional no-rate-state handling out of `ItineraryDetailsController.tsx`.
+- Preserved the vehicle build controller callback contract and rate-unavailable empty-state behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Utility ESLint check passed.
+- Filtered TypeScript check found no errors from the utility or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,816 physical lines (down from 5,834 at the previous iteration).
+- New `vehicleAvailability.utils.ts`: 33 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 217 - Vehicle-rate selection guard hook
 
 ### Baseline
