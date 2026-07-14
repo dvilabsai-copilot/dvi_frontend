@@ -169,6 +169,7 @@ import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHer
 import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
 import { useFitHereConfirmationReset } from "./itinerary-details/hooks/useFitHereConfirmationReset";
 import { useFitHereConfirmationState } from "./itinerary-details/hooks/useFitHereConfirmationState";
+import { useFitHereConfirmationRefresh } from "./itinerary-details/hooks/useFitHereConfirmationRefresh";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7444,6 +7445,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setRouteNeedsRebuild,
   });
 
+  const refreshAfterFitHereConfirmation = useFitHereConfirmationRefresh({
+    quoteId,
+    shouldShowHotels,
+    setItinerary,
+    setHotelDetails,
+  });
+
   const getFitHereRefreshScrollStorageKey = useCallback(() => {
     const normalizedQuoteId = String(quoteId || "").trim();
     return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
@@ -7549,29 +7557,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       toast.success('Hotspot inserted successfully. Timeline updated.');
       resetFitHereAfterConfirmation();
 
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        const refreshedDetails = detailsRes as ItineraryDetailsResponse;
-        const mergedDetails: ItineraryDetailsResponse = {
-          ...refreshedDetails,
-          days: (refreshedDetails.days || []).map((day) => {
-            if (Number(day.id) !== Number(confirmedRouteId)) {
-              return day;
-            }
-
-            return {
-              ...day,
-              segments: confirmedSegments.length > 0 ? confirmedSegments : day.segments,
-            };
-          }),
-        };
-
-        setItinerary(mergedDetails);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
+      await refreshAfterFitHereConfirmation(confirmedRouteId, confirmedSegments);
     } catch (error) {
       if (isExpiredOrMissingFitHereAttemptError(error)) {
         const scrollDayNumber = resolveActiveFitHereDayNumber(selectedAttempt);
