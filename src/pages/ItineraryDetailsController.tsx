@@ -155,6 +155,7 @@ import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDelete
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
+import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -8076,73 +8077,15 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     await handleRemovePreviewHotspot(targetHotspotId);
   };
 
-  const handleBuildMatrixAndPreviewAgain = async () => {
-    const candidateId = Number(activePreviewHotspotId || 0);
-    const planId = Number(addHotspotModal.planId || 0);
-    const routeId = Number(addHotspotModal.routeId || 0);
-
-    if (isDestinationSideManualPreview) {
-      resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
-      await handlePreviewHotspot(candidateId, {
-        forceRefresh: true,
-        source: 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED',
-      });
-      return;
-    }
-
-    if (!planId || !routeId || !candidateId) {
-      toast.error('Missing plan, route, or hotspot.');
-      return;
-    }
-
-    setIsBuildingMatrix(true);
-    try {
-      const result: any = await ItineraryService.buildMissingManualHotspotMatrix(planId, routeId, candidateId);
-      const resultCode = String(result?.code || '').toUpperCase();
-
-      if (
-        !result?.success
-        && resultCode !== 'SINGLE_HOTSPOT_CITY_MATRIX_BUILT'
-        && resultCode !== 'EMPTY_ROUTE_CITY_MATRIX_BUILT'
-        && resultCode !== 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED'
-        && resultCode !== 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX'
-        && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_SINGLE_HOTSPOT_MATRIX'
-        && resultCode !== 'CITY_ENDPOINT_NOT_FOUND_FOR_EMPTY_ROUTE_MATRIX'
-      ) {
-        toast.error(result?.message || 'Matrix build failed.');
-        return;
-      }
-
-      if (
-        resultCode === 'SINGLE_HOTSPOT_CITY_MATRIX_BUILT'
-        || resultCode === 'EMPTY_ROUTE_CITY_MATRIX_BUILT'
-      ) {
-        toast.success(result?.message || 'Matrix built using city endpoint. Rebuilding preview...');
-      } else if (
-        resultCode === 'CITY_ENDPOINT_NOT_FOUND_FOR_SINGLE_HOTSPOT_MATRIX'
-        || resultCode === 'CITY_ENDPOINT_NOT_FOUND_FOR_EMPTY_ROUTE_MATRIX'
-      ) {
-        toast.error(result?.message || 'Cannot build matrix because city endpoint was not found.');
-        return;
-      } else if (resultCode === 'EMPTY_ROUTE_CITY_MATRIX_FAILED') {
-        toast.error(result?.message || 'City endpoint matrix failed for first hotspot insertion.');
-        return;
-      } else if (resultCode === 'NO_ROUTE_HOTSPOT_ANCHOR_FOR_MATRIX') {
-        toast.error(result?.message || 'Cannot build matrix because this route has no hotspot anchor and no city endpoint.');
-        return;
-      } else if (resultCode !== 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED') {
-        toast.success('Matrix data built. Rebuilding preview...');
-      } else {
-        // Destination-side re-preview is silent to avoid implying matrix was needed.
-      }
-      resetManualHotspotPreviewStateButKeepActiveHotspot(candidateId);
-      await handlePreviewHotspot(candidateId, { forceRefresh: true, source: 'AFTER_MATRIX_BUILD' });
-    } catch (error) {
-      toast.error(error?.response?.data?.message || error?.message || 'Matrix build failed.');
-    } finally {
-      setIsBuildingMatrix(false);
-    }
-  };
+  const handleBuildMatrixAndPreviewAgain = useHotspotMatrixPreviewController({
+    activePreviewHotspotId,
+    planId: addHotspotModal.planId,
+    routeId: addHotspotModal.routeId,
+    isDestinationSideManualPreview,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
+    handlePreviewHotspot,
+    setIsBuildingMatrix,
+  });
 
   const handleAddHotspot = async () => {
     if (readOnly) {

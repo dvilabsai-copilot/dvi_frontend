@@ -1005,6 +1005,33 @@
 - The old inline hotspot deletion implementation was removed after the new hook passed verification; the controller now has one active delete path.
 - Follow-up extraction: Fit Here action controller/modal view, vehicle workflow, and quotation review/submission.
 
+## Iteration 72 - Hotspot matrix recovery boundary
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotspotMatrixPreviewController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: destination-side re-preview, missing city-matrix build, backend result-code handling, and matrix-triggered manual preview retry.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useHotspotMatrixPreviewController.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,449 lines.
+- New `useHotspotMatrixPreviewController.ts`: 104 lines.
+
+### Notes
+- Matrix result-code behavior and toast wording remain unchanged; only ownership moved.
+- Follow-up extraction: manual hotspot preview mutation and Fit Here confirmation workflow.
+
 ## Iteration 52 — Hotel rebuild mutation boundary
 
 ### Changes

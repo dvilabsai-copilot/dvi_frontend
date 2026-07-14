@@ -91,4 +91,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Activity availability loading and modal initialization are isolated in `useActivityAvailabilityLoader`; activity add/preview/delete workflows remain separately bounded.
 - Add-hotspot modal hydration and available-hotspot normalization are isolated in `useAddHotspotModalController`; Fit Here action mutations remain a separate high-risk boundary.
 - Hotspot deletion, optimistic timeline cleanup, exclusion updates, and modal refresh are isolated in `useHotspotDeleteMutation`; the controller retains only the Fit Here/rebuild decisions that surround that mutation.
+- Missing-city-matrix recovery and the follow-up manual hotspot re-preview are isolated in `useHotspotMatrixPreviewController`; the preview mutation itself remains the next hotspot action boundary.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
