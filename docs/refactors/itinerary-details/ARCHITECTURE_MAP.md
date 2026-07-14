@@ -116,5 +116,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Quotation passenger-form rendering for the primary guest and conditional adult/child/infant rows is isolated in `QuotationPassengerForm.tsx`; the controller still owns the existing state, validation, and submission orchestration.
 - Quotation arrival/departure date, place, and flight-detail fields are isolated in `QuotationTravelDetailsForm.tsx`; the existing arrival normalization handler remains injected from the controller.
 - Quotation dialog cancel/reset controls and confirmation-button loading/disable presentation are isolated in `QuotationDialogFooter.tsx`; confirmation submission and wallet reset callbacks remain injected from the controller.
+- The conditional child/infant passenger-requirement notice is isolated in `QuotationPassengerNotice.tsx`; the controller supplies only the existing visibility predicate.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

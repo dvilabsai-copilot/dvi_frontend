@@ -179,6 +179,7 @@ import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
 import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter";
+import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11456,14 +11457,9 @@ const canShowGuideActionButton =
               </div>
             )}
 
-            {requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0) && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-sm font-medium text-amber-800">Passenger details required for final booking</p>
-                <p className="text-xs text-amber-700 mt-1">
-                  Please review the child and infant details below before confirming the booking.
-                </p>
-              </div>
-            )}
+            <QuotationPassengerNotice
+              visible={requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0)}
+            />
 
             {requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData && (
               <div className="flex items-center gap-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
