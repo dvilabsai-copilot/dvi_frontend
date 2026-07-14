@@ -4511,6 +4511,30 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 220 - TBO hotel selection summary hook
+
+### Baseline
+- Starting checkpoint: `b0497d2` on `refactor/itinerary-details-checkpoint` with Fit Here timeline helper extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useTboHotelSelectionSummary.ts`.
+- Moved TBO hotel totals, selected-TBO detection, prebook-price comparison, prebook entry shaping, and detailed passenger-flow gating out of `ItineraryDetailsController.tsx`.
+- Preserved provider normalization, supplier-bookability checks, and quotation confirmation flags.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,780 physical lines (down from 5,786 at the previous iteration).
+- New `useTboHotelSelectionSummary.ts`: 45 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 219 - Fit Here timeline helpers hook
 
 ### Baseline

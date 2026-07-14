@@ -75,6 +75,7 @@ import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAn
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
+import { useTboHotelSelectionSummary } from "./itinerary-details/hooks/useTboHotelSelectionSummary";
 import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
@@ -1298,25 +1299,18 @@ const switchedRouteRef = useRef<string | null>(null);
   const prebookDataRef = useRef<any | null>(null);
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
 
-  const prebookTotalAmount = Number(prebookData?.updatedTotalPrice || prebookData?.finalPrice || prebookData?.totalAmount || 0);
-  const selectedTboHotelTotal = useMemo(
-    () =>
-      Object.values(selectedHotelBookings)
-        .filter((item) => normalizeHotelProvider(item) === 'tbo')
-        .reduce((sum, item) => sum + Number(item.netAmount || 0), 0),
-    [selectedHotelBookings],
-  );
-  const hasSelectedTboHotels = useMemo(
-    () =>
-      Object.values(selectedHotelBookings).some(
-        (item) => isSupplierBookableHotel(item) && normalizeHotelProvider(item) === 'tbo',
-      ),
-    [selectedHotelBookings],
-  );
-  const requiresDetailedPassengerFlow = requiresHotelBookingFlow && hasSelectedTboHotels;
-  const hasPrebookPriceChanged =
-    prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
-  const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
+  const {
+    prebookTotalAmount,
+    selectedTboHotelTotal,
+    hasSelectedTboHotels,
+    requiresDetailedPassengerFlow,
+    hasPrebookPriceChanged,
+    prebookHotelEntries,
+  } = useTboHotelSelectionSummary({
+    selectedHotelBookings,
+    prebookData,
+    requiresHotelBookingFlow,
+  });
   const { getCoveredRouteIdsFromHotelSelections, selectedHotelCoveredRouteIds } = useHotelSelectionCoverage({
     selectedHotelBookings,
   });
