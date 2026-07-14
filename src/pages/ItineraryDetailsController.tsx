@@ -192,6 +192,7 @@ import { HotspotListState } from "./itinerary-details/components/HotspotListStat
 import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSelectionNotice";
 import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialogFooter";
 import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyButton";
+import { HotspotFitHereTimelineRows } from "./itinerary-details/components/HotspotFitHereTimelineRows";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9573,42 +9574,14 @@ const canShowGuideActionButton =
                       </p>
                     </div>
 
-                    <div className="space-y-3">
-                      {selectedFitHereDay.segments.map((segment, idx) => {
-                        if (segment.type === 'hotspot') return null;
-
-                        const anchor = buildFitHereAnchorForTimelineRow(selectedFitHereDay, idx);
-                        const shouldRenderAnchor = Boolean(selectedFitHotspot && anchor);
-
-                        return (
-                          <React.Fragment key={`fit-here-row-${idx}`}>
-                            <div
-                              data-testid="fit-here-timeline-row"
-                              data-segment-type={segment.type}
-                              data-segment-label={getFitHereSegmentLabel(segment)}
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-900">
-                                    {getFitHereSegmentLabel(segment)}
-                                  </p>
-                                  {getFitHereSegmentTime(segment) && (
-                                    <p className="mt-1 text-xs text-slate-500">
-                                      {getFitHereSegmentTime(segment)}
-                                    </p>
-                                  )}
-                                </div>
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase text-slate-600">
-                                  {segment.type}
-                                </span>
-                              </div>
-                            </div>
-                            {shouldRenderAnchor && anchor ? renderFitHereButton(selectedFitHereDay, anchor) : null}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
+                    <HotspotFitHereTimelineRows
+                      selectedFitHereDay={selectedFitHereDay}
+                      selectedFitHotspot={selectedFitHotspot}
+                      buildFitHereAnchorForTimelineRow={buildFitHereAnchorForTimelineRow}
+                      getFitHereSegmentLabel={getFitHereSegmentLabel}
+                      getFitHereSegmentTime={getFitHereSegmentTime}
+                      renderFitHereButton={renderFitHereButton}
+                    />
                   </div>
                 )}
                 {!isFitHereSelectionMode && (activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (

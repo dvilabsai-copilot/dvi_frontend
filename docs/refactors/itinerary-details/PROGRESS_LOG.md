@@ -978,6 +978,35 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 118 — Fit Here timeline-row composition
+
+### Baseline
+- Starting point: Iteration 117 hotspot apply-button extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the Fit Here preview timeline rows and exact-anchor button placement without moving anchor construction or mutation behavior.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotFitHereTimelineRows.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: non-hotspot Fit Here timeline-row rendering, row labels/times, and injected anchor-button placement now live in the presentation component.
+- Behaviour intentionally changed: No. Existing segment filtering, data-testid attributes, labels, anchor builder, and renderer are preserved.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Production build: passed with existing Browserslist/Tailwind/dynamic-import/chunk-size warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Full itinerary Playwright: not run in this iteration.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,802 lines.
+- New `HotspotFitHereTimelineRows.tsx`: 56 lines.
+
+### Notes
+- Anchor construction and Fit Here mutation flows remain controller-owned and injected, keeping this extraction presentation-only.
+- Remaining high-risk boundaries are the larger hotspot/Fit Here diagnostics/timeline pane, quotation review/submission view, and transitional controller composition.
+
 ## Iteration 100 — Quotation passenger form view extraction
 
 ### Baseline
