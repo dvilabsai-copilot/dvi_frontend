@@ -1114,6 +1114,33 @@
 ### Notes
 - The next high-coupling quotation boundary is the wallet top-up panel or supplier hotel review body; both require careful typed normalization of legacy provider data.
 
+## Iteration 105 — Quotation agent summary extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/agent-summary files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; agent-summary view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationAgentSummary.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: quotation number, agent identity, wallet balance, and amount-required summary now render in a typed view; wallet parsing and currency formatting remain injected unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationAgentSummary.tsx`; unrelated repository errors remain.
+- Lint: new agent-summary component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not rerun; documented shared-data/environment failures remain unchanged.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,063 lines (down from 12,081 at the previous checkpoint).
+- New `QuotationAgentSummary.tsx`: 47 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The wallet top-up editor remains the next high-coupling presentation boundary; no wallet mutation or balance-refresh behavior was moved in this iteration.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline

@@ -181,6 +181,7 @@ import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelD
 import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter";
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
 import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
+import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11333,33 +11334,14 @@ const canShowGuideActionButton =
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Quotation Details */}
-            {agentInfo && (
-              <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#6c6c6c]">Quotation No:</span>
-                  <span className="font-medium text-[#4a4260]">{agentInfo.quotation_no}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#6c6c6c]">Agent Name:</span>
-                  <span className="font-medium text-[#4a4260]">
-                    {agentInfo.agent_display_name || agentInfo.agent_name}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#6c6c6c]">Wallet Balance:</span>
-                  <span className={`font-medium ${(walletBalanceAmount ?? parseWalletAmount(walletBalance)) < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {walletBalance}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[#6c6c6c]">Amount Required:</span>
-                  <span className="font-medium text-[#4a4260]">
-                    {formatCurrency(confirmRequiredAmount)}
-                  </span>
-                </div>
-              </div>
-            )}
+            <QuotationAgentSummary
+              agentInfo={agentInfo}
+              walletBalance={walletBalance}
+              walletBalanceAmount={walletBalanceAmount}
+              parseWalletAmount={parseWalletAmount}
+              confirmRequiredAmount={confirmRequiredAmount}
+              formatCurrency={formatCurrency}
+            />
 
             {shouldEnableWalletTopUpOnConfirm && showWalletTopUpPanel && agentInfo && (
               <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
