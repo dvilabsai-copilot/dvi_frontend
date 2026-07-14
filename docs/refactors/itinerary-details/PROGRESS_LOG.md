@@ -1241,6 +1241,33 @@
 ### Notes
 - Non-TBO selected-hotel review rows and the surrounding prebook summary remain in the controller for a subsequent provider-specific extraction.
 
+## Iteration 110 — Prebook acceptance notice extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/acceptance-notice files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; acceptance-notice view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationPrebookAcceptanceNotice.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: prebook changed-price warning and hotel-detail acknowledgement checkbox now render in a dedicated typed view; acceptance state remains controller-owned.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationPrebookAcceptanceNotice.tsx`; unrelated repository errors remain.
+- Lint: new acceptance-notice component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,881 lines (down from 11,890 at the previous checkpoint).
+- New `QuotationPrebookAcceptanceNotice.tsx`: 29 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The non-TBO hotel review and prebook summary remain the next quotation review boundaries; no provider data or booking payload semantics were changed.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline

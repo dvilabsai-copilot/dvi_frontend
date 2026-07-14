@@ -185,6 +185,7 @@ import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary
 import { QuotationRoomingPreview } from "./itinerary-details/QuotationRoomingPreview";
 import { QuotationWalletTopUpActions } from "./itinerary-details/QuotationWalletTopUpActions";
 import { QuotationPrebookHotelRows } from "./itinerary-details/QuotationPrebookHotelRows";
+import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationPrebookAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11721,21 +11722,11 @@ const canShowGuideActionButton =
                   </div>
                 )}
 
-                {hasPrebookPriceChanged && (
-                  <p className="text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                    Prebook returned a changed price compared to selected hotel rates. You must accept the updated amount before final booking.
-                  </p>
-                )}
-
-                <label className="flex items-start gap-2 text-sm text-[#4a4260]">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={hasAcceptedUpdatedPrice}
-                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                  />
-                  <span>I have reviewed the inclusions, amenities, rate conditions, cancellation policy, room promotion, and additional charge details before final booking confirmation.</span>
-                </label>
+                <QuotationPrebookAcceptanceNotice
+                  priceChanged={hasPrebookPriceChanged}
+                  accepted={hasAcceptedUpdatedPrice}
+                  setAccepted={setHasAcceptedUpdatedPrice}
+                />
               </div>
             )}
             <QuotationPassengerForm
