@@ -1005,6 +1005,32 @@
 - The confirmation payload and prebook flow retain the prepared selection map and group type exactly as before; only ownership moved.
 - Follow-up extraction: quotation confirmation orchestration and the remaining hotel/vehicle workflow boundaries.
 
+## Iteration 90 - Quotation passenger payload construction
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or validation hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `src/pages/itinerary-details/hooks/useQuotationPassengerValidation.ts`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: primary and additional passenger booking-payload construction now follows the existing validation/normalization boundary.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useQuotationPassengerValidation.ts`; unrelated repository errors remain.
+- Lint: validation hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,188 lines.
+- `useQuotationPassengerValidation.ts`: 198 lines.
+
+### Notes
+- Passenger fields, title/pax-type mapping, lead-passenger flag, and optional document/contact handling remain unchanged; only ownership moved.
+- Follow-up extraction: quotation occupancy/payload assembly and confirmation orchestration.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline

@@ -8,6 +8,8 @@ interface GuestDetailsShape {
   contactNo: string;
   nationality: string;
   age: string | number;
+  emailId?: string;
+  passportNo?: string;
 }
 
 interface PassengerValidationOptions {
@@ -26,6 +28,21 @@ export interface ValidatedQuotationPassengers {
   normalizedAdditionalAdults: AdditionalPassenger[];
   normalizedAdditionalChildren: AdditionalPassenger[];
   normalizedAdditionalInfants: AdditionalPassenger[];
+  passengers: Array<{
+    title: string;
+    firstName: string;
+    lastName: string;
+    nationality: string;
+    email?: string;
+    paxType: number;
+    leadPassenger: boolean;
+    age: number;
+    panNo?: string;
+    passportNo?: string;
+    passportIssueDate?: string;
+    passportExpDate?: string;
+    phoneNo: string;
+  }>;
 }
 
 const allowedTitles = ["Mr", "Ms", "Mrs"];
@@ -105,5 +122,77 @@ export const useQuotationPassengerValidation = ({
     return null;
   }
   setFormErrors({});
-  return { normalizedAdditionalAdults, normalizedAdditionalChildren, normalizedAdditionalInfants };
+  const primaryName = normalizeNameParts(guestDetails.name);
+  const passengers = [
+    {
+      title: guestDetails.salutation,
+      firstName: primaryName.firstName,
+      lastName: primaryName.lastName,
+      nationality: guestDetails.nationality,
+      email: guestDetails.emailId || undefined,
+      paxType: 1,
+      leadPassenger: true,
+      age: Number(guestDetails.age),
+      panNo: undefined,
+      passportNo: guestDetails.passportNo || undefined,
+      passportIssueDate: undefined,
+      passportExpDate: undefined,
+      phoneNo: guestDetails.contactNo,
+    },
+    ...normalizedAdditionalAdults.map((adult) => {
+      const name = normalizeNameParts(adult.name);
+      return {
+        title: adult.title,
+        firstName: name.firstName,
+        lastName: name.lastName,
+        nationality: adult.nationality,
+        email: undefined,
+        paxType: 1,
+        leadPassenger: false,
+        age: Number(adult.age),
+        panNo: adult.panNo || undefined,
+        passportNo: adult.passportNo || undefined,
+        passportIssueDate: undefined,
+        passportExpDate: undefined,
+        phoneNo: guestDetails.contactNo,
+      };
+    }),
+    ...normalizedAdditionalChildren.map((child) => {
+      const name = normalizeNameParts(child.name);
+      return {
+        title: child.title,
+        firstName: name.firstName,
+        lastName: name.lastName,
+        nationality: child.nationality,
+        email: undefined,
+        paxType: 2,
+        leadPassenger: false,
+        age: Number(child.age),
+        panNo: undefined,
+        passportNo: child.passportNo || undefined,
+        passportIssueDate: undefined,
+        passportExpDate: undefined,
+        phoneNo: guestDetails.contactNo,
+      };
+    }),
+    ...normalizedAdditionalInfants.map((infant) => {
+      const name = normalizeNameParts(infant.name);
+      return {
+        title: infant.title,
+        firstName: name.firstName,
+        lastName: name.lastName,
+        nationality: infant.nationality,
+        email: undefined,
+        paxType: 3,
+        leadPassenger: false,
+        age: Number(infant.age),
+        panNo: undefined,
+        passportNo: infant.passportNo || undefined,
+        passportIssueDate: undefined,
+        passportExpDate: undefined,
+        phoneNo: guestDetails.contactNo,
+      };
+    }),
+  ];
+  return { normalizedAdditionalAdults, normalizedAdditionalChildren, normalizedAdditionalInfants, passengers };
 }, [additionalAdults, additionalChildren, additionalInfants, expectedAdults, expectedChildren, expectedInfants, guestDetails, requiresDetailedPassengerFlow, setFormErrors]);
