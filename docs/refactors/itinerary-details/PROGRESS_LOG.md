@@ -1085,6 +1085,32 @@
 ### Notes
 - The adjacent recalculated-timings banner still contains legacy mojibake text and remains queued for a safe extraction.
 
+## Iteration 123 — Route-fit feasibility notice
+
+### Baseline
+- Starting point: Iteration 122 same-city rescheduling notice extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the plain feasibility explanation below the recalculated-timings banner.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewRouteFitNotice.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: route-fit feasibility copy presentation now lives in a component; the legacy checkmark banner and visibility condition remain unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,780 lines.
+- New `HotspotPreviewRouteFitNotice.tsx`: 10 lines.
+
+### Notes
+- Legacy mojibake checkmark/overflow labels remain untouched; future extraction must preserve their encoded display exactly.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

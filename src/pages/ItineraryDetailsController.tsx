@@ -197,6 +197,7 @@ import { HotspotFitHereEmptyState } from "./itinerary-details/components/Hotspot
 import { HotspotFitHereSelectionHeader } from "./itinerary-details/components/HotspotFitHereSelectionHeader";
 import { HotspotPreviewLoadingState } from "./itinerary-details/components/HotspotPreviewLoadingState";
 import { HotspotPreviewRescheduleNotice } from "./itinerary-details/components/HotspotPreviewRescheduleNotice";
+import { HotspotPreviewRouteFitNotice } from "./itinerary-details/components/HotspotPreviewRouteFitNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9944,9 +9945,7 @@ const canShowGuideActionButton =
                       {manualInsertionFit?.rescheduleApplied === true && (
                         <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
                           <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
-                          <p className="text-xs text-blue-800 mt-1">
-                            Route-fit is feasible. Timeline rows below B have been shifted forward accordingly.
-                          </p>
+                          <HotspotPreviewRouteFitNotice />
                         </div>
                       )}
 
