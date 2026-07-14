@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 7,356 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 7,313 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -33,6 +33,7 @@ Current facts:
 - New in this checkpoint: Fit Here confirmation validation, mutation payload, optimistic timeline update, refresh handoff, expired-attempt recovery, and retry paths are isolated in `useFitHereConfirmationMutation`.
 - New in this checkpoint: Clipboard recommendation grouping and local hotel/vehicle/cost package HTML and plain-text composition are isolated in `useClipboardContentBuilder`.
 - New in this checkpoint: Hotel refresh, group switching, rebuild, and vehicle refresh mutations share the existing `useHotelDataController`; duplicate page-level hotel-refresh orchestration was removed.
+- New in this checkpoint: Display-day fallback selection, segment safeguards, diagnostics, and start-segment ordering are isolated in `useDisplayItineraryDays`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

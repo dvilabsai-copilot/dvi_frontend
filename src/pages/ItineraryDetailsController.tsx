@@ -236,6 +236,7 @@ import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
+import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -3186,53 +3187,9 @@ const loadAndCacheRouteHotelDetails = useCallback(
     });
   }, [itinerary?.days, selectedHotelMetaByRoute]);
 
-  // Ensure "start" segment always appears before first travel segment within each day
-  const displayDays = (hotelHydratedDays.length ? hotelHydratedDays : itinerary?.days || []).map((day, idx) => {
-    // CRITICAL SAFEGUARD: Ensure segments always exist as an array
-    const rawSegments = (() => {
-      // First try hotelHydratedDays/current day segments
-      if (day.segments && Array.isArray(day.segments) && day.segments.length > 0) {
-        return day.segments;
-      }
-      
-      // Fallback: try to get from original itinerary.days in case hotelHydratedDays lost them
-      if (itinerary?.days && itinerary.days.length > idx) {
-        const originalDay = itinerary.days[idx];
-        if (originalDay.segments && Array.isArray(originalDay.segments)) {
-          return originalDay.segments;
-        }
-      }
-      
-      // Last resort: empty array
-      return [];
-    })();
-    
-    // DEBUG: Log for first day
-    if (idx === 0 && rawSegments.length === 0) {
-      console.warn('[ItineraryDetails] DisplayDays: No segments found for day 0!', {
-        dayFromHydrated: day,
-        dayFromOriginal: itinerary?.days?.[0],
-        hotelHydratedDaysLength: hotelHydratedDays.length,
-        itineraryDaysLength: itinerary?.days?.length,
-      });
-    }
-    
-    if (idx === 0) {
-      console.log('[ItineraryDetails] DisplayDays day 0:', {
-        segmentCount: rawSegments.length,
-        hasSegments: rawSegments.length > 0,
-        types: rawSegments.map(s => s?.type),
-      });
-    }
-    
-    return {
-      ...day,
-      segments: rawSegments.length > 0 ? rawSegments.sort((a, b) => {
-        if (a.type === 'start' && b.type !== 'start') return -1;
-        if (b.type === 'start' && a.type !== 'start') return 1;
-        return 0;
-      }) : [],
-    };
+  const displayDays = useDisplayItineraryDays({
+    hotelHydratedDays,
+    itineraryDays: itinerary?.days,
   });
 
 const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySummaryValues({

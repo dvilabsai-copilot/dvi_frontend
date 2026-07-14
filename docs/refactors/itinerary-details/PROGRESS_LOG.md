@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 188 - Display-day derivation hook
+
+### Baseline
+- Starting checkpoint: `518610c` on `refactor/itinerary-details-continuation` with duplicate hotel-refresh ownership removed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDisplayItineraryDays.ts`.
+- Moved display-day fallback selection, segment-array safeguards, first-day diagnostics, and start-segment ordering out of the page controller.
+- Preserved hydrated-day fallback behavior, original-itinerary recovery, segment ordering, and diagnostics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,313 lines (down from 7,356 at the previous iteration).
+- New hook: 45 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 187 - Consolidate hotel refresh ownership
 
 ### Baseline
