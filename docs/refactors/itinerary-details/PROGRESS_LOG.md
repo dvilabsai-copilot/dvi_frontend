@@ -1208,6 +1208,27 @@
 - `ItineraryDetailsController.tsx`: 14,932 physical lines after extraction.
 - `useGuideModalController.ts`: 98 physical lines.
 
+## Iteration 63 — Guide deletion mutation boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useGuideDeleteMutation.ts`.
+- Moved guide assignment deletion, deleting-state transitions, post-delete refresh, and existing toast/error behavior out of `ItineraryDetailsController.tsx`.
+- Preserved plan/assignment guards and the route-guide/route ID service payload.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or guide delete hook; existing repository errors remain documented.
+- Focused ESLint: passed for the guide modal and delete hooks.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,918 physical lines after extraction.
+- `useGuideDeleteMutation.ts`: 44 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

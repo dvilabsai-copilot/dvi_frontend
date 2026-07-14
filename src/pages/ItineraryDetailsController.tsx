@@ -151,6 +151,7 @@ import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
+import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
@@ -7253,27 +7254,12 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
   }
 };
 
-  const handleDeleteGuideAssignment = async () => {
-    const assignment = deleteGuideModal.assignment;
-    const planId = Number(itinerary?.planId || 0);
-    if (!assignment || !(planId > 0)) return;
-
-    try {
-      setDeleteGuideModal((prev) => ({ ...prev, deleting: true }));
-      await ItineraryService.deleteGuideAssignment(
-        planId,
-        assignment.routeGuideId,
-        assignment.routeId ?? undefined,
-      );
-      await refreshGuideData();
-      setDeleteGuideModal({ open: false, assignment: null, deleting: false });
-      toast.success("Guide deleted successfully");
-    } catch (e) {
-      console.error("Failed to delete guide assignment", e);
-      setDeleteGuideModal((prev) => ({ ...prev, deleting: false }));
-      toast.error(e?.message || "Failed to delete guide");
-    }
-  };
+  const handleDeleteGuideAssignment = useGuideDeleteMutation({
+    itineraryPlanId: Number(itinerary?.planId || 0),
+    deleteGuideModal,
+    refreshGuideData,
+    setDeleteGuideModal,
+  });
 
   useEffect(() => {
     const planId = Number(itinerary?.planId || 0);
