@@ -98,6 +98,7 @@ import {
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
 import { normalizeAvailableHotspots as normalizeAvailableHotspotsUtil } from "./itinerary-details/utils/hotspotAvailability.utils";
+import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -1632,29 +1633,13 @@ const loadAndCacheRouteHotelDetails = useCallback(
     );
   }, [matrixFit]);
 
-  const deriveHotspotCityContext = useCallback((hotspot: AvailableHotspot): 'SOURCE_CITY' | 'DESTINATION_CITY' | 'UNKNOWN' => {
-    const backend = String((hotspot as any)?.cityContext || '').trim().toUpperCase();
-    if (backend === 'SOURCE_CITY' || backend === 'DESTINATION_CITY') {
-      return backend;
-    }
-
-    const sourceKey = String(
-      hotspotFilterMeta?.sourceCityKey ||
-      currentRouteForModal?.departure ||
-      addHotspotModal.locationName ||
-      '',
-    ).trim().toLowerCase();
-    const destinationKey = String(
-      hotspotFilterMeta?.destinationCityKey ||
-      currentRouteForModal?.arrival ||
-      '',
-    ).trim().toLowerCase();
-    const hay = `${String(hotspot?.locationMap || '')} ${String(hotspot?.name || '')}`.toLowerCase();
-
-    if (destinationKey && hay.includes(destinationKey)) return 'DESTINATION_CITY';
-    if (sourceKey && hay.includes(sourceKey)) return 'SOURCE_CITY';
-    return 'UNKNOWN';
-  }, [
+  const deriveHotspotCityContext = useCallback((hotspot: AvailableHotspot) => deriveHotspotCityContextUtil(hotspot, {
+    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
+    destinationCityKey: hotspotFilterMeta?.destinationCityKey,
+    departure: currentRouteForModal?.departure,
+    arrival: currentRouteForModal?.arrival,
+    locationName: addHotspotModal.locationName,
+  }), [
     hotspotFilterMeta?.destinationCityKey,
     hotspotFilterMeta?.sourceCityKey,
     currentRouteForModal?.arrival,

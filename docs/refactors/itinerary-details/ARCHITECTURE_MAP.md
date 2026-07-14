@@ -67,6 +67,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Canonical HotelList selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation`; hotel totals and quotation preparation remain separate consumers.
 - Guide assignment lookup, availability gating, slot windows, and attraction coverage are isolated in `guideAssignment.utils`; guide orchestration and modal state remain controller-owned.
 - Backend hotspot availability normalization and active/excluded route reconciliation are isolated in `hotspotAvailability.utils`; hotspot fetching and modal workflows remain controller-owned.
+- Hotspot source/destination city-context derivation is isolated in `hotspotCityContext.utils`; route metadata remains passed in explicitly to avoid stale async state.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.

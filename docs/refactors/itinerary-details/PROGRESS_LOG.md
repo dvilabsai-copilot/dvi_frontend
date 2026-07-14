@@ -1527,6 +1527,32 @@
 ### Notes
 - The controller retains the stable callback adapter and explicit state dependencies to avoid stale asynchronous hotspot context.
 
+## Iteration 140 - Hotspot city-context utility
+
+### Baseline
+- Starting point: Iteration 139 hotspot availability normalization extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate hotspot source/destination/unknown city-context derivation from route metadata and hotspot text.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/hotspotCityContext.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: backend context precedence, route fallback keys, and source/destination text matching now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,113 lines.
+- New `hotspotCityContext.utils.ts`: 29 lines.
+
+### Notes
+- The controller keeps the memoized adapter and passes current modal/route metadata explicitly.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
