@@ -4195,6 +4195,29 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 175 - Related route options loader hook
+
+### Baseline
+- Starting checkpoint: `58da887` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useRelatedRouteOptionsLoader.ts`.
+- Moved API route-option discovery, local-storage fallback, date normalization, related-plan filtering, and fallback-route handling out of the controller effect.
+- Preserved route-option persistence keys, labels, sorting/filtering utility behavior, error logging, and `Route 1` fallback semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and TypeScript checks passed for the new hook.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,103 lines (down from 9,218).
+- New hook: 143 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
 ## Iteration 171 — Quotation modal prefill boundary
 
 ### Baseline

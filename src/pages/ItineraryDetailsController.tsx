@@ -216,6 +216,7 @@ import {
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
 import { buildQuotationModalPrefill } from "./itinerary-details/utils/quotationModalPrefill.utils";
 import { useRouteHotelPrefetch } from "./itinerary-details/hooks/useRouteHotelPrefetch";
+import { useRelatedRouteOptionsLoader } from "./itinerary-details/hooks/useRelatedRouteOptionsLoader";
 import { resolveQuotationBookingOccupancy } from "./itinerary-details/utils/quotationBookingOccupancy.utils";
 import { getQuoteNumberFromValue, normalizeRouteOptionList } from "./itinerary-details/utils/routeOptions.utils";
 import {
@@ -5579,123 +5580,7 @@ const getSelectedPreviewActivity = () =>
     };
   }, [stopRouteTimeProgress]);
 
-useEffect(() => {
-  if (!quoteId || !itinerary) return;
-
-  const loadRelatedRouteOptions = async () => {
-    try {
-      const apiRouteOptions = normalizeRouteOptionList([
-        ...((Array.isArray((itinerary as any)?.routeOptions)
-          ? (itinerary as any).routeOptions
-          : []) as any[]),
-        ...((Array.isArray((itinerary as any)?.suggestedRoutes)
-          ? (itinerary as any).suggestedRoutes
-          : []) as any[]),
-        ...((Array.isArray((itinerary as any)?.siblingRoutes)
-          ? (itinerary as any).siblingRoutes
-          : []) as any[]),
-      ]);
-
-      if (apiRouteOptions.length > 0) {
-        const routeOptionPayload = JSON.stringify(apiRouteOptions);
-
-        apiRouteOptions.forEach((option) => {
-          localStorage.setItem(
-            `itinerary-route-options:${option.quoteId}`,
-            routeOptionPayload
-          );
-        });
-
-        setLatestRouteOptions(apiRouteOptions);
-        return;
-      }
-
-      const storedRouteOptionsRaw = localStorage.getItem(
-        `itinerary-route-options:${quoteId}`
-      );
-
-      if (storedRouteOptionsRaw) {
-        try {
-          const storedRouteOptions = JSON.parse(storedRouteOptionsRaw);
-          const parsedOptions = Array.isArray(storedRouteOptions)
-            ? normalizeRouteOptionList(storedRouteOptions)
-            : [];
-
-          if (parsedOptions.length > 0) {
-            setLatestRouteOptions(parsedOptions);
-            return;
-          }
-        } catch (storageError) {
-          console.error("Failed to parse saved route options", storageError);
-        }
-      }
-
-      const currentPlanId = Number(
-        (itinerary as any)?.planId || (itinerary as any)?.itineraryPlanId || 0
-      );
-
-      const formatDate = (value?: string) => {
-        if (!value) return "";
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
-
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "";
-
-        const dd = String(date.getDate()).padStart(2, "0");
-        const mm = String(date.getMonth() + 1).padStart(2, "0");
-        const yyyy = date.getFullYear();
-        return `${dd}/${mm}/${yyyy}`;
-      };
-
-      const startDate = itinerary.days?.[0]?.date;
-      const endDate = itinerary.days?.[itinerary.days.length - 1]?.date;
-
-      const res: any = await ItineraryService.getLatest({
-        page: 1,
-        pageSize: 100,
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
-      });
-
-      const rows = Array.isArray(res?.data) ? res.data : [];
-      const relatedRows = currentPlanId
-        ? rows.filter((row) => {
-            const rowPlanId = Number(
-              row?.planId ||
-                row?.plan_id ||
-                row?.itineraryPlanId ||
-                row?.itinerary_plan_id ||
-                row?.itinerary_plan_ID ||
-                0
-            );
-
-            return rowPlanId === currentPlanId;
-          })
-        : rows;
-
-      const fallbackOptions = normalizeRouteOptionList(relatedRows);
-
-      const withCurrentQuote = normalizeRouteOptionList([
-        { quoteId: String(quoteId), label: "Route 1" },
-        ...fallbackOptions,
-      ]);
-
-      setLatestRouteOptions(withCurrentQuote.length > 0 ? withCurrentQuote : [
-        { quoteId: String(quoteId), label: "Route 1" },
-      ]);
-    } catch (error) {
-      console.error("Failed to load related route options", error);
-      setLatestRouteOptions([
-        {
-          quoteId: String(quoteId),
-          label: "Route 1",
-        },
-      ]);
-    }
-  };
-
-  loadRelatedRouteOptions();
-}, [quoteId, itinerary]);
+useRelatedRouteOptionsLoader({ quoteId, itinerary, setLatestRouteOptions });
 
 const getQuoteNumber = (value?: string) => {
   const match = String(value || "").match(/(\d+)$/);
