@@ -1,15 +1,32 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const USER_EMAIL =
-  process.env.E2E_HOTSPOT_USER ??
-  process.env.E2E_VENDOR_USER ??
-  'admin@dvi.co.in';
-const USER_PASSWORD =
-  process.env.E2E_HOTSPOT_PASSWORD ??
-  process.env.E2E_VENDOR_PASSWORD ??
-  'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
 const E2E_ITINERARY_QUOTE_ID = process.env.E2E_ITINERARY_QUOTE_ID ?? '';
+
+type TimingSegment = {
+  type?: string;
+  visitTime?: string | null;
+  timings?: string;
+};
+
+type TimingDetails = {
+  days?: Array<{ segments?: TimingSegment[] }>;
+};
+
+const createdHotspots = new Map<string, { id: number; token: string }>();
+
+test.afterEach(async ({ request }, testInfo) => {
+  const created = createdHotspots.get(testInfo.testId);
+  if (!created) return;
+
+  const response = await request.delete(`${API_BASE_URL}/hotspots/${created.id}`, {
+    headers: { Authorization: `Bearer ${created.token}` },
+  });
+  createdHotspots.delete(testInfo.testId);
+  expect(response.ok(), `E2E hotspot cleanup failed for ${created.id}: ${response.status()}`).toBeTruthy();
+});
 
 async function loginForToken(request: APIRequestContext): Promise<string> {
   const loginRes = await request.post(`${API_BASE_URL}/auth/login`, {
@@ -30,11 +47,12 @@ async function loginForToken(request: APIRequestContext): Promise<string> {
   return token;
 }
 
-async function seedAuthToken(page: Page, request: APIRequestContext): Promise<void> {
+async function seedAuthToken(page: Page, request: APIRequestContext): Promise<string> {
   const token = await loginForToken(request);
   await page.addInitScript((t) => {
     window.localStorage.setItem('accessToken', t);
   }, token);
+  return token;
 }
 
 async function fillRequiredHotspotFields(page: Page, hotspotName: string): Promise<void> {
@@ -79,7 +97,7 @@ test('hotspot opening-hours flags persist when day has no explicit slots', async
   const stamp = Date.now();
   const hotspotName = `PW Timing Persist ${stamp}`;
 
-  await seedAuthToken(page, request);
+  const token = await seedAuthToken(page, request);
   await page.goto(`${baseURL}/hotspots/new`, { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveURL(/\/hotspots\/new/i, { timeout: 20000 });
@@ -123,6 +141,7 @@ test('hotspot opening-hours flags persist when day has no explicit slots', async
   const saveJson = (await saveResponse.json()) as { id?: number };
   const hotspotId = Number(saveJson?.id || 0);
   expect(hotspotId).toBeGreaterThan(0);
+  createdHotspots.set(test.info().testId, { id: hotspotId, token });
 
   await expect(page).toHaveURL(/\/hotspots$/i, { timeout: 60000 });
 
@@ -163,9 +182,9 @@ test('itinerary details include hotspot visit timing fields and render them', as
     throw new Error(`Itinerary details API failed: status=${apiRes.status()} body=${body}`);
   }
 
-  const details = (await apiRes.json()) as any;
+  const details = (await apiRes.json()) as TimingDetails;
   const days = Array.isArray(details?.days) ? details.days : [];
-  const attractionSegments: any[] = [];
+  const attractionSegments: TimingSegment[] = [];
   for (const day of days) {
     const segments = Array.isArray(day?.segments) ? day.segments : [];
     for (const seg of segments) {

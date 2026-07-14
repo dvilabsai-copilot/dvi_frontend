@@ -1,16 +1,23 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const USER_EMAIL =
-  process.env.E2E_HOTSPOT_USER ??
-  process.env.E2E_VENDOR_USER ??
-  'admin@dvi.co.in';
-const USER_PASSWORD =
-  process.env.E2E_HOTSPOT_PASSWORD ??
-  process.env.E2E_VENDOR_PASSWORD ??
-  'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
 
-async function seedAuthToken(page: Page, request: APIRequestContext): Promise<void> {
+const createdHotspots = new Map<string, { id: number; token: string }>();
+
+test.afterEach(async ({ request }, testInfo) => {
+  const created = createdHotspots.get(testInfo.testId);
+  if (!created) return;
+
+  const response = await request.delete(`${API_BASE_URL}/hotspots/${created.id}`, {
+    headers: { Authorization: `Bearer ${created.token}` },
+  });
+  createdHotspots.delete(testInfo.testId);
+  expect(response.ok(), `E2E hotspot cleanup failed for ${created.id}: ${response.status()}`).toBeTruthy();
+});
+
+async function seedAuthToken(page: Page, request: APIRequestContext): Promise<string> {
   const loginRes = await request.post(`${API_BASE_URL}/auth/login`, {
     data: { email: USER_EMAIL, password: USER_PASSWORD },
   });
@@ -26,6 +33,7 @@ async function seedAuthToken(page: Page, request: APIRequestContext): Promise<vo
   await page.addInitScript((t) => {
     window.localStorage.setItem('accessToken', t);
   }, token);
+  return token;
 }
 
 test('hotspot create form: fill fields, upload image, and save successfully', async ({ page, baseURL, request }) => {
@@ -34,7 +42,7 @@ test('hotspot create form: fill fields, upload image, and save successfully', as
   const stamp = Date.now();
   const hotspotName = `PW Hotspot ${stamp}`;
 
-  await seedAuthToken(page, request);
+  const token = await seedAuthToken(page, request);
   await page.goto(`${baseURL}/hotspots/new`, { waitUntil: 'domcontentloaded' });
 
   await expect(page).toHaveURL(/\/hotspots\/new/i, { timeout: 20000 });
@@ -107,6 +115,11 @@ test('hotspot create form: fill fields, upload image, and save successfully', as
     const body = await saveResponse.text().catch(() => '');
     throw new Error(`Hotspot save failed: status=${saveResponse.status()} body=${body}`);
   }
+
+  const saveBody = (await saveResponse.json()) as { id?: number };
+  const hotspotId = Number(saveBody?.id || 0);
+  expect(hotspotId, 'Hotspot create response should include an id for cleanup').toBeGreaterThan(0);
+  createdHotspots.set(test.info().testId, { id: hotspotId, token });
 
   const galleryResponse = await galleryResponsePromise;
   if (!galleryResponse.ok()) {

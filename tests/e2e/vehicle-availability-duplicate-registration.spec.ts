@@ -1,8 +1,8 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 
-const USER_EMAIL = process.env.E2E_VENDOR_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_VENDOR_PASSWORD ?? 'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
 
 async function maybeLogin(page: Page): Promise<void> {
   const signInHeading = page.getByRole('heading', { name: /sign\s*in/i }).first();
@@ -210,7 +210,7 @@ test('vehicle availability add vehicle blocks duplicate registration for same ve
   await fillVehicleRequiredFields(vehicleModal2, registrationNo);
 
   let createAttemptCount = 0;
-  const onRequest = (req: any) => {
+  const onRequest = (req: Request) => {
     if (req.method() === 'POST' && /\/api\/v1\/vehicle-availability\/vehicles(\?|$)/.test(req.url())) {
       createAttemptCount += 1;
     }

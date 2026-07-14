@@ -1,4 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import mysql from 'mysql2/promise';
 
 /**
  * Playwright E2E: Vehicle-Only Itinerary Creation
@@ -9,10 +12,75 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
  * repro values taken from confirm-booking-modal-e2e.spec.ts patterns
  */
 
-const USER_EMAIL    = process.env.E2E_USER     ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_PASSWORD ?? 'Keerthi@2404ias';
-const API_BASE_URL  = process.env.E2E_API_BASE_URL      ?? 'http://127.0.0.1:4006/api/v1';
-const FRONTEND_BASE_URL = process.env.E2E_FRONTEND_BASE_URL ?? 'http://localhost:8080';
+const USER_EMAIL    = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL  = process.env.E2E_API_BASE_URL!;
+const FRONTEND_BASE_URL = process.env.E2E_FRONTEND_BASE_URL!;
+
+type ItineraryResponse = {
+  quoteId?: string;
+  itinerary_plan_code?: string;
+  planId?: number;
+  itinerary_plan_id?: number;
+  message?: string;
+  error?: string;
+  data?: ItineraryResponse;
+  plan?: ItineraryResponse;
+  vehicles?: unknown[];
+};
+
+const createdItineraries = new Map<string, { planId: number; token: string }>();
+
+function readBackendDatabaseUrl(): string {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  const backendEnv = path.resolve(process.cwd(), '..', 'api.dvi.travel', '.env');
+  const line = fs.readFileSync(backendEnv, 'utf8').split(/\r?\n/).find((entry) => /^DATABASE_URL=/.test(entry));
+  const value = line?.slice('DATABASE_URL='.length).trim().replace(/^['"]|['"]$/g, '');
+  if (!value) throw new Error('DATABASE_URL is required for draft itinerary cleanup');
+  return value;
+}
+
+async function softDeleteDraftItinerary(planId: number): Promise<void> {
+  const connection = await mysql.createConnection(readBackendDatabaseUrl());
+  try {
+    await connection.beginTransaction();
+    await connection.execute('UPDATE dvi_itinerary_plan_vehicle_details SET deleted = 1, status = 0 WHERE itinerary_plan_id = ?', [planId]);
+    await connection.execute('UPDATE dvi_itinerary_route_details SET deleted = 1, status = 0 WHERE itinerary_plan_ID = ?', [planId]);
+    await connection.execute('UPDATE dvi_itinerary_plan_details SET deleted = 1, status = 0 WHERE itinerary_plan_ID = ?', [planId]);
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    await connection.end();
+  }
+}
+
+test.afterEach(async ({ request }, testInfo) => {
+  const created = createdItineraries.get(testInfo.testId);
+  if (!created) return;
+
+  const response = await request.post(`${API_BASE_URL}/itineraries/cancel`, {
+    headers: { Authorization: `Bearer ${created.token}` },
+    data: {
+      itinerary_plan_ID: created.planId,
+      reason: 'E2E test cleanup',
+      cancellation_options: {
+        modify_hotspot: true,
+        modify_hotel: true,
+        modify_vehicle: true,
+        modify_guide: true,
+        modify_activity: true,
+      },
+    },
+  });
+  createdItineraries.delete(testInfo.testId);
+  if (response.status() === 404) {
+    await softDeleteDraftItinerary(created.planId);
+    return;
+  }
+  expect(response.ok(), `E2E itinerary cleanup failed for ${created.planId}: ${response.status()}`).toBeTruthy();
+});
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,14 +137,14 @@ test('vehicle-only itinerary: create, verify response, and open details page', a
 
   // ── seed auth token into localStorage so the frontend SPA picks it up ──────
   const token = await seedAuthToken(page, request);
-  console.log('[AUTH] token acquired');
+  console.log('[AUTH] authenticated');
 
   // ── capture API responses for debugging ──────────────────────────────────
   page.on('response', async (resp) => {
     const url   = resp.url();
     const urlRelative = url.includes('/api/v1') ? url.split('/api/v1')[1] : url;
     if (!url.includes('/api/v1')) return;
-    let body: any = null;
+    let body: unknown = null;
     try { body = await resp.json(); } catch { /* not JSON */ }
     const log = `[API ${resp.status()}] ${resp.request().method()} ${urlRelative}`;
     apiLogs.push(log);
@@ -202,7 +270,7 @@ test('vehicle-only itinerary: create, verify response, and open details page', a
   });
 
   console.log(`[STEP 1] Response status: ${createRes.status()}`);
-  const createBody = await createRes.json().catch(() => null);
+  const createBody = (await createRes.json().catch(() => null)) as ItineraryResponse | null;
   console.log('[STEP 1] Response body:', JSON.stringify(createBody, null, 2));
 
   // ── assert creation succeeded ────────────────────────────────────────────
@@ -225,6 +293,9 @@ test('vehicle-only itinerary: create, verify response, and open details page', a
     createBody?.data?.itinerary_plan_id ??
     createBody?.plan?.itinerary_plan_id ??
     0;
+
+  expect(itineraryId, 'Itinerary create response should include a plan id for cleanup').toBeGreaterThan(0);
+  createdItineraries.set(test.info().testId, { planId: itineraryId, token });
 
   console.log(`[STEP 1] ✅ Itinerary created  id=${itineraryId}  code=${itineraryCode}`);
 
@@ -295,15 +366,16 @@ test('vehicle-only itinerary: create, verify response, and open details page', a
 
   console.log(`[STEP 3] URL: ${page.url()}`);
 
-  // wait for the page to load
-  await page.waitForTimeout(3000);
+  // Vehicle pricing is built asynchronously by the API. Wait for the final details
+  // page instead of asserting during the transient build overlay.
+  await expect(page.locator(`text=${itineraryCode}`)).toBeVisible({ timeout: 60000 });
 
   // take screenshot for visual check
   await page.screenshot({ path: `test-results/vehicle-only-itinerary-${itineraryCode}.png` });
   console.log(`[STEP 3] Screenshot saved`);
 
   // check itinerary code visible on page
-  const codeVisible = await page.locator(`text=${itineraryCode}`).isVisible({ timeout: 8000 }).catch(() => false);
+  const codeVisible = await page.locator(`text=${itineraryCode}`).isVisible().catch(() => false);
   console.log(`[STEP 3] Itinerary code visible on page: ${codeVisible}`);
   expect(codeVisible, `Page should show itinerary code ${itineraryCode}`).toBe(true);
 
@@ -438,9 +510,20 @@ test('vehicle-only itinerary: API rejects payload with no vehicles', async ({ re
     data:    badPayload,
   });
 
-  const body = await res.json().catch(() => null);
+  const body = (await res.json().catch(() => null)) as ItineraryResponse | null;
   console.log(`[VALIDATION] Status: ${res.status()}`);
   console.log('[VALIDATION] Body:', JSON.stringify(body, null, 2));
+
+  if (res.ok()) {
+    const planId = Number(
+      body?.planId ??
+      body?.itinerary_plan_id ??
+      body?.data?.itinerary_plan_id ??
+      body?.plan?.itinerary_plan_id ??
+      0,
+    );
+    if (planId > 0) createdItineraries.set(test.info().testId, { planId, token });
+  }
 
   // vehicle-only with empty vehicles may succeed (vehicles added later on edit)
   // or return 400 depending on backend enforcement

@@ -1,9 +1,9 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const USER_EMAIL = process.env.E2E_USER ?? process.env.E2E_HOTSPOT_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_PASSWORD ?? process.env.E2E_HOTSPOT_PASSWORD ?? 'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
-const FRONTEND_BASE_URL = process.env.E2E_FRONTEND_BASE_URL ?? 'http://localhost:8080';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
+const FRONTEND_BASE_URL = process.env.E2E_FRONTEND_BASE_URL!;
 
 async function loginForToken(request: APIRequestContext): Promise<string> {
   const loginRes = await request.post(`${API_BASE_URL}/auth/login`, {

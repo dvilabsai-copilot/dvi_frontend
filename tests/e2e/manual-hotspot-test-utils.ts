@@ -1,16 +1,12 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
-export const API_BASE_URL = process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:4006/api/v1";
-export const DEFAULT_QUOTE_ID = process.env.E2E_ITINERARY_QUOTE_ID ?? "DVI202604247";
+export const API_BASE_URL = process.env.E2E_API_BASE_URL!;
+export const DEFAULT_QUOTE_ID = String(process.env.E2E_ITINERARY_QUOTE_ID || "").trim();
 
 const USER_EMAIL =
-  process.env.E2E_HOTSPOT_USER ??
-  process.env.PROD_EMAIL ??
-  "admin@dvi.co.in";
+  process.env.E2E_ADMIN_EMAIL!;
 const USER_PASSWORD =
-  process.env.E2E_HOTSPOT_PASSWORD ??
-  process.env.PROD_PASSWORD ??
-  "Keerthi@2404ias";
+  process.env.E2E_ADMIN_PASSWORD!;
 
 export type ManualHotspotFixture = {
   token: string;
@@ -60,6 +56,7 @@ export async function loadManualHotspotFixture(
   request: APIRequestContext,
   quoteId = DEFAULT_QUOTE_ID,
 ): Promise<ManualHotspotFixture> {
+  expect(quoteId, "Set E2E_ITINERARY_QUOTE_ID for legacy manual-hotspot fixtures").toBeTruthy();
   const token = await loginForToken(request);
   const headers = { Authorization: `Bearer ${token}` };
   const detailsResponse = await request.get(

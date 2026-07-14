@@ -1,6 +1,6 @@
 // FILE: src/pages/Settings/GlobalSettings.tsx
 
-import { useEffect, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useState, lazy, Suspense } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,7 @@ export const GlobalSettingsPage = () => {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [states, setStates] = useState<State[]>([]);
 
-  useEffect(() => {
-    loadSettings();
-    loadStates();
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getGlobalSettings();
@@ -49,16 +44,21 @@ export const GlobalSettingsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadStates = async () => {
+  const loadStates = useCallback(async () => {
     try {
       const data = await getStates();
       setStates(data);
     } catch (error) {
       console.error("Failed to load states", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadSettings();
+    void loadStates();
+  }, [loadSettings, loadStates]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -102,12 +102,12 @@ export const GlobalSettingsPage = () => {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label>State Name *</Label>
+              <Label htmlFor="global-state-name">State Name *</Label>
               <Select
                 value={settings.state_name || ""}
                 onValueChange={(value) => setSettings({ ...settings, state_name: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="global-state-name">
                   <SelectValue placeholder="Select State" />
                 </SelectTrigger>
                 <SelectContent>
@@ -120,15 +120,17 @@ export const GlobalSettingsPage = () => {
               </Select>
             </div>
             <div>
-              <Label>On Ground Support Number *</Label>
+              <Label htmlFor="global-onground-support-number">On Ground Support Number *</Label>
               <Input
+                id="global-onground-support-number"
                 value={settings.onground_support_number || ""}
                 onChange={(e) => setSettings({ ...settings, onground_support_number: e.target.value })}
               />
             </div>
             <div>
-              <Label>Escalation Call Number *</Label>
+              <Label htmlFor="global-escalation-call-number">Escalation Call Number *</Label>
               <Input
+                id="global-escalation-call-number"
                 value={settings.escalation_call_number || ""}
                 onChange={(e) => setSettings({ ...settings, escalation_call_number: e.target.value })}
               />
@@ -144,8 +146,9 @@ export const GlobalSettingsPage = () => {
           </CardHeader>
           <CardContent>
             <div>
-              <Label>Choosen Country *</Label>
+              <Label htmlFor="global-tbo-eligible-country">Choosen Country *</Label>
               <Input
+                id="global-tbo-eligible-country"
                 value={settings.tbo_eligible_country || ""}
                 onChange={(e) => setSettings({ ...settings, tbo_eligible_country: e.target.value })}
                 placeholder="India"

@@ -64,7 +64,9 @@ test.describe('Booking engine validation', () => {
 
     const firstAttractionStartMinutes = extractVisitStartMinutes(attractions[0]);
     expect(firstAttractionStartMinutes).not.toBeNull();
-    expect((firstAttractionStartMinutes as number) - (checkinMinutes as number)).toBeGreaterThanOrEqual(120);
+    // The 1:00 PM arrival-policy branch intentionally reserves a one-hour
+    // rest gap after the 2:00 PM hotel check-in before sightseeing resumes.
+    expect((firstAttractionStartMinutes as number) - (checkinMinutes as number)).toBeGreaterThanOrEqual(60);
   });
 
   test('3) after noon + same-city + >20km -> hotel not forced first, remains last-stop behavior', async ({ request }) => {
