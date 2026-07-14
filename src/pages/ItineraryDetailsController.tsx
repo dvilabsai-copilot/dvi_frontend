@@ -190,6 +190,7 @@ import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialo
 import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
 import { HotspotListState } from "./itinerary-details/components/HotspotListState";
 import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSelectionNotice";
+import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialogFooter";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -11073,29 +11074,24 @@ const canShowGuideActionButton =
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                previewRequestIdRef.current += 1;
-                setAddHotspotModal({
-                  open: false,
-                  planId: null,
-                  routeId: null,
-                  locationId: null,
-                  locationName: "",
-                });
-                setHotspotSearchQuery("");
-                resetManualHotspotPreviewState();
-                setActivePreviewHotspotId(null);
-                setAddedInModalHotspotIds(new Set());
-                setSelectedHotspotAnchor(null);
-              }}
-              disabled={isApplyingPreviewHotspot || isBuildingMatrix}
-            >
-              Close
-            </Button>
-          </DialogFooter>
+          <HotspotDialogFooter
+            disabled={isApplyingPreviewHotspot || isBuildingMatrix}
+            onClose={() => {
+              previewRequestIdRef.current += 1;
+              setAddHotspotModal({
+                open: false,
+                planId: null,
+                routeId: null,
+                locationId: null,
+                locationName: "",
+              });
+              setHotspotSearchQuery("");
+              resetManualHotspotPreviewState();
+              setActivePreviewHotspotId(null);
+              setAddedInModalHotspotIds(new Set());
+              setSelectedHotspotAnchor(null);
+            }}
+          />
         </DialogContent>
       </Dialog>
 

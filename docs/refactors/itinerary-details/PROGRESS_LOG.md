@@ -1376,6 +1376,33 @@
 ### Notes
 - The remaining hotspot action button and preview timeline contain high-coupling matrix/conflict decisions and remain deferred for a larger controller/view boundary.
 
+## Iteration 116 — Hotspot dialog footer extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/dialog-footer files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; dialog-footer view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotDialogFooter.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: Add Hotspot dialog close-button/footer presentation now renders in a dedicated component; the existing cleanup/reset callback remains unchanged and injected.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotDialogFooter.tsx`; unrelated repository errors remain.
+- Lint: new dialog-footer component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,837 lines (down from 11,841 at the previous checkpoint).
+- New `HotspotDialogFooter.tsx`: 18 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Matrix/conflict action controls and preview timeline remain the next high-coupling hotspot boundary.
+
 ## Iteration 114 — Non-TBO acceptance notice extraction
 
 ### Baseline
