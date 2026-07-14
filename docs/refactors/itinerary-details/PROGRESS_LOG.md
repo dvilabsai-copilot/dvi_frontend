@@ -1709,6 +1709,32 @@
 ### Notes
 - Pending priority replacement and confirmation decisions remain in controller state/effects.
 
+## Iteration 147 - Fit Here priority replacement detection
+
+### Baseline
+- Starting point: Iteration 146 removed-hotspot preview detail extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate detection of pending top-priority/P3 replacement approval.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/previewPriority.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: priority-removal signal detection and selected-hotspot fallback ID resolution now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,789 lines.
+- New `previewPriority.utils.ts`: 28 lines.
+
+### Notes
+- Priority approval state, scrolling, and confirm actions remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

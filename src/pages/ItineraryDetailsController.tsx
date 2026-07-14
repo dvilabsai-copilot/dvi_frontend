@@ -119,6 +119,7 @@ import {
   getOptionalPreviewRemovedHotspotDetails,
   getPreviewRemovedHotspotDetails,
 } from "./itinerary-details/utils/previewRemovedHotspots.utils";
+import { getPendingPriorityReplacementHotspotId } from "./itinerary-details/utils/previewPriority.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -803,35 +804,14 @@ const loadAndCacheRouteHotelDetails = useCallback(
     [activePreviewResolution, previewRemovedHotspotDetails],
   );
 
-  const pendingPriorityReplacementHotspotId = useMemo(() => {
-    const needsReplacementApproval = (resolution): boolean => {
-      if (!resolution) return false;
-      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
-        ? resolution.removedTopPriorityHotspots.length
-        : 0;
-      const affectedPriorityCount = Array.isArray(resolution?.topPriorityAffected)
-        ? resolution.topPriorityAffected.length
-        : 0;
-      const p3Count = Array.isArray((resolution as any)?.p3HotspotsToRemove)
-        ? (resolution as any).p3HotspotsToRemove.length
-        : 0;
-      return (
-        removedTopPriorityCount > 0
-        || affectedPriorityCount > 0
-        || p3Count > 0
-        || resolution?.requiresP3RemovalConfirmation === true
-        || resolution?.validation?.requiresPriorityConfirmation === true
-      );
-    };
-
-    const resolution = groupPreviewResolution || activePreviewResolution;
-    if (!needsReplacementApproval(resolution)) return null;
-    if (topPriorityReplacementApproved) return null;
-    const fallbackHotspotId = selectedHotspotIds.length > 0
-      ? selectedHotspotIds[selectedHotspotIds.length - 1]
-      : null;
-    return Number.isFinite(Number(fallbackHotspotId)) ? Number(fallbackHotspotId) : null;
-  }, [activePreviewResolution, groupPreviewResolution, selectedHotspotIds, topPriorityReplacementApproved]);
+  const pendingPriorityReplacementHotspotId = useMemo(
+    () => getPendingPriorityReplacementHotspotId(
+      (groupPreviewResolution || activePreviewResolution) as Record<string, unknown> | null,
+      selectedHotspotIds,
+      topPriorityReplacementApproved,
+    ),
+    [activePreviewResolution, groupPreviewResolution, selectedHotspotIds, topPriorityReplacementApproved],
+  );
 
   const pendingPriorityResolution = useMemo(() => {
     if (!pendingPriorityReplacementHotspotId) return null;

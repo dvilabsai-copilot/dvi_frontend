@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 10,809 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 10,789 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -32,6 +32,7 @@ Current facts:
 - New in this checkpoint: day-segment-to-preview timeline mapping is isolated in `fitHerePreviewTimeline.utils.ts`.
 - New in this checkpoint: selected-hotspot preview segment selection and conflict/time ordering are isolated in `fitHereSelectedPreview.utils.ts`.
 - New in this checkpoint: removed-hotspot detail normalization and optional-removal filtering are isolated in `previewRemovedHotspots.utils.ts`.
+- New in this checkpoint: pending top-priority replacement detection is isolated in `previewPriority.utils.ts`.
 - Remaining work: split the transitional controller into domain controllers/views, remove compatibility fragments, extract vehicle actions/view and the large hotspot/Fit Here and quotation review sections, then run the full green verification loop.
 - Intentional behavior changes: none.
 - Documented blockers: repository-wide lint baseline (1,936 errors/107 warnings), existing unrelated type errors, and 23 broader-suite failures classified in `REGRESSION_LOG.md`.
