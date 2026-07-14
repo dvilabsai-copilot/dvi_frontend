@@ -1220,6 +1220,34 @@
 - Matching keys, route expansion, positive numeric filtering, and external-stay route handling remain unchanged; only pure derivation moved.
 - Follow-up extraction: remaining vehicle workflow boundaries and larger quotation modal/view composition.
 
+## Iteration 98 - Vehicle build controller
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; first Playwright attempt encountered a transient hotspot fixture API 500, rerun passed 2/2; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useVehicleBuildController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: vehicle build-status lookup, permit/vehicle rebuild, route-option strictness, completed-details validation, and non-suggested fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useVehicleBuildController.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: rerun 2 passed after transient fixture 500.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,687 lines.
+- New `useVehicleBuildController.ts`: 108 lines.
+
+### Notes
+- Build-status normalization, loader-stage labels, strict suggested-route failure behavior, fallback warning, and final hydration sequencing remain unchanged.
+- Unrelated concurrent edits in `ConfirmedItineraries.tsx` and `services/itinerary.ts` were intentionally left out of this checkpoint.
+- Follow-up extraction: vehicle list derivation/rendering and larger quotation/hotspot controller boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline

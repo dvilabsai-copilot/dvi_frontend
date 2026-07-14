@@ -176,6 +176,7 @@ import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehi
 import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
 import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
 import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
+import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -5598,6 +5599,13 @@ function getHotelAmountForBooking(entry): number {
     });
   }, []);
 
+  const prepareVehicleBuild = useVehicleBuildController({
+    pushPageLoaderStage,
+    hasUsableVehicleRows,
+    setVehicleBuildStatus,
+    setVehicleBuildError,
+  });
+
   const loadPreparedItineraryPage = useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
   isMountedRef.current = true;
   const loadRequestId = ++latestRouteRequestRef.current;
@@ -5642,107 +5650,14 @@ setItinerary(details);
         return;
       }
 
-      const extractRouteOptionQuoteId = (option) =>
-  String(
-    option?.quoteId ||
-      option?.routeQuoteId ||
-      option?.quotationNo ||
-      option?.quotation_no ||
-      option?.itinerary_quote_ID ||
-      option?.itinerary_quote_id ||
-      option?.quote_id ||
-      (typeof option === "string" ? option : "")
-  ).trim();
-
-let storedRouteOptions: any[] = [];
-if (typeof window !== "undefined") {
-  try {
-    const storedRouteOptionsRaw = localStorage.getItem(
-      `itinerary-route-options:${requestedQuoteId}`
-    );
-    const parsedStoredRouteOptions = storedRouteOptionsRaw
-      ? JSON.parse(storedRouteOptionsRaw)
-      : [];
-    storedRouteOptions = Array.isArray(parsedStoredRouteOptions)
-      ? parsedStoredRouteOptions
-      : [];
-  } catch {
-    storedRouteOptions = [];
-  }
-}
-
-const routeOptionQuoteIds = [
-  ...((Array.isArray((initialDetails as any)?.routeOptions)
-    ? (initialDetails as any).routeOptions
-    : []) as any[]),
-  ...((Array.isArray((initialDetails as any)?.suggestedRoutes)
-    ? (initialDetails as any).suggestedRoutes
-    : []) as any[]),
-  ...((Array.isArray((initialDetails as any)?.siblingRoutes)
-    ? (initialDetails as any).siblingRoutes
-    : []) as any[]),
-  ...storedRouteOptions,
-]
-  .map(extractRouteOptionQuoteId)
-  .filter((id) => id && id.startsWith("DVI"));
-
-const isSuggestedRouteItinerary =
-  new Set(routeOptionQuoteIds).size > 1;
-
-const shouldStrictlyRequireVehicleBuild =
-  forceVehicleRebuild || isSuggestedRouteItinerary;
-
-try {
-  pushPageLoaderStage("Checking vehicle build status");
-  const buildStatus: any = await ItineraryService.getVehicleBuildStatus(planId);
-  const normalizedStatus = (["PENDING", "PROCESSING", "READY", "FAILED"].includes(String(buildStatus?.status || "").toUpperCase())
-    ? String(buildStatus?.status || "").toUpperCase()
-    : "PENDING") as "PENDING" | "PROCESSING" | "READY" | "FAILED";
-  setVehicleBuildStatus(normalizedStatus);
-  setVehicleBuildError(String(buildStatus?.error || "") || null);
-
-  const isLatestBuildReady = Boolean(buildStatus?.isLatestBuildReady);
-  if (!forceVehicleRebuild && isLatestBuildReady && hasUsableVehicleRows(initialDetails)) {
-    await finalizePage(initialDetails);
-    return;
-  }
-
-  pushPageLoaderStage("Building permit charges");
-  await ItineraryService.buildPermitsSync(planId);
-
-  pushPageLoaderStage("Building vehicle details and pricing");
-  const vehicleBuildResult: any = await ItineraryService.buildVehiclesSync(planId);
-  const vehicleBuildState = String(vehicleBuildResult?.status || "FAILED").toUpperCase();
-  if (vehicleBuildState !== "READY") {
-    throw new Error(String(vehicleBuildResult?.error || "Vehicle pricing failed to prepare"));
-  }
-  setVehicleBuildStatus("READY");
-
-  pushPageLoaderStage("Loading completed itinerary");
-  const finalDetailsRes = await ItineraryService.getDetails(requestedQuoteId);
-  const finalDetails = finalDetailsRes as ItineraryDetailsResponse;
-  if (!hasUsableVehicleRows(finalDetails)) {
-    throw new Error("Vehicle details are still incomplete after rebuild");
-  }
-
-  await finalizePage(finalDetails);
-} catch (vehicleBuildError) {
-  if (shouldStrictlyRequireVehicleBuild) {
-    throw vehicleBuildError;
-  }
-
-  console.warn(
-    "Vehicle build failed for non-suggested itinerary. Showing itinerary details without blocking the page.",
-    vehicleBuildError
-  );
-
-  setVehicleBuildStatus("READY");
-  setVehicleBuildError(
-    vehicleBuildError?.message || "Vehicle pricing failed to prepare"
-  );
-
-  await finalizePage(initialDetails);
-}
+      await prepareVehicleBuild({
+        requestedQuoteId,
+        initialDetails,
+        planId,
+        forceVehicleRebuild,
+        finalizePage,
+      });
+      return;
     } catch (e) {
       if (!isMountedRef.current) return;
       console.error("Failed to load staged itinerary details", e);
@@ -5761,7 +5676,7 @@ try {
     }
   }
 }
-  }, [cacheRouteHotelDetails, hasUsableVehicleRows, loadHotelDetailsForItinerary, pushPageLoaderStage]);
+  }, [cacheRouteHotelDetails, hasUsableVehicleRows, loadHotelDetailsForItinerary, prepareVehicleBuild, pushPageLoaderStage]);
 
   useEffect(() => {
     if (!quoteId) {
