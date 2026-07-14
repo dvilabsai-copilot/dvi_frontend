@@ -1423,6 +1423,32 @@
 ### Notes
 - Guide assignment selection and mutation remain separate existing boundaries.
 
+## Iteration 136 - Guide assignment save mutation
+
+### Baseline
+- Starting point: Iteration 135 guide availability loader extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract guide assignment save validation, API persistence, cost reconciliation, itinerary-total updates, and toast/error handling.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useGuideAssignmentSaveMutation.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: guide save validation, persistence, refreshed-cost lookup, assignment update, cost-breakdown synchronization, and success/error feedback now live in the hook.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,291 lines.
+- New `useGuideAssignmentSaveMutation.ts`: 193 lines.
+
+### Notes
+- Guide assignment deletion remains isolated in `useGuideDeleteMutation`; modal selection and display derivation remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

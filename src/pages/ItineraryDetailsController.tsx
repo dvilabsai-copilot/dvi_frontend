@@ -180,6 +180,7 @@ import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebui
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
+import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import {
   buildArrivalPolicyDecisionKey,
   getRequestArrivalPolicyDecisionKey,
@@ -6044,176 +6045,14 @@ const getSelectedPreviewActivity = () =>
     void loadGuideAvailability(planId);
   }, [itinerary?.planId, loadGuideAvailability]);
 
-const handleSaveGuideAssignment = async () => {
-  const planId = Number(guideModal.planId || 0);
-  const day = guideModal.day;
-  const guideLanguage = Number(guideModal.guideLanguage || 0);
-  const selectedGuideSlots = [...guideModal.guideSlots];
-  const isWholeItineraryGuide = Number(guideModal.guideType || 0) === 1;
-
-  const firstDay =
-    itinerary?.days?.find((item) => Number(item.dayNumber || 0) === 1) ||
-    itinerary?.days?.[0] ||
-    null;
-
-  if (!(planId > 0) || (!isWholeItineraryGuide && !day)) {
-    toast.error("Guide form is incomplete");
-    return;
-  }
-
-  if (!(guideLanguage > 0)) {
-    toast.error("Guide language is required");
-    return;
-  }
-
-  if (selectedGuideSlots.length === 0) {
-    toast.error("Guide slot is required");
-    return;
-  }
-
-  try {
-    setGuideModal((prev) => ({ ...prev, saving: true }));
-
-    const savedGuide = await ItineraryService.saveGuideAssignment(planId, {
-      routeGuideId: guideModal.routeGuideId ?? undefined,
-      routeId: isWholeItineraryGuide ? firstDay?.id : day?.id,
-      routeDate: isWholeItineraryGuide ? firstDay?.date : day?.date,
-      guideType: guideModal.guideType,
-      guideLanguage,
-      guideSlots: selectedGuideSlots,
-    }) as any;
-
- await refreshGuideData();
-
-let refreshedGuideAssignment: ItineraryGuideAssignment | null = null;
-
-try {
-  const refreshedOptions = await ItineraryService.getGuideAssignmentOptions(
-    planId,
-    Number(savedGuide?.routeGuideId || savedGuide?.route_guide_id || guideModal.routeGuideId || 0) || undefined,
-  ) as GuideModalOptions;
-
-  refreshedGuideAssignment = refreshedOptions?.assignment ?? null;
-} catch (costRefreshError) {
-  console.warn("Failed to refresh guide cost after save", costRefreshError);
-}
-
-const selectedLanguageLabel =
-  guideModal.options.languages.find((item) => Number(item.id) === guideLanguage)?.label ||
-  refreshedGuideAssignment?.guideLanguageLabels?.[0] ||
-  guideModal.options.assignment?.guideLanguageLabels?.[0] ||
-  "English";
-
-const selectedSlotLabels = guideModal.options.slots
-  .filter((slot) => selectedGuideSlots.map(Number).includes(Number(slot.id)))
-  .map((slot) => slot.label);
-
-let oldGuideCostForHeader = 0;
-let newGuideCostForHeader = 0;
-
-setGuideAssignments((prev) => {
-  const existingIndex = prev.findIndex((assignment) => (
-    guideModal.routeGuideId
-      ? Number(assignment.routeGuideId || 0) === Number(guideModal.routeGuideId)
-      : Number(assignment.guideType || 0) === Number(guideModal.guideType || 0) &&
-        (
-          isWholeItineraryGuide ||
-          Number(assignment.routeId || 0) === Number(day?.id || 0)
-        )
-  ));
-
-  if (existingIndex < 0) {
-    return prev;
-  }
-
-  const next = [...prev];
-  const existing = next[existingIndex];
-
-  const backendGuideCost = Number(
-    savedGuide?.guideCost ??
-    savedGuide?.guide_cost ??
-    refreshedGuideAssignment?.guideCost ??
-    (refreshedGuideAssignment as any)?.guide_cost ??
-    0
-  );
-
-  const oldGuideCost = Number(existing.guideCost || 0);
-  const oldSlotCount = Math.max(
-    Array.isArray(existing.guideSlotIds) ? existing.guideSlotIds.length : 0,
-    1
-  );
-  const newSlotCount = Math.max(selectedGuideSlots.length, 1);
-
-  /*
-    Backend is currently returning the old guide cost for full-itinerary guide.
-    So if backend cost is missing or same as old cost, calculate price by slot count.
-    Example: ₹21600 / 3 slots = ₹7200 per slot.
-    4 slots => ₹28800.
-  */
-  const fallbackGuideCost = Number(((oldGuideCost / oldSlotCount) * newSlotCount).toFixed(2));
-
-  const updatedGuideCost =
-    backendGuideCost > 0 && Math.abs(backendGuideCost - oldGuideCost) > 0.01
-      ? backendGuideCost
-      : fallbackGuideCost;
-
-  oldGuideCostForHeader = oldGuideCost;
-  newGuideCostForHeader = updatedGuideCost;
-
-  next[existingIndex] = {
-    ...existing,
-    routeGuideId: Number(savedGuide?.routeGuideId || savedGuide?.route_guide_id || existing.routeGuideId || guideModal.routeGuideId || 0),
-    guideLanguage: selectedLanguageLabel,
-    guideLanguageIds: [guideLanguage],
-    guideLanguageLabels: [selectedLanguageLabel],
-    guideSlotIds: selectedGuideSlots.map(Number),
-    guideSlotLabels: selectedSlotLabels,
-    guideSlot: selectedSlotLabels.join(", "),
-    guideCost: updatedGuideCost,
-  };
-
-  return next;
-});
-
-if (oldGuideCostForHeader !== newGuideCostForHeader) {
-  const guideCostDiff = Number((newGuideCostForHeader - oldGuideCostForHeader).toFixed(2));
-
-  setItinerary((prev) => {
-    if (!prev) return prev;
-
-    const currentTotalGuideCost = Number(prev.costBreakdown?.totalGuideCost || 0);
-    const currentTotalAmount = Number(prev.costBreakdown?.totalAmount || 0);
-    const currentNetPayable = Number(prev.costBreakdown?.netPayable || prev.overallCost || 0);
-    const currentOverallCost = Number(prev.overallCost || 0);
-
-    return {
-      ...prev,
-      overallCost: Number((currentOverallCost + guideCostDiff).toFixed(2)),
-      costBreakdown: {
-        ...prev.costBreakdown,
-        totalGuideCost: Number((currentTotalGuideCost + guideCostDiff).toFixed(2)),
-        totalAmount: Number((currentTotalAmount + guideCostDiff).toFixed(2)),
-        netPayable: Number((currentNetPayable + guideCostDiff).toFixed(2)),
-      },
-    };
+  const handleSaveGuideAssignment = useGuideAssignmentSaveMutation({
+    guideModal,
+    itineraryDays: itinerary?.days,
+    refreshGuideData,
+    setGuideAssignments,
+    setGuideModal,
+    setItinerary,
   });
-}
-
-    setGuideModal((prev) => ({ ...prev, open: false, saving: false }));
-    toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
-  } catch (e) {
-    console.error("Failed to save guide assignment", e);
-    setGuideModal((prev) => ({ ...prev, saving: false }));
-    const rawMessage = String(e?.message || "");
-
-    if (rawMessage.includes("guide_not_available")) {
-      toast.error("Sorry, Guide Cost Not Available. So Unable to Add");
-      return;
-    }
-
-    toast.error(rawMessage || "Failed to save guide");
-  }
-};
 
   const handleDeleteGuideAssignment = useGuideDeleteMutation({
     itineraryPlanId: Number(itinerary?.planId || 0),
