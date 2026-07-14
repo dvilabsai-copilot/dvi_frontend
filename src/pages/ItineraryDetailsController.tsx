@@ -155,6 +155,7 @@ import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDelete
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
+import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
@@ -6154,192 +6155,24 @@ if (switchedRouteRef.current === quoteId) {
     }
   };
 
-  const handleDeleteHotspot = async () => {
-    if (!deleteHotspotModal.planId || !deleteHotspotModal.routeId || !deleteHotspotModal.routeHotspotId) {
-      return;
-    }
-
-    setIsDeleting(true);
-    try {
-      const deletedMasterHotspotId = Number(deleteHotspotModal.masterHotspotId || 0);
-      const deletedRouteId = Number(deleteHotspotModal.routeId);
-      const planId = Number(deleteHotspotModal.planId || itinerary?.planId || 0);
-      const confirmedRouteId = deletedRouteId;
-
-      await ItineraryService.deleteHotspot(
-        deleteHotspotModal.planId,
-        deleteHotspotModal.routeId,
-        deleteHotspotModal.routeHotspotId
-      );
-
-      toast.success("Hotspot deleted successfully");
-
-      // Update local state immediately before reload
-      // Remove from modal added set
-      setAddedInModalHotspotIds((prev) => {
-        const next = new Set(prev);
-        if (deletedMasterHotspotId > 0) {
-          next.delete(deletedMasterHotspotId);
-        }
-        return next;
-      });
-
-      // Add to excluded set
-      if (deletedMasterHotspotId > 0) {
-        setExcludedHotspotIds((prev) =>
-          Array.from(new Set([...prev.map(Number), deletedMasterHotspotId]))
-        );
-      }
-
-      // Update itinerary to remove deleted attraction segment
-      setItinerary((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          days: prev.days.map((day) => {
-            if (Number(day.id) !== deletedRouteId) return day;
-            return {
-              ...day,
-              segments: day.segments.filter((seg) => {
-                if (String(seg?.type || '').toLowerCase() !== 'attraction') return true;
-                const attraction = seg as AttractionSegment;
-                const segHotspotId = Number(attraction?.hotspotId ?? attraction?.locationId ?? 0);
-                if (deletedMasterHotspotId <= 0) return true;
-                return segHotspotId !== deletedMasterHotspotId;
-              }),
-            };
-          }),
-        };
-      });
-
-      // Also immediately update availableHotspots if modal is already open
-      setAvailableHotspots((prev) =>
-        prev.map((row) =>
-          Number(row.id) === deletedMasterHotspotId
-            ? {
-                ...row,
-                alreadyAdded: false,
-                availabilityStatus: 'EXCLUDED_BY_ROUTE',
-                actionDisabled: false,
-                buttonLabel: 'Preview',
-              }
-            : row
-        )
-      );
-
-      // Close modal
-      setDeleteHotspotModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        routeHotspotId: null,
-        masterHotspotId: null,
-        hotspotName: "",
-        hotspotWasPrebuilt: false,
-      });
-
-      // Show rebuild button only when a prebuilt hotspot was deleted.
-      if (deleteHotspotModal.hotspotWasPrebuilt && deleteHotspotModal.routeId) {
-        setRouteNeedsRebuild(deleteHotspotModal.routeId);
-      }
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        const refreshedDetails = detailsRes as ItineraryDetailsResponse;
-        setItinerary(refreshedDetails);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-
-        if (addHotspotModal.open && confirmedRouteId > 0) {
-          try {
-            const refreshedRoute = refreshedDetails?.days?.find(
-              (day) => Number(day?.id || 0) === confirmedRouteId,
-            );
-
-            const refreshedActiveIds = new Set<number>(
-              (Array.isArray((refreshedRoute as any)?.segments)
-                ? (refreshedRoute as any).segments
-                : []
-              )
-                .filter((seg) => String(seg?.type || '').toLowerCase() === 'attraction')
-                .filter((seg) => {
-                  const deletedLike =
-                    seg?.isDeleted === true ||
-                    seg?.deleted === true ||
-                    seg?.isExcluded === true ||
-                    seg?.excluded === true ||
-                    seg?.removed === true ||
-                    seg?.deletedAt != null ||
-                    seg?.deleted_at != null ||
-                    String(seg?.status || '').toLowerCase() === 'deleted' ||
-                    String(seg?.status || '').toLowerCase() === 'excluded';
-
-                  return !deletedLike;
-                })
-                .map((seg) => Number(seg?.hotspotId ?? seg?.locationId ?? 0))
-                .filter((id: number) => Number.isFinite(id) && id > 0),
-            );
-
-            const refreshedExcludedIds: number[] = Array.isArray((refreshedRoute as any)?.excluded_hotspot_ids)
-              ? (refreshedRoute as any).excluded_hotspot_ids.map(Number)
-              : [];
-
-            const hotspotResponse = selectedHotspotAnchor
-              ? await ItineraryService.getAvailableHotspotsForAnchor({
-                  planId,
-                  routeId: confirmedRouteId,
-                  anchorType: selectedHotspotAnchor.anchorType,
-                  anchorIndex: Number(selectedHotspotAnchor.anchorIndex),
-                })
-              : await ItineraryService.getAvailableHotspots(confirmedRouteId);
-
-            const refreshedHotspots = Array.isArray(hotspotResponse)
-              ? hotspotResponse
-              : (Array.isArray((hotspotResponse as any)?.hotspots)
-                ? (hotspotResponse as any).hotspots
-                : []);
-
-            const responseFilterMeta = Array.isArray(hotspotResponse)
-              ? null
-              : ((hotspotResponse as any)?.hotspotFilterMeta || null);
-
-            const routeSourceName = String((refreshedRoute as any)?.departure || '').trim();
-            const routeDestinationName = String((refreshedRoute as any)?.arrival || '').trim();
-            const anchorFromName = String(selectedHotspotAnchor?.anchorFrom || '').trim();
-            const anchorToName = String(selectedHotspotAnchor?.anchorTo || '').trim();
-
-            const routePairFilteredHotspots = filterAvailableHotspotsForAnchor(
-              refreshedHotspots as AvailableHotspot[],
-              routeSourceName,
-              routeDestinationName,
-              anchorFromName,
-              anchorToName,
-            );
-
-            setHotspotFilterMeta(responseFilterMeta);
-            setExcludedHotspotIds(refreshedExcludedIds);
-            setAvailableHotspots(
-              normalizeAvailableHotspots(routePairFilteredHotspots, {
-                routeId: confirmedRouteId,
-                excludedIds: refreshedExcludedIds,
-                activeIds: refreshedActiveIds,
-              }),
-            );
-          } catch (refreshError) {
-            console.warn('[FitHereConfirm] Modal hotspot refresh failed after confirm', refreshError);
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Failed to delete hotspot", e);
-      toast.error(e?.message || "Failed to delete hotspot");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
+  const handleDeleteHotspot = useHotspotDeleteMutation({
+    deleteHotspotModal,
+    itinerary,
+    quoteId: quoteId || null,
+    shouldShowHotels,
+    addHotspotModalOpen: addHotspotModal.open,
+    selectedHotspotAnchor,
+    normalizeAvailableHotspots,
+    setIsDeleting,
+    setAddedInModalHotspotIds,
+    setExcludedHotspotIds,
+    setItinerary,
+    setAvailableHotspots,
+    setDeleteHotspotModal,
+    setRouteNeedsRebuild,
+    setHotelDetails,
+    setHotspotFilterMeta,
+  });
 
   const handleRebuildRoute = async (planId: number, routeId: number) => {
     console.log('[REBUILD_ROUTE_CLICK]', {

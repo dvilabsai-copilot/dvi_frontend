@@ -978,6 +978,33 @@
 - Coupling discovered: hotel pricing and supplier/provider normalization remain in existing runtime calculations; only state ownership moved.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
 
+## Iteration 71 - Hotspot deletion mutation boundary
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotspotDeleteMutation.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: hotspot delete service invocation, optimistic timeline/exclusion cleanup, delete-modal reset, rebuild marker, details/hotel refresh, and available-hotspot modal rehydration.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useHotspotDeleteMutation.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,506 lines.
+- New `useHotspotDeleteMutation.ts`: 130 lines.
+
+### Notes
+- The old inline hotspot deletion implementation was removed after the new hook passed verification; the controller now has one active delete path.
+- Follow-up extraction: Fit Here action controller/modal view, vehicle workflow, and quotation review/submission.
+
 ## Iteration 52 — Hotel rebuild mutation boundary
 
 ### Changes
