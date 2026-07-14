@@ -3578,36 +3578,25 @@ const switchedRouteRef = useRef<string | null>(null);
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
   const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
 
-  // Refresh hotel data after hotel update
-  const refreshHotelData = useCallback(async () => {
-    if (!quoteId) return;
-
-    try {
-      setLoadingHotels(true);
-      console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
-      const detailsRes = await ItineraryService.getDetails(quoteId);
-      const details = detailsRes as ItineraryDetailsResponse;
-      setItinerary(details);
-
-      const pref = Number(details.itineraryPreference ?? 3);
-      const useHotels = pref === 1 || pref === 3;
-
-      if (useHotels) {
-        const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
-      } else {
-        setHotelDetails(null);
-        setActiveHotelListTotal(0);
-      }
-      console.log("✅ [ItineraryDetails] State updated with new hotel data");
-    } catch (e) {
-      console.error("❌ [ItineraryDetails] Failed to refresh hotel data", e);
-    } finally {
-      setLoadingHotels(false);
-    }
-  }, [quoteId, cacheRouteHotelDetails, loadHotelDetailsForItinerary]);
+  const {
+    handleHotelGroupTypeChange,
+    handleRebuildHotels,
+    refreshHotelData,
+    refreshVehicleData,
+  } = useHotelDataController({
+    quoteId: quoteId || null,
+    activeHotelGroupType,
+    isRebuildingHotels,
+    setActiveHotelGroupType,
+    setActiveHotelListTotal,
+    setHotelDetails,
+    setIsRebuildingHotels,
+    setItinerary,
+    setLoadingHotels,
+    cacheRouteHotelDetails,
+    fetchCompleteHotelDetails,
+    loadHotelDetailsForItinerary,
+  });
 
   const {
     handleCancelVoucherItems,
@@ -3664,25 +3653,6 @@ const switchedRouteRef = useRef<string | null>(null);
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
     return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
   }, [hotelDetails]);
-
-  const {
-    handleHotelGroupTypeChange,
-    handleRebuildHotels,
-    refreshVehicleData,
-  } = useHotelDataController({
-    quoteId: quoteId || null,
-    activeHotelGroupType,
-    isRebuildingHotels,
-    setActiveHotelGroupType,
-    setActiveHotelListTotal,
-    setHotelDetails,
-    setIsRebuildingHotels,
-    setItinerary,
-    setLoadingHotels,
-    cacheRouteHotelDetails,
-    fetchCompleteHotelDetails,
-    loadHotelDetailsForItinerary,
-  });
 
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];

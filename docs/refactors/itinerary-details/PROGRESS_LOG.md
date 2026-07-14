@@ -4511,6 +4511,29 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 187 - Consolidate hotel refresh ownership
+
+### Baseline
+- Starting checkpoint: `f8a944b` on `refactor/itinerary-details-continuation` with clipboard composition extraction committed and pushed.
+
+### Changes
+- Removed the duplicate inline hotel-refresh mutation from `ItineraryDetailsController.tsx`.
+- Reused the existing `useHotelDataController` refresh callback for voucher refreshes, keeping hotel group changes, rebuilds, and vehicle refreshes under one hook instance.
+- Preserved hotel preference gating, detail hydration, route cache updates, loading cleanup, and existing service calls.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,356 lines (down from 7,387 at the previous iteration).
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 186 - Clipboard content builder hook
 
 ### Baseline
