@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 189 - Source preview controller hook
+
+### Baseline
+- Starting checkpoint: `9347ef9` on `refactor/itinerary-details-continuation` with display-day derivation extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useSourcePreviewController.ts`.
+- Moved source-markdown quote resolution, modal loading/reset transitions, service retrieval, heading fallback, and error cleanup out of the page controller.
+- Preserved active-route/itinerary quote fallback order, endpoint arguments, modal state updates, and toast/error behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,302 lines (down from 7,313 at the previous iteration).
+- New hook: 47 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 188 - Display-day derivation hook
 
 ### Baseline

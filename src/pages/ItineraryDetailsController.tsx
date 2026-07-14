@@ -237,6 +237,7 @@ import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAu
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
+import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -406,30 +407,16 @@ const location = useLocation();
   const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
   const requiresHotelBookingFlow = shouldShowHotels;
 
-const openSourcePreview = useCallback(async (dayNo: number) => {
-  const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
-  if (!currentQuoteId) {
-    toast.error("Quote ID is not available for source preview.");
-    return;
-  }
-
-  setSourcePreviewOpen(true);
-  setSourcePreviewLoading(true);
-  setSourcePreviewError(null);
-  setSourcePreviewMarkdown("");
-  setSourcePreviewHeading("");
-
-  try {
-    const result = await ItineraryService.getHotspotScenarioMarkdown(currentQuoteId, dayNo);
-    setSourcePreviewMarkdown(String(result.markdown || ""));
-    setSourcePreviewHeading(String(result.heading || `${currentQuoteId} Day ${dayNo}`));
-  } catch (error) {
-    const message = String(error?.message || "Failed to load source preview.");
-    setSourcePreviewError(message);
-  } finally {
-    setSourcePreviewLoading(false);
-  }
-}, [activeRouteQuoteId, itinerary?.quoteId, quoteId]);
+  const openSourcePreview = useSourcePreviewController({
+    activeRouteQuoteId,
+    quoteId,
+    itineraryQuoteId: itinerary?.quoteId,
+    setOpen: setSourcePreviewOpen,
+    setLoading: setSourcePreviewLoading,
+    setError: setSourcePreviewError,
+    setMarkdown: setSourcePreviewMarkdown,
+    setHeading: setSourcePreviewHeading,
+  });
 
 
 const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
