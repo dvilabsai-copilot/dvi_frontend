@@ -54,7 +54,6 @@ import {
   extractAutoPreviewResults,
   pickBestAutoPreviewAnchorKey,
 } from "./itinerary-details/manual-hotspot-preview.shared";
-import { HotelVoucherService } from "@/services/hotelVoucher";
 import { HotelSearchResult } from "@/hooks/useHotelSearch";
 import { HotelArrivalPolicyRequest, HotelArrivalPolicyResponse } from "@/services/itinerary";
 import { toast } from "sonner";
@@ -162,6 +161,7 @@ import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefre
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
+import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -5724,17 +5724,7 @@ const applyChildAgesToTemplate = (
 
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
-  const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<{
-    routeId: number;
-    hotelId: number;
-    hotelName: string;
-    hotelEmail: string;
-    hotelStateCity: string;
-    routeDates: string[];
-    dayNumbers: number[];
-    hotelDetailsIds: number[];
-    initialStatus?: 'confirmed' | 'cancelled' | 'pending';
-  } | null>(null);
+  const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
 
   // Refresh hotel data after hotel update
   const refreshHotelData = useCallback(async () => {
@@ -5767,103 +5757,18 @@ const applyChildAgesToTemplate = (
     }
   }, [quoteId, cacheRouteHotelDetails, loadHotelDetailsForItinerary]);
 
-  const handleGetSaveFunction = useCallback((saveFn: () => Promise<boolean>) => {
-    hotelSaveFunctionRef.current = saveFn;
-  }, []);
-
-  const handleCreateVoucher = useCallback((hotelData: {
-    routeId: number;
-    hotelId: number;
-    hotelName: string;
-    hotelEmail: string;
-    hotelStateCity: string;
-    routeDates: string[];
-    dayNumbers: number[];
-    hotelDetailsIds: number[];
-  }) => {
-    setSelectedHotelForVoucher({
-      ...hotelData,
-      initialStatus: 'confirmed',
-    });
-    setHotelVoucherModalOpen(true);
-  }, []);
-
-  const handleCancelVoucherItems = useCallback(async (items: Array<{
-    routeId: number;
-    hotelId: number;
-    hotelName: string;
-    hotelEmail: string;
-    hotelStateCity: string;
-    routeDates: string[];
-    dayNumbers: number[];
-    hotelDetailsIds: number[];
-  }>) => {
-    const itineraryPlanId = Number(itinerary?.planId || 0);
-    if (!itineraryPlanId) {
-      toast.error('Unable to resolve itinerary plan ID for hotel cancellation');
-      return;
-    }
-
-    const validItems = Array.isArray(items) ? items : [];
-    if (validItems.length === 0) {
-      toast.error('No hotels selected for cancellation');
-      return;
-    }
-
-    const reason = window.prompt('Enter cancellation reason')?.trim() || '';
-    if (!reason) {
-      toast.error('Cancellation reason is required');
-      return;
-    }
-
-    try {
-      const routeIds = Array.from(
-        new Set(validItems.map((i) => Number(i.routeId)).filter((id) => Number.isFinite(id) && id > 0)),
-      );
-      const hotelDetailsIds = Array.from(
-        new Set(
-          validItems
-            .flatMap((i) => i.hotelDetailsIds || [])
-            .map((id) => Number(id))
-            .filter((id) => Number.isFinite(id) && id > 0),
-        ),
-      );
-
-      await HotelVoucherService.cancelHotelVouchers({
-        itineraryPlanId,
-        reason,
-        routeIds,
-        hotelDetailsIds,
-      });
-
-      toast.success(
-        validItems.length > 1
-          ? `Cancelled ${validItems.length} hotel voucher(s)`
-          : 'Hotel voucher cancelled successfully',
-      );
-      await refreshHotelData();
-    } catch (error) {
-      console.error('Failed to cancel hotel vouchers', error);
-      toast.error(error?.message || 'Failed to cancel hotel voucher(s)');
-    }
-  }, [itinerary?.planId, refreshHotelData]);
-
-  const handleCancelVoucherSingle = useCallback(async (item: {
-    routeId: number;
-    hotelId: number;
-    hotelName: string;
-    hotelEmail: string;
-    hotelStateCity: string;
-    routeDates: string[];
-    dayNumbers: number[];
-    hotelDetailsIds: number[];
-  }) => {
-    setSelectedHotelForVoucher({
-      ...item,
-      initialStatus: 'cancelled',
-    });
-    setHotelVoucherModalOpen(true);
-  }, []);
+  const {
+    handleCancelVoucherItems,
+    handleCancelVoucherSingle,
+    handleCreateVoucher,
+    handleGetSaveFunction,
+  } = useHotelVoucherController({
+    itineraryPlanId: Number(itinerary?.planId || 0),
+    hotelSaveFunctionRef,
+    refreshHotelData,
+    setHotelVoucherModalOpen,
+    setSelectedHotelForVoucher,
+  });
 
   const handleHotelSelectionsChange = useCallback((selections: Record<number, {
     provider: string;

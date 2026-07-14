@@ -76,5 +76,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Room-night derivation is isolated in `useRoomBreakdownNights`, preserving selected-room matching and cheapest fallback behavior.
 - Header summary cost formatting and special-instruction fallback lookup are isolated in `useItinerarySummaryValues`.
 - Para/recommendation hotel grouping is isolated in `useParaRecommendations`; clipboard selection initialization remains in the page workflow.
-- Hotel rebuild, vehicle refresh, and hotel group-type refresh mutation orchestration are isolated in `useHotelDataController`; they preserve the existing service calls, loading state, cache update, fallback vehicle retention, and toast contract.
+- Hotel rebuild, vehicle refresh, and hotel group-type refresh mutation orchestration are isolated in `useHotelDataController`; voucher modal selection and cancellation mutations are isolated in `useHotelVoucherController`. Both preserve their existing service calls, loading state, cache update, fallback vehicle retention, and toast contract.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

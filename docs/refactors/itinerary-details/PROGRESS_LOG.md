@@ -1026,6 +1026,26 @@
 
 - The remaining `refreshHotelData` callback is intentionally deferred because its legacy diagnostic strings use repository mojibake; it will be removed with the surrounding hotel mutation workflow boundary once that region is extracted safely.
 
+## Iteration 54 — Hotel voucher workflow boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelVoucherController.ts`.
+- Moved voucher modal selection, save-function registration, single-voucher cancellation setup, and bulk voucher cancellation/API orchestration out of `ItineraryDetailsController.tsx`.
+- Preserved cancellation validation, reason prompt, service payload, success/error toast wording, and post-cancellation hotel refresh.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or voucher hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,270 physical lines after extraction.
+- `useHotelVoucherController.ts`: 95 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
