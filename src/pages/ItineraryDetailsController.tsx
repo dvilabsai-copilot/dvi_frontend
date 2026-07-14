@@ -205,6 +205,7 @@ import {
   mergeClipboardWithRenderedCost,
   mergeClipboardWithRenderedHotels,
 } from "./itinerary-details/utils/clipboardHtmlMerge.utils";
+import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3388,21 +3389,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     plainText,
     packageSectionsHtml,
   };
-};
-
-const htmlToPlainText = (html: string): string => {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
 };
 
 const buildHighlightsHotspotDetailsHtml = (): string => {
