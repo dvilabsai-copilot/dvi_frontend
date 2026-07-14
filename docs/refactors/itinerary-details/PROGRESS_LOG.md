@@ -1761,6 +1761,32 @@
 ### Notes
 - Automatic preview request sequencing and confirmation state remain controller-owned.
 
+## Iteration 149 - Automatic Fit Here progress text
+
+### Baseline
+- Starting point: Iteration 148 automatic Fit Here scoring extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate progress text describing downstream hotspot and hotel-check-in validation.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/autoPreviewProgress.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: downstream attraction lookup, anchor-relative slicing, hotel-check-in annotation, and progress copy generation now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,698 lines.
+- New `autoPreviewProgress.utils.ts`: 24 lines.
+
+### Notes
+- Auto-preview request sequencing and result reconciliation remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

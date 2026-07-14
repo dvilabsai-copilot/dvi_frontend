@@ -125,6 +125,7 @@ import {
   getAutoPreviewRemovedRows as getAutoPreviewRemovedRowsUtil,
   scoreAutoPreviewAttempt as scoreAutoPreviewAttemptUtil,
 } from "./itinerary-details/utils/autoPreviewScoring.utils";
+import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -5680,39 +5681,7 @@ const getSelectedPreviewActivity = () =>
   const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;
   const scoreAutoPreviewAttempt = scoreAutoPreviewAttemptUtil;
 
-  const buildAutoPreviewAnchorProgressText = useCallback((day: ItineraryDay, anchor: HotspotAnchor): string => {
-    const attractionRows = day.segments
-      .map((segment, index) => ({ segment, index }))
-      .filter(({ segment }) => segment?.type === 'attraction');
-
-    const startIndex = anchor.anchorIntent === 'AFTER_START'
-      ? 0
-      : attractionRows.findIndex(({ segment }) => {
-          const hotspotId = Number((segment as AttractionSegment)?.hotspotId || (segment as AttractionSegment)?.locationId || 0);
-          const routeHotspotId = Number((segment as AttractionSegment)?.routeHotspotId || 0);
-          return (
-            hotspotId === Number(anchor.afterHotspotId || 0) ||
-            routeHotspotId === Number(anchor.afterRouteHotspotId || 0)
-          );
-        }) + 1;
-
-    const downstreamHotspots = attractionRows
-      .slice(Math.max(0, startIndex))
-      .map(({ segment }) => String((segment as AttractionSegment)?.name || '').trim())
-      .filter(Boolean);
-
-    const previewLabels = downstreamHotspots.slice(0, 4);
-    const hasHotel = day.segments.some((segment) => segment?.type === 'checkin');
-    if (hasHotel) {
-      previewLabels.push('Hotel check-in');
-    }
-
-    if (previewLabels.length === 0) {
-      return 'Rebuilding this position and validating the final timeline.';
-    }
-
-    return `Rebuilding downstream timeline: ${previewLabels.join(' -> ')}`;
-  }, []);
+  const buildAutoPreviewAnchorProgressText = useCallback(buildAutoPreviewAnchorProgressTextUtil, []);
 
   const handleSelectFitHotspot = (hotspot: AvailableHotspot) => {
     previewRequestIdRef.current += 1;

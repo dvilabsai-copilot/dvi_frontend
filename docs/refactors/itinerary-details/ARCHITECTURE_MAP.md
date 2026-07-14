@@ -76,6 +76,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Removed-hotspot detail normalization and optional-removal filtering are isolated in `previewRemovedHotspots.utils`; priority/confirmation orchestration remains controller-owned.
 - Pending top-priority replacement detection is isolated in `previewPriority.utils`; approval state and confirmation effects remain controller-owned.
 - Automatic Fit Here removed-row extraction, priority detection, and attempt scoring are isolated in `autoPreviewScoring.utils`; preview orchestration remains controller-owned.
+- Automatic Fit Here downstream progress text is isolated in `autoPreviewProgress.utils`; request lifecycle and modal state remain controller-owned.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.
