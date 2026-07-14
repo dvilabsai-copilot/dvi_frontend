@@ -129,6 +129,7 @@ import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTex
 import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePreviewTimeline.utils";
 import { resolveActivePreviewResolution } from "./itinerary-details/utils/activePreviewResolution.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
+import { isMatrixApplyBlocked as isMatrixApplyBlockedUtil } from "./itinerary-details/utils/matrixApplyBlocked.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -1488,44 +1489,20 @@ const loadAndCacheRouteHotelDetails = useCallback(
     [activePreviewResolution, activePreviewValidation, destinationHotelDisplayName, matrixFit, normalizedDecision, manualPreviewState, groupPreviewResolution],
   );
 
-  const matrixApplyBlocked = useMemo(() => {
-    const decisionStatus = String(normalizedDecision?.decisionStatus || '').toUpperCase();
-    if (decisionStatus === 'UNSCHEDULABLE_FOR_DAY' || decisionStatus === 'MATRIX_UNAVAILABLE') {
-      return true;
-    }
-
-    if (!matrixFit) return false;
-
-    const manualRelaxedRouteFit =
-      isManualRelaxedRouteFitPolicy(manualPreviewState)
-      || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-      || isManualRelaxedRouteFitPolicy(groupPreviewResolution);
-
-    if (matrixFit?.destinationInsertionMode === true) {
-      return matrixFit?.canApply === false;
-    }
-
-    const canBypassMatrixApplyForManualRouteFit =
-      manualRelaxedRouteFit
-      && isMatrixBuiltButNoFeasibleSlot;
-
-    return (
-      isMatrixMissingBlockedState
-      || (!manualRelaxedRouteFit && isMatrixBuiltButNoFeasibleSlot)
-      || (
-        matrixFit?.canApply === false
-        && !canBypassMatrixApplyForManualRouteFit
-      )
-    );
-  }, [
-    isMatrixBuiltButNoFeasibleSlot,
-    isMatrixMissingBlockedState,
-    matrixFit,
-    normalizedDecision,
-    manualPreviewState,
-    activePreviewResolution,
-    groupPreviewResolution,
-  ]);
+  const matrixApplyBlocked = useMemo(
+    () => isMatrixApplyBlockedUtil({
+      normalizedDecision,
+      matrixFit,
+      matrixRequiresBuild,
+      matrixMissingBlocked: isMatrixMissingBlockedState,
+      matrixBuiltButNoFeasibleSlot: isMatrixBuiltButNoFeasibleSlot,
+      manualPreviewState,
+      activePreviewResolution,
+      groupPreviewResolution,
+      isManualRelaxedRouteFitPolicy,
+    }),
+    [isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState, matrixFit, matrixRequiresBuild, normalizedDecision, manualPreviewState, activePreviewResolution, groupPreviewResolution],
+  );
 
   const decisionStatus = useMemo(() => {
     return String(normalizedDecision?.decisionStatus || '').toUpperCase();

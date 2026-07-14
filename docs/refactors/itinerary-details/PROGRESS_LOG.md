@@ -1865,6 +1865,32 @@
 ### Notes
 - Matrix apply gating, decision status, and confirmation controls remain controller-owned.
 
+## Iteration 153 - Fit Here matrix apply blocking
+
+### Baseline
+- Starting point: Iteration 152 preview validation reason extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate matrix apply-blocking decisions and manual relaxed-route bypass logic.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/matrixApplyBlocked.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: decision-status blocking, destination-side `canApply` handling, missing-matrix blocking, no-feasible-slot handling, and relaxed-route bypasses now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,546 lines.
+- New `matrixApplyBlocked.utils.ts`: 25 lines.
+
+### Notes
+- Confirmation action configuration and decision summary remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
