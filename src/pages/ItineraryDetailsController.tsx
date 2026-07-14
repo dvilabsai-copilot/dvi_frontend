@@ -238,6 +238,7 @@ import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFit
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
+import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -427,58 +428,12 @@ const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
   return String(match?.[1] || raw).trim();
 }, []);
 
-const cacheRouteHotelDetails = useCallback(
-  (routeQuoteId: string, hotelRes: ItineraryHotelDetailsResponse | null) => {
-    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-    if (!normalizedRouteQuoteId || !hotelRes) return;
-
-    setRouteHotelDetailsByQuoteId((prev) => {
-      if (prev[normalizedRouteQuoteId] === hotelRes) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [normalizedRouteQuoteId]: hotelRes,
-      };
-    });
-  },
-  [],
-);
-
-const loadAndCacheRouteHotelDetails = useCallback(
-  async (routeQuoteId: string): Promise<ItineraryHotelDetailsResponse | null> => {
-    const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-    if (!normalizedRouteQuoteId) return null;
-
-    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
-    if (cachedHotelDetails) {
-      return cachedHotelDetails;
-    }
-
-    const inFlight = routeHotelFetchPromisesRef.current.get(normalizedRouteQuoteId);
-    if (inFlight) {
-      return inFlight;
-    }
-
-    const request = (async () => {
-      const fetcher = fetchCompleteHotelDetailsRef.current;
-      if (!fetcher) {
-        throw new ReferenceError("fetchCompleteHotelDetails is not ready yet");
-      }
-
-      const hotelRes = (await fetcher(normalizedRouteQuoteId)) as ItineraryHotelDetailsResponse;
-      cacheRouteHotelDetails(normalizedRouteQuoteId, hotelRes);
-      return hotelRes;
-    })().finally(() => {
-      routeHotelFetchPromisesRef.current.delete(normalizedRouteQuoteId);
-    });
-
-    routeHotelFetchPromisesRef.current.set(normalizedRouteQuoteId, request);
-    return request;
-  },
-  [cacheRouteHotelDetails, routeHotelDetailsByQuoteId],
-);
+const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelDetailsCache({
+  routeHotelDetailsByQuoteId,
+  setRouteHotelDetailsByQuoteId,
+  routeHotelFetchPromisesRef,
+  fetchCompleteHotelDetailsRef,
+});
 
   const {
     deleteHotspotModal, setDeleteHotspotModal, isDeleting, setIsDeleting,

@@ -84,6 +84,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotel refresh, group switching, rebuild, and vehicle refresh mutations share the existing `useHotelDataController`; duplicate page-level hotel-refresh orchestration was removed.
 - Display-day fallback selection, segment safeguards, diagnostics, and start-segment ordering are isolated in `useDisplayItineraryDays`.
 - Source-markdown preview quote resolution, loading/reset transitions, retrieval, heading fallback, and errors are isolated in `useSourcePreviewController`.
+- Route-hotel cache writes, cached-result reuse, in-flight request de-duplication, and fetch cleanup are isolated in `useRouteHotelDetailsCache`.
 - Active Fit Here preview route filtering, removal filtering, matrix ordering, and time/type fallback ordering are isolated in `activePreviewTimeline.utils`; resolution selection remains controller-owned.
 - Active preview resolution precedence (manual, group, then selected hotspot) is isolated in `activePreviewResolution.utils`; validation and normalized-decision derivation remain controller-owned.
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.

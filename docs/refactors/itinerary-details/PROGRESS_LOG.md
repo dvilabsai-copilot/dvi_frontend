@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 190 - Route hotel cache hook
+
+### Baseline
+- Starting checkpoint: `6745c57` on `refactor/itinerary-details-continuation` with source-preview extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useRouteHotelDetailsCache.ts`.
+- Moved route-hotel cache writes, cached-result reuse, in-flight request de-duplication, fetcher readiness checks, and cleanup out of the page controller.
+- Preserved cache keys, request sharing, reference cleanup, and hotel-detail hydration contracts used by route prefetch and page loading.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,265 lines (down from 7,302 at the previous iteration).
+- New hook: 44 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 189 - Source preview controller hook
 
 ### Baseline
