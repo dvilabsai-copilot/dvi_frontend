@@ -93,6 +93,12 @@ export type CreateLocationPayload = {
   source_longitude: string;
 };
 
+export type CreateLocationResult = {
+  rows: LocationRow[];
+  createdCount: number;
+  skippedCount: number;
+};
+
 export type TollRow = {
   vehicle_type_id: number;
   vehicle_type_name: string;
@@ -636,7 +642,17 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
 },
   async create(payload: CreateLocationPayload) {
     const data = (await api(`/locations`, { method: "POST", body: payload })) as any;
-    return toLocationRow(data);
+    const rows = Array.isArray(data?.rows)
+      ? data.rows.map(toLocationRow)
+      : data
+        ? [toLocationRow(data)]
+        : [];
+
+    return {
+      rows,
+      createdCount: Number(data?.createdCount ?? rows.length),
+      skippedCount: Number(data?.skippedCount ?? 0),
+    } as CreateLocationResult;
   },
 
   async update(id: number, payload: Partial<LocationRow>) {
