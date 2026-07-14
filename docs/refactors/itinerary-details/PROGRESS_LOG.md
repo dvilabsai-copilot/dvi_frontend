@@ -1086,6 +1086,33 @@
 - Approval flags and preview request semantics remain unchanged; only ownership moved.
 - Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
 
+## Iteration 76 - Fit Here dialog controller
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useFitHereDialogController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: Fit Here cancel state reset, tried-anchor bookkeeping, retry payload validation, and retry dispatch.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useFitHereDialogController.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,208 lines.
+- New `useFitHereDialogController.ts`: 60 lines.
+
+### Notes
+- Dialog reset shape and retry behavior remain unchanged; only ownership moved.
+- Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
+
 ## Iteration 75 - Exact-anchor Fit Here preview controller
 
 ### Baseline

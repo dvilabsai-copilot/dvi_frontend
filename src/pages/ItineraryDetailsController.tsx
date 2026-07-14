@@ -159,6 +159,7 @@ import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/use
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
 import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
 import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHerePreviewController";
+import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7400,44 +7401,14 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     void executeAutoPreviewFitHere(day, hotspot);
   };
 
-  const handleFitHereCancel = () => {
-    stopFitHereProgressTimer();
-    const attempt = fitHereModal.attempt;
-    const anchorKey = fitHereModal.anchorKey;
-
-    if (anchorKey && attempt) {
-      const triedState = getFitHereTriedState(attempt.resultType);
-      setTriedFitHereAnchors((prev) => ({
-        ...prev,
-        [anchorKey]: {
-          ...triedState,
-          anchorKey,
-          attemptId: attempt.attemptId,
-        },
-      }));
-    }
-
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-      retryPayload: null,
-    });
-  };
-
-  const handleRetryFitHere = () => {
-    const retryPayload = fitHereModal.retryPayload;
-
-    if (!retryPayload) {
-      toast.error('Retry details are missing. Please click Fit Here again.');
-      return;
-    }
-
-    void handleFitHereClick(retryPayload.day, retryPayload.anchor);
-  };
+  const { handleFitHereCancel, handleRetryFitHere } = useFitHereDialogController({
+    fitHereModal,
+    stopFitHereProgressTimer,
+    getFitHereTriedState,
+    setTriedFitHereAnchors,
+    setFitHereModal,
+    handleFitHereClick,
+  });
 
   const isRetryableFitHereConfirmError = (error): boolean => {
     const message = String(error?.message || "");

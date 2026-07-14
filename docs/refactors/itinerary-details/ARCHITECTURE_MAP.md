@@ -95,4 +95,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Manual hotspot preview requests, request-staleness guards, timeline/resolution state, anchor-adjustment messaging, and preview cancellation are isolated in `useHotspotPreviewMutation`.
 - Protected-priority replacement approval and cancellation are isolated in `useHotspotPriorityReplacementController`; it re-previews with the existing approval flag and preserves the modal's state updates.
 - Exact-anchor Fit Here preview requests, progress-modal transitions, payload construction, and preview error handling are isolated in `useFitHerePreviewController`.
+- Fit Here cancellation, retry-payload validation, and tried-anchor bookkeeping are isolated in `useFitHereDialogController`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
