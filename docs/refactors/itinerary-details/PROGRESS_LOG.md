@@ -4511,6 +4511,30 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 217 - Vehicle-rate selection guard hook
+
+### Baseline
+- Starting checkpoint: `0fdc21c` on `refactor/itinerary-details-checkpoint` with automatic Fit Here anchor extraction committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useVehicleRateSelectionGuard.ts`.
+- Moved vehicle-type discovery, selected-vehicle completeness checks, unavailable-rate blocking, and confirmation gating out of `ItineraryDetailsController.tsx`.
+- Preserved the existing `hasRequiredVehicleSelection`, `canConfirmQuotation`, and type-ID set contracts consumed by quotation and vehicle views.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,834 physical lines (down from 5,846 at the previous iteration).
+- New `useVehicleRateSelectionGuard.ts`: 45 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 216 - Automatic Fit Here anchors hook
 
 ### Baseline

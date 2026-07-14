@@ -73,6 +73,7 @@ import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurren
 import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
 import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
+import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
@@ -1063,29 +1064,16 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   });
 
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
-  const vehicleTypeIdsRequiringSelection = useMemo(() => {
-    const typeIds = new Set<number>();
-    (itinerary?.vehicles || []).forEach((vehicle) => {
-      const typeId = Number(vehicle.vehicleTypeId || 0);
-      if (typeId > 0) typeIds.add(typeId);
-    });
-    (itinerary?.vehicleRateAvailability || []).forEach((item) => {
-      const typeId = Number(item.vehicleTypeId || 0);
-      if (typeId > 0) typeIds.add(typeId);
-    });
-    return typeIds;
-  }, [itinerary?.vehicleRateAvailability, itinerary?.vehicles]);
-  const hasRequiredVehicleSelection = !shouldShowVehicles || (
-    vehicleTypeIdsRequiringSelection.size > 0 &&
-    vehicleTypeIdsRequiringSelection.size === Object.keys(selectedVehicleTotalsByType).filter(
-      (typeId) => Number(selectedVehicleTotalsByType[Number(typeId)]?.totalAmount || 0) > 0,
-    ).length &&
-    Array.from(vehicleTypeIdsRequiringSelection).every(
-      (typeId) => Number(selectedVehicleTotalsByType[typeId]?.totalAmount || 0) > 0,
-    ) &&
-    (itinerary?.vehicleRateAvailability?.length || 0) === 0
-  );
-  const canConfirmQuotation = hasRequiredVehicleSelection;
+  const {
+    vehicleTypeIdsRequiringSelection,
+    hasRequiredVehicleSelection,
+    canConfirmQuotation,
+  } = useVehicleRateSelectionGuard({
+    shouldShowVehicles,
+    vehicles: itinerary?.vehicles,
+    vehicleRateAvailability: itinerary?.vehicleRateAvailability,
+    selectedVehicleTotalsByType,
+  });
   // Keep the bottom hotel list enabled for hotel-bearing itineraries.
   // The actual render is still gated by `shouldShowHotels` below.
   const shouldRenderBottomHotelList = true;
