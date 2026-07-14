@@ -4369,3 +4369,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 179 - Hotel-arrival policy controller hook
+
+### Baseline
+- Starting checkpoint: `843fe89` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotelArrivalPolicyController.ts`.
+- Moved arrival-policy resolution, prior-day confirmation preparation, arrival-date normalization, hotel-search gating, and hotel-selection modal orchestration out of the page controller.
+- Preserved policy messages, request payload fields, date formatting, child-age preservation, and fallback policy behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,740 lines (down from 8,940).
+- New hook: 259 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
