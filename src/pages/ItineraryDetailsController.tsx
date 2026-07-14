@@ -9039,47 +9039,28 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     });
   };
 
-  const refreshConfirmWalletBalance = async (agentId?: number): Promise<number> => {
-    if (!agentId) return 0;
-
-    const walletData = await ItineraryService.checkWalletBalance(agentId);
-    const amount = getWalletAmountFromResponse(walletData);
-
-    setWalletBalance(walletData?.formatted_balance || walletData?.formattedBalance || formatCurrency(amount));
-    setWalletBalanceAmount(amount);
-
-    return amount;
-  };
-
-  const resetConfirmWalletTopUpPanel = () => {
-    setShowWalletTopUpPanel(false);
-    setWalletTopUpAmount("");
-    setWalletTopUpRemark("");
-    setWalletShortfallAmount(0);
-  };
-
-  const prepareWalletTopUpPanel = (currentBalance: number) => {
-    const shortfall = Math.max(confirmRequiredAmount - currentBalance, 0);
-    const suggestedAmount = Math.ceil(shortfall);
-
-    setWalletShortfallAmount(shortfall);
-    setWalletTopUpAmount(String(suggestedAmount > 0 ? suggestedAmount : ""));
-    setWalletTopUpRemark(
-      `Cash wallet top-up before confirming quotation ${itinerary?.quoteId || itinerary?.planId || ""}`,
-    );
-    setShowWalletTopUpPanel(true);
-  };
-
-  const handleWalletTopUpAndContinue = useWalletTopUpController({
+  const {
+    handleWalletTopUpAndContinue,
+    prepareWalletTopUpPanel,
+    refreshConfirmWalletBalance,
+    resetConfirmWalletTopUpPanel,
+  } = useWalletTopUpController({
     shouldEnableWalletTopUpOnConfirm,
+    quoteId: itinerary?.quoteId,
+    planId: itinerary?.planId,
     agentInfo,
     walletTopUpAmount,
     walletTopUpRemark,
     confirmRequiredAmount,
+    setWalletBalance,
+    setWalletBalanceAmount,
+    setShowWalletTopUpPanel,
+    setWalletTopUpAmount,
+    setWalletTopUpRemark,
+    setWalletShortfallAmount,
+    getWalletAmountFromResponse,
+    formatCurrency,
     setIsWalletTopUpSubmitting,
-    refreshConfirmWalletBalance,
-    prepareWalletTopUpPanel,
-    resetConfirmWalletTopUpPanel,
     handleConfirmQuotation: (options) => handleConfirmQuotation(options),
   });
 

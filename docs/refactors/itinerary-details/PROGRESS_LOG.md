@@ -1323,6 +1323,27 @@
 
 - `ItineraryDetailsController.tsx`: 14,811 physical lines.
 
+## Iteration 69 — Wallet balance/panel ownership
+
+### Changes
+
+- Extended `useWalletTopUpController.ts` to own wallet-balance retrieval, top-up panel reset, and shortfall preparation in addition to the top-up mutation.
+- Removed those wallet helpers from `ItineraryDetailsController.tsx`; quotation modal and balance-refresh call sites now use the hook-owned callbacks.
+- Preserved wallet API parsing, currency formatting, panel defaults, and quotation-specific remark text.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or wallet hook; existing repository errors remain documented.
+- Focused ESLint: passed for the wallet hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,792 physical lines after extraction.
+- `useWalletTopUpController.ts`: 113 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
