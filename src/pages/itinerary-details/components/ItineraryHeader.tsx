@@ -37,6 +37,19 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
     itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal,
     modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton,
     hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels } = props;
+
+  const itineraryStartDate = String(
+    itinerary.days?.[0]?.date ||
+      itinerary.dateRange?.split(/\s+to\s+/i)[0] ||
+      ""
+  )
+    .trim()
+    .slice(0, 10);
+
+  const shouldShowInvoiceButtons =
+    /^\d{4}-\d{2}-\d{2}$/.test(itineraryStartDate) &&
+    itineraryStartDate >= "2026-08-15";
+
   return (
       <div ref={summaryStickyRef} className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm">
         <Card className="border-none shadow-none bg-white">
@@ -172,22 +185,27 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
                      Extend Trip
                       </Button>
                     </Link>
-                    <Button
-                      variant="outline"
-                      className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-                      onClick={() => void handleDownloadInvoice('tax')}
-                    >
-                      <Receipt className="mr-2 h-4 w-4" />
-                      Invoice Tax
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                      onClick={() => void handleDownloadInvoice('proforma')}
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Invoice Proforma
-                    </Button>
+                  {shouldShowInvoiceButtons && (
+  <>
+    <Button
+      variant="outline"
+      className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
+      onClick={() => void handleDownloadInvoice("tax")}
+    >
+      <Receipt className="mr-2 h-4 w-4" />
+      Invoice Tax
+    </Button>
+
+    <Button
+      variant="outline"
+      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+      onClick={() => void handleDownloadInvoice("proforma")}
+    >
+      <FileText className="mr-2 h-4 w-4" />
+      Invoice Proforma
+    </Button>
+  </>
+)}
                   </>
                 )}
               </div>
