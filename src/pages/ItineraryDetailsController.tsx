@@ -178,6 +178,7 @@ import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleB
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
+import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11958,50 +11959,22 @@ const canShowGuideActionButton =
               handleArrivalDateTimeChange={handleArrivalDateTimeChange}
             />
           </div>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setConfirmQuotationModal(false);
-                setGuestDetails({
-                  salutation: 'Mr',
-                  name: '',
-                  contactNo: '',
-                  age: '',
-                  nationality: confirmDefaultNationality,
-                  panNo: '',
-                  passportNo: '',
-                  alternativeContactNo: '',
-                  emailId: '',
-                  arrivalDateTime: '',
-                  arrivalPlace: '',
-                  arrivalFlightDetails: '',
-                  departureDateTime: '',
-                  departurePlace: '',
-                  departureFlightDetails: '',
-                });
-                setAdditionalAdults([]);
-                setAdditionalChildren([]);
-                setAdditionalInfants([]);
-                setPrebookData(null);
-                setHasAcceptedUpdatedPrice(false);
-                setFormErrors({});
-                resetConfirmWalletTopUpPanel();
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="bg-[#8b43d1] hover:bg-[#7c37c1]"
-              onClick={() => {
-                void handleConfirmQuotation();
-              }}
-              disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting}
-            >
-              {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
-            </Button>
-          </DialogFooter>
+          <QuotationDialogFooter
+            setConfirmQuotationModal={setConfirmQuotationModal}
+            setGuestDetails={setGuestDetails}
+            confirmDefaultNationality={confirmDefaultNationality}
+            setAdditionalAdults={setAdditionalAdults}
+            setAdditionalChildren={setAdditionalChildren}
+            setAdditionalInfants={setAdditionalInfants}
+            setPrebookData={setPrebookData}
+            setHasAcceptedUpdatedPrice={setHasAcceptedUpdatedPrice}
+            setFormErrors={setFormErrors}
+            resetConfirmWalletTopUpPanel={resetConfirmWalletTopUpPanel}
+            handleConfirmQuotation={handleConfirmQuotation}
+            isConfirmingQuotation={isConfirmingQuotation}
+            isPrebooking={isPrebooking}
+            isWalletTopUpSubmitting={isWalletTopUpSubmitting}
+          />
         </DialogContent>
       </Dialog>
 
