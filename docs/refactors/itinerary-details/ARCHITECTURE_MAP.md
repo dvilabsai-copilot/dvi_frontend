@@ -133,5 +133,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Fit Here timeline-row rendering and exact-anchor button placement are isolated in `HotspotFitHereTimelineRows.tsx`; anchor construction and preview action behavior remain injected from the controller.
 - Fit Here empty-state guidance is isolated in `HotspotFitHereEmptyState.tsx`; modal visibility remains derived by the controller.
 - Fit Here selected-hotspot title/identity presentation is isolated in `HotspotFitHereSelectionHeader.tsx`; the controller still owns the selected hotspot object and preview note.
+- Fit Here preview calculation loading presentation is isolated in `HotspotPreviewLoadingState.tsx`; preview request state remains controller-owned.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

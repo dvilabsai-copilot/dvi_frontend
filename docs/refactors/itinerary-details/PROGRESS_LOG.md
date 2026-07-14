@@ -1033,6 +1033,32 @@
 ### Notes
 - The selected-hotspot explanatory copy remains in the controller because the source contains legacy mojibake text; no copy or encoding was changed.
 
+## Iteration 121 — Fit Here preview loading state
+
+### Baseline
+- Starting point: Iteration 120 selected-hotspot header extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the calculation-in-progress indicator from the preview timeline container.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewLoadingState.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: spinner and “Calculating selected slot…” presentation now live in a component; visibility remains driven by the existing preview-request id.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,788 lines.
+- New `HotspotPreviewLoadingState.tsx`: 18 lines.
+
+### Notes
+- The surrounding timeline container and preview banners remain controller-owned for the next bounded extraction.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

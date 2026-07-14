@@ -195,6 +195,7 @@ import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyB
 import { HotspotFitHereTimelineRows } from "./itinerary-details/components/HotspotFitHereTimelineRows";
 import { HotspotFitHereEmptyState } from "./itinerary-details/components/HotspotFitHereEmptyState";
 import { HotspotFitHereSelectionHeader } from "./itinerary-details/components/HotspotFitHereSelectionHeader";
+import { HotspotPreviewLoadingState } from "./itinerary-details/components/HotspotPreviewLoadingState";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9934,12 +9935,7 @@ const canShowGuideActionButton =
                   </div>
                 )}
                 <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
-                  {isPreviewingHotspotId ? (
-                    <div className="flex flex-col items-center justify-center h-24 text-[#6c6c6c]">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#d546ab] mb-2"></div>
-                      <p className="text-sm">Calculating selected slot...</p>
-                    </div>
-                  ) : null}
+                  <HotspotPreviewLoadingState visible={Boolean(isPreviewingHotspotId)} />
 
                   {effectivePreviewTimeline.length > 0 ? (
                     <>
