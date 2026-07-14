@@ -1214,6 +1214,33 @@
 ### Notes
 - The wallet insufficient-balance warning and top-up orchestration remain in the controller; this extraction is presentation-only and preserves the existing callbacks.
 
+## Iteration 109 — TBO prebook hotel rows extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/prebook-row component, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; prebook-row view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationPrebookHotelRows.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: TBO prebook hotel detail rendering now lives in a typed component, including cancellation policy, room promotion, rate conditions, amenities, package inclusions, and supplement handling; controller-owned normalization helpers are injected unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationPrebookHotelRows.tsx`; unrelated repository errors remain.
+- Lint: new prebook-row component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,890 lines (down from 12,005 at the previous checkpoint).
+- New `QuotationPrebookHotelRows.tsx`: 161 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Non-TBO selected-hotel review rows and the surrounding prebook summary remain in the controller for a subsequent provider-specific extraction.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
