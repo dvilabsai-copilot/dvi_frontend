@@ -153,6 +153,7 @@ import { useActivityState } from "./itinerary-details/hooks/useActivityState";
 import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
 import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
+import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
 import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
@@ -9094,46 +9095,18 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setShowWalletTopUpPanel(true);
   };
 
-  const handleWalletTopUpAndContinue = async () => {
-    if (!shouldEnableWalletTopUpOnConfirm || !agentInfo?.agent_id) {
-      toast.error("Agent information is missing. Please reopen Confirm Quotation.");
-      return;
-    }
-
-    const amount = Number(walletTopUpAmount);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Please enter a valid cash amount greater than 0.");
-      return;
-    }
-
-    if (!String(walletTopUpRemark || "").trim()) {
-      toast.error("Please enter a remark for this wallet top-up.");
-      return;
-    }
-
-    setIsWalletTopUpSubmitting(true);
-    try {
-      await AgentAPI.addCashWallet(agentInfo.agent_id, Number(amount.toFixed(2)), walletTopUpRemark.trim());
-      toast.success("Cash wallet amount added successfully.");
-
-      const latestWalletBalance = await refreshConfirmWalletBalance(agentInfo.agent_id);
-
-      if (latestWalletBalance < confirmRequiredAmount) {
-        prepareWalletTopUpPanel(latestWalletBalance);
-        toast.error("Wallet is still insufficient. Please add the remaining shortfall.");
-        return;
-      }
-
-      resetConfirmWalletTopUpPanel();
-      await handleConfirmQuotation({ skipWalletCheck: true });
-    } catch (error) {
-      console.error("Failed to add cash wallet amount", error);
-      toast.error(getSafeErrorMessage(error, "Failed to add cash wallet amount."));
-    } finally {
-      setIsWalletTopUpSubmitting(false);
-    }
-  };
+  const handleWalletTopUpAndContinue = useWalletTopUpController({
+    shouldEnableWalletTopUpOnConfirm,
+    agentInfo,
+    walletTopUpAmount,
+    walletTopUpRemark,
+    confirmRequiredAmount,
+    setIsWalletTopUpSubmitting,
+    refreshConfirmWalletBalance,
+    prepareWalletTopUpPanel,
+    resetConfirmWalletTopUpPanel,
+    handleConfirmQuotation: (options) => handleConfirmQuotation(options),
+  });
 
   const openConfirmQuotationModal = async () => {
     if (isOpeningConfirmQuotation) {

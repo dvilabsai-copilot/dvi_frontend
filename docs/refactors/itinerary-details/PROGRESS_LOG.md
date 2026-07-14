@@ -1250,6 +1250,27 @@
 - `ItineraryDetailsController.tsx`: 14,863 physical lines after extraction.
 - `useActivityPreviewController.ts`: 84 physical lines.
 
+## Iteration 65 — Wallet top-up continuation boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useWalletTopUpController.ts`.
+- Moved cash-wallet top-up validation, wallet mutation, balance refresh, shortfall panel handling, reset, and confirmation continuation out of `ItineraryDetailsController.tsx`.
+- Preserved agent guard, amount/remark validation, service payload rounding, and existing toast wording.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or wallet hook; existing repository errors remain documented.
+- Focused ESLint: passed for the wallet hook.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 14,836 physical lines after extraction.
+- `useWalletTopUpController.ts`: 68 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
