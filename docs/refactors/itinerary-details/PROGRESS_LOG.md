@@ -1501,6 +1501,32 @@
 ### Notes
 - Guide modal selection, save/delete mutations, and availability loading remain separate workflow boundaries.
 
+## Iteration 139 - Hotspot availability normalization
+
+### Baseline
+- Starting point: Iteration 138 guide assignment utility extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate backend hotspot status normalization and active/excluded route reconciliation.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/hotspotAvailability.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: excluded-status interpretation, active-route annotations, manual metadata fallback, and preview/added button state normalization now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,128 lines.
+- New `hotspotAvailability.utils.ts`: 62 lines.
+
+### Notes
+- The controller retains the stable callback adapter and explicit state dependencies to avoid stale asynchronous hotspot context.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

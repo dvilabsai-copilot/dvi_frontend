@@ -97,6 +97,7 @@ import {
   isAttractionCoveredByGuide as isAttractionCoveredByGuideUtil,
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
+import { normalizeAvailableHotspots as normalizeAvailableHotspotsUtil } from "./itinerary-details/utils/hotspotAvailability.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -2582,65 +2583,19 @@ const loadAndCacheRouteHotelDetails = useCallback(
     return currentRouteAttractionHotspotIds.has(id) || addedInModalHotspotIds.has(id);
   }, [activePreviewHotspotId, addedInModalHotspotIds, currentRouteAttractionHotspotIds]);
 
-  // Helper to normalize available hotspots after fetching
-  // Accepts explicit context options to avoid stale async state issues
+  // Helper to normalize available hotspots after fetching.
   const normalizeAvailableHotspots = useCallback((
     hotspots: AvailableHotspot[],
-    options?: {
-      routeId?: number | null;
-      excludedIds?: number[];
-      activeIds?: Set<number>;
-    }
-  ): AvailableHotspot[] => {
-    const excludedSet = new Set((options?.excludedIds || excludedHotspotIds).map(Number));
-    const activeSet = options?.activeIds || currentRouteAttractionHotspotIds;
-
-    return hotspots.map((hotspot) => {
-      const hotspotId = Number(hotspot.id);
-      const backendStatus = String(hotspot.availabilityStatus || '').trim().toUpperCase();
-      const reason = String(hotspot.availabilityReason || '').trim().toLowerCase();
-
-      const isExcludedByBackend =
-        backendStatus === 'EXCLUDED_BY_ROUTE' ||
-        reason.includes('excluded for this route') ||
-        reason.includes('currently excluded');
-
-      const isDeletedOrExcluded =
-        excludedSet.has(hotspotId) || isExcludedByBackend;
-
-      const isActuallyActive =
-        activeSet.has(hotspotId);
-
-      if (isDeletedOrExcluded && !isActuallyActive) {
-        return {
-          ...hotspot,
-          alreadyAdded: false,
-          availabilityStatus: 'EXCLUDED_BY_ROUTE',
-          actionDisabled: false,
-          buttonLabel: 'Preview',
-        };
-      }
-
-      const manualMeta = currentRouteManualHotspotMetaById.get(hotspotId) || null;
-
-      if (isActuallyActive) {
-        return {
-          ...hotspot,
-          alreadyAdded: true,
-          visitAgain: true,
-          availabilityStatus: 'ACTIVE_THIS_ROUTE',
-          availabilityReason: 'Hotspot is already active on this route.',
-          actionDisabled: true,
-          buttonLabel: 'Added',
-          routeHotspotId: Number(hotspot.routeHotspotId || manualMeta?.routeHotspotId || 0) || null,
-          planOwnWay: hotspot.planOwnWay === true || manualMeta?.isManual === true,
-          isManual: hotspot.isManual === true || manualMeta?.isManual === true,
-        };
-      }
-
-      return hotspot;
-    });
-  }, [excludedHotspotIds, currentRouteAttractionHotspotIds, currentRouteManualHotspotMetaById]);
+    options?: { routeId?: number | null; excludedIds?: number[]; activeIds?: Set<number> },
+  ): AvailableHotspot[] => normalizeAvailableHotspotsUtil(
+    hotspots,
+    {
+      excludedIds: excludedHotspotIds,
+      activeIds: currentRouteAttractionHotspotIds,
+      manualMetaById: currentRouteManualHotspotMetaById,
+    },
+    options,
+  ), [excludedHotspotIds, currentRouteAttractionHotspotIds, currentRouteManualHotspotMetaById]);
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
