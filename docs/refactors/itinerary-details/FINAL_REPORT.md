@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 9,296 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 9,256 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -58,6 +58,7 @@ Current facts:
 - New in this checkpoint: quotation confirmation date-time formatting is isolated in `quotationDateTime.utils.ts`.
 - New in this checkpoint: quotation confirmation-modal prefill is isolated in `quotationModalPrefill.utils.ts` (nationality/date patches, traveller passenger rows, and occupancy templates).
 - New in this checkpoint: quotation booking occupancy resolution is isolated in `quotationBookingOccupancy.utils.ts` (child-age locking and TBO/supplier occupancy selection).
+- New in this checkpoint: route-family quote-number extraction and option normalization are isolated in `routeOptions.utils.ts`.
 - Remaining work: split the transitional controller into domain controllers/views, remove compatibility fragments, extract vehicle actions/view and the large hotspot/Fit Here and quotation review sections, then run the full green verification loop.
 - Intentional behavior changes: none.
 - Documented blockers: repository-wide lint baseline (1,936 errors/107 warnings), existing unrelated type errors, and 23 broader-suite failures classified in `REGRESSION_LOG.md`.

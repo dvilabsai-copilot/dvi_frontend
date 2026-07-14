@@ -4240,3 +4240,25 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+## Iteration 173 — Route option normalization utility
+
+### Baseline
+- Starting checkpoint: `d9a6439` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/routeOptions.utils.ts`.
+- Moved quote-number extraction and route-option normalization/deduplication/sorting out of the route-family effect.
+- Preserved DVI filtering, fallback labels, numeric ordering, and relabeling semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,256 lines (down from 9,296).
+- New utility: 28 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

@@ -216,6 +216,7 @@ import {
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
 import { buildQuotationModalPrefill } from "./itinerary-details/utils/quotationModalPrefill.utils";
 import { resolveQuotationBookingOccupancy } from "./itinerary-details/utils/quotationBookingOccupancy.utils";
+import { getQuoteNumberFromValue, normalizeRouteOptionList } from "./itinerary-details/utils/routeOptions.utils";
 import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
@@ -5579,47 +5580,6 @@ const getSelectedPreviewActivity = () =>
 
 useEffect(() => {
   if (!quoteId || !itinerary) return;
-
-  const getQuoteNumberFromValue = (value?: string) => {
-    const match = String(value || "").match(/(\d+)$/);
-    return match ? Number(match[1]) : 0;
-  };
-
-  const normalizeRouteOptionList = (rawOptions: any[]) => {
-    const options = rawOptions
-      .map((option, index: number) => {
-        const rawQuoteId =
-          typeof option === "string"
-            ? option
-            : option?.quoteId ||
-              option?.routeQuoteId ||
-              option?.quotationNo ||
-              option?.quotation_no ||
-              option?.itinerary_quote_ID ||
-              option?.itinerary_quote_id ||
-              option?.quote_id ||
-              "";
-
-        return {
-          quoteId: String(rawQuoteId || "").trim(),
-          label: option?.label || option?.routeName || `Route ${index + 1}`,
-        };
-      })
-      .filter((option) => option.quoteId && option.quoteId.startsWith("DVI"));
-
-    return Array.from(
-      new Map(options.map((option) => [option.quoteId, option])).values()
-    )
-      .sort(
-        (a, b) =>
-          getQuoteNumberFromValue(a.quoteId) -
-          getQuoteNumberFromValue(b.quoteId)
-      )
-      .map((option, index) => ({
-        ...option,
-        label: `Route ${index + 1}`,
-      }));
-  };
 
   const loadRelatedRouteOptions = async () => {
     try {
