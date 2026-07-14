@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 208 - Insertion decision summary hook
+
+### Baseline
+- Starting checkpoint: `0c524c2` on `refactor/itinerary-details-continuation` with preview decision-state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useInsertionDecisionSummary.ts`.
+- Moved hotspot insertion outcome messaging, reschedule/overflow conflict checks, and relaxed-route-fit summary decisions out of `ItineraryDetailsController.tsx`.
+- Preserved matrix-blocked precedence, priority-confirmation handling, opening/timing conflict messaging, and all user-facing summary text.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,679 lines (down from 5,733 at the previous iteration).
+- New `useInsertionDecisionSummary.ts`: 97 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 207 - Preview decision state hook
 
 ### Baseline
