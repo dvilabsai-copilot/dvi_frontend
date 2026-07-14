@@ -195,13 +195,8 @@ import {
   parseWalletAmount,
   toMoneyNumber,
 } from "./itinerary-details/utils/clipboardFormatting.utils";
-import {
-  formatClipboardMoney,
-  formatClipboardMoneyWithSymbol,
-  getClipboardHotelPaxCount,
-} from "./itinerary-details/utils/clipboardItineraryTotals.utils";
-import { buildClipboardGroupFinancialTotals } from "./itinerary-details/utils/clipboardFinancialTotals.utils";
 import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
+import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3347,147 +3342,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const centerTitleStyle =
     "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
 
-  const buildCostSectionHtml = (group: ClipboardGroup) => {
-    const totals = buildClipboardGroupFinancialTotals({
-      hotels: group.hotels,
-      itinerary,
-      shouldShowHotels,
-      shouldShowVehicles,
-      computedVehicleAmount,
-    });
-    const hotelPaxCount = getClipboardHotelPaxCount(itinerary);
-    const hotelPerPaxAmount =
-      hotelPaxCount > 0
-        ? Number(totals.hotelAmount || 0) / hotelPaxCount
-        : 0;
-
-    return `
-      <table width="700" border="1" cellpadding="0" cellspacing="0" style="${tableStyle}margin-top:18px;">
-        ${
-          shouldShowHotels
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Total Room Cost (${escapeHtml(hotelPaxCount)} Pax * ${escapeHtml(
-                formatClipboardMoney(hotelPerPaxAmount),
-              )})</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.hotelAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          totals.extraBedAmount > 0 || Number(itinerary.extraBed || 0) > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Extra Bed Cost (${escapeHtml(itinerary.extraBed || 0)})</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.extraBedAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          totals.childWithBedAmount > 0 || Number(itinerary.childWithBed || 0) > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Child With Bed Cost (${escapeHtml(itinerary.childWithBed || 0)})</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.childWithBedAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          totals.childWithoutBedAmount > 0 || Number(itinerary.childWithoutBed || 0) > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Child Without Bed Cost (${escapeHtml(itinerary.childWithoutBed || 0)})</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.childWithoutBedAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          shouldShowVehicles
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Total Vehicle Cost (${escapeHtml(computedVehicleQty || 0)})</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.vehicleAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          totals.hotspotAmount > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Total Entry Ticket Cost</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.hotspotAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        ${
-          Array.isArray(totals.entryTicketBreakdown) && totals.entryTicketBreakdown.length > 0
-            ? totals.entryTicketBreakdown
-                .map((item) => `
-                  <tr>
-                    <td style="${cellStyle}padding-left:18px;color:#5d5d5d;">Day ${escapeHtml(item.dayNumber || 0)} - ${escapeHtml(item.locationName || "Sightseeing Location")}</td>
-                    <td style="${cellStyle}color:#5d5d5d;">${escapeHtml(formatClipboardMoneyWithSymbol(item.amount || 0))}</td>
-                  </tr>
-                `)
-                .join("")
-            : ""
-        }
-
-        ${
-          totals.activityAmount > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Total Activity Cost</td>
-                <td style="${cellStyle}">${escapeHtml(formatClipboardMoneyWithSymbol(totals.activityAmount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        <tr>
-          <td style="${cellStyle}font-weight:700;">Total Amount</td>
-          <td style="${cellStyle}font-weight:700;">${escapeHtml(formatClipboardMoneyWithSymbol(totals.totalAmount))}</td>
-        </tr>
-
-        ${
-          totals.couponDiscount > 0
-            ? `
-              <tr>
-                <td style="${cellStyle}font-weight:700;">Coupon Discount</td>
-                <td style="${cellStyle}">- ${escapeHtml(formatClipboardMoneyWithSymbol(totals.couponDiscount))}</td>
-              </tr>
-            `
-            : ""
-        }
-
-        <tr>
-          <td style="${cellStyle}font-weight:700;">Total Round Off</td>
-          <td style="${cellStyle}">
-            ${totals.roundOff >= 0 ? "+ " : "- "}${escapeHtml(formatClipboardMoneyWithSymbol(Math.abs(totals.roundOff)))}
-          </td>
-        </tr>
-
-        <tr>
-          <td style="${cellStyle}font-weight:700;">Net Payable To ${escapeHtml(
-            itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd",
-          )}</td>
-          <td style="${cellStyle}font-weight:700;">${escapeHtml(formatClipboardMoneyWithSymbol(totals.netPayable))}</td>
-        </tr>
-      </table>
-    `;
-  };
-
   const packageSectionsHtml = selectedGroups
     .map((group, groupIndex) => {
       const rowsHtml =
@@ -3543,7 +3397,15 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
           shouldShowVehicles,
           styles: { tableStyle, cellStyle, headerCellStyle, centerTitleStyle },
         })}
-        ${buildCostSectionHtml(group)}
+        ${buildClipboardCostSectionHtml({
+          hotels: group.hotels,
+          itinerary,
+          shouldShowHotels,
+          shouldShowVehicles,
+          computedVehicleAmount,
+          computedVehicleQty,
+          styles: { tableStyle, cellStyle },
+        })}
       `;
     })
     .join("");

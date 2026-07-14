@@ -3959,3 +3959,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 161 — Clipboard cost section boundary
+
+### Baseline
+- Starting checkpoint: `96d3f6e` on `refactor/itinerary-details-checkpoint` with focused Playwright and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/clipboardCostSection.utils.ts`.
+- Moved cost-table HTML composition, conditional hotel/vehicle/child rows, entry-ticket detail rows, coupon/rounding display, and net-payable company labeling out of the clipboard builder.
+- Preserved the existing totals utility, formatting, prefixes, labels, and visibility predicates.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,800 lines (down from 9,938).
+- New utility: 83 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
