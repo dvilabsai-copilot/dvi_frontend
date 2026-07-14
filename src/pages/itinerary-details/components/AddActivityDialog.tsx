@@ -175,13 +175,13 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
   );
 })()}
 
-{/* â‘  Placement */}
+{/* ① Placement */}
                     <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-3 space-y-2">
-                      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">â‘  Placement</div>
+                      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-[#6c6c6c]">Hotspot Window</span>
                         <span className="font-medium text-[#4a4260]">
-                          {formatPreviewTime(activityPreview.hotspotTiming?.startTime)} â€“ {formatPreviewTime(activityPreview.hotspotTiming?.endTime)}
+                          {formatPreviewTime(activityPreview.hotspotTiming?.startTime)} – {formatPreviewTime(activityPreview.hotspotTiming?.endTime)}
                         </span>
                       </div>
                       {activityPreview.proposedTiming && (
@@ -189,7 +189,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-[#6c6c6c]">Inserted At</span>
                             <span className="font-semibold text-[#d546ab]">
-                              {formatPreviewTime(activityPreview.proposedTiming.startTime)} â€“ {formatPreviewTime(activityPreview.proposedTiming.endTime)}
+                              {formatPreviewTime(activityPreview.proposedTiming.startTime)} – {formatPreviewTime(activityPreview.proposedTiming.endTime)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-xs">
@@ -200,7 +200,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                       )}
                     </div>
 
-                    {/* â‘¡ Hotspot Impact */}
+                    {/* ② Hotspot Impact */}
                     <div className={`rounded-lg border-2 p-3 ${activityPreview.hasConflicts
                         ? 'border-red-300 bg-red-50'
                         : activityPreview.proposedTiming?.willExtendHotspot
@@ -213,10 +213,10 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                             : activityPreview.proposedTiming?.willExtendHotspot ? 'text-amber-700'
                               : 'text-green-700'
                         }>
-                          â‘¡ Hotspot Impact â€” {
-                            activityPreview.hasConflicts ? 'â›” Conflict'
-                              : activityPreview.proposedTiming?.willExtendHotspot ? 'âš ï¸ Extends Window'
-                                : 'âœ… Fits within window'
+                          ② Hotspot Impact — {
+                            activityPreview.hasConflicts ? '⛔ Conflict'
+                              : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
+                                : '✅ Fits within window'
                           }
                         </span>
                       </div>
@@ -224,7 +224,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                         <div className="text-xs text-amber-800">
                           Hotspot end time shifts from{' '}
                           <span className="font-semibold">{formatPreviewTime(activityPreview.hotspotTiming?.endTime)}</span>
-                          {' '}â†’{' '}
+                          {' '}→{' '}
                           <span className="font-semibold">{formatPreviewTime(activityPreview.proposedTiming.endTime)}</span>
                           {' '}(+{activityPreview.cascade?.shiftMinutes ?? 0} min)
                         </div>
@@ -232,17 +232,17 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                       {activityPreview.hasConflicts && activityPreview.conflicts?.length > 0 && (
                         <div className="space-y-1 text-xs text-red-700 mt-1">
                           {activityPreview.conflicts.map((conflict, idx: number) => (
-                            <div key={idx}>â€¢ {conflict.reason}</div>
+                            <div key={idx}>• {conflict.reason}</div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* â‘¢ Day Cascade */}
+                    {/* ③ Day Cascade */}
                     {activityPreview.cascade?.shiftMinutes > 0 && activityPreview.cascade?.affectedSegments?.length > 0 && (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                         <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">
-                          â‘¢ Day Cascade â€” everything after shifts +{activityPreview.cascade.shiftMinutes} min
+                          ③ Day Cascade — everything after shifts +{activityPreview.cascade.shiftMinutes} min
                         </div>
                         <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                           {activityPreview.cascade.affectedSegments.map((seg, idx: number) => (
@@ -253,11 +253,11 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                                       : seg.type === 'return' ? 'bg-gray-100 text-gray-700'
                                         : 'bg-pink-100 text-pink-700'
                                 }`}>
-                                {seg.type === 'travel' ? 'ðŸšŒ Travel'
-                                  : seg.type === 'break' ? 'â¸ Break'
-                                    : seg.type === 'hotel' ? 'ðŸ¨ Hotel'
-                                      : seg.type === 'return' ? 'ðŸ”„ Return'
-                                        : 'ðŸ“ Place'}
+                                {seg.type === 'travel' ? '🚌 Travel'
+                                  : seg.type === 'break' ? '⏸ Break'
+                                    : seg.type === 'hotel' ? '🏨 Hotel'
+                                      : seg.type === 'return' ? '🔄 Return'
+                                        : '📍 Place'}
                               </span>
                               <span className="flex-1 font-medium text-[#4a4260] truncate">{seg.name}</span>
                               <span className="shrink-0 text-[#6c6c6c] line-through">{formatPreviewTime(seg.oldStartTime)}</span>
@@ -277,7 +277,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
 
                     {activityPreview.cascade?.shiftMinutes === 0 && (
                       <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700">
-                        â‘¢ Day Cascade â€” <span className="font-semibold">No downstream impact.</span> Activity fits within the existing hotspot window.
+                        ③ Day Cascade — <span className="font-semibold">No downstream impact.</span> Activity fits within the existing hotspot window.
                       </div>
                     )}
 

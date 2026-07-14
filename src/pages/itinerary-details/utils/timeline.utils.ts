@@ -83,7 +83,7 @@ export const parseDisplayTimeToHms = (displayTime: string): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 };
 
-// Returns true for times in the 01:00â€“07:59 range (early morning, requires previous-day hotel)
+// Returns true for times in the 01:00–07:59 range (early morning, requires previous-day hotel)
 export const isEarlyMorningTime = (hms: string): boolean => {
   const [h = 0, m = 0] = hms.split(':').map(Number);
   const totalMinutes = h * 60 + m;

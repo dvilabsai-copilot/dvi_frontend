@@ -180,6 +180,14 @@ The broader command again ran 34 tests with 8 workers: 9 passed, 2 skipped, and 
 ### Resolution
 No application or test weakening changes were added; focused hotspot characterization remains green.
 
+## 2026-07-14 - UTF-8 mojibake repair
+
+### Result
+The itinerary source modules were scanned after replacing corrupted UTF-8 literals. No mojibake markers remain in `src`, and the focused pair remains 2/2 passed.
+
+### Resolution
+Only display strings and the vehicle-only clipboard currency matcher changed. API requests, payloads, routing, and workflow control flow were preserved.
+
 ## 2026-07-14 — Broad itinerary suite timeout after quotation view extractions
 
 ### Result

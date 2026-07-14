@@ -249,13 +249,13 @@ export type ItineraryHotelRow = {
   canCancelVoucher?: boolean;
 
   date?: string;
-  // âœ… HOBSE-specific fields (optional, used if provider === "HOBSE")
+  // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
   hotelCode?: string; // HOBSE hotel code
   bookingCode?: string; // HOBSE booking code
   searchReference?: string;
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
-  // âœ… Hotel distance from route location (calculated via Haversine on backend)
+  // ✅ Hotel distance from route location (calculated via Haversine on backend)
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
   cancellationPolicy?: string[];

@@ -27,7 +27,7 @@ const cleanVehicleOnlyB2BHtml = (rawHtml: string): string => {
     const cells = Array.from(row.querySelectorAll("td, th"));
     if (!cells.length) return;
     const firstCell = cells[0];
-    const amountCell = cells.find((cell) => /₹|â‚¹|Rs\.?|[0-9]+,[0-9]+|\d+\.\d{2}/i.test(cell.textContent?.replace(/\s+/g, " ").trim() || ""));
+    const amountCell = cells.find((cell) => /₹|Rs\.?|[0-9]+,[0-9]+|\d+\.\d{2}/i.test(cell.textContent?.replace(/\s+/g, " ").trim() || ""));
     firstCell.textContent = "Total Vehicle Amount";
     cells.forEach((cell) => {
       if (cell === firstCell || (amountCell && cell === amountCell)) return;

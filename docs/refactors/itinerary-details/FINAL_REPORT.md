@@ -21,6 +21,7 @@ Current facts:
 - New in this checkpoint: arrival-policy decision-key derivation is shared through `routeArrivalPolicy.utils.ts`.
 - New in this checkpoint: arrival-policy route-time gating and confirmation persistence are isolated in `useArrivalPolicyRouteTimeController.ts`.
 - New in this checkpoint: related route-option API/local-storage lookup, date normalization, related-plan filtering, and fallback handling are isolated in `useRelatedRouteOptionsLoader.ts`.
+- New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

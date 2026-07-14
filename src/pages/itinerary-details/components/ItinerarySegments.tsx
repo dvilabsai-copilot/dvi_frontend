@@ -18,7 +18,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
 
   return (
   <div key={idx}>
-                      {/* Connector dots â€” only between real segments, never around hotspot CTAs */}
+                      {/* Connector dots — only between real segments, never around hotspot CTAs */}
                       {idx > 0 &&
                         segment.type !== 'hotspot' &&
                         day.segments[idx - 1]?.type !== 'hotspot' && (
@@ -69,7 +69,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                 {showTravelDistance && (
                                   <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{travelDistanceLabel}</span>
                                 )}
-                                <span className="flex items-center gap-1">â± {segment.duration}</span>
+                                <span className="flex items-center gap-1">⏱ {segment.duration}</span>
                                 {segment.note && <span className="text-[#aaa]">({segment.note})</span>}
                               </span>
                               {segment.isConflict && (
@@ -156,7 +156,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     {segment.amount && segment.amount > 0 && (
                                       <span className="flex items-center">
                                         <Ticket className="h-3 w-3 mr-1" />
-                                        â‚¹{segment.amount.toFixed(0)}
+                                        ₹{segment.amount.toFixed(0)}
                                       </span>
                                     )}
                                     {segment.duration && (
@@ -190,7 +190,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     )}
                                   </div>
                                 </div>
-                                {/* Thumbnail with overlaid gallery/video icons â€” matches PHP layout */}
+                                {/* Thumbnail with overlaid gallery/video icons — matches PHP layout */}
                                 <div className="relative flex-shrink-0 flex justify-end">
                                   <img
                                     src={
@@ -214,7 +214,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                         )
                                       }
                                     >
-                                      ðŸ–¼ï¸
+                                      🖼️
                                     </button>
                                     {segment.videoUrl && (
                                       <button
@@ -224,7 +224,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                           openVideoModal(segment.videoUrl || "", segment.name)
                                         }
                                       >
-                                        â–¶ï¸
+                                        ▶️
                                       </button>
                                     )}
                                   </div>
@@ -286,13 +286,13 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                               {activity.startTime && activity.endTime && (
                                                 <span className="flex items-center font-semibold text-[#d546ab]">
                                                   <Clock className="h-3 w-3 mr-1" />
-                                                  {activity.startTime} â€“ {activity.endTime}
+                                                  {activity.startTime} – {activity.endTime}
                                                 </span>
                                               )}
                                               {activity.amount > 0 && (
                                                 <span className="flex items-center">
                                                   <Ticket className="h-3 w-3 mr-1" />
-                                                  â‚¹ {activity.amount.toFixed(2)}
+                                                  ₹ {activity.amount.toFixed(2)}
                                                 </span>
                                               )}
                                               {activity.duration && (
@@ -326,7 +326,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                                   )
                                                 }
                                               >
-                                                ðŸ–¼ï¸
+                                                🖼️
                                               </button>
                                             </div>
                                           </div>
@@ -356,7 +356,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     <Clock className="inline h-3 w-3 mr-1" />
                                     {segment.timeRange}
                                   </span>
-                                  <span>â± {segment.duration}</span>
+                                  <span>⏱ {segment.duration}</span>
                                 </div>
                               </div>
                             </div>
@@ -476,7 +476,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                 <Clock className="inline h-3 w-3 mr-1" />
                                 {segment.time}
                                 {segment.note && (
-                                  <span className="ml-2">ðŸ”˜ {segment.note}</span>
+                                  <span className="ml-2">🔘 {segment.note}</span>
                                 )}
                               </p>
                             </div>

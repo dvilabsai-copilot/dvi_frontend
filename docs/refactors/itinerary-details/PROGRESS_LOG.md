@@ -4218,6 +4218,24 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+## Iteration 176 - UTF-8 mojibake repair
+
+### Baseline
+- Starting checkpoint: `edc4540` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Repaired corrupted UTF-8 literals in the itinerary UI modules, including currency, arrows, punctuation, status symbols, and emoji.
+- Updated the vehicle-only clipboard currency matcher to use the canonical rupee symbol.
+- No API, payload, router, or workflow behavior changed.
+
+### Verification
+- Source scan reports no occurrences of the known corrupted UTF-8 prefixes in src.
+- Focused Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Notes
+- Repository lint remains red on documented pre-existing `any` and hook-dependency findings; this visual-only repair introduced no new lint category.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target and the broader itinerary suite retains documented failures.
+
 ## Iteration 171 — Quotation modal prefill boundary
 
 ### Baseline
