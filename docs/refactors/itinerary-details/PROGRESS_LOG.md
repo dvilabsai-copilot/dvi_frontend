@@ -1059,6 +1059,32 @@
 ### Notes
 - The surrounding timeline container and preview banners remain controller-owned for the next bounded extraction.
 
+## Iteration 122 — Same-city rescheduling notice
+
+### Baseline
+- Starting point: Iteration 121 preview loading-state extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the same-city rescheduling notice shown above the preview timeline.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewRescheduleNotice.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: rescheduling notice copy and presentation now live in a component; the existing resolution flag is injected unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,781 lines.
+- New `HotspotPreviewRescheduleNotice.tsx`: 20 lines.
+
+### Notes
+- The adjacent recalculated-timings banner still contains legacy mojibake text and remains queued for a safe extraction.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

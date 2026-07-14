@@ -196,6 +196,7 @@ import { HotspotFitHereTimelineRows } from "./itinerary-details/components/Hotsp
 import { HotspotFitHereEmptyState } from "./itinerary-details/components/HotspotFitHereEmptyState";
 import { HotspotFitHereSelectionHeader } from "./itinerary-details/components/HotspotFitHereSelectionHeader";
 import { HotspotPreviewLoadingState } from "./itinerary-details/components/HotspotPreviewLoadingState";
+import { HotspotPreviewRescheduleNotice } from "./itinerary-details/components/HotspotPreviewRescheduleNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9939,15 +9940,7 @@ const canShowGuideActionButton =
 
                   {effectivePreviewTimeline.length > 0 ? (
                     <>
-                      {/* Rescheduling Applied Banner */}
-                      {(activePreviewResolution as any)?.sameCityShuffleApplied === true && (
-                        <div className="mb-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-                          <p className="font-bold">Timings reshuffled to fit manual hotspot</p>
-                          <p className="mt-1">
-                            The system reordered nearby same-city hotspots based on opening and closing time before removing any hotspot.
-                          </p>
-                        </div>
-                      )}
+                      <HotspotPreviewRescheduleNotice visible={(activePreviewResolution as any)?.sameCityShuffleApplied === true} />
                       {manualInsertionFit?.rescheduleApplied === true && (
                         <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
                           <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
