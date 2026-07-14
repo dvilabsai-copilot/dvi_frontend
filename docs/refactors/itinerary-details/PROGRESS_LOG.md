@@ -1106,6 +1106,26 @@
 - `ItineraryDetailsController.tsx`: 15,213 physical lines after extraction.
 - `useHotelClipboardAction.ts`: 68 physical lines.
 
+## Iteration 58 — Persisted hotel selection mutation
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelSelectionMutation.ts`.
+- Moved the persisted hotel selection API call, modal/reset state, post-selection details/hotel refresh, and existing read-only/toast/error behavior out of `ItineraryDetailsController.tsx`.
+- Preserved the selected meal-plan and room-type arguments and the hotel-bearing itinerary refresh gate.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or selection mutation hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,180 physical lines after extraction.
+- `useHotelSelectionMutation.ts`: 72 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

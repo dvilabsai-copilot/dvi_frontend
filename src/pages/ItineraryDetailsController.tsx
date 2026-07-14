@@ -165,6 +165,7 @@ import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-de
 import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
 import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
+import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -9165,54 +9166,20 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     });
   };
 
-  const handleSelectHotel = async (hotelId: number, roomTypeId: number = 1) => {
-    if (readOnly) {
-      console.log('Cannot select hotel in read-only mode');
-      return;
-    }
-
-    if (!hotelSelectionModal.planId || !hotelSelectionModal.routeId) {
-      return;
-    }
-
-    setIsSelectingHotel(true);
-    try {
-      await ItineraryService.selectHotel(
-        hotelSelectionModal.planId,
-        hotelSelectionModal.routeId,
-        hotelId,
-        roomTypeId,
-        selectedMealPlan
-      );
-
-      toast.success("Hotel selected successfully");
-
-      // Close modal
-      setHotelSelectionModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        routeDate: "",
-      });
-      setHotelSearchQuery("");
-      setSelectedMealPlan({ all: false, breakfast: false, lunch: false, dinner: false });
-
-      // Reload itinerary data
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
-    } catch (e) {
-      console.error("Failed to select hotel", e);
-      toast.error(getSafeErrorMessage(e, "Failed to select hotel"));
-    } finally {
-      setIsSelectingHotel(false);
-    }
-  };
+  const handleSelectHotel = useHotelSelectionMutation({
+    readOnly,
+    quoteId: quoteId || null,
+    shouldShowHotels,
+    selectedMealPlan,
+    hotelSelectionModal,
+    setIsSelectingHotel,
+    setHotelSelectionModal,
+    setHotelSearchQuery,
+    setSelectedMealPlan,
+    setItinerary,
+    setHotelDetails,
+    getSafeErrorMessage,
+  });
 
   // Handle hotel selection from HotelSearchModal
   const handleSelectHotelFromSearch = async (
