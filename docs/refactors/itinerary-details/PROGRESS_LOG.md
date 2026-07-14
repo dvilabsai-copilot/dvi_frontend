@@ -1113,6 +1113,32 @@
 - Conflict override payloads, modal reset values, and best-effort hotel refresh semantics remain unchanged; only ownership moved.
 - Follow-up extraction: vehicle workflow actions and remaining Fit Here confirmation orchestration.
 
+## Iteration 84 - Vehicle-only clipboard action boundary
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useVehicleOnlyClipboardAction.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: vehicle-only backend clipboard retrieval, hotel-row stripping, vehicle amount-label cleanup, highlights replacement/signature relocation, and clipboard copy/toast behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useVehicleOnlyClipboardAction.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,903 lines.
+- New `useVehicleOnlyClipboardAction.ts`: 97 lines.
+
+### Notes
+- Vehicle-only call-site behavior now uses the extracted action. The old inline implementation remains as a temporary compatibility fragment and is the immediate cleanup follow-up.
+
 ## Iteration 82 - Fit Here confirmation refresh boundary
 
 ### Baseline

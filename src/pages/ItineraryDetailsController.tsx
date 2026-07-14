@@ -162,6 +162,7 @@ import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDelete
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
+import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
@@ -4977,6 +4978,15 @@ const plainText = html ? htmlToPlainText(html) : backendPlainText;
     toast.error("Failed to copy clipboard content");
   }
 };
+  const handleVehicleOnlyClipboardCopyRefactored = useVehicleOnlyClipboardAction({
+    quoteId: quoteId || null,
+    itineraryPreference,
+    replaceHighlightsHotspotDetailsHtml,
+    buildHighlightsHotspotDetailsHtml,
+    htmlToPlainText,
+    copyHtmlToClipboard,
+  });
+
   const quotationState = useQuotationState();
   const {
     confirmQuotationModal, setConfirmQuotationModal, voucherModal, setVoucherModal, pluckCardModal, setPluckCardModal,
@@ -10202,7 +10212,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
       onClick={() => {
         if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopy("recommended");
+          handleVehicleOnlyClipboardCopyRefactored("recommended");
           return;
         }
 
@@ -10218,7 +10228,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
       onClick={() => {
         if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopy("highlights");
+          handleVehicleOnlyClipboardCopyRefactored("highlights");
           return;
         }
 
@@ -10234,7 +10244,7 @@ const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId
       className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
       onClick={() => {
         if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopy("para");
+          handleVehicleOnlyClipboardCopyRefactored("para");
           return;
         }
 
