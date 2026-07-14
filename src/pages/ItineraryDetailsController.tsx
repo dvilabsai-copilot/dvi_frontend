@@ -272,6 +272,7 @@ import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/u
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
+import { useQuotationConfirmationModalController } from "./itinerary-details/hooks/useQuotationConfirmationModalController";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
@@ -4691,229 +4692,43 @@ const getSelectedPreviewActivity = () =>
     handleConfirmQuotation: (options) => handleConfirmQuotation(options),
   });
 
-  const openConfirmQuotationModal = async () => {
-    if (isOpeningConfirmQuotation) {
-      return;
-    }
-
-    if (!itinerary?.planId) {
-      toast.error('Plan ID not found');
-      return;
-    }
-
-    setIsOpeningConfirmQuotation(true);
-    setConfirmQuotationModal(true);
-    setPrebookData(null);
-    prebookDataRef.current = null;
-    setHasAcceptedUpdatedPrice(false);
-    setConfirmOccupanciesTemplate(null);
-    setFormErrors({});
-    resetConfirmWalletTopUpPanel();
-    // Reset dynamic passenger rows to avoid stale validation errors from prior modal sessions.
-    setAdditionalAdults([]);
-    setAdditionalChildren([]);
-    setAdditionalInfants([]);
-
-    try {
-      // Fetch customer info form data
-      const customerInfo = await ItineraryService.getCustomerInfoForm(itinerary.planId);
-      const initialWalletAmount = parseWalletAmount(customerInfo.wallet_balance);
-
-      setWalletBalance(customerInfo.wallet_balance || formatCurrency(initialWalletAmount));
-      setWalletBalanceAmount(initialWalletAmount);
-
-      // Check wallet balance and get plan details
-      const planDetails = await api(`itineraries/edit/${itinerary.planId}`, { method: 'GET' });
-
-      // ✅ FIX: Set agent_id from planDetails - try multiple possible field names
-      const agentId = planDetails?.plan?.agent_ID
-        || planDetails?.plan?.agent_id
-        || planDetails?.agent_ID
-        || planDetails?.agent_id
-        || customerInfo?.agent_id;
-
-      console.log('🔍 [openConfirmQuotationModal] planDetails:', planDetails);
-      console.log('🔍 [openConfirmQuotationModal] customerInfo:', customerInfo);
-      console.log('🔍 [openConfirmQuotationModal] agentId resolved to:', agentId);
-
-      if (agentId) {
-        try {
-          await refreshConfirmWalletBalance(Number(agentId));
-        } catch (e) {
-          console.warn('⚠️ Failed to fetch wallet balance:', e);
-        }
-      }
-
-      // Set agentInfo with correct agent_id (only if we have valid agentId)
-      if (agentId) {
-        setAgentInfo({
-          quotation_no: customerInfo.quotation_no,
-          agent_name: customerInfo.agent_name,
-          agent_display_name:
-            customerInfo.agent_display_name || customerInfo.agent_name,
-          agent_id: agentId, // Use actual agent ID from plan
-        });
-        console.log('✅ [openConfirmQuotationModal] agentInfo set with agent_id:', agentId);
-      } else {
-        console.error('❌ [openConfirmQuotationModal] Failed to get agent_id. Available data:', { planDetails, customerInfo });
-        toast.error('Failed to load agent information. Please try again.');
-        setConfirmQuotationModal(false);
-        return;
-      }
-
-      const travellersFromPlan = Array.isArray(planDetails?.travellers) ? planDetails.travellers : [];
-      const hasPrefillSource = Boolean(planDetails?.plan) || travellersFromPlan.length > 0;
-      const modalPrefill = hasPrefillSource
-        ? buildQuotationModalPrefill({
-            plan: planDetails?.plan,
-            travellers: travellersFromPlan,
-            fallbackNationality: guestDetails.nationality || confirmDefaultNationality || 'IN',
-            roomCount: Number(itinerary?.roomCount || 1),
-            requiresDetailedPassengerFlow,
-          })
-        : null;
-      let modalNationalityForSession = modalPrefill?.nationality || confirmDefaultNationality;
-      if (modalPrefill && planDetails?.plan) {
-        setConfirmDefaultNationality(modalPrefill.nationality);
-        setGuestDetails((prev) => ({
-          ...prev,
-          nationality: modalPrefill.nationality,
-          arrivalDateTime: modalPrefill.arrivalDateTime,
-          arrivalPlace: modalPrefill.arrivalPlace,
-          departureDateTime: modalPrefill.departureDateTime,
-          departurePlace: modalPrefill.departurePlace,
-        }));
-      }
-      let occupanciesTemplateFromPlan = modalPrefill?.occupancyTemplate || null;
-      if (travellersFromPlan.length > 0 && modalPrefill) {
-        setAdditionalAdults(modalPrefill.additionalAdults);
-        setAdditionalChildren(modalPrefill.additionalChildren);
-        setAdditionalInfants(modalPrefill.additionalInfants);
-        setConfirmOccupanciesTemplate(modalPrefill.occupancyTemplate);
-      }
-
-      if (isVehicleOnlyItinerary) {
-        setAdditionalAdults([]);
-        setAdditionalChildren([]);
-        setAdditionalInfants([]);
-        setConfirmOccupanciesTemplate(null);
-        setPrebookData(null);
-        prebookDataRef.current = null;
-        setHasAcceptedUpdatedPrice(false);
-        return;
-      }
-
-      // ── Auto-accept visually-displayed recommended hotels for unselected routes ──
-      // The recommended tab shows a cheapest-per-route hotel for each day. If the user
-      // hasn't explicitly clicked "Choose" on some days, mirror those into selectedHotelBookings
-      // so the confirm modal and prebook reflect exactly what the user sees.
-      let selectedHotelsForPrebook = { ...selectedHotelBookings };
-      console.log('[CONFIRM_HOTELS] selectedHotelBookings', selectedHotelBookings);
-      console.log(
-        '[CONFIRM_HOTELS] coveredRouteIds',
-        Array.from(getCoveredRouteIdsFromHotelSelections(selectedHotelBookings)),
-      );
-      if (hotelDetails?.hotels?.length) {
-        const preferredGroupType = activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
-        const preparedSelections = prepareQuotationPrebookSelections({
-          selectedHotelBookings,
-          hotelRows: hotelDetails.hotels as unknown as Array<Record<string, unknown>>,
-          preferredGroupType: Number(preferredGroupType),
-          itineraryDays: itinerary?.days || [],
-          normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
-          isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-          parseStaahSearchReference,
-          getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
-          getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
-        });
-        selectedHotelsForPrebook = preparedSelections.selectedHotelsForPrebook as unknown as typeof selectedHotelsForPrebook;
-        if (Object.keys(preparedSelections.mergedPersisted).length > 0) {
-          setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.mergedPersisted } as unknown as typeof previous));
-        }
-        if (Object.keys(preparedSelections.autoSelections).length > 0) {
-          setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.autoSelections } as unknown as typeof previous));
-        }
-      }
-      // ── Prebook only user-explicitly-selected TBO hotels ──
-      // Non-TBO hotels are shown in the review modal but are not sent to the TBO prebook API.
-
-      const prebookOccupancies =
-        occupanciesTemplateFromPlan && occupanciesTemplateFromPlan.length > 0
-          ? occupanciesTemplateFromPlan
-          : confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-          ? confirmOccupanciesTemplate
-          : buildTboOccupancies(
-              Number(itinerary?.roomCount || 1),
-              Math.max(Number(itinerary?.adults || 1), 1),
-              [],
-            );
-
-      const prebookHotelBookings: any[] = Object.entries(selectedHotelsForPrebook)
-        .filter(([, hotelData]) => {
-          const provider = normalizeHotelProvider(hotelData);
-          return provider === 'tbo' && isSupplierBookableHotel(hotelData);
-        })
-        .map(([routeId, hotelData]) => ({
-          occupancies: prebookOccupancies,
-          provider: hotelData.provider,
-          routeId: parseInt(routeId, 10),
-          hotelCode: hotelData.hotelCode,
-          hotelName: hotelData.hotelName,
-          bookingCode: hotelData.bookingCode,
-          roomType: hotelData.roomType,
-          checkInDate: hotelData.checkInDate,
-          checkOutDate: hotelData.checkOutDate,
-          numberOfRooms: Number(itinerary?.roomCount || 1),
-          guestNationality: modalNationalityForSession,
-          netAmount: toMoneyNumber(hotelData.netAmount),
-          searchInitiatedAt: hotelData.searchInitiatedAt,
-          passengers: [],
-        }));
-      console.log('[CONFIRM_HOTELS] nonTboSelectedHotelEntries', nonTboSelectedHotelEntries);
-
-      if (prebookHotelBookings.length > 0) {
-        const staleHotel = prebookHotelBookings.find((booking) => {
-          if (!booking.searchInitiatedAt) return false;
-          const parsed = new Date(String(booking.searchInitiatedAt));
-          if (Number.isNaN(parsed.getTime())) return true;
-          return Date.now() - parsed.getTime() > TBO_SESSION_WINDOW_MS;
-        });
-
-        if (staleHotel) {
-          toast.error('Hotel search session exceeded 35 minutes. Please search/select hotel again before prebook.');
-          setConfirmQuotationModal(false);
-          return;
-        }
-
-        const clientIp = await fetch('https://api.ipify.org?format=json')
-          .then((res) => res.json())
-          .then((data) => data.ip)
-          .catch(() => '192.168.1.1');
-
-        setIsPrebooking(true);
-        try {
-          const prebookResp = await ItineraryService.prebookHotels({
-            itinerary_plan_ID: itinerary.planId,
-            hotel_bookings: prebookHotelBookings,
-            endUserIp: clientIp,
-          });
-          const normalizedPrebook = prebookResp?.data || prebookResp;
-          prebookDataRef.current = normalizedPrebook;
-          setPrebookData(normalizedPrebook);
-        } catch (prebookErr) {
-          toast.error(getSafeErrorMessage(prebookErr, 'Failed to prebook selected hotels. Please retry.'));
-        } finally {
-          setIsPrebooking(false);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load customer info', e);
-      toast.error(e?.message || 'Failed to load customer information');
-    } finally {
-      setIsOpeningConfirmQuotation(false);
-    }
-  };
-
+  const openConfirmQuotationModal = useQuotationConfirmationModalController({
+    itinerary,
+    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
+    guestDetails,
+    confirmDefaultNationality,
+    requiresDetailedPassengerFlow,
+    isVehicleOnlyItinerary,
+    isOpeningConfirmQuotation,
+    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
+    activeHotelGroupType,
+    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
+    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
+    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
+    setIsOpeningConfirmQuotation,
+    setConfirmQuotationModal,
+    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
+    setHasAcceptedUpdatedPrice,
+    setConfirmOccupanciesTemplate,
+    setFormErrors,
+    resetConfirmWalletTopUpPanel,
+    setAdditionalAdults,
+    setAdditionalChildren,
+    setAdditionalInfants,
+    setWalletBalance,
+    setWalletBalanceAmount,
+    setAgentInfo,
+    setConfirmDefaultNationality,
+    setGuestDetails,
+    setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
+    setIsPrebooking,
+    refreshConfirmWalletBalance,
+    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
+    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
+    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+    parseStaahSearchReference,
+    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
+  });
   const validateQuotationPassengers = useQuotationPassengerValidation({
     guestDetails,
     additionalAdults,

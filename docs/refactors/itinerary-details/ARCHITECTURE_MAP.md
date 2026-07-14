@@ -195,4 +195,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotel-arrival policy resolution, confirmation-date preparation, arrival-time updates, and hotel-selection modal policy orchestration are isolated in `useHotelArrivalPolicyController.ts`.
 - Image URL resolution, gallery initialization, and YouTube watch-to-embed conversion are isolated in `useMediaModalController.ts`.
 - Lazy hotel-detail hydration is isolated in `useEnsureHotelDetailsLoaded.ts`; the controller no longer owns its loading/error lifecycle.
+- Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.
 - Itinerary UI source strings are stored as valid UTF-8; currency, punctuation, status symbols, and emoji rendering no longer depend on mojibake literals.

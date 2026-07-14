@@ -4438,3 +4438,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 182 - Quotation confirmation-modal controller hook
+
+### Baseline
+- Starting checkpoint: `0e21183` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useQuotationConfirmationModalController.ts`.
+- Moved confirmation-modal initialization, customer/agent hydration, traveller prefill, recommended-hotel reconciliation, wallet refresh, TBO session guards, and prebook orchestration out of the page controller.
+- Preserved modal reset behavior, payload fields, fallback nationality, occupancy selection, stale-session handling, and toast messages.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,512 lines (down from 8,697).
+- New hook: 306 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
