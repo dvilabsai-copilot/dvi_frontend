@@ -191,6 +191,7 @@ import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs"
 import { HotspotListState } from "./itinerary-details/components/HotspotListState";
 import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSelectionNotice";
 import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialogFooter";
+import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyButton";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -11018,13 +11019,9 @@ const canShowGuideActionButton =
                             return <HotspotSelectionNotice />;
                           }
                           return (
-                        <Button
-                          className={`w-full text-white shadow-lg ${
-                            forceConflictMode
-                              ? 'bg-red-600 hover:bg-red-700'
-                              : 'bg-green-600 hover:bg-green-700'
-                          }`}
-                          onClick={handleAddHotspot}
+                        <HotspotApplyButton
+                          forceConflict={forceConflictMode}
+                          loading={isApplyingPreviewHotspot}
                           disabled={
                             isApplyingPreviewHotspot
                             || isBuildingMatrix
@@ -11034,13 +11031,8 @@ const canShowGuideActionButton =
                             || effectiveDecisionBlocked
                             || blockForValidation
                           }
-                        >
-                          {isApplyingPreviewHotspot ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Adding Hotspot...
-                            </>
-                          ) : (
+                          onClick={handleAddHotspot}
+                          label={
                             isCurrentPreviewAlreadyAdded
                               ? 'Added'
                               : isMatrixMissingBlockedState || matrixRequiresBuild
@@ -11058,9 +11050,9 @@ const canShowGuideActionButton =
                                       ? 'Confirm Force Add (Opening / Timing Conflict)'
                                       : forceConflictMode
                                         ? 'Confirm Force Add (Conflict)'
-                                      : confirmActionConfig.label
-                          )}
-                        </Button>
+                                        : confirmActionConfig.label
+                          }
+                        />
                           );
                         })()}
                       </div>

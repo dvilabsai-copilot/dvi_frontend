@@ -129,5 +129,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Non-TBO selected-hotel detail acknowledgement is isolated in `QuotationNonTboAcceptanceNotice.tsx`; the shared acceptance state remains controller-owned.
 - Fit Here selection-mode guidance is isolated in `HotspotSelectionNotice.tsx`; the surrounding preview/action state remains controller-owned.
 - Add Hotspot dialog close-button presentation is isolated in `HotspotDialogFooter.tsx`; the existing reset/cleanup callback remains injected inline.
+- Hotspot preview apply-button presentation (loading, conflict color, disabled state, and action labels) is isolated in `HotspotApplyButton.tsx`; matrix/conflict decision logic remains in the controller.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

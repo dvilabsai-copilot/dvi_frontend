@@ -1403,6 +1403,33 @@
 ### Notes
 - Matrix/conflict action controls and preview timeline remain the next high-coupling hotspot boundary.
 
+## Iteration 117 — Hotspot apply-button extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/apply-button files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; apply-button view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotApplyButton.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: hotspot preview apply-button presentation, loading state, conflict styling, disabled state, and action labels now render in a dedicated component; matrix/conflict decision predicates remain unchanged in the controller.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotApplyButton.tsx`; unrelated repository errors remain.
+- Lint: new apply-button component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,829 lines (down from 11,837 at the previous checkpoint).
+- New `HotspotApplyButton.tsx`: 34 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Fit Here/matrix decision computation and preview timeline rendering remain coupled and are deferred for a larger boundary extraction.
+
 ## Iteration 114 — Non-TBO acceptance notice extraction
 
 ### Baseline
