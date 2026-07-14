@@ -72,6 +72,7 @@ import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotsp
 import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
 import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
 import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
+import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
@@ -1878,33 +1879,9 @@ const getSelectedPreviewActivity = () =>
 
   const serializeFitHereAnchor = useCallback(serializeFitHereAnchorUtil, []);
 
-  const buildAutoFitHereAnchorsForDay = useCallback((day: ItineraryDay): HotspotAnchor[] => {
-    const anchors: HotspotAnchor[] = [];
-
-    for (let index = 0; index < day.segments.length; index += 1) {
-      const anchor = buildFitHereAnchorForTimelineRow(day, index);
-
-      if (!anchor) continue;
-
-      if (
-        anchor.anchorIntent !== 'AFTER_START' &&
-        anchor.anchorIntent !== 'AFTER_ATTRACTION'
-      ) {
-        continue;
-      }
-
-      anchors.push(anchor);
-    }
-
-    const seen = new Set<string>();
-
-    return anchors.filter((anchor) => {
-      const key = buildFitHereAnchorKey(anchor);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [buildFitHereAnchorForTimelineRow]);
+  const buildAutoFitHereAnchorsForDay = useAutoFitHereAnchors({
+    buildFitHereAnchorForTimelineRow,
+  });
 
   const getAutoPreviewRemovedRows = getAutoPreviewRemovedRowsUtil;
   const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;

@@ -4511,6 +4511,30 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 216 - Automatic Fit Here anchors hook
+
+### Baseline
+- Starting checkpoint: `9ea3b79` on `codex/itinerary-refactor-production-20260715` with Fit Here anchor presentation committed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useAutoFitHereAnchors.ts`.
+- Moved automatic Fit Here anchor filtering, intent selection, and key-based de-duplication out of `ItineraryDetailsController.tsx`.
+- Preserved timeline-row anchor construction and anchor-key semantics through injected dependencies.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,846 physical lines (down from 5,869 at the previous iteration).
+- New `useAutoFitHereAnchors.ts`: 29 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 215 - Fit Here anchor button component
 
 ### Baseline
