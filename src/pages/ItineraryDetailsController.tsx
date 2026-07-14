@@ -116,7 +116,6 @@ import {
   isRouteMovementAvailableHotspot,
   locationTokenMatchesCity,
   normalizeCityKeyForHotspotFilter,
-  normalizeConfirmedTimelineToSegments,
   normalizeDateToYmd,
   normalizeDurationAgainstDistance,
   normalizeTimelineLabel,
@@ -169,6 +168,7 @@ import { useHotspotPriorityReplacementController } from "./itinerary-details/hoo
 import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHerePreviewController";
 import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
 import { useFitHereConfirmationReset } from "./itinerary-details/hooks/useFitHereConfirmationReset";
+import { useFitHereConfirmationState } from "./itinerary-details/hooks/useFitHereConfirmationState";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7434,6 +7434,16 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setTriedFitHereAnchors,
   });
 
+  const applyFitHereConfirmationState = useFitHereConfirmationState({
+    itinerary,
+    availableHotspots,
+    setAddedInModalHotspotIds,
+    setExcludedHotspotIds,
+    setAvailableHotspots,
+    setItinerary,
+    setRouteNeedsRebuild,
+  });
+
   const getFitHereRefreshScrollStorageKey = useCallback(() => {
     const normalizedQuoteId = String(quoteId || "").trim();
     return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
@@ -7528,90 +7538,13 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         removedHotspotIds,
       } = normalizeFitHereConfirmationResult(confirmResult, selectedAttempt, selectedFitHotspot?.id || null, addHotspotModal.routeId);
 
-      if (confirmedHotspotId > 0) {
-        setAddedInModalHotspotIds((prev) => {
-          const next = new Set(prev);
-          next.add(confirmedHotspotId);
-          for (const removedId of removedHotspotIds) {
-            next.delete(removedId);
-          }
-          return next;
-        });
-      }
-
-      setExcludedHotspotIds((prev) => {
-        const next = new Set(prev.map(Number).filter((id: number) => id > 0));
-        for (const removedId of removedHotspotIds) {
-          next.add(removedId);
-        }
-        if (confirmedHotspotId > 0) {
-          next.delete(confirmedHotspotId);
-        }
-        return Array.from(next);
+      const confirmedSegments = applyFitHereConfirmationState({
+        confirmedHotspotId,
+        confirmedRouteId,
+        insertedRouteHotspotId,
+        removedHotspotIds,
+        persistedTimeline,
       });
-
-      setAvailableHotspots((prev) => prev.map((row) => {
-        const rowId = Number(row?.id || 0);
-
-        if (confirmedHotspotId > 0 && rowId === confirmedHotspotId) {
-          return {
-            ...row,
-            alreadyAdded: true,
-            visitAgain: true,
-            availabilityStatus: 'ACTIVE_THIS_ROUTE',
-            availabilityReason: 'Hotspot is already active on this route.',
-            actionDisabled: true,
-            buttonLabel: 'Added',
-            routeHotspotId: insertedRouteHotspotId ?? row.routeHotspotId ?? null,
-            planOwnWay: true,
-            isManual: true,
-          };
-        }
-
-        if (removedHotspotIds.includes(rowId)) {
-          return {
-            ...row,
-            alreadyAdded: false,
-            visitAgain: false,
-            availabilityStatus: 'EXCLUDED_BY_ROUTE',
-            availabilityReason: 'Hotspot is currently excluded for this route.',
-            actionDisabled: false,
-            buttonLabel: 'Preview',
-            routeHotspotId: null,
-            planOwnWay: false,
-            isManual: false,
-          };
-        }
-
-        return row;
-      }));
-
-      const existingConfirmedRoute = itinerary?.days?.find(
-        (day) => Number(day.id) === Number(confirmedRouteId),
-      );
-
-      const confirmedSegments = normalizeConfirmedTimelineToSegments(persistedTimeline, {
-        existingSegments: existingConfirmedRoute?.segments || [],
-        availableHotspots,
-      });
-
-      if (confirmedRouteId > 0 && persistedTimeline.length > 0) {
-        setItinerary((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            days: prev.days.map((day) => (
-              Number(day.id) !== confirmedRouteId
-                ? day
-                : {
-                    ...day,
-                    segments: confirmedSegments.length > 0 ? confirmedSegments : day.segments,
-                  }
-            )),
-          };
-        });
-        setRouteNeedsRebuild(confirmedRouteId);
-      }
 
       toast.success('Hotspot inserted successfully. Timeline updated.');
       resetFitHereAfterConfirmation();
