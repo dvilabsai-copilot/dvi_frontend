@@ -112,6 +112,7 @@ import {
   isFitHereAttractionSegment as isFitHereAttractionSegmentUtil,
   isFitHereStartSegment as isFitHereStartSegmentUtil,
 } from "./itinerary-details/utils/fitHereTimeline.utils";
+import { buildFitHereAnchorForTimelineRow as buildFitHereAnchorForTimelineRowUtil } from "./itinerary-details/utils/fitHereAnchorBuilder.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -519,73 +520,24 @@ const loadAndCacheRouteHotelDetails = useCallback(
   const getAttractionRouteHotspotId = useCallback(getAttractionRouteHotspotIdUtil, []);
   const findNextAttractionAfterIndex = useCallback(findNextAttractionAfterIndexUtil, []);
 
-  const buildFitHereAnchorForTimelineRow = useCallback((
-    day: ItineraryDay,
-    index: number,
-  ): HotspotAnchor | null => {
-    const current = day.segments[index] || null;
-    const next = day.segments[index + 1] || null;
-
-    if (!current) return null;
-
-    if (isFitHereStartSegment(current)) {
-      const nextAttraction = findNextAttractionAfterIndex(day, index);
-
-      return {
-        anchorType: 'BETWEEN_ROWS',
-        anchorIndex: index,
-        anchorIntent: 'AFTER_START',
-        anchorFrom: getFitHereSegmentLabel(current),
-        anchorTo: nextAttraction
-          ? getFitHereSegmentLabel(nextAttraction)
-          : getFitHereSegmentLabel(next),
-        anchorLabel: nextAttraction
-          ? `Before first attraction: ${getFitHereSegmentLabel(nextAttraction)}`
-          : 'After start',
-        anchorTimeRange: getFitHereSegmentTime(current) || null,
-        afterRowType: current.type,
-        beforeRowType: next?.type,
-        afterHotspotId: null,
-        afterRouteHotspotId: null,
-        beforeHotspotId: getAttractionHotspotId(nextAttraction),
-        beforeRouteHotspotId: getAttractionRouteHotspotId(nextAttraction),
-        isBeforeHotel: false,
-      };
-    }
-
-    if (isFitHereAttractionSegment(current)) {
-      const nextAttraction = findNextAttractionAfterIndex(day, index);
-
-      return {
-        anchorType: 'BETWEEN_ROWS',
-        anchorIndex: index,
-        anchorIntent: 'AFTER_ATTRACTION',
-        anchorFrom: getFitHereSegmentLabel(current),
-        anchorTo: nextAttraction
-          ? getFitHereSegmentLabel(nextAttraction)
-          : getFitHereSegmentLabel(next),
-        anchorLabel: `After ${getFitHereSegmentLabel(current)}`,
-        anchorTimeRange: getFitHereSegmentTime(current) || null,
-        afterRowType: current.type,
-        beforeRowType: next?.type,
-        afterHotspotId: getAttractionHotspotId(current),
-        afterRouteHotspotId: getAttractionRouteHotspotId(current),
-        beforeHotspotId: getAttractionHotspotId(nextAttraction),
-        beforeRouteHotspotId: getAttractionRouteHotspotId(nextAttraction),
-        isBeforeHotel: false,
-      };
-    }
-
-    return null;
-  }, [
-    findNextAttractionAfterIndex,
-    getAttractionHotspotId,
-    getAttractionRouteHotspotId,
-    getFitHereSegmentLabel,
-    getFitHereSegmentTime,
-    isFitHereAttractionSegment,
-    isFitHereStartSegment,
-  ]);
+  const buildFitHereAnchorForTimelineRow = useCallback(
+    (day: ItineraryDay, index: number) => buildFitHereAnchorForTimelineRowUtil(day, index, {
+      getSegmentLabel: getFitHereSegmentLabel,
+      getSegmentTime: getFitHereSegmentTime,
+      isStartSegment: isFitHereStartSegment,
+      isAttractionSegment: isFitHereAttractionSegment,
+      findNextAttraction: findNextAttractionAfterIndex,
+      getAttractionHotspotId,
+      getAttractionRouteHotspotId,
+    }), [
+      findNextAttractionAfterIndex,
+      getAttractionHotspotId,
+      getAttractionRouteHotspotId,
+      getFitHereSegmentLabel,
+      getFitHereSegmentTime,
+      isFitHereAttractionSegment,
+      isFitHereStartSegment,
+    ]);
 
   function renderFitHereButton(day: ItineraryDay, anchor: HotspotAnchor) {
     if (!selectedFitHotspot) return null;

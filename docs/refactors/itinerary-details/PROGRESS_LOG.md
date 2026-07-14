@@ -1605,6 +1605,32 @@
 ### Notes
 - Fit Here anchor construction and route-specific timing logic remain in the controller for the next boundary.
 
+## Iteration 143 - Fit Here anchor builder
+
+### Baseline
+- Starting point: Iteration 142 Fit Here timeline utility extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate construction of Fit Here anchors from start and attraction timeline rows.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/fitHereAnchorBuilder.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: start/attraction anchor branching, labels, timing, row types, and hotspot ID projection now live in a pure builder.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,990 lines.
+- New `fitHereAnchorBuilder.utils.ts`: 75 lines.
+
+### Notes
+- The controller retains memoized dependency injection so existing preview callbacks keep their identity and state semantics.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
