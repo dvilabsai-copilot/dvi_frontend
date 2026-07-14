@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 200 - Hotels-for-display hook
+
+### Baseline
+- Starting checkpoint: `59c8ab9` on `refactor/itinerary-details-continuation` with hotel hydrated-day extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotelsForDisplay.ts`.
+- Moved confirmed/read-only hotel row matching, day/date/destination reconciliation, placeholder-row generation, cancellation metadata, and draft supplier-row preservation out of `ItineraryDetailsController.tsx`.
+- Preserved route/day/date matching precedence, final-day filtering, group-type fallback, external-stay messaging, and hotel cancellation fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,117 lines (down from 6,312 at the previous iteration).
+- New `useHotelsForDisplay.ts`: 226 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 199 - Hotel hydrated-days hook
 
 ### Baseline
