@@ -175,6 +175,7 @@ import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQu
 import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
 import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
 import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
+import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
 import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
@@ -5633,77 +5634,26 @@ function getHotelAmountForBooking(entry): number {
     setVehicleBuildError,
   });
 
-  const loadPreparedItineraryPage = useCallback(async (requestedQuoteId: string, forceVehicleRebuild = false) => {
-  isMountedRef.current = true;
-  const loadRequestId = ++latestRouteRequestRef.current;
-
-  setLoading(true);
-  setLoadingHotels(true);
-  setPageReady(false);
-    setError(null);
-    setVehicleBuildError(null);
-
-    try {
-      setPageLoaderHistory([]);
-      pushPageLoaderStage("Building itinerary details");
-      const detailsRes = await getDetailsDeduped(requestedQuoteId);
-      const initialDetails = detailsRes as ItineraryDetailsResponse;
-      const itineraryPreference = Number(initialDetails.itineraryPreference ?? 3);
-      const useHotels = itineraryPreference === 1 || itineraryPreference === 3;
-      const useVehicles = itineraryPreference === 2 || itineraryPreference === 3;
-      const planId = Number(initialDetails.planId || 0);
-
-      const finalizePage = async (details: ItineraryDetailsResponse) => {
-        let hotelRes: ItineraryHotelDetailsResponse | null = null;
-        if (useHotels) {
-          pushPageLoaderStage("Loading hotel selections");
-          hotelRes = await loadHotelDetailsForItinerary(requestedQuoteId, details);
-        }
-
-if (!isMountedRef.current || latestRouteRequestRef.current !== loadRequestId) return;
-
-setItinerary(details);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-        cacheRouteHotelDetails(requestedQuoteId, hotelRes as ItineraryHotelDetailsResponse | null);
-        if (!useHotels) {
-          setActiveHotelListTotal(0);
-        }
-        setVehicleBuildStatus(useVehicles ? "READY" : "READY");
-        setPageReady(true);
-      };
-
-      if (!useVehicles || !planId) {
-        await finalizePage(initialDetails);
-        return;
-      }
-
-      await prepareVehicleBuild({
-        requestedQuoteId,
-        initialDetails,
-        planId,
-        forceVehicleRebuild,
-        finalizePage,
-      });
-      return;
-    } catch (e) {
-      if (!isMountedRef.current) return;
-      console.error("Failed to load staged itinerary details", e);
-      setVehicleBuildStatus("FAILED");
-      setVehicleBuildError(e?.message || "Vehicle pricing failed to prepare");
-      setError(e?.message || "Failed to load itinerary details");
-      setItinerary(null);
-      setHotelDetails(null);
-      setPageReady(false);
-   } finally {
-  if (latestRouteRequestRef.current === loadRequestId) {
-    currentFetchRef.current = null;
-    if (isMountedRef.current) {
-      setLoading(false);
-      setLoadingHotels(false);
-    }
-  }
-}
-  }, [cacheRouteHotelDetails, hasUsableVehicleRows, loadHotelDetailsForItinerary, prepareVehicleBuild, pushPageLoaderStage]);
+  const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
+    isMountedRef,
+    latestRouteRequestRef,
+    currentFetchRef,
+    setLoading,
+    setLoadingHotels,
+    setPageReady,
+    setError,
+    setPageLoaderHistory,
+    pushPageLoaderStage,
+    getDetailsDeduped,
+    loadHotelDetailsForItinerary,
+    cacheRouteHotelDetails,
+    setItinerary,
+    setHotelDetails,
+    setActiveHotelListTotal,
+    setVehicleBuildStatus,
+    setVehicleBuildError,
+    prepareVehicleBuild,
+  });
 
   useEffect(() => {
     if (!quoteId) {

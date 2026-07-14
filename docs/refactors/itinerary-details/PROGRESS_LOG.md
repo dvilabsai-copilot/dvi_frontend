@@ -1267,6 +1267,32 @@
 ### Notes
 - A full quotation-content extraction remains queued; legacy mojibake strings made a whole-dialog move unsafe without changing displayed text.
 
+## Iteration 130 — Prepared itinerary page loader
+
+### Baseline
+- Starting point: Iteration 129 quotation confirmation modal shell extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract staged itinerary loading and its vehicle/hotel handoff as a controller hook.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/usePreparedItineraryPageLoader.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: initial details fetch, hotel hydration, vehicle-build handoff, stale-request guards, page-ready/loading transitions, and failure cleanup now live in the hook.
+- Behavior intentionally changed: No. A follow-up lifecycle fix replaced an inline reset callback with the stable page-loader-history setter so the route-loading effect does not restart on state updates.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`) after the lifecycle fix.
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,714 lines.
+- New `usePreparedItineraryPageLoader.ts`: 161 lines.
+
+### Notes
+- This is the first controller-level loading responsibility extracted after the presentation-only preview boundaries. Remaining work includes route-time/rebuild actions, hotel workflows, large hotspot/Fit Here rendering, quotation review content, and full-suite verification.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
