@@ -139,6 +139,7 @@ import {
   buildSupplierOccupancies,
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
+import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
@@ -8157,8 +8158,6 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         return;
       }
 
-      const selectedGroupType = String(groupTypeValue);
-
       const primaryGuest = {
         salutation: guestDetails.salutation,
         name: guestDetails.name,
@@ -8220,43 +8219,30 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
             .filter((routeId: number) => Number.isFinite(routeId) && routeId > 0)
         : [];
 
-      const confirmPayload: any = {
-        itinerary_plan_ID: itinerary.planId,
-        agent: agentInfo.agent_id,
-        primary_guest_salutation: guestDetails.salutation,
-        primary_guest_name: guestDetails.name,
-        primary_guest_contact_no: guestDetails.contactNo,
-        primary_guest_age: guestDetails.age,
-        primary_guest_alternative_contact_no: guestDetails.alternativeContactNo,
-        primary_guest_email_id: guestDetails.emailId,
-        adult_name: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.name) : [],
-        adult_age: requiresDetailedPassengerFlow ? normalizedAdditionalAdults.map(a => a.age) : [],
-        child_name: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.name) : [],
-        child_age: requiresDetailedPassengerFlow ? normalizedAdditionalChildren.map(c => c.age) : [],
-        infant_name: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.name) : [],
-        infant_age: requiresDetailedPassengerFlow ? normalizedAdditionalInfants.map(i => i.age) : [],
-        arrival_date_time: guestDetails.arrivalDateTime,
-        arrival_place: guestDetails.arrivalPlace,
-        arrival_flight_details: guestDetails.arrivalFlightDetails,
-        departure_date_time: guestDetails.departureDateTime,
-        departure_place: guestDetails.departurePlace,
-        departure_flight_details: guestDetails.departureFlightDetails,
-        price_confirmation_type: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? 'new' : 'old',
+      const confirmPayload = buildQuotationConfirmationPayload({
+        planId: itinerary.planId,
+        agentId: agentInfo.agent_id,
+        guestDetails,
+        additionalAdults: normalizedAdditionalAdults,
+        additionalChildren: normalizedAdditionalChildren,
+        additionalInfants: normalizedAdditionalInfants,
+        requiresDetailedPassengerFlow,
+        priceConfirmationType: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? 'new' : 'old',
         primaryGuest,
         endUserIp: clientIp,
-      };
-
-      if (requiresHotelBookingFlow) {
-        confirmPayload.hotel_group_type = selectedGroupType;
-        confirmPayload.hotel_bookings = hotelBookingsWithPrebookContext;
-        confirmPayload.selected_hotel_route_ids = selectedHotelRouteIds;
-        confirmPayload.external_stay_route_ids = externalStayRouteIds;
-      }
+        requiresHotelBookingFlow,
+        selectedGroupType: String(groupTypeValue),
+        hotelBookings: hotelBookingsWithPrebookContext,
+        selectedHotelRouteIds,
+        externalStayRouteIds,
+      });
 
       console.log('[CONFIRM_HOTELS] final hotel_bookings payload', confirmPayload.hotel_bookings);
       console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
 
-      const confirmResponse: any = await ItineraryService.confirmQuotation(confirmPayload);
+      const confirmResponse: any = await ItineraryService.confirmQuotation(
+        confirmPayload as unknown as Parameters<typeof ItineraryService.confirmQuotation>[0],
+      );
 
       toast.success(confirmResponse?.message || 'Quotation confirmed successfully!');
       setConfirmQuotationModal(false);

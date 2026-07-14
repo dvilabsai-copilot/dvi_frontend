@@ -1058,6 +1058,33 @@
 - Occupancy limits, round-robin adult/child assignment, fallback child age, and template age rules remain unchanged; only ownership moved.
 - Follow-up extraction: quotation hotel-booking payload assembly and final confirmation orchestration.
 
+## Iteration 92 - Quotation confirmation payload utility
+
+### Baseline
+- Tests run: targeted controller/new-utility typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new utility; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/utils/quotationConfirmation.utils.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: final guest/passenger arrays, hotel-booking metadata, route IDs, prebook context, and price-confirmation request shape.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `quotationConfirmation.utils.ts`; unrelated repository errors remain.
+- Lint: new utility passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,029 lines.
+- New `quotationConfirmation.utils.ts`: 91 lines.
+
+### Notes
+- Request field names, optional hotel-flow fields, passenger arrays, and prebook route metadata remain unchanged; only pure assembly moved.
+- Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline
