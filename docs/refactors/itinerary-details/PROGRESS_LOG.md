@@ -1295,6 +1295,33 @@
 ### Notes
 - The hotspot list and preview/action pane remain coupled to Fit Here/matrix state and require a larger typed boundary in a subsequent iteration.
 
+## Iteration 112 — Hotspot city-tabs extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/city-tabs files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; city-tabs view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotCityTabs.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: route-different-city tab rendering and active-tab button behavior now render in a dedicated component; active-tab state and visibility predicate remain unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotCityTabs.tsx`; unrelated repository errors remain.
+- Lint: new city-tabs component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,853 lines (down from 11,869 at the previous checkpoint).
+- New `HotspotCityTabs.tsx`: 48 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- Hotspot card status/preview/delete actions remain coupled to Fit Here and matrix state for a later larger extraction.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline

@@ -187,6 +187,7 @@ import { QuotationWalletTopUpActions } from "./itinerary-details/QuotationWallet
 import { QuotationPrebookHotelRows } from "./itinerary-details/QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationPrebookAcceptanceNotice";
 import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
+import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -9242,29 +9243,12 @@ const canShowGuideActionButton =
             <div className="flex flex-col lg:flex-row gap-4 w-full min-h-0">
               {/* Left Column: Hotspot List */}
               <div ref={hotspotListRef} className="w-full lg:w-1/2 overflow-y-auto min-h-0">
-                {routeIsDifferentCity && hotspotCityTabs.length > 0 && (
-                  <div className="sticky top-0 z-10 bg-white pb-2">
-                    <div className="flex flex-wrap gap-2">
-                      {hotspotCityTabs.map((tab) => {
-                        const isActive = tab.key === activeHotspotCityTab;
-                        return (
-                          <button
-                            key={tab.key}
-                            type="button"
-                            onClick={() => setActiveHotspotCityTab(tab.key)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                              isActive
-                                ? 'bg-[#d546ab] text-white border-[#d546ab]'
-                                : 'bg-white text-[#6c6c6c] border-[#e5d7e3] hover:border-[#d546ab] hover:text-[#4a4260]'
-                            }`}
-                          >
-                            {tab.label} ({tab.count})
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                <HotspotCityTabs
+                  visible={routeIsDifferentCity}
+                  tabs={hotspotCityTabs}
+                  activeTab={activeHotspotCityTab}
+                  setActiveTab={setActiveHotspotCityTab}
+                />
                 {loadingHotspots ? (
                   <p className="text-sm text-[#6c6c6c] text-center py-8">
                     Loading available hotspots...
