@@ -178,6 +178,7 @@ import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleB
 import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
+import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import {
   buildArrivalPolicyDecisionKey,
   getRequestArrivalPolicyDecisionKey,
@@ -5806,123 +5807,17 @@ if (switchedRouteRef.current === quoteId) {
     setPendingScrollDayNumber,
   });
 
-  const handleUpdateRouteTimesDirect = async (
-    planId: number,
-    routeId: number,
-    dayNumber: number,
-    startTimeDisplay: string,
-    endTimeDisplay: string
-  ) => {
-    const startTimeHms = parseDisplayTimeToHms(startTimeDisplay);
-    const endTimeHms = parseDisplayTimeToHms(endTimeDisplay);
-    const routeDay =
-      itinerary?.days?.find((d) => Number(d.id) === Number(routeId)) ||
-      itinerary?.days?.find((d) => Number(d.dayNumber) === Number(dayNumber));
-    const currentStartTimeHms = parseDisplayTimeToHms(routeDay?.startTime || '');
-    const currentEndTimeHms = parseDisplayTimeToHms(routeDay?.endTime || '');
-    const hasTimeChanged =
-      startTimeHms !== currentStartTimeHms ||
-      endTimeHms !== currentEndTimeHms;
-
-    console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
-
-    if (!hasTimeChanged) {
-      return;
-    }
-
-      // Day 1 early-morning gate is needed only for Hotel / Vehicle + Hotel itineraries.
-    // Vehicle-only itinerary should not show previous-day hotel billing popup.
-    if (requiresHotelBookingFlow && dayNumber === 1 && isEarlyMorningTime(startTimeHms)) {
-      const resolvedRouteDay =
-        routeDay ||
-        itinerary?.days?.find((d) => Number(d.dayNumber) === 1) ||
-        itinerary?.days?.[0];
-      const routeDateYmd = normalizeDateToYmd(resolvedRouteDay?.date);
-      const request: HotelArrivalPolicyRequest = {
-        itineraryPlanId: planId,
-        itineraryRouteId: routeId,
-        routeDayNumber: 1,
-        routeDate: routeDateYmd,
-        arrivalDateTime: routeDateYmd ? `${routeDateYmd}T${startTimeHms}` : undefined,
-        arrivalCityName: resolvedRouteDay?.departure || '',
-        routeSourceCityName: resolvedRouteDay?.departure || '',
-        nightStayCityName: resolvedRouteDay?.arrival || '',
-        previousDayBillingDecisionProvided: false,
-        previousDayBillingConfirmed: false,
-      };
-
-      setIsResolvingArrivalPolicy(true);
-      try {
-      const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
-if (policy.requiresPreviousDayBillingConfirmation) {
-          console.log('[ArrivalPolicy][confirm_required]', { planId, routeId, dayNumber, startTimeHms, endTimeHms });
-          setPendingRouteTimeUpdate({
-            planId,
-            routeId,
-            dayNumber,
-            startTimeHms,
-            endTimeHms,
-          });
-          const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split('T')[0];
-          const routeDate = new Date(`${safeRouteDate}T00:00:00`);
-          const previousDay = new Date(routeDate);
-          previousDay.setDate(previousDay.getDate() - 1);
-          const fmt = (d: Date) =>
-            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-          setArrivalPolicyConfirmModal({
-            open: true,
-            arrivalDate: fmt(routeDate),
-            previousDayDate: fmt(previousDay),
-            request,
-          });
-          return;
-        }
-        // Policy resolved without needing confirmation – fall through to PATCH
-      } catch (e) {
-        toast.error(e?.message || 'Failed to resolve arrival policy');
-        return;
-      } finally {
-        setIsResolvingArrivalPolicy(false);
-      }
-    }
-
-    await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms);
-  };
-
-  const persistArrivalPolicyDecision = async (
-    request: HotelArrivalPolicyRequest,
-    confirmed: boolean,
-  ): Promise<boolean> => {
-    try {
-      const routeDay =
-        itinerary?.days?.find((d) => Number(d.id) === Number(request.itineraryRouteId)) ||
-        itinerary?.days?.find((d) => Number(d.dayNumber) === Number(request.routeDayNumber || 1));
-
-      if (!routeDay?.startTime || !routeDay?.endTime) {
-        return false;
-      }
-
-      const startTimeHms = parseDisplayTimeToHms(routeDay.startTime);
-      const endTimeHms = parseDisplayTimeToHms(routeDay.endTime);
-
-      await applyRouteTimePatch(
-        request.itineraryPlanId,
-        request.itineraryRouteId,
-        routeDay.dayNumber || request.routeDayNumber || 1,
-        startTimeHms,
-        endTimeHms,
-        {
-          previousDayBillingDecisionProvided: true,
-          previousDayBillingConfirmed: confirmed,
-        },
-      );
-
-      return true;
-    } catch (e) {
-      console.error('Failed to persist arrival policy decision', e);
-      return false;
-    }
-  };
+  const {
+    handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
+    persistArrivalPolicyDecision: persistArrivalPolicyDecision,
+  } = useArrivalPolicyRouteTimeController({
+    itinerary,
+    requiresHotelBookingFlow,
+    applyRouteTimePatch,
+    setIsResolvingArrivalPolicy,
+    setPendingRouteTimeUpdate,
+    setArrivalPolicyConfirmModal,
+  });
 
   const openDeleteHotspotModal = (
     planId: number,
@@ -8372,7 +8267,7 @@ const canShowGuideActionButton =
     >
              {/* Compact day header */}
             <ItineraryDayHeader context={{
-              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirect,
+              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook,
               canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName,
               readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText,
               intercityDistance, openGuideModal, setDeleteGuideModal,

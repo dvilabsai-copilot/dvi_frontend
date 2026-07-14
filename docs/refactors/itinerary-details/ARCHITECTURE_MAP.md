@@ -146,5 +146,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Route rebuild request/progress sequencing, details/hotel refresh, stale-route recovery, toast handling, and `needsRebuild` clearing are isolated in `useRouteRebuildMutation.ts`.
 - Route-time PATCH progress, itinerary refresh, hotel-detail preservation, scroll targeting, and success/error cleanup are isolated in `useRouteTimePatchMutation.ts`.
 - Arrival-policy decision-key normalization and request-key derivation are pure utilities in `routeArrivalPolicy.utils.ts`; duplicate guards and confirmation flows share the same normalized key contract.
+- Arrival-policy early-morning gating, confirmation-modal preparation, direct route-time orchestration, and confirmation persistence are isolated in `useArrivalPolicyRouteTimeController.ts`.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

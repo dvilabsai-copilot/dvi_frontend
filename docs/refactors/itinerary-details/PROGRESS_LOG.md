@@ -1371,6 +1371,32 @@
 ### Notes
 - Arrival-policy async gating and persistence remain the next route-time responsibility boundary.
 
+## Iteration 134 — Arrival-policy route-time controller
+
+### Baseline
+- Starting point: Iteration 133 arrival-policy decision-key utility extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract early-morning arrival-policy gating, confirmation-modal preparation, direct timing orchestration, and persistence.
+
+### Changes
+- File created: `src/pages/itinerary-details/hooks/useArrivalPolicyRouteTimeController.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: direct route-time handling, hotel-arrival policy resolution, confirmation state preparation, and confirmed decision persistence now live in the hook.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new hook passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new hook; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,471 lines.
+- New `useArrivalPolicyRouteTimeController.ts`: 194 lines.
+
+### Notes
+- Route-time mutation responsibilities are now separated into rebuild, PATCH, and arrival-policy controllers; larger hotel/hotspot/quotation views remain.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
