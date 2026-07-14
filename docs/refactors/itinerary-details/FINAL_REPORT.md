@@ -25,6 +25,7 @@ Current facts:
 - New in this checkpoint: activity preview time, duration, money, and total-amount formatting are isolated in `activityFormatting.utils.ts`.
 - New in this checkpoint: hotel-arrival policy resolution, date-time normalization, confirmation preparation, and hotel-selection modal orchestration are isolated in `useHotelArrivalPolicyController.ts`.
 - New in this checkpoint: image URL normalization, gallery state opening, and YouTube video embedding are isolated in `useMediaModalController.ts`.
+- New in this checkpoint: lazy hotel-detail loading, loading-state cleanup, and error feedback are isolated in `useEnsureHotelDetailsLoaded.ts`.
 - New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.

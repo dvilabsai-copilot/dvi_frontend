@@ -4415,3 +4415,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 181 - Lazy hotel-details loader hook
+
+### Baseline
+- Starting checkpoint: `d3423ac` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useEnsureHotelDetailsLoaded.ts`.
+- Moved lazy hotel-detail hydration, loading-state cleanup, and error feedback out of the page controller.
+- Preserved cached-detail short-circuiting, quote/itinerary guards, service arguments, and toast behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,697 lines (down from 8,712).
+- New hook: 40 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

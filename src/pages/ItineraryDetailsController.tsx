@@ -271,6 +271,7 @@ import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTim
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
+import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
@@ -3858,30 +3859,14 @@ if (switchedRouteRef.current === quoteId) {
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
    * This prevents the initial page load from making the unnecessary second API call
    */
-  const ensureHotelDetailsLoaded = async () => {
-    if (hotelDetails) {
-      // Already loaded
-      return hotelDetails;
-    }
-
-    if (!quoteId) return null;
-
-    try {
-      setLoadingHotels(true);
-      if (!itinerary) return null;
-      const hotelRes = await loadHotelDetailsForItinerary(quoteId, itinerary);
-
-      setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-      return hotelRes;
-    } catch (error) {
-      console.error("Failed to load hotel details", error);
-      toast.error("Failed to load hotel details");
-      return null;
-    } finally {
-      setLoadingHotels(false);
-    }
-  };
-
+  const ensureHotelDetailsLoaded = useEnsureHotelDetailsLoaded({
+    quoteId,
+    itinerary,
+    hotelDetails,
+    setHotelDetails,
+    setLoadingHotels,
+    loadHotelDetailsForItinerary,
+  });
   const handleDeleteHotspot = useHotspotDeleteMutation({
     deleteHotspotModal,
     itinerary,
