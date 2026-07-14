@@ -164,6 +164,7 @@ import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActi
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
+import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
@@ -7344,321 +7345,36 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     setIsBuildingMatrix,
   });
 
-  const handleAddHotspot = async () => {
-    if (readOnly) {
-      console.log('Cannot add hotspot in read-only mode');
-      return;
-    }
-
-    if (!addHotspotModal.planId || !addHotspotModal.routeId) {
-      return;
-    }
-
-    if (selectedHotspotAnchor) {
-      toast.error('Please use the Fit Here button on the timeline to add this hotspot at an exact position.');
-      return;
-    }
-
-    const getCurrentPreviewCandidateId = (): number => {
-      const fit =
-        (activePreviewResolution as any)?.manualInsertionFit
-        || (manualPreviewState as any)?.manualInsertionFit
-        || (activePreviewResolution as any)?.resolution?.manualInsertionFit
-        || null;
-      return Number(
-        fit?.selectedHotspotId
-        || fit?.hotspotId
-        || activePreviewHotspotId
-        || 0,
-      );
-    };
-
-    const candidateId = getCurrentPreviewCandidateId();
-    if (!candidateId) {
-      toast.error('Please preview one hotspot first.');
-      return;
-    }
-
-    const unresolvedPriorityReplacement = (() => {
-      const resolution = groupPreviewResolution || activePreviewResolution;
-      const removedTopPriorityCount = Array.isArray(resolution?.removedTopPriorityHotspots)
-        ? resolution.removedTopPriorityHotspots.length
-        : 0;
-      const affectedPriorityCount = Array.isArray(resolution?.topPriorityAffected)
-        ? resolution.topPriorityAffected.length
-        : 0;
-      const p3Count = Array.isArray((resolution as any)?.p3HotspotsToRemove)
-        ? (resolution as any).p3HotspotsToRemove.length
-        : 0;
-      const needsReplacementApproval =
-        removedTopPriorityCount > 0
-        || affectedPriorityCount > 0
-        || p3Count > 0
-        || resolution?.requiresP3RemovalConfirmation === true;
-      return needsReplacementApproval && topPriorityReplacementApproved !== true;
-    })();
-
-    if (unresolvedPriorityReplacement) {
-      toast.error("Confirm the priority replacement in the temp timeline before adding this hotspot.");
-      return;
-    }
-
-    const previewSource = groupPreviewResolution || activePreviewResolution || manualPreviewState;
-    const previewValidation = previewSource?.validation || null;
-    const manualTimingPolicy = getManualTimingPolicyFromPreview(previewSource);
-    const forceConflictInsertion =
-      previewValidation?.readyToApply === false
-      && previewValidation?.requiresPriorityConfirmation !== true;
-
-    const hasConflicts = selectedPreviewSegments.some((seg) => seg?.isConflict === true);
-    if (!forceConflictInsertion && hasConflicts) {
-      toast.error("Selected hotspot still has timing conflicts in the proposed timeline.");
-      return;
-    }
-
-    const alreadyAddedIds = new Set<number>([
-      ...Array.from(currentRouteAttractionHotspotIds || []).map((id: number) => Number(id)),
-      ...Array.from(addedInModalHotspotIds || []).map((id: number) => Number(id)),
-    ]);
-    if (alreadyAddedIds.has(candidateId)) {
-      toast.info('This hotspot is already added.');
-      return;
-    }
-
-    setIsAddingHotspot(true);
-    setIsApplyingPreviewHotspot(true);
-    try {
-      const affectedRouteId = addHotspotModal.routeId;
-      const matrixFit =
-        (activePreviewResolution as any)?.manualInsertionFit
-        || (groupPreviewResolution as any)?.manualInsertionFit
-        || (activePreviewResolution as any)?.resolution?.manualInsertionFit
-        || (groupPreviewResolution as any)?.resolution?.manualInsertionFit
-        || null;
-      const applyHotspotIds = [candidateId];
-
-      const bestSlot = matrixFit?.bestSlot || null;
-      const bestRouteFitType = String(bestSlot?.routeFitType || '').toUpperCase();
-      const isNormalMatrixSlot =
-        bestRouteFitType === 'ON_ROUTE' || bestRouteFitType === 'MINOR_DETOUR';
-      const isSingleHotspotSlot =
-        bestRouteFitType === 'SINGLE_HOTSPOT_BEFORE' || bestRouteFitType === 'SINGLE_HOTSPOT_AFTER';
-      const isDestinationSideSlot =
-        bestRouteFitType === 'DESTINATION_SIDE_INSERTION';
-      const shouldSendPreferredSlot =
-        !!bestSlot
-        && (
-          (
-            matrixFit?.chosenSlotSource === 'BEST_FIT'
-            && isNormalMatrixSlot
-            && Number(bestSlot?.fromHotspotId || 0) > 0
-            && Number(bestSlot?.toHotspotId || 0) > 0
-          )
-          || (
-            isSingleHotspotSlot
-            && (
-              Number(bestSlot?.fromHotspotId || 0) > 0
-              || Number(bestSlot?.toHotspotId || 0) > 0
-            )
-          )
-          || (
-            isDestinationSideSlot
-            && Number(bestSlot?.fromHotspotId || 0) > 0
-          )
-        );
-      const matrixPreferredSlot = shouldSendPreferredSlot
-        ? {
-            fromHotspotId: Number(bestSlot?.fromHotspotId || 0),
-            toHotspotId: Number(bestSlot?.toHotspotId || 0),
-            slotIndex: Number.isFinite(Number(bestSlot?.slotIndex)) ? Number(bestSlot.slotIndex) : 0,
-            source: 'BEST_FIT' as const,
-          }
-        : undefined;
-
-      console.log('[ManualHotspotApply][payload]', {
-        selectedHotspotIds,
-        activeRouteHotspotIds: Array.from(currentRouteAttractionHotspotIds),
-        previewCandidateId: candidateId,
-        applyHotspotIds,
-        matrixPreferredSlot,
-      });
-
-      const addResult: any = await ItineraryService.applyManualHotspots(
-        addHotspotModal.planId,
-        addHotspotModal.routeId,
-        applyHotspotIds,
-        selectedHotspotAnchor
-          ? {
-              anchorType: selectedHotspotAnchor.anchorType,
-              anchorIndex: selectedHotspotAnchor.anchorIndex,
-            }
-          : undefined,
-        {
-          allowTopPriorityRemoval: topPriorityReplacementApproved === true,
-          forceConflictInsertion,
-          matrixPreferredSlot,
-          manualTimingPolicy,
-        },
-      );
-
-      if (addResult?.code === 'MANUAL_HOTSPOT_ALREADY_EXISTS_IN_ROUTE' || addResult?.alreadyExists === true) {
-        toast.info('This hotspot is already added.');
-        setAddedInModalHotspotIds((prev) => {
-          const next = new Set(prev);
-          next.add(candidateId);
-          return next;
-        });
-        setAvailableHotspots((prev) => prev.map((row) => (
-          Number(row?.id || 0) === candidateId
-            ? {
-                ...row,
-                alreadyAdded: true,
-                availabilityStatus: 'ACTIVE_THIS_ROUTE',
-                actionDisabled: true,
-                buttonLabel: 'Added',
-              }
-            : row
-        )));
-        resetManualHotspotPreviewState();
-        setActivePreviewHotspotId(null);
-        return;
-      }
-
-      if (addResult?.success === false || addResult?.inserted === false) {
-        toast.error(addResult?.message || addResult?.reason || "Failed to add selected hotspots at this position");
-        return;
-      }
-
-      if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_LOW_PRIORITY_REMOVAL') {
-        toast.success('Added hotspot by removing lower-priority stops on this route');
-      } else if (addResult?.code === 'MANUAL_HOTSPOT_INSERTED_WITH_MATRIX_SLOT') {
-        toast.success('Added hotspot using best route-fit slot');
-      } else if (addResult?.resolution?.forceConflictInsertionApplied === true) {
-        toast.success('Hotspot added successfully.');
-      } else {
-        toast.success('Hotspot added successfully.');
-      }
-
-      setAddedInModalHotspotIds((prev) => {
-        const next = new Set(prev);
-        next.add(candidateId);
-        return next;
-      });
-      setAvailableHotspots((prev) => prev.map((row) => (
-        Number(row?.id || 0) === candidateId
-          ? {
-              ...row,
-              alreadyAdded: true,
-              availabilityStatus: 'ACTIVE_THIS_ROUTE',
-              actionDisabled: true,
-              buttonLabel: 'Added',
-            }
-          : row
-      )));
-
-      // Show rebuild button for the day where a manual hotspot was added.
-      if (affectedRouteId) {
-        setRouteNeedsRebuild(affectedRouteId);
-      }
-
-      // Keep modal open for sequential add flow.
-      resetManualHotspotPreviewState();
-      setActivePreviewHotspotId(null);
-
-      // Reload itinerary data in background while modal stays open.
-      if (quoteId) {
-        const [detailsRes, hotelRes] = await Promise.all([
-          ItineraryService.getDetails(quoteId),
-          shouldShowHotels ? ItineraryService.getHotelDetails(quoteId) : Promise.resolve(null),
-        ]);
-        setItinerary(detailsRes as ItineraryDetailsResponse);
-        setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-      }
-
-      if (addHotspotModal.routeId) {
-        const currentRoute = itinerary?.days?.find(
-          (day) => Number(day?.id || 0) === Number(addHotspotModal.routeId),
-        );
-        const refreshRequest = selectedHotspotAnchor
-          ? ItineraryService.getAvailableHotspotsForAnchor({
-              planId: Number(addHotspotModal.planId || 0),
-              routeId: Number(addHotspotModal.routeId || 0),
-              anchorType: selectedHotspotAnchor.anchorType,
-              anchorIndex: Number(selectedHotspotAnchor.anchorIndex),
-            })
-          : ItineraryService.getAvailableHotspots(addHotspotModal.routeId);
-
-        refreshRequest
-          .then((rows) => {
-            const refreshRows = Array.isArray(rows)
-              ? rows
-              : (Array.isArray(rows?.hotspots) ? rows.hotspots : []);
-            const refreshMeta = Array.isArray(rows) ? null : (rows?.hotspotFilterMeta || null);
-            setHotspotFilterMeta(refreshMeta);
-            console.log('[AddHotspotModal] hotspot_filter_meta', refreshMeta);
-            const routeSourceName = String((currentRoute as any)?.departure || '').trim();
-            const routeDestinationName = String((currentRoute as any)?.arrival || '').trim();
-            const anchorFromName = String(selectedHotspotAnchor?.anchorFrom || '').trim();
-            const anchorToName = String(selectedHotspotAnchor?.anchorTo || '').trim();
-            const filteredRefreshRows = filterAvailableHotspotsForAnchor(
-              refreshRows as AvailableHotspot[],
-              routeSourceName,
-              routeDestinationName,
-              anchorFromName,
-              anchorToName,
-            );
-            setAvailableHotspots(normalizeAvailableHotspots(filteredRefreshRows));
-          })
-          .catch(() => {
-            // Local optimistic update already applied; silent background sync failure.
-          });
-      }
-    } catch (e) {
-      console.error("Failed to add hotspot", e);
-      const rawMessage = String(e?.message || '').trim();
-      let backendCode = '';
-      let backendMessage = '';
-
-      try {
-        // api(...) throws Error with response text appended after status text.
-        const jsonStart = rawMessage.indexOf('{');
-        if (jsonStart >= 0) {
-          const payload = JSON.parse(rawMessage.slice(jsonStart));
-          backendCode = String(payload?.code || payload?.error?.code || '').trim();
-          backendMessage = String(payload?.message || payload?.error?.message || '').trim();
-        }
-      } catch {
-        // Fall through to generic extraction.
-      }
-
-      const fallbackFromStatus = (() => {
-        if (rawMessage.includes(' 409 ')) return 'Conflict while applying hotspot.';
-        if (rawMessage.includes(' 422 ')) return 'Validation failed while applying hotspot.';
-        return '';
-      })();
-
-      const displayMessage = [backendCode, backendMessage || fallbackFromStatus]
-        .filter((v) => String(v || '').trim().length > 0)
-        .join(': ')
-        || rawMessage
-        || 'Failed to add hotspot';
-
-      if (backendCode === 'MANUAL_HOTSPOT_ALREADY_EXISTS_IN_ROUTE') {
-        toast.info('This hotspot is already added.');
-        setAddedInModalHotspotIds((prev) => {
-          const next = new Set(prev);
-          next.add(candidateId);
-          return next;
-        });
-        return;
-      }
-
-      toast.error(displayMessage);
-    } finally {
-      setIsAddingHotspot(false);
-      setIsApplyingPreviewHotspot(false);
-    }
-  };
+  const handleAddHotspot = useHotspotAddMutation({
+    readOnly,
+    addHotspotModal,
+    selectedHotspotAnchor,
+    activePreviewResolution,
+    manualPreviewState,
+    activePreviewHotspotId,
+    groupPreviewResolution,
+    topPriorityReplacementApproved,
+    selectedPreviewSegments,
+    currentRouteAttractionHotspotIds,
+    addedInModalHotspotIds,
+    selectedHotspotIds,
+    itinerary,
+    quoteId: quoteId || null,
+    shouldShowHotels,
+    normalizeAvailableHotspots,
+    getManualTimingPolicyFromPreview,
+    filterAvailableHotspotsForAnchor,
+    resetManualHotspotPreviewState,
+    setIsAddingHotspot,
+    setIsApplyingPreviewHotspot,
+    setAddedInModalHotspotIds,
+    setAvailableHotspots,
+    setRouteNeedsRebuild,
+    setActivePreviewHotspotId,
+    setItinerary,
+    setHotelDetails,
+    setHotspotFilterMeta,
+  });
 
   const toImgSrc = (path: string | null | undefined): string | undefined => {
     if (!path || !path.trim()) return undefined;

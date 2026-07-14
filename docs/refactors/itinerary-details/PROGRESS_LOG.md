@@ -1166,6 +1166,33 @@
 - This cleanup removes the final duplicate vehicle-only clipboard path and leaves one owner for that workflow.
 - Follow-up extraction: quotation hotel-selection/prebook preparation and confirmation orchestration.
 
+## Iteration 88 - Manual hotspot application mutation
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotspotAddMutation.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: manual hotspot apply guards/payload, conflict and priority handling, optimistic availability state, route rebuild marking, details/hotel refresh, and background available-hotspot refresh.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useHotspotAddMutation.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,343 lines.
+- New `useHotspotAddMutation.ts`: 157 lines.
+
+### Notes
+- Manual add success/error messages and optimistic modal behavior remain unchanged; only ownership moved.
+- Follow-up extraction: quotation hotel-selection/prebook preparation and confirmation orchestration.
+
 ## Iteration 87 - Broader regression checkpoint
 
 ### Baseline
