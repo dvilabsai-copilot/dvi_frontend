@@ -1631,6 +1631,32 @@
 ### Notes
 - The controller retains memoized dependency injection so existing preview callbacks keep their identity and state semantics.
 
+## Iteration 144 - Fit Here preview timeline mapping
+
+### Baseline
+- Starting point: Iteration 143 Fit Here anchor builder extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate conversion of itinerary day segments into the preview timeline row shape.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/fitHerePreviewTimeline.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: attraction, travel, start, break, check-in, and return preview-row mapping now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,916 lines.
+- New `fitHerePreviewTimeline.utils.ts`: 59 lines.
+
+### Notes
+- Travel text fallback parsing remains injected from the controller to preserve its existing normalization contract.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

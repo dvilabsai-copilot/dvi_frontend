@@ -113,6 +113,7 @@ import {
   isFitHereStartSegment as isFitHereStartSegmentUtil,
 } from "./itinerary-details/utils/fitHereTimeline.utils";
 import { buildFitHereAnchorForTimelineRow as buildFitHereAnchorForTimelineRowUtil } from "./itinerary-details/utils/fitHereAnchorBuilder.utils";
+import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -623,85 +624,10 @@ const loadAndCacheRouteHotelDetails = useCallback(
     };
   }, []);
 
-  const mapDaySegmentToPreview = useCallback((seg: ItinerarySegment): any | null => {
-    if (!seg) return null;
-
-    if (seg.type === "hotspot") return null;
-
-    if (seg.type === "attraction") {
-      return {
-        type: "attraction",
-        text: seg.name,
-        timeRange: seg.visitTime || null,
-        visitTime: seg.visitTime || null,
-        duration: seg.duration || null,
-        timings: seg.timings || null,
-        priority: seg.priority ?? null,
-        locationId: Number(seg.hotspotId ?? seg.locationId ?? 0) || null,
-        isConflict: seg.isConflict === true,
-        conflictReason: seg.conflictReason ?? null,
-      };
-    }
-
-    if (seg.type === "travel") {
-      const travelSeg = seg as any;
-      const resolvedTo = String(travelSeg?.to || extractTravelToFromText(travelSeg?.text) || '').trim();
-      return {
-        type: "travel",
-        text: resolvedTo ? `Travel to ${resolvedTo}` : (travelSeg?.text || 'Travel'),
-        timeRange: travelSeg?.timeRange || null,
-        locationId: null,
-        isConflict: travelSeg?.isConflict === true,
-        conflictReason: travelSeg?.conflictReason ?? null,
-        from: travelSeg?.from,
-        to: travelSeg?.to,
-        fromName: travelSeg?.from,
-        toName: travelSeg?.to,
-        displayFromName: travelSeg?.from,
-        displayToName: travelSeg?.to,
-        distance: travelSeg?.distance || null,
-        duration: travelSeg?.duration || null,
-      };
-    }
-
-    if (seg.type === "start") {
-      return {
-        type: "start",
-        text: seg.title || "Start",
-        timeRange: seg.timeRange || null,
-        locationId: null,
-      };
-    }
-
-    if (seg.type === "break") {
-      return {
-        type: "break",
-        text: `Break at ${seg.location}`,
-        timeRange: seg.timeRange || null,
-        locationId: null,
-      };
-    }
-
-    if (seg.type === "checkin") {
-      return {
-        type: "checkin",
-        text: `Check-in at ${seg.hotelName}`,
-        timeRange: seg.time || null,
-        locationId: null,
-      };
-    }
-
-    if (seg.type === "return") {
-      return {
-        type: "return",
-        text: "Return",
-        timeRange: seg.time || null,
-        locationId: null,
-      };
-    }
-
-    return null;
-  }, [extractTravelToFromText]);
+  const mapDaySegmentToPreview = useCallback(
+    (segment: ItinerarySegment) => mapDaySegmentToPreviewUtil(segment, extractTravelToFromText),
+    [extractTravelToFromText],
+  );
 
   const defaultPreviewTimeline = useMemo(() => {
     const routeId = addHotspotModal.routeId;
