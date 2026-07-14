@@ -127,6 +127,7 @@ import {
 } from "./itinerary-details/utils/autoPreviewScoring.utils";
 import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
 import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePreviewTimeline.utils";
+import { resolveActivePreviewResolution } from "./itinerary-details/utils/activePreviewResolution.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -675,14 +676,15 @@ const loadAndCacheRouteHotelDetails = useCallback(
     );
   }, [addHotspotModal.routeId, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId]);
 
-  const activePreviewResolution = useMemo(() => {
-    if (manualPreviewState) {
-      return manualPreviewState?.resolution || manualPreviewState || null;
-    }
-    if (groupPreviewResolution) return groupPreviewResolution;
-    if (!selectedHotspotId) return null;
-    return previewResolutionsByHotspot[selectedHotspotId] || null;
-  }, [groupPreviewResolution, manualPreviewState, previewResolutionsByHotspot, selectedHotspotId]);
+  const activePreviewResolution = useMemo(
+    () => resolveActivePreviewResolution(
+      manualPreviewState,
+      groupPreviewResolution,
+      selectedHotspotId,
+      previewResolutionsByHotspot,
+    ),
+    [groupPreviewResolution, manualPreviewState, previewResolutionsByHotspot, selectedHotspotId],
+  );
 
   const activePreviewValidation = useMemo(() => {
     return activePreviewResolution?.validation || null;

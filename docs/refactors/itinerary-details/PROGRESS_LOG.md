@@ -1813,6 +1813,32 @@
 ### Notes
 - Active resolution selection and validation derivation remain controller-owned.
 
+## Iteration 151 - Active preview resolution precedence
+
+### Baseline
+- Starting point: Iteration 150 active Fit Here preview timeline extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate manual/group/selected-hotspot preview resolution precedence.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/activePreviewResolution.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: manual resolution unwrapping, group fallback, and selected-hotspot resolution lookup now live in a generic utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,595 lines.
+- New `activePreviewResolution.utils.ts`: 14 lines.
+
+### Notes
+- Validation and normalized-decision derivation remain controller-owned to preserve existing response-shape handling.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
