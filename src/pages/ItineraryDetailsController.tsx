@@ -130,6 +130,7 @@ import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePr
 import { resolveActivePreviewResolution } from "./itinerary-details/utils/activePreviewResolution.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
 import { isMatrixApplyBlocked as isMatrixApplyBlockedUtil } from "./itinerary-details/utils/matrixApplyBlocked.utils";
+import { normalizeInsertionSlots } from "./itinerary-details/utils/normalizedInsertionSlots.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -1674,68 +1675,27 @@ const loadAndCacheRouteHotelDetails = useCallback(
     }
   };
 
-  const normalizedInsertionSlots = useMemo(() => {
-    const isDestinationSidePreview =
-      (matrixFit as any)?.destinationInsertionMode === true
-      || String(manualPreviewState?.manualInsertionFit?.hotspotCityContext || '').trim().toUpperCase() === 'DESTINATION_CITY';
-
-    const rawSlots = Array.isArray(matrixFit?.allSlotResults) && matrixFit.allSlotResults.length > 0
-      ? matrixFit.allSlotResults
-      : (Array.isArray(activePreviewResolution?.slotInsights)
-        ? activePreviewResolution.slotInsights
-        : (Array.isArray(activePreviewResolution?.allInsertionSlots)
-          ? activePreviewResolution.allInsertionSlots
-          : []));
-
-    if (rawSlots.length === 0) return [];
-
-    const stopNames: string[] = [];
-
-    const requestedFrom = String(selectedHotspotAnchor?.anchorFrom || '').trim();
-    if (requestedFrom) {
-      stopNames.push(requestedFrom);
-    }
-
-    for (const seg of effectivePreviewTimeline as any[]) {
-      const type = String(seg?.type || '').toLowerCase();
-      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? seg?.hotspot_ID ?? 0);
-
-      if (type === 'attraction' && hotspotId === Number(selectedHotspotId || 0)) {
-        continue;
-      }
-
-      let label = '';
-      if (type === 'attraction') {
-        label = String(seg?.text || seg?.name || '').trim();
-      } else if (type === 'hotel' || type === 'checkin') {
-        label = String(seg?.hotelName || seg?.toName || '').trim() || destinationHotelDisplayName || 'Hotel';
-      }
-
-      if (!label) continue;
-      if (stopNames[stopNames.length - 1] === label) continue;
-      stopNames.push(label);
-    }
-
-    // Determine which slotIndex is best from matrix-fit payload
-    const bestSlotIndex: number | null = matrixFit?.bestSlot?.slotIndex ?? null;
-
-    return rawSlots.map((slot, index: number) => {
-      const fromName = slot?.fromName || stopNames[index] || `Stop ${index + 1}`;
-      const rawToName = String(slot?.toName || stopNames[index + 1] || 'Destination').trim();
-      const matrixDestinationName = String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase();
-      const toName = (
-        isDestinationSidePreview
-        && destinationHotelDisplayName
-        && (
-          /^hotel$/i.test(rawToName)
-          || (matrixDestinationName.length > 0 && rawToName.toLowerCase() === matrixDestinationName)
-          || Number(slot?.destinationHotelId || 0) > 0
-        )
-      )
-        ? destinationHotelDisplayName
-        : rawToName;
-
+  const normalizedInsertionSlots = useMemo(() => normalizeInsertionSlots({
+    matrixFit,
+    activePreviewResolution,
+    effectivePreviewTimeline: effectivePreviewTimeline as Record<string, unknown>[],
+    selectedHotspotAnchor,
+    selectedHotspotId,
+    matrixRequiresBuild,
+    destinationHotelDisplayName,
+    manualInsertionHotspotCityContext: manualPreviewState?.manualInsertionFit?.hotspotCityContext,
+  }) as any[], [
+    activePreviewResolution,
+    effectivePreviewTimeline,
+    selectedHotspotAnchor,
+    selectedHotspotId,
+    matrixFit,
+    matrixRequiresBuild,
+    destinationHotelDisplayName,
+    manualPreviewState?.manualInsertionFit?.hotspotCityContext,
+  ]);
       // ── From manualInsertionFit.allSlotResults ──
+/*
       const routeFitType: string = slot?.routeFitType || '';
       const routeFitStatus: string = String(slot?.routeFitStatus || routeFitType || '').toUpperCase();
       const routeFitLabel: string = slot?.label || '';
@@ -1825,6 +1785,7 @@ const loadAndCacheRouteHotelDetails = useCallback(
   ]);
   // ─────────────────────────────────────────────────────────────────────────────
 
+  */
   const activeAnchorFitInsight = useMemo(() => {
     if (matrixRequiresBuild) return null;
     const bestSlot = normalizedInsertionSlots.find((slot) => slot?.isBest)

@@ -1891,6 +1891,32 @@
 ### Notes
 - Confirmation action configuration and decision summary remain controller-owned.
 
+## Iteration 154 - Insertion-slot normalization
+
+### Baseline
+- Starting point: Iteration 153 Fit Here matrix apply-blocking extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate matrix/all-slot normalization, route-fit display fields, trusted metrics fallback, and destination-side hotel naming.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/normalizedInsertionSlots.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: slot-source precedence, stop-name derivation, route-fit labels/status, distance metrics, feasibility flags, best-slot flags, and route-metrics projection now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,507 lines.
+- New `normalizedInsertionSlots.utils.ts`: 114 lines.
+
+### Notes
+- A legacy commented compatibility fragment remains adjacent to this boundary and is scheduled for cleanup with the next insertion-insight extraction.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
