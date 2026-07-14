@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 204 - Matrix fit state hook
+
+### Baseline
+- Starting checkpoint: `8d8a339` on `refactor/itinerary-details-continuation` with destination hotel label extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useMatrixFitState.ts`.
+- Moved matrix-build suggestion lookup, chosen-slot validity rules, and usable-matrix-data detection out of `ItineraryDetailsController.tsx`.
+- Preserved destination-side insertion rules, single-hotspot before/after route-fit rules, city-endpoint fallback, and matrix-required guards.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,934 lines (down from 5,978 at the previous iteration).
+- New `useMatrixFitState.ts`: 69 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 203 - Destination hotel display-name hook
 
 ### Baseline
