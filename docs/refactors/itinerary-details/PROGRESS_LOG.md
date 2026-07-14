@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 211 - Preview hotspot metadata hook
+
+### Baseline
+- Starting checkpoint: `9690377` on `refactor/itinerary-details-continuation` with best insertion-slot extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/usePreviewHotspotMeta.ts`.
+- Moved route-day attraction timing and available-hotspot duration/timings/priority metadata merging out of `ItineraryDetailsController.tsx`.
+- Preserved route-day precedence, duration-from-hours fallback, hotspot priority fallbacks, and map-key semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,999 physical lines (down from 6,035 at the previous iteration).
+- New `usePreviewHotspotMeta.ts`: 65 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 210 - Best insertion slot hook
 
 ### Baseline

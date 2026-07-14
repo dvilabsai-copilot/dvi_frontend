@@ -68,6 +68,7 @@ import { usePreviewDecisionState } from "./itinerary-details/hooks/usePreviewDec
 import { useInsertionDecisionSummary } from "./itinerary-details/hooks/useInsertionDecisionSummary";
 import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotState";
 import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
+import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
 import type {
   Activity,
   AttractionSegment,
@@ -1029,48 +1030,11 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     normalizedInsertionSlots,
   });
 
-  const previewHotspotMetaById = useMemo(() => {
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const day = itinerary?.days?.find((d) => Number(d.id) === routeId);
-    const map = new Map<number, { visitTime?: string | null; duration?: string | null; timings?: string | null; priority?: number | null }>();
-
-    const daySegments = Array.isArray(day?.segments) ? day!.segments : [];
-    for (const seg of daySegments as any[]) {
-      if (String(seg?.type || '').toLowerCase() !== 'attraction') continue;
-      const hotspotId = Number(seg?.hotspotId ?? seg?.locationId ?? 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-
-      map.set(hotspotId, {
-        visitTime: seg?.visitTime || null,
-        duration: seg?.duration || null,
-        timings: seg?.timings || null,
-        priority: Number.isFinite(Number(seg?.priority)) ? Number(seg.priority) : null,
-      });
-    }
-
-    for (const hotspot of availableHotspots) {
-      const hotspotId = Number(hotspot?.id || 0);
-      if (!Number.isFinite(hotspotId) || hotspotId <= 0) continue;
-
-      const existing = map.get(hotspotId) || {};
-      const durationFromHours = Number(hotspot?.timeSpend || 0) > 0
-        ? formatMinutesDuration(Math.round(Number(hotspot.timeSpend) * 60))
-        : null;
-
-      map.set(hotspotId, {
-        visitTime: existing.visitTime || null,
-        duration: existing.duration || durationFromHours,
-        timings: existing.timings || hotspot?.timings || null,
-        priority:
-          existing.priority ??
-          (Number.isFinite(Number((hotspot as any)?.priority)) ? Number((hotspot as any).priority) : null) ??
-          (Number.isFinite(Number((hotspot as any)?.hotspotPriority)) ? Number((hotspot as any).hotspotPriority) : null) ??
-          (Number.isFinite(Number((hotspot as any)?.hotspot_priority)) ? Number((hotspot as any).hotspot_priority) : null),
-      });
-    }
-
-    return map;
-  }, [addHotspotModal.routeId, availableHotspots, itinerary?.days]);
+  const previewHotspotMetaById = usePreviewHotspotMeta({
+    addHotspotRouteId: addHotspotModal.routeId,
+    availableHotspots,
+    itineraryDays: itinerary?.days,
+  });
 
   const currentRouteAttractionHotspotIds = useMemo(
     () => buildCurrentRouteAttractionHotspotIds(itinerary?.days, addHotspotModal.routeId, excludedHotspotIds),
