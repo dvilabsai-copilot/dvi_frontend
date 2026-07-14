@@ -1931,6 +1931,7 @@
 ### Verification
 - Typecheck: no diagnostics from the controller or normalized-slot utility; existing repository diagnostics remain.
 - Lint: normalized-slot utility passes ESLint with `--max-warnings=0`.
+- Production build: passed with existing Browserslist/Tailwind/chunk-size warnings.
 - Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
 - Generated Playwright artifacts were restored/cleaned.
 
