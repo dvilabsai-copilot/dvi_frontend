@@ -162,6 +162,7 @@ import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItiner
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
 import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
+import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -5873,30 +5874,9 @@ const applyChildAgesToTemplate = (
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
-  const handleVehicleSelectedTotalChange = useCallback((payload: {
-    vehicleTypeId: number;
-    totalAmount: number;
-    totalQty: number;
-  }) => {
-    const key = Number(payload.vehicleTypeId || 0);
-    const nextAmount = Number(payload.totalAmount || 0);
-    const nextQty = Number(payload.totalQty || 0);
-
-    setSelectedVehicleTotalsByType((prev) => {
-      const existing = prev[key];
-      if (existing && existing.totalAmount === nextAmount && existing.totalQty === nextQty) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [key]: {
-          totalAmount: nextAmount,
-          totalQty: nextQty,
-        },
-      };
-    });
-  }, []);
+  const { handleVehicleSelectedTotalChange } = useVehicleSelectionTotalsController({
+    setSelectedVehicleTotalsByType,
+  });
 
   const shouldShowRebuildHotelsButton = useMemo(() => {
     if (!hotelDetails?.hotels?.length) return false;

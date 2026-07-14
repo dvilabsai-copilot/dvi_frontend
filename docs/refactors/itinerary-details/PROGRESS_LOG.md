@@ -1046,6 +1046,26 @@
 - `ItineraryDetailsController.tsx`: 15,270 physical lines after extraction.
 - `useHotelVoucherController.ts`: 95 physical lines.
 
+## Iteration 55 — Vehicle selection totals boundary
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useVehicleSelectionTotalsController.ts`.
+- Moved the idempotent vehicle-row total/quantity update callback out of `ItineraryDetailsController.tsx`.
+- Preserved the existing numeric normalization and no-op behavior when the selected totals are unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or vehicle totals hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,250 physical lines after extraction.
+- `useVehicleSelectionTotalsController.ts`: 39 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline
