@@ -126,6 +126,7 @@ import {
   scoreAutoPreviewAttempt as scoreAutoPreviewAttemptUtil,
 } from "./itinerary-details/utils/autoPreviewScoring.utils";
 import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
+import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePreviewTimeline.utils";
 import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
@@ -667,117 +668,11 @@ const loadAndCacheRouteHotelDetails = useCallback(
       ? manualPreviewState.fullTimeline
       : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : []);
     if (!selectedHotspotId && sourceTimeline.length === 0) return [];
-
-    const previewResolutionSource = manualPreviewState?.resolution || manualPreviewState || null;
-    const removedRows = [
-      ...(Array.isArray((previewResolutionSource as any)?.removedHotspots)
-        ? (previewResolutionSource as any).removedHotspots
-        : []),
-      ...(Array.isArray((previewResolutionSource as any)?.removedTopPriorityHotspots)
-        ? (previewResolutionSource as any).removedTopPriorityHotspots
-        : []),
-      ...(Array.isArray((previewResolutionSource as any)?.deferredHotspots)
-        ? (previewResolutionSource as any).deferredHotspots
-        : []),
-    ];
-    const removedIds = new Set(
-      removedRows
-        .map((row) => Number(row?.id ?? row?.hotspotId ?? row?.hotspot_ID ?? 0))
-        .filter((id: number) => id > 0),
+    return resolveActivePreviewTimeline(
+      sourceTimeline,
+      (manualPreviewState?.resolution || manualPreviewState || null) as Record<string, unknown> | null,
+      addHotspotModal.routeId,
     );
-
-    const routeScopedRows = sourceTimeline
-      .filter((row) => {
-        const rowRouteId = Number(
-          row?.itinerary_route_ID ??
-          row?.itineraryRouteId ??
-          row?.itinerary_route_id ??
-          row?.route_id ??
-          row?.routeId ??
-          row?.dayId ??
-          row?.routeID ??
-          row?.route,
-        );
-        if (!Number.isFinite(rowRouteId) || rowRouteId <= 0) return true;
-        return rowRouteId === Number(addHotspotModal.routeId);
-      })
-      .filter((row) => {
-        if (removedIds.size === 0) return true;
-
-        const hotspotId = Number(row?.hotspotId ?? row?.hotspot_ID ?? row?.locationId ?? 0);
-        if (removedIds.has(hotspotId)) return false;
-
-        const toHotspotId = Number(row?.toHotspotId ?? 0);
-        if (removedIds.has(toHotspotId)) return false;
-
-        const text = String(row?.text || row?.name || '').toLowerCase();
-        const toName = String(row?.toName || row?.to || row?.displayToName || '').toLowerCase();
-
-        return !removedRows.some((removed) => {
-          const removedName = String(removed?.name || '').toLowerCase().trim();
-          return (
-            removedName
-            && (
-              text === removedName
-              || text.includes(`travel to ${removedName}`)
-              || toName.includes(removedName)
-            )
-          );
-        });
-      });
-    const rows = [...routeScopedRows];
-
-    const anyHavePreviewOrder = rows.some((row) => (
-      Number.isFinite(Number(row?.matrixPreviewOrder ?? row?.previewOrder))
-    ));
-    if (anyHavePreviewOrder) {
-      return [...rows].sort((a, b) => (
-        Number(a?.matrixPreviewOrder ?? a?.previewOrder ?? 9999)
-        - Number(b?.matrixPreviewOrder ?? b?.previewOrder ?? 9999)
-      ));
-    }
-
-    const hasMatrixOrderedRows = rows.some((row) => (
-      row?.isMatrixSplitTravel === true || row?.isMatrixPositioned === true
-    ));
-    if (hasMatrixOrderedRows) {
-      return rows;
-    }
-
-    const parseStartMinutes = (value): number => {
-      const raw = String(value || '').trim();
-      if (!raw || raw === '--' || /manual override/i.test(raw) || raw === 'Not schedulable') {
-        return Number.POSITIVE_INFINITY;
-      }
-
-      const startPart = raw.split('-')[0]?.trim() || raw;
-      const match = startPart.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-      if (!match) return Number.POSITIVE_INFINITY;
-
-      let hour = Number(match[1]);
-      const minute = Number(match[2]);
-      const ampm = match[3].toUpperCase();
-
-      if (ampm === 'AM' && hour === 12) hour = 0;
-      if (ampm === 'PM' && hour !== 12) hour += 12;
-
-      return hour * 60 + minute;
-    };
-
-    const typePriority = (segment): number => {
-      const rawType = String(segment?.type || segment?.itemType || '').toLowerCase();
-      if (rawType === 'refreshment' || Number(segment?.item_type) === 1) return 0;
-      if (rawType === 'travel' || Number(segment?.item_type) === 3) return 1;
-      if (rawType === 'attraction' || Number(segment?.item_type) === 4) return 2;
-      if (rawType === 'hotel' || Number(segment?.item_type) === 6) return 4;
-      return 3;
-    };
-
-    return rows.sort((a, b) => {
-      const startDiff = parseStartMinutes(a?.timeRange) - parseStartMinutes(b?.timeRange);
-      if (startDiff !== 0) return startDiff;
-      return typePriority(a) - typePriority(b);
-    });
   }, [addHotspotModal.routeId, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId]);
 
   const activePreviewResolution = useMemo(() => {

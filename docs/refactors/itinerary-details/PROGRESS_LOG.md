@@ -1787,6 +1787,32 @@
 ### Notes
 - Auto-preview request sequencing and result reconciliation remain controller-owned.
 
+## Iteration 150 - Active Fit Here preview timeline
+
+### Baseline
+- Starting point: Iteration 149 automatic Fit Here progress extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate active preview route scoping, removed-row filtering, matrix-order handling, and time/type fallback sorting.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/activePreviewTimeline.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: preview source filtering, removed hotspot matching, preview-order precedence, matrix-positioned preservation, and fallback timeline sorting now live in a pure utility.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,593 lines.
+- New `activePreviewTimeline.utils.ts`: 74 lines.
+
+### Notes
+- Active resolution selection and validation derivation remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
