@@ -82,6 +82,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.
 - Fit Here matrix apply-blocking decisions, including relaxed-route bypasses and destination-side behavior, are isolated in `matrixApplyBlocked.utils`; confirmation controls remain controller-owned.
 - Insertion-slot normalization, route-fit labels, metrics fallback, and destination-side naming are isolated in `normalizedInsertionSlots.utils`; active anchor insight remains controller-owned.
+- The former inline insertion-slot implementation is no longer retained as a commented compatibility fragment; the utility is the sole implementation.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
 - Paginated hotel-row loading and merge behavior are isolated in `useHotelPaginationController`; hotel search, selection, and rebuild actions remain separate concerns.

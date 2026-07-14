@@ -1915,7 +1915,32 @@
 - New `normalizedInsertionSlots.utils.ts`: 114 lines.
 
 ### Notes
-- A legacy commented compatibility fragment remains adjacent to this boundary and is scheduled for cleanup with the next insertion-insight extraction.
+- The former inline insertion-slot implementation remains removed rather than duplicated as a comment.
+
+## Iteration 155 - Insertion-slot compatibility cleanup
+
+### Baseline
+- Starting point: Iteration 154 insertion-slot normalization utility extraction; focused hotspot Playwright remained green, but a stale commented copy of the moved implementation remained adjacent to the new wrapper.
+- Scope: remove the stale commented implementation after confirming the utility is the active implementation.
+
+### Changes
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`, `PROGRESS_LOG.md`.
+- Code moved: none; removed duplicate commented legacy code left by the prior extraction.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no diagnostics from the controller or normalized-slot utility; existing repository diagnostics remain.
+- Lint: normalized-slot utility passes ESLint with `--max-warnings=0`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,416 lines.
+- `normalizedInsertionSlots.utils.ts`: 114 lines.
+
+### Notes
+- The wrapper and utility now have one source of truth for insertion-slot normalization.
 
 ## Iteration 119 — Fit Here empty-state guidance
 
