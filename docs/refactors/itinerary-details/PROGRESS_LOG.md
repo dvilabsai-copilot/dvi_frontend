@@ -1475,6 +1475,32 @@
 ### Notes
 - The controller callback remains as a stable adapter for HotelList; downstream hotel totals and quotation preparation are unchanged.
 
+## Iteration 138 - Guide assignment utilities
+
+### Baseline
+- Starting point: Iteration 137 canonical hotel-selection merge extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate guide assignment lookup, availability gating, slot-window calculation, and attraction coverage predicates.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/guideAssignment.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: guide assignment/day fallback lookup, price availability checks, slot-window normalization, and attraction/slot overlap logic now live in pure utilities.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,173 lines.
+- New `guideAssignment.utils.ts`: 76 lines.
+
+### Notes
+- Guide modal selection, save/delete mutations, and availability loading remain separate workflow boundaries.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

@@ -93,6 +93,11 @@ import {
   normalizeMealPlanLabel,
 } from "./itinerary-details/utils/domain.utils";
 import {
+  findGuideAssignmentForDay,
+  isAttractionCoveredByGuide as isAttractionCoveredByGuideUtil,
+  isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
+} from "./itinerary-details/utils/guideAssignment.utils";
+import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
   filterAvailableHotspotsForAnchor,
@@ -5892,78 +5897,24 @@ const getSelectedPreviewActivity = () =>
     setGuideAvailabilityLoading,
   });
 
-  const getGuideAssignmentForDay = useCallback((day: ItineraryDay): ItineraryGuideAssignment | null => {
-    const dayGuideAssignment =
-      guideAssignments.find((assignment) => (
-        Number(assignment.guideType || 0) === 2 &&
-        Number(assignment.routeId || 0) === Number(day.id)
-      )) ?? null;
+  const getGuideAssignmentForDay = useCallback(
+    (day: ItineraryDay) => findGuideAssignmentForDay(guideAssignments, day),
+    [guideAssignments],
+  );
 
-    const wholeItineraryGuideAssignment =
-      guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
-
-    return dayGuideAssignment ?? wholeItineraryGuideAssignment;
-  }, [guideAssignments]);
-
-  const isGuidePriceAvailableForDay = useCallback((day: ItineraryDay): boolean => {
-    if (!guideAvailability) return false;
-
-    if (Number(itinerary?.guideForItinerary || 0) === 1) {
-      return guideAvailability.wholeItineraryAvailable === true;
-    }
-
-    const dayAvailability = guideAvailability.days.find((item) => (
-      Number(item.routeId || 0) === Number(day.id)
-    ));
-
-    return dayAvailability?.available === true;
-  }, [guideAvailability, itinerary?.guideForItinerary]);
-
-  const getGuideSlotWindowMinutes = (slotId: number): { start: number; end: number } | null => {
-    switch (Number(slotId || 0)) {
-      case 1:
-        return { start: 8 * 60, end: 13 * 60 };
-      case 2:
-        return { start: 13 * 60, end: 18 * 60 };
-      case 3:
-        return { start: 8 * 60, end: 18 * 60 };
-      case 4:
-        return { start: 18 * 60, end: 21 * 60 };
-      default:
-        return null;
-    }
-  };
+  const isGuidePriceAvailableForDay = useCallback(
+    (day: ItineraryDay) => isGuidePriceAvailableForDayUtil(
+      guideAvailability,
+      itinerary?.guideForItinerary,
+      day,
+    ),
+    [guideAvailability, itinerary?.guideForItinerary],
+  );
 
   const isAttractionCoveredByGuide = (
     segment: AttractionSegment,
     assignment: ItineraryGuideAssignment | null,
-  ): boolean => {
-    if (!assignment) return false;
-
-    const guideSlotIds = Array.isArray(assignment.guideSlotIds)
-      ? assignment.guideSlotIds.map(Number).filter((slotId) => Number.isFinite(slotId) && slotId > 0)
-      : [];
-
-    if (guideSlotIds.length === 0) return true;
-
-    const visitStart = parseDisplayMinutes(segment.visitTime, "start");
-    const visitEnd = parseDisplayMinutes(segment.visitTime, "end");
-
-    if (visitStart === null || visitEnd === null) return true;
-
-    const normalizedVisitEnd = visitEnd <= visitStart ? visitEnd + 1440 : visitEnd;
-
-    return guideSlotIds.some((slotId) => {
-      const slotWindow = getGuideSlotWindowMinutes(slotId);
-      if (!slotWindow) return false;
-
-      const normalizedSlotEnd = slotWindow.end <= slotWindow.start
-        ? slotWindow.end + 1440
-        : slotWindow.end;
-
-      return visitStart < normalizedSlotEnd && normalizedVisitEnd > slotWindow.start;
-    });
-  };
+  ): boolean => isAttractionCoveredByGuideUtil(segment, assignment, parseDisplayMinutes);
 
   useEffect(() => {
     const planId = Number(itinerary?.planId || 0);
