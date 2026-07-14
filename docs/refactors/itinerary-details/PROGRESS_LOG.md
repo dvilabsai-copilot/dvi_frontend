@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 215 - Fit Here anchor button component
+
+### Baseline
+- Starting checkpoint: `e80df66` on `codex/itinerary-refactor-production-20260715` with active-anchor fit insight extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/components/FitHereAnchorButton.tsx`.
+- Moved Fit Here anchor markup, data attributes, click presentation, and tried-anchor status styling out of `ItineraryDetailsController.tsx`.
+- Preserved the injected `handleFitHereClick` callback and exact anchor/status rendering contract.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors from the new component or page controller; repository typecheck retains unrelated existing errors.
+- Focused Playwright verification is run for this checkpoint below.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,869 physical lines (down from 5,902 at the previous iteration).
+- New `FitHereAnchorButton.tsx`: 52 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 214 - Active-anchor fit insight hook
 
 ### Baseline
