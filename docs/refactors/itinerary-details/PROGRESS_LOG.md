@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 199 - Hotel hydrated-days hook
+
+### Baseline
+- Starting checkpoint: `ef5cca3` on `refactor/itinerary-details-continuation` with effective preview timeline extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotelHydratedDays.ts`.
+- Moved selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling out of `ItineraryDetailsController.tsx`.
+- Preserved route hotel metadata lookup, previous-hotel departure fallback, distance-based timing, check-in labels, and segment ordering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,312 lines (down from 6,623 at the previous iteration).
+- New `useHotelHydratedDays.ts`: 341 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 198 - Effective preview timeline hook
 
 ### Baseline
