@@ -1066,6 +1066,26 @@
 - `ItineraryDetailsController.tsx`: 15,250 physical lines after extraction.
 - `useVehicleSelectionTotalsController.ts`: 39 physical lines.
 
+## Iteration 56 — Hotel selection coverage derivation
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useHotelSelectionCoverage.ts`.
+- Moved route-coverage derivation for single-night and multi-night hotel selections into a dedicated hook.
+- Preserved the returned `Set<number>` semantics used by prebook, confirmation, and non-TBO review filtering.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or coverage hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,226 physical lines after extraction.
+- `useHotelSelectionCoverage.ts`: 39 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

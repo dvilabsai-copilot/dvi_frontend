@@ -163,6 +163,7 @@ import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetails
 import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
 import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
 import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
+import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -5009,34 +5010,9 @@ const switchedRouteRef = useRef<string | null>(null);
   const hasPrebookPriceChanged =
     prebookTotalAmount > 0 && Math.abs(prebookTotalAmount - selectedTboHotelTotal) > 0.01;
   const prebookHotelEntries = Array.isArray(prebookData?.hotels) ? prebookData.hotels : [];
-  const getCoveredRouteIdsFromHotelSelections = useCallback((selections: Record<number, any>) => {
-    const covered = new Set<number>();
-
-    Object.entries(selections || {}).forEach(([routeIdRaw, hotel]) => {
-      const fallbackRouteId = Number(routeIdRaw);
-      const routeIds = Array.isArray(hotel?.routeIds)
-        ? hotel.routeIds
-            .map((id) => Number(id))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-        : [];
-
-      if (hotel?.multiNightBooking && routeIds.length > 1) {
-        routeIds.forEach((routeId: number) => covered.add(routeId));
-        return;
-      }
-
-      if (Number.isFinite(fallbackRouteId) && fallbackRouteId > 0) {
-        covered.add(fallbackRouteId);
-      }
-    });
-
-    return covered;
-  }, []);
-
-  const selectedHotelCoveredRouteIds = useMemo(
-    () => getCoveredRouteIdsFromHotelSelections(selectedHotelBookings),
-    [getCoveredRouteIdsFromHotelSelections, selectedHotelBookings],
-  );
+  const { getCoveredRouteIdsFromHotelSelections, selectedHotelCoveredRouteIds } = useHotelSelectionCoverage({
+    selectedHotelBookings,
+  });
 
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
   const nonTboSelectedHotelEntries = useMemo(() => {

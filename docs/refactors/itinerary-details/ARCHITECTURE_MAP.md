@@ -78,4 +78,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Para/recommendation hotel grouping is isolated in `useParaRecommendations`; clipboard selection initialization remains in the page workflow.
 - Hotel rebuild, vehicle refresh, and hotel group-type refresh mutation orchestration are isolated in `useHotelDataController`; voucher modal selection and cancellation mutations are isolated in `useHotelVoucherController`. Both preserve their existing service calls, loading state, cache update, fallback vehicle retention, and toast contract.
 - Vehicle selection total/quantity updates are isolated in `useVehicleSelectionTotalsController`; it preserves numeric normalization and idempotent state updates.
+- Hotel route-coverage derivation is isolated in `useHotelSelectionCoverage`; it preserves multi-night parent/child route expansion used by prebook and confirmation flows.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
