@@ -186,6 +186,7 @@ import { QuotationRoomingPreview } from "./itinerary-details/QuotationRoomingPre
 import { QuotationWalletTopUpActions } from "./itinerary-details/QuotationWalletTopUpActions";
 import { QuotationPrebookHotelRows } from "./itinerary-details/QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationPrebookAcceptanceNotice";
+import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -9231,25 +9232,12 @@ const canShowGuideActionButton =
         }}
       >
         <DialogContent className="w-[96vw] sm:max-w-5xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <div>
-                <DialogTitle>Fit Here Hotspot List</DialogTitle>
-                <DialogDescription>
-                  {selectedPreviewCityContext === 'DESTINATION_CITY'
-                    ? `Destination-side hotspots after reaching ${destinationCityLabel}. Preview checks one exact Fit Here position; Auto-Preview checks all valid positions.`
-                    : "Select a hotspot, then use Preview for one exact Fit Here position or Auto-Preview for all valid positions."}
-                </DialogDescription>
-              </div>
-              <input
-                type="text"
-                placeholder="Search Hotspot..."
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full sm:w-64"
-                value={hotspotSearchQuery}
-                onChange={(e) => setHotspotSearchQuery(e.target.value)}
-              />
-            </div>
-          </DialogHeader>
+          <HotspotDialogHeader
+            selectedPreviewCityContext={selectedPreviewCityContext}
+            destinationCityLabel={destinationCityLabel}
+            hotspotSearchQuery={hotspotSearchQuery}
+            setHotspotSearchQuery={setHotspotSearchQuery}
+          />
           <div className="py-4 flex-1 overflow-hidden flex min-h-0">
             <div className="flex flex-col lg:flex-row gap-4 w-full min-h-0">
               {/* Left Column: Hotspot List */}

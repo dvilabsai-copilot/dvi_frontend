@@ -123,5 +123,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Wallet top-up amount/remark inputs and refresh/continue actions are isolated in `QuotationWalletTopUpActions.tsx`; wallet mutation and balance-refresh callbacks remain injected.
 - TBO prebook hotel detail rows (cancellation, promotion, rate conditions, amenities, inclusions, and supplements) are isolated in `QuotationPrebookHotelRows.tsx`; existing normalization and meal-plan helpers remain injected.
 - Prebook price-change warning and final hotel-detail acknowledgement are isolated in `QuotationPrebookAcceptanceNotice.tsx`; acceptance state remains owned by the quotation controller.
+- Add-hotspot dialog title, destination-context description, and search input are isolated in `HotspotDialogHeader.tsx`; hotspot query state remains injected from the controller.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

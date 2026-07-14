@@ -1268,6 +1268,33 @@
 ### Notes
 - The non-TBO hotel review and prebook summary remain the next quotation review boundaries; no provider data or booking payload semantics were changed.
 
+## Iteration 111 — Hotspot dialog header extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/hotspot-header files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; hotspot-header view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotDialogHeader.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: Add Hotspot dialog title, destination-context description, and search field now render in a dedicated component; query state and context remain controller-owned.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotDialogHeader.tsx`; unrelated repository errors remain.
+- Lint: new hotspot-header component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,869 lines (down from 11,881 at the previous checkpoint).
+- New `HotspotDialogHeader.tsx`: 39 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The hotspot list and preview/action pane remain coupled to Fit Here/matrix state and require a larger typed boundary in a subsequent iteration.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
