@@ -4218,3 +4218,25 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+## Iteration 172 — Quotation booking occupancy boundary
+
+### Baseline
+- Starting checkpoint: `ae1ea89` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/quotationBookingOccupancy.utils.ts`.
+- Moved child-age locking, occupancy-template application, TBO/supplier fallback selection, and hotel-flow gating out of `handleConfirmQuotation`.
+- Preserved existing child-age bounds, room/adult/child normalization, and empty occupancy behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,296 lines (down from 9,316).
+- New utility: 43 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

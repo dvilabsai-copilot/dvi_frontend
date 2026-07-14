@@ -186,3 +186,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotel booking normalization is isolated in `hotelBookingNormalization.utils.ts`; provider inference, booking/reference parsing, amount fallback, and no-availability classification are pure.
 - Quotation confirmation date-time formatting is isolated in `quotationDateTime.utils.ts`; arrival/departure prefill formatting is reusable and side-effect free.
 - Quotation confirmation-modal prefill is isolated in `quotationModalPrefill.utils.ts`; nationality/date patches, traveller passenger rows, and occupancy templates are derived without owning React state.
+- Quotation booking occupancy resolution is isolated in `quotationBookingOccupancy.utils.ts`; child-age locking and TBO/supplier occupancy selection are pure.

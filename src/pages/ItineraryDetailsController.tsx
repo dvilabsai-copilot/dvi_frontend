@@ -171,8 +171,6 @@ import {
   normalizeFitHereConfirmationResult,
 } from "./itinerary-details/utils/fitHereConfirm.utils";
 import {
-  applyChildAgesToTemplate,
-  buildSupplierOccupancies,
   buildTboOccupancies,
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
@@ -217,6 +215,7 @@ import {
   type HotelProvider,
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
 import { buildQuotationModalPrefill } from "./itinerary-details/utils/quotationModalPrefill.utils";
+import { resolveQuotationBookingOccupancy } from "./itinerary-details/utils/quotationBookingOccupancy.utils";
 import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
@@ -5429,34 +5428,15 @@ const getSelectedPreviewActivity = () =>
       if (!preparedHotels) return;
       const { autoSelectedHotels, groupTypeValue } = preparedHotels;
 
-      // Child ages must be locked from plan/search template to avoid mismatch with TBO
-      const childAgesForBooking = requiresDetailedPassengerFlow
-        ? (
-            confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-              ? confirmOccupanciesTemplate.flatMap((occ) =>
-                  Array.isArray(occ.childrenAges) ? occ.childrenAges.map(Number) : []
-                )
-              : normalizedAdditionalChildren.map((c) => Number(c.age))
-          ).filter((age: number) => Number.isFinite(age) && age >= 0 && age <= 11)
-        : [];
-
-      const totalAdultsForBooking = Math.max(Number(itinerary.adults || 1), 1);
-      const totalChildrenForBooking = Math.max(Number(itinerary.children || 0), 0);
-      const occupanciesForBooking = requiresHotelBookingFlow
-        ? requiresDetailedPassengerFlow
-          ? confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-            ? applyChildAgesToTemplate(confirmOccupanciesTemplate, childAgesForBooking)
-            : buildTboOccupancies(
-                Number(itinerary.roomCount || 1),
-                totalAdultsForBooking,
-                childAgesForBooking,
-              )
-          : buildSupplierOccupancies(
-              Number(itinerary.roomCount || 1),
-              totalAdultsForBooking,
-              totalChildrenForBooking,
-            )
-        : [];
+      const { occupancies: occupanciesForBooking } = resolveQuotationBookingOccupancy({
+        requiresHotelBookingFlow,
+        requiresDetailedPassengerFlow,
+        confirmOccupanciesTemplate,
+        normalizedAdditionalChildren,
+        roomCount: Number(itinerary.roomCount || 1),
+        adults: Number(itinerary.adults || 1),
+        children: Number(itinerary.children || 0),
+      });
 
       const bookingGuestNationality = (
         guestDetails.nationality ||
