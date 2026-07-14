@@ -3838,3 +3838,28 @@
 ### Notes
 - Coupling discovered: clipboard generation still depends on hotel selections and vehicle-only branches in the runtime; this extraction intentionally moved state only.
 - Follow-up extraction: remaining hotel search/arrival/room-selection state and vehicle workflow state.
+
+## Iteration 156 — Quotation confirmation detail helpers
+
+### Baseline
+- Starting checkpoint: `fcb637f` on `refactor/itinerary-details-checkpoint` with the stable entrypoint and focused Fit Here regressions green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/quotationConfirmationDetails.utils.ts`.
+- Moved confirmation nationality fallback, occupancy preview distribution, safe booking-error messaging, prebook inclusions/meal-plan normalization, and cancellation-policy formatting out of `ItineraryDetailsController.tsx`.
+- Removed the unused local passenger-name splitting helpers while preserving the active passenger validation path.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,184 lines (down from 10,416).
+- New utility: 202 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.

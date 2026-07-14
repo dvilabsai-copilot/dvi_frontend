@@ -178,6 +178,15 @@ import {
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "./itinerary-details/utils/quotationHotelBookings.utils";
+import {
+  buildOccupancyPreview,
+  getSafeErrorMessage,
+  normalizeCancellationPolicyItems,
+  normalizePrebookItems,
+  resolveConfirmNationality,
+  resolvePrebookInclusions,
+  resolvePrebookMealPlan,
+} from "./itinerary-details/utils/quotationConfirmationDetails.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -4540,34 +4549,6 @@ function getHotelAmountForBooking(entry): number {
     );
   }
 
-  const resolveConfirmNationality = (plan, fallbackNationality: string = 'IN'): string => {
-    const explicitIso2 = String(
-      plan?.nationality_iso2 ||
-      plan?.nationality_shortname ||
-      plan?.guestNationality ||
-      '',
-    )
-      .trim()
-      .toUpperCase();
-    if (/^[A-Z]{2}$/.test(explicitIso2)) {
-      return explicitIso2;
-    }
-
-    const rawNationality = plan?.nationality;
-    if (typeof rawNationality === 'string' && /^[A-Z]{2}$/i.test(rawNationality.trim())) {
-      return rawNationality.trim().toUpperCase();
-    }
-
-    const legacyMap: Record<number, string> = {
-      284: 'AE',
-      229: 'NO',
-      101: 'IN',
-      177: 'IN',
-    };
-    const mapped = legacyMap[Number(rawNationality || 0)];
-    const fallback = String(fallbackNationality || 'IN').trim().toUpperCase();
-    return mapped || (/^[A-Z]{2}$/.test(fallback) ? fallback : 'IN');
-  };
   const getPassengerFieldError = (
     label: 'adult' | 'child' | 'infant',
     index: number,
@@ -4602,219 +4583,6 @@ function getHotelAmountForBooking(entry): number {
     passportNo: '',
   });
 
-
-  function buildOccupancyPreview(
-    roomCount: number,
-    totalAdults: number,
-    totalChildren: number,
-  ): Array<{ adults: number; children: number }> {
-    const rooms = Math.max(Number(roomCount) || 1, 1);
-    const occupancies = Array.from({ length: rooms }, () => ({
-      adults: 1,
-      children: 0,
-    }));
-
-    let adultsLeft = Math.max(totalAdults - rooms, 0);
-    let roomIndex = 0;
-    while (adultsLeft > 0) {
-      if (occupancies[roomIndex].adults < 8) {
-        occupancies[roomIndex].adults += 1;
-        adultsLeft -= 1;
-      }
-      roomIndex = (roomIndex + 1) % rooms;
-    }
-
-    let childrenLeft = Math.max(totalChildren, 0);
-    let nextChildRoom = 0;
-    while (childrenLeft > 0) {
-      let assigned = false;
-      for (let offset = 0; offset < rooms; offset++) {
-        const idx = (nextChildRoom + offset) % rooms;
-        if (occupancies[idx].children < 4) {
-          occupancies[idx].children += 1;
-          childrenLeft -= 1;
-          nextChildRoom = (idx + 1) % rooms;
-          assigned = true;
-          break;
-        }
-      }
-      if (!assigned) {
-        break;
-      }
-    }
-
-    return occupancies;
-  }
-
-  const normalizeNameParts = (name: string) => {
-    const trimmed = name.trim();
-    const parts = trimmed.split(/\s+/).filter(Boolean);
-    const firstName = parts[0] || trimmed;
-    const lastName = parts.slice(1).join(' ') || firstName;
-    return { firstName, lastName };
-  };
-
-  const validateNameParts = (name: string) => {
-    const parts = normalizeNameParts(name);
-    if (!isValidPassengerName(parts.firstName) || !isValidPassengerName(parts.lastName)) {
-      return false;
-    }
-    return true;
-  };
-
-  const getSafeErrorMessage = (error: unknown, fallback: string) => {
-    const text = String((error as any)?.message || fallback);
-    if (/session expired|stale|availability changed|booking code invalid|price changed/i.test(text)) {
-      return 'This hotel session has expired or rates changed. Please refresh hotel selection and run prebook again.';
-    }
-    return text;
-  };
-
-  const normalizePrebookItems = (value): string[] => {
-    if (!value) {
-      return [];
-    }
-    const list = Array.isArray(value) ? value : [value];
-    return list
-      .map((item) => {
-        if (typeof item === 'string') {
-          return item;
-        }
-        return item?.name || item?.text || item?.description || JSON.stringify(item);
-      })
-      .map((text) => String(text || '').trim())
-      .filter(Boolean);
-  };
-
-  const resolvePrebookInclusions = (hotel): string[] => {
-    const candidateLists = [
-      hotel?.inclusions,
-      hotel?.Inclusions,
-      hotel?.inclusion,
-      hotel?.Inclusion,
-      hotel?.facilities,
-      hotel?.Facilities,
-      hotel?.rooms?.[0]?.inclusion,
-      hotel?.rooms?.[0]?.Inclusion,
-      hotel?.Rooms?.[0]?.inclusion,
-      hotel?.Rooms?.[0]?.Inclusion,
-    ];
-
-    const merged = candidateLists.flatMap((value) => normalizePrebookItems(value));
-    return Array.from(new Set(merged.map((item) => String(item || '').trim()).filter(Boolean)));
-  };
-
-  const resolvePrebookMealPlan = (hotel): string => {
-    const direct = [
-      hotel?.mealPlan,
-      hotel?.MealPlan,
-      hotel?.mealType,
-      hotel?.MealType,
-      hotel?.meal_type,
-      hotel?.mealTypeName,
-      hotel?.MealTypeName,
-      hotel?.boardType,
-      hotel?.BoardType,
-      hotel?.boardBasis,
-      hotel?.BoardBasis,
-      hotel?.room?.mealType,
-      hotel?.room?.MealType,
-      hotel?.Room?.mealType,
-      hotel?.Room?.MealType,
-      hotel?.rooms?.[0]?.mealType,
-      hotel?.rooms?.[0]?.MealType,
-      hotel?.rooms?.[0]?.boardBasis,
-      hotel?.Rooms?.[0]?.mealType,
-      hotel?.Rooms?.[0]?.MealType,
-      hotel?.Rooms?.[0]?.boardBasis,
-    ];
-
-    for (const value of direct) {
-      const text = String(value || '').trim();
-      if (text) {
-        return text;
-      }
-    }
-
-    const inclusionText = resolvePrebookInclusions(hotel).join(' ').toLowerCase();
-    if (inclusionText.includes('full board')) return 'Full Board';
-    if (inclusionText.includes('half board')) return 'Half Board';
-    if (inclusionText.includes('room only') || inclusionText.includes('no meals')) return 'Room Only';
-    if (inclusionText.includes('breakfast')) return 'Breakfast Included';
-
-    return '';
-  };
-
-  const normalizeCancellationPolicyItems = (value): string[] => {
-    if (!value) {
-      return [];
-    }
-
-    const chargeLabel = (chargeType: string, amount) => {
-      const normalizedType = String(chargeType || '').toLowerCase();
-      const num = Number(amount);
-      const safeAmount = Number.isFinite(num) ? num : amount;
-      if (normalizedType === 'percentage' || normalizedType === '2') {
-        return `${safeAmount}%`;
-      }
-      if (normalizedType === 'fixed' || normalizedType === '1') {
-        return `INR ${safeAmount}`;
-      }
-      return String(safeAmount);
-    };
-
-    const formatEntry = (item) => {
-      if (!item) return '';
-
-      if (typeof item === 'string') {
-        const trimmed = item.trim();
-        if (!trimmed) return '';
-
-        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-          try {
-            const parsed = JSON.parse(trimmed);
-            if (Array.isArray(parsed)) {
-              return parsed
-                .map((p) => formatEntry(p))
-                .filter(Boolean)
-                .join('\n');
-            }
-            return formatEntry(parsed);
-          } catch {
-            return trimmed;
-          }
-        }
-
-        // Handle legacy TBO concatenated strings
-        if (trimmed.includes('#^#') || trimmed.includes('#!#')) {
-          return trimmed
-            .replace(/#\^#|#!#/g, '')
-            .split('|')
-            .map((part) => part.trim())
-            .filter(Boolean)
-            .join('\n');
-        }
-
-        return trimmed;
-      }
-
-      const fromDate = item.FromDate || item.fromDate || item.startDate || '-';
-      const chargeType = item.ChargeType || item.chargeType || '-';
-      const cancellationCharge =
-        item.CancellationCharge ?? item.cancellationCharge ?? item.Charge ?? item.charge ?? '-';
-
-      return `From ${fromDate} | ${chargeType} | Charge: ${chargeLabel(chargeType, cancellationCharge)}`;
-    };
-
-    const list = Array.isArray(value) ? value : [value];
-    return list
-      .flatMap((item) => {
-        const formatted = formatEntry(item);
-        return formatted ? formatted.split('\n') : [];
-      })
-      .map((item) => item.trim())
-      .filter(Boolean);
-  };
 
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);

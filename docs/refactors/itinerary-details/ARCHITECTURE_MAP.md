@@ -170,3 +170,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Arrival-policy early-morning gating, confirmation-modal preparation, direct route-time orchestration, and confirmation persistence are isolated in `useArrivalPolicyRouteTimeController.ts`.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
+- Quotation confirmation detail normalization is isolated in `quotationConfirmationDetails.utils.ts`; nationality fallback, occupancy preview distribution, safe session-error messaging, prebook inclusion/meal-plan normalization, and cancellation-policy formatting remain pure and reusable.
