@@ -10,6 +10,8 @@ interface VehicleSectionProps {
   planId: number;
   dateRange?: string;
   days: ItineraryDay[];
+  canViewCostBreakdown: boolean;
+  showVendorDetails: boolean;
   onRefresh: () => void;
   onSelectedTotalChange: (payload: { vehicleTypeId: number; totalAmount: number; totalQty: number }) => void;
 }
@@ -22,6 +24,8 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   planId,
   dateRange = "",
   days,
+  canViewCostBreakdown,
+  showVendorDetails,
   onRefresh,
   onSelectedTotalChange,
 }) => {
@@ -66,6 +70,8 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
             onSelectedTotalChange={onSelectedTotalChange}
             dateRange={dateRange}
             routes={routes}
+            canViewCostBreakdown={canViewCostBreakdown}
+            showVendorDetails={showVendorDetails}
           />
         );
       })}
