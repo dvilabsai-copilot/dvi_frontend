@@ -240,6 +240,7 @@ import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayIti
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
 import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
+import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -2038,56 +2039,14 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     addedInModalHotspotIds,
   });
 
-  const sourceCityLabel = useMemo(() => {
-    const raw = String(
-      hotspotFilterMeta?.sourceCityKey ||
-      currentRouteForModal?.departure ||
-      addHotspotModal.locationName ||
-      '',
-    ).trim();
-    if (!raw) return 'source city';
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [
-    hotspotFilterMeta?.sourceCityKey,
-    currentRouteForModal?.departure,
-    addHotspotModal.locationName,
-  ]);
-
-  const destinationCityLabel = useMemo(() => {
-    const raw = String(
-      hotspotFilterMeta?.destinationCityKey ||
-      selectedHotspotAnchor?.anchorTo ||
-      currentRouteForModal?.arrival ||
-      '',
-    ).trim();
-    if (!raw) return 'destination city';
-    return raw.charAt(0).toUpperCase() + raw.slice(1);
-  }, [
-    hotspotFilterMeta?.destinationCityKey,
-    selectedHotspotAnchor?.anchorTo,
-    currentRouteForModal?.arrival,
-  ]);
-
-  const routeIsDifferentCity = useMemo(() => {
-    const source = String(
-      hotspotFilterMeta?.sourceCityKey ||
-      currentRouteForModal?.departure ||
-      addHotspotModal.locationName ||
-      '',
-    ).trim().toLowerCase();
-    const destination = String(
-      hotspotFilterMeta?.destinationCityKey ||
-      currentRouteForModal?.arrival ||
-      '',
-    ).trim().toLowerCase();
-    return source.length > 0 && destination.length > 0 && source !== destination;
-  }, [
-    hotspotFilterMeta?.sourceCityKey,
-    hotspotFilterMeta?.destinationCityKey,
-    currentRouteForModal?.departure,
-    currentRouteForModal?.arrival,
-    addHotspotModal.locationName,
-  ]);
+  const { sourceCityLabel, destinationCityLabel, routeIsDifferentCity } = useHotspotRouteCityContext({
+    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
+    destinationCityKey: hotspotFilterMeta?.destinationCityKey,
+    routeDeparture: currentRouteForModal?.departure,
+    routeArrival: currentRouteForModal?.arrival,
+    modalLocationName: addHotspotModal.locationName,
+    selectedAnchorTo: selectedHotspotAnchor?.anchorTo,
+  });
 
   const destinationInsertionSlotLabel = useMemo(() => {
     const preferredRaw = String(

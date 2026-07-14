@@ -86,6 +86,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Source-markdown preview quote resolution, loading/reset transitions, retrieval, heading fallback, and errors are isolated in `useSourcePreviewController`.
 - Route-hotel cache writes, cached-result reuse, in-flight request de-duplication, and fetch cleanup are isolated in `useRouteHotelDetailsCache`.
 - Hotspot search matching, availability classification, previewability, and modal list ranking are isolated in `useFilteredHotspots`.
+- Hotspot source/destination city labels and cross-city route detection are isolated in `useHotspotRouteCityContext`.
 - Active Fit Here preview route filtering, removal filtering, matrix ordering, and time/type fallback ordering are isolated in `activePreviewTimeline.utils`; resolution selection remains controller-owned.
 - Active preview resolution precedence (manual, group, then selected hotspot) is isolated in `activePreviewResolution.utils`; validation and normalized-decision derivation remain controller-owned.
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.

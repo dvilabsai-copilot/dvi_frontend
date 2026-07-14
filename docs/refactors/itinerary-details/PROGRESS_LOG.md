@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 192 - Hotspot route-city context hook
+
+### Baseline
+- Starting checkpoint: `5b06a87` on `refactor/itinerary-details-continuation` with filtered-hotspot extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useHotspotRouteCityContext.ts`.
+- Moved source/destination city label normalization and cross-city route detection out of the page controller.
+- Preserved filter-metadata precedence, route fallback values, selected-anchor destination fallback, capitalization, and empty-label behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,152 lines (down from 7,191 at the previous iteration).
+- New hook: 39 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 191 - Filtered hotspot list hook
 
 ### Baseline
