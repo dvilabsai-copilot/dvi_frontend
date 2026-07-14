@@ -765,10 +765,15 @@ const handleHotelFacilityChange = (vals: string[]) => {
   side="bottom"
   align="start"
   sideOffset={8}
-  avoidCollisions={false}
-  className="z-[9999] w-[calc(100vw-2rem)] max-w-[700px] max-h-[calc(100vh-160px)] overflow-y-auto p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
+  avoidCollisions={true}
+  collisionPadding={16}
+  className="z-[9999] w-[calc(100vw-2rem)] max-w-[700px] max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
+  style={{
+    maxHeight:
+      "min(calc(100vh - 2rem), var(--radix-popover-content-available-height))",
+  }}
 >
-   <div className="border-b border-[#efe7fb] px-4 py-3 bg-white">
+   <div className="sticky top-0 z-10 border-b border-[#efe7fb] px-4 py-3 bg-white">
   <div className="space-y-2">
     <div className="text-sm font-medium text-[#4a4260]">
       {tripStartDateObj && !tripEndDateObj
