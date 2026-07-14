@@ -202,6 +202,7 @@ import { HotspotPreviewEmptyTimeline } from "./itinerary-details/components/Hots
 import { HotspotPreviewOverflowResolvedHeader } from "./itinerary-details/components/HotspotPreviewOverflowResolvedHeader";
 import { HotspotPreviewResolvedTimelineNotice } from "./itinerary-details/components/HotspotPreviewResolvedTimelineNotice";
 import { HotspotPreviewOverflowLeakNotice } from "./itinerary-details/components/HotspotPreviewOverflowLeakNotice";
+import { HotspotPreviewDayEndOverflowNotice } from "./itinerary-details/components/HotspotPreviewDayEndOverflowNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9958,9 +9959,7 @@ const canShowGuideActionButton =
                         (manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved !== true && (
                         <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
                           <p className="font-semibold text-amber-900">⚠ Timeline exceeds day end.</p>
-                          <p className="text-xs text-amber-800 mt-1">
-                            Final hotel check-in would exceed day end by {manualInsertionFit?.dayOverflowMinutes || 0} minutes.
-                          </p>
+                          <HotspotPreviewDayEndOverflowNotice overflowMinutes={manualInsertionFit?.dayOverflowMinutes || 0} />
                         </div>
                       )}
 

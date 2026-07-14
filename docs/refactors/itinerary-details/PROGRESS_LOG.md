@@ -1215,6 +1215,32 @@
 ### Notes
 - The larger planned-removal diagnostics remain controller-owned pending an encoding-safe extraction.
 
+## Iteration 128 — Day-end overflow notice
+
+### Baseline
+- Starting point: Iteration 127 resolved-removal leak diagnostic extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the plain day-end overflow explanation beneath the legacy warning label.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewDayEndOverflowNotice.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: overflow minutes explanation presentation now lives in a typed component; calculation and warning visibility remain controller-owned.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,769 lines.
+- New `HotspotPreviewDayEndOverflowNotice.tsx`: 14 lines.
+
+### Notes
+- The legacy warning icon label remains in place to preserve its current encoded display.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
