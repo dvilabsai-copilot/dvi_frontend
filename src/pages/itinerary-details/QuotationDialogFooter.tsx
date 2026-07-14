@@ -18,6 +18,7 @@ type QuotationDialogFooterProps = {
   isConfirmingQuotation: boolean;
   isPrebooking: boolean;
   isWalletTopUpSubmitting: boolean;
+  canConfirmQuotation: boolean;
 };
 
 export function QuotationDialogFooter({
@@ -35,6 +36,7 @@ export function QuotationDialogFooter({
   isConfirmingQuotation,
   isPrebooking,
   isWalletTopUpSubmitting,
+  canConfirmQuotation,
 }: QuotationDialogFooterProps) {
   return (
 <DialogFooter className="gap-2">
@@ -76,7 +78,8 @@ export function QuotationDialogFooter({
     onClick={() => {
       void handleConfirmQuotation();
     }}
-    disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting}
+    disabled={isConfirmingQuotation || isPrebooking || isWalletTopUpSubmitting || !canConfirmQuotation}
+    title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
   >
     {isPrebooking ? 'Running Prebook...' : isConfirmingQuotation ? 'Submitting...' : 'Confirm Booking'}
   </Button>
