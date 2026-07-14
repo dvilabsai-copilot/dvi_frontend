@@ -1,7 +1,7 @@
 // FILE: src/pages/ItineraryDetails.tsx
 // Keep this as a named + default export module for router compatibility across HMR reloads.
 import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -166,6 +166,7 @@ import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/u
 import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
+import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
@@ -211,7 +212,6 @@ export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
 const { id: quoteId } = useParams();
 const location = useLocation();
-const navigate = useNavigate();
   console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
   //Extra
   console.log('🔵 Current location pathname:', location.pathname);
@@ -10692,93 +10692,31 @@ useEffect(() => {
   shouldShowHotels,
 ]);
 
-const handleItineraryRouteOptionClick = async (routeQuoteId: string) => {
-  const normalizedRouteQuoteId = String(routeQuoteId || "").trim();
-  const selectedRouteQuoteId = activeRouteQuoteId || quoteId || itinerary?.quoteId;
-
-  if (!normalizedRouteQuoteId || normalizedRouteQuoteId === selectedRouteQuoteId) {
-    return;
-  }
-
-  if (!normalizedRouteQuoteId.startsWith("DVI")) {
-    toast.error("Invalid route option. Route quote ID is missing.");
-    return;
-  }
-
-  const routeRequestId = ++latestRouteRequestRef.current;
-
-  try {
-    setIsSwitchingRouteOption(true);
-    setActiveRouteQuoteId(normalizedRouteQuoteId);
-
-    // Keep the current page visible while the selected sibling route loads.
-    isMountedRef.current = true;
-    switchedRouteRef.current = normalizedRouteQuoteId;
-    currentFetchRef.current = normalizedRouteQuoteId;
-    setError(null);
-    setPageReady(true);
-    setLoading(false);
-    setLoadingHotels(true);
-    pushPageLoaderStage("Loading selected route");
-
-    navigate(`/itinerary-details/${normalizedRouteQuoteId}`, { replace: true });
-
-    // Fast route switch: load route details first and show them immediately.
-    // Do not rebuild permits/vehicles here; the initial page load/retry flow still handles that.
-    const detailsRes = await getDetailsDeduped(normalizedRouteQuoteId);
-    const details = detailsRes as ItineraryDetailsResponse;
-
-    if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    setItinerary(details);
-    setVehicleBuildError(null);
-
-    const pref = Number(details.itineraryPreference ?? 3);
-    const useHotels = pref === 1 || pref === 3;
-    const useVehicles = pref === 2 || pref === 3;
-
-    setVehicleBuildStatus(useVehicles ? "READY" : "READY");
-
-    if (!useHotels) {
-      setHotelDetails(null);
-      setActiveHotelListTotal(0);
-      return;
-    }
-
-    const cachedHotelDetails = routeHotelDetailsByQuoteId[normalizedRouteQuoteId];
-    if (cachedHotelDetails) {
-      setHotelDetails(cachedHotelDetails);
-      return;
-    }
-
-    setHotelDetails(null);
-
-    const hotelRes = await loadAndCacheRouteHotelDetails(normalizedRouteQuoteId);
-
-    if (!isMountedRef.current || latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
-  } catch (e) {
-    if (latestRouteRequestRef.current !== routeRequestId) {
-      return;
-    }
-
-    switchedRouteRef.current = null;
-    console.error("Failed to switch itinerary route option", e);
-    toast.error(e?.message || "Failed to load selected route option");
-  } finally {
-    if (latestRouteRequestRef.current === routeRequestId) {
-      currentFetchRef.current = null;
-      setLoading(false);
-      setLoadingHotels(false);
-      setIsSwitchingRouteOption(false);
-    }
-  }
-};
+const handleItineraryRouteOptionClick = useRouteOptionSwitchController({
+  activeRouteQuoteId,
+  quoteId: quoteId || null,
+  itineraryQuoteId: itinerary?.quoteId,
+  routeHotelDetailsByQuoteId,
+  isMountedRef,
+  latestRouteRequestRef,
+  switchedRouteRef,
+  currentFetchRef,
+  shouldShowHotels,
+  setIsSwitchingRouteOption,
+  setActiveRouteQuoteId,
+  setError,
+  setPageReady,
+  setLoading,
+  setLoadingHotels,
+  setItinerary,
+  setHotelDetails,
+  setActiveHotelListTotal,
+  setVehicleBuildError,
+  setVehicleBuildStatus,
+  pushPageLoaderStage,
+  getDetailsDeduped,
+  loadAndCacheRouteHotelDetails,
+});
 
 const hotelTimelineLoading = Boolean(
   shouldShowHotels &&

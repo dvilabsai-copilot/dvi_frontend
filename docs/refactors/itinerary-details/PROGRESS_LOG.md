@@ -1126,6 +1126,26 @@
 - `ItineraryDetailsController.tsx`: 15,180 physical lines after extraction.
 - `useHotelSelectionMutation.ts`: 72 physical lines.
 
+## Iteration 59 — Sibling route switch controller
+
+### Changes
+
+- Created `src/pages/itinerary-details/hooks/useRouteOptionSwitchController.ts`.
+- Moved fast sibling-route navigation, stale-request protection, route details hydration, cached hotel reuse, and loading/error cleanup out of `ItineraryDetailsController.tsx`.
+- Preserved route ID validation, URL replacement navigation, vehicle readiness behavior, route-scoped hotel caching, and existing toast wording.
+- Behaviour intentionally changed: No.
+
+### Verification
+
+- Typecheck: no errors from the modified controller or route switch hook; existing repository errors remain documented.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+
+- `ItineraryDetailsController.tsx`: 15,118 physical lines after extraction.
+- `useRouteOptionSwitchController.ts`: 123 physical lines.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

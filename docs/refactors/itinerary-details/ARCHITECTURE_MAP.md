@@ -81,4 +81,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotel route-coverage derivation is isolated in `useHotelSelectionCoverage`; it preserves multi-night parent/child route expansion used by prebook and confirmation flows.
 - Formatted hotel clipboard retrieval/merge/copy is isolated in `useHotelClipboardAction`; it preserves backend mode/group payloads, highlights replacement, selection reset, and toast behavior.
 - Persisted hotel selection and post-selection refresh are isolated in `useHotelSelectionMutation`; it preserves read-only guards, selected meal-plan/room arguments, modal reset, and toast behavior.
+- Fast sibling-route navigation and route-scoped hydration are isolated in `useRouteOptionSwitchController`; stale-request guards, cached hotels, URL replacement, and loading cleanup remain centralized there.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
