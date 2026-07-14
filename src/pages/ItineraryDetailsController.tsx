@@ -156,6 +156,7 @@ import { useActivityPreviewController } from "./itinerary-details/hooks/useActiv
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
+import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7912,131 +7913,24 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     }
   };
 
-  const handlePreviewHotspot = async (
-    hotspotId: number,
-    options?: {
-      planId?: number;
-      routeId?: number;
-      anchor?: HotspotAnchor;
-      allowTopPriorityRemoval?: boolean;
-      selectedHotspotIds?: number[];
-      forceRefresh?: boolean;
-      source?: 'AFTER_MATRIX_BUILD' | 'USER_REFRESH' | 'DESTINATION_SIDE_MATRIX_NOT_REQUIRED';
-    },
-  ) => {
-    const pId = options?.planId || addHotspotModal.planId;
-    const rId = options?.routeId || addHotspotModal.routeId;
-    const anchor = options?.anchor || selectedHotspotAnchor || undefined;
-    if (!pId || !rId) return;
-
-    const requestId = ++previewRequestIdRef.current;
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(hotspotId);
-    setSelectedHotspotIds([hotspotId]);
-    setTopPriorityReplacementApproved(false);
-    setIsPreviewingHotspotId(hotspotId);
-
-    // Don't force scroll list to top here, let the user stay where they clicked
-    if (timelinePreviewRef.current) {
-      timelinePreviewRef.current.scrollTop = 0;
-    }
-
-    try {
-      const preview = await ItineraryService.previewAddHotspot(
-        pId,
-        rId,
-        hotspotId,
-        anchor
-          ? {
-            anchorType: anchor.anchorType,
-            anchorIndex: anchor.anchorIndex,
-          }
-          : undefined,
-        {
-          allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
-          selectedHotspotIds: [hotspotId],
-        },
-      );
-
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-
-      const fullTimeline = Array.isArray(preview?.fullTimeline) ? [...preview.fullTimeline] : [];
-      console.log('[ManualHotspotModal] received_timeline', {
-        hotspotId: Number(hotspotId),
-        segments: fullTimeline.length,
-        hasPreviewOrder: fullTimeline.some((seg) => Number.isFinite(Number(seg?.matrixPreviewOrder ?? seg?.previewOrder))),
-      });
-
-      const manualTimingPolicy = getManualTimingPolicyFromPreview(preview);
-
-      // The backend returns { newHotspot, otherConflicts, fullTimeline, allInsertionSlots }.
-      const previewResolution = {
-        ...(preview?.resolution || {}),
-        anchorPreference: preview?.anchorPreference || null,
-        newHotspot: preview?.newHotspot || null,
-        allInsertionSlots: preview?.allInsertionSlots || [],
-        slotInsights: preview?.resolution?.slotInsights || [],
-        manualTimingPolicy,
-      };
-      setManualPreviewState({
-        ...preview,
-        fullTimeline,
-        manualTimingPolicy,
-        manualInsertionFit:
-          preview?.manualInsertionFit
-          || previewResolution?.manualInsertionFit
-          || preview?.resolution?.manualInsertionFit
-          || null,
-      });
-      setPreviewTimelinesByHotspot((prev) => ({
-        ...prev,
-        [hotspotId]: fullTimeline,
-      }));
-      setPreviewResolutionsByHotspot((prev) => ({
-        ...prev,
-        [hotspotId]: previewResolution,
-      }));
-      setGroupPreviewResolution(previewResolution);
-      if (options?.allowTopPriorityRemoval === true) {
-        setForceReplacementApprovedByHotspot((prev) => ({
-          ...prev,
-          [hotspotId]: true,
-        }));
-        setTopPriorityReplacementApproved(true);
-      }
-
-      if (preview?.anchorPreference?.honored === false) {
-        const requestedIndex = preview?.anchorPreference?.requested?.anchorIndex;
-        const resolvedIndex = preview?.anchorPreference?.resolved?.anchorIndex;
-        const resolvedTimeRange = preview?.anchorPreference?.resolved?.timeRange;
-        toast.info(
-          `Preferred anchor ${requestedIndex} moved to ${resolvedIndex}${resolvedTimeRange ? ` (${resolvedTimeRange})` : ''} due to timing constraints.`
-        );
-      }
-    } catch (e) {
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-      console.error("Failed to preview hotspot", e);
-      toast.error(e?.message || "Failed to preview hotspot");
-      setActivePreviewHotspotId(null);
-      setSelectedHotspotIds([]);
-    } finally {
-      if (requestId === previewRequestIdRef.current) {
-        setIsPreviewingHotspotId(null);
-      }
-    }
-  };
-
-  const handleRemovePreviewHotspot = async (hotspotId: number) => {
-    if (Number(activePreviewHotspotId || 0) !== Number(hotspotId)) return;
-    previewRequestIdRef.current += 1;
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(null);
-    setSelectedHotspotIds([]);
-  };
+  const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
+    addHotspotModal,
+    activePreviewHotspotId,
+    selectedHotspotAnchor,
+    previewRequestIdRef,
+    timelinePreviewRef,
+    resetManualHotspotPreviewState,
+    getManualTimingPolicyFromPreview,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+    setForceReplacementApprovedByHotspot,
+    setTopPriorityReplacementApproved,
+    setIsPreviewingHotspotId,
+    setManualPreviewState,
+    setPreviewTimelinesByHotspot,
+    setPreviewResolutionsByHotspot,
+    setGroupPreviewResolution,
+  });
 
   const handleConfirmPriorityReplacement = async () => {
     const targetHotspotId = pendingPriorityReplacementHotspotId || selectedHotspotId;

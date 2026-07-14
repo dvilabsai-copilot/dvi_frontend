@@ -1032,6 +1032,33 @@
 - Matrix result-code behavior and toast wording remain unchanged; only ownership moved.
 - Follow-up extraction: manual hotspot preview mutation and Fit Here confirmation workflow.
 
+## Iteration 73 - Manual hotspot preview mutation boundary
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useHotspotPreviewMutation.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: manual preview API invocation, stale-request guard, preview timeline/resolution state, anchor-adjustment toast, and preview cancellation cleanup.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useHotspotPreviewMutation.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,343 lines.
+- New `useHotspotPreviewMutation.ts`: 156 lines.
+
+### Notes
+- Preview request payloads, response normalization, and toast wording remain unchanged; only ownership moved.
+- Follow-up extraction: priority-replacement/matrix-confirmation action and Fit Here confirmation workflow.
+
 ## Iteration 52 — Hotel rebuild mutation boundary
 
 ### Changes
