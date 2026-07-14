@@ -1112,6 +1112,33 @@
 - Provider inference, supplier-bookable guards, amount conversion, and attached passengers remain unchanged; only pure row normalization moved.
 - Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
 
+## Iteration 94 - Quotation prebook selection utility
+
+### Baseline
+- Tests run: targeted controller/new-utility typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new utility; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/utils/quotationPrebookSelections.utils.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: persisted supplier-row backfill, uncovered-route detection, cheapest-per-route recommendation selection, and prebook selection-map normalization.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `quotationPrebookSelections.utils.ts`; unrelated repository errors remain.
+- Lint: new utility passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,906 lines.
+- New `quotationPrebookSelections.utils.ts`: 109 lines.
+
+### Notes
+- Explicit in-session selections remain authoritative; persisted rows only fill uncovered routes and recommended cheapest rows fill remaining routes as before.
+- Follow-up extraction: final confirmation response/reset orchestration and remaining hotel/vehicle workflow boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline

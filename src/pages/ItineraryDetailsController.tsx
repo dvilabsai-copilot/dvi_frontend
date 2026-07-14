@@ -141,6 +141,7 @@ import {
 } from "./itinerary-details/utils/quotationOccupancy.utils";
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "./itinerary-details/utils/quotationHotelBookings.utils";
+import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
@@ -7720,124 +7721,26 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
         Array.from(getCoveredRouteIdsFromHotelSelections(selectedHotelBookings)),
       );
       if (hotelDetails?.hotels?.length) {
-        const preferredGroupType =
-          activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
-
-        const persistedSelections: typeof selectedHotelBookings = {};
-        hotelDetails.hotels
-          .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-          .forEach((h) => {
-            const routeId = Number(h.itineraryRouteId || 0);
-            if (!routeId) return;
-            if (Number(h?.itineraryPlanHotelDetailsId || 0) <= 0) return;
-
-            const routeDay = itinerary?.days?.find((d) => Number(d.id) === routeId);
-            const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
-            const checkOutDate = routeDay
-              ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
-              : '';
-
-            persistedSelections[routeId] = {
-              provider: normalizeHotelProvider(h) || 'tbo',
-              hotelCode: String(h.hotelCode || h.hotelId || ''),
-              bookingCode: String(h.bookingCode || h.searchReference || ''),
-              searchReference: String(h.searchReference || h.bookingCode || '').trim() || undefined,
-              roomId:
-                parseStaahSearchReference(h.searchReference || h.bookingCode)?.roomId ||
-                undefined,
-              rateId:
-                parseStaahSearchReference(h.searchReference || h.bookingCode)?.rateId ||
-                undefined,
-              roomType: h.roomType || 'Standard',
-              netAmount: getHotelSelectionAmount(h),
-              hotelName: h.hotelName,
-              checkInDate,
-              checkOutDate,
-              searchInitiatedAt: new Date().toISOString(),
-              groupType: preferredGroupType,
-              isBookable: true,
-              externalStay: false,
-              availabilityStatus: 'AVAILABLE',
-              availabilityMessage: null,
-            };
-          });
-
-        if (Object.keys(persistedSelections).length > 0) {
-          // ✅ User's in-session selection wins over persisted DB value — only fill routes
-          // that the user has NOT explicitly selected in this session.
-          const mergedPersisted: typeof persistedSelections = {};
-          Object.entries(persistedSelections).forEach(([routeId, val]) => {
-            const routeIdNum = Number(routeId);
-            const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
-
-            if (!coveredRouteIds.has(routeIdNum)) {
-              mergedPersisted[routeIdNum] = val;
-            }
-          });
-          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...mergedPersisted };
-          setSelectedHotelBookings(prev => ({ ...prev, ...mergedPersisted }));
-        }
-
-        const routeBuckets = new Map<number, typeof hotelDetails.hotels[0][]>();
-        hotelDetails.hotels
-          .filter((h) => Number(h.groupType) === Number(preferredGroupType) && isSupplierBookableHotel(h))
-          .forEach((h) => {
-            const routeId = Number(h.itineraryRouteId || 0);
-            if (!routeId) return;
-            if (!routeBuckets.has(routeId)) routeBuckets.set(routeId, []);
-            routeBuckets.get(routeId)!.push(h);
-          });
-
-        const autoSelections: typeof selectedHotelBookings = {};
-        routeBuckets.forEach((rows, routeId) => {
-          const coveredRouteIds = getCoveredRouteIdsFromHotelSelections(selectedHotelsForPrebook);
-          if (coveredRouteIds.has(Number(routeId))) return;
-
-          const cheapest = rows.reduce((best, curr) => {
-            const bestTotal = Number(best.totalHotelCost || 0) + Number(best.totalHotelTaxAmount || 0);
-            const currTotal = Number(curr.totalHotelCost || 0) + Number(curr.totalHotelTaxAmount || 0);
-            return currTotal < bestTotal ? curr : best;
-          });
-
-          if (!isSupplierBookableHotel(cheapest)) return;
-
-          const routeDay = itinerary?.days?.find((d) => Number(d.id) === routeId);
-          const checkInDate = routeDay ? String(routeDay.date).split('T')[0] : '';
-          const checkOutDate = routeDay
-            ? new Date(new Date(String(routeDay.date)).getTime() + 86400000).toISOString().split('T')[0]
-            : '';
-
-          autoSelections[routeId] = {
-            provider: normalizeHotelProvider(cheapest) || 'tbo',
-            hotelCode: String(cheapest.hotelCode || cheapest.hotelId || ''),
-            bookingCode: String(cheapest.bookingCode || cheapest.searchReference || ''),
-            searchReference: String(cheapest.searchReference || cheapest.bookingCode || '').trim() || undefined,
-            roomId:
-              parseStaahSearchReference(cheapest.searchReference || cheapest.bookingCode)?.roomId ||
-              undefined,
-            rateId:
-              parseStaahSearchReference(cheapest.searchReference || cheapest.bookingCode)?.rateId ||
-              undefined,
-            roomType: cheapest.roomType || 'Standard',
-            netAmount: getHotelSelectionAmount(cheapest),
-            hotelName: cheapest.hotelName,
-            checkInDate,
-            checkOutDate,
-            searchInitiatedAt: new Date().toISOString(),
-            groupType: preferredGroupType,
-            isBookable: true,
-            externalStay: false,
-            availabilityStatus: 'AVAILABLE',
-            availabilityMessage: null,
-          };
+        const preferredGroupType = activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
+        const preparedSelections = prepareQuotationPrebookSelections({
+          selectedHotelBookings,
+          hotelRows: hotelDetails.hotels as unknown as Array<Record<string, unknown>>,
+          preferredGroupType: Number(preferredGroupType),
+          itineraryDays: itinerary?.days || [],
+          normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
+          isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+          parseStaahSearchReference,
+          getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
+          getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
         });
-
-        if (Object.keys(autoSelections).length > 0) {
-          selectedHotelsForPrebook = { ...selectedHotelsForPrebook, ...autoSelections };
-          setSelectedHotelBookings(prev => ({ ...prev, ...autoSelections }));
+        selectedHotelsForPrebook = preparedSelections.selectedHotelsForPrebook as unknown as typeof selectedHotelsForPrebook;
+        if (Object.keys(preparedSelections.mergedPersisted).length > 0) {
+          setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.mergedPersisted } as unknown as typeof previous));
+        }
+        if (Object.keys(preparedSelections.autoSelections).length > 0) {
+          setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.autoSelections } as unknown as typeof previous));
         }
       }
-
       // ── Prebook only user-explicitly-selected TBO hotels ──
       // Non-TBO hotels are shown in the review modal but are not sent to the TBO prebook API.
 
