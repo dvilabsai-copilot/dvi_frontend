@@ -189,6 +189,7 @@ import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationP
 import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
 import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
 import { HotspotListState } from "./itinerary-details/components/HotspotListState";
+import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSelectionNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -11013,14 +11014,7 @@ const canShowGuideActionButton =
                           const blockForValidation =
                             activePreviewValidation?.readyToApply === false && !forceConflictMode;
                           if (isFitHereSelectionMode) {
-                            return (
-                              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                                <p className="font-bold">Choose exact position</p>
-                                <p className="mt-1">
-                                  Click a <b>Fit Here</b> button in the timeline above. We will calculate and confirm that exact position.
-                                </p>
-                              </div>
-                            );
+                            return <HotspotSelectionNotice />;
                           }
                           return (
                         <Button

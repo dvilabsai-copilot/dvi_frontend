@@ -1349,6 +1349,33 @@
 ### Notes
 - Hotspot cards and Fit Here/matrix action controls remain the next high-coupling hotspot view boundary.
 
+## Iteration 115 — Hotspot selection notice extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/selection-notice files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; selection notice lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/HotspotSelectionNotice.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: Fit Here selection-mode guidance now renders in a dedicated component; preview validation and action state remain unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `HotspotSelectionNotice.tsx`; unrelated repository errors remain.
+- Lint: new selection notice component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 11,841 lines (down from 11,847 at the previous checkpoint).
+- New `HotspotSelectionNotice.tsx`: 11 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The remaining hotspot action button and preview timeline contain high-coupling matrix/conflict decisions and remain deferred for a larger controller/view boundary.
+
 ## Iteration 114 — Non-TBO acceptance notice extraction
 
 ### Baseline
