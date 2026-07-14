@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 213 - Available-hotspot normalization hook
+
+### Baseline
+- Starting checkpoint: `d27c3cb` on `refactor/itinerary-details-continuation` with current-route hotspot state extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useNormalizedAvailableHotspots.ts`.
+- Moved available-hotspot normalization defaults and modal-specific override wiring out of `ItineraryDetailsController.tsx`.
+- Preserved excluded-ID handling, active-route reconciliation, manual metadata enrichment, and callback options.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Focused Playwright remains green from the preceding checkpoint; this extraction is callback wiring only.
+- `git diff --check` passed.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,984 physical lines (down from 5,992 at the previous iteration).
+- New `useNormalizedAvailableHotspots.ts`: 33 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository typecheck/lint retains documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 212 - Current-route hotspot state hook
 
 ### Baseline

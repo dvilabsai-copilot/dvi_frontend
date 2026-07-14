@@ -70,6 +70,7 @@ import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotSta
 import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
 import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
 import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
+import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
 import type {
   Activity,
   AttractionSegment,
@@ -112,7 +113,6 @@ import {
   isAttractionCoveredByGuide as isAttractionCoveredByGuideUtil,
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
-import { normalizeAvailableHotspots as normalizeAvailableHotspotsUtil } from "./itinerary-details/utils/hotspotAvailability.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
 import {
   buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
@@ -1050,19 +1050,11 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     routeId: addHotspotModal.routeId,
   });
 
-  // Helper to normalize available hotspots after fetching.
-  const normalizeAvailableHotspots = useCallback((
-    hotspots: AvailableHotspot[],
-    options?: { routeId?: number | null; excludedIds?: number[]; activeIds?: Set<number> },
-  ): AvailableHotspot[] => normalizeAvailableHotspotsUtil(
-    hotspots,
-    {
-      excludedIds: excludedHotspotIds,
-      activeIds: currentRouteAttractionHotspotIds,
-      manualMetaById: currentRouteManualHotspotMetaById,
-    },
-    options,
-  ), [excludedHotspotIds, currentRouteAttractionHotspotIds, currentRouteManualHotspotMetaById]);
+  const normalizeAvailableHotspots = useNormalizedAvailableHotspots({
+    excludedHotspotIds,
+    currentRouteAttractionHotspotIds,
+    currentRouteManualHotspotMetaById,
+  });
 
   // Keep left list focused near latest selected card.
   useEffect(() => {
@@ -1645,6 +1637,9 @@ const switchedRouteRef = useRef<string | null>(null);
 
   const hasUsableVehicleRows = useCallback((details: ItineraryDetailsResponse | null | undefined) => {
     const vehicles = Array.isArray(details?.vehicles) ? details.vehicles : [];
+    if (!vehicles.length && (details?.vehicleRateAvailability?.length || 0) > 0) {
+      return true;
+    }
     if (!vehicles.length) return false;
     return vehicles.some((vehicle) => {
       const vendorEligibleId = Number(vehicle?.vendorEligibleId || 0);
@@ -2947,11 +2942,14 @@ const canShowGuideActionButton =
         </div>
       )}
 
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (
+      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
+        ((itinerary.vehicles && itinerary.vehicles.length > 0) ||
+          (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length > 0)) && (
         <VehicleSection
           vehicleListRef={vehicleListRef}
           summaryStickyHeight={summaryStickyHeight}
           vehicles={itinerary.vehicles}
+          vehicleRateAvailability={itinerary.vehicleRateAvailability}
           planId={itinerary.planId}
           dateRange={itinerary.dateRange}
           days={itinerary.days || []}
@@ -2962,7 +2960,9 @@ const canShowGuideActionButton =
         />
       )}
 
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
+      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
+        (!itinerary.vehicles || itinerary.vehicles.length === 0) &&
+        (!itinerary.vehicleRateAvailability || itinerary.vehicleRateAvailability.length === 0) && (
         <div
           ref={vehicleListRef}
           id="vehicle-list-section"
