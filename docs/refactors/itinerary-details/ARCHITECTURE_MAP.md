@@ -97,4 +97,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Exact-anchor Fit Here preview requests, progress-modal transitions, payload construction, and preview error handling are isolated in `useFitHerePreviewController`.
 - Fit Here cancellation, retry-payload validation, and tried-anchor bookkeeping are isolated in `useFitHereDialogController`.
 - Fit Here confirmation retryability, error-code extraction, expired-attempt classification, removal/approval analysis, and response normalization are pure helpers in `fitHereConfirm.utils.ts`.
+- Successful Fit Here insertion reset of selected hotspot, preview maps, dialog state, and tried anchors is isolated in `useFitHereConfirmationReset`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

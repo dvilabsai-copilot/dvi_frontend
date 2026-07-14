@@ -1086,6 +1086,33 @@
 - Approval flags and preview request semantics remain unchanged; only ownership moved.
 - Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
 
+## Iteration 80 - Fit Here confirmation reset boundary
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useFitHereConfirmationReset.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: successful-insertion reset of selected hotspot, active preview, timeline/resolution caches, modal state, and tried-anchor state.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useFitHereConfirmationReset.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 14,089 lines.
+- New `useFitHereConfirmationReset.ts`: 68 lines.
+
+### Notes
+- Reset values and modal closure semantics remain unchanged; only ownership moved.
+- Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
+
 ## Iteration 79 - Fit Here confirmation response normalization
 
 ### Baseline

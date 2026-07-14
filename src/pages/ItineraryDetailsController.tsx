@@ -168,6 +168,7 @@ import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotP
 import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
 import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHerePreviewController";
 import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
+import { useFitHereConfirmationReset } from "./itinerary-details/hooks/useFitHereConfirmationReset";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -7418,6 +7419,21 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
     handleFitHereClick,
   });
 
+  const resetFitHereAfterConfirmation = useFitHereConfirmationReset({
+    setSelectedFitHotspot,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+    setManualPreviewState,
+    setPreviewTimelinesByHotspot,
+    setPreviewResolutionsByHotspot,
+    setGroupPreviewTimeline,
+    setGroupPreviewResolution,
+    setTempModalTimeline,
+    setFitHereModal,
+    setAutoFitHereModal,
+    setTriedFitHereAnchors,
+  });
+
   const getFitHereRefreshScrollStorageKey = useCallback(() => {
     const normalizedQuoteId = String(quoteId || "").trim();
     return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
@@ -7598,35 +7614,7 @@ if (oldGuideCostForHeader !== newGuideCostForHeader) {
       }
 
       toast.success('Hotspot inserted successfully. Timeline updated.');
-      setSelectedFitHotspot(null);
-      setActivePreviewHotspotId(null);
-      setSelectedHotspotIds([]);
-      setManualPreviewState(null);
-      setPreviewTimelinesByHotspot({});
-      setPreviewResolutionsByHotspot({});
-      setGroupPreviewTimeline([]);
-      setGroupPreviewResolution(null);
-      setTempModalTimeline([]);
-      setFitHereModal({
-        open: false,
-        loading: false,
-        loadingStepIndex: 0,
-        failedReason: null,
-        attempt: null,
-        anchorKey: null,
-        retryPayload: null,
-      });
-      setAutoFitHereModal({
-        open: false,
-        loading: false,
-        failedReason: null,
-        results: [],
-        selectedAnchorKey: null,
-        loadingAnchorCount: 0,
-        loadingStartedAtMs: null,
-        performanceSummary: null,
-      });
-      setTriedFitHereAnchors({});
+      resetFitHereAfterConfirmation();
 
       if (quoteId) {
         const [detailsRes, hotelRes] = await Promise.all([
