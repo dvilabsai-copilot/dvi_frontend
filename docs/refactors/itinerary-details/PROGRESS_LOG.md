@@ -4325,3 +4325,24 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 177 - Remove unreachable vehicle-only clipboard builder
+
+### Baseline
+- Starting checkpoint: `23abbec` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Removed the unused `buildVehicleOnlyClipboardHtml` block from `ItineraryDetailsController.tsx`.
+- Confirmed all vehicle-only clipboard call sites use `useVehicleOnlyClipboardAction`.
+- Behaviour intentionally changed: No.
+
+### Verification
+- No controller TypeScript errors were reported by the filtered typecheck.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,974 lines (down from 9,103).
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

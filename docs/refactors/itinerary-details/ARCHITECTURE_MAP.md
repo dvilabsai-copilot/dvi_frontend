@@ -190,4 +190,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Route-family quote-number extraction and option normalization are isolated in `routeOptions.utils.ts`; deduplication, DVI filtering, sorting, and labels are reusable.
 - Route hotel-cache warming is isolated in `useRouteHotelPrefetch.ts`; route filtering, deduplication, cancellation, and retry bookkeeping no longer live in the page controller.
 - Related route-option discovery and fallback handling are isolated in `useRelatedRouteOptionsLoader.ts`; API/local-storage lookup, date formatting, related-plan filtering, and `Route 1` fallback behavior no longer live in the page controller.
+- The legacy inline vehicle-only clipboard builder is removed; `useVehicleOnlyClipboardAction.ts` is the active vehicle-only clipboard boundary.
 - Itinerary UI source strings are stored as valid UTF-8; currency, punctuation, status symbols, and emoji rendering no longer depend on mojibake literals.

@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 9,103 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 8,974 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -21,6 +21,7 @@ Current facts:
 - New in this checkpoint: arrival-policy decision-key derivation is shared through `routeArrivalPolicy.utils.ts`.
 - New in this checkpoint: arrival-policy route-time gating and confirmation persistence are isolated in `useArrivalPolicyRouteTimeController.ts`.
 - New in this checkpoint: related route-option API/local-storage lookup, date normalization, related-plan filtering, and fallback handling are isolated in `useRelatedRouteOptionsLoader.ts`.
+- New in this checkpoint: the unreachable legacy vehicle-only clipboard HTML builder was removed; the active `useVehicleOnlyClipboardAction` remains the sole vehicle-only clipboard path.
 - New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
