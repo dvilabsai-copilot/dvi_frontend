@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 202 - Non-TBO selected hotel entries hook
+
+### Baseline
+- Starting checkpoint: `6924f8d` on `refactor/itinerary-details-continuation` with external-stay extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useNonTboSelectedHotelEntries.ts`.
+- Moved non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review display shaping out of `ItineraryDetailsController.tsx`.
+- Preserved provider/bookability checks, booking/hotel/room/amount matching precedence, displayed route IDs, and date/night fallbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,019 lines (down from 6,080 at the previous iteration).
+- New `useNonTboSelectedHotelEntries.ts`: 100 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 201 - External-stay entries hook
 
 ### Baseline

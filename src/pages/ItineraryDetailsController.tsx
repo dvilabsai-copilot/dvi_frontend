@@ -59,6 +59,7 @@ import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
   useExternalStayEntries,
 } from "./itinerary-details/hooks/useExternalStayEntries";
+import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
 import type {
   Activity,
   AttractionSegment,
@@ -2006,84 +2007,12 @@ const switchedRouteRef = useRef<string | null>(null);
   });
 
   // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = useMemo(() => {
-    return Object.entries(selectedHotelBookings)
-    .filter(([routeId, h]) => {
-      if (!isSupplierBookableHotel(h) || normalizeHotelProvider(h) === 'tbo') {
-        return false;
-      }
-
-      const routeIdNum = Number(routeId);
-
-      if (!h?.multiNightBooking && selectedHotelCoveredRouteIds.has(routeIdNum)) {
-        const parentForRoute = Object.values(selectedHotelBookings).find((selected) => {
-          const routeIds = Array.isArray(selected?.routeIds)
-            ? selected.routeIds.map((id) => Number(id))
-            : [];
-
-          return selected?.multiNightBooking && routeIds.includes(routeIdNum);
-        });
-
-        if (parentForRoute) {
-          return false;
-        }
-      }
-
-      return true;
-    })
-    .map(([routeId, h]: [string, any]) => {
-      const routeIdNum = parseInt(routeId, 10);
-      const selectedProvider = normalizeHotelProvider(h);
-      const selectedBookingCode = getBookingCodeForBooking(h);
-      const selectedHotelCode = getHotelCodeForBooking(h);
-      const selectedHotelName = String((h as any)?.hotelName || '').trim().toLowerCase();
-      const selectedRoomType = String((h as any)?.roomType || '').trim().toLowerCase();
-      const selectedAmount = getHotelAmountForBooking(h);
-
-      const displayRouteIds = Array.isArray(h?.routeIds) && h.routeIds.length > 0
-        ? h.routeIds
-            .map((id) => Number(id))
-            .filter((id: number) => Number.isFinite(id) && id > 0)
-        : [routeIdNum];
-
-      const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row) =>
-        displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
-        normalizeHotelProvider(row) === selectedProvider &&
-        isSupplierBookableHotel(row),
-      );
-
-      const matchedHotelRow =
-        routeRows.find((row) => {
-          const rowBookingCode = String(row?.bookingCode || row?.searchReference || '').trim();
-          const rowHotelCode = String(row?.hotelCode || '').trim();
-          const rowHotelName = String(row?.hotelName || '').trim().toLowerCase();
-          const rowRoomType = String(row?.roomType || '').trim().toLowerCase();
-          const rowAmount = Number(row?.totalHotelCost || 0) + Number(row?.totalHotelTaxAmount || 0);
-
-          const bookingCodeMatch = selectedBookingCode !== '' && rowBookingCode !== '' && selectedBookingCode === rowBookingCode;
-          const hotelCodeMatch = selectedHotelCode !== '' && rowHotelCode !== '' && selectedHotelCode === rowHotelCode;
-          const hotelNameMatch = selectedHotelName !== '' && rowHotelName !== '' && selectedHotelName === rowHotelName;
-          const roomTypeMatch = selectedRoomType !== '' && rowRoomType !== '' && selectedRoomType === rowRoomType;
-          const amountMatch = selectedAmount > 0 && Math.abs(selectedAmount - rowAmount) <= 0.01;
-
-          return (bookingCodeMatch && (roomTypeMatch || amountMatch)) || hotelCodeMatch || (hotelNameMatch && amountMatch);
-        }) || routeRows[0] || null;
-
-      return {
-        routeId: routeIdNum,
-        ...h,
-        matchedHotelRow,
-        displayRouteIds,
-        displayNights: Number(h?.nights || displayRouteIds.length || 1),
-        displayCheckInDate: h?.checkInDate,
-        displayCheckOutDate: h?.checkOutDate,
-      };
-    });
-  }, [
-    hotelDetails?.hotels,
+  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({
     selectedHotelBookings,
     selectedHotelCoveredRouteIds,
-  ]);
+    hotelDetails,
+  });
+
   const externalStayEntries = useExternalStayEntries({
     hotelDetails,
     activeHotelGroupType,

@@ -212,6 +212,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Selected-hotel display-day hydration, hotel travel-leg timing, check-in insertion, and early-morning arrival handling are isolated in `useHotelHydratedDays.ts`.
 - Confirmed/read-only hotel row matching, day/date reconciliation, placeholder rows, cancellation metadata, and draft supplier-row preservation are isolated in `useHotelsForDisplay.ts`.
 - External-stay filtering, preferred hotel-group selection, and the shared no-supplier customer message are isolated in `useExternalStayEntries.ts`.
+- Non-TBO selected-hotel filtering, multi-night coverage suppression, route-row matching, and quotation-review shaping are isolated in `useNonTboSelectedHotelEntries.ts`.
 - Image URL resolution, gallery initialization, and YouTube watch-to-embed conversion are isolated in `useMediaModalController.ts`.
 - Lazy hotel-detail hydration is isolated in `useEnsureHotelDetailsLoaded.ts`; the controller no longer owns its loading/error lifecycle.
 - Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.
