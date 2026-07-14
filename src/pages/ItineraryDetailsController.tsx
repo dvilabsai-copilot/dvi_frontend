@@ -187,6 +187,14 @@ import {
   resolvePrebookInclusions,
   resolvePrebookMealPlan,
 } from "./itinerary-details/utils/quotationConfirmationDetails.utils";
+import {
+  escapeHtml,
+  formatCurrency,
+  getHotelSelectionAmount,
+  getWalletAmountFromResponse,
+  parseWalletAmount,
+  toMoneyNumber,
+} from "./itinerary-details/utils/clipboardFormatting.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3263,79 +3271,6 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
       setSelectedHotels(buildDefaultClipboardSelection());
     }
   }, [clipboardModal, paraRecommendations, selectedHotels, buildDefaultClipboardSelection]);
-
-  const escapeHtml = (value: unknown) => {
-    return String(value ?? "")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  };
-
-  const formatCurrency = (value?: number | string | null) => {
-    const amount = Number(value || 0);
-    return `₹ ${amount.toFixed(2)}`;
-  };
-
-  const parseWalletAmount = (value: unknown): number => {
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value ?? "").replace(/[^\d.-]/g, "");
-    const amount = Number(cleaned);
-
-    return Number.isFinite(amount) ? amount : 0;
-  };
-
-  const getWalletAmountFromResponse = (walletData): number => {
-    return parseWalletAmount(
-      walletData?.balance ??
-        walletData?.wallet_balance ??
-        walletData?.formatted_balance ??
-        walletData?.cashWalletBalance ??
-        walletData?.formattedBalance ??
-        walletData,
-    );
-  };
-
-  const toMoneyNumber = (value?: number | string | null): number => {
-    const amount = Number(value || 0);
-    if (!Number.isFinite(amount)) return 0;
-
-    return Number(amount.toFixed(2));
-  };
-  /*
-
-  if (typeof raw === "number") {
-    return Number.isFinite(raw) ? raw : 0;
-  }
-
-  const cleaned = String(raw)
-    .replace(/₹/g, "")
-    .replace(/,/g, "")
-    .replace(/[^\d.-]/g, "")
-    .trim();
-
-  const amount = Number(cleaned);
-
-  return Number.isFinite(amount) ? amount : 0;
-};
-
-  */
-  const getHotelSelectionAmount = (hotel): number => {
-    const directTotal = Number(hotel?.totalAmount ?? hotel?.totalPrice ?? 0);
-    if (Number.isFinite(directTotal) && directTotal > 0) {
-      return toMoneyNumber(directTotal);
-    }
-
-    const totalHotelCost = Number(hotel?.totalHotelCost ?? hotel?.perNightAmount ?? hotel?.pricePerNight ?? 0);
-    const totalHotelTaxAmount = Number(hotel?.totalHotelTaxAmount ?? hotel?.taxAmount ?? 0);
-    const computedTotal = totalHotelCost + totalHotelTaxAmount;
-
-    return toMoneyNumber(computedTotal);
-  };
 
   const copyHtmlToClipboard = async (html: string, plainText: string) => {
     try {

@@ -3863,3 +3863,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 157 — Clipboard and wallet formatting helpers
+
+### Baseline
+- Starting checkpoint: `0b54a4f` on `refactor/itinerary-details-checkpoint` with the focused Fit Here regressions and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/clipboardFormatting.utils.ts`.
+- Moved HTML escaping, currency/wallet parsing, money rounding, hotel-selection amount normalization, and wallet-response extraction out of `ItineraryDetailsController.tsx`.
+- Removed the stale commented compatibility implementations that duplicated those helpers.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,119 lines (down from 10,184).
+- New utility: 52 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
