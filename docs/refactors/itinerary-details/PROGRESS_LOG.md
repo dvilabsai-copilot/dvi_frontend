@@ -1271,6 +1271,19 @@
 - `ItineraryDetailsController.tsx`: 14,836 physical lines after extraction.
 - `useWalletTopUpController.ts`: 68 physical lines.
 
+## Iteration 66 — Broader verification checkpoint
+
+### Verification
+
+- Broader itinerary selector: 34 tests executed with 8 workers; 9 passed, 2 skipped, and 23 failed.
+- Failures remain classified in `REGRESSION_LOG.md` as shared mutable Fit Here/APJ data, PHP/Nest parity/environment differences, and vehicle-only backend processing/data visibility.
+- Focused Playwright pair remains 2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.
+- Repository lint baseline remains 1,936 errors and 107 warnings.
+
+### Notes
+
+- No application or test weakening changes were made. This is a documentation-only verification checkpoint; the refactor remains in progress.
+
 ## Iteration 25 — Hotel workflow state boundary
 
 ### Baseline

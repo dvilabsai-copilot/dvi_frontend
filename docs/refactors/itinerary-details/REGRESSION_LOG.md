@@ -147,3 +147,22 @@ No test weakening or application workaround was added. Generated result director
 
 ### Verification
 Focused pair remains 2/2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.
+
+## 2026-07-14 — Broader itinerary Playwright rerun after workflow hooks
+
+### Failure
+The broader command ran 34 tests with 8 workers: 9 passed, 2 skipped, and 23 failed.
+
+### Classification
+- shared mutable test-data contention
+- environment issue
+- pre-existing backend/parity issue
+
+### Root cause
+The failures remain concentrated in Fit Here/APJ shared-record mutations, PHP/Nest parity redirects, and vehicle-only backend processing/data visibility. The focused hotspot characterization pair remains green.
+
+### Resolution
+No application or test weakening changes were made. Generated result directories were removed and tracked Playwright metadata restored.
+
+### Verification
+Focused pair remains 2/2 passed; production build passes; filtered page/new-module typecheck remains free of new errors.
