@@ -13,7 +13,7 @@ export const escapeHtml = (value: unknown): string =>
 
 export const formatCurrency = (value?: number | string | null): string => {
   const amount = Number(value || 0);
-  return `₹ ${amount.toFixed(2)}`;
+  return `\u20B9 ${amount.toFixed(2)}`;
 };
 
 export const parseWalletAmount = (value: unknown): number => {

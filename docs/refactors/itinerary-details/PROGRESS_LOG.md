@@ -4326,6 +4326,29 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
 
+## Iteration 183 - Quotation confirmation submission hook
+
+### Baseline
+- Starting checkpoint: `aa1c989` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useQuotationConfirmationSubmission.ts`.
+- Moved passenger validation handoff, wallet sufficiency checks, hotel-booking payload assembly, booking guards, confirmation submission, and final cleanup out of the page controller.
+- Preserved confirmation payload fields, wallet top-up gating, prebook/external-stay route context, provider handling, and toast messages.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,656 lines (down from 7,764).
+- New hook: 280 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
 ## Iteration 177 - Remove unreachable vehicle-only clipboard builder
 
 ### Baseline
@@ -4364,7 +4387,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 8,940 lines (down from 8,974).
+- Transitional `ItineraryDetailsController.tsx`: 8,139 lines (down from 8,162).
 - New utility: 43 lines.
 
 ### Notes
@@ -4387,7 +4410,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 8,740 lines (down from 8,940).
+- Transitional `ItineraryDetailsController.tsx`: 7,966 lines (down from 8,139).
 - New hook: 259 lines.
 
 ### Notes
@@ -4410,7 +4433,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 8,712 lines (down from 8,740).
+- Transitional `ItineraryDetailsController.tsx`: 7,941 lines (down from 7,966).
 - New hook: 49 lines.
 
 ### Notes
@@ -4433,7 +4456,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 8,697 lines (down from 8,712).
+- Transitional `ItineraryDetailsController.tsx`: 7,930 lines (down from 7,941).
 - New hook: 40 lines.
 
 ### Notes
@@ -4456,7 +4479,7 @@
 
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
-- Transitional `ItineraryDetailsController.tsx`: 8,512 lines (down from 8,697).
+- Transitional `ItineraryDetailsController.tsx`: 7,764 lines (down from 7,930).
 - New hook: 306 lines.
 
 ### Notes

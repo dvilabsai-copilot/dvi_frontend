@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 8,940 lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 7,656 lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -27,6 +27,7 @@ Current facts:
 - New in this checkpoint: image URL normalization, gallery state opening, and YouTube video embedding are isolated in `useMediaModalController.ts`.
 - New in this checkpoint: lazy hotel-detail loading, loading-state cleanup, and error feedback are isolated in `useEnsureHotelDetailsLoaded.ts`.
 - New in this checkpoint: confirmation-modal initialization, customer/agent hydration, recommended-hotel preselection, and TBO prebook orchestration are isolated in `useQuotationConfirmationModalController.ts`.
+- New in this checkpoint: quotation wallet gating, hotel-booking payload assembly, booking guards, confirmation submission, and final cleanup are isolated in `useQuotationConfirmationSubmission.ts`.
 - New in this checkpoint: corrupted UTF-8 literals in the itinerary UI modules were replaced with their canonical currency, punctuation, status-symbol, and emoji characters; no workflow or API behavior changed.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.

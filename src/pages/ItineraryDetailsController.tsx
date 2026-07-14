@@ -273,6 +273,7 @@ import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHo
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
 import { useQuotationConfirmationModalController } from "./itinerary-details/hooks/useQuotationConfirmationModalController";
+import { useQuotationConfirmationSubmission } from "./itinerary-details/hooks/useQuotationConfirmationSubmission";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
@@ -4787,166 +4788,36 @@ const getSelectedPreviewActivity = () =>
     setPrebookData: (data) => setPrebookData(data as typeof prebookData),
     setHasAcceptedUpdatedPrice,
   });
-
-  const handleConfirmQuotation = async (options: { skipWalletCheck?: boolean } = {}) => {
-    if (!itinerary?.planId) {
-      toast.error('Missing itinerary plan information');
-      return;
-    }
-
-    const validatedPassengers = validateQuotationPassengers();
-    if (!validatedPassengers) return;
-    const {
-      normalizedAdditionalAdults,
-      normalizedAdditionalChildren,
-      normalizedAdditionalInfants,
-      passengers,
-    } = validatedPassengers;
-
-    
-
-    setFormErrors({});
-
-    if (
-      shouldEnableWalletTopUpOnConfirm &&
-      !options.skipWalletCheck &&
-      agentInfo?.agent_id &&
-      confirmRequiredAmount > 0
-    ) {
-      try {
-        const latestWalletBalance = await refreshConfirmWalletBalance(agentInfo.agent_id);
-
-        if (latestWalletBalance < confirmRequiredAmount) {
-          prepareWalletTopUpPanel(latestWalletBalance);
-          toast.error(
-            `Insufficient wallet balance to confirm booking. Please add at least ${formatCurrency(
-              confirmRequiredAmount - latestWalletBalance,
-            )} and continue.`,
-          );
-          return;
-        }
-
-        resetConfirmWalletTopUpPanel();
-      } catch (error) {
-        toast.error('Failed to refresh wallet balance. Please try again.');
-        return;
-      }
-    }
-
-    setIsConfirmingQuotation(true);
-
-    try {
-      const preparedHotels = prepareQuotationHotelSelections();
-      if (!preparedHotels) return;
-      const { autoSelectedHotels, groupTypeValue } = preparedHotels;
-
-      const { occupancies: occupanciesForBooking } = resolveQuotationBookingOccupancy({
-        requiresHotelBookingFlow,
-        requiresDetailedPassengerFlow,
-        confirmOccupanciesTemplate,
-        normalizedAdditionalChildren,
-        roomCount: Number(itinerary.roomCount || 1),
-        adults: Number(itinerary.adults || 1),
-        children: Number(itinerary.children || 0),
-      });
-
-      const bookingGuestNationality = (
-        guestDetails.nationality ||
-        confirmDefaultNationality ||
-        'IN'
-      )
-        .trim()
-        .toUpperCase();
-
-      const hotelBookings = buildQuotationHotelBookings({
-        autoSelectedHotels,
-        requiresHotelBookingFlow,
-        isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-        inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
-        occupancies: occupanciesForBooking,
-        roomCount: Number(itinerary.roomCount || 1),
-        guestNationality: bookingGuestNationality,
-        passengers: passengers as readonly Record<string, unknown>[],
-        toMoneyNumber,
-      });
-
-      const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((booking) => booking.provider === 'tbo');
-      console.log('hasTboBookings', hasTboBookings);
-      console.log(hotelBookings, 'hotelBookings');
-      const bookingGuardResult = await validateQuotationBookingGuards(hotelBookings);
-      if (!bookingGuardResult) return;
-      const { clientIp } = bookingGuardResult;
-
-      const primaryGuest = {
-        salutation: guestDetails.salutation,
-        name: guestDetails.name,
-        phone: guestDetails.contactNo,
-        email: guestDetails.emailId,
-      };
-
-      if (!agentInfo?.agent_id) {
-        toast.error('Missing agent information for final confirmation. Please reopen Confirm Quotation and retry.');
-        return;
-      }
-
-      const routeContext = buildQuotationHotelRouteContext({
-        requiresHotelBookingFlow,
-        hotelBookings: hotelBookings as readonly Record<string, unknown>[],
-        prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
-        externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
-      });
-      const { hotelBookingsWithPrebookContext, selectedHotelRouteIds, externalStayRouteIds } = routeContext;
-
-      if (requiresHotelBookingFlow) {
-        console.log('[CONFIRM_PAYLOAD_HOTELS]', hotelBookingsWithPrebookContext.map((h) => ({
-          routeId: h.routeId,
-          provider: h.provider,
-          hotelCode: h.hotelCode,
-          hotelName: h.hotelName,
-          bookingCodePresent: Boolean(String(h.bookingCode || '').trim()),
-          bookingCodeLooksTbo: String(h.bookingCode || '').includes('!TB!'),
-          roomType: h.roomType,
-          checkInDate: h.checkInDate,
-          checkOutDate: h.checkOutDate,
-          netAmount: h.netAmount,
-        })));
-      }
-
-      const confirmPayload = buildQuotationConfirmationPayload({
-        planId: itinerary.planId,
-        agentId: agentInfo.agent_id,
-        guestDetails,
-        additionalAdults: normalizedAdditionalAdults,
-        additionalChildren: normalizedAdditionalChildren,
-        additionalInfants: normalizedAdditionalInfants,
-        requiresDetailedPassengerFlow,
-        priceConfirmationType: requiresHotelBookingFlow && hasAcceptedUpdatedPrice ? 'new' : 'old',
-        primaryGuest,
-        endUserIp: clientIp,
-        requiresHotelBookingFlow,
-        selectedGroupType: String(groupTypeValue),
-        hotelBookings: hotelBookingsWithPrebookContext,
-        selectedHotelRouteIds,
-        externalStayRouteIds,
-      });
-
-      console.log('[CONFIRM_HOTELS] final hotel_bookings payload', confirmPayload.hotel_bookings);
-      console.log('📦 [handleConfirmQuotation] confirmQuotation payload:', confirmPayload);
-
-      const confirmResponse: any = await ItineraryService.confirmQuotation(
-        confirmPayload as unknown as Parameters<typeof ItineraryService.confirmQuotation>[0],
-      );
-
-      await completeQuotationConfirmation(confirmResponse);
-    } catch (e) {
-      setLoadingHotels(false);
-      console.error('Failed to confirm quotation', e);
-      toast.error(getSafeErrorMessage(e, 'Failed to confirm quotation'));
-    } finally {
-      setIsConfirmingQuotation(false);
-      setIsPrebooking(false);
-    }
-  };
+  const handleConfirmQuotation = useQuotationConfirmationSubmission({
+    itinerary,
+    guestDetails,
+    confirmDefaultNationality,
+    additionalAdults,
+    additionalChildren,
+    additionalInfants,
+    confirmOccupanciesTemplate,
+    requiresHotelBookingFlow,
+    requiresDetailedPassengerFlow,
+    hasAcceptedUpdatedPrice,
+    shouldEnableWalletTopUpOnConfirm,
+    agentInfo,
+    confirmRequiredAmount,
+    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
+    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
+    validateQuotationPassengers,
+    prepareQuotationHotelSelections,
+    validateQuotationBookingGuards: validateQuotationBookingGuards as unknown as (hotelBookings: readonly Record<string, unknown>[]) => Promise<{ clientIp?: string } | null>,
+    completeQuotationConfirmation,
+    refreshConfirmWalletBalance,
+    prepareWalletTopUpPanel,
+    resetConfirmWalletTopUpPanel,
+    setFormErrors,
+    setIsConfirmingQuotation,
+    setLoadingHotels,
+    setIsPrebooking,
+    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+    inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
+  });
 
   useEffect(() => {
     if (!pendingScrollDayNumber) {

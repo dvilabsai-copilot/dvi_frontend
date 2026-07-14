@@ -27,6 +27,7 @@ The first 1,300 lines contain API/domain types for timeline segments, days, hots
 - Clipboard/share/source Markdown/gallery/video dialogs.
 - Quotation confirmation: wallet, prebook, guest/passenger forms, arrival/departure, validation, final confirmation.
 - Confirmed/read-only and cancellation presentation.
+- Quotation confirmation opening and final submission are isolated in dedicated hooks, keeping customer/agent hydration, prebook preparation, wallet gating, and confirmation payload submission out of the page controller.
 
 ## Effects, refs, and browser coupling
 
