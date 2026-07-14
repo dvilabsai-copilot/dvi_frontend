@@ -1163,6 +1163,32 @@
 ### Notes
 - Planned-removal rows and legacy encoded separators remain controller-owned for exact display preservation.
 
+## Iteration 126 — Resolved timeline notice
+
+### Baseline
+- Starting point: Iteration 125 resolved-overflow header extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the final resolved-timeline explanation below the planned-removal list.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewResolvedTimelineNotice.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: resolved-preview explanatory copy presentation now lives in a pure component.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,773 lines.
+- New `HotspotPreviewResolvedTimelineNotice.tsx`: 10 lines.
+
+### Notes
+- Planned-removal rows, leak diagnostics, and encoded separators remain controller-owned.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

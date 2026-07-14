@@ -200,6 +200,7 @@ import { HotspotPreviewRescheduleNotice } from "./itinerary-details/components/H
 import { HotspotPreviewRouteFitNotice } from "./itinerary-details/components/HotspotPreviewRouteFitNotice";
 import { HotspotPreviewEmptyTimeline } from "./itinerary-details/components/HotspotPreviewEmptyTimeline";
 import { HotspotPreviewOverflowResolvedHeader } from "./itinerary-details/components/HotspotPreviewOverflowResolvedHeader";
+import { HotspotPreviewResolvedTimelineNotice } from "./itinerary-details/components/HotspotPreviewResolvedTimelineNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9991,9 +9992,7 @@ const canShowGuideActionButton =
                               ))}
                             </ul>
                           ) : null}
-                          <p className="text-xs text-orange-800 mt-2 font-medium leading-4">
-                            The preview below already shows the final resolved timeline after these stops are removed.
-                          </p>
+                          <HotspotPreviewResolvedTimelineNotice />
                           {import.meta.env.DEV && resolvedRemovalTimelineLeak && (
                             <p className="text-xs text-red-700 mt-2 font-semibold leading-4">
                               BUG: resolved-removal timeline still contains planned removals.
