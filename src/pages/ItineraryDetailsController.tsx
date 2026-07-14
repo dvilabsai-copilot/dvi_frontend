@@ -201,6 +201,7 @@ import { HotspotPreviewRouteFitNotice } from "./itinerary-details/components/Hot
 import { HotspotPreviewEmptyTimeline } from "./itinerary-details/components/HotspotPreviewEmptyTimeline";
 import { HotspotPreviewOverflowResolvedHeader } from "./itinerary-details/components/HotspotPreviewOverflowResolvedHeader";
 import { HotspotPreviewResolvedTimelineNotice } from "./itinerary-details/components/HotspotPreviewResolvedTimelineNotice";
+import { HotspotPreviewOverflowLeakNotice } from "./itinerary-details/components/HotspotPreviewOverflowLeakNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9993,11 +9994,7 @@ const canShowGuideActionButton =
                             </ul>
                           ) : null}
                           <HotspotPreviewResolvedTimelineNotice />
-                          {import.meta.env.DEV && resolvedRemovalTimelineLeak && (
-                            <p className="text-xs text-red-700 mt-2 font-semibold leading-4">
-                              BUG: resolved-removal timeline still contains planned removals.
-                            </p>
-                          )}
+                          <HotspotPreviewOverflowLeakNotice visible={import.meta.env.DEV && resolvedRemovalTimelineLeak} />
                         </div>
                       )}
 

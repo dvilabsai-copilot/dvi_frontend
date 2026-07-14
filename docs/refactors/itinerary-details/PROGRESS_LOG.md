@@ -1189,6 +1189,32 @@
 ### Notes
 - Planned-removal rows, leak diagnostics, and encoded separators remain controller-owned.
 
+## Iteration 127 — Resolved-removal leak diagnostic
+
+### Baseline
+- Starting point: Iteration 126 resolved-timeline notice extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate the development-only leak diagnostic without moving its predicate.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewOverflowLeakNotice.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: development-only diagnostic copy presentation now lives in a component; `import.meta.env.DEV && resolvedRemovalTimelineLeak` remains unchanged in the controller.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,770 lines.
+- New `HotspotPreviewOverflowLeakNotice.tsx`: 18 lines.
+
+### Notes
+- The larger planned-removal diagnostics remain controller-owned pending an encoding-safe extraction.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline
