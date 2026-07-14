@@ -220,6 +220,12 @@ import { useRelatedRouteOptionsLoader } from "./itinerary-details/hooks/useRelat
 import { resolveQuotationBookingOccupancy } from "./itinerary-details/utils/quotationBookingOccupancy.utils";
 import { getQuoteNumberFromValue, normalizeRouteOptionList } from "./itinerary-details/utils/routeOptions.utils";
 import {
+  formatActivityDuration,
+  formatActivityMoney,
+  formatPreviewTime,
+  getActivityTotalAmount,
+} from "./itinerary-details/utils/activityFormatting.utils";
+import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
 } from "./itinerary-details/utils/highlightsHotspotHtml.utils";
@@ -3990,46 +3996,6 @@ if (switchedRouteRef.current === quoteId) {
     setHotelDetails,
     setActiveHotelListTotal,
   });
-
-  const formatPreviewTime = (value: string | Date | null | undefined) => {
-    if (!value) return 'N/A';
-
-    const d = new Date(value as any);
-    if (Number.isNaN(d.getTime())) return String(value);
-
-    const hours = d.getUTCHours();
-    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const h12 = hours % 12 || 12;
-    return `${h12}:${minutes} ${ampm}`;
-  };
-
-  const formatActivityDuration = (value: string | null | undefined) => {
-    if (!value) return 'Not specified';
-
-    const match = String(value).match(/(?:T)?(\d{2}):(\d{2})(?::(\d{2}))?/);
-    if (!match) return String(value);
-
-    const hours = Number(match[1] || 0);
-    const minutes = Number(match[2] || 0);
-    const parts: string[] = [];
-
-    if (hours > 0) {
-      parts.push(`${hours} Hour${hours === 1 ? '' : 's'}`);
-    }
-
-    if (minutes > 0) {
-      parts.push(`${minutes} Min`);
-    }
-
-    return parts.length > 0 ? parts.join(' ') : '0 Min';
-  }
-
-  const formatActivityMoney = (value: number | string | null | undefined) =>
-  `₹${Number(value || 0).toFixed(2)}`;
-
-const getActivityTotalAmount = (activity?: any | null) =>
-  Number(activity?.totalAmount ?? activity?.totalPrice ?? 0);
 
 const getSelectedPreviewActivity = () =>
   availableActivities.find((activity) => activity.id === activityPreview?.activity?.id) || null;

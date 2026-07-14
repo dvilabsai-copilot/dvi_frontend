@@ -4346,3 +4346,26 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 178 - Activity preview formatting utilities
+
+### Baseline
+- Starting checkpoint: `c333655` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/activityFormatting.utils.ts`.
+- Moved activity preview time, duration, money, and total-amount formatting out of `ItineraryDetailsController.tsx`.
+- Preserved UTC time formatting, duration labels, currency precision, and total-price fallback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and filtered TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 8,940 lines (down from 8,974).
+- New utility: 43 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
