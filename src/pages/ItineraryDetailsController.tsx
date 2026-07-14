@@ -194,6 +194,7 @@ import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialo
 import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyButton";
 import { HotspotFitHereTimelineRows } from "./itinerary-details/components/HotspotFitHereTimelineRows";
 import { HotspotFitHereEmptyState } from "./itinerary-details/components/HotspotFitHereEmptyState";
+import { HotspotFitHereSelectionHeader } from "./itinerary-details/components/HotspotFitHereSelectionHeader";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9557,12 +9558,7 @@ const canShowGuideActionButton =
                 {selectedFitHotspot && selectedFitHereDay && !manualPreviewState && (
                   <div className="mb-4 space-y-4">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
-                        Selected for Fit Here
-                      </p>
-                      <p className="mt-1 text-base font-semibold text-slate-900">
-                        {selectedFitHotspot.name}
-                      </p>
+                      <HotspotFitHereSelectionHeader selectedFitHotspot={selectedFitHotspot} />
                       <p className="mt-2 text-sm text-slate-600">
                         Choose the exact anchor below. We’ll calculate a preview for that position before anything is saved.
                       </p>
