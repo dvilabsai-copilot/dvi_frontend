@@ -4173,3 +4173,25 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 170 — Quotation date-time utility
+
+### Baseline
+- Starting checkpoint: `1cdc964` on `refactor/itinerary-details-checkpoint` with focused Playwright and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/quotationDateTime.utils.ts`.
+- Moved confirmation-modal arrival/departure date-time formatting out of the controller.
+- Preserved local date ordering, 12-hour clock, zero padding, and empty-input behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,350 lines (down from 9,362).
+- New utility: 14 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

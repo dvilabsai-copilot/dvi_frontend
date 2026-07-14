@@ -218,6 +218,7 @@ import {
   parseStaahSearchReference,
   type HotelProvider,
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
+import { formatQuotationDateTime } from "./itinerary-details/utils/quotationDateTime.utils";
 import {
   buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
   replaceHighlightsHotspotDetailsHtml,
@@ -5177,25 +5178,12 @@ const getSelectedPreviewActivity = () =>
         );
         modalNationalityForSession = modalNationality;
         setConfirmDefaultNationality(modalNationality);
-        const formatDateTime = (dateTime: string) => {
-          if (!dateTime) return '';
-          const date = new Date(dateTime);
-          const day = String(date.getDate()).padStart(2, '0');
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const year = date.getFullYear();
-          const hours = date.getHours();
-          const minutes = String(date.getMinutes()).padStart(2, '0');
-          const ampm = hours >= 12 ? 'PM' : 'AM';
-          const displayHours = hours % 12 || 12;
-          return `${day}-${month}-${year} ${displayHours}:${minutes} ${ampm}`;
-        };
-
         setGuestDetails(prev => ({
           ...prev,
           nationality: modalNationality,
-          arrivalDateTime: plan.trip_start_date_and_time ? formatDateTime(plan.trip_start_date_and_time) : '',
+          arrivalDateTime: plan.trip_start_date_and_time ? formatQuotationDateTime(plan.trip_start_date_and_time) : '',
           arrivalPlace: plan.arrival_location || '',
-          departureDateTime: plan.trip_end_date_and_time ? formatDateTime(plan.trip_end_date_and_time) : '',
+          departureDateTime: plan.trip_end_date_and_time ? formatQuotationDateTime(plan.trip_end_date_and_time) : '',
           departurePlace: plan.departure_location || '',
         }));
       }
