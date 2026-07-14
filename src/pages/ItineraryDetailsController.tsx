@@ -60,6 +60,7 @@ import {
   useExternalStayEntries,
 } from "./itinerary-details/hooks/useExternalStayEntries";
 import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
+import { useDestinationHotelDisplayName } from "./itinerary-details/hooks/useDestinationHotelDisplayName";
 import type {
   Activity,
   AttractionSegment,
@@ -787,63 +788,13 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     };
   }, [activePreviewResolution]);
 
-  const destinationHotelDisplayName = useMemo(() => {
-    const sanitize = (raw: unknown): string => {
-      const value = String(raw || '').trim();
-      if (!value) return '';
-      const lower = value.toLowerCase();
-      if (lower === 'hotel' || lower === 'no hotels available' || lower === 'hotel / route start') {
-        return '';
-      }
-      return value;
-    };
-
-    const routeId = Number(addHotspotModal.routeId || 0);
-    const routeDay = itinerary?.days?.find((day) => Number(day?.id) === routeId);
-    const routeCheckin = Array.isArray(routeDay?.segments)
-      ? [...routeDay!.segments].reverse().find((segment) => String(segment?.type || '').toLowerCase() === 'checkin')
-      : null;
-    const routeCheckinName = sanitize((routeCheckin as any)?.hotelName);
-    if (routeCheckinName) return routeCheckinName;
-
-    const selectedRouteHotelName = sanitize(
-      (hotelDetails?.hotels || [])
-        .filter((hotel) => Number(hotel?.itineraryRouteId) === routeId)
-        .filter((hotel) => Number(hotel?.itineraryPlanHotelDetailsId || 0) > 0)
-        .sort((a, b) => Number(b?.itineraryPlanHotelDetailsId || 0) - Number(a?.itineraryPlanHotelDetailsId || 0))
-        .map((hotel) => hotel?.hotelName)
-        .find((name) => sanitize(name).length > 0)
-    );
-    if (selectedRouteHotelName) return selectedRouteHotelName;
-
-    const fitName = sanitize((matrixFit as any)?.destinationHotelName);
-    if (fitName) return fitName;
-
-    const hotelDetailsName = sanitize(
-      hotelDetails?.hotels?.find((hotel) => Number(hotel?.itineraryRouteId) === routeId)?.hotelName
-    );
-    if (hotelDetailsName) return hotelDetailsName;
-
-    const previewRows = Array.isArray(effectivePreviewTimeline)
-      ? [...(effectivePreviewTimeline as any[])].reverse()
-      : [];
-    for (const row of previewRows) {
-      const type = String(row?.type || '').toLowerCase();
-      if (type !== 'hotel' && type !== 'checkin' && Number(row?.item_type) !== 6) {
-        continue;
-      }
-
-      const rowName = sanitize(row?.hotelName || row?.toName || row?.to);
-      if (rowName) return rowName;
-
-      const rowText = String(row?.text || '').trim();
-      const match = rowText.match(/check-?in\s+(?:to|at)\s+(.+)/i);
-      const parsed = sanitize(match?.[1] || '');
-      if (parsed) return parsed;
-    }
-
-    return '';
-  }, [addHotspotModal.routeId, effectivePreviewTimeline, hotelDetails?.hotels, itinerary?.days, matrixFit]);
+  const destinationHotelDisplayName = useDestinationHotelDisplayName({
+    addHotspotRouteId: addHotspotModal.routeId,
+    effectivePreviewTimeline,
+    hotelDetails,
+    itinerary,
+    matrixFit,
+  });
 
   const matrixBuildSuggestion = useMemo(() => {
     return (activePreviewResolution as any)?.missingMatrixBuildSuggestion

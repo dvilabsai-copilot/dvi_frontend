@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 203 - Destination hotel display-name hook
+
+### Baseline
+- Starting checkpoint: `2b31ea0` on `refactor/itinerary-details-continuation` with non-TBO selected hotel extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useDestinationHotelDisplayName.ts`.
+- Moved destination hotel label resolution for hotspot previews and route-fit messaging out of `ItineraryDetailsController.tsx`.
+- Preserved selected-route hotel precedence, check-in/timeline fallback, matrix destination fallback, and placeholder-label filtering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,978 lines (down from 6,019 at the previous iteration).
+- New `useDestinationHotelDisplayName.ts`: 65 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 202 - Non-TBO selected hotel entries hook
 
 ### Baseline
