@@ -215,6 +215,7 @@ import {
   type HotelProvider,
 } from "./itinerary-details/utils/hotelBookingNormalization.utils";
 import { buildQuotationModalPrefill } from "./itinerary-details/utils/quotationModalPrefill.utils";
+import { useRouteHotelPrefetch } from "./itinerary-details/hooks/useRouteHotelPrefetch";
 import { resolveQuotationBookingOccupancy } from "./itinerary-details/utils/quotationBookingOccupancy.utils";
 import { getQuoteNumberFromValue, normalizeRouteOptionList } from "./itinerary-details/utils/routeOptions.utils";
 import {
@@ -5731,55 +5732,16 @@ useEffect(() => {
   setRouteHotelDetailsByQuoteId({});
 }, [routeFamilyBaseQuoteId]);
 
-useEffect(() => {
-  if (!itinerary || !shouldShowHotels || isConfirmedItinerary) return;
-
-  const routeQuoteIds = itineraryRouteOptions
-    .map((option) => String(option.quoteId || "").trim())
-    .filter((id) => id.startsWith("DVI"));
-
-  const currentQuoteId = String(activeRouteQuoteId || quoteId || itinerary?.quoteId || "").trim();
-  const normalizedQuoteIds = Array.from(
-    new Set([currentQuoteId, ...routeQuoteIds].filter((id) => id.startsWith("DVI"))),
-  );
-
-  if (normalizedQuoteIds.length === 0) return;
-
-  let cancelled = false;
-
-  const warmRouteHotelCache = async () => {
-    for (const routeQuoteId of normalizedQuoteIds) {
-      if (cancelled) return;
-      if (routeHotelPrefetchedRef.current.has(routeQuoteId)) continue;
-
-      routeHotelPrefetchedRef.current.add(routeQuoteId);
-
-      try {
-        await loadAndCacheRouteHotelDetails(routeQuoteId);
-      } catch (error) {
-        routeHotelPrefetchedRef.current.delete(routeQuoteId);
-        console.warn("[ItineraryDetails] Failed to prefetch hotels for route quote", {
-          routeQuoteId,
-          error,
-        });
-      }
-    }
-  };
-
-  void warmRouteHotelCache();
-
-  return () => {
-    cancelled = true;
-  };
-}, [
-  activeRouteQuoteId,
-  itinerary,
-  itineraryRouteOptions,
-  isConfirmedItinerary,
-  loadAndCacheRouteHotelDetails,
-  quoteId,
-  shouldShowHotels,
-]);
+  useRouteHotelPrefetch({
+    itinerary,
+    shouldShowHotels,
+    isConfirmedItinerary,
+    activeRouteQuoteId,
+    quoteId,
+    itineraryRouteOptions,
+    routeHotelPrefetchedRef,
+    loadAndCacheRouteHotelDetails,
+  });
 
 const handleItineraryRouteOptionClick = useRouteOptionSwitchController({
   activeRouteQuoteId,

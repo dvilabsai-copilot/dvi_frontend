@@ -4262,3 +4262,25 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+## Iteration 174 — Route hotel prefetch hook
+
+### Baseline
+- Starting checkpoint: `bf28fac` on `refactor/itinerary-details-checkpoint` with focused Playwright green.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useRouteHotelPrefetch.ts`.
+- Moved route hotel-cache warming, DVI quote filtering, duplicate suppression, cancellation cleanup, and failure retry bookkeeping out of the controller effect.
+- Preserved cache-key/ref behavior and warning messages.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint and TypeScript checks passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,218 lines (down from 9,256).
+- New hook: 63 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.

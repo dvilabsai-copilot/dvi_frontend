@@ -188,3 +188,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Quotation confirmation-modal prefill is isolated in `quotationModalPrefill.utils.ts`; nationality/date patches, traveller passenger rows, and occupancy templates are derived without owning React state.
 - Quotation booking occupancy resolution is isolated in `quotationBookingOccupancy.utils.ts`; child-age locking and TBO/supplier occupancy selection are pure.
 - Route-family quote-number extraction and option normalization are isolated in `routeOptions.utils.ts`; deduplication, DVI filtering, sorting, and labels are reusable.
+- Route hotel-cache warming is isolated in `useRouteHotelPrefetch.ts`; route filtering, deduplication, cancellation, and retry bookkeeping no longer live in the page controller.
