@@ -199,6 +199,12 @@ import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clip
 import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
 import { buildClipboardHotelPackageSectionHtml } from "./itinerary-details/utils/clipboardHotelPackageSection.utils";
 import { buildClipboardPlainText } from "./itinerary-details/utils/clipboardPlainText.utils";
+import {
+  extractHotelSectionFromHtml,
+  mergeClipboardWithB2BRecommendedPackages,
+  mergeClipboardWithRenderedCost,
+  mergeClipboardWithRenderedHotels,
+} from "./itinerary-details/utils/clipboardHtmlMerge.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3382,133 +3388,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     plainText,
     packageSectionsHtml,
   };
-};
-
-  const extractHotelSectionFromHtml = (html: string): string => {
-    if (!html) return "";
-
-    const hotelHeadingMatch = html.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!hotelHeadingMatch || hotelHeadingMatch.index === undefined) {
-      return "";
-    }
-
-    const headingIndex = hotelHeadingMatch.index;
-    const hotelSectionStart = html.lastIndexOf("<table", headingIndex);
-    if (hotelSectionStart === -1) return "";
-
-    const vehicleHeadingMatch = html.match(/Vehicle Details/i);
-    if (!vehicleHeadingMatch || vehicleHeadingMatch.index === undefined) {
-      return "";
-    }
-
-    const vehicleHeadingIndex = vehicleHeadingMatch.index;
-    const vehicleSectionStart = html.lastIndexOf("<table", vehicleHeadingIndex);
-    if (vehicleSectionStart === -1 || vehicleSectionStart <= hotelSectionStart) {
-      return "";
-    }
-
-    return html.slice(hotelSectionStart, vehicleSectionStart);
-  };
-
-  const mergeClipboardWithRenderedHotels = (
-    backendHtml: string,
-    renderedHotelsHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedHotelsHtml) return backendHtml;
-
-    const backendVehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-    if (!backendVehicleHeadingMatch || backendVehicleHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendVehicleHeadingIndex = backendVehicleHeadingMatch.index;
-    const backendVehicleStart = backendHtml.lastIndexOf("<table", backendVehicleHeadingIndex);
-    if (backendVehicleStart === -1) {
-      return backendHtml;
-    }
-
-    const backendHotelHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-    if (!backendHotelHeadingMatch || backendHotelHeadingMatch.index === undefined) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
-
-    const backendHotelHeadingIndex = backendHotelHeadingMatch.index;
-    const backendHotelStart = backendHtml.lastIndexOf("<table", backendHotelHeadingIndex);
-    if (backendHotelStart === -1 || backendVehicleStart <= backendHotelStart) {
-      return `${backendHtml.slice(0, backendVehicleStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-    }
-
-    return `${backendHtml.slice(0, backendHotelStart)}${renderedHotelsHtml}${backendHtml.slice(backendVehicleStart)}`;
-  };
-
-  const mergeClipboardWithRenderedCost = (
-    backendHtml: string,
-    renderedCostHtml: string,
-  ): string => {
-    if (!backendHtml || !renderedCostHtml) return backendHtml;
-
-    const backendHotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
-    if (!backendHotspotHeadingMatch || backendHotspotHeadingMatch.index === undefined) {
-      return backendHtml;
-    }
-
-    const backendHotspotHeadingIndex = backendHotspotHeadingMatch.index;
-    const backendHotspotStart = backendHtml.lastIndexOf("<table", backendHotspotHeadingIndex);
-    if (backendHotspotStart === -1) return backendHtml;
-
-    const roundOffIndex = backendHtml.lastIndexOf("Total Round Off", backendHotspotStart);
-    const netPayableIndex = backendHtml.lastIndexOf("Net Payable To", backendHotspotStart);
-    const totalAmountIndex = backendHtml.lastIndexOf("Total Amount", backendHotspotStart);
-    const anchorIndex = Math.max(roundOffIndex, netPayableIndex, totalAmountIndex);
-
-    if (anchorIndex === -1) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    const backendCostStart = backendHtml.lastIndexOf("<table", anchorIndex);
-    if (backendCostStart === -1 || backendCostStart >= backendHotspotStart) {
-      return `${backendHtml.slice(0, backendHotspotStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-    }
-
-    return `${backendHtml.slice(0, backendCostStart)}${renderedCostHtml}${backendHtml.slice(backendHotspotStart)}`;
-  };
-
-  const mergeClipboardWithB2BRecommendedPackages = (
-  backendHtml: string,
-  renderedPackageSectionsHtml: string,
-): string => {
-  if (!backendHtml || !renderedPackageSectionsHtml) return backendHtml;
-
-  const hotspotHeadingMatch = backendHtml.match(/Hotspot Details/i);
-  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
-    return backendHtml;
-  }
-
-  const hotspotHeadingIndex = hotspotHeadingMatch.index;
-  const hotspotSectionStart = backendHtml.lastIndexOf("<table", hotspotHeadingIndex);
-  if (hotspotSectionStart === -1) return backendHtml;
-
-  const recommendedHeadingMatch = backendHtml.match(/Recommended Hotel(?:s)?\s*-/i);
-  const vehicleHeadingMatch = backendHtml.match(/Vehicle Details/i);
-
-  const firstMiddleHeadingIndex =
-    recommendedHeadingMatch?.index !== undefined
-      ? recommendedHeadingMatch.index
-      : vehicleHeadingMatch?.index !== undefined
-        ? vehicleHeadingMatch.index
-        : -1;
-
-  if (firstMiddleHeadingIndex === -1) {
-    return `${backendHtml.slice(0, hotspotSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
-  }
-
-  const middleSectionStart = backendHtml.lastIndexOf("<table", firstMiddleHeadingIndex);
-
-  if (middleSectionStart === -1 || middleSectionStart >= hotspotSectionStart) {
-    return `${backendHtml.slice(0, hotspotSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
-  }
-
-  return `${backendHtml.slice(0, middleSectionStart)}${renderedPackageSectionsHtml}${backendHtml.slice(hotspotSectionStart)}`;
 };
 
 const htmlToPlainText = (html: string): string => {

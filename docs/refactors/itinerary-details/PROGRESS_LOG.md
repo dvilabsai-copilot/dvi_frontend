@@ -4031,3 +4031,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 164 — Clipboard HTML merge utilities
+
+### Baseline
+- Starting checkpoint: `65e37ea` on `refactor/itinerary-details-checkpoint` with focused Playwright and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/clipboardHtmlMerge.utils.ts`.
+- Moved hotel-section extraction and rendered hotel/cost/B2B package insertion logic out of the controller.
+- Preserved all existing heading/table anchors, fallback insertion points, and no-op behavior for missing HTML.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 9,633 lines (down from 9,754).
+- New utility: 74 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
