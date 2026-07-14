@@ -3887,3 +3887,27 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
+## Iteration 158 — Clipboard itinerary totals utilities
+
+### Baseline
+- Starting checkpoint: `b773fd8` on `refactor/itinerary-details-checkpoint` with focused Playwright and production build green.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/clipboardItineraryTotals.utils.ts`.
+- Moved clipboard money formatting, hotel pax derivation, activity totals, and entry-ticket grouping out of the nested clipboard HTML builder.
+- Updated the builder to consume pure utilities while preserving the existing rounding, grouping, labels, and currency formatting.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Targeted ESLint: passed for the new utility.
+- Typecheck: no errors from the new utility or `ItineraryDetailsController.tsx`.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Production build: passed with existing Browserslist, Tailwind, dynamic-import, and chunk-size warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,056 lines (down from 10,119).
+- New utility: 77 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains its documented shared-data/environment failures.
