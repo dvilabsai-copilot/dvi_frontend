@@ -1140,6 +1140,32 @@
 - Validation messages, normalized passenger fields, and age/title rules remain unchanged; only ownership moved.
 - Follow-up extraction: quotation hotel-selection/prebook preparation and cleanup of the legacy vehicle clipboard fragment.
 
+## Iteration 86 - Remove legacy vehicle clipboard fragment
+
+### Baseline
+- Tests run: focused hotspot Playwright pair and production build after removing the inline vehicle-only clipboard implementation.
+- Result: focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code removed: duplicate inline vehicle-only clipboard fetch/HTML cleanup/signature relocation implementation; all call sites use `useVehicleOnlyClipboardAction`.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from the controller or extracted vehicle clipboard action; unrelated repository errors remain.
+- Lint: extracted vehicle clipboard hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,627 lines.
+- `useVehicleOnlyClipboardAction.ts`: 97 lines.
+
+### Notes
+- This cleanup removes the final duplicate vehicle-only clipboard path and leaves one owner for that workflow.
+- Follow-up extraction: quotation hotel-selection/prebook preparation and confirmation orchestration.
+
 ## Iteration 84 - Vehicle-only clipboard action boundary
 
 ### Baseline
