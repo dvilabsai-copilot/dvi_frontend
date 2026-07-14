@@ -1683,6 +1683,32 @@
 ### Notes
 - Active preview resolution and removed-row filtering remain in the controller for a separate boundary.
 
+## Iteration 146 - Removed-hotspot preview details
+
+### Baseline
+- Starting point: Iteration 145 selected Fit Here preview segment extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: isolate removed-hotspot detail normalization and optional-removal filtering.
+
+### Changes
+- File created: `src/pages/itinerary-details/utils/previewRemovedHotspots.utils.ts`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: removed-row collection, ID/name normalization, priority/reason labels, deduplication, and optional subset filtering now live in pure utilities.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new utility passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new utility; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 10,809 lines.
+- New `previewRemovedHotspots.utils.ts`: 76 lines.
+
+### Notes
+- Pending priority replacement and confirmation decisions remain in controller state/effects.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

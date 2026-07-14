@@ -116,6 +116,10 @@ import { buildFitHereAnchorForTimelineRow as buildFitHereAnchorForTimelineRowUti
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import { getSelectedPreviewSegments as getSelectedPreviewSegmentsUtil } from "./itinerary-details/utils/fitHereSelectedPreview.utils";
 import {
+  getOptionalPreviewRemovedHotspotDetails,
+  getPreviewRemovedHotspotDetails,
+} from "./itinerary-details/utils/previewRemovedHotspots.utils";
+import {
   estimateHotelTravelMinutesFromDistance,
   extractCheckinHotelName,
   filterAvailableHotspotsForAnchor,
@@ -789,81 +793,15 @@ const loadAndCacheRouteHotelDetails = useCallback(
       || null;
   }, [activePreviewResolution, manualPreviewState]);
 
-  const previewRemovedHotspotDetails = useMemo(() => {
-    const rows = [
-      ...(Array.isArray(activePreviewResolution?.removedHotspots) ? activePreviewResolution.removedHotspots : []),
-      ...(Array.isArray(activePreviewResolution?.removedOptionalHotspots) ? activePreviewResolution.removedOptionalHotspots : []),
-      ...(Array.isArray(activePreviewResolution?.removedTopPriorityHotspots) ? activePreviewResolution.removedTopPriorityHotspots : []),
-      ...(Array.isArray((activePreviewResolution as any)?.changesRequiredDisplay?.removedItems)
-        ? (activePreviewResolution as any).changesRequiredDisplay.removedItems
-        : []),
-    ];
+  const previewRemovedHotspotDetails = useMemo(
+    () => getPreviewRemovedHotspotDetails(activePreviewResolution),
+    [activePreviewResolution],
+  );
 
-    const seen = new Set<string>();
-
-    return rows
-      .map((row) => {
-        const hotspotId = Number(
-          row?.hotspotId ||
-          row?.hotspot_ID ||
-          row?.hotspot_id ||
-          row?.locationId ||
-          row?.id ||
-          0,
-        );
-        const name = String(row?.name || row?.hotspotName || row?.hotspot_name || '').trim();
-        const priorityValue = Number(
-          row?.priority ||
-          row?.workPriority ||
-          row?.effectivePriority ||
-          0,
-        );
-        const key = hotspotId > 0 ? String(hotspotId) : name.toLowerCase();
-
-        return {
-          hotspotId,
-          key,
-          name,
-          priorityLabel: Number.isFinite(priorityValue) && priorityValue > 0
-            ? `Work Priority ${priorityValue}`
-            : String(row?.workPriorityLabel || row?.priorityLabel || '').trim() || null,
-          workPriorityLabel: Number.isFinite(priorityValue) && priorityValue > 0
-            ? `Work Priority ${priorityValue}`
-            : String(row?.workPriorityLabel || '').trim() || null,
-          reason: String(row?.fitFailureExplanation || row?.reason || row?.message || '').trim() || null,
-          removalReasonCode: String(row?.removalReasonCode || '').trim() || null,
-        };
-      })
-      .filter((row) => {
-        if (!row.name || !row.key) return false;
-        if (seen.has(row.key)) return false;
-        seen.add(row.key);
-        return true;
-      });
-  }, [activePreviewResolution]);
-
-  const optionalPreviewRemovedHotspotDetails = useMemo(() => {
-    const optionalRows = Array.isArray(activePreviewResolution?.removedOptionalHotspots)
-      ? activePreviewResolution.removedOptionalHotspots
-      : [];
-
-    const optionalKeys = new Set(
-      optionalRows.map((row) => {
-        const hotspotId = Number(
-          row?.hotspotId ||
-          row?.hotspot_ID ||
-          row?.hotspot_id ||
-          row?.locationId ||
-          row?.id ||
-          0,
-        );
-        const name = String(row?.name || row?.hotspotName || row?.hotspot_name || '').trim().toLowerCase();
-        return hotspotId > 0 ? String(hotspotId) : name;
-      }),
-    );
-
-    return previewRemovedHotspotDetails.filter((row) => optionalKeys.has(row.key));
-  }, [activePreviewResolution, previewRemovedHotspotDetails]);
+  const optionalPreviewRemovedHotspotDetails = useMemo(
+    () => getOptionalPreviewRemovedHotspotDetails(activePreviewResolution, previewRemovedHotspotDetails),
+    [activePreviewResolution, previewRemovedHotspotDetails],
+  );
 
   const pendingPriorityReplacementHotspotId = useMemo(() => {
     const needsReplacementApproval = (resolution): boolean => {
