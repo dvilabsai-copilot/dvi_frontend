@@ -4511,6 +4511,32 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 210 - Best insertion slot hook
+
+### Baseline
+- Starting checkpoint: `7b10c87` on `refactor/itinerary-details-continuation` with preview slot-state extraction committed locally.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useBestInsertionSlot.ts`.
+- Moved preferred normalized insertion-slot selection and distance-delta fallback ordering out of `ItineraryDetailsController.tsx`.
+- Preserved matrix-required gating, `isBest` precedence, and shortest-distance fallback.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors from the new hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed with existing warnings.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright report artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 6,035 physical lines (down from 6,042 at the previous iteration).
+- New `useBestInsertionSlot.ts`: 24 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 209 - Preview slot state hook
 
 ### Baseline

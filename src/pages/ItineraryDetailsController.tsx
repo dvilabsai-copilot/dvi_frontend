@@ -67,6 +67,7 @@ import { useMatrixAvailabilityState } from "./itinerary-details/hooks/useMatrixA
 import { usePreviewDecisionState } from "./itinerary-details/hooks/usePreviewDecisionState";
 import { useInsertionDecisionSummary } from "./itinerary-details/hooks/useInsertionDecisionSummary";
 import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotState";
+import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
 import type {
   Activity,
   AttractionSegment,
@@ -1023,18 +1024,10 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   ]);
 
 
-  const bestInsertionSlot = useMemo(() => {
-    if (matrixRequiresBuild) return null;
-    const slots = normalizedInsertionSlots;
-
-    if (slots.length === 0) return null;
-
-    return slots.find((slot) => slot?.isBest)
-      || [...slots].sort(
-        (a, b) => Number(a?.distanceDelta || 0) - Number(b?.distanceDelta || 0),
-      )[0]
-      || null;
-  }, [matrixRequiresBuild, normalizedInsertionSlots]);
+  const bestInsertionSlot = useBestInsertionSlot({
+    matrixRequiresBuild,
+    normalizedInsertionSlots,
+  });
 
   const previewHotspotMetaById = useMemo(() => {
     const routeId = Number(addHotspotModal.routeId || 0);

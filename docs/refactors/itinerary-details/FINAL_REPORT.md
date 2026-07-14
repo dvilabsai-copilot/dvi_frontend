@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 6,042 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 6,035 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -28,6 +28,7 @@ Current facts:
 - New in this checkpoint: preview validation text, matrix apply-blocking, decision-status normalization, and confirm-action labels are isolated in `usePreviewDecisionState.ts`.
 - New in this checkpoint: hotspot insertion outcome messaging, reschedule/overflow checks, and relaxed-route-fit summary decisions are isolated in `useInsertionDecisionSummary.ts`.
 - New in this checkpoint: resolved-removal leak detection, safe-slot filtering, effective-fit selection, route-fit badge classes, and normalized insertion-slot derivation are isolated in `usePreviewSlotState.ts`.
+- New in this checkpoint: preferred normalized insertion-slot selection and distance-delta fallback ordering are isolated in `useBestInsertionSlot.ts`.
 - New in this checkpoint: route rebuild mutation/progress and refresh behavior are isolated in `useRouteRebuildMutation.ts`.
 - New in this checkpoint: route-time PATCH progress, refresh, and hotel-detail preservation are isolated in `useRouteTimePatchMutation.ts`.
 - New in this checkpoint: arrival-policy decision-key derivation is shared through `routeArrivalPolicy.utils.ts`.
