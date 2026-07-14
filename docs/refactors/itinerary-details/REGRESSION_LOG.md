@@ -179,3 +179,15 @@ The broader command again ran 34 tests with 8 workers: 9 passed, 2 skipped, and 
 
 ### Resolution
 No application or test weakening changes were added; focused hotspot characterization remains green.
+
+## 2026-07-14 — Broad itinerary suite timeout after quotation view extractions
+
+### Result
+The explicit 11-file itinerary Playwright command did not complete within the 5-minute command limit. Playwright workers were terminated and generated artifacts were removed; no focused regression was affected.
+
+### Classification
+- environment/runtime duration issue for the broad suite
+- previously documented shared Fit Here/APJ and backend/parity failures remain unresolved
+
+### Resolution
+No application or test weakening changes were made. The focused characterization pair remains the reliable per-iteration signal and continues to pass 2/2.

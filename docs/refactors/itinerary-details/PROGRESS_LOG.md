@@ -1168,6 +1168,25 @@
 ### Notes
 - The remaining wallet editor and detailed hotel review sections retain their existing provider data handling until a larger typed boundary can be introduced safely.
 
+## Iteration 107 — Broad-suite verification audit
+
+### Baseline
+- Tests run: explicit 11-file itinerary Playwright suite, after the green focused pair/build checkpoints.
+- Result: the broad command exceeded the five-minute command limit without a final aggregate result; workers were terminated safely. The focused pair remains 2/2 from the immediately preceding checkpoint.
+
+### Changes
+- Files modified: `REGRESSION_LOG.md`, `PROGRESS_LOG.md`.
+- Code moved: none; this is a verification/documentation checkpoint.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Broad itinerary Playwright: timed out at the command limit; this is documented separately from the prior completed 34-test failure classifications.
+- Generated Playwright artifacts: removed; tracked metadata restored.
+- Previous production build and focused Playwright results remain green.
+
+### Notes
+- The broad suite timeout reinforces the existing environment/data contention blocker; no test was weakened and no application workaround was introduced.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline
