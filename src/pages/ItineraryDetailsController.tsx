@@ -199,6 +199,7 @@ import { HotspotPreviewLoadingState } from "./itinerary-details/components/Hotsp
 import { HotspotPreviewRescheduleNotice } from "./itinerary-details/components/HotspotPreviewRescheduleNotice";
 import { HotspotPreviewRouteFitNotice } from "./itinerary-details/components/HotspotPreviewRouteFitNotice";
 import { HotspotPreviewEmptyTimeline } from "./itinerary-details/components/HotspotPreviewEmptyTimeline";
+import { HotspotPreviewOverflowResolvedHeader } from "./itinerary-details/components/HotspotPreviewOverflowResolvedHeader";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9964,21 +9965,15 @@ const canShowGuideActionButton =
                       {/* Low-priority removal plan — resolved case */}
                       {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
                         <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
-                          <p className="font-semibold text-orange-900">Overflow resolved by removing lower-priority hotspots.</p>
-                          {(() => {
-                            const manualTimingPolicy =
-                              getManualTimingPolicyFromPreview(manualPreviewState)
-                              || getManualTimingPolicyFromPreview(activePreviewResolution)
-                              || getManualTimingPolicyFromPreview(groupPreviewResolution);
-
-                            const endLabel = formatManualPolicyTime(manualTimingPolicy?.endTime) || 'route end time';
-
-                            return (
-                              <p className="text-xs text-orange-700 mt-1 leading-4">
-                                To fit this manual hotspot and keep hotel check-in before {endLabel}, these lower-priority hotspots will be removed:
-                              </p>
-                            );
-                          })()}
+                          <HotspotPreviewOverflowResolvedHeader
+                            endLabel={(() => {
+                              const manualTimingPolicy =
+                                getManualTimingPolicyFromPreview(manualPreviewState)
+                                || getManualTimingPolicyFromPreview(activePreviewResolution)
+                                || getManualTimingPolicyFromPreview(groupPreviewResolution);
+                              return formatManualPolicyTime(manualTimingPolicy?.endTime) || "route end time";
+                            })()}
+                          />
                           {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
                             (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
                             <ul className="mt-2 space-y-1">

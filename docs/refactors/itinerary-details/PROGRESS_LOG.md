@@ -1137,6 +1137,32 @@
 ### Notes
 - Remaining larger preview blocks include legacy mojibake labels and should be extracted only with exact encoding preservation.
 
+## Iteration 125 — Resolved-overflow header
+
+### Baseline
+- Starting point: Iteration 124 empty preview-timeline fallback extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the resolved-overflow heading and timing-policy explanation while preserving removal-plan row rendering.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotPreviewOverflowResolvedHeader.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: resolved-overflow heading and policy explanation presentation now live in a typed component; the original first-available timing-policy precedence remains injected through the computed label.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,774 lines.
+- New `HotspotPreviewOverflowResolvedHeader.tsx`: 18 lines.
+
+### Notes
+- Planned-removal rows and legacy encoded separators remain controller-owned for exact display preservation.
+
 ## Iteration 119 — Fit Here empty-state guidance
 
 ### Baseline

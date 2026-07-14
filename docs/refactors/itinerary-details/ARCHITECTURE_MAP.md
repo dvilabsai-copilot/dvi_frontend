@@ -137,5 +137,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Same-city preview rescheduling notice presentation is isolated in `HotspotPreviewRescheduleNotice.tsx`; resolution flags remain controller-owned.
 - Route-fit feasibility copy under the recalculated-timings banner is isolated in `HotspotPreviewRouteFitNotice.tsx`; banner visibility remains controller-owned.
 - Empty preview-timeline fallback presentation is isolated in `HotspotPreviewEmptyTimeline.tsx`; timeline availability remains derived by the controller.
+- Resolved-overflow heading and timing-policy explanation are isolated in `HotspotPreviewOverflowResolvedHeader.tsx`; removal-plan data remains controller-owned.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
