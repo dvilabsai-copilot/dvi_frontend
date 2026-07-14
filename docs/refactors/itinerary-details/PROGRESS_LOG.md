@@ -1187,6 +1187,33 @@
 ### Notes
 - The broad suite timeout reinforces the existing environment/data contention blocker; no test was weakened and no application workaround was introduced.
 
+## Iteration 108 — Wallet top-up actions view extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/wallet-actions files and the focused Fit Here/hotspot Playwright pair; production build was already green before the final callback-type correction.
+- Result: no changed-file type errors after widening only the refresh callback result type; wallet-actions lint passed; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationWalletTopUpActions.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: wallet top-up amount/remark inputs and add-cash/refresh buttons now render in a typed view; wallet mutation, submitting state, and balance-refresh callbacks remain supplied by the controller.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationWalletTopUpActions.tsx`; unrelated repository errors remain.
+- Lint: new wallet-actions component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: latest explicit broad command timed out at the documented command limit.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,005 lines (down from 12,040 at the previous checkpoint).
+- New `QuotationWalletTopUpActions.tsx`: 68 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The wallet insufficient-balance warning and top-up orchestration remain in the controller; this extraction is presentation-only and preserves the existing callbacks.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline

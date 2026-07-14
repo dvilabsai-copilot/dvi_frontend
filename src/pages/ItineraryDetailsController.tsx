@@ -183,6 +183,7 @@ import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassenger
 import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
 import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary";
 import { QuotationRoomingPreview } from "./itinerary-details/QuotationRoomingPreview";
+import { QuotationWalletTopUpActions } from "./itinerary-details/QuotationWalletTopUpActions";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11355,52 +11356,16 @@ const canShowGuideActionButton =
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium text-[#4a4260] mb-1 block">Add Cash Amount</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={walletTopUpAmount}
-                      onChange={(e) => setWalletTopUpAmount(e.target.value)}
-                      placeholder="Enter amount"
-                      className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-[#4a4260] mb-1 block">Remark</label>
-                    <input
-                      type="text"
-                      value={walletTopUpRemark}
-                      onChange={(e) => setWalletTopUpRemark(e.target.value)}
-                      placeholder="Wallet top-up remark"
-                      className="w-full px-3 py-2 border border-[#e5d9f2] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#d546ab]"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    onClick={handleWalletTopUpAndContinue}
-                    disabled={isWalletTopUpSubmitting}
-                    className="bg-[#d546ab] hover:bg-[#be3f97]"
-                  >
-                    {isWalletTopUpSubmitting ? "Adding Cash..." : "Add Cash Wallet & Continue"}
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void (agentInfo?.agent_id && refreshConfirmWalletBalance(agentInfo.agent_id))}
-                    disabled={isWalletTopUpSubmitting}
-                    className="border-[#d546ab] text-[#d546ab]"
-                  >
-                    Refresh Wallet
-                  </Button>
-                </div>
+                <QuotationWalletTopUpActions
+                  amount={walletTopUpAmount}
+                  setAmount={setWalletTopUpAmount}
+                  remark={walletTopUpRemark}
+                  setRemark={setWalletTopUpRemark}
+                  submitting={isWalletTopUpSubmitting}
+                  agentId={agentInfo.agent_id}
+                  onSubmit={handleWalletTopUpAndContinue}
+                  onRefresh={refreshConfirmWalletBalance}
+                />
               </div>
             )}
 

@@ -120,5 +120,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - The quotation prebook loading state is isolated in `QuotationPrebookLoadingNotice.tsx`; modal-flow visibility remains derived by the controller.
 - Quotation number, agent identity, wallet balance, and required amount summary is isolated in `QuotationAgentSummary.tsx`; formatting and wallet parsing remain injected helpers.
 - Quotation room-count, passenger-mix, and per-room occupancy preview is isolated in `QuotationRoomingPreview.tsx`; the controller continues to supply the existing normalized occupancy data.
+- Wallet top-up amount/remark inputs and refresh/continue actions are isolated in `QuotationWalletTopUpActions.tsx`; wallet mutation and balance-refresh callbacks remain injected.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.
