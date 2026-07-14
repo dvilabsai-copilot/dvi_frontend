@@ -177,3 +177,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Clipboard vehicle-row HTML is isolated in `clipboardVehicleSection.utils.ts`; date range, route fallback, amount formatting, and empty-state markup are no longer nested in the controller.
 - Clipboard cost-table HTML is isolated in `clipboardCostSection.utils.ts`; conditional cost rows, entry-ticket detail rows, coupon/rounding display, and net-payable labeling are now composed outside the controller.
 - Clipboard hotel-package table composition is isolated in `clipboardHotelPackageSection.utils.ts`; hotel rows, group headings, empty-state markup, and vehicle/cost section composition are outside the controller.
+- Clipboard plain-text generation is isolated in `clipboardPlainText.utils.ts`; group separators and hotel-row formatting are now pure and reusable.

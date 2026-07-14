@@ -198,6 +198,7 @@ import {
 import { buildClipboardVehicleSectionHtml } from "./itinerary-details/utils/clipboardVehicleSection.utils";
 import { buildClipboardCostSectionHtml } from "./itinerary-details/utils/clipboardCostSection.utils";
 import { buildClipboardHotelPackageSectionHtml } from "./itinerary-details/utils/clipboardHotelPackageSection.utils";
+import { buildClipboardPlainText } from "./itinerary-details/utils/clipboardPlainText.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3370,18 +3371,11 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
     })
     .join("");
 
-  const plainText = selectedGroups
-    .map((group, groupIndex) => {
-      const hotelLines = group.hotels
-        .map(
-          (hotel, index) =>
-            `Day-${index + 1} | ${hotel.day} | ${hotel.destination} | ${hotel.hotelName} - ${hotel.category} | ${hotel.roomType} - ${itinerary.roomCount} | ${hotel.mealPlan || "CP"}`
-        )
-        .join("\n");
-
-      return `${sectionTitle} - ${groupIndex + 1}\n${hotelLines}`;
-    })
-    .join("\n\n");
+  const plainText = buildClipboardPlainText({
+    groups: selectedGroups,
+    roomCount: itinerary.roomCount,
+    sectionTitle,
+  });
 
   return {
     html: packageSectionsHtml,
