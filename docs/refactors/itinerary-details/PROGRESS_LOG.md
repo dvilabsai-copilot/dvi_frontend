@@ -1141,6 +1141,33 @@
 ### Notes
 - The wallet top-up editor remains the next high-coupling presentation boundary; no wallet mutation or balance-refresh behavior was moved in this iteration.
 
+## Iteration 106 — Quotation rooming preview extraction
+
+### Baseline
+- Tests run: targeted typecheck/lint filtered to the changed controller/rooming-preview files, production build, and the focused Fit Here/hotspot Playwright pair.
+- Result: no changed-file type errors; rooming-preview view lint passed; build passed with existing warnings; focused Playwright passed 2/2.
+
+### Changes
+- Files created: `src/pages/itinerary-details/QuotationRoomingPreview.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: room-count, passenger-mix, and per-room occupancy preview markup now renders in a typed view; the controller still supplies the existing normalized occupancy array.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `QuotationRoomingPreview.tsx`; unrelated repository errors remain.
+- Lint: new rooming-preview component passes ESLint; repository baseline remains failing.
+- Production build: passed with existing warnings.
+- Targeted Playwright: 2 passed.
+- Full itinerary Playwright: not rerun; documented shared-data/environment failures remain unchanged.
+
+### Line counts
+- Transitional `ItineraryDetailsController.tsx`: 12,040 lines (down from 12,063 at the previous checkpoint).
+- New `QuotationRoomingPreview.tsx`: 47 lines.
+- Stable `ItineraryDetails.tsx`: 14 lines.
+
+### Notes
+- The remaining wallet editor and detailed hotel review sections retain their existing provider data handling until a larger typed boundary can be introduced safely.
+
 ## Iteration 89 - Quotation hotel-selection preparation
 
 ### Baseline

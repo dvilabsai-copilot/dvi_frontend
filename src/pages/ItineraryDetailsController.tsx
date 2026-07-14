@@ -182,6 +182,7 @@ import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
 import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
 import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary";
+import { QuotationRoomingPreview } from "./itinerary-details/QuotationRoomingPreview";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -11409,36 +11410,12 @@ const canShowGuideActionButton =
               </div>
             )}
 
-            {requiresHotelBookingFlow && (
-              <div className="bg-[#f8f9fa] p-4 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm gap-4">
-                  <span className="text-[#6c6c6c]">Rooms To Be Booked:</span>
-                  <span className="font-medium text-[#4a4260]">{confirmRoomCount}</span>
-                </div>
-                <div className="flex justify-between text-sm gap-4">
-                  <span className="text-[#6c6c6c]">Passenger Mix:</span>
-                  <span className="font-medium text-[#4a4260] text-right">{confirmPassengerMix || 'No passengers selected'}</span>
-                </div>
-                <div className="pt-2 border-t border-[#e6e6e6]">
-                  <p className="text-sm text-[#6c6c6c] mb-2">Rooming Preview</p>
-                  <div className="space-y-1">
-                    {confirmOccupancyPreview.map((room, index) => {
-                      const roomMix = [
-                        room.adults > 0 ? `${room.adults} Adult${room.adults === 1 ? '' : 's'}` : null,
-                        room.children > 0 ? `${room.children} Child${room.children === 1 ? '' : 'ren'}` : null,
-                      ].filter(Boolean).join(', ');
-
-                      return (
-                        <div key={`confirm-room-${index}`} className="flex justify-between text-sm gap-4">
-                          <span className="text-[#6c6c6c]">Room {index + 1}:</span>
-                          <span className="font-medium text-[#4a4260] text-right">{roomMix || 'No passengers assigned'}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+            <QuotationRoomingPreview
+              visible={requiresHotelBookingFlow}
+              roomCount={confirmRoomCount}
+              passengerMix={confirmPassengerMix}
+              occupancies={confirmOccupancyPreview}
+            />
 
             <QuotationPassengerNotice
               visible={requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0)}
