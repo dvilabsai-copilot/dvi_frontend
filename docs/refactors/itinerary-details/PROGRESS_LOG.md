@@ -4484,3 +4484,29 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red, and the broader itinerary suite retains documented failures.
+
+## Iteration 184 - Automatic Fit Here preview controller hook
+
+### Baseline
+- Starting checkpoint: `ad3f9e6` on `refactor/itinerary-details-continuation`, fast-forwarded from the latest `main` updates.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useAutoFitHerePreviewController.ts`.
+- Moved automatic Fit Here anchor preparation, preview request lifecycle, stale-request protection, progress-row initialization, result selection, modal state transitions, and error feedback out of the page controller.
+- Exported the existing Fit Here modal state shapes from `useHotspotState` so the extracted hook can retain the existing setter and payload contracts.
+- Preserved plan/day validation, preview payload fields, selected-hotspot state, progress text, response ranking, stale-response handling, and toast messages.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook, hotspot state, or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,566 lines (down from 7,665 at the continuation-branch baseline).
+- New hook: 150 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.

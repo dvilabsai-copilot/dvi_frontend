@@ -78,6 +78,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Pending top-priority replacement detection is isolated in `previewPriority.utils`; approval state and confirmation effects remain controller-owned.
 - Automatic Fit Here removed-row extraction, priority detection, and attempt scoring are isolated in `autoPreviewScoring.utils`; preview orchestration remains controller-owned.
 - Automatic Fit Here downstream progress text is isolated in `autoPreviewProgress.utils`; request lifecycle and modal state remain controller-owned.
+- Automatic Fit Here preview request lifecycle, anchor progress rows, stale-response protection, result selection, and modal transitions are isolated in `useAutoFitHerePreviewController`; anchor discovery remains controller-owned.
 - Active Fit Here preview route filtering, removal filtering, matrix ordering, and time/type fallback ordering are isolated in `activePreviewTimeline.utils`; resolution selection remains controller-owned.
 - Active preview resolution precedence (manual, group, then selected hotspot) is isolated in `activePreviewResolution.utils`; validation and normalized-decision derivation remain controller-owned.
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.

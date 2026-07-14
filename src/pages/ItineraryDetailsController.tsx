@@ -48,10 +48,7 @@ import {
 import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
-  buildAutoManualHotspotPreviewPayload,
   buildExactManualHotspotPreviewPayload,
-  extractAutoPreviewResults,
-  pickBestAutoPreviewAnchorKey,
 } from "./itinerary-details/manual-hotspot-preview.shared";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import { toast } from "sonner";
@@ -249,6 +246,7 @@ import { PackageIncludesCard } from "./itinerary-details/components/PackageInclu
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
+import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -4203,125 +4201,6 @@ const getSelectedPreviewActivity = () =>
     setSelectedHotspotIds([]);
   };
 
-  const runAutoPreviewFitHere = async (
-    planId: number,
-    day: ItineraryDay,
-    hotspot: AvailableHotspot,
-    anchors: HotspotAnchor[],
-  ) => {
-    return ItineraryService.previewManualHotspotAutoFitHere(
-      planId,
-      buildAutoManualHotspotPreviewPayload(
-        Number(day.id),
-        Number(hotspot.id),
-        anchors.map((item) => serializeFitHereAnchor(item)),
-      ),
-    );
-  };
-
-  const executeAutoPreviewFitHere = async (day: ItineraryDay, hotspot: AvailableHotspot) => {
-    const planId = Number(itinerary?.planId || 0);
-
-    if (!(planId > 0)) {
-      toast.error('Plan ID missing.');
-      return;
-    }
-
-    if (!day) {
-      toast.error('Could not find the selected route day.');
-      return;
-    }
-
-    const anchors = buildAutoFitHereAnchorsForDay(day);
-
-    if (anchors.length === 0) {
-      toast.error('No valid Fit Here positions found for Auto-Preview.');
-      return;
-    }
-
-    stopFitHereProgressTimer();
-    const requestId = ++previewRequestIdRef.current;
-    setSelectedFitHotspot(hotspot);
-    setActivePreviewHotspotId(hotspot.id);
-    setSelectedHotspotIds([hotspot.id]);
-    resetManualHotspotPreviewStateButKeepActiveHotspot(hotspot.id);
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-      retryPayload: null,
-    });
-
-    const initialRows = anchors.map((anchor, index) => ({
-      anchorKey: buildFitHereAnchorKey(anchor),
-      anchor: serializeFitHereAnchor(anchor),
-      attempt: null,
-      status: 'PENDING' as const,
-      score: 0,
-      rankReason: 'Waiting to simulate this position.',
-      removedCount: 0,
-      progressText: buildAutoPreviewAnchorProgressText(day, anchor),
-      elapsedMs: 0,
-      sortIndex: index,
-    }));
-
-    setAutoFitHereModal({
-      open: true,
-      loading: true,
-      failedReason: null,
-      results: initialRows,
-      selectedAnchorKey: null,
-      loadingAnchorCount: anchors.length,
-      loadingStartedAtMs: Date.now(),
-      performanceSummary: null,
-    });
-
-    try {
-      const response = await runAutoPreviewFitHere(planId, day, hotspot, anchors);
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-
-      const results = extractAutoPreviewResults(response).map((row, index: number) => ({
-        ...row,
-        progressText: buildAutoPreviewAnchorProgressText(day, row?.anchor || anchors[index] || anchors[0]),
-        sortIndex: Number.isFinite(Number(row?.sortIndex)) ? Number(row?.sortIndex) : index,
-      }));
-      const selectedAnchorKey = pickBestAutoPreviewAnchorKey(response, results[0]?.anchorKey || null);
-
-      setAutoFitHereModal({
-        open: true,
-        loading: false,
-        failedReason: null,
-        results,
-        selectedAnchorKey,
-        loadingAnchorCount: anchors.length,
-        loadingStartedAtMs: null,
-        performanceSummary: (response as any)?.performanceSummary || null,
-      });
-    } catch (error) {
-      if (requestId !== previewRequestIdRef.current) {
-        return;
-      }
-
-      setAutoFitHereModal({
-        open: true,
-        loading: false,
-        failedReason: error?.message || 'Could not run Auto-Preview.',
-        results: initialRows,
-        selectedAnchorKey: null,
-        loadingAnchorCount: anchors.length,
-        loadingStartedAtMs: null,
-        performanceSummary: null,
-      });
-
-      toast.error(error?.message || 'Could not run Auto-Preview.');
-    }
-  };
-
   const handleFitHereClick = useFitHerePreviewController({
     selectedFitHotspot,
     itineraryPlanId: itinerary?.planId || null,
@@ -4331,16 +4210,22 @@ const getSelectedPreviewActivity = () =>
     setFitHereModal,
   });
 
-  const handleAutoPreviewFitHere = async (hotspot: AvailableHotspot) => {
-    const day = selectedFitHereDay;
-
-    if (!day) {
-      toast.error('Could not find the selected route day.');
-      return;
-    }
-
-    void executeAutoPreviewFitHere(day, hotspot);
-  };
+  const handleAutoPreviewFitHere = useAutoFitHerePreviewController({
+    itineraryPlanId: itinerary?.planId,
+    selectedFitHereDay,
+    buildAutoFitHereAnchorsForDay,
+    buildFitHereAnchorKey,
+    serializeFitHereAnchor,
+    buildAutoPreviewAnchorProgressText,
+    setSelectedFitHotspot,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+    setFitHereModal,
+    setAutoFitHereModal,
+    previewRequestIdRef,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
+    stopFitHereProgressTimer,
+  });
 
   const { handleFitHereCancel, handleRetryFitHere } = useFitHereDialogController({
     fitHereModal,
