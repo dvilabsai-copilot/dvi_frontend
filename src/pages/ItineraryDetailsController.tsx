@@ -243,6 +243,7 @@ import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspo
 import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
 import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
 import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
+import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -3689,25 +3690,6 @@ const getSelectedPreviewActivity = () =>
       return true;
     });
   }, [buildFitHereAnchorForTimelineRow]);
-
-  const getFitHereTriedState = (resultType?: string): Omit<TriedAnchorState, 'anchorKey'> => {
-    const normalized = String(resultType || '').toUpperCase();
-
-    if (normalized === 'FITS_DIRECTLY') {
-      return { status: 'DIRECT_FIT', label: 'Tried: fits directly' };
-    }
-    if (normalized === 'FITS_WITH_OPTIONAL_REMOVAL') {
-      return { status: 'REMOVES_OPTIONAL', label: 'Tried: removes optional hotspot' };
-    }
-    if (normalized === 'REQUIRES_P3_CONFIRMATION') {
-      return { status: 'P3_CONFIRMATION', label: 'Tried: needs P3 confirmation' };
-    }
-    if (normalized === 'PRIORITY_CONFLICT') {
-      return { status: 'PRIORITY_CONFLICT', label: 'Tried: priority conflict' };
-    }
-
-    return { status: 'CANNOT_FIT', label: 'Tried: does not fit' };
-  };
 
   const getAutoPreviewRemovedRows = getAutoPreviewRemovedRowsUtil;
   const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;

@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 195 - Fit Here attempt status utility
+
+### Baseline
+- Starting checkpoint: `49ace03` on `refactor/itinerary-details-continuation` with destination insertion-label extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/fitHereAttemptStatus.utils.ts`.
+- Moved Fit Here result-type normalization and tried-anchor status/label mapping out of the page controller.
+- Preserved all result classifications and user-facing labels.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New utility ESLint check passed.
+- Filtered TypeScript check found no errors in the utility or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,018 lines (down from 7,033 at the previous iteration).
+- New utility: 12 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 194 - Destination insertion label hook
 
 ### Baseline
