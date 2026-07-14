@@ -112,5 +112,6 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Confirmation provider/session/prebook guards are isolated in `useQuotationBookingGuards`; mixed-provider approval, stale-session rejection, prebook-price comparison, and review acknowledgement retain their existing toast/return contracts.
 - Prebook-context attachment and selected/external hotel route-id derivation are isolated in `quotationHotelRouteContext.utils.ts` before final confirmation payload construction.
 - Vehicle build status/rebuild sequencing is isolated in `useVehicleBuildController`; route-option strictness, permit/vehicle rebuild calls, completed-details validation, and non-suggested fallback behavior remain unchanged.
+- Vehicle type grouping, cheapest-row assignment marking, day-wise route-label derivation, and `VehicleList` composition are isolated in `VehicleSection.tsx`.
 - Manual hotspot application, conflict/priority guards, service payload construction, optimistic availability updates, route rebuild marking, and background modal refresh are isolated in `useHotspotAddMutation`.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

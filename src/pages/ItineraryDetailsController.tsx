@@ -29,7 +29,6 @@ import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
-import { VehicleList } from "./VehicleList";
 import { HotelList } from "./HotelList";
 import { VoucherDetailsModal } from "./VoucherDetailsModal";
 import { PluckCardModal } from "./PluckCardModal";
@@ -90,7 +89,6 @@ import type {
   ViaRouteItem,
 } from "./itinerary-details/itinerary-details.types";
 import {
-  getVehicleAmountNumber,
   isSupplierBookableHotel,
   normalizeMealPlanLabel,
 } from "./itinerary-details/utils/domain.utils";
@@ -177,6 +175,7 @@ import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQu
 import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
 import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
 import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
+import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -8694,85 +8693,18 @@ const canShowGuideActionButton =
         </div>
       )}
 
-      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (() => {
-        // Group vehicles by vehicleTypeId
-        const vehiclesByType = new Map<number, typeof itinerary.vehicles>();
-        const typeOrder: number[] = [];
-
-        for (const vehicle of itinerary.vehicles) {
-          const typeId = vehicle.vehicleTypeId || 0;
-          if (!vehiclesByType.has(typeId)) {
-            vehiclesByType.set(typeId, []);
-            typeOrder.push(typeId);
-          }
-          vehiclesByType.get(typeId)?.push(vehicle);
-        }
-
-        // Prepare date range and routes for day-wise breakdown
-        const dateRange = itinerary.dateRange || "";
-        const routes = itinerary.days?.map((day) => ({
-          date: day.date,
-          destination: day.departure || "",
-          label: `Day ${day.dayNumber} - ${day.date ? new Date(day.date).toLocaleDateString('en-GB', { month: 'short', day: '2-digit' }) : ""}`,
-        })) || [];
-
-        return (
-          <div
-            ref={vehicleListRef}
-            id="vehicle-list-section"
-            style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
-          >
-            {typeOrder.map((typeId) => {
-     const rawVehiclesForType = vehiclesByType.get(typeId) || [];
-
-const sortedVehiclesForType = [...rawVehiclesForType].sort(
-  (a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b)
-);
-
-const cheapestVehicle = sortedVehiclesForType[0];
-
-const cheapestVehicleKey = cheapestVehicle
-  ? String(
-      cheapestVehicle.vendorEligibleId ??
-        cheapestVehicle.vehicleId ??
-        cheapestVehicle.vehicleIds?.[0] ??
-        `${cheapestVehicle.vendorName}-${cheapestVehicle.branchName}-${cheapestVehicle.totalAmount}`
-    )
-  : "";
-
-const vehiclesForType = sortedVehiclesForType.map((vehicle) => {
-  const vehicleKey = String(
-    vehicle.vendorEligibleId ??
-      vehicle.vehicleId ??
-      vehicle.vehicleIds?.[0] ??
-      `${vehicle.vendorName}-${vehicle.branchName}-${vehicle.totalAmount}`
-  );
-
-  return {
-    ...vehicle,
-    isAssigned: vehicleKey === cheapestVehicleKey,
-  };
-});
-
-const firstVehicle = vehiclesForType[0];
-const vehicleTypeLabel = firstVehicle?.vehicleTypeName || `Vehicle Type ${typeId}`;
-              return (
-                <VehicleList
-                  key={typeId}
-                  vehicleTypeId={typeId}
-                  vehicleTypeLabel={vehicleTypeLabel}
-                  vehicles={vehiclesForType}
-                  itineraryPlanId={itinerary.planId}
-                  onRefresh={refreshVehicleData}
-                  onSelectedTotalChange={handleVehicleSelectedTotalChange}
-                  dateRange={dateRange}
-                  routes={routes}
-                />
-              );
-            })}
-          </div>
-        );
-      })()}
+      {shouldShowVehicles && vehicleBuildStatus === "READY" && itinerary.vehicles && itinerary.vehicles.length > 0 && (
+        <VehicleSection
+          vehicleListRef={vehicleListRef}
+          summaryStickyHeight={summaryStickyHeight}
+          vehicles={itinerary.vehicles}
+          planId={itinerary.planId}
+          dateRange={itinerary.dateRange}
+          days={itinerary.days || []}
+          onRefresh={refreshVehicleData}
+          onSelectedTotalChange={handleVehicleSelectedTotalChange}
+        />
+      )}
 
       {shouldShowVehicles && vehicleBuildStatus === "READY" && (!itinerary.vehicles || itinerary.vehicles.length === 0) && (
         <div

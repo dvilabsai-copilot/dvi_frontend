@@ -1248,6 +1248,33 @@
 - Unrelated concurrent edits in `ConfirmedItineraries.tsx` and `services/itinerary.ts` were intentionally left out of this checkpoint.
 - Follow-up extraction: vehicle list derivation/rendering and larger quotation/hotspot controller boundaries.
 
+## Iteration 99 - Vehicle section composition
+
+### Baseline
+- Tests run: targeted controller/new-component typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or component; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/components/VehicleSection.tsx`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: vehicle-type grouping, cheapest-row assignment marking, route-label preparation, and `VehicleList` rendering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `VehicleSection.tsx`; unrelated repository errors remain.
+- Lint: new component passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 12,619 lines.
+- New `VehicleSection.tsx`: 74 lines.
+
+### Notes
+- Vehicle grouping order, amount sort, assignment identity fallback, day labels, and child callbacks remain unchanged; only section ownership moved.
+- Follow-up extraction: vehicle empty-state/presentation cleanup and larger quotation/hotspot controller boundaries.
+
 ## Iteration 71 - Hotspot deletion mutation boundary
 
 ### Baseline
