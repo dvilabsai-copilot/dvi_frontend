@@ -161,6 +161,7 @@ import { useGuideModalController } from "./itinerary-details/hooks/useGuideModal
 import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
 import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
+import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
@@ -6520,85 +6521,22 @@ if (policy.requiresPreviousDayBillingConfirmation) {
     setLoadingActivities,
   });
 
-  const handleAddActivity = async (activityId: number, amount: number) => {
-    if (!addActivityModal.planId || !addActivityModal.routeId || !addActivityModal.routeHotspotId || !addActivityModal.hotspotId) {
-      return;
-    }
-
-    // Check for conflicts in preview
-    let shouldSkipConflictCheck = false;
-    if (activityPreview?.hasConflicts && activityPreview.activity?.id === activityId) {
-      const conflictMessages = activityPreview.conflicts
-        .map((c) => c.reason)
-        .join('\n\n');
-
-      const confirm = window.confirm(
-        `TIMING CONFLICTS DETECTED:\n\n${conflictMessages}\n\nDo you want to add this activity anyway?`
-      );
-
-      if (!confirm) return;
-      shouldSkipConflictCheck = true; // User confirmed override
-    }
-
-    setIsAddingActivity(true);
-    try {
-      const payload: any = {
-        planId: addActivityModal.planId,
-        routeId: addActivityModal.routeId,
-        routeHotspotId: addActivityModal.routeHotspotId,
-        hotspotId: addActivityModal.hotspotId,
-        activityId,
-        amount,
-      };
-
-      // Only add skipConflictCheck if user confirmed conflict override
-      if (shouldSkipConflictCheck) {
-        payload.skipConflictCheck = true;
-      }
-
-      await ItineraryService.addActivity(payload);
-
-      toast.success("Activity added successfully");
-
-      // Close modal
-      setAddActivityModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        routeHotspotId: null,
-        hotspotId: null,
-        hotspotName: "",
-      });
-      setActivityPreview(null);
-      setPreviewingActivityId(null);
-
-      // Reload itinerary — always, independently of hotel reload
-      if (quoteId) {
-        try {
-          const detailsRes = await ItineraryService.getDetails(quoteId);
-          setItinerary(detailsRes as ItineraryDetailsResponse);
-        } catch (reloadErr) {
-          console.error("Failed to reload itinerary after add", reloadErr);
-        }
-        try {
-          if (shouldShowHotels) {
-            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-          } else {
-            setHotelDetails(null);
-            setActiveHotelListTotal(0);
-          }
-        } catch {
-          // Non-critical
-        }
-      }
-    } catch (e) {
-      console.error("Failed to add activity", e);
-      toast.error(e?.message || "Failed to add activity");
-    } finally {
-      setIsAddingActivity(false);
-    }
-  };
+  const { handleAddActivity, handleDeleteActivity } = useActivityMutationController({
+    addActivityModal,
+    activityPreview,
+    deleteActivityModal,
+    quoteId: quoteId || null,
+    shouldShowHotels,
+    setIsAddingActivity,
+    setIsDeletingActivity,
+    setAddActivityModal,
+    setDeleteActivityModal,
+    setActivityPreview,
+    setPreviewingActivityId,
+    setItinerary,
+    setHotelDetails,
+    setActiveHotelListTotal,
+  });
 
   const formatPreviewTime = (value: string | Date | null | undefined) => {
     if (!value) return 'N/A';
@@ -6649,59 +6587,6 @@ const getSelectedPreviewActivity = () =>
     setActivityPreview,
     setAllHotspotsPreviewModal,
   });
-
-  const handleDeleteActivity = async () => {
-    if (!deleteActivityModal.planId || !deleteActivityModal.routeId || !deleteActivityModal.activityId) {
-      return;
-    }
-
-    setIsDeletingActivity(true);
-    try {
-      await ItineraryService.deleteActivity(
-        deleteActivityModal.planId,
-        deleteActivityModal.routeId,
-        deleteActivityModal.activityId
-      );
-
-      toast.success("Activity deleted successfully");
-
-      // Close modal
-      setDeleteActivityModal({
-        open: false,
-        planId: null,
-        routeId: null,
-        activityId: null,
-        activityName: "",
-      });
-
-      // Reload itinerary — always, independently of hotel reload
-      if (quoteId) {
-        try {
-          const detailsRes = await ItineraryService.getDetails(quoteId);
-          setItinerary(detailsRes as ItineraryDetailsResponse);
-        } catch (reloadErr) {
-          console.error("Failed to reload itinerary after delete", reloadErr);
-        }
-        // Hotel reload is best-effort and must not block the itinerary refresh
-        try {
-          if (shouldShowHotels) {
-            const hotelRes = await ItineraryService.getHotelDetails(quoteId);
-            setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
-          } else {
-            setHotelDetails(null);
-            setActiveHotelListTotal(0);
-          }
-        } catch {
-          // Non-critical — silence hotel reload errors
-        }
-      }
-    } catch (e) {
-      console.error("Failed to delete activity", e);
-      toast.error(e?.message || "Failed to delete activity");
-    } finally {
-      setIsDeletingActivity(false);
-    }
-  };
 
   const openDeleteActivityModal = (
     planId: number,

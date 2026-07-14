@@ -100,4 +100,5 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Successful Fit Here insertion reset of selected hotspot, preview maps, dialog state, and tried anchors is isolated in `useFitHereConfirmationReset`.
 - Optimistic Fit Here confirmation state now belongs to `useFitHereConfirmationState`; it updates modal availability/exclusions, normalized timeline segments, and the route rebuild marker.
 - Post-confirmation details and hotel hydration are isolated in `useFitHereConfirmationRefresh`; route timeline merging remains scoped to the confirmed route.
+- Activity add/delete mutations and their independent itinerary/hotel refreshes are isolated in `useActivityMutationController`; preview and availability loading remain separate boundaries.
 - Remaining high-risk boundaries: hotel search/arrival/room-selection operations, vehicle workflow, hotspot/Fit Here action controller and large modal view, and quotation review/submission view.

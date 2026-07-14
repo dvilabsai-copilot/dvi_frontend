@@ -1086,6 +1086,33 @@
 - Approval flags and preview request semantics remain unchanged; only ownership moved.
 - Follow-up extraction: Fit Here confirmation mutation and its timeline refresh path.
 
+## Iteration 83 - Activity mutation controller
+
+### Baseline
+- Tests run: targeted controller/new-hook typecheck filter, focused hotspot Playwright pair, and production build.
+- Result: no type errors from the controller or new hook; focused pair 2 passed; build passed with existing repository warnings.
+
+### Changes
+- Files created: `src/pages/itinerary-details/hooks/useActivityMutationController.ts`.
+- Files modified: `src/pages/ItineraryDetailsController.tsx`, `ARCHITECTURE_MAP.md`, `FINAL_REPORT.md`.
+- Code moved: activity add conflict confirmation, add/delete service calls, modal cleanup, and independent itinerary/hotel refresh behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Typecheck: no errors from `ItineraryDetailsController.tsx` or `useActivityMutationController.ts`; unrelated repository errors remain.
+- Lint: new hook passes ESLint; repository baseline remains failing as documented.
+- Targeted Playwright: 2 passed.
+- Production build: passed with existing warnings.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 13,893 lines.
+- New `useActivityMutationController.ts`: 148 lines.
+
+### Notes
+- Conflict override payloads, modal reset values, and best-effort hotel refresh semantics remain unchanged; only ownership moved.
+- Follow-up extraction: vehicle workflow actions and remaining Fit Here confirmation orchestration.
+
 ## Iteration 82 - Fit Here confirmation refresh boundary
 
 ### Baseline
