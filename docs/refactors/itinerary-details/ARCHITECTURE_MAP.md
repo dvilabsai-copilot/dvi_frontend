@@ -90,6 +90,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Hotspot city buckets, grouped rows, tabs, active-tab visibility, and destination-context tab selection are isolated in `useHotspotCityPresentation`.
 - Matrix/anchor insertion-slot label normalization and destination fallback text are isolated in `useDestinationInsertionSlotLabel`.
 - Fit Here result-type normalization and tried-anchor status labels are isolated in `fitHereAttemptStatus.utils`.
+- Fit Here hotspot selection invalidation and modal-reset orchestration are isolated in `useFitHereHotspotSelection`.
 - Active Fit Here preview route filtering, removal filtering, matrix ordering, and time/type fallback ordering are isolated in `activePreviewTimeline.utils`; resolution selection remains controller-owned.
 - Active preview resolution precedence (manual, group, then selected hotspot) is isolated in `activePreviewResolution.utils`; validation and normalized-decision derivation remain controller-owned.
 - Preview validation reason normalization, unscheduled-hotspot messaging, and destination-name substitution are isolated in `previewValidationReason.utils`; matrix apply gating remains controller-owned.

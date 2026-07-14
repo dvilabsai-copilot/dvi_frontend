@@ -4511,6 +4511,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
 
+## Iteration 196 - Fit Here hotspot selection hook
+
+### Baseline
+- Starting checkpoint: `132a32e` on `refactor/itinerary-details-continuation` with Fit Here attempt-status extraction committed and pushed.
+
+### Changes
+- Created `src/pages/itinerary-details/hooks/useFitHereHotspotSelection.ts`.
+- Moved selected-hotspot request invalidation, Fit Here modal reset, automatic-preview reset, and active-preview cleanup out of the page controller.
+- Preserved selection state, stale-request protection, timer cleanup, and all modal reset fields.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New hook ESLint check passed.
+- Filtered TypeScript check found no errors in the extracted hook or page controller; repository typecheck retains unrelated existing errors.
+- Production build passed.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 7,005 lines (down from 7,018 at the previous iteration).
+- New hook: 50 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target, repository lint remains red for documented pre-existing issues, and the broader itinerary suite retains documented failures.
+
 ## Iteration 195 - Fit Here attempt status utility
 
 ### Baseline

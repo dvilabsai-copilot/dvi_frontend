@@ -244,6 +244,7 @@ import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspot
 import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
 import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
 import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
+import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -3697,31 +3698,17 @@ const getSelectedPreviewActivity = () =>
 
   const buildAutoPreviewAnchorProgressText = useCallback(buildAutoPreviewAnchorProgressTextUtil, []);
 
-  const handleSelectFitHotspot = (hotspot: AvailableHotspot) => {
-    previewRequestIdRef.current += 1;
-    stopFitHereProgressTimer();
-    setSelectedFitHotspot(hotspot);
-    setTriedFitHereAnchors({});
-    setFitHereModal({
-      open: false,
-      loading: false,
-      loadingStepIndex: 0,
-      failedReason: null,
-      attempt: null,
-      anchorKey: null,
-      retryPayload: null,
-    });
-    setAutoFitHereModal({
-      open: false,
-      loading: false,
-      failedReason: null,
-      results: [],
-      selectedAnchorKey: null,
-    });
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(null);
-    setSelectedHotspotIds([]);
-  };
+  const handleSelectFitHotspot = useFitHereHotspotSelection({
+    previewRequestIdRef,
+    stopFitHereProgressTimer,
+    setSelectedFitHotspot,
+    setTriedFitHereAnchors,
+    setFitHereModal,
+    setAutoFitHereModal,
+    resetManualHotspotPreviewState,
+    setActivePreviewHotspotId,
+    setSelectedHotspotIds,
+  });
 
   const handleFitHereClick = useFitHerePreviewController({
     selectedFitHotspot,
