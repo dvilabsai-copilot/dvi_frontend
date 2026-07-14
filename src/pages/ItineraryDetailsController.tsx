@@ -193,6 +193,7 @@ import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSe
 import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialogFooter";
 import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyButton";
 import { HotspotFitHereTimelineRows } from "./itinerary-details/components/HotspotFitHereTimelineRows";
+import { HotspotFitHereEmptyState } from "./itinerary-details/components/HotspotFitHereEmptyState";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
@@ -9552,14 +9553,7 @@ const canShowGuideActionButton =
                   <Clock className="h-4 w-4" />
                   Proposed Timeline
                 </h3>
-                {!selectedFitHotspot && !manualPreviewState && (
-                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="text-sm font-semibold text-slate-900">Select a hotspot to start Fit Here mode</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Pick a hotspot from the left, then choose the exact insertion anchor on this timeline.
-                    </p>
-                  </div>
-                )}
+                <HotspotFitHereEmptyState visible={!selectedFitHotspot && !manualPreviewState} />
                 {selectedFitHotspot && selectedFitHereDay && !manualPreviewState && (
                   <div className="mb-4 space-y-4">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">

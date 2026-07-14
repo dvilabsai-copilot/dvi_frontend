@@ -1007,6 +1007,32 @@
 - Anchor construction and Fit Here mutation flows remain controller-owned and injected, keeping this extraction presentation-only.
 - Remaining high-risk boundaries are the larger hotspot/Fit Here diagnostics/timeline pane, quotation review/submission view, and transitional controller composition.
 
+## Iteration 119 — Fit Here empty-state guidance
+
+### Baseline
+- Starting point: Iteration 118 Fit Here timeline-row extraction; stable page entrypoint remained 14 lines and focused hotspot Playwright remained green.
+- Scope: extract the right-pane guidance shown before a hotspot is selected.
+
+### Changes
+- File created: `src/pages/itinerary-details/components/HotspotFitHereEmptyState.tsx`.
+- File modified: `src/pages/ItineraryDetailsController.tsx`.
+- Code moved: Fit Here empty-state copy and layout now live in a presentation component; visibility is still derived from the existing selected-hotspot/modal state.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Lint: new component passes ESLint with `--max-warnings=0`.
+- Typecheck: no diagnostics from the controller or new component; existing repository diagnostics remain.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- Generated Playwright artifacts were restored/cleaned.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 11,796 lines.
+- New `HotspotFitHereEmptyState.tsx`: 20 lines.
+
+### Notes
+- Remaining high-risk boundaries are the larger hotspot/Fit Here diagnostics/timeline pane, quotation review/submission view, and transitional controller composition.
+
 ## Iteration 100 — Quotation passenger form view extraction
 
 ### Baseline
