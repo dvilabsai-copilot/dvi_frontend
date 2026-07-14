@@ -198,10 +198,9 @@ import {
 import {
   formatClipboardMoney,
   formatClipboardMoneyWithSymbol,
-  getActivityAmountFromItineraryDays,
   getClipboardHotelPaxCount,
-  getEntryTicketBreakdownFromItineraryDays,
 } from "./itinerary-details/utils/clipboardItineraryTotals.utils";
+import { buildClipboardGroupFinancialTotals } from "./itinerary-details/utils/clipboardFinancialTotals.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -3347,82 +3346,6 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   const centerTitleStyle =
     "font-family:Calibri,Arial,sans-serif;font-size:20px;line-height:42px;font-weight:700;text-align:center;color:#000;";
 
-  const getHotelBaseAmountForGroup = (group: ClipboardGroup) => {
-    return group.hotels.reduce((sum, hotel) => {
-      const rowTotal =
-        Number(hotel.totalHotelCost || 0) +
-        Number(hotel.totalHotelTaxAmount || 0);
-
-      return sum + rowTotal;
-    }, 0);
-  };
-
-  const getGroupFinancialTotals = (group: ClipboardGroup) => {
-    const hotelAmount = shouldShowHotels ? getHotelBaseAmountForGroup(group) : 0;
-
-    const amenitiesAmount = Number(itinerary.costBreakdown.totalAmenitiesCost || 0);
-    const extraBedAmount = Number(itinerary.costBreakdown.extraBedCost || 0);
-    const childWithBedAmount = Number(itinerary.costBreakdown.childWithBedCost || 0);
-    const childWithoutBedAmount = Number(itinerary.costBreakdown.childWithoutBedCost || 0);
-    const guideAmount = Number(itinerary.costBreakdown.totalGuideCost || 0);
-    const entryTicketBreakdown = getEntryTicketBreakdownFromItineraryDays(itinerary.days);
-    const hotspotAmountFromCostBreakdown = Number(itinerary.costBreakdown.totalHotspotCost || 0);
-    const hotspotAmount =
-      entryTicketBreakdown.length > 0
-        ? entryTicketBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-        : hotspotAmountFromCostBreakdown;
-
-    const activityAmountFromCostBreakdown = Number(
-      itinerary.costBreakdown.totalActivityCost || 0,
-    );
-    const activityAmountFromDays = getActivityAmountFromItineraryDays(itinerary.days);
-
-    const activityAmount =
-      activityAmountFromCostBreakdown > 0
-        ? activityAmountFromCostBreakdown
-        : activityAmountFromDays;
-
-    const additionalMargin = Number(itinerary.costBreakdown.additionalMargin || 0);
-
-    const vehicleAmount = shouldShowVehicles ? Number(computedVehicleAmount || 0) : 0;
-
-    const totalAmount =
-      hotelAmount +
-      amenitiesAmount +
-      extraBedAmount +
-      childWithBedAmount +
-      childWithoutBedAmount +
-      guideAmount +
-      hotspotAmount +
-      activityAmount +
-      additionalMargin +
-      vehicleAmount;
-
-    const couponDiscount = Number(itinerary.costBreakdown.couponDiscount || 0);
-    const agentMargin = Number(itinerary.costBreakdown.agentMargin || 0);
-    const netBeforeRound = totalAmount - couponDiscount + agentMargin;
-    const netPayable = Math.round(netBeforeRound);
-    const roundOff = Number((netPayable - netBeforeRound).toFixed(2));
-
-    return {
-      hotelAmount,
-      vehicleAmount,
-      totalAmount,
-      roundOff,
-      netPayable,
-      amenitiesAmount,
-      extraBedAmount,
-      childWithBedAmount,
-      childWithoutBedAmount,
-      guideAmount,
-      hotspotAmount,
-      entryTicketBreakdown,
-      activityAmount,
-      couponDiscount,
-      agentMargin,
-    };
-  };
-
   const buildVehicleSectionHtml = () => {
     if (!shouldShowVehicles) return "";
 
@@ -3477,7 +3400,13 @@ const buildClipboardHtml = (mode: ClipboardMode) => {
   };
 
   const buildCostSectionHtml = (group: ClipboardGroup) => {
-    const totals = getGroupFinancialTotals(group);
+    const totals = buildClipboardGroupFinancialTotals({
+      hotels: group.hotels,
+      itinerary,
+      shouldShowHotels,
+      shouldShowVehicles,
+      computedVehicleAmount,
+    });
     const hotelPaxCount = getClipboardHotelPaxCount(itinerary);
     const hotelPerPaxAmount =
       hotelPaxCount > 0
