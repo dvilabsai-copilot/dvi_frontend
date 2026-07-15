@@ -268,3 +268,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Shared travel-label endpoint parsing is isolated in `hotspotText.utils.ts`; post-loader callbacks remain behavior-equivalent render-local actions and optional cost data is guarded in `ItineraryOverallCost.tsx`.
 - Route-family base-quote normalization is isolated in `routeFamily.utils.ts`.
 - Quotation confirmation shell composition is isolated in `QuotationConfirmationDialog.tsx`; the controller still owns its state, validation, and submission callbacks.
+- Itinerary-level voucher, invoice, incidental-expense, cancellation, and hotel-voucher composition is isolated in `ItineraryAncillaryModals.tsx`.

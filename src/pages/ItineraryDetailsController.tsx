@@ -29,17 +29,11 @@ import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
-import { VoucherDetailsModal } from "./VoucherDetailsModal";
-import { PluckCardModal } from "./PluckCardModal";
-import { InvoiceModal } from "./InvoiceModal";
-import { IncidentalExpensesModal } from "./IncidentalExpensesModal";
 import { IncidentalExpensesHistorySection } from "./IncidentalExpensesHistorySection";
 import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
-import { CancelItineraryModal } from "@/components/modals/CancelItineraryModal";
-import { HotelVoucherModal } from "@/components/modals/HotelVoucherModal";
 import {
   ManualFitHerePreviewDialog,
   ManualFitHerePreviewResponse,
@@ -258,6 +252,7 @@ import { HotspotPreviewValidationNotice } from "./itinerary-details/components/H
 import { HotspotPreviewPane } from "./itinerary-details/components/HotspotPreviewPane";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
+import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
@@ -3188,58 +3183,54 @@ const hotelTimelineLoading = Boolean(
       />
 
       {itinerary?.planId && (
-        <>
-          <VoucherDetailsModal
-            isOpen={voucherModal}
-            onClose={() => setVoucherModal(false)}
-            itineraryPlanId={itinerary.planId}
-          />
-          <PluckCardModal
-            isOpen={pluckCardModal}
-            onClose={() => setPluckCardModal(false)}
-            itineraryPlanId={itinerary.planId}
-          />
-          <InvoiceModal
-            isOpen={invoiceModal}
-            onClose={() => setInvoiceModal(false)}
-            itineraryPlanId={itinerary.planId}
-            type={invoiceType}
-          />
-          <IncidentalExpensesModal
-            isOpen={incidentalModal}
-            onClose={() => setIncidentalModal(false)}
-            itineraryPlanId={itinerary.planId}
-            onSuccess={() => setIncidentalHistoryRefreshToken((current) => current + 1)}
-          />
-          <CancelItineraryModal
-            open={cancelModalOpen}
-            onOpenChange={setCancelModalOpen}
-            itineraryPlanId={itinerary.planId ?? null}
-            onSuccess={() => {
+        <ItineraryAncillaryModals
+          voucher={{
+            isOpen: voucherModal,
+            onClose: () => setVoucherModal(false),
+            itineraryPlanId: itinerary.planId,
+          }}
+          pluckCard={{
+            isOpen: pluckCardModal,
+            onClose: () => setPluckCardModal(false),
+            itineraryPlanId: itinerary.planId,
+          }}
+          invoice={{
+            isOpen: invoiceModal,
+            onClose: () => setInvoiceModal(false),
+            itineraryPlanId: itinerary.planId,
+            type: invoiceType,
+          }}
+          incidentalExpenses={{
+            isOpen: incidentalModal,
+            onClose: () => setIncidentalModal(false),
+            itineraryPlanId: itinerary.planId,
+            onSuccess: () => setIncidentalHistoryRefreshToken((current) => current + 1),
+          }}
+          cancellation={{
+            open: cancelModalOpen,
+            onOpenChange: setCancelModalOpen,
+            itineraryPlanId: itinerary.planId,
+            onSuccess: () => {
               toast.success('Itinerary data will be refreshed');
               window.location.reload();
-            }}
-          />
-          {selectedHotelForVoucher && (
-            <HotelVoucherModal
-              open={hotelVoucherModalOpen}
-              onOpenChange={setHotelVoucherModalOpen}
-              itineraryPlanId={itinerary.planId}
-              routeId={selectedHotelForVoucher.routeId}
-              hotelId={selectedHotelForVoucher.hotelId}
-              hotelName={selectedHotelForVoucher.hotelName}
-              hotelEmail={selectedHotelForVoucher.hotelEmail}
-              hotelStateCity={selectedHotelForVoucher.hotelStateCity}
-              routeDates={selectedHotelForVoucher.routeDates}
-              dayNumbers={selectedHotelForVoucher.dayNumbers}
-              hotelDetailsIds={selectedHotelForVoucher.hotelDetailsIds}
-              initialStatus={selectedHotelForVoucher.initialStatus}
-              onSuccess={() => {
-                refreshHotelData();
-              }}
-            />
-          )}
-        </>
+            },
+          }}
+          hotelVoucher={selectedHotelForVoucher ? {
+            open: hotelVoucherModalOpen,
+            onOpenChange: setHotelVoucherModalOpen,
+            itineraryPlanId: itinerary.planId,
+            routeId: selectedHotelForVoucher.routeId,
+            hotelId: selectedHotelForVoucher.hotelId,
+            hotelName: selectedHotelForVoucher.hotelName,
+            hotelEmail: selectedHotelForVoucher.hotelEmail,
+            hotelStateCity: selectedHotelForVoucher.hotelStateCity,
+            routeDates: selectedHotelForVoucher.routeDates,
+            dayNumbers: selectedHotelForVoucher.dayNumbers,
+            hotelDetailsIds: selectedHotelForVoucher.hotelDetailsIds,
+            initialStatus: selectedHotelForVoucher.initialStatus,
+            onSuccess: refreshHotelData,
+          } : null}
+        />
       )}
 
     </div>

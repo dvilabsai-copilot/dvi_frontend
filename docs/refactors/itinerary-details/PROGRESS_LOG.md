@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 257 — Extract ancillary itinerary modals
+
+### Baseline
+- Starting point: Iteration 256 at commit `ddd4783` with the controller at 3,249 lines.
+- Scope: compose itinerary-level voucher, pluck-card, invoice, incidental-expense, cancellation, and hotel-voucher dialogs outside the controller.
+
+### Changes
+- Added `src/pages/itinerary-details/components/ItineraryAncillaryModals.tsx`.
+- The controller still supplies every open state, close callback, plan/route data, toast, reload, and refresh callback; no modal behavior or API ownership moved.
+
+### Verification
+- Controller line count: 3,240; new component: 42 lines.
+- Exact-source Playwright pair: 2 passed.
+- Filtered TypeScript and new-component lint passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 256 — Extract quotation confirmation dialog composition
 
 ### Baseline
