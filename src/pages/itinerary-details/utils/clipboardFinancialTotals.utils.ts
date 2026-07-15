@@ -1,6 +1,5 @@
 import {
   getActivityAmountFromItineraryDays,
-  getEntryTicketBreakdownFromItineraryDays,
   type ClipboardEntryTicket,
 } from './clipboardItineraryTotals.utils';
 
@@ -53,11 +52,10 @@ export const buildClipboardGroupFinancialTotals = ({
   const childWithBedAmount = Number(costBreakdown.childWithBedCost || 0);
   const childWithoutBedAmount = Number(costBreakdown.childWithoutBedCost || 0);
   const guideAmount = Number(costBreakdown.totalGuideCost || 0);
-  const entryTicketBreakdown = getEntryTicketBreakdownFromItineraryDays(plan.days);
-  const hotspotAmountFromCostBreakdown = Number(costBreakdown.totalHotspotCost || 0);
-  const hotspotAmount = entryTicketBreakdown.length > 0
-    ? entryTicketBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-    : hotspotAmountFromCostBreakdown;
+  const entryTicketBreakdown = Array.isArray(costBreakdown.entryTicketBreakdown)
+    ? costBreakdown.entryTicketBreakdown as ClipboardEntryTicket[]
+    : [];
+  const hotspotAmount = Number(costBreakdown.totalHotspotCost || 0);
   const activityAmountFromCostBreakdown = Number(costBreakdown.totalActivityCost || 0);
   const activityAmountFromDays = getActivityAmountFromItineraryDays(plan.days);
   const activityAmount = activityAmountFromCostBreakdown > 0

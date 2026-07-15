@@ -11,6 +11,7 @@ import {
 } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { AlertTriangle, Check, Copy, Loader2 } from "lucide-react";
+import { FloatingHoverTooltip, getFloatingTooltipPosition } from "../components/FloatingHoverTooltip";
 
 
 export interface DayWisePricingItem {
@@ -444,32 +445,6 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     setHoveredTotalAmountIndex(null);
     setVehicleOriginTooltip(null);
   }, [vehicleIdentitySignature]);
-
-  const getFloatingTooltipPosition = (
-    clientX: number,
-    clientY: number,
-    tooltipWidth = 320,
-    tooltipHeight = 150,
-  ) => {
-    const padding = 12;
-    const offset = 14;
-
-    let left = clientX + offset;
-    let top = clientY + offset;
-
-    if (left + tooltipWidth + padding > window.innerWidth) {
-      left = clientX - tooltipWidth - offset;
-    }
-
-    if (top + tooltipHeight + padding > window.innerHeight) {
-      top = clientY - tooltipHeight - offset;
-    }
-
-    return {
-      left: Math.max(padding, left),
-      top: Math.max(padding, top),
-    };
-  };
 
   const showVehicleOriginTooltip = (
     index: number,
@@ -1002,14 +977,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       </span>
 
                       {vehicleOriginTooltip?.index === index && (
-                        <div
-                          className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]"
-                          style={{
-                            left: `${vehicleOriginTooltip.left}px`,
-                            top: `${vehicleOriginTooltip.top}px`,
-                            pointerEvents: "none",
-                          }}
-                        >
+                        <FloatingHoverTooltip left={vehicleOriginTooltip.left} top={vehicleOriginTooltip.top}>
                           <div className="mb-2 border-b border-gray-200 pb-2">
                             <div className="flex justify-between gap-4">
                               <span className="text-gray-700 font-semibold">Vehicle Origin</span>
@@ -1054,7 +1022,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                           <div className="mt-2 border-t border-gray-200 pt-2 text-xs text-purple-900 font-semibold">
                             Permit source state is derived from vehicle number prefix.
                           </div>
-                        </div>
+                        </FloatingHoverTooltip>
                       )}
                     </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
@@ -1068,13 +1036,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       
                       {/* Hover Tooltip - Price Breakdown */}
                        {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
-                        <div className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]" 
-                             style={{
-                               bottom: 'auto',
-                               right: '20px',
-                               top: '80px',
-                               pointerEvents: 'none'
-                             }}>
+                        <FloatingHoverTooltip left={0} top={80} style={{ right: "20px", left: "auto" }}>
                           <div className="mb-2 border-b border-gray-200 pb-2">
                             <div className="flex justify-between mb-1">
                               <span className="text-gray-700 font-semibold">Subtotal Vehicle</span>
@@ -1109,7 +1071,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
   </span>
 </div>
 
-                        </div>
+                        </FloatingHoverTooltip>
                       )}
                     </td>
                   </tr>
