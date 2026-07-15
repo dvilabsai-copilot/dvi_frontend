@@ -317,7 +317,7 @@ import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerar
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
 import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
-import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
+import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
 export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
@@ -346,21 +346,11 @@ const location = useLocation();
     setIsSwitchingRouteOption, latestRouteOptions, setLatestRouteOptions, itineraryDaysCountRef,
     routeHotelFetchPromisesRef, routeHotelPrefetchedRef, routeHotelFamilyKeyRef, fetchCompleteHotelDetailsRef,
   } = routeState;
-  const isConfirmedItinerary = Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0) > 0 || itinerary?.isConfirmed === true;
-  const canViewCostBreakdown = canViewItineraryCostBreakdown();
-  const isAgentLogin = getAuthenticatedRole() === 4;
-  const hotelReadOnly = readOnly || isConfirmedItinerary;
-  const isConfirmedPresentation = presentationMode === 'confirmed' || readOnly || isConfirmedItinerary;
-  const shouldShowHotels = (() => {
-    const pref = Number(itinerary?.itineraryPreference ?? 0);
-    return pref === 1 || pref === 3;
-  })();
-  const shouldShowVehicles = (() => {
-    const pref = Number(itinerary?.itineraryPreference ?? 0);
-    return pref === 2 || pref === 3;
-  })();
-  const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
-  const requiresHotelBookingFlow = shouldShowHotels;
+  const {
+    isConfirmedItinerary, canViewCostBreakdown, isAgentLogin, hotelReadOnly,
+    isConfirmedPresentation, shouldShowHotels, shouldShowVehicles,
+    isVehicleOnlyItinerary, requiresHotelBookingFlow,
+  } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
 
   const openSourcePreview = useSourcePreviewController({
     activeRouteQuoteId,
