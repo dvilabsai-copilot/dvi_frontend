@@ -324,29 +324,6 @@ import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itine
 // Preserve the historical type exports consumed by HotelList and other modules.
 export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
 
-// Legacy hotel DTO fields are defined in itinerary-details.types.ts.
-  // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
-/*
-  hotelCode?: string; // HOBSE hotel code
-  bookingCode?: string; // HOBSE booking code
-  searchReference?: string;
-  checkInDate?: string; // YYYY-MM-DD format
-  checkOutDate?: string; // YYYY-MM-DD format
-  // ✅ Hotel distance from route location (calculated via Haversine on backend)
-  hotelDistance?: string | null; // Distance in "XX.XX KM" format
-  hotelAddress?: string | null;
-  cancellationPolicy?: string[];
-  isBookable?: boolean;
-  externalStay?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'NO_SUPPLIER_AVAILABILITY' | 'NOT_BOOKABLE';
-  availabilityMessage?: string | null;
-  availableAgainFrom?: string | null;
-  displayRoomType?: string;
-  displayMealPlan?: string;
-};
-*/
-
-
 // --------- VEHICLES ---------
 
 // ----------------- Helper functions -----------------

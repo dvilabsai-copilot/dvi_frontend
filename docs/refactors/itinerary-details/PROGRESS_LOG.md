@@ -1,5 +1,16 @@
 # Progress log
 
+## Iteration 269 — Remove obsolete commented DTO block
+
+### Baseline
+- Starting point: Iteration 268 with the controller at 2,536 lines.
+- Scope: remove an obsolete commented hotel DTO fragment that duplicated the extracted domain type and had no runtime effect.
+
+### Verification
+- Controller line count: 2,513.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 268 — Remove dead hotel-search scaffolding
 
 ### Baseline
