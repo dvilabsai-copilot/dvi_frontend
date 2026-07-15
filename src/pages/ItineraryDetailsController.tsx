@@ -24,7 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, ArrowUp, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Bell, Building2, Timer, FileText, CreditCard, Receipt, Loader2, RefreshCw, Edit, AlertTriangle, Route, Utensils } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Building2, Timer, Loader2, RefreshCw, Edit, AlertTriangle, Route, Utensils } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
@@ -246,6 +246,7 @@ import { AddActivityDialog } from "./itinerary-details/components/AddActivityDia
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
 import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
 import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
+import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2389,6 +2390,28 @@ const hotelTimelineLoading = Boolean(
   const seg: any = {};
   const idx = 0;
 
+  const handleClipboardMode = useCallback((mode: ClipboardMode) => {
+    if (itineraryPreference === 2) {
+      handleVehicleOnlyClipboardCopyRefactored(mode);
+      return;
+    }
+    setClipboardType(mode);
+    setSelectedHotels(buildDefaultClipboardSelection());
+    setClipboardModal(true);
+  }, [buildDefaultClipboardSelection, handleVehicleOnlyClipboardCopyRefactored, itineraryPreference]);
+
+  const handleCopyLink = useCallback(() => {
+    void navigator.clipboard.writeText(window.location.href);
+    toast.success("Link copied to clipboard!");
+  }, [toast]);
+
+  const handleShareWhatsApp = useCallback(() => {
+    const message = `Check out this itinerary: ${window.location.href}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+  }, []);
+
+  const handleShareEmail = useCallback(() => setShareModal(true), [setShareModal]);
+
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
       {isConfirmedPresentation && <ConfirmedQuoteBanner />}
@@ -2792,209 +2815,26 @@ const canShowGuideActionButton =
           entryTicketBreakdownByLocation={entryTicketBreakdownByLocation}
         />
       </div>
-      {/* Action Buttons */}
-      {!isConfirmedPresentation && (
-      <div className="flex flex-wrap gap-3 justify-center">
-       {/* Clipboard Dropdown */}
+      <ItineraryActionButtons
+        isConfirmedPresentation={isConfirmedPresentation}
+        onCopyClipboard={handleClipboardMode}
+        onDownloadPluckCard={handleDownloadPluckCard}
+        onOpenVoucher={() => setVoucherModal(true)}
+        onOpenIncidentalExpenses={() => setIncidentalModal(true)}
+        modifyItineraryHref={modifyItineraryHref}
+        onDownloadInvoice={handleDownloadInvoice}
+        readOnly={readOnly}
+        isConfirmedItinerary={isConfirmedItinerary}
+        onExtendTrip={() => setCancelModalOpen(true)}
+        onConfirmQuotation={openConfirmQuotationModal}
+        isOpeningConfirmQuotation={isOpeningConfirmQuotation}
+        canConfirmQuotation={canConfirmQuotation}
+        onCopyLink={handleCopyLink}
+        onShareWhatsApp={handleShareWhatsApp}
+        onShareEmail={handleShareEmail}
+        onBackToTop={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      />
 
-<div className="relative group">
-  <Button className="bg-[#8b43d1] hover:bg-[#7c37c1] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#8b43d1]">
-    Clipboard ▼
-  </Button>
-
-  <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-    <button
-      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-      onClick={() => {
-        if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopyRefactored("recommended");
-          return;
-        }
-
-        setClipboardType("recommended");
-        setSelectedHotels(buildDefaultClipboardSelection());
-        setClipboardModal(true);
-      }}
-    >
-      <span>📋</span> Copy Recommended
-    </button>
-
-    <button
-      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-      onClick={() => {
-        if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopyRefactored("highlights");
-          return;
-        }
-
-        setClipboardType("highlights");
-        setSelectedHotels(buildDefaultClipboardSelection());
-        setClipboardModal(true);
-      }}
-    >
-      <span>✨</span> Copy to Highlights
-    </button>
-
-    <button
-      className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-      onClick={() => {
-        if (itineraryPreference === 2) {
-          handleVehicleOnlyClipboardCopyRefactored("para");
-          return;
-        }
-
-        setClipboardType("para");
-        setSelectedHotels(buildDefaultClipboardSelection());
-        setClipboardModal(true);
-      }}
-    >
-      <span>📝</span> Copy to Para
-    </button>
-  </div>
-</div>
-
-        {isConfirmedPresentation ? (
-          <>
-            <Button
-              variant="outline"
-              className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff]"
-              onClick={() => void handleDownloadPluckCard()}
-            >
-              <CreditCard className="mr-2 h-4 w-4" />
-              Download Pluck Card
-            </Button>
-            <Button
-              variant="outline"
-              className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
-              onClick={() => setVoucherModal(true)}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Voucher Details
-            </Button>
-            <Button
-              variant="outline"
-              className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-              onClick={() => setIncidentalModal(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Incidental Expenses
-            </Button>
-            <Link to={modifyItineraryHref}>
-              <Button
-                variant="outline"
-                className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Extend Trip
-              </Button>
-            </Link>
-            <Button
-              variant="outline"
-              className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#17a2b8] hover:text-white"
-              onClick={() => void handleDownloadInvoice('tax')}
-            >
-              <Receipt className="mr-2 h-4 w-4" />
-              Invoice Tax
-            </Button>
-            <Button
-              variant="outline"
-              className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-              onClick={() => void handleDownloadInvoice('proforma')}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Invoice Proforma
-            </Button>
-          </>
-        ) : (
-          <>
-             <Link to="/create-itinerary">
-  <Button className="bg-[#28a745] hover:bg-[#218838]">
-    Continue Planning
-  </Button>
-</Link>
-
-        {(readOnly || isConfirmedItinerary) && (
-  <Button
-    variant="outline"
-    className="border-[#dc3545] text-[#dc3545] hover:bg-[#dc3545] hover:text-white"
-    onClick={() => setCancelModalOpen(true)}
-  >
-    <Trash2 className="mr-2 h-4 w-4" />
-    Extend Trip
-  </Button>
-)}
-
-        <Button
-          className="bg-[#d546ab] hover:bg-[#c03d9f]"
-          onClick={openConfirmQuotationModal}
-          disabled={isOpeningConfirmQuotation || !canConfirmQuotation}
-          title={!canConfirmQuotation ? "Select a vehicle with valid rates before confirming." : undefined}
-        >
-          {isOpeningConfirmQuotation ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Loading Prebook...
-            </>
-          ) : (
-            <>
-              <Bell className="mr-2 h-4 w-4" />
-              Confirm Quotation
-            </>
-          )}
-        </Button>
-
-        {/* Share Dropdown */}
-        <div className="relative group">
-          <Button className="bg-[#17a2b8] hover:bg-[#138496] focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#17a2b8]">
-            Share ▼
-          </Button>
-          <div className="absolute left-0 mt-1 w-56 max-w-[80vw] bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-200 z-50">
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                const url = window.location.href;
-                navigator.clipboard.writeText(url);
-                toast.success("Link copied to clipboard!");
-              }}
-            >
-              <span>🔗</span> Copy Link
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2"
-              onClick={() => {
-                const url = window.location.href;
-                const message = `Check out this itinerary: ${url}`;
-                window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-              }}
-            >
-              <span>💬</span> Share on WhatsApp
-            </button>
-            <button
-              className="w-full text-left px-4 py-2 hover:bg-[#f8f5fc] text-[#4a4260] flex items-center gap-2 rounded-b-lg"
-              onClick={() => setShareModal(true)}
-            >
-              <span>✉️</span> Share via Email
-            </button>
-          </div>
-        </div>
-
-          </>
-        )}
-      </div>
-      )}
-
-      <div className="buy-now">
-        <button
-          id="scrollToTopButton"
-          type="button"
-          aria-label="Back to top"
-          title="Back to top"
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-12 right-3 z-[1080] inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#7367f0] text-white shadow-[0_1px_20px_1px_#ea5455] transition-shadow hover:shadow-none"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </button>
-      </div>
 
       <DeleteConfirmationDialog
         open={deleteHotspotModal.open}

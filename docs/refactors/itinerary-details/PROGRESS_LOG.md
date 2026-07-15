@@ -4555,6 +4555,31 @@
 
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining large hotspot and quotation dialog views are still scheduled for extraction.
+
+## Iteration 222 - Action buttons view component
+
+### Baseline
+- Starting checkpoint: `0f35357` on `refactor/itinerary-details-checkpoint` with the overall-cost view extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/ItineraryActionButtons.tsx`.
+- Moved clipboard/share menus, quotation confirmation controls, confirmed-document actions, and the back-to-top control out of `ItineraryDetailsController.tsx`.
+- Kept clipboard-mode selection, vehicle-only routing, download callbacks, quotation gating, toast behavior, and navigation callback contracts unchanged.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,452 physical lines (down from 5,612 at the previous iteration).
+- New component: 121 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining large hotspot and quotation dialog views are still scheduled for extraction.
 - New `useTboHotelSelectionSummary.ts`: 45 physical lines.
 
 ### Notes
