@@ -32,7 +32,6 @@ import {
 } from "./itinerary-details/hooks/useExternalStayEntries";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
-import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
@@ -207,8 +206,7 @@ import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActi
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
-import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
-import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
+import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
@@ -247,7 +245,6 @@ import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItiner
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
 import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
-import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
@@ -875,101 +872,25 @@ const switchedRouteRef = useRef<string | null>(null);
     console.log('🏨 Hotel selections updated from HotelList:', selections);
   }, []);
 
-  const { handleVehicleSelectedTotalChange } = useVehicleSelectionTotalsController({
-    setSelectedVehicleTotalsByType,
-  });
-
-  const shouldShowRebuildHotelsButton = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) return false;
-    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
-  }, [hotelDetails]);
-
-  const hasUsableVehicleRows = hasUsableVehicleRowsUtil;
-
-  const prepareVehicleBuild = useVehicleBuildController({
-    pushPageLoaderStage,
-    hasUsableVehicleRows,
-    setVehicleBuildStatus,
-    setVehicleBuildError,
-  });
-
-  const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
+  const preparedPageWorkflow = useItineraryPreparedPageWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotelSelectionState,
+    hotelDetails,
+    quoteId,
+    pathname: location.pathname,
     isMountedRef,
     latestRouteRequestRef,
     currentFetchRef,
-    setLoading,
-    setLoadingHotels,
-    setPageReady,
-    setError,
-    setPageLoaderHistory,
+    switchedRouteRef,
+    autoLoadStartedQuotes,
     pushPageLoaderStage,
     getDetailsDeduped,
     loadHotelDetailsForItinerary,
     cacheRouteHotelDetails,
-    setItinerary,
-    setHotelDetails,
-    setActiveHotelListTotal,
-    setVehicleBuildStatus,
-    setVehicleBuildError,
-    prepareVehicleBuild,
+    isSupplierBookableHotel,
   });
-
-  useEffect(() => {
-    if (!quoteId) {
-      setError("Missing quote id in URL");
-      setLoading(false);
-      return;
-    }
-
-    // Prevent wrong API call when this component is opened on confirmed route
-    if (location.pathname.startsWith("/confirmed-itinerary/")) {
-      console.warn(
-        "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
-        { quoteId, pathname: location.pathname }
-      );
-      setLoading(false);
-      return;
-    }
-
-    // If we're already fetching this quoteId, skip duplicate fetch
-    // If we're already fetching this quoteId, skip duplicate fetch
-if (currentFetchRef.current === quoteId) {
-  console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-  return;
-}
-
-// If route tab click already started loading this quoteId, skip the re-fetch caused by URL change.
-if (switchedRouteRef.current === quoteId) {
-  console.log("⚡ [ItineraryDetails] Route already loading from tab switch, skipping duplicate re-fetch:", quoteId);
-  // The URL changed, so the previous effect cleanup may have marked this ref false.
-  // Keep it true because the route-tab handler is still loading this same page.
-  isMountedRef.current = true;
-  switchedRouteRef.current = null;
-  return;
-}
-
-// React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
-    if (autoLoadStartedQuotes.has(quoteId)) {
-      return;
-    }
-    autoLoadStartedQuotes.add(quoteId);
-
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
-
-    void loadPreparedItineraryPage(quoteId);
-
-    // Cleanup: Mark component as unmounted
-    return () => {
-      isMountedRef.current = false;
-      currentFetchRef.current = null;
-      if (quoteId) {
-        autoLoadStartedQuotes.delete(quoteId);
-      }
-    };
-  }, [quoteId, location.pathname, loadPreparedItineraryPage]);
+  const { handleVehicleSelectedTotalChange, shouldShowRebuildHotelsButton, loadPreparedItineraryPage } = preparedPageWorkflow;
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)

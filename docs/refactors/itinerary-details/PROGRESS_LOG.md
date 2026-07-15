@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 289 — Extract prepared-page loading workflow
+
+### Baseline
+- Starting point: Iteration 288 with the controller at 1,795 lines.
+- Scope: isolate vehicle-build preparation, staged itinerary loading, duplicate-load guards, and initial route-load lifecycle.
+
+### Changes
+- Added `hooks/useItineraryPreparedPageWorkflow.ts`.
+- Preserved confirmed-route short-circuiting, StrictMode load deduplication, route-tab handoff, cleanup refs, and vehicle-build status transitions.
+
+### Verification
+- Controller line count: 1,717; new hook: 120 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 288 — Extract quotation confirmation workflow
 
 ### Baseline
