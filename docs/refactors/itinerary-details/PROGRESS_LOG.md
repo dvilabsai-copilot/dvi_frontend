@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 301 — Extract supporting dialog workflow
+
+### Baseline
+- Starting point: Iteration 300 with the controller at 1,237 lines.
+- Scope: isolate arrival-policy, Fit Here, hotel-search/room-selection, and ancillary modal prop composition.
+
+### Changes
+- Added `hooks/useItinerarySupportingDialogWorkflow.ts`.
+- Preserved arrival-policy decisions, Fit Here close/confirm/retry behavior, hotel-search state, voucher/invoice/incidental/cancellation state, and refresh callbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,190; new hook: 124 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 300 — Extract media dialog workflow
 
 ### Baseline

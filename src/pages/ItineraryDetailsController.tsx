@@ -196,10 +196,6 @@ import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehi
 import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
 import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
 import { useItineraryRouteMutationWorkflow } from "./itinerary-details/hooks/useItineraryRouteMutationWorkflow";
-import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
-import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
-import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
-import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
@@ -216,6 +212,7 @@ import { useItineraryScrollEffects } from "./itinerary-details/hooks/useItinerar
 import { useItineraryHotspotDialogWorkflow } from "./itinerary-details/hooks/useItineraryHotspotDialogWorkflow";
 import { useItineraryQuotationDialogWorkflow } from "./itinerary-details/hooks/useItineraryQuotationDialogWorkflow";
 import { useItineraryMediaDialogWorkflow } from "./itinerary-details/hooks/useItineraryMediaDialogWorkflow";
+import { useItinerarySupportingDialogWorkflow } from "./itinerary-details/hooks/useItinerarySupportingDialogWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -989,46 +986,6 @@ const hotelTimelineLoading = Boolean(
     setSelectedHotels,
   });
 
-  const arrivalPolicyDialogProps = useArrivalPolicyDecisionDialog({
-    itinerary,
-    arrivalPolicyConfirmModal,
-    setArrivalPolicyConfirmModal,
-    pendingRouteTimeUpdate,
-    setPendingRouteTimeUpdate,
-    setLastArrivalPolicyDecisionKey,
-    isResolvingArrivalPolicy,
-    isApplyingRouteTimeUpdate,
-    applyRouteTimePatch,
-    persistArrivalPolicyDecision,
-    resolveArrivalPolicyForArrivalTimeChange,
-  });
-  const fitHereDialogProps = useFitHereDialogProps({
-    fitHereModal,
-    selectedFitHotspot,
-    selectedFitHereDay,
-    onManualClose: handleFitHereCancel,
-    onManualConfirm: handleConfirmFitHere,
-    onManualRetry: handleRetryFitHere,
-    confirmLoading: confirmFitHereLoading,
-    autoFitHereModal,
-    selectedHotspot: selectedFitHotspot,
-    previewRequestIdRef,
-    setAutoFitHereModal,
-    onAutomaticConfirm: (options, attempt) => { void handleConfirmFitHere(options, attempt); },
-  });
-  const hotelDialogProps = useItineraryHotelDialogProps({
-    hotelSelectionModal,
-    roomSelectionModal,
-    itinerary,
-    guestDetails,
-    hotelSearchChildAges,
-    setHotelSearchChildAges,
-    handleSelectHotelFromSearch,
-    isSelectingHotel,
-    setHotelSelectionModal,
-    setRoomSelectionModal,
-    onRoomSelectionSuccess: () => toast.success("Room categories updated successfully"),
-  });
   const mediaDialogProps = useItineraryMediaDialogWorkflow({
     mediaShareState,
     routeState,
@@ -1049,29 +1006,25 @@ const hotelTimelineLoading = Boolean(
     hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries },
     actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation },
   });
-  const ancillaryModalProps = useItineraryAncillaryModalProps({
-    itineraryPlanId: itinerary?.planId || 0,
-    voucherModal,
-    setVoucherModal,
-    pluckCardModal,
-    setPluckCardModal,
-    invoiceModal,
-    setInvoiceModal,
-    invoiceType,
-    incidentalModal,
-    setIncidentalModal,
-    onIncidentalSuccess: () => setIncidentalHistoryRefreshToken((current) => current + 1),
-    cancelModalOpen,
-    setCancelModalOpen,
-    onCancellationSuccess: () => {
-      toast.success("Itinerary data will be refreshed");
-      window.location.reload();
+  const supportingDialogProps = useItinerarySupportingDialogWorkflow({
+    itinerary,
+    hotelWorkflowState,
+    quotationState,
+    hotspotState,
+    deletionState,
+    hotelSelectionWorkflow,
+    hotelDataWorkflow,
+    selectedFitHereDay,
+    fitHereHandlers: {
+      onManualClose: handleFitHereCancel,
+      onManualConfirm: handleConfirmFitHere,
+      onManualRetry: handleRetryFitHere,
+      onAutomaticConfirm: (options, attempt) => { void handleConfirmFitHere(options, attempt); },
     },
-    selectedHotelForVoucher,
-    hotelVoucherModalOpen,
-    setHotelVoucherModalOpen,
-    onHotelVoucherSuccess: refreshHotelData,
+    arrivalHandlers: { applyRouteTimePatch, persistArrivalPolicyDecision, resolveArrivalPolicyForArrivalTimeChange },
+    hotelHandlers: { handleSelectHotelFromSearch },
   });
+  const { arrivalPolicyDialogProps, fitHereDialogProps, hotelDialogProps, ancillaryModalProps } = supportingDialogProps;
   const { handleCopyLink, handleShareWhatsApp, handleShareEmail } = useItineraryShareActions(setShareModal);
   const { addHotspotDialogProps } = useItineraryHotspotDialogWorkflow({
     hotspotState,
