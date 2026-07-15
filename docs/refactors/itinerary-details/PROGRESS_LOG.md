@@ -1,5 +1,24 @@
 # Progress log
 
+## Iteration 291 — Extract route mutation workflow and guard early quotation render
+
+### Baseline
+- Starting point: Iteration 290 with the controller at 1,661 lines.
+- Scope: isolate hotspot deletion, route rebuild, route-time patching, arrival-policy continuation, and protect quotation dialog props while itinerary data is still loading.
+
+### Changes
+- Added `hooks/useItineraryRouteMutationWorkflow.ts`.
+- Preserved route progress callbacks, hotspot refresh/filter reconciliation, hotel refresh, route rebuild state, and arrival-policy decision handling.
+- Made quotation child/infant counts null-safe when the dialog renders before the itinerary response arrives.
+- Behaviour intentionally changed: No; the null-safe guard prevents a loading-time crash while retaining the same loaded-state values.
+
+### Verification
+- Controller line count: 1,612; new hook: 79 lines.
+- Affected-hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 290 — Extract hotel data workflow
 
 ### Baseline

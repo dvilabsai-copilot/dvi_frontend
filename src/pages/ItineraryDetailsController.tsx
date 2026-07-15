@@ -207,9 +207,7 @@ import { useActivityMutationController } from "./itinerary-details/hooks/useActi
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
 import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
-import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
-import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
-import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
+import { useItineraryRouteMutationWorkflow } from "./itinerary-details/hooks/useItineraryRouteMutationWorkflow";
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
@@ -232,7 +230,6 @@ import { QuotationConfirmationDialog } from "./itinerary-details/components/Quot
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
-import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
@@ -848,78 +845,32 @@ const switchedRouteRef = useRef<string | null>(null);
     setLoadingHotels,
     loadHotelDetailsForItinerary,
   });
-  const handleDeleteHotspot = useHotspotDeleteMutation({
-    deleteHotspotModal,
+  const routeMutationWorkflow = useItineraryRouteMutationWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotspotState,
+    deletionState,
     itinerary,
-    quoteId: quoteId || null,
+    hotelDetails,
+    quoteId,
     shouldShowHotels,
+    requiresHotelBookingFlow,
     addHotspotModalOpen: addHotspotModal.open,
     selectedHotspotAnchor,
     normalizeAvailableHotspots,
-    setIsDeleting,
-    setAddedInModalHotspotIds,
-    setExcludedHotspotIds,
-    setItinerary,
-    setAvailableHotspots,
-    setDeleteHotspotModal,
-    setRouteNeedsRebuild,
-    setHotelDetails,
-    setHotspotFilterMeta,
-  });
-
-  const handleRebuildRoute = useRouteRebuildMutation({
-    quoteId: quoteId || null,
-    itinerary,
-    shouldShowHotels,
-    setItinerary,
-    setHotelDetails,
-    setIsRebuilding,
-    setRouteProgressTitle,
-    setRouteProgressHistory,
-    setRouteTimeEstimatedMs,
-    setRouteNeedsRebuild,
     getRouteTimeUpdateEstimateMs,
     startRouteTimeProgress,
     stopRouteTimeProgress,
     pushRouteProgressStage,
   });
-
-  const dayHasManualInserts = (day): boolean => {
-    const segments = Array.isArray(day?.segments) ? day.segments : [];
-    return segments.some((seg) => (
-      String(seg?.type || '').toLowerCase() === 'attraction'
-      && (seg?.planOwnWay === true || seg?.isManual === true)
-    ));
-  };
-
-  const applyRouteTimePatch = useRouteTimePatchMutation({
-    quoteId: quoteId || null,
-    hotelDetails,
-    setIsApplyingRouteTimeUpdate,
-    getRouteTimeUpdateEstimateMs,
-    setRouteTimeEstimatedMs,
-    setRouteProgressTitle,
-    setRouteProgressHistory,
-    startRouteTimeProgress,
-    stopRouteTimeProgress,
-    pushRouteProgressStage,
-    setItinerary,
-    setHotelDetails,
-    setRouteTimeProgressPercent,
-    setPendingScrollDayNumber,
-  });
-
   const {
-    handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
-    persistArrivalPolicyDecision: persistArrivalPolicyDecision,
-  } = useArrivalPolicyRouteTimeController({
-    itinerary,
-    requiresHotelBookingFlow,
+    handleDeleteHotspot,
+    handleRebuildRoute,
+    dayHasManualInserts,
     applyRouteTimePatch,
-    setIsResolvingArrivalPolicy,
-    setPendingRouteTimeUpdate,
-    setArrivalPolicyConfirmModal,
-  });
+    handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
+    persistArrivalPolicyDecision,
+  } = routeMutationWorkflow;
 
   const openDeleteHotspotModal = (
     planId: number,
