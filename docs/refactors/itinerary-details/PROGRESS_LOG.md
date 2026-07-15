@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 274 — Extract hotel dialog props
+
+### Baseline
+- Starting point: Iteration 273 with the controller at 2,309 lines.
+- Scope: move hotel-search and room-selection dialog prop shaping, close/reset behavior, and success feedback into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryHotelDialogProps.ts`.
+- Hotel search/selection mutations and workflow state remain controller-owned; the hook preserves the existing modal values and success toast.
+
+### Verification
+- Controller line count: 2,285; new hook: 83 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 273 — Extract Fit Here dialog props
 
 ### Baseline

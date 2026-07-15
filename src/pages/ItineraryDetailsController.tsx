@@ -242,6 +242,7 @@ import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTim
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
+import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1879,6 +1880,19 @@ const hotelTimelineLoading = Boolean(
     setAutoFitHereModal,
     onAutomaticConfirm: (options, attempt) => { void handleConfirmFitHere(options, attempt); },
   });
+  const hotelDialogProps = useItineraryHotelDialogProps({
+    hotelSelectionModal,
+    roomSelectionModal,
+    itinerary,
+    guestDetails,
+    hotelSearchChildAges,
+    setHotelSearchChildAges,
+    handleSelectHotelFromSearch,
+    isSelectingHotel,
+    setHotelSelectionModal,
+    setRoomSelectionModal,
+    onRoomSelectionSuccess: () => toast.success("Room categories updated successfully"),
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2099,45 +2113,7 @@ const hotelTimelineLoading = Boolean(
 
       <ArrivalHotelDecisionModal {...arrivalPolicyDialogProps} />
 
-      <ItineraryHotelDialogs
-        search={{
-          open: hotelSelectionModal.open,
-          onOpenChange: (open) => {
-            if (!open) {
-              setHotelSelectionModal({ open: false, planId: null, routeId: null, routeDate: "" });
-              setHotelSearchChildAges([]);
-            }
-          },
-          cityCode: hotelSelectionModal.cityCode || "",
-          cityName: hotelSelectionModal.cityName || "",
-          checkInDate: hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate,
-          checkOutDate: hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate,
-          roomCount: Number(itinerary?.roomCount || 1),
-          adultCount: Number(itinerary?.adults || 0),
-          childCount: Number(itinerary?.children || 0),
-          infantCount: Number(itinerary?.infants || 0),
-          childAges: hotelSearchChildAges,
-          guestNationality: guestDetails.nationality.toUpperCase(),
-          onChildAgesChange: setHotelSearchChildAges,
-          onSelectHotel: handleSelectHotelFromSearch,
-          isSelectingHotel,
-        }}
-        roomSelection={roomSelectionModal ? {
-          open: roomSelectionModal.open,
-          onOpenChange: (open) => {
-            if (!open) setRoomSelectionModal(null);
-          },
-          itinerary_plan_hotel_details_ID: roomSelectionModal.itinerary_plan_hotel_details_ID,
-          itinerary_plan_id: roomSelectionModal.itinerary_plan_id,
-          itinerary_route_id: roomSelectionModal.itinerary_route_id,
-          hotel_id: roomSelectionModal.hotel_id,
-          group_type: roomSelectionModal.group_type,
-          hotel_name: roomSelectionModal.hotel_name,
-          onSuccess: () => {
-            toast.success('Room categories updated successfully');
-          },
-        } : null}
-      />
+      <ItineraryHotelDialogs {...hotelDialogProps} />
 
       <ItineraryMediaDialogs
         gallery={{ state: galleryModal, setState: setGalleryModal, activeIndex: galleryActiveIdx, setActiveIndex: setGalleryActiveIdx }}
