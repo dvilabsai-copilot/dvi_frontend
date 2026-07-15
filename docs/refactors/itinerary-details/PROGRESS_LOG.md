@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 266 — Extract quotation confirmation view model
+
+### Baseline
+- Starting point: Iteration 265 with the controller at 2,594 lines.
+- Scope: move quotation confirmation amount, passenger summary, occupancy preview, and field-helper derivation into one typed hook.
+
+### Changes
+- Added `hooks/useQuotationConfirmationViewModel.ts`.
+- The controller still owns quotation state, mutations, validation, and submission; the hook preserves the existing occupancy utility and display values.
+
+### Verification
+- Controller line count: 2,575; new hook: 70 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 265 — Extract route progress overlay
 
 ### Baseline

@@ -132,7 +132,6 @@ import {
 import { buildQuotationConfirmationPayload } from "./itinerary-details/utils/quotationConfirmation.utils";
 import { buildQuotationHotelBookings } from "./itinerary-details/utils/quotationHotelBookings.utils";
 import {
-  buildOccupancyPreview,
   getSafeErrorMessage,
   normalizeCancellationPolicyItems,
   normalizePrebookItems,
@@ -229,7 +228,8 @@ import {
 } from "./itinerary-details/utils/routeHotspotIds.utils";
 import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
-import { useQuotationState, type AdditionalPassenger } from "./itinerary-details/hooks/useQuotationState";
+import { useQuotationState } from "./itinerary-details/hooks/useQuotationState";
+import { useQuotationConfirmationViewModel } from "./itinerary-details/hooks/useQuotationConfirmationViewModel";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
@@ -897,12 +897,23 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     isOpeningConfirmQuotation, setIsOpeningConfirmQuotation, hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice,
     confirmOccupanciesTemplate, setConfirmOccupanciesTemplate,
   } = quotationState;
+  const {
+    confirmRequiredAmount,
+    isWalletInsufficientForConfirm,
+    confirmRoomCount,
+    confirmPassengerMix,
+    confirmOccupancyPreview,
+    defaultPassenger,
+    getPassengerFieldError,
+  } = useQuotationConfirmationViewModel({
+    itinerary,
+    financialTotals,
+    walletBalanceAmount,
+    confirmOccupanciesTemplate,
+    formErrors,
+    guestNationality: guestDetails.nationality,
+  });
   const currentItineraryPlanId = Number(itinerary?.planId || 0);
-  const confirmRequiredAmount = Number(financialTotals.netPayable || itinerary?.overallCost || 0);
-  const isWalletInsufficientForConfirm =
-    walletBalanceAmount !== null &&
-    confirmRequiredAmount > 0 &&
-    walletBalanceAmount < confirmRequiredAmount;
 
   const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
 
@@ -951,27 +962,7 @@ const switchedRouteRef = useRef<string | null>(null);
     activeHotelGroupType,
   });
 
-  const confirmRoomCount = Math.max(Number(itinerary?.roomCount || 1), 1);
-  const confirmPassengerMix = [
-    Number(itinerary?.adults || 0) > 0 ? `${Number(itinerary?.adults || 0)} Adult${Number(itinerary?.adults || 0) === 1 ? '' : 's'}` : null,
-    Number(itinerary?.children || 0) > 0 ? `${Number(itinerary?.children || 0)} Child${Number(itinerary?.children || 0) === 1 ? '' : 'ren'}` : null,
-    Number(itinerary?.infants || 0) > 0 ? `${Number(itinerary?.infants || 0)} Infant${Number(itinerary?.infants || 0) === 1 ? '' : 's'}` : null,
-  ].filter(Boolean).join(', ');
-  const confirmOccupancyPreview = (confirmOccupanciesTemplate && confirmOccupanciesTemplate.length > 0
-    ? confirmOccupanciesTemplate
-    : buildOccupancyPreview(
-        confirmRoomCount,
-        Number(itinerary?.adults || 0),
-        Number(itinerary?.children || 0),
-      )
-  ).map((room) => ({ adults: room.adults, children: room.children }));
-
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-  const getPassengerFieldError = (
-    label: 'adult' | 'child' | 'infant',
-    index: number,
-    field: 'title' | 'name' | 'age' | 'nationality',
-  ) => formErrors[`${label}-${index}-${field}`];
 
   useEffect(() => {
     prebookDataRef.current = prebookData;
@@ -991,16 +982,6 @@ const switchedRouteRef = useRef<string | null>(null);
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
-
-  const defaultPassenger = (title: string): AdditionalPassenger => ({
-    title,
-    name: '',
-    age: '',
-    nationality: guestDetails.nationality,
-    panNo: '',
-    passportNo: '',
-  });
-
 
   // Hotel voucher modal state
   const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
