@@ -248,6 +248,7 @@ import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useI
 import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useHotspotApplyPresentation } from "./itinerary-details/hooks/useHotspotApplyPresentation";
+import { useItineraryAddHotspotDialogProps } from "./itinerary-details/hooks/useItineraryAddHotspotDialogProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1996,6 +1997,68 @@ const hotelTimelineLoading = Boolean(
     hotspotApplyLabel,
   } = hotspotApplyPresentation;
 
+  const addHotspotDialogProps = useItineraryAddHotspotDialogProps({
+    state: {
+      ...hotspotState,
+      visibleHotspotsForActiveTab,
+      routeIsDifferentCity,
+      hotspotCityTabs,
+      currentRouteAttractionHotspotIds,
+      currentRouteManualHotspotIds,
+      currentRouteManualHotspotMetaById,
+    },
+    previewModel: { ...hotspotPreviewViewModel, selectedFitHotspot, activePreviewHotspotId, selectedHotspotAnchor, hasManualOpeningOrTimingConflict, groupPreviewResolution, selectedHotelMetaByRoute, selectedHotspotId },
+    selectedPreviewCityContext,
+    destinationCityLabel,
+    previewRouteId: Number(addHotspotModal.routeId || 0),
+    excludedHotspotIds,
+    selectedFitHereDay,
+    isBuildingMatrix,
+    isApplyingPreviewHotspot,
+    list: {
+      routeIsDifferentCity,
+      hotspotCityTabs,
+      toImgSrc,
+      openGalleryModal,
+      openVideoModal,
+      onDeleteManual: (routeHotspotId, hotspotId, hotspotName) => openDeleteHotspotModal(addHotspotModal.planId || itinerary?.planId || 0, addHotspotModal.routeId || 0, routeHotspotId, hotspotId, hotspotName, true),
+      onSelectFitHotspot: handleSelectFitHotspot,
+      onPreviewHotspot: handlePreviewHotspot,
+      onAutoPreviewFitHere: handleAutoPreviewFitHere,
+      toast,
+    },
+    preview: {
+      getFitHereSegmentLabel,
+      getFitHereSegmentTime,
+      buildFitHereAnchorForTimelineRow,
+      renderFitHereButton,
+      onBuildMatrixAndPreviewAgain: handleBuildMatrixAndPreviewAgain,
+      getManualTimingPolicyFromPreview,
+      formatManualPolicyTime,
+      extractTravelToFromText,
+      parseDisplayMinutes,
+      formatMinutesToDisplay,
+      normalizeDurationAgainstDistance,
+      onRemove: handleRemovePreviewHotspot,
+      onConfirmPriorityReplacement: handleConfirmPriorityReplacement,
+      onCancelPriorityReplacement: handleCancelPriorityReplacement,
+      formatPreviewDuration,
+      handleAddHotspot,
+      backendStrategyLabel: backendForceConflictState.selectedStrategyLabel,
+      matrixBuildCommand: String(matrixBuildSuggestion?.command || ""),
+    },
+    presentation: { ...hotspotApplyPresentation, isCurrentPreviewAlreadyAdded, matrixApplyBlocked },
+    onClose: () => {
+      previewRequestIdRef.current += 1;
+      setAddHotspotModal({ open: false, planId: null, routeId: null, locationId: null, locationName: "" });
+      setHotspotSearchQuery("");
+      resetManualHotspotPreviewState();
+      setActivePreviewHotspotId(null);
+      setAddedInModalHotspotIds(new Set());
+      setSelectedHotspotAnchor(null);
+    },
+  });
+
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
@@ -2107,73 +2170,7 @@ const hotelTimelineLoading = Boolean(
         }}
       />
 
-      <ItineraryAddHotspotDialog
-        open={addHotspotModal.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setAddHotspotModal({ open: false, planId: null, routeId: null, locationId: null, locationName: "" });
-            setHotspotSearchQuery("");
-            setPreviewTimelinesByHotspot({});
-            setPreviewResolutionsByHotspot({});
-            setTempModalTimeline([]);
-            setForceReplacementApprovedByHotspot({});
-            setSelectedHotspotIds([]);
-            setIsPreviewingHotspotId(null);
-            setSelectedHotspotAnchor(null);
-            setHotspotFilterMeta(null);
-            setActiveHotspotCityTab('ALL');
-            setSelectedFitHotspot(null);
-            setTriedFitHereAnchors({});
-            setFitHereModal({ open: false, loading: false, loadingStepIndex: 0, failedReason: null, attempt: null, anchorKey: null });
-            return;
-          }
-          setAddHotspotModal({ ...addHotspotModal, open: true });
-        }}
-        header={{ selectedPreviewCityContext, destinationCityLabel, hotspotSearchQuery, setHotspotSearchQuery }}
-        list={{
-          hotspotListRef, routeIsDifferentCity, hotspotCityTabs, activeHotspotCityTab, setActiveHotspotCityTab,
-          loadingHotspots, hotspotSearchQuery, visibleHotspotsForActiveTab, selectedFitHotspot, excludedHotspotIds,
-          currentRouteAttractionHotspotIds, currentRouteManualHotspotIds, addedInModalHotspotIds,
-          currentRouteManualHotspotMetaById, previewTimelinesByHotspot, isFitHereSelectionMode, isPreviewingHotspotId,
-          isBuildingMatrix, isApplyingPreviewHotspot, autoPreviewLoading: autoFitHereModal.loading, toImgSrc,
-          openGalleryModal, openVideoModal,
-          onDeleteManual: (routeHotspotId, hotspotId, hotspotName) => openDeleteHotspotModal(addHotspotModal.planId || itinerary?.planId || 0, addHotspotModal.routeId || 0, routeHotspotId, hotspotId, hotspotName, true),
-          onSelectFitHotspot: handleSelectFitHotspot, onPreviewHotspot: handlePreviewHotspot,
-          onAutoPreviewFitHere: handleAutoPreviewFitHere, toast,
-        }}
-        preview={{
-          timelinePreviewRef, isPreviewingHotspotId, effectivePreviewTimeline, selectedFitHotspot, selectedFitHereDay,
-          manualPreviewState, buildFitHereAnchorForTimelineRow, getFitHereSegmentLabel, getFitHereSegmentTime,
-          renderFitHereButton, isFitHereSelectionMode, activePreviewHotspotId, selectedHotspotAnchor, bestInsertionSlot,
-          matrixRequiresBuild, isMatrixBuiltButNoFeasibleSlot, isMatrixMissingBlockedState,
-          backendStrategyLabel: backendForceConflictState.selectedStrategyLabel, matrixFit, selectedPreviewCityContext,
-          destinationInsertionSlotLabel, insertionDecisionSummary, manualAttemptDisplayMeta, activeManualOptimizerSummary,
-          activeAnchorFitInsight, safeMatrixSlots, destinationHotelDisplayName, isBuildingMatrix, isApplyingPreviewHotspot,
-          matrixBuildCommand: String(matrixBuildSuggestion?.command || ""), onBuildMatrixAndPreviewAgain: handleBuildMatrixAndPreviewAgain,
-          routeFitBadgeClass, pendingPriorityReplacementHotspotId, previewRemovedHotspotDetails, activePreviewValidation,
-          hasManualOpeningOrTimingConflict, previewValidationReasonText, shouldShowBuildMatrixButton, activePreviewResolution,
-          manualInsertionFit, getManualTimingPolicyFromPreview, formatManualPolicyTime, resolvedRemovalTimelineLeak,
-          optionalPreviewRemovedHotspotDetails, groupPreviewResolution, previewHotspotMetaById, selectedHotelMetaByRoute,
-          previewRouteId: Number(addHotspotModal.routeId || 0), selectedHotspotId, extractTravelToFromText,
-          parseDisplayMinutes, formatMinutesToDisplay, normalizeDurationAgainstDistance, effectiveFitSlot, normalizedInsertionSlots,
-          onRemove: handleRemovePreviewHotspot, priorityConfirmRef, pendingPriorityResolution,
-          onConfirmPriorityReplacement: handleConfirmPriorityReplacement, onCancelPriorityReplacement: handleCancelPriorityReplacement,
-          formatPreviewDuration, hotspotForceConflictMode, isCurrentPreviewAlreadyAdded, matrixApplyBlocked,
-          hotspotEffectiveDecisionBlocked, hotspotBlockForValidation, handleAddHotspot, hotspotApplyLabel,
-        }}
-        footer={{
-          disabled: isApplyingPreviewHotspot || isBuildingMatrix,
-          onClose: () => {
-            previewRequestIdRef.current += 1;
-            setAddHotspotModal({ open: false, planId: null, routeId: null, locationId: null, locationName: "" });
-            setHotspotSearchQuery("");
-            resetManualHotspotPreviewState();
-            setActivePreviewHotspotId(null);
-            setAddedInModalHotspotIds(new Set());
-            setSelectedHotspotAnchor(null);
-          },
-        }}
-      />
+      <ItineraryAddHotspotDialog {...addHotspotDialogProps} />
 
       <ArrivalHotelDecisionModal {...arrivalPolicyDialogProps} />
 

@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 280 — Extract Add Hotspot dialog orchestration
+
+### Baseline
+- Starting point: Iteration 279 with the controller at 2,194 lines.
+- Scope: move Add Hotspot dialog reset behavior and exact header/list/preview/footer prop composition into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryAddHotspotDialogProps.ts`.
+- Preserved the existing close/reset sequence, preview validation gates, apply label, and all hotspot callbacks; the controller now supplies orchestration inputs and renders the dialog boundary.
+
+### Verification
+- Controller line count: 2,191; new hook: 237 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- Focused Playwright pair was attempted but both tests stopped before `#itinerary-day-1` because the local fixture/API did not render the itinerary; this is an environment/data setup failure before the changed dialog is reached.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 279 — Extract hotspot apply presentation
 
 ### Baseline
