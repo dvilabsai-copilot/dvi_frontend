@@ -1,5 +1,20 @@
 # Progress log
 
+## Iteration 283 — Extract quotation state composition
+
+### Baseline
+- Starting point: Iteration 282 with the controller at 2,153 lines.
+- Scope: compose quotation state and its confirmation view model behind one typed hook.
+
+### Changes
+- Added `hooks/useItineraryQuotationState.ts`.
+- Quotation state setters, confirmation occupancy calculations, passenger defaults, and validation lookup behavior remain unchanged.
+
+### Verification
+- Controller line count: 2,138; new hook: 24 lines.
+- New hook lint and filtered TypeScript passed; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 282 — Remove obsolete controller imports
 
 ### Baseline

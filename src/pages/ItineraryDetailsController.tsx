@@ -213,8 +213,7 @@ import {
 } from "./itinerary-details/utils/routeHotspotIds.utils";
 import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
-import { useQuotationState } from "./itinerary-details/hooks/useQuotationState";
-import { useQuotationConfirmationViewModel } from "./itinerary-details/hooks/useQuotationConfirmationViewModel";
+import { useItineraryQuotationState } from "./itinerary-details/hooks/useItineraryQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
@@ -778,7 +777,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     copyHtmlToClipboard,
   });
 
-  const quotationState = useQuotationState();
+  const quotationState = useItineraryQuotationState({ itinerary, financialTotals });
   const {
     confirmQuotationModal, setConfirmQuotationModal, voucherModal, setVoucherModal, pluckCardModal, setPluckCardModal,
     invoiceModal, setInvoiceModal, invoiceType, setInvoiceType, incidentalModal, setIncidentalModal,
@@ -790,23 +789,9 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     additionalInfants, setAdditionalInfants, formErrors, setFormErrors, prebookData, setPrebookData, isPrebooking, setIsPrebooking,
     isOpeningConfirmQuotation, setIsOpeningConfirmQuotation, hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice,
     confirmOccupanciesTemplate, setConfirmOccupanciesTemplate,
+    confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix,
+    confirmOccupancyPreview, defaultPassenger, getPassengerFieldError,
   } = quotationState;
-  const {
-    confirmRequiredAmount,
-    isWalletInsufficientForConfirm,
-    confirmRoomCount,
-    confirmPassengerMix,
-    confirmOccupancyPreview,
-    defaultPassenger,
-    getPassengerFieldError,
-  } = useQuotationConfirmationViewModel({
-    itinerary,
-    financialTotals,
-    walletBalanceAmount,
-    confirmOccupanciesTemplate,
-    formErrors,
-    guestNationality: guestDetails.nationality,
-  });
   const currentItineraryPlanId = Number(itinerary?.planId || 0);
 
   const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
