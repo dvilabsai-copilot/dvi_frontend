@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 304 — Extract route progress workflow
+
+### Baseline
+- Starting point: Iteration 303 with the controller at 1,149 lines.
+- Scope: isolate page-loader stage updates and route-time progress timer/controller wiring.
+
+### Changes
+- Added `hooks/useItineraryRouteProgressWorkflow.ts`.
+- Preserved page-loader history/detail behavior, route-time progress callbacks, timer refs, and progress cleanup inputs.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,134; new hook: 31 lines.
+- New hook ESLint passed with the existing route-state dependency warning; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 303 — Extract hotel/vehicle page workflow
 
 ### Baseline

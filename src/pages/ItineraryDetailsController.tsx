@@ -214,12 +214,12 @@ import { useItineraryMediaDialogWorkflow } from "./itinerary-details/hooks/useIt
 import { useItinerarySupportingDialogWorkflow } from "./itinerary-details/hooks/useItinerarySupportingDialogWorkflow";
 import { useItineraryPageRefs } from "./itinerary-details/hooks/useItineraryPageRefs";
 import { useItineraryHotelPageWorkflow } from "./itinerary-details/hooks/useItineraryHotelPageWorkflow";
+import { useItineraryRouteProgressWorkflow } from "./itinerary-details/hooks/useItineraryRouteProgressWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
-import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRouteTimeProgressController";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
@@ -229,7 +229,6 @@ import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extract
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
 import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
-import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
 import { dedupeItineraryHotelRows } from "./itinerary-details/utils/hotelRows.utils";
 import { ItineraryDetailsPageView } from "./itinerary-details/components/ItineraryDetailsPageView";
@@ -391,26 +390,12 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     isSelectingHotel, setIsSelectingHotel, hotelSearchQuery, setHotelSearchQuery, selectedMealPlan, setSelectedMealPlan,
   } = hotelWorkflowState;
 
-  const pushPageLoaderStage = useCallback((stage: string, detail?: string) => {
-    setPageLoaderStage(stage);
-    setPageLoaderDetail(detail || PAGE_LOADER_STAGE_DETAILS[stage] || "Preparing the latest itinerary data.");
-    setPageLoaderHistory((prev) => (
-      prev[prev.length - 1] === stage ? prev : [...prev, stage].slice(-6)
-    ));
-  }, []);
-
-  const {
-    stopRouteTimeProgress,
-    pushRouteProgressStage,
-    startRouteTimeProgress,
-    getRouteTimeUpdateEstimateMs,
-  } = useRouteTimeProgressController({
+  const routeProgressWorkflow = useItineraryRouteProgressWorkflow({
+    routeState,
+    hotelWorkflowState,
     dayCount: itinerary?.days?.length ?? 0,
-    timerRef: routeTimeProgressTimerRef,
-    setProgressPercent: setRouteTimeProgressPercent,
-    setProgressDetail: setRouteProgressDetail,
-    setProgressHistory: setRouteProgressHistory,
   });
+  const { pushPageLoaderStage, stopRouteTimeProgress, pushRouteProgressStage, startRouteTimeProgress, getRouteTimeUpdateEstimateMs } = routeProgressWorkflow;
 
   const mediaShareState = useMediaShareState();
   const {
