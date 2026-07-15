@@ -259,3 +259,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - The unreachable legacy activity-preview JSX branch was removed after activity-dialog extraction; active activity preview/add/delete behavior remains in `AddActivityDialog` and its controller hooks.
 - The add-hotspot dialog's city tabs, loading state, and available-hotspot card column are isolated in `HotspotDialogListColumn.tsx`.
 - Matrix-missing retry guidance and no-feasible-slot insertion warnings are isolated in `HotspotMatrixMissingNotice.tsx` and `HotspotMatrixNoFeasibleNotice.tsx`.
+- Bounded manual-optimizer attempt diagnostics are isolated in `HotspotManualAttemptLog.tsx`.

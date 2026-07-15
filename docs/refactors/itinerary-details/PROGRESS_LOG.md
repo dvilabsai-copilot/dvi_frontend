@@ -4907,6 +4907,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining preview decision panel, timeline column, quotation dialog shell, and workflow composition are still scheduled for extraction.
 
+## Iteration 246 - Manual attempt diagnostics
+
+### Baseline
+- Starting checkpoint: `45d8738` on `refactor/itinerary-details-checkpoint` with matrix decision notices extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotManualAttemptLog.tsx`.
+- Moved bounded manual-optimizer attempt diagnostics, selected-attempt summary, wrapper-only warning, and route/priority metric details out of `ItineraryDetailsController.tsx`.
+- Preserved attempt ordering, selection styling, diagnostic labels, and bounded six-row display behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,070 physical lines (down from 4,112 at the previous iteration).
+- New component: 20 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining preview decision panel, timeline column, quotation dialog shell, and workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

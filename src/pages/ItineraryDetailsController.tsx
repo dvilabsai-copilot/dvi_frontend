@@ -265,6 +265,7 @@ import { ItineraryHotelListSection } from "./itinerary-details/components/Itiner
 import { HotspotDialogListColumn } from "./itinerary-details/components/HotspotDialogListColumn";
 import { HotspotMatrixMissingNotice } from "./itinerary-details/components/HotspotMatrixMissingNotice";
 import { HotspotMatrixNoFeasibleNotice } from "./itinerary-details/components/HotspotMatrixNoFeasibleNotice";
+import { HotspotManualAttemptLog } from "./itinerary-details/components/HotspotManualAttemptLog";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2890,56 +2891,13 @@ const hotelTimelineLoading = Boolean(
                       </p>
                     )}
 
-                    {manualAttemptDisplayMeta.attempts.length > 0 && (
-                      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                        <p className="text-xs font-semibold text-slate-800">
-                          {manualAttemptDisplayMeta.authoritative ? 'Attempted schedules' : 'Candidate-wrapped attempt log'} ({manualAttemptDisplayMeta.attempts.length})
-                        </p>
-                        {activeManualOptimizer?.summary ? (
-                          <p className="mt-1 text-[11px] text-slate-700">
-                            Selected: {activeManualOptimizer.summary}
-                          </p>
-                        ) : null}
-                        {manualAttemptDisplayMeta.wrapperOnly && (
-                          <p className="mt-1 text-[11px] text-amber-700">
-                            These rows are candidate-wrapper diagnostics, not authoritative real cluster simulations yet.
-                          </p>
-                        )}
-                        <div className="mt-2 space-y-2">
-                          {manualAttemptDisplayMeta.attempts.slice(0, 6).map((attempt, idx: number) => (
-                            <div
-                              key={`${String(attempt?.strategyKey || 'attempt')}-${idx}`}
-                              className={`rounded-md border px-2 py-2 text-[11px] ${
-                                attempt?.selected === true
-                                  ? 'border-green-300 bg-green-50'
-                                  : attempt?.readyToApply === true
-                                    ? 'border-blue-200 bg-white'
-                                    : 'border-slate-200 bg-white'
-                              }`}
-                            >
-                              <p className="font-semibold text-slate-800">
-                                {attempt?.selected === true ? 'Selected: ' : ''}
-                                {attempt?.strategyLabel || attempt?.strategyKey || `Attempt ${idx + 1}`}
-                              </p>
-                              <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">
-                                Source: {String(attempt?.source || 'UNKNOWN').replace(/_/g, ' ')}
-                              </p>
-                              <p className="mt-1 text-slate-600">
-                                {attempt?.summary || attempt?.reason || 'No explanation available.'}
-                              </p>
-                              <p className="mt-1 text-slate-500">
-                                {attempt?.openingHourConflictCount > 0 ? `Opening conflicts: ${attempt.openingHourConflictCount}. ` : ''}
-                                {Number(attempt?.routeEndOverflowMinutes || 0) > 0 ? `Overflow: ${attempt.routeEndOverflowMinutes} min. ` : ''}
-                                {Number(attempt?.removedOptionalCount || 0) > 0 ? `Removed P4+: ${attempt.removedOptionalCount}. ` : ''}
-                                {Number(attempt?.removedTopPriorityCount || 0) > 0 ? `Removed P3: ${attempt.removedTopPriorityCount}. ` : ''}
-                                {Number(attempt?.extraTravelKm || 0) > 0 ? `Extra detour: ${Number(attempt.extraTravelKm).toFixed(1)} km.` : ''}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
+                                {manualAttemptDisplayMeta.attempts.length > 0 && (
+                                  <HotspotManualAttemptLog
+                                    meta={manualAttemptDisplayMeta}
+                                    selectedSummary={activeManualOptimizer?.summary}
+                                    wrapperOnly={manualAttemptDisplayMeta.wrapperOnly}
+                                  />
+                                )}
                     {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activePreviewResolution?.anchorPreference?.honored === false && (
                       <p className="text-xs text-amber-700 mt-1">
                         The system tested the available insertion positions and selected the best timing / lowest extra-distance slot.
