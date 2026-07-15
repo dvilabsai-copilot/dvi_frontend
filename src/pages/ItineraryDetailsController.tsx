@@ -1034,11 +1034,6 @@ const switchedRouteRef = useRef<string | null>(null);
   ).map((room) => ({ adults: room.adults, children: room.children }));
 
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-  const NAME_REGEX = /^[A-Za-z][A-Za-z\s'-]{1,24}$/;
-  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-  const isValidPassengerName = (value: string) => NAME_REGEX.test(value.trim());
-  const isValidPan = (value: string) => PAN_REGEX.test(value.trim().toUpperCase());
-  const isValidIsoNationality = (value: string) => /^[A-Z]{2}$/.test(value.trim().toUpperCase());
   const getPassengerFieldError = (
     label: 'adult' | 'child' | 'infant',
     index: number,
@@ -2072,13 +2067,6 @@ const hotelTimelineLoading = Boolean(
   const routeCircleRadius = 42;
   const routeCircleCircumference = 2 * Math.PI * routeCircleRadius;
   const routeDashOffset = routeCircleCircumference - (routeProgressPct / 100) * routeCircleCircumference;
-  // Temporary compatibility placeholders for the removed segment markup during this extraction boundary.
-  const segment: any = {};
-  const activity: any = {};
-  const conflict: any = {};
-  const seg: any = {};
-  const idx = 0;
-
   const handleClipboardMode = (mode: ClipboardMode) => {
     if (itineraryPreference === 2) {
       handleVehicleOnlyClipboardCopyRefactored(mode);

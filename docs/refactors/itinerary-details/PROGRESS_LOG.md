@@ -12,7 +12,8 @@
 - Replaced the moved `any` property reads with local unknown-to-record guards; no new `any`, suppression, or business-rule change was introduced.
 
 ### Verification
-- Controller line count: 2,942; new hook: 362 lines; type bridge: 3 lines.
+- Controller line count: 2,930; new hook: 362 lines; type bridge: 3 lines.
+- Removed five unused passenger-regex helpers and five dead compatibility placeholder declarations left by earlier JSX extraction.
 - Exact-source Playwright pair: 2 passed.
 - New hook lint: clean; filtered TypeScript: no diagnostics for the hook/controller.
 - Production build passed with existing warnings.
