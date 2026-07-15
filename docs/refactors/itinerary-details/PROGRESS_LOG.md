@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 285 — Extract Fit Here workflow
+
+### Baseline
+- Starting point: Iteration 284 with the controller at 2,109 lines.
+- Scope: isolate manual/automatic Fit Here selection, preview, retry/cancel, confirmation reset, state application, and refresh orchestration.
+
+### Changes
+- Added `hooks/useItineraryFitHereWorkflow.ts`.
+- Preserved anchor serialization, progress timing, confirmation refresh, route-rebuild flags, and Fit Here dialog callbacks.
+
+### Verification
+- Controller line count: 2,002; new hook: 91 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- Focused Playwright pair was attempted but both tests stopped before `#itinerary-day-1` because the local fixture/API did not render the itinerary; the changed Fit Here workflow was not reached.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 284 — Extract quotation hotel context
 
 ### Baseline

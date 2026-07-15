@@ -30,7 +30,6 @@ import { toast } from "sonner";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
 } from "./itinerary-details/hooks/useExternalStayEntries";
-import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
 import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
@@ -77,17 +76,7 @@ import {
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
-import {
-  buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
-  serializeFitHereAnchor as serializeFitHereAnchorUtil,
-} from "./itinerary-details/utils/fitHereAnchor.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
-import {
-  getAutoPreviewHighestRemovedPriority as getAutoPreviewHighestRemovedPriorityUtil,
-  getAutoPreviewRemovedRows as getAutoPreviewRemovedRowsUtil,
-  scoreAutoPreviewAttempt as scoreAutoPreviewAttemptUtil,
-} from "./itinerary-details/utils/autoPreviewScoring.utils";
-import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
 import { isMatrixApplyBlocked as isMatrixApplyBlockedUtil } from "./itinerary-details/utils/matrixApplyBlocked.utils";
 import { normalizeInsertionSlots } from "./itinerary-details/utils/normalizedInsertionSlots.utils";
@@ -197,18 +186,14 @@ import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
 import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
-import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
-import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
-import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
 import {
   buildCurrentRouteAttractionHotspotIds,
   buildCurrentRouteManualHotspotIds,
   buildCurrentRouteManualHotspotMetaById,
 } from "./itinerary-details/utils/routeHotspotIds.utils";
-import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
 import { useItineraryQuotationState } from "./itinerary-details/hooks/useItineraryQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
@@ -256,11 +241,7 @@ import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHo
 import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
 import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
 import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
-import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHerePreviewController";
-import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
-import { useFitHereConfirmationReset } from "./itinerary-details/hooks/useFitHereConfirmationReset";
-import { useFitHereConfirmationState } from "./itinerary-details/hooks/useFitHereConfirmationState";
-import { useFitHereConfirmationRefresh } from "./itinerary-details/hooks/useFitHereConfirmationRefresh";
+import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
@@ -339,13 +320,14 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   fetchCompleteHotelDetailsRef,
 });
 
+  const deletionState = useItineraryDeletionState();
   const {
     deleteHotspotModal, setDeleteHotspotModal, isDeleting, setIsDeleting,
     routeNeedsRebuild, setRouteNeedsRebuild, isRebuilding, setIsRebuilding,
     excludedHotspotIds, setExcludedHotspotIds,
     allHotspotsPreviewModal, setAllHotspotsPreviewModal,
     deleteActivityModal, setDeleteActivityModal, isDeletingActivity, setIsDeletingActivity,
-  } = useItineraryDeletionState();
+  } = deletionState;
 
   const activityState = useActivityState();
   const {
@@ -1259,118 +1241,28 @@ const getSelectedPreviewActivity = () =>
     setSelectedHotspotIds,
   });
 
-  const buildFitHereAnchorKey = buildFitHereAnchorKeyUtil;
-
-  const serializeFitHereAnchor = useCallback(serializeFitHereAnchorUtil, []);
-
-  const buildAutoFitHereAnchorsForDay = useAutoFitHereAnchors({
-    buildFitHereAnchorForTimelineRow,
-  });
-
-  const getAutoPreviewRemovedRows = getAutoPreviewRemovedRowsUtil;
-  const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;
-  const scoreAutoPreviewAttempt = scoreAutoPreviewAttemptUtil;
-
-  const buildAutoPreviewAnchorProgressText = useCallback(buildAutoPreviewAnchorProgressTextUtil, []);
-
-  const handleSelectFitHotspot = useFitHereHotspotSelection({
-    previewRequestIdRef,
-    stopFitHereProgressTimer,
-    setSelectedFitHotspot,
-    setTriedFitHereAnchors,
-    setFitHereModal,
-    setAutoFitHereModal,
-    resetManualHotspotPreviewState,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-  });
-
-  const handleFitHereClick = useFitHerePreviewController({
+  const fitHereWorkflow = useItineraryFitHereWorkflow({
+    hotspotState,
+    deletionState,
+    routeState,
+    itinerary,
+    quoteId,
     selectedFitHotspot,
-    itineraryPlanId: itinerary?.planId || null,
-    buildFitHereAnchorKey,
+    selectedFitHereDay,
+    addHotspotModal,
+    fitHereModal,
+    availableHotspots,
+    shouldShowHotels,
+    buildFitHereAnchorForTimelineRow,
     startFitHereProgressTimer,
     stopFitHereProgressTimer,
-    setFitHereModal,
-  });
-
-  const handleAutoPreviewFitHere = useAutoFitHerePreviewController({
-    itineraryPlanId: itinerary?.planId,
-    selectedFitHereDay,
-    buildAutoFitHereAnchorsForDay,
-    buildFitHereAnchorKey,
-    serializeFitHereAnchor,
-    buildAutoPreviewAnchorProgressText,
-    setSelectedFitHotspot,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setFitHereModal,
-    setAutoFitHereModal,
-    previewRequestIdRef,
+    resetManualHotspotPreviewState,
     resetManualHotspotPreviewStateButKeepActiveHotspot,
-    stopFitHereProgressTimer,
   });
-
-  const { handleFitHereCancel, handleRetryFitHere } = useFitHereDialogController({
-    fitHereModal,
-    stopFitHereProgressTimer,
-    getFitHereTriedState,
-    setTriedFitHereAnchors,
-    setFitHereModal,
-    handleFitHereClick,
-  });
-
-  const resetFitHereAfterConfirmation = useFitHereConfirmationReset({
-    setSelectedFitHotspot,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setManualPreviewState,
-    setPreviewTimelinesByHotspot,
-    setPreviewResolutionsByHotspot,
-    setGroupPreviewTimeline,
-    setGroupPreviewResolution,
-    setTempModalTimeline,
-    setFitHereModal,
-    setAutoFitHereModal,
-    setTriedFitHereAnchors,
-  });
-
-  const applyFitHereConfirmationState = useFitHereConfirmationState({
-    itinerary,
-    availableHotspots,
-    setAddedInModalHotspotIds,
-    setExcludedHotspotIds,
-    setAvailableHotspots,
-    setItinerary,
-    setRouteNeedsRebuild,
-  });
-
-  const refreshAfterFitHereConfirmation = useFitHereConfirmationRefresh({
-    quoteId,
-    shouldShowHotels,
-    setItinerary,
-    setHotelDetails,
-  });
-
-  const getFitHereRefreshScrollStorageKey = useCallback(() => {
-    const normalizedQuoteId = String(quoteId || "").trim();
-    return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
-  }, [quoteId]);
-
-  const handleConfirmFitHere = useFitHereConfirmationMutation({
-    itinerary,
-    fitHereModal,
-    selectedFitHotspot,
-    selectedFitHereDay,
-    fallbackRouteId: addHotspotModal.routeId,
-    handleFitHereClick,
-    stopFitHereProgressTimer,
-    setConfirmFitHereLoading,
-    resetFitHereAfterConfirmation,
-    applyFitHereConfirmationState,
-    refreshAfterFitHereConfirmation,
-    getFitHereRefreshScrollStorageKey,
-  });
+  const {
+    buildFitHereAnchorKey, handleSelectFitHotspot, handleFitHereClick, handleAutoPreviewFitHere,
+    handleFitHereCancel, handleRetryFitHere, handleConfirmFitHere, getFitHereRefreshScrollStorageKey,
+  } = fitHereWorkflow;
   const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
     addHotspotModal,
     activePreviewHotspotId,
