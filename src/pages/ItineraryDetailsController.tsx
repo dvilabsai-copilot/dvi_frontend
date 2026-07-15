@@ -249,6 +249,7 @@ import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOv
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
 import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSelectionCard";
+import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3388,56 +3389,20 @@ const canShowGuideActionButton =
 
                   {effectivePreviewTimeline.length > 0 ? (
                     <>
-                      <HotspotPreviewRescheduleNotice visible={(activePreviewResolution as any)?.sameCityShuffleApplied === true} />
-                      {manualInsertionFit?.rescheduleApplied === true && (
-                        <div className="p-3 rounded-lg border border-blue-300 bg-blue-50 text-sm">
-                          <p className="font-semibold text-blue-900">✓ Timings recalculated after insertion.</p>
-                          <HotspotPreviewRouteFitNotice />
-                        </div>
-                      )}
+                      <HotspotPreviewTimelineNotices
+                        effectivePreviewTimelineLength={effectivePreviewTimeline.length}
+                        sameCityShuffleApplied={(activePreviewResolution as any)?.sameCityShuffleApplied === true}
+                        manualInsertionFit={manualInsertionFit}
+                        resolvedEndLabel={(() => {
+                          const manualTimingPolicy = getManualTimingPolicyFromPreview(manualPreviewState)
+                            || getManualTimingPolicyFromPreview(activePreviewResolution)
+                            || getManualTimingPolicyFromPreview(groupPreviewResolution);
+                          return formatManualPolicyTime(manualTimingPolicy?.endTime) || "route end time";
+                        })()}
+                        resolvedRemovalTimelineLeak={resolvedRemovalTimelineLeak}
+                      />
 
-                      {/* Day End Overflow — only show if no resolved removal plan replaces it */}
-                      {manualInsertionFit?.exceedsDayEnd === true &&
-                        (manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved !== true && (
-                        <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
-                          <p className="font-semibold text-amber-900">⚠ Timeline exceeds day end.</p>
-                          <HotspotPreviewDayEndOverflowNotice overflowMinutes={manualInsertionFit?.dayOverflowMinutes || 0} />
-                        </div>
-                      )}
 
-                      {/* Low-priority removal plan — resolved case */}
-                      {(manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.resolved === true && (
-                        <div className="p-3 rounded-lg border border-orange-300 bg-orange-50 text-sm">
-                          <HotspotPreviewOverflowResolvedHeader
-                            endLabel={(() => {
-                              const manualTimingPolicy =
-                                getManualTimingPolicyFromPreview(manualPreviewState)
-                                || getManualTimingPolicyFromPreview(activePreviewResolution)
-                                || getManualTimingPolicyFromPreview(groupPreviewResolution);
-                              return formatManualPolicyTime(manualTimingPolicy?.endTime) || "route end time";
-                            })()}
-                          />
-                          {Array.isArray((manualInsertionFit as any)?.lowPriorityRemovalPlanPreview?.plannedRemovals) &&
-                            (manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals.length > 0 ? (
-                            <ul className="mt-2 space-y-1">
-                              {((manualInsertionFit as any).lowPriorityRemovalPlanPreview.plannedRemovals as any[]).map((row, ri: number) => (
-                                <li key={ri} className="text-xs text-orange-900 leading-4">
-                                  <span className="font-semibold">{row?.name || 'Unknown stop'}</span>
-                                  {row?.priority ? <span className="ml-1 text-orange-700">(Work Priority {row.priority})</span> : null}
-                                  {row?.reason ? <span className="text-orange-700"> {'—'} {row.reason}</span> : null}
-                                  {row?.removalReasonCode ? (
-                                    <span className="ml-1 font-mono uppercase tracking-wide text-orange-700">
-                                      {row.removalReasonCode}
-                                    </span>
-                                  ) : null}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                          <HotspotPreviewResolvedTimelineNotice />
-                          <HotspotPreviewOverflowLeakNotice visible={import.meta.env.DEV && resolvedRemovalTimelineLeak} />
-                        </div>
-                      )}
 
                       {effectivePreviewTimeline.map((seg, idx: number) => {
                         const isUserSelected = seg?.isUserSelectedPreview === true;

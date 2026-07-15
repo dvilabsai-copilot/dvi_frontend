@@ -4606,6 +4606,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The right-side hotspot preview timeline and remaining quotation review shell are still scheduled for extraction.
 
+## Iteration 225 - Hotspot preview timeline notices
+
+### Baseline
+- Starting checkpoint: `15403c6` on `refactor/itinerary-details-checkpoint` with the hotspot selection card extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewTimelineNotices.tsx`.
+- Moved proposed-timeline reschedule, recalculated-timing, day-end overflow, resolved-removal, and overflow-leak notices out of the controller.
+- Preserved timing-policy fallback labels, planned-removal details, environment-gated diagnostics, and existing notice components.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,950 physical lines (down from 4,985 at the previous iteration).
+- New component: 83 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The large hotspot timeline-row renderer and remaining quotation review shell are still scheduled for extraction.
+
 ## Iteration 222 - Action buttons view component
 
 ### Baseline
