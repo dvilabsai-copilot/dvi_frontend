@@ -244,7 +244,6 @@ import { PackageIncludesCard } from "./itinerary-details/components/PackageInclu
 import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
-import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSelectionCard";
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
 import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/HotspotPreviewWaitingSegment";
@@ -263,6 +262,7 @@ import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDa
 import { HotelListLoadingState } from "./itinerary-details/components/HotelListLoadingState";
 import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
 import { ItineraryHotelListSection } from "./itinerary-details/components/ItineraryHotelListSection";
+import { HotspotDialogListColumn } from "./itinerary-details/components/HotspotDialogListColumn";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -327,8 +327,6 @@ import { QuotationWalletTopUpActions } from "./itinerary-details/QuotationWallet
 import { QuotationPrebookHotelRows } from "./itinerary-details/QuotationPrebookHotelRows";
 import { QuotationPrebookAcceptanceNotice } from "./itinerary-details/QuotationPrebookAcceptanceNotice";
 import { HotspotDialogHeader } from "./itinerary-details/components/HotspotDialogHeader";
-import { HotspotCityTabs } from "./itinerary-details/components/HotspotCityTabs";
-import { HotspotListState } from "./itinerary-details/components/HotspotListState";
 import { HotspotSelectionNotice } from "./itinerary-details/components/HotspotSelectionNotice";
 import { HotspotDialogFooter } from "./itinerary-details/components/HotspotDialogFooter";
 import { HotspotApplyButton } from "./itinerary-details/components/HotspotApplyButton";
@@ -2789,51 +2787,36 @@ const hotelTimelineLoading = Boolean(
           />
           <div className="py-4 flex-1 overflow-hidden flex min-h-0">
             <div className="flex flex-col lg:flex-row gap-4 w-full min-h-0">
-              {/* Left Column: Hotspot List */}
-              <div ref={hotspotListRef} className="w-full lg:w-1/2 overflow-y-auto min-h-0">
-                <HotspotCityTabs
-                  visible={routeIsDifferentCity}
-                  tabs={hotspotCityTabs}
-                  activeTab={activeHotspotCityTab}
-                  setActiveTab={setActiveHotspotCityTab}
-                />
-                <HotspotListState
-                  loading={loadingHotspots}
-                  searchQuery={hotspotSearchQuery}
-                  hasVisibleHotspots={visibleHotspotsForActiveTab.length > 0}
-                />
-                {!loadingHotspots && visibleHotspotsForActiveTab.length > 0 && (
-                  <div className="grid grid-cols-1 gap-4">
-                    {visibleHotspotsForActiveTab.map((hotspot) => (
-                      <HotspotSelectionCard
-                        key={hotspot.id}
-                        hotspot={hotspot}
-                        selected={Number(selectedFitHotspot?.id || 0) === Number(hotspot.id)}
-                        excludedHotspotIds={excludedHotspotIds}
-                        currentRouteAttractionHotspotIds={currentRouteAttractionHotspotIds}
-                        currentRouteManualHotspotIds={currentRouteManualHotspotIds}
-                        addedInModalHotspotIds={addedInModalHotspotIds}
-                        manualMetaById={currentRouteManualHotspotMetaById as ReadonlyMap<number, unknown>}
-                        getPreviewTimeline={(hotspotId) => previewTimelinesByHotspot[hotspotId] || []}
-                        isFitHereSelectionMode={isFitHereSelectionMode}
-                        isPreviewingHotspotId={isPreviewingHotspotId}
-                        isBuildingMatrix={isBuildingMatrix}
-                        isApplyingPreviewHotspot={isApplyingPreviewHotspot}
-                        autoPreviewLoading={autoFitHereModal.loading}
-                        toImgSrc={toImgSrc}
-                        openGalleryModal={openGalleryModal}
-                        openVideoModal={openVideoModal}
-                        onDeleteManual={(routeHotspotId, hotspotId, hotspotName) => openDeleteHotspotModal(addHotspotModal.planId || itinerary?.planId || 0, addHotspotModal.routeId || 0, routeHotspotId, hotspotId, hotspotName, true)}
-                        onSelectFitHotspot={handleSelectFitHotspot}
-                        onPreviewHotspot={handlePreviewHotspot}
-                        onAutoPreviewFitHere={handleAutoPreviewFitHere}
-                        toast={toast}
-                      />
-                    ))}
-
-                  </div>
-                )}
-              </div>
+              <HotspotDialogListColumn
+                hotspotListRef={hotspotListRef}
+                routeIsDifferentCity={routeIsDifferentCity}
+                hotspotCityTabs={hotspotCityTabs}
+                activeHotspotCityTab={activeHotspotCityTab}
+                setActiveHotspotCityTab={setActiveHotspotCityTab}
+                loadingHotspots={loadingHotspots}
+                hotspotSearchQuery={hotspotSearchQuery}
+                visibleHotspotsForActiveTab={visibleHotspotsForActiveTab}
+                selectedFitHotspot={selectedFitHotspot}
+                excludedHotspotIds={excludedHotspotIds}
+                currentRouteAttractionHotspotIds={currentRouteAttractionHotspotIds}
+                currentRouteManualHotspotIds={currentRouteManualHotspotIds}
+                addedInModalHotspotIds={addedInModalHotspotIds}
+                currentRouteManualHotspotMetaById={currentRouteManualHotspotMetaById}
+                previewTimelinesByHotspot={previewTimelinesByHotspot}
+                isFitHereSelectionMode={isFitHereSelectionMode}
+                isPreviewingHotspotId={isPreviewingHotspotId}
+                isBuildingMatrix={isBuildingMatrix}
+                isApplyingPreviewHotspot={isApplyingPreviewHotspot}
+                autoPreviewLoading={autoFitHereModal.loading}
+                toImgSrc={toImgSrc}
+                openGalleryModal={openGalleryModal}
+                openVideoModal={openVideoModal}
+                onDeleteManual={(routeHotspotId, hotspotId, hotspotName) => openDeleteHotspotModal(addHotspotModal.planId || itinerary?.planId || 0, addHotspotModal.routeId || 0, routeHotspotId, hotspotId, hotspotName, true)}
+                onSelectFitHotspot={handleSelectFitHotspot}
+                onPreviewHotspot={handlePreviewHotspot}
+                onAutoPreviewFitHere={handleAutoPreviewFitHere}
+                toast={toast}
+              />
 
               {/* Right Column: Preview */}
               <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-y-auto min-h-0 pr-1">

@@ -4857,6 +4857,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 244 - Hotspot dialog list column
+
+### Baseline
+- Starting checkpoint: `faafef5` on `refactor/itinerary-details-checkpoint` with the unreachable activity preview branch removed.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotDialogListColumn.tsx`.
+- Moved add-hotspot city tabs, loading/empty state, available-hotspot card mapping, and card callback wiring out of `ItineraryDetailsController.tsx`.
+- Preserved hotspot filtering, Fit Here selection state, preview state, manual-delete payloads, media callbacks, and toast behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,166 physical lines (down from 4,183 at the previous iteration).
+- New component: 39 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The add-hotspot preview column, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
