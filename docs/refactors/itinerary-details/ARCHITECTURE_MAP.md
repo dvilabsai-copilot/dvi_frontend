@@ -267,3 +267,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - The right-side proposed timeline, Fit Here selection, preview notices/rows, and apply action are isolated in `HotspotPreviewPane.tsx`.
 - Shared travel-label endpoint parsing is isolated in `hotspotText.utils.ts`; post-loader callbacks remain behavior-equivalent render-local actions and optional cost data is guarded in `ItineraryOverallCost.tsx`.
 - Route-family base-quote normalization is isolated in `routeFamily.utils.ts`.
+- Quotation confirmation shell composition is isolated in `QuotationConfirmationDialog.tsx`; the controller still owns its state, validation, and submission callbacks.

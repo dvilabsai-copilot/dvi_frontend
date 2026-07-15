@@ -1,5 +1,23 @@
 # Progress log
 
+## Iteration 256 — Extract quotation confirmation dialog composition
+
+### Baseline
+- Starting point: Iteration 255 at commit `10a2ce3` with the controller at 3,263 lines.
+- Scope: move the quotation confirmation shell and its already-extracted overview, hotel-review, passenger, travel, and footer composition into a dedicated dialog component.
+
+### Changes
+- Added `src/pages/itinerary-details/components/QuotationConfirmationDialog.tsx`.
+- The controller now supplies typed child-prop groups; state ownership, validation, handlers, payloads, toasts, and dialog transitions remain in the controller/hooks.
+- Removed only the inline composition and unused imports from the controller.
+
+### Verification
+- Controller line count: 3,249; new dialog component: 45 lines.
+- Exact-source Playwright pair: 2 passed (Fit Here anchor and hotspot modal regression).
+- Filtered TypeScript and new-component lint passed.
+- Production build passed with existing bundle/Browserslist warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 253 — Remove unreachable legacy cost markup
 
 ### Baseline

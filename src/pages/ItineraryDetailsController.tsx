@@ -246,9 +246,7 @@ import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
-import { QuotationHotelReviewSections } from "./itinerary-details/components/QuotationHotelReviewSections";
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
-import { QuotationConfirmationOverview } from "./itinerary-details/components/QuotationConfirmationOverview";
 import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDaysSection";
 import { HotelListLoadingState } from "./itinerary-details/components/HotelListLoadingState";
 import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
@@ -311,9 +309,6 @@ import {
   getRequestArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
-import { QuotationPassengerForm } from "./itinerary-details/QuotationPassengerForm";
-import { QuotationTravelDetailsForm } from "./itinerary-details/QuotationTravelDetailsForm";
-import { QuotationDialogFooter } from "./itinerary-details/QuotationDialogFooter";
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
 import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
 import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary";
@@ -337,7 +332,7 @@ import { HotspotPreviewResolvedTimelineNotice } from "./itinerary-details/compon
 import { HotspotPreviewOverflowLeakNotice } from "./itinerary-details/components/HotspotPreviewOverflowLeakNotice";
 import { HotspotPreviewDayEndOverflowNotice } from "./itinerary-details/components/HotspotPreviewDayEndOverflowNotice";
 import { QuotationNonTboAcceptanceNotice } from "./itinerary-details/QuotationNonTboAcceptanceNotice";
-import { QuotationConfirmationDialogShell } from "./itinerary-details/QuotationConfirmationDialogShell";
+import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
@@ -3057,99 +3052,90 @@ const hotelTimelineLoading = Boolean(
         formatDuration={formatActivityDuration}
       />
 
-      <QuotationConfirmationDialogShell
+      <QuotationConfirmationDialog
         open={confirmQuotationModal}
         onOpenChange={setConfirmQuotationModal}
-      >
-
-          <div className="space-y-4 py-4">
-            <QuotationConfirmationOverview
-              agentInfo={agentInfo}
-              walletBalance={walletBalance}
-              walletBalanceAmount={walletBalanceAmount}
-              parseWalletAmount={parseWalletAmount}
-              confirmRequiredAmount={confirmRequiredAmount}
-              formatCurrency={formatCurrency}
-              shouldEnableWalletTopUpOnConfirm={shouldEnableWalletTopUpOnConfirm}
-              showWalletTopUpPanel={showWalletTopUpPanel}
-              walletShortfallAmount={walletShortfallAmount}
-              walletTopUpAmount={walletTopUpAmount}
-              setWalletTopUpAmount={setWalletTopUpAmount}
-              walletTopUpRemark={walletTopUpRemark}
-              setWalletTopUpRemark={setWalletTopUpRemark}
-              isWalletTopUpSubmitting={isWalletTopUpSubmitting}
-              handleWalletTopUpAndContinue={handleWalletTopUpAndContinue}
-              refreshConfirmWalletBalance={refreshConfirmWalletBalance}
-              isWalletInsufficientForConfirm={isWalletInsufficientForConfirm}
-              requiresHotelBookingFlow={requiresHotelBookingFlow}
-              confirmRoomCount={confirmRoomCount}
-              confirmPassengerMix={confirmPassengerMix}
-              confirmOccupancyPreview={confirmOccupancyPreview}
-              requiresDetailedPassengerFlow={requiresDetailedPassengerFlow}
-              childrenCount={Number(itinerary?.children || 0)}
-              infantsCount={Number(itinerary?.infants || 0)}
-              isOpeningConfirmQuotation={isOpeningConfirmQuotation}
-              isPrebooking={isPrebooking}
-              prebookData={prebookData}
-            />
-
-            <QuotationHotelReviewSections
-              requiresHotelBookingFlow={requiresHotelBookingFlow}
-              externalStayEntries={externalStayEntries as readonly Record<string, unknown>[]}
-              defaultExternalStayMessage={DEFAULT_EXTERNAL_STAY_MESSAGE}
-              hasAcceptedUpdatedPrice={hasAcceptedUpdatedPrice}
-              setHasAcceptedUpdatedPrice={setHasAcceptedUpdatedPrice}
-              prebookData={prebookData}
-              isPrebooking={isPrebooking}
-              isOpeningConfirmQuotation={isOpeningConfirmQuotation}
-              nonTboSelectedHotelEntries={nonTboSelectedHotelEntries as readonly Record<string, unknown>[]}
-              prebookHotelEntries={prebookHotelEntries as readonly Record<string, unknown>[]}
-              hasPrebookPriceChanged={hasPrebookPriceChanged}
-              normalizePrebookItems={normalizePrebookItems}
-              resolvePrebookInclusions={resolvePrebookInclusions}
-              resolvePrebookMealPlan={resolvePrebookMealPlan}
-              normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
-              normalizeMealPlanLabel={normalizeMealPlanLabel}
-            />
-            <QuotationPassengerForm
-              guestDetails={guestDetails}
-              setGuestDetails={setGuestDetails}
-              formErrors={formErrors}
-              setFormErrors={setFormErrors}
-              requiresDetailedPassengerFlow={requiresDetailedPassengerFlow}
-              additionalAdults={additionalAdults}
-              setAdditionalAdults={setAdditionalAdults}
-              additionalChildren={additionalChildren}
-              setAdditionalChildren={setAdditionalChildren}
-              additionalInfants={additionalInfants}
-              setAdditionalInfants={setAdditionalInfants}
-              defaultPassenger={defaultPassenger}
-              getPassengerFieldError={getPassengerFieldError}
-            />
-            <QuotationTravelDetailsForm
-              guestDetails={guestDetails}
-              setGuestDetails={setGuestDetails}
-              handleArrivalDateTimeChange={handleArrivalDateTimeChange}
-            />
-          </div>
-          <QuotationDialogFooter
-            setConfirmQuotationModal={setConfirmQuotationModal}
-            setGuestDetails={setGuestDetails}
-            confirmDefaultNationality={confirmDefaultNationality}
-            setAdditionalAdults={setAdditionalAdults}
-            setAdditionalChildren={setAdditionalChildren}
-            setAdditionalInfants={setAdditionalInfants}
-            setPrebookData={setPrebookData}
-            setHasAcceptedUpdatedPrice={setHasAcceptedUpdatedPrice}
-            setFormErrors={setFormErrors}
-            resetConfirmWalletTopUpPanel={resetConfirmWalletTopUpPanel}
-            handleConfirmQuotation={handleConfirmQuotation}
-            isConfirmingQuotation={isConfirmingQuotation}
-            isPrebooking={isPrebooking}
-            isWalletTopUpSubmitting={isWalletTopUpSubmitting}
-            canConfirmQuotation={canConfirmQuotation}
-          />
-      </QuotationConfirmationDialogShell>
+        overview={{
+          agentInfo,
+          walletBalance,
+          walletBalanceAmount,
+          parseWalletAmount,
+          confirmRequiredAmount,
+          formatCurrency,
+          shouldEnableWalletTopUpOnConfirm,
+          showWalletTopUpPanel,
+          walletShortfallAmount,
+          walletTopUpAmount,
+          setWalletTopUpAmount,
+          walletTopUpRemark,
+          setWalletTopUpRemark,
+          isWalletTopUpSubmitting,
+          handleWalletTopUpAndContinue,
+          refreshConfirmWalletBalance,
+          isWalletInsufficientForConfirm,
+          requiresHotelBookingFlow,
+          confirmRoomCount,
+          confirmPassengerMix,
+          confirmOccupancyPreview,
+          requiresDetailedPassengerFlow,
+          childrenCount: Number(itinerary?.children || 0),
+          infantsCount: Number(itinerary?.infants || 0),
+          isOpeningConfirmQuotation,
+          isPrebooking,
+          prebookData,
+        }}
+        hotelReview={{
+          requiresHotelBookingFlow,
+          externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
+          defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
+          hasAcceptedUpdatedPrice,
+          setHasAcceptedUpdatedPrice,
+          prebookData,
+          isPrebooking,
+          isOpeningConfirmQuotation,
+          nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
+          prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
+          hasPrebookPriceChanged,
+          normalizePrebookItems,
+          resolvePrebookInclusions,
+          resolvePrebookMealPlan,
+          normalizeCancellationPolicyItems,
+          normalizeMealPlanLabel,
+        }}
+        passenger={{
+          guestDetails,
+          setGuestDetails,
+          formErrors,
+          setFormErrors,
+          requiresDetailedPassengerFlow,
+          additionalAdults,
+          setAdditionalAdults,
+          additionalChildren,
+          setAdditionalChildren,
+          additionalInfants,
+          setAdditionalInfants,
+          defaultPassenger,
+          getPassengerFieldError,
+        }}
+        travel={{ guestDetails, setGuestDetails, handleArrivalDateTimeChange }}
+        footer={{
+          setConfirmQuotationModal,
+          setGuestDetails,
+          confirmDefaultNationality,
+          setAdditionalAdults,
+          setAdditionalChildren,
+          setAdditionalInfants,
+          setPrebookData,
+          setHasAcceptedUpdatedPrice,
+          setFormErrors,
+          resetConfirmWalletTopUpPanel,
+          handleConfirmQuotation,
+          isConfirmingQuotation,
+          isPrebooking,
+          isWalletTopUpSubmitting,
+          canConfirmQuotation,
+        }}
+      />
 
       <ManualFitHerePreviewDialog
         open={fitHereModal.open}
