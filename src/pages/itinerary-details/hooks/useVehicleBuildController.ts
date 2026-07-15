@@ -19,22 +19,6 @@ interface VehicleBuildRequest {
   finalizePage: (details: ItineraryDetailsResponse) => Promise<void>;
 }
 
-const extractRouteOptionQuoteId = (option: unknown): string => {
-  if (typeof option === "string") return option.trim();
-  if (!option || typeof option !== "object") return "";
-  const value = option as Record<string, unknown>;
-  return String(
-    value.quoteId ||
-      value.routeQuoteId ||
-      value.quotationNo ||
-      value.quotation_no ||
-      value.itinerary_quote_ID ||
-      value.itinerary_quote_id ||
-      value.quote_id ||
-      "",
-  ).trim();
-};
-
 /** Owns vehicle build-status/rebuild sequencing used by staged itinerary hydration. */
 export const useVehicleBuildController = ({
   pushPageLoaderStage,
@@ -48,29 +32,6 @@ export const useVehicleBuildController = ({
   forceVehicleRebuild,
   finalizePage,
 }: VehicleBuildRequest): Promise<void> => {
-  const storedRouteOptions: unknown[] = [];
-  if (typeof window !== "undefined") {
-    try {
-      const stored = localStorage.getItem(`itinerary-route-options:${requestedQuoteId}`);
-      const parsed = stored ? JSON.parse(stored) : [];
-      if (Array.isArray(parsed)) storedRouteOptions.push(...parsed);
-    } catch {
-      // Ignore malformed route-option cache, matching the existing fallback path.
-    }
-  }
-
-  const detailsRecord = initialDetails as unknown as Record<string, unknown>;
-  const routeOptionQuoteIds = [
-    ...(Array.isArray(detailsRecord.routeOptions) ? detailsRecord.routeOptions : []),
-    ...(Array.isArray(detailsRecord.suggestedRoutes) ? detailsRecord.suggestedRoutes : []),
-    ...(Array.isArray(detailsRecord.siblingRoutes) ? detailsRecord.siblingRoutes : []),
-    ...storedRouteOptions,
-  ]
-    .map(extractRouteOptionQuoteId)
-    .filter((id) => id && id.startsWith("DVI"));
-  const isSuggestedRouteItinerary = new Set(routeOptionQuoteIds).size > 1;
-  const shouldStrictlyRequireVehicleBuild = forceVehicleRebuild || isSuggestedRouteItinerary;
-
   try {
     pushPageLoaderStage("Checking vehicle build status");
     const buildStatus = await ItineraryService.getVehicleBuildStatus(planId);
@@ -85,8 +46,6 @@ export const useVehicleBuildController = ({
       return;
     }
 
-    pushPageLoaderStage("Building permit charges");
-    await ItineraryService.buildPermitsSync(planId);
     pushPageLoaderStage("Building vehicle details and pricing");
     const vehicleBuildResult = await ItineraryService.buildVehiclesSync(planId);
     if (String(vehicleBuildResult?.status || "FAILED").toUpperCase() !== "READY") {
@@ -99,10 +58,9 @@ export const useVehicleBuildController = ({
     if (!hasUsableVehicleRows(finalDetails)) throw new Error("Vehicle details are still incomplete after rebuild");
     await finalizePage(finalDetails);
   } catch (error) {
-    if (shouldStrictlyRequireVehicleBuild) throw error;
-    console.warn("Vehicle build failed for non-suggested itinerary. Showing itinerary details without blocking the page.", error);
-    setVehicleBuildStatus("READY");
-    setVehicleBuildError(error instanceof Error ? error.message : String(error || "Vehicle pricing failed to prepare"));
-    await finalizePage(initialDetails);
+    const message = error instanceof Error ? error.message : String(error || "Vehicle pricing failed to prepare");
+    setVehicleBuildStatus("FAILED");
+    setVehicleBuildError(message);
+    throw error;
   }
 }, [hasUsableVehicleRows, pushPageLoaderStage, setVehicleBuildError, setVehicleBuildStatus]);

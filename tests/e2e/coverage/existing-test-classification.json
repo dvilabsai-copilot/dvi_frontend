@@ -1,0 +1,1300 @@
+[
+  {
+    "file": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/",
+      "/vendor",
+      "/hotels",
+      "/drivers",
+      "/staff",
+      "/activities",
+      "/locations",
+      "/agent",
+      "/settings/cities",
+      "/settings/global",
+      "/settings/gst",
+      "/guide/new"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "axisrooms"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "ITINERARY_QUOTE_ID",
+      "HOTEL_ID",
+      "VENDOR_EDIT_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/agent-cost-visibility.agent.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/itinerary-details/${encodeURIComponent(QUOTE_ID)}"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/arrival-policy.e2e.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/create-itinerary?id=${encodeURIComponent(CREATE_ITINERARY_ID)}",
+      "/create-itinerary?id=${encodeURIComponent(CREATE_ITINERARY_ID)}",
+      "/itinerary-details/${encodeURIComponent(ITINERARY_QUOTE_ID)}",
+      "/itinerary-details/${encodeURIComponent(ITINERARY_QUOTE_ID)}"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "ITINERARY_ID",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/booking-engine-test-utils.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_GUID",
+      "quoteId",
+      "QuoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/booking-engine-validation.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QuoteId",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/booking-flow-api-direct.spec.ts",
+    "classification": "retain",
+    "reason": "Important itinerary/booking regression knowledge is retained while the harness is migrated.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "quote_id",
+      "itinerary_plan_ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/booking-flow-api.spec.ts",
+    "classification": "retain",
+    "reason": "Important itinerary/booking regression knowledge is retained while the harness is migrated.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "quote_id",
+      "itinerary_plan_ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/business-rules-invariants.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QuoteId",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/confirm-booking-modal-e2e.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "itinerary_plan_id",
+      "quote ID",
+      "quoteId",
+      "quote_id",
+      "itineraryPlanId",
+      "itinerary_plan_ID",
+      "Quote ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/driver-new-flow.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/external-sandbox/axisrooms-munnar-hotel-details.spec.ts",
+    "classification": "blocked",
+    "reason": "External provider workflow requires an explicit sandbox or mock project.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "axisrooms"
+    ],
+    "fixedRecordDependencies": [
+      "hotel_id",
+      "153",
+      "quoteId",
+      "QUOTE_ID",
+      "hotelId"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/external-sandbox/hotel-pricebook-axisrooms-153.spec.ts",
+    "classification": "blocked",
+    "reason": "External provider workflow requires an explicit sandbox or mock project.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "axisrooms"
+    ],
+    "fixedRecordDependencies": [
+      "HOTEL_ID",
+      "153"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/external-sandbox/razorpay-local-sandbox.spec.ts",
+    "classification": "blocked",
+    "reason": "External provider workflow requires an explicit sandbox or mock project.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "razorpay"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/factories/run-id.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/auth.fixture.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/hotspot-test-image-2.png",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/hotspot-test-image.png",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/index.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/network-monitor.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "razorpay"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/parking_charges_sample_edited.csv",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/parking_charges_sample_edited_success.csv",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/fixtures/parking_charges_sample_retry.csv",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/generated/legacy-route-options-16.json",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QuoteId",
+      "DVI20260790",
+      "DVI20260791",
+      "DVI20260792",
+      "DVI20260793",
+      "DVI20260794",
+      "DVI20260795",
+      "DVI20260796",
+      "DVI20260797",
+      "DVI20260798",
+      "DVI20260799",
+      "DVI202607100",
+      "DVI202607101",
+      "DVI202607102",
+      "DVI202607103",
+      "DVI202607104",
+      "DVI202607105",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/guide-live-insert.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "GuideId",
+      "guide_id",
+      "guide id"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/guide-module-e2e.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "guideId",
+      "GuideId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/hotel-day-continuity.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/hotel-form-structure-check.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/hotel-form-tabs-verification.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/hotspot-form-upload.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/hotspot-itinerary-timing.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-environment/itinerary-php-nest-parity.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "DVI202604230"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/guide-pricebook.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "GUIDE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/hotel-edit-17446-full-flow.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "HOTEL_ID",
+      "HOTEL_EDIT_ID",
+      "hotelId",
+      "17446"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-anchor-hotspot-smoke.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-apj-dvi2026071.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "DVI2026071"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-auto-preview-day1-dvi202606167.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "DVI202606167",
+      "itinerary_plan_id",
+      "quoteId"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-auto-preview-gandhi-dvi2026071.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "DVI2026071"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-day1-dvi202606167.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "DVI202606167",
+      "DVI20260587",
+      "itinerary_plan_id",
+      "quoteId",
+      "hotel-sid"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-exact-anchor-apj-dvi2026071.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "DVI2026071"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-fit-here-preview-confirm-replay.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-hotspot-insert-4-sequence.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "DVI202604247",
+      "QUOTE_ID",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-hotspot-modal-regression.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/itinerary-hotspot-replacement-box.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/legacy-route-options-16.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "QuoteId",
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/vendor-crysta-pricebook.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [
+      "/vendor/60",
+      "/vendor/60"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/vendor-crysta-readd-outstation.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [
+      "/vendor/60",
+      "/vendor/60"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/vendor-hycross-pricebook.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [
+      "/vendor/60",
+      "/vendor/60"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/legacy-fixture/vendor-new-flow.spec.ts",
+    "classification": "blocked",
+    "reason": "Legacy or fixed-record fixture workflow is excluded from the deterministic default suite.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "VENDOR_ID",
+      "VENDOR_EDIT_ID",
+      "VendorId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/manual-hotspot-five-day-quote.spec.ts",
+    "classification": "retain",
+    "reason": "Important itinerary/booking regression knowledge is retained while the harness is migrated.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "quoteId"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/manual-hotspot-test-utils.ts",
+    "classification": "retain",
+    "reason": "Important itinerary/booking regression knowledge is retained while the harness is migrated.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [
+      "QUOTE_ID",
+      "ITINERARY_QUOTE_ID",
+      "quoteId",
+      "itinerary_quote_ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/nationality-uae-test.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/create-itinerary",
+      "/create-itinerary",
+      "/create-itinerary",
+      "/create-itinerary",
+      "/create-itinerary"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/NATIONALITY_BOOKING_TEST_GUIDE.md",
+    "classification": "retain",
+    "reason": "Fixture or documentation asset retained for migrated regression coverage.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/quarantine/production-hotel-api.spec.ts",
+    "classification": "quarantine",
+    "reason": "Historical production-connected test is excluded from all ordinary projects.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "dvi.travel"
+    ],
+    "fixedRecordDependencies": [
+      "hotelId",
+      "hotel_id",
+      "Hotel ID"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/quarantine/production-hotel-creation.spec.ts",
+    "classification": "quarantine",
+    "reason": "Historical production-connected test is excluded from all ordinary projects.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "dvi.travel"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/quarantine/seed-booking-test-data-prod.ts",
+    "classification": "quarantine",
+    "reason": "Historical production-connected test is excluded from all ordinary projects.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "QUOTE_GUID",
+      "itinerary_quote_ID",
+      "itinerary_booking_ID",
+      "hotelId"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/seed-booking-test-data.ts",
+    "classification": "replace-with-fixture",
+    "reason": "Shared-data seeder must become run-scoped fixture setup; no default test execution.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "dvi.travel"
+    ],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "itinerary_quote_ID",
+      "itinerary_booking_ID",
+      "QUOTE_GUID",
+      "itinerary_route_ID",
+      "HotelId",
+      "hotelId",
+      "hotel_id",
+      "itinerary_plan_hotel_details_ID",
+      "itinerary_plan_id",
+      "itinerary_route_id",
+      "guide_ID",
+      "itinerary_route_guid",
+      "itinerary_plan_ID",
+      "guide_id",
+      "QuoteId"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/setup/environment-preflight.mjs",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "dvi.travel"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/setup/global-setup.mjs",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/smoke/auth-login.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/login",
+      "/login",
+      "/login"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/smoke/public-routes.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/partner-registration",
+      "/partner-registration",
+      "/this-route-does-not-exist",
+      "/partner-registration"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/support/cleanup-registry.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": true,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/ui-ux-contract.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [
+      "/itinerary-details/${encodeURIComponent(quoteId as string)}"
+    ],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "ITINERARY_QUOTE_ID"
+    ],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/vehicle-availability-add-forms.spec.ts",
+    "classification": "refactor",
+    "reason": "Existing test requires migration to shared fixtures, auth, and deterministic assertions.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/vehicle-availability-duplicate-registration.spec.ts",
+    "classification": "blocked",
+    "reason": "Backend exposes vehicle creation but no delete endpoint; keep this destructive duplicate-registration regression out of ordinary mutation runs until a cleanup API exists.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "tbo"
+    ],
+    "fixedRecordDependencies": [],
+    "destructiveActions": [],
+    "cleanupAvailable": false,
+    "role": [
+      "super-admin"
+    ],
+    "replacementFiles": []
+  },
+  {
+    "file": "tests/e2e/vehicle-only-itinerary.spec.ts",
+    "classification": "retain",
+    "reason": "Important itinerary/booking regression knowledge is retained while the harness is migrated.",
+    "routes": [],
+    "apiEndpoints": [],
+    "externalSystems": [
+      "dvi.travel"
+    ],
+    "fixedRecordDependencies": [
+      "quoteId",
+      "itinerary_plan_id",
+      "itinerary_plan_ID",
+      "itineraryId"
+    ],
+    "destructiveActions": [
+      "writes or workflow mutation detected"
+    ],
+    "cleanupAvailable": true,
+    "role": [
+      "agent"
+    ],
+    "replacementFiles": []
+  }
+]
