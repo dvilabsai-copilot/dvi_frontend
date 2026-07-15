@@ -243,6 +243,7 @@ import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/u
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
+import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1893,6 +1894,25 @@ const hotelTimelineLoading = Boolean(
     setRoomSelectionModal,
     onRoomSelectionSuccess: () => toast.success("Room categories updated successfully"),
   });
+  const mediaDialogProps = useItineraryMediaDialogProps({
+    mediaShareState,
+    itineraryPreference,
+    paraRecommendations,
+    selectedHotels,
+    setSelectedHotels,
+    handleCopyClipboard,
+    sourcePreviewOpen,
+    setSourcePreviewOpen,
+    sourcePreviewHeading,
+    sourcePreviewLoading,
+    sourcePreviewError,
+    sourcePreviewMarkdown,
+    quoteId: String(quoteId || ""),
+    allHotspotsPreviewModal,
+    onOpenAllHotspotsPreview: (open) => setAllHotspotsPreviewModal((previous) => ({ ...previous, open })),
+    formatTime: formatPreviewTime,
+    formatDuration: formatActivityDuration,
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2115,30 +2135,7 @@ const hotelTimelineLoading = Boolean(
 
       <ItineraryHotelDialogs {...hotelDialogProps} />
 
-      <ItineraryMediaDialogs
-        gallery={{ state: galleryModal, setState: setGalleryModal, activeIndex: galleryActiveIdx, setActiveIndex: setGalleryActiveIdx }}
-        video={{ state: videoModal, setState: setVideoModal }}
-        clipboard={{
-          open: clipboardModal,
-          preference: itineraryPreference,
-          clipboardType,
-          recommendations: paraRecommendations,
-          selectedHotels,
-          onOpenChange: setClipboardModal,
-          onSelectionChange: setSelectedHotels,
-          onCopy: handleCopyClipboard,
-        }}
-        source={{ open: sourcePreviewOpen, setOpen: setSourcePreviewOpen, heading: sourcePreviewHeading, loading: sourcePreviewLoading, error: sourcePreviewError, markdown: sourcePreviewMarkdown }}
-        shareEmail={{ open: shareModal, setOpen: setShareModal, quoteId: String(quoteId || "") }}
-        allHotspotsPreview={{
-          open: allHotspotsPreviewModal.open,
-          loading: allHotspotsPreviewModal.loading,
-          data: allHotspotsPreviewModal.data,
-          onOpenChange: (open) => setAllHotspotsPreviewModal((prev) => ({ ...prev, open })),
-          formatTime: formatPreviewTime,
-          formatDuration: formatActivityDuration,
-        }}
-      />
+      <ItineraryMediaDialogs {...mediaDialogProps} />
 
       <QuotationConfirmationDialog
         open={confirmQuotationModal}

@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 275 — Extract media dialog props
+
+### Baseline
+- Starting point: Iteration 274 with the controller at 2,285 lines.
+- Scope: move gallery, video, clipboard, source-preview, share, and all-hotspots-preview prop shaping into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryMediaDialogProps.ts`.
+- Media state and clipboard/source actions remain controller-owned; the hook preserves existing state setters and formatting callbacks.
+
+### Verification
+- Controller line count: 2,282; new hook: 54 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 274 — Extract hotel dialog props
 
 ### Baseline

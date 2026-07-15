@@ -35,6 +35,7 @@ The first 1,300 lines contain API/domain types for timeline segments, days, hots
 - Hotspot deletion, activity add/delete, and guide assignment/delete dialogs are composed in `ItineraryActivityGuideDialogs`; mutation state remains controller-owned.
 - Manual/automatic Fit Here dialog prop shaping and reset callbacks are isolated in `useFitHereDialogProps`; Fit Here state and confirmation mutations remain controller-owned.
 - Hotel-search and room-selection dialog prop shaping and reset behavior are isolated in `useItineraryHotelDialogProps`; hotel mutations remain controller-owned.
+- Gallery, video, clipboard, source-preview, share, and all-hotspots-preview prop shaping are isolated in `useItineraryMediaDialogProps`; media state remains controller-owned.
 - Fit Here progress interval lifecycle and loading-step updates are isolated in `useFitHereProgressTimer`; Fit Here modal state remains controller-owned.
 
 ## Effects, refs, and browser coupling
