@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 296 — Extract itinerary scroll effects
+
+### Baseline
+- Starting point: Iteration 295 with the controller at 1,420 lines.
+- Scope: isolate post-refresh day scrolling, Fit Here session-storage restoration, and route-progress timer cleanup.
+
+### Changes
+- Added `hooks/useItineraryScrollEffects.ts`.
+- Preserved delayed day-anchor scrolling, session-storage cleanup/restoration, and route-progress cleanup on unmount.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,388; new hook: 38 lines.
+- New hook ESLint passed with the same setter-dependency warnings previously present in the controller; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 295 — Extract loaded page view composition
 
 ### Baseline

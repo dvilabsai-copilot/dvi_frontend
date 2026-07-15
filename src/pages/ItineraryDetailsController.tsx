@@ -217,6 +217,7 @@ import { QuotationConfirmationDialog } from "./itinerary-details/components/Quot
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useItineraryHotspotPreviewWorkflow } from "./itinerary-details/hooks/useItineraryHotspotPreviewWorkflow";
 import { useItineraryClipboardSelectionWorkflow } from "./itinerary-details/hooks/useItineraryClipboardSelectionWorkflow";
+import { useItineraryScrollEffects } from "./itinerary-details/hooks/useItineraryScrollEffects";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -982,46 +983,13 @@ const switchedRouteRef = useRef<string | null>(null);
   });
   const { openConfirmQuotationModal, handleConfirmQuotation } = quotationConfirmationWorkflow;
 
-  useEffect(() => {
-    if (!pendingScrollDayNumber) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      const dayElement = document.getElementById(`itinerary-day-${pendingScrollDayNumber}`);
-      if (dayElement) {
-        dayElement.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-      setPendingScrollDayNumber(null);
-    }, 180);
-
-    return () => window.clearTimeout(timer);
-  }, [itinerary, pendingScrollDayNumber]);
-
-  useEffect(() => {
-    if (!itinerary?.days?.length || pendingScrollDayNumber) {
-      return;
-    }
-
-    const scrollStorageKey = getFitHereRefreshScrollStorageKey();
-    if (!scrollStorageKey) {
-      return;
-    }
-
-    const storedDayNumber = Number(window.sessionStorage.getItem(scrollStorageKey) || 0);
-    if (!storedDayNumber) {
-      return;
-    }
-
-    window.sessionStorage.removeItem(scrollStorageKey);
-    setPendingScrollDayNumber(storedDayNumber);
-  }, [getFitHereRefreshScrollStorageKey, itinerary?.days, pendingScrollDayNumber]);
-
-  useEffect(() => {
-    return () => {
-      stopRouteTimeProgress();
-    };
-  }, [stopRouteTimeProgress]);
+  useItineraryScrollEffects({
+    itinerary,
+    pendingScrollDayNumber,
+    setPendingScrollDayNumber,
+    getFitHereRefreshScrollStorageKey,
+    stopRouteTimeProgress,
+  });
 
 useRelatedRouteOptionsLoader({ quoteId, itinerary, setLatestRouteOptions });
 
