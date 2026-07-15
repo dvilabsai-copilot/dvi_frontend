@@ -60,7 +60,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                             {activity.title}
                           </div>
                           <div className="mt-1 text-xs text-[#6c6c6c] line-clamp-2">
-                            {activity.description}
+                            {activity.description ?? ""}
                           </div>
 <div className="mt-2 space-y-1 text-xs text-[#6c6c6c]">
   {activity.duration && <div>Duration: {formatActivityDuration(activity.duration)}</div>}

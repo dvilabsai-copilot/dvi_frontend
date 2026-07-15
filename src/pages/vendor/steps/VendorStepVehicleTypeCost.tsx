@@ -1640,8 +1640,11 @@ const handleDeleteLocal = async (rowId: number) => {
             <p className="mt-3 text-sm text-gray-600">
               Do you really want to delete this record?
             </p>
+            <p className="mt-2 text-sm font-semibold text-red-600">
+              All related local and outstation rates will be permanently deleted.
+            </p>
             <p className="text-sm text-gray-600">
-              This process cannot be undone.
+              This process cannot be undone. Do you want to continue?
             </p>
 
             <div className="mt-6 flex justify-center gap-3">

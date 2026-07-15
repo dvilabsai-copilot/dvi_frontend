@@ -116,7 +116,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     </button>
                                   </div>
                                   <p className="text-sm text-[#6c6c6c] mb-2 line-clamp-2">
-  {segment.description}
+  {segment.description ?? ""}
 </p>
 
 {guideAssignmentForSegment && (
@@ -280,7 +280,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                               </button>
                                             </div>
                                             <p className="text-sm text-[#6c6c6c] mb-3">
-                                              {activity.description}
+                                              {activity.description ?? ""}
                                             </p>
                                             <div className="flex flex-wrap gap-4 text-xs text-[#6c6c6c]">
                                               {activity.startTime && activity.endTime && (

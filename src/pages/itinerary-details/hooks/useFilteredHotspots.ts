@@ -63,7 +63,10 @@ export const useFilteredHotspots = ({
   };
 
   return availableHotspots
-    .filter((hotspot) => hotspot.name.toLowerCase().includes(query) || hotspot.description.toLowerCase().includes(query))
+    .filter((hotspot) => (
+      String(hotspot.name ?? "").toLowerCase().includes(query)
+      || String(hotspot.description ?? "").toLowerCase().includes(query)
+    ))
     .sort((a, b) => {
       const aTimingText = String(a.timings || "").trim().toLowerCase();
       const bTimingText = String(b.timings || "").trim().toLowerCase();
