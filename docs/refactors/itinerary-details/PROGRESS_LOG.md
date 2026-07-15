@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 286 — Extract hotspot mutation workflow
+
+### Baseline
+- Starting point: Iteration 285 with the controller at 2,002 lines.
+- Scope: isolate hotspot preview, priority replacement, matrix-rebuild retry, and add-hotspot mutation orchestration.
+
+### Changes
+- Added `hooks/useItineraryHotspotMutationWorkflow.ts`.
+- Preserved preview reset behavior, priority callbacks, matrix command behavior, route-rebuild flags, and add-hotspot mutation inputs.
+
+### Verification
+- Controller line count: 1,952; new hook: 104 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 285 — Extract Fit Here workflow
 
 ### Baseline

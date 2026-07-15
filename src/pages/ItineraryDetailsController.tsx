@@ -236,11 +236,8 @@ import {
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
 import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
-import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
+import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
-import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
-import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
-import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -1263,76 +1260,30 @@ const getSelectedPreviewActivity = () =>
     buildFitHereAnchorKey, handleSelectFitHotspot, handleFitHereClick, handleAutoPreviewFitHere,
     handleFitHereCancel, handleRetryFitHere, handleConfirmFitHere, getFitHereRefreshScrollStorageKey,
   } = fitHereWorkflow;
-  const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
-    addHotspotModal,
-    activePreviewHotspotId,
+  const hotspotMutationWorkflow = useItineraryHotspotMutationWorkflow({
+    hotspotState,
+    deletionState,
+    routeState,
+    previewModel: hotspotPreviewViewModel,
     selectedHotspotAnchor,
-    previewRequestIdRef,
-    timelinePreviewRef,
-    resetManualHotspotPreviewState,
-    getManualTimingPolicyFromPreview,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setForceReplacementApprovedByHotspot,
-    setTopPriorityReplacementApproved,
-    setIsPreviewingHotspotId,
-    setManualPreviewState,
-    setPreviewTimelinesByHotspot,
-    setPreviewResolutionsByHotspot,
-    setGroupPreviewResolution,
-  });
-
-  const { handleConfirmPriorityReplacement, handleCancelPriorityReplacement } = useHotspotPriorityReplacementController({
+    selectedHotspotId,
     groupPreviewResolution,
     pendingPriorityReplacementHotspotId,
-    selectedHotspotId,
-    selectedHotspotIds,
-    handlePreviewHotspot,
-    handleRemovePreviewHotspot,
-    setForceReplacementApprovedByHotspot,
-    setTopPriorityReplacementApproved,
-  });
-
-  const handleBuildMatrixAndPreviewAgain = useHotspotMatrixPreviewController({
-    activePreviewHotspotId,
-    planId: addHotspotModal.planId,
-    routeId: addHotspotModal.routeId,
-    isDestinationSideManualPreview,
-    resetManualHotspotPreviewStateButKeepActiveHotspot,
-    handlePreviewHotspot,
-    setIsBuildingMatrix,
-  });
-
-  const handleAddHotspot = useHotspotAddMutation({
-    readOnly,
     addHotspotModal,
-    selectedHotspotAnchor,
-    activePreviewResolution,
-    manualPreviewState,
-    activePreviewHotspotId,
-    groupPreviewResolution,
-    topPriorityReplacementApproved,
-    selectedPreviewSegments,
-    currentRouteAttractionHotspotIds,
-    addedInModalHotspotIds,
-    selectedHotspotIds,
     itinerary,
-    quoteId: quoteId || null,
+    quoteId,
+    readOnly,
     shouldShowHotels,
-    normalizeAvailableHotspots,
+    isDestinationSideManualPreview,
+    resetManualHotspotPreviewState,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
     getManualTimingPolicyFromPreview,
     filterAvailableHotspotsForAnchor,
-    resetManualHotspotPreviewState,
-    setIsAddingHotspot,
-    setIsApplyingPreviewHotspot,
-    setAddedInModalHotspotIds,
-    setAvailableHotspots,
-    setRouteNeedsRebuild,
-    setActivePreviewHotspotId,
-    setItinerary,
-    setHotelDetails,
-    setHotspotFilterMeta,
   });
+  const {
+    handlePreviewHotspot, handleRemovePreviewHotspot, handleConfirmPriorityReplacement,
+    handleCancelPriorityReplacement, handleBuildMatrixAndPreviewAgain, handleAddHotspot,
+  } = hotspotMutationWorkflow;
 
   const { toImgSrc, openGalleryModal, openVideoModal } = useMediaModalController({
     setGalleryModal,
