@@ -22,13 +22,11 @@ import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
 import { IncidentalExpensesHistorySection } from "./IncidentalExpensesHistorySection";
-import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
   buildExactManualHotspotPreviewPayload,
 } from "./itinerary-details/manual-hotspot-preview.shared";
-import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import { toast } from "sonner";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
@@ -213,6 +211,7 @@ import { ItineraryFitHereDialogs } from "./itinerary-details/components/Itinerar
 import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryMediaDialogs";
 import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryHotelDialogs";
 import { ItineraryAddHotspotDialog } from "./itinerary-details/components/ItineraryAddHotspotDialog";
+import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
@@ -248,6 +247,7 @@ import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePre
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
+import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -258,7 +258,6 @@ import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGui
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
 import {
   buildArrivalPolicyDecisionKey,
-  getRequestArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
@@ -1964,6 +1963,20 @@ const hotelTimelineLoading = Boolean(
     setSelectedHotels,
   });
 
+  const arrivalPolicyDialogProps = useArrivalPolicyDecisionDialog({
+    itinerary,
+    arrivalPolicyConfirmModal,
+    setArrivalPolicyConfirmModal,
+    pendingRouteTimeUpdate,
+    setPendingRouteTimeUpdate,
+    setLastArrivalPolicyDecisionKey,
+    isResolvingArrivalPolicy,
+    isApplyingRouteTimeUpdate,
+    applyRouteTimePatch,
+    persistArrivalPolicyDecision,
+    resolveArrivalPolicyForArrivalTimeChange,
+  });
+
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
@@ -2385,119 +2398,7 @@ const hotelTimelineLoading = Boolean(
         }}
       />
 
-      <ArrivalHotelDecisionModal
-        open={arrivalPolicyConfirmModal.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setPendingRouteTimeUpdate(null);
-            setArrivalPolicyConfirmModal({
-              open: false,
-              arrivalDate: '',
-              previousDayDate: '',
-              request: null,
-            });
-          }
-        }}
-        arrivalDate={arrivalPolicyConfirmModal.arrivalDate}
-        previousDayDate={arrivalPolicyConfirmModal.previousDayDate}
-        isLoading={isResolvingArrivalPolicy || isApplyingRouteTimeUpdate}
-        onConfirmPreviousDayBilling={async () => {
-          if (!arrivalPolicyConfirmModal.request) {
-            return;
-          }
-
-          const request = arrivalPolicyConfirmModal.request;
-          const decisionKey = getRequestArrivalPolicyDecisionKey(request, itinerary);
-
-          setArrivalPolicyConfirmModal({
-            open: false,
-            arrivalDate: '',
-            previousDayDate: '',
-            request: null,
-          });
-
-          if (pendingRouteTimeUpdate) {
-            // Triggered by a Day-1 route time change – proceed with the PATCH
-            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
-            setPendingRouteTimeUpdate(null);
-            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
-              previousDayBillingDecisionProvided: true,
-              previousDayBillingConfirmed: true,
-            });
-            if (decisionKey) {
-              setLastArrivalPolicyDecisionKey(decisionKey);
-            }
-            return;
-          }
-
-          const persisted = await persistArrivalPolicyDecision(
-            request,
-            true,
-          );
-
-          if (!persisted) {
-            const nextRequest: HotelArrivalPolicyRequest = {
-              ...request,
-              previousDayBillingDecisionProvided: true,
-              previousDayBillingConfirmed: true,
-            };
-            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
-            return;
-          }
-
-          if (decisionKey) {
-            setLastArrivalPolicyDecisionKey(decisionKey);
-          }
-        }}
-        onDeclinePreviousDayBilling={async () => {
-          if (!arrivalPolicyConfirmModal.request) {
-            return;
-          }
-
-          const request = arrivalPolicyConfirmModal.request;
-          const decisionKey = getRequestArrivalPolicyDecisionKey(request, itinerary);
-
-          setArrivalPolicyConfirmModal({
-            open: false,
-            arrivalDate: '',
-            previousDayDate: '',
-            request: null,
-          });
-
-          if (pendingRouteTimeUpdate) {
-            // User declined previous-day billing – still apply the route time change
-            const { planId, routeId, dayNumber, startTimeHms, endTimeHms } = pendingRouteTimeUpdate;
-            setPendingRouteTimeUpdate(null);
-            await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
-              previousDayBillingDecisionProvided: true,
-              previousDayBillingConfirmed: false,
-            });
-            if (decisionKey) {
-              setLastArrivalPolicyDecisionKey(decisionKey);
-            }
-            return;
-          }
-
-          const persisted = await persistArrivalPolicyDecision(
-            request,
-            false,
-          );
-
-          if (!persisted) {
-            const nextRequest: HotelArrivalPolicyRequest = {
-              ...request,
-              previousDayBillingDecisionProvided: true,
-              previousDayBillingConfirmed: false,
-            };
-            await resolveArrivalPolicyForArrivalTimeChange(nextRequest);
-            return;
-          }
-
-          if (decisionKey) {
-            setLastArrivalPolicyDecisionKey(decisionKey);
-          }
-        }}
-      />
+      <ArrivalHotelDecisionModal {...arrivalPolicyDialogProps} />
 
       <ItineraryHotelDialogs
         search={{

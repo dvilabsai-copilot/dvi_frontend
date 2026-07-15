@@ -1,5 +1,23 @@
 # Progress log
 
+## Iteration 264 — Extract arrival-policy decision workflow
+
+### Baseline
+- Starting point: Iteration 263 at commit `11f9c5e` with the controller at 2,758 lines.
+- Scope: move previous-day hotel billing confirmation state transitions and route-time continuation out of the page controller.
+
+### Changes
+- Added `hooks/useArrivalPolicyDecisionDialog.ts` with typed modal props and the existing confirm/decline persistence and route-patch branches.
+- The controller still owns arrival-policy state and service hooks; the extracted hook only coordinates the existing callbacks and preserves the modal contract.
+
+### Verification
+- Controller line count: 2,659; new hook: 115 lines.
+- Exact-source Playwright pair: 2 passed.
+- New hook lint and filtered TypeScript passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 263 — Extract Add Hotspot dialog layout
 
 ### Baseline
