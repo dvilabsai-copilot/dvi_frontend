@@ -27,7 +27,7 @@
 - Removed only non-executable comment text; no JSX, API call, condition, or user-visible behavior changed.
 
 ### Verification
-- Controller line count: 3,269.
+- Controller line count: 3,270 (the final export is line 3,270).
 - `git diff --check` passed.
 
 ## Iteration 51 — Para recommendations hook
