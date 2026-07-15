@@ -125,12 +125,9 @@ import {
 } from "./itinerary-details/utils/clipboardFormatting.utils";
 import {
   extractHotelSectionFromHtml,
-  mergeClipboardWithB2BRecommendedPackages,
   mergeClipboardWithRenderedCost,
   mergeClipboardWithRenderedHotels,
 } from "./itinerary-details/utils/clipboardHtmlMerge.utils";
-import { htmlToPlainText } from "./itinerary-details/utils/htmlToPlainText.utils";
-import { copyHtmlToClipboard } from "./itinerary-details/utils/copyHtmlToClipboard.utils";
 import {
   getBookingCodeForBooking,
   getHotelAmountForBooking,
@@ -150,10 +147,6 @@ import {
   formatPreviewTime,
   getActivityTotalAmount,
 } from "./itinerary-details/utils/activityFormatting.utils";
-import {
-  buildHighlightsHotspotDetailsHtml as buildHighlightsHotspotDetailsHtmlUtil,
-  replaceHighlightsHotspotDetailsHtml,
-} from "./itinerary-details/utils/highlightsHotspotHtml.utils";
 import { prepareQuotationPrebookSelections } from "./itinerary-details/utils/quotationPrebookSelections.utils";
 import { buildQuotationHotelRouteContext } from "./itinerary-details/utils/quotationHotelRouteContext.utils";
 import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/utils/details-dedupe";
@@ -175,7 +168,6 @@ import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecis
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
-import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import {
   buildCurrentRouteAttractionHotspotIds,
   buildCurrentRouteManualHotspotIds,
@@ -187,7 +179,6 @@ import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelect
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
-import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
 import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
 import { useItineraryRouteMutationWorkflow } from "./itinerary-details/hooks/useItineraryRouteMutationWorkflow";
@@ -202,7 +193,6 @@ import {
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useItineraryHotspotPreviewWorkflow } from "./itinerary-details/hooks/useItineraryHotspotPreviewWorkflow";
-import { useItineraryClipboardSelectionWorkflow } from "./itinerary-details/hooks/useItineraryClipboardSelectionWorkflow";
 import { useItineraryScrollEffects } from "./itinerary-details/hooks/useItineraryScrollEffects";
 import { useItineraryHotspotDialogWorkflow } from "./itinerary-details/hooks/useItineraryHotspotDialogWorkflow";
 import { useItineraryQuotationDialogWorkflow } from "./itinerary-details/hooks/useItineraryQuotationDialogWorkflow";
@@ -221,7 +211,7 @@ import { useItineraryDeletionState } from "./itinerary-details/hooks/useItinerar
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
-import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
+import { useItineraryClipboardWorkflow } from "./itinerary-details/hooks/useItineraryClipboardWorkflow";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
@@ -458,16 +448,29 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useParaRecommendations(hotelDetails);
 
-  const { buildDefaultClipboardSelection } = useItineraryClipboardSelectionWorkflow({
+  const clipboardWorkflow = useItineraryClipboardWorkflow({
+    quoteId,
+    itineraryPreference,
+    itinerary,
     hotelDetails,
     activeHotelGroupType,
     setActiveHotelGroupType,
     setClipboardRatesVisible,
     clipboardModal,
+    clipboardType,
     paraRecommendations,
     selectedHotels,
     setSelectedHotels,
+    setClipboardModal,
+    shouldShowHotels,
+    shouldShowVehicles,
+    computedVehicleAmount,
+    computedVehicleQty,
   });
+  const {
+    buildDefaultClipboardSelection,
+    handleVehicleOnlyClipboardCopyRefactored,
+  } = clipboardWorkflow;
 
   useEffect(() => {
     const firstDay = itinerary?.days?.find((day) => Number(day.dayNumber) === 1) || itinerary?.days?.[0];
@@ -497,33 +500,6 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
       );
     }
   }, [hotelDetails, itinerary]);
-
-  const {
-    getSelectedClipboardGroups,
-    buildClipboardHtml,
-  } = useClipboardContentBuilder({
-    hotelDetails,
-    itinerary,
-    paraRecommendations,
-    selectedHotels,
-    shouldShowHotels,
-    shouldShowVehicles,
-    computedVehicleAmount,
-    computedVehicleQty,
-  });
-  const buildHighlightsHotspotDetailsHtml = useCallback(
-    () => buildHighlightsHotspotDetailsHtmlUtil(itinerary?.days),
-    [itinerary?.days],
-  );
-
-  const handleVehicleOnlyClipboardCopyRefactored = useVehicleOnlyClipboardAction({
-    quoteId: quoteId || null,
-    itineraryPreference,
-    replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml,
-    htmlToPlainText,
-    copyHtmlToClipboard,
-  });
 
   const quotationState = useItineraryQuotationState({ itinerary, financialTotals });
   const {
@@ -864,21 +840,7 @@ const hotelTimelineLoading = Boolean(
     !isSwitchingRouteOption
 );
 
-  const handleCopyClipboard = useHotelClipboardAction({
-    selectedHotels,
-    clipboardType,
-    hotelDetails,
-    itinerary,
-    getSelectedClipboardGroups,
-    buildClipboardHtml,
-    mergeClipboardWithB2BRecommendedPackages,
-    replaceHighlightsHotspotDetailsHtml,
-    buildHighlightsHotspotDetailsHtml,
-    copyHtmlToClipboard,
-    htmlToPlainText,
-    setClipboardModal,
-    setSelectedHotels,
-  });
+  const { handleCopyClipboard } = clipboardWorkflow;
 
   const mediaDialogProps = useItineraryMediaDialogWorkflow({
     mediaShareState,
