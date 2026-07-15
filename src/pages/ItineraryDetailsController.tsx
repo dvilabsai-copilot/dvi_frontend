@@ -263,6 +263,8 @@ import { HotelListLoadingState } from "./itinerary-details/components/HotelListL
 import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
 import { ItineraryHotelListSection } from "./itinerary-details/components/ItineraryHotelListSection";
 import { HotspotDialogListColumn } from "./itinerary-details/components/HotspotDialogListColumn";
+import { HotspotMatrixMissingNotice } from "./itinerary-details/components/HotspotMatrixMissingNotice";
+import { HotspotMatrixNoFeasibleNotice } from "./itinerary-details/components/HotspotMatrixNoFeasibleNotice";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2970,78 +2972,22 @@ const hotelTimelineLoading = Boolean(
                       </div>
                     )}
 
-                    {isMatrixMissingBlockedState && (
-                      <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
-                        <p className="text-xs font-semibold text-red-800 leading-4">
-                          Route-fit matrix data is missing for the selected hotspot and current route.
-                        </p>
-
-                        <p className="text-xs text-red-700 leading-4 mt-1">
-                          Build the route-fit matrix first, then preview this hotspot again.
-                        </p>
-
-                        {activePreviewHotspotId ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="mt-3 bg-[#d546ab] hover:bg-[#b93a8f] text-white"
-                            disabled={
-                              isBuildingMatrix
-                              || isPreviewingHotspotId === activePreviewHotspotId
-                              || isApplyingPreviewHotspot
-                            }
-                            onClick={handleBuildMatrixAndPreviewAgain}
-                          >
-                            {isBuildingMatrix ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Building matrix...
-                              </>
-                            ) : (
-                              'Build Matrix & Preview Again'
-                            )}
-                          </Button>
-                        ) : null}
-                        {String(matrixBuildSuggestion?.command || '').trim().length > 0 && (
-                          <p className="text-[11px] text-red-800 font-mono mt-2 break-all">
-                            {String(matrixBuildSuggestion.command)}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {isMatrixBuiltButNoFeasibleSlot && (
-                      <div className="mt-2 rounded-lg border border-orange-200 bg-orange-50 p-2">
-                        <p className="text-xs text-orange-700 leading-4">
-                          This hotspot adds extra distance or off-route travel. For manual add, this is treated as a warning. The final decision is based on whether the rebuilt timeline fits within the manual timing window.
-                        </p>
-                        {Array.isArray(safeMatrixSlots) && safeMatrixSlots.length > 0 && (
-                          <div className="mt-2 text-xs text-orange-700">
-                            <p className="font-semibold text-orange-800 mb-1">Insertion attempts:</p>
-                            <ul className="space-y-1 pl-3">
-                              {safeMatrixSlots.slice(0, 5).map((slot, idx: number) => (
-                                <li key={idx} className="list-disc">
-                                  {slot.fromName} → {((
-                                    /^hotel$/i.test(String(slot.toName || '').trim())
-                                    || (
-                                      String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
-                                      && String(slot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
-                                    )
-                                    || Number((slot as any)?.destinationHotelId || 0) > 0
-                                  ) && destinationHotelDisplayName) ? destinationHotelDisplayName : slot.toName}:{' '}
-                                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${routeFitBadgeClass(slot.routeFitType)}`}>
-                                    {slot.label || slot.routeFitType}
-                                  </span>
-                                </li>
-                              ))}
-                              {safeMatrixSlots.length > 5 && (
-                                <li className="text-orange-600">+{safeMatrixSlots.length - 5} more</li>
-                              )}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <HotspotMatrixMissingNotice
+                      visible={isMatrixMissingBlockedState}
+                      activePreviewHotspotId={activePreviewHotspotId}
+                      isBuildingMatrix={isBuildingMatrix}
+                      isPreviewingHotspotId={isPreviewingHotspotId}
+                      isApplyingPreviewHotspot={isApplyingPreviewHotspot}
+                      onBuildAndPreview={handleBuildMatrixAndPreviewAgain}
+                      command={String(matrixBuildSuggestion?.command || "")}
+                    />
+                    <HotspotMatrixNoFeasibleNotice
+                      visible={isMatrixBuiltButNoFeasibleSlot}
+                      safeMatrixSlots={safeMatrixSlots}
+                      destinationHotelDisplayName={destinationHotelDisplayName}
+                      destinationHotelName={String((matrixFit as any)?.destinationHotelName || "")}
+                      routeFitBadgeClass={routeFitBadgeClass}
+                    />
                   </div>
                 )}
                 {!pendingPriorityReplacementHotspotId && (

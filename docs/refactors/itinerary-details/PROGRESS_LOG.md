@@ -4882,6 +4882,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The add-hotspot preview column, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 245 - Matrix decision notices
+
+### Baseline
+- Starting checkpoint: `94295f0` on `refactor/itinerary-details-checkpoint` with the hotspot dialog list column extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotMatrixMissingNotice.tsx` and `src/pages/itinerary-details/components/HotspotMatrixNoFeasibleNotice.tsx`.
+- Moved matrix-missing retry guidance, build action, command hint, off-route warning, and candidate insertion-slot list out of `ItineraryDetailsController.tsx`.
+- Preserved retry disabling, matrix command display, destination-hotel substitution, route-fit badges, and candidate count behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint checks passed.
+- Filtered TypeScript check found no errors in the new components or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,112 physical lines (down from 4,166 at the previous iteration).
+- New components: 42 physical lines combined.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining preview decision panel, timeline column, quotation dialog shell, and workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
