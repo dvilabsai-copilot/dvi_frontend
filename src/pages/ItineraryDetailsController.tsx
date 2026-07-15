@@ -153,7 +153,7 @@ import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/ut
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
 import { VehicleBuildErrorState } from "./itinerary-details/components/VehicleBuildErrorState";
-import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
+import { ItineraryActionButtons } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
@@ -212,6 +212,8 @@ import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItiner
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useItineraryClipboardWorkflow } from "./itinerary-details/hooks/useItineraryClipboardWorkflow";
+import { useItineraryArrivalPolicyHydration } from "./itinerary-details/hooks/useItineraryArrivalPolicyHydration";
+import { buildItineraryModifyHref, isItineraryHotelTimelineLoading, isItineraryVehicleBuildInProgress } from "./itinerary-details/utils/pageGuards.utils";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
@@ -458,6 +460,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     setClipboardRatesVisible,
     clipboardModal,
     clipboardType,
+    setClipboardType,
     paraRecommendations,
     selectedHotels,
     setSelectedHotels,
@@ -468,38 +471,10 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     computedVehicleQty,
   });
   const {
-    buildDefaultClipboardSelection,
-    handleVehicleOnlyClipboardCopyRefactored,
+    handleClipboardMode,
   } = clipboardWorkflow;
 
-  useEffect(() => {
-    const firstDay = itinerary?.days?.find((day) => Number(day.dayNumber) === 1) || itinerary?.days?.[0];
-    if (!firstDay || !hotelDetails) {
-      return;
-    }
-
-    const routeDateYmd = normalizeDateToYmd(firstDay.date);
-    const startTimeHms = parseDisplayTimeToHms(firstDay.startTime || '');
-    if (!routeDateYmd || !startTimeHms || !isEarlyMorningTime(startTimeHms)) {
-      return;
-    }
-
-    const hasPreviousDayMarkerRow = hotelDetails.hotels.some((hotel) => {
-      const hotelDateYmd = normalizeDateToYmd(hotel.date);
-      return (
-        Number(hotel.itineraryRouteId || 0) === Number(firstDay.id || 0) &&
-        Number(hotel.hotelId || 0) === 0 &&
-        Boolean(hotelDateYmd) &&
-        hotelDateYmd !== routeDateYmd
-      );
-    });
-
-    if (hasPreviousDayMarkerRow) {
-      setLastArrivalPolicyDecisionKey(
-        buildArrivalPolicyDecisionKey(firstDay.id, firstDay.date, startTimeHms),
-      );
-    }
-  }, [hotelDetails, itinerary]);
+  useItineraryArrivalPolicyHydration({ itinerary, hotelDetails, setLastArrivalPolicyDecisionKey });
 
   const quotationState = useItineraryQuotationState({ itinerary, financialTotals });
   const {
@@ -515,9 +490,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix,
     confirmOccupancyPreview, defaultPassenger, getPassengerFieldError,
   } = quotationState;
-  const currentItineraryPlanId = Number(itinerary?.planId || 0);
-
-  const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
+  const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(Number(itinerary?.planId || 0));
 
   const { hotelSaveFunctionRef, isMountedRef, currentFetchRef, latestRouteRequestRef, switchedRouteRef } = useItineraryPageRefs();
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
@@ -832,14 +805,6 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
   });
   const { itineraryRouteOptions, routeFamilyBaseQuoteId, handleItineraryRouteOptionClick } = routeOptionsWorkflow;
 
-const hotelTimelineLoading = Boolean(
-  shouldShowHotels &&
-    !hotelDetails &&
-    itinerary &&
-    !error &&
-    !isSwitchingRouteOption
-);
-
   const { handleCopyClipboard } = clipboardWorkflow;
 
   const mediaDialogProps = useItineraryMediaDialogWorkflow({
@@ -928,7 +893,7 @@ const hotelTimelineLoading = Boolean(
     previewRequestIdRef,
   });
 
-  const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
+  const vehicleBuildInProgress = isItineraryVehicleBuildInProgress({ shouldShowVehicles, vehicleBuildStatus });
 
   if (location.pathname.startsWith("/confirmed-itinerary/")) {
     return null;
@@ -948,7 +913,7 @@ const hotelTimelineLoading = Boolean(
     );
   }
 
-  if ((!pageReady || loading || hotelTimelineLoading || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
+  if ((!pageReady || loading || isItineraryHotelTimelineLoading({ shouldShowHotels, hotelDetails, itinerary, error, isSwitchingRouteOption }) || vehicleBuildInProgress) && !isApplyingRouteTimeUpdate) {
     return <ItineraryPageLoader stage={pageLoaderStage} detail={pageLoaderDetail} history={pageLoaderHistory} />;
   }
 
@@ -956,20 +921,7 @@ const hotelTimelineLoading = Boolean(
     return <ItineraryDetailsErrorState error={error} planId={itinerary?.planId} />;
   }
 
-  const backToListHref = itinerary.planId
-    ? `/create-itinerary?id=${itinerary.planId}`
-    : "#";
-  const modifyItineraryHref = backToListHref;
-  const handleClipboardMode = (mode: ClipboardMode) => {
-    if (itineraryPreference === 2) {
-      handleVehicleOnlyClipboardCopyRefactored(mode);
-      return;
-    }
-    setClipboardType(mode);
-    setSelectedHotels(buildDefaultClipboardSelection());
-    setClipboardModal(true);
-  };
-
+  const modifyItineraryHref = buildItineraryModifyHref(itinerary.planId);
   return <ItineraryDetailsPageView
       isConfirmedPresentation={isConfirmedPresentation}
       routeProgress={{
@@ -983,7 +935,7 @@ const hotelTimelineLoading = Boolean(
       }}
       travelSections={{
         isConfirmedPresentation,
-        header: { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId, isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference, scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref, itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal, modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton, hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels },
+        header: { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId, isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference, scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref: modifyItineraryHref, itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal, modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton, hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels },
         daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         hotelListRef,

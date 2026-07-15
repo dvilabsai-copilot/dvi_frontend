@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 309 — Extract page guards and arrival hydration
+
+### Baseline
+- Starting point: Iteration 308 with the controller at 1,046 lines.
+- Scope: isolate early-arrival marker hydration and pure loading/navigation guard calculations.
+
+### Changes
+- Added `hooks/useItineraryArrivalPolicyHydration.ts`.
+- Added `utils/pageGuards.utils.ts` for hotel timeline loading, vehicle build progress, and itinerary navigation href derivation.
+- Preserved loader gating, vehicle retry gating, and create-itinerary navigation behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 998; arrival hook: 36 lines; page guard utilities: 31 lines.
+- Affected-file ESLint passed with the existing setter-dependency warning; filtered TypeScript found no errors in the affected paths.
+- Completion target reached: the transitional controller is now below 1,000 lines.
+
 ## Iteration 308 — Extract clipboard workflow
 
 ### Baseline
@@ -9,6 +26,7 @@
 ### Changes
 - Added `hooks/useItineraryClipboardWorkflow.ts`.
 - Preserved recommended/highlights/para selection, vehicle-only formatting, backend clipboard retrieval, merge behavior, toasts, and modal reset behavior.
+- Clipboard mode dispatch remains behaviorally identical for vehicle-only and hotel-enabled itineraries.
 - Behaviour intentionally changed: No.
 
 ### Verification
