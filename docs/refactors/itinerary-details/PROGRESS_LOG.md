@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 300 — Extract media dialog workflow
+
+### Baseline
+- Starting point: Iteration 299 with the controller at 1,245 lines.
+- Scope: isolate media-share, clipboard, source-preview, gallery/video, and all-hotspots dialog prop composition.
+
+### Changes
+- Added `hooks/useItineraryMediaDialogWorkflow.ts`.
+- Preserved source-preview state, clipboard callbacks, selection state, all-hotspots preview modal updates, and formatting helpers.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,237; new hook: 53 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 299 — Extract quotation dialog workflow
 
 ### Baseline

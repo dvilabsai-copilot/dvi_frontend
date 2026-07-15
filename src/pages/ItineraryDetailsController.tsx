@@ -199,7 +199,6 @@ import { useItineraryRouteMutationWorkflow } from "./itinerary-details/hooks/use
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
-import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
 import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
@@ -216,6 +215,7 @@ import { useItineraryClipboardSelectionWorkflow } from "./itinerary-details/hook
 import { useItineraryScrollEffects } from "./itinerary-details/hooks/useItineraryScrollEffects";
 import { useItineraryHotspotDialogWorkflow } from "./itinerary-details/hooks/useItineraryHotspotDialogWorkflow";
 import { useItineraryQuotationDialogWorkflow } from "./itinerary-details/hooks/useItineraryQuotationDialogWorkflow";
+import { useItineraryMediaDialogWorkflow } from "./itinerary-details/hooks/useItineraryMediaDialogWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -1029,24 +1029,16 @@ const hotelTimelineLoading = Boolean(
     setRoomSelectionModal,
     onRoomSelectionSuccess: () => toast.success("Room categories updated successfully"),
   });
-  const mediaDialogProps = useItineraryMediaDialogProps({
+  const mediaDialogProps = useItineraryMediaDialogWorkflow({
     mediaShareState,
+    routeState,
+    deletionState,
     itineraryPreference,
     paraRecommendations,
     selectedHotels,
     setSelectedHotels,
     handleCopyClipboard,
-    sourcePreviewOpen,
-    setSourcePreviewOpen,
-    sourcePreviewHeading,
-    sourcePreviewLoading,
-    sourcePreviewError,
-    sourcePreviewMarkdown,
-    quoteId: String(quoteId || ""),
-    allHotspotsPreviewModal,
-    onOpenAllHotspotsPreview: (open) => setAllHotspotsPreviewModal((previous) => ({ ...previous, open })),
-    formatTime: formatPreviewTime,
-    formatDuration: formatActivityDuration,
+    quoteId,
   });
   const quotationDialogProps = useItineraryQuotationDialogWorkflow({
     state: quotationState,
