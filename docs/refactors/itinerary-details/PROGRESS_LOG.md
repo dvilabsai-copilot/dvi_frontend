@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 273 — Extract Fit Here dialog props
+
+### Baseline
+- Starting point: Iteration 272 with the controller at 2,343 lines.
+- Scope: move manual/automatic Fit Here dialog prop shaping and automatic-dialog reset callbacks into a typed hook.
+
+### Changes
+- Added `hooks/useFitHereDialogProps.ts`.
+- Fit Here state and confirmation mutation ownership remain controller-owned; the hook preserves the existing reset and confirmation callbacks.
+
+### Verification
+- Controller line count: 2,309; new hook: 82 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 272 — Extract activity and guide dialogs
 
 ### Baseline

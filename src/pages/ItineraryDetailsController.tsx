@@ -241,6 +241,7 @@ import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebui
 import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
 import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
+import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1864,6 +1865,20 @@ const hotelTimelineLoading = Boolean(
     persistArrivalPolicyDecision,
     resolveArrivalPolicyForArrivalTimeChange,
   });
+  const fitHereDialogProps = useFitHereDialogProps({
+    fitHereModal,
+    selectedFitHotspot,
+    selectedFitHereDay,
+    onManualClose: handleFitHereCancel,
+    onManualConfirm: handleConfirmFitHere,
+    onManualRetry: handleRetryFitHere,
+    confirmLoading: confirmFitHereLoading,
+    autoFitHereModal,
+    selectedHotspot: selectedFitHotspot,
+    previewRequestIdRef,
+    setAutoFitHereModal,
+    onAutomaticConfirm: (options, attempt) => { void handleConfirmFitHere(options, attempt); },
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2234,56 +2249,7 @@ const hotelTimelineLoading = Boolean(
         }}
       />
 
-      <ItineraryFitHereDialogs
-        manual={{
-          open: fitHereModal.open,
-          loading: fitHereModal.loading,
-          loadingStepIndex: fitHereModal.loadingStepIndex,
-          failedReason: fitHereModal.failedReason,
-          attempt: fitHereModal.attempt,
-          selectedHotspot: selectedFitHotspot,
-          baseTimeline: selectedFitHereDay?.segments || [],
-          onClose: handleFitHereCancel,
-          onConfirm: handleConfirmFitHere,
-          onRetry: handleRetryFitHere,
-          confirmLoading: confirmFitHereLoading,
-        }}
-        automatic={{
-          open: autoFitHereModal.open,
-          loading: autoFitHereModal.loading,
-          failedReason: autoFitHereModal.failedReason,
-          results: autoFitHereModal.results,
-          selectedAnchorKey: autoFitHereModal.selectedAnchorKey,
-          selectedHotspot: selectedFitHotspot,
-          baseTimeline: selectedFitHereDay?.segments || [],
-          loadingAnchorCount: autoFitHereModal.loadingAnchorCount || 0,
-          loadingStartedAtMs: autoFitHereModal.loadingStartedAtMs || null,
-          performanceSummary: autoFitHereModal.performanceSummary || null,
-          onClose: () => {
-            previewRequestIdRef.current += 1;
-            setAutoFitHereModal({
-              open: false,
-              loading: false,
-              failedReason: null,
-              results: [],
-              selectedAnchorKey: null,
-              loadingAnchorCount: 0,
-              loadingStartedAtMs: null,
-              performanceSummary: null,
-            });
-          },
-          onSelectAnchorKey: (anchorKey) => {
-            setAutoFitHereModal((prev) => ({
-              ...prev,
-              selectedAnchorKey: anchorKey,
-            }));
-          },
-          onConfirm: (options, attempt) => {
-            void handleConfirmFitHere(options, attempt);
-          },
-          confirmLoading: confirmFitHereLoading,
-        }}
-      />
+      <ItineraryFitHereDialogs {...fitHereDialogProps} />
 
       {itinerary?.planId && (
         <ItineraryAncillaryModals

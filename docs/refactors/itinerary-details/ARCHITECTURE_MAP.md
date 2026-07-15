@@ -33,6 +33,7 @@ The first 1,300 lines contain API/domain types for timeline segments, days, hots
 - Quotation confirmation amount, passenger summary, occupancy preview, and field-helper derivation are isolated in `useQuotationConfirmationViewModel`; quotation state and submission remain controller-owned.
 - Header, daily itinerary, hotel/vehicle sections, package/cost summary, and action controls are composed in `ItineraryDetailsTravelSections`; the controller supplies workflow state and callbacks.
 - Hotspot deletion, activity add/delete, and guide assignment/delete dialogs are composed in `ItineraryActivityGuideDialogs`; mutation state remains controller-owned.
+- Manual/automatic Fit Here dialog prop shaping and reset callbacks are isolated in `useFitHereDialogProps`; Fit Here state and confirmation mutations remain controller-owned.
 - Fit Here progress interval lifecycle and loading-step updates are isolated in `useFitHereProgressTimer`; Fit Here modal state remains controller-owned.
 
 ## Effects, refs, and browser coupling
