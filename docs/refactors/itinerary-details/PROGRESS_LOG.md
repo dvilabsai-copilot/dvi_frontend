@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 260 — Extract hotel dialog composition
+
+### Baseline
+- Starting point: Iteration 259 at commit `3cfc941` with the controller at 3,235 lines.
+- Scope: compose real-time hotel search and room-selection dialogs outside the controller.
+
+### Changes
+- Added `src/pages/itinerary-details/components/ItineraryHotelDialogs.tsx`.
+- Hotel selection state, child-age resets, API-backed selection callback, room-selection success toast, and modal cleanup remain unchanged and controller-owned.
+
+### Verification
+- Controller line count: 3,223; new component: 18 lines.
+- Exact-source Playwright pair: 2 passed.
+- Filtered TypeScript and new-component lint passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 259 — Extract media and sharing dialogs
 
 ### Baseline

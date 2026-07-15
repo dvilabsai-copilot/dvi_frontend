@@ -30,9 +30,7 @@ import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
 import { IncidentalExpensesHistorySection } from "./IncidentalExpensesHistorySection";
-import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
-import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
@@ -246,6 +244,7 @@ import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader"
 import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
 import { ItineraryFitHereDialogs } from "./itinerary-details/components/ItineraryFitHereDialogs";
 import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryMediaDialogs";
+import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryHotelDialogs";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
@@ -2965,56 +2964,45 @@ const hotelTimelineLoading = Boolean(
         }}
       />
 
-      {/* Hotel Search Modal - NEW Real-Time Search */}
-      <HotelSearchModal
-        open={hotelSelectionModal.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setHotelSelectionModal({
-              open: false,
-              planId: null,
-              routeId: null,
-              routeDate: "",
-            });
-            setHotelSearchChildAges([]);
-          }
-        }}
-        cityCode={hotelSelectionModal.cityCode || ""}
-        cityName={hotelSelectionModal.cityName || ""}
-        checkInDate={hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate}
-        checkOutDate={hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate}
-        roomCount={Number(itinerary?.roomCount || 1)}
-        adultCount={Number(itinerary?.adults || 0)}
-        childCount={Number(itinerary?.children || 0)}
-        infantCount={Number(itinerary?.infants || 0)}
-        childAges={hotelSearchChildAges}
-        guestNationality={guestDetails.nationality.toUpperCase()}
-        onChildAgesChange={setHotelSearchChildAges}
-        onSelectHotel={handleSelectHotelFromSearch}
-        isSelectingHotel={isSelectingHotel}
-      />
-
-      {/* Hotel Room Selection Modal */}
-      {roomSelectionModal && (
-        <HotelRoomSelectionModal
-          open={roomSelectionModal.open}
-          onOpenChange={(open) => {
+      <ItineraryHotelDialogs
+        search={{
+          open: hotelSelectionModal.open,
+          onOpenChange: (open) => {
             if (!open) {
-              setRoomSelectionModal(null);
+              setHotelSelectionModal({ open: false, planId: null, routeId: null, routeDate: "" });
+              setHotelSearchChildAges([]);
             }
-          }}
-          itinerary_plan_hotel_details_ID={roomSelectionModal.itinerary_plan_hotel_details_ID}
-          itinerary_plan_id={roomSelectionModal.itinerary_plan_id}
-          itinerary_route_id={roomSelectionModal.itinerary_route_id}
-          hotel_id={roomSelectionModal.hotel_id}
-          group_type={roomSelectionModal.group_type}
-          hotel_name={roomSelectionModal.hotel_name}
-          onSuccess={() => {
+          },
+          cityCode: hotelSelectionModal.cityCode || "",
+          cityName: hotelSelectionModal.cityName || "",
+          checkInDate: hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate,
+          checkOutDate: hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate,
+          roomCount: Number(itinerary?.roomCount || 1),
+          adultCount: Number(itinerary?.adults || 0),
+          childCount: Number(itinerary?.children || 0),
+          infantCount: Number(itinerary?.infants || 0),
+          childAges: hotelSearchChildAges,
+          guestNationality: guestDetails.nationality.toUpperCase(),
+          onChildAgesChange: setHotelSearchChildAges,
+          onSelectHotel: handleSelectHotelFromSearch,
+          isSelectingHotel,
+        }}
+        roomSelection={roomSelectionModal ? {
+          open: roomSelectionModal.open,
+          onOpenChange: (open) => {
+            if (!open) setRoomSelectionModal(null);
+          },
+          itinerary_plan_hotel_details_ID: roomSelectionModal.itinerary_plan_hotel_details_ID,
+          itinerary_plan_id: roomSelectionModal.itinerary_plan_id,
+          itinerary_route_id: roomSelectionModal.itinerary_route_id,
+          hotel_id: roomSelectionModal.hotel_id,
+          group_type: roomSelectionModal.group_type,
+          hotel_name: roomSelectionModal.hotel_name,
+          onSuccess: () => {
             toast.success('Room categories updated successfully');
-            // Note: Room selection is saved to DB but doesn't affect the hotel list display
-          }}
-        />
-      )}
+          },
+        } : null}
+      />
 
       <ItineraryMediaDialogs
         gallery={{ state: galleryModal, setState: setGalleryModal, activeIndex: galleryActiveIdx, setActiveIndex: setGalleryActiveIdx }}

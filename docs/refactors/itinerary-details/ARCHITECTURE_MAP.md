@@ -271,3 +271,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Itinerary-level voucher, invoice, incidental-expense, cancellation, and hotel-voucher composition is isolated in `ItineraryAncillaryModals.tsx`.
 - Manual and automatic Fit Here preview dialog composition is isolated in `ItineraryFitHereDialogs.tsx`; state and mutation callbacks remain in the controller/hooks.
 - Gallery, video, clipboard, source-preview, email-share, and all-hotspots-preview composition is isolated in `ItineraryMediaDialogs.tsx`; state remains external.
+- Hotel search and room-selection composition is isolated in `ItineraryHotelDialogs.tsx`; selection state, resets, and success feedback remain external.
