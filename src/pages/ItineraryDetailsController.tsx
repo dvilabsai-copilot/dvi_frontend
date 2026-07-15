@@ -29,7 +29,6 @@ import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
-import { HotelList } from "./HotelList";
 import { VoucherDetailsModal } from "./VoucherDetailsModal";
 import { PluckCardModal } from "./PluckCardModal";
 import { InvoiceModal } from "./InvoiceModal";
@@ -263,6 +262,7 @@ import { QuotationConfirmationOverview } from "./itinerary-details/components/Qu
 import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDaysSection";
 import { HotelListLoadingState } from "./itinerary-details/components/HotelListLoadingState";
 import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
+import { ItineraryHotelListSection } from "./itinerary-details/components/ItineraryHotelListSection";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2594,50 +2594,34 @@ const hotelTimelineLoading = Boolean(
       )}
 
       {shouldRenderBottomHotelList && shouldShowHotels && !loadingHotels && hotelDetails && (
-        <div
-          ref={hotelListRef}
-          id="hotel-list-section"
-          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
-        >
-          <HotelList
-            hotels={hotelsForDisplay}
-            restrictedHotels={hotelDetails.restrictedHotels || []}
-            hotelTabs={hotelDetails.hotelTabs}
-            hotelRatesVisible={hotelDetails.hotelRatesVisible}
-            showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
-            roomCount={Number(itinerary.roomCount || 1)}
-            onTotalChange={(total) => {
-              if (hotelReadOnly) return;
-              setActiveHotelListTotal(Number(total || 0));
-            }}
-                       onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
-            hotelAvailability={undefined}
-            quoteId={quoteId!}
-            planId={itinerary.planId}
-            onRefresh={refreshHotelData}
-            onGroupTypeChange={handleHotelGroupTypeChange}
-            onGetSaveFunction={handleGetSaveFunction}
-            readOnly={hotelReadOnly}
-            onCreateVoucher={handleCreateVoucher}
-            onCancelVoucher={handleCancelVoucherSingle}
-            onBulkCancelVouchers={handleCancelVoucherItems}
-            onHotelSelectionsChange={handleHotelSelectionsChange}
-            pagination={hotelDetails.pagination}
-            routePagination={hotelDetails.routePagination}
-            onLoadMore={handleHotelLoadMore}
-            isLoadingMore={isLoadingMoreHotels}
-            mealPlanCode={itinerary?.meal_plan_code}
-            dayDestinationFallback={
-              itinerary?.days?.reduce<Record<number, string>>((acc, day) => {
-                const fallback = String(day.arrival || day.departure || '').trim();
-                if (fallback) {
-                  acc[Number(day.dayNumber)] = fallback;
-                }
-                return acc;
-              }, {}) || {}
-            }
-          />
-        </div>
+        <ItineraryHotelListSection
+          hotelListRef={hotelListRef}
+          summaryStickyHeight={summaryStickyHeight}
+          hotels={hotelsForDisplay}
+          restrictedHotels={hotelDetails.restrictedHotels || []}
+          hotelTabs={hotelDetails.hotelTabs}
+          hotelRatesVisible={hotelDetails.hotelRatesVisible}
+          showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
+          roomCount={Number(itinerary.roomCount || 1)}
+          onTotalChange={(total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }}
+          onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
+          quoteId={quoteId!}
+          planId={itinerary.planId}
+          onRefresh={refreshHotelData}
+          onGroupTypeChange={handleHotelGroupTypeChange}
+          onGetSaveFunction={handleGetSaveFunction}
+          readOnly={hotelReadOnly}
+          onCreateVoucher={handleCreateVoucher}
+          onCancelVoucher={handleCancelVoucherSingle}
+          onBulkCancelVouchers={handleCancelVoucherItems}
+          onHotelSelectionsChange={handleHotelSelectionsChange}
+          pagination={hotelDetails.pagination}
+          routePagination={hotelDetails.routePagination}
+          onLoadMore={handleHotelLoadMore}
+          isLoadingMore={isLoadingMoreHotels}
+          mealPlanCode={itinerary?.meal_plan_code}
+          dayDestinationFallback={itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {}}
+        />
       )}
 
       {shouldShowVehicles && vehicleBuildStatus === "READY" &&

@@ -255,3 +255,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Assigned-guide summary, cost, edit, and delete presentation is isolated in `ItineraryDayGuideCard.tsx`.
 - Daily guide/header/segment composition is isolated in `ItineraryDaysSection.tsx`.
 - Hotel-list loading and vehicle-unavailable page states are isolated in `HotelListLoadingState.tsx` and `VehicleUnavailableState.tsx`.
+- Hotel-list scroll-anchor, pagination, selection, voucher, and refresh callback composition is isolated in `ItineraryHotelListSection.tsx`.

@@ -4810,6 +4810,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The main hotel-list wrapper, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 242 - Hotel list section
+
+### Baseline
+- Starting checkpoint: `1727761` on `refactor/itinerary-details-checkpoint` with hotel/vehicle empty states extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/ItineraryHotelListSection.tsx`.
+- Moved hotel-list scroll anchoring, pagination metadata, selection/voucher callbacks, refresh wiring, and day-destination fallback composition out of `ItineraryDetailsController.tsx`.
+- Preserved read-only guards, hotel total updates, route pagination, load-more behavior, and all HotelList prop contracts.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,206 physical lines (down from 4,222 at the previous iteration).
+- New component: 33 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
