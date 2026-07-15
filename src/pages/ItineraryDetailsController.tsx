@@ -261,6 +261,8 @@ import { HotspotPreviewAttractionMeta } from "./itinerary-details/components/Hot
 import { HotspotConflictNotice } from "./itinerary-details/components/HotspotConflictNotice";
 import { HotspotConflictTimingDetails } from "./itinerary-details/components/HotspotConflictTimingDetails";
 import { QuotationHotelReviewSections } from "./itinerary-details/components/QuotationHotelReviewSections";
+import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
+import { QuotationConfirmationOverview } from "./itinerary-details/components/QuotationConfirmationOverview";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -4184,58 +4186,34 @@ const canShowGuideActionButton =
       >
 
           <div className="space-y-4 py-4">
-            <QuotationAgentSummary
+            <QuotationConfirmationOverview
               agentInfo={agentInfo}
               walletBalance={walletBalance}
               walletBalanceAmount={walletBalanceAmount}
               parseWalletAmount={parseWalletAmount}
               confirmRequiredAmount={confirmRequiredAmount}
               formatCurrency={formatCurrency}
-            />
-
-            {shouldEnableWalletTopUpOnConfirm && showWalletTopUpPanel && agentInfo && (
-              <div className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4">
-                <div>
-                  <h3 className="font-semibold text-red-800">Agent wallet balance is insufficient</h3>
-                  <p className="text-xs text-red-700 mt-1">
-                    Required: {formatCurrency(confirmRequiredAmount)} · Current Wallet:{" "}
-                    {walletBalance || formatCurrency(walletBalanceAmount || 0)} · Shortfall:{" "}
-                    {formatCurrency(walletShortfallAmount)}
-                  </p>
-                </div>
-
-                <QuotationWalletTopUpActions
-                  amount={walletTopUpAmount}
-                  setAmount={setWalletTopUpAmount}
-                  remark={walletTopUpRemark}
-                  setRemark={setWalletTopUpRemark}
-                  submitting={isWalletTopUpSubmitting}
-                  agentId={agentInfo.agent_id}
-                  onSubmit={handleWalletTopUpAndContinue}
-                  onRefresh={refreshConfirmWalletBalance}
-                />
-              </div>
-            )}
-
-            {isWalletInsufficientForConfirm && !showWalletTopUpPanel && shouldEnableWalletTopUpOnConfirm && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Wallet balance is currently below required amount. Click Confirm Booking to auto-check and open top-up panel.
-              </div>
-            )}
-
-            <QuotationRoomingPreview
-              visible={requiresHotelBookingFlow}
-              roomCount={confirmRoomCount}
-              passengerMix={confirmPassengerMix}
-              occupancies={confirmOccupancyPreview}
-            />
-
-            <QuotationPassengerNotice
-              visible={requiresDetailedPassengerFlow && (Number(itinerary?.children || 0) > 0 || Number(itinerary?.infants || 0) > 0)}
-            />
-
-            <QuotationPrebookLoadingNotice
-              visible={requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData}
+              shouldEnableWalletTopUpOnConfirm={shouldEnableWalletTopUpOnConfirm}
+              showWalletTopUpPanel={showWalletTopUpPanel}
+              walletShortfallAmount={walletShortfallAmount}
+              walletTopUpAmount={walletTopUpAmount}
+              setWalletTopUpAmount={setWalletTopUpAmount}
+              walletTopUpRemark={walletTopUpRemark}
+              setWalletTopUpRemark={setWalletTopUpRemark}
+              isWalletTopUpSubmitting={isWalletTopUpSubmitting}
+              handleWalletTopUpAndContinue={handleWalletTopUpAndContinue}
+              refreshConfirmWalletBalance={refreshConfirmWalletBalance}
+              isWalletInsufficientForConfirm={isWalletInsufficientForConfirm}
+              requiresHotelBookingFlow={requiresHotelBookingFlow}
+              confirmRoomCount={confirmRoomCount}
+              confirmPassengerMix={confirmPassengerMix}
+              confirmOccupancyPreview={confirmOccupancyPreview}
+              requiresDetailedPassengerFlow={requiresDetailedPassengerFlow}
+              childrenCount={Number(itinerary?.children || 0)}
+              infantsCount={Number(itinerary?.infants || 0)}
+              isOpeningConfirmQuotation={isOpeningConfirmQuotation}
+              isPrebooking={isPrebooking}
+              prebookData={prebookData}
             />
 
             <QuotationHotelReviewSections

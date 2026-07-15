@@ -4711,6 +4711,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining page workflow composition are still scheduled for extraction.
 
+## Iteration 238 - Quotation confirmation overview
+
+### Baseline
+- Starting checkpoint: `98b8988` on `refactor/itinerary-details-checkpoint` with quotation hotel-review sections extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/QuotationWalletInsufficientPanel.tsx` and `src/pages/itinerary-details/components/QuotationConfirmationOverview.tsx`.
+- Moved quotation agent summary, insufficient-wallet/top-up state, low-balance guidance, rooming preview, passenger requirement notice, and prebook-loading notice composition out of `ItineraryDetailsController.tsx`.
+- Preserved wallet gating, top-up callbacks, amount/remark state, rooming data, passenger counts, and prebook-loading conditions.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint checks passed.
+- Filtered TypeScript check found no errors in the new components or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,386 physical lines (down from 4,408 at the previous iteration).
+- New components: 131 physical lines combined.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining page workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
