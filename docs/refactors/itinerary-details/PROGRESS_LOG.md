@@ -1,5 +1,23 @@
 # Progress log
 
+## Iteration 298 — Extract hotspot dialog workflow
+
+### Baseline
+- Starting point: Iteration 297 with the controller at 1,365 lines.
+- Scope: isolate hotspot apply presentation and Add Hotspot dialog prop composition after mutation handlers are prepared.
+
+### Changes
+- Added `hooks/useItineraryHotspotDialogWorkflow.ts`.
+- Preserved hotspot conflict presentation, matrix/preview controls, manual removal actions, Fit Here controls, modal close/reset behavior, and dialog state snapshots.
+- Removed the large preview-model destructure from the controller; the mutation workflow now consumes the model object directly for its selected values.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,270; new hook: 180 lines.
+- New hook/controller ESLint passed with only the controller's existing hook-dependency warnings; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 297 — Extract hotel-row deduplication utility
 
 ### Baseline
