@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 4,895 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 4,841 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -74,6 +74,7 @@ Current facts:
 - New in this checkpoint: sticky proposed-timeline apply/selection controls are isolated in `HotspotPreviewApplyAction.tsx`.
 - New in this checkpoint: optional-hotspot-removal warnings are consolidated into `HotspotPreviewTimelineNotices.tsx`.
 - New in this checkpoint: synthetic waiting-gap rendering is isolated in `HotspotPreviewWaitingSegment.tsx`.
+- New in this checkpoint: common proposed-timeline segment summaries and metrics are isolated in `HotspotPreviewSegmentSummary.tsx`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

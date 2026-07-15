@@ -252,6 +252,7 @@ import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSele
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
 import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/HotspotPreviewWaitingSegment";
+import { HotspotPreviewSegmentSummary } from "./itinerary-details/components/HotspotPreviewSegmentSummary";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3701,81 +3702,26 @@ const canShowGuideActionButton =
                                   : 'bg-gray-50 border-gray-200 opacity-90'
                               }`}
                           >
-                            <div className="flex justify-between items-start mb-1 gap-2">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${seg?.type === 'travel' ? 'bg-blue-100 text-blue-700'
-                                    : seg?.type === 'attraction' ? 'bg-green-100 text-green-700'
-                                      : 'bg-gray-200 text-gray-700'
-                                  }`}>
-                                  {seg?.type || 'item'}
-                                </span>
-                                <span className="text-xs font-bold text-[#4a4260]">
-                                  {effectiveSegTimeRange}
-                                </span>
-                              </div>
+                            <HotspotPreviewSegmentSummary
+                              segmentType={String(seg?.type || "")}
+                              isConflict={seg?.isConflict === true}
+                              isUserSelected={isUserSelected}
+                              selectedId={selectedId}
+                              effectiveTimeRange={effectiveSegTimeRange}
+                              displayText={displaySegmentText}
+                              isZeroDurationHotel={isZeroDurationHotel}
+                              actualHotelName={actualHotelName}
+                              isTravelSegment={isTravelSegment}
+                              travelDistanceLabel={previewTravelDistanceLabel}
+                              travelDurationLabel={previewTravelDurationLabel}
+                              isMatrixSplitTravel={seg?.isMatrixSplitTravel === true}
+                              fromName={seg?.fromName}
+                              toName={seg?.toName}
+                              matrixDistanceKm={seg?.matrixDistanceKm}
+                              normalizedMatrixDurationMin={normalizedMatrixDurationMin}
+                              onRemove={handleRemovePreviewHotspot}
+                            />
 
-                              <div className="flex items-center gap-2">
-                                {seg?.isConflict ? (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 uppercase bg-red-100 px-2 py-0.5 rounded">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Conflict
-                                  </span>
-                                ) : isUserSelected ? (
-                                  <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase bg-green-100 px-2 py-0.5 rounded">
-                                    <Plus className="h-3 w-3" />
-                                    New
-                                  </span>
-                                ) : null}
-
-                                {isUserSelected && selectedId > 0 && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => handleRemovePreviewHotspot(selectedId)}
-                                  >
-                                    <Trash2 className="h-3 w-3 mr-1" />
-                                    Remove
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className={`text-sm font-bold ${isUserSelected ? 'text-green-800' : 'text-[#4a4260]'}`}>
-                              {/* ✅ FIX: Hotel zero-duration shows check-in label, not "Hotel Stay 8:00 PM - 8:00 PM" */}
-                              {isZeroDurationHotel ? (
-                                <>Check-in at {actualHotelName} <span className="text-purple-600">{effectiveSegTimeRange?.split(' - ')[0]}</span></>
-                              ) : (
-                                displaySegmentText
-                              )}
-                            </p>
-
-                            {isTravelSegment && (
-                              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6c6c6c]">
-                                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{effectiveSegTimeRange}</span>
-                                {previewTravelDistanceLabel && (
-                                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{previewTravelDistanceLabel}</span>
-                                )}
-                                {previewTravelDurationLabel && (
-                                  <span className="flex items-center gap-1">⏱ {previewTravelDurationLabel}</span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Display distance and duration for matrix split travel rows */}
-                            {seg?.isMatrixSplitTravel === true && (
-                              <div className="mt-2 text-xs text-gray-600 space-y-0.5">
-                                {(seg?.fromName || seg?.toName) && (
-                                  <p>Route leg: {seg?.fromName || 'A'} → {seg?.toName || 'B'}</p>
-                                )}
-                                {seg?.matrixDistanceKm != null && (
-                                  <p>Distance: {Number(seg.matrixDistanceKm).toFixed(1)} km</p>
-                                )}
-                                {normalizedMatrixDurationMin != null && (
-                                  <p>Duration: {Math.max(1, Math.round(Number(normalizedMatrixDurationMin)))} min</p>
-                                )}
-                              </div>
-                            )}
 
                             {isUserSelected && String(seg?.type || '').toLowerCase() === 'attraction' && (
                               <div className="mt-3 space-y-2">
