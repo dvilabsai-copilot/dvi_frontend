@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 262 — Extract cost and display view-model
+
+### Baseline
+- Starting point: Iteration 261 at commit `5a920e9` with the controller at 2,930 lines.
+- Scope: move selected-hotel totals, hotel/vehicle costs, entry-ticket totals, financial totals, hotel hydration, and display-day derivation into one hook.
+
+### Changes
+- Added `hooks/useItineraryCostViewModel.ts` and its state-type bridge.
+- Existing cost hooks are composed without changing their inputs; controller-owned selection state, mutations, loaders, and rendering contracts remain unchanged.
+
+### Verification
+- Controller line count: 2,874; new hook: 112 lines; type bridge: 2 lines.
+- Exact-source Playwright pair: 2 passed.
+- New hook lint and filtered TypeScript passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 261 — Extract hotspot preview view-model
 
 ### Baseline

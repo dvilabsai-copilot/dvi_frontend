@@ -273,3 +273,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Gallery, video, clipboard, source-preview, email-share, and all-hotspots-preview composition is isolated in `ItineraryMediaDialogs.tsx`; state remains external.
 - Hotel search and room-selection composition is isolated in `ItineraryHotelDialogs.tsx`; selection state, resets, and success feedback remain external.
 - Hotspot preview view-model derivation (timeline, matrix, slot, city, list, and scroll effects) is isolated in `useHotspotPreviewViewModel.ts`; mutation/state ownership remains in the controller and dedicated workflow hooks.
+- Cost/display view-model derivation (hotel, vehicle, entry-ticket, financial totals, hotel hydration, and display days) is isolated in `useItineraryCostViewModel.ts`.

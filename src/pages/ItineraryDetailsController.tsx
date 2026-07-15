@@ -38,8 +38,6 @@ import {
 } from "./itinerary-details/manual-hotspot-preview.shared";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import { toast } from "sonner";
-import { useHotelHydratedDays } from "./itinerary-details/hooks/useHotelHydratedDays";
-import { useHotelsForDisplay } from "./itinerary-details/hooks/useHotelsForDisplay";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
   useExternalStayEntries,
@@ -226,10 +224,10 @@ import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryM
 import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryHotelDialogs";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
+import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
-import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
 import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
@@ -326,14 +324,8 @@ import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipb
 import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
 import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHotelSearchSelectionMutation";
-import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
-import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
-import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { normalizeRouteFamilyBaseQuoteId } from "./itinerary-details/utils/routeFamily.utils";
-import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
-import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
-import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
@@ -782,81 +774,33 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     dedupeHotelRows,
   });
 
-  const { selectedHotelTotal, selectedHotelMetaByRoute } = useSelectedHotelSummary({
-    selectedHotelBookings,
+  const costViewModel = useItineraryCostViewModel({
+    itinerary,
     hotelDetails,
-    activeHotelGroupType,
-    roomCount: itinerary?.roomCount,
-  });
-
-  const computedHotelCost = useComputedHotelCost({
     hotelReadOnly,
     activeHotelListTotal,
-    selectedHotelTotal,
-    hotelDetails,
-    activeHotelGroupType,
-    roomCount: itinerary?.roomCount,
-    costBreakdown: itinerary?.costBreakdown,
-  });
-
-  const roomBreakdownRoomNights = useRoomBreakdownNights({
-    hotelDetails,
-    activeHotelGroupType,
-    dayCount: itinerary?.dayCount,
-    daysLength: itinerary?.days?.length,
-    roomCount: itinerary?.roomCount,
     selectedHotelBookings,
-  });
-
-  const { computedVehicleAmount, computedVehicleQty } = useComputedVehicleTotals({
+    activeHotelGroupType,
+    shouldShowHotels,
     shouldShowVehicles,
     selectedVehicleTotalsByType,
-    costBreakdown: itinerary?.costBreakdown,
-  });
-
-  const { entryTicketBreakdownByLocation, entryTicketLocationWiseTotal } = useEntryTicketSummary(itinerary?.days);
-
-  const hotelsForDisplay = useHotelsForDisplay({
-    hotelDetails,
-    itineraryDays: itinerary?.days,
-    itineraryDayCount: itinerary?.dayCount,
-    shouldShowHotels,
-    activeHotelGroupType,
-    hotelReadOnly,
-  });
-
-  const financialTotals = useFinancialTotals({
-    costBreakdown: itinerary?.costBreakdown,
-    overallCost: itinerary?.overallCost,
-    computedHotelCost,
-    computedVehicleAmount,
-    shouldShowHotels,
-    shouldShowVehicles,
     hasRequiredVehicleSelection,
-    selectedVehicleTotalsByType,
-    activeHotelListTotal,
+  });
+  const {
     selectedHotelTotal,
-    entryTicketBreakdownCount: entryTicketBreakdownByLocation.length,
-    entryTicketLocationWiseTotal,
-  });
-
-  const effectiveEntryTicketAmount = useMemo(() => {
-    const fallback = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);
-    if (entryTicketBreakdownByLocation.length > 0) {
-      return Number(entryTicketLocationWiseTotal || 0);
-    }
-    return Number.isFinite(fallback) ? fallback : 0;
-  }, [entryTicketBreakdownByLocation.length, entryTicketLocationWiseTotal, itinerary?.costBreakdown?.totalHotspotCost]);
-
-  const hotelHydratedDays = useHotelHydratedDays({
-    itineraryDays: itinerary?.days,
     selectedHotelMetaByRoute,
-  });
-
-  const displayDays = useDisplayItineraryDays({
+    computedHotelCost,
+    roomBreakdownRoomNights,
+    computedVehicleAmount,
+    computedVehicleQty,
+    entryTicketBreakdownByLocation,
+    entryTicketLocationWiseTotal,
+    hotelsForDisplay,
+    financialTotals,
+    effectiveEntryTicketAmount,
     hotelHydratedDays,
-    itineraryDays: itinerary?.days,
-  });
+    displayDays,
+  } = costViewModel;
 
 const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySummaryValues({
   netPayable: financialTotals.netPayable,
