@@ -5057,6 +5057,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The Add Hotspot dialog shell, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 252 - Shared hotspot text helpers and runtime guards
+
+### Baseline
+- Starting checkpoint: `122d304` on `refactor/itinerary-details-checkpoint` with the hotspot preview pane extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/utils/hotspotText.utils.ts` and moved pure travel-label endpoint parsing out of the controller.
+- Converted four post-loader clipboard/share callbacks to render-local functions so early loading/error returns do not change hook order.
+- Added a null-safe `costBreakdown` fallback in `ItineraryOverallCost` for intermediate API payloads that omit optional cost fields.
+- Behaviour intentionally changed: No; the fallback only prevents a pre-existing runtime crash.
+
+### Verification
+- New utility and modified cost component ESLint checks passed.
+- Filtered TypeScript check found no errors in the utility, cost component, or page controller.
+- Exact refactor-worktree Vite verification (port 8082 with local API base): targeted Playwright 2 passed serially (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 3,293 physical lines (down from 3,307 at the previous iteration).
+- New utility: 17 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The Add Hotspot dialog shell, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

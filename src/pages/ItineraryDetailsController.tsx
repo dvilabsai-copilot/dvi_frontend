@@ -371,6 +371,7 @@ import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHo
 import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHotelSummary";
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
+import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
 import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
 import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
@@ -594,23 +595,8 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     setActivePreviewHotspotId(candidateId);
   }, [resetManualHotspotPreviewState]);
 
-  const extractTravelToFromText = useCallback((value: unknown): string => {
-    const raw = String(value || '').trim();
-    if (!raw) return '';
-    const match = raw.match(/^travel\s+to\s+(.+)$/i);
-    return String(match?.[1] || '').trim();
-  }, []);
-
-  const extractTravelFromToFromText = useCallback((value: unknown): { from: string; to: string } => {
-    const raw = String(value || '').trim();
-    if (!raw) return { from: '', to: '' };
-    const match = raw.match(/^travell?ing\s+from\s+(.+?)\s+to\s+(.+)$/i);
-    if (!match) return { from: '', to: '' };
-    return {
-      from: String(match[1] || '').trim(),
-      to: String(match[2] || '').trim(),
-    };
-  }, []);
+  const extractTravelToFromText = extractTravelToFromTextUtil;
+  const extractTravelFromToFromText = extractTravelFromToFromTextUtil;
 
   const mapDaySegmentToPreview = useCallback(
     (segment: ItinerarySegment) => mapDaySegmentToPreviewUtil(segment, extractTravelToFromText),
@@ -2399,7 +2385,7 @@ const hotelTimelineLoading = Boolean(
   const seg: any = {};
   const idx = 0;
 
-  const handleClipboardMode = useCallback((mode: ClipboardMode) => {
+  const handleClipboardMode = (mode: ClipboardMode) => {
     if (itineraryPreference === 2) {
       handleVehicleOnlyClipboardCopyRefactored(mode);
       return;
@@ -2407,19 +2393,19 @@ const hotelTimelineLoading = Boolean(
     setClipboardType(mode);
     setSelectedHotels(buildDefaultClipboardSelection());
     setClipboardModal(true);
-  }, [buildDefaultClipboardSelection, handleVehicleOnlyClipboardCopyRefactored, itineraryPreference]);
+  };
 
-  const handleCopyLink = useCallback(() => {
+  const handleCopyLink = () => {
     void navigator.clipboard.writeText(window.location.href);
     toast.success("Link copied to clipboard!");
-  }, [toast]);
+  };
 
-  const handleShareWhatsApp = useCallback(() => {
+  const handleShareWhatsApp = () => {
     const message = `Check out this itinerary: ${window.location.href}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
-  }, []);
+  };
 
-  const handleShareEmail = useCallback(() => setShareModal(true), [setShareModal]);
+  const handleShareEmail = () => setShareModal(true);
 
   const hotspotForceConflictMode = (
     (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)

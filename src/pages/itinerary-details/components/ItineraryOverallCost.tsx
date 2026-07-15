@@ -50,8 +50,14 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   computedVehicleQty,
   effectiveEntryTicketAmount,
   entryTicketBreakdownByLocation,
-}) => (
-  <Card className="border-none bg-gradient-to-br from-[#faf5ff] to-white shadow-none">
+}) => {
+  itinerary = {
+    ...itinerary,
+    costBreakdown: itinerary.costBreakdown ?? ({} as NonNullable<typeof itinerary.costBreakdown>),
+  };
+
+  return (
+    <Card className="border-none bg-gradient-to-br from-[#faf5ff] to-white shadow-none">
     <CardContent className="pt-2">
       <h2 className="mb-4 text-lg font-semibold text-[#4a4260]">OVERALL COST</h2>
       <div className="space-y-2 text-sm">
@@ -145,7 +151,8 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
         <div className="mt-1 space-y-1 border-t border-[#e5d9f2] pt-2"><div className="flex justify-between text-[#6c6c6c]"><span>Total Round Off</span><span>{(financialTotals.totalRoundOff ?? 0) > 0 ? "+ " : ""}₹ {financialTotals.totalRoundOff.toFixed(2)}</span></div><div className="flex justify-between pt-1 text-base font-bold"><span className="text-[#4a4260]">Net Payable To {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}</span><span className="text-[#4a4260]">₹ {financialTotals.netPayable.toFixed(2)}</span></div></div>
       </div>
     </CardContent>
-  </Card>
-);
+    </Card>
+  );
+};
 
 export default ItineraryOverallCost;

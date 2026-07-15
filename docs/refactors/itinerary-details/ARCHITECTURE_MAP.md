@@ -265,3 +265,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Effective preview segment rows, timing overrides, travel metrics, attraction/conflict details, insertion-slot evidence, and priority confirmation presentation are isolated in `HotspotPreviewTimelineRows.tsx`.
 - Preview-fit failures, removed/unscheduled hotspot diagnostics, attempted-anchor messaging, and matrix rebuild action are isolated in `HotspotPreviewValidationNotice.tsx`.
 - The right-side proposed timeline, Fit Here selection, preview notices/rows, and apply action are isolated in `HotspotPreviewPane.tsx`.
+- Shared travel-label endpoint parsing is isolated in `hotspotText.utils.ts`; post-loader callbacks remain behavior-equivalent render-local actions and optional cost data is guarded in `ItineraryOverallCost.tsx`.
