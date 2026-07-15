@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 271 — Extract itinerary travel sections
+
+### Baseline
+- Starting point: Iteration 270 with the controller at 2,495 lines.
+- Scope: move header, daily itinerary, hotel/vehicle sections, package/cost summary, and action controls into a page-content component.
+
+### Changes
+- Added `components/ItineraryDetailsTravelSections.tsx`.
+- The controller still supplies all state, callbacks, and visibility decisions; the extracted component only composes the existing sections.
+
+### Verification
+- Controller line count: 2,357; new component: 83 lines.
+- New component lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 270 — Extract route-options view model
 
 ### Baseline

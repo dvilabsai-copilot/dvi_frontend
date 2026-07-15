@@ -21,7 +21,6 @@ import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
 import { api } from "@/lib/api";
-import { IncidentalExpensesHistorySection } from "./IncidentalExpensesHistorySection";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
@@ -189,28 +188,22 @@ import { DeleteConfirmationDialog } from "./itinerary-details/components/DeleteC
 import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
-import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
-import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
-import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDaysSection";
-import { HotelListLoadingState } from "./itinerary-details/components/HotelListLoadingState";
-import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
-import { ItineraryHotelListSection } from "./itinerary-details/components/ItineraryHotelListSection";
 import { HotspotPreviewStrategyPanel } from "./itinerary-details/components/HotspotPreviewStrategyPanel";
 import { HotspotPreviewTimelineRows } from "./itinerary-details/components/HotspotPreviewTimelineRows";
 import { HotspotPreviewValidationNotice } from "./itinerary-details/components/HotspotPreviewValidationNotice";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
-import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
 import { ItineraryFitHereDialogs } from "./itinerary-details/components/ItineraryFitHereDialogs";
 import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryMediaDialogs";
 import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryHotelDialogs";
 import { ItineraryAddHotspotDialog } from "./itinerary-details/components/ItineraryAddHotspotDialog";
 import { ItineraryRouteProgressOverlay } from "./itinerary-details/components/ItineraryRouteProgressOverlay";
+import { ItineraryDetailsTravelSections } from "./itinerary-details/components/ItineraryDetailsTravelSections";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
@@ -261,7 +254,6 @@ import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectio
 import {
   buildArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
-import { VehicleSection } from "./itinerary-details/components/VehicleSection";
 import { QuotationPassengerNotice } from "./itinerary-details/QuotationPassengerNotice";
 import { QuotationPrebookLoadingNotice } from "./itinerary-details/QuotationPrebookLoadingNotice";
 import { QuotationAgentSummary } from "./itinerary-details/QuotationAgentSummary";
@@ -656,10 +648,6 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     vehicleRateAvailability: itinerary?.vehicleRateAvailability,
     selectedVehicleTotalsByType,
   });
-  // Keep the bottom hotel list enabled for hotel-bearing itineraries.
-  // The actual render is still gated by `shouldShowHotels` below.
-  const shouldRenderBottomHotelList = true;
-
   const { handleHotelLoadMore } = useHotelPaginationController({
     quoteId: quoteId || null,
     isLoadingMoreHotels,
@@ -1973,152 +1961,26 @@ const hotelTimelineLoading = Boolean(
         routeProgressHistory={routeProgressHistory}
       />
 
-      <ItineraryHeader
-        summaryStickyRef={summaryStickyRef}
-        itineraryRouteOptions={itineraryRouteOptions}
-        activeRouteQuoteId={activeRouteQuoteId}
-        quoteId={quoteId}
-        isSwitchingRouteOption={isSwitchingRouteOption}
-        handleItineraryRouteOptionClick={handleItineraryRouteOptionClick}
-        itineraryPreference={itineraryPreference}
-        scrollToVehicleList={scrollToVehicleList}
-        vehicleBuildStatus={vehicleBuildStatus}
-        scrollToHotelList={scrollToHotelList}
-        backToListHref={backToListHref}
-        itinerary={itinerary}
-        handleDownloadPluckCard={handleDownloadPluckCard}
-        setVoucherModal={setVoucherModal}
-        setIncidentalModal={setIncidentalModal}
-        modifyItineraryHref={modifyItineraryHref}
-        handleDownloadInvoice={handleDownloadInvoice}
-        shouldShowRebuildHotelsButton={shouldShowRebuildHotelsButton}
-        hotelReadOnly={hotelReadOnly}
-        handleRebuildHotels={handleRebuildHotels}
-        isRebuildingHotels={isRebuildingHotels}
-        overallTripCostWithHotels={overallTripCostWithHotels}
-      />
-
-
-      {/* Daily Itinerary */}
-      <ItineraryDaysSection context={{
-        displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly,
-        guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay,
-        routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook,
-        openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal,
-        destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal,
-        openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide,
-        openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText,
-      }} />
-      {/* Special Instructions — outside the sticky summary and before hotel/vehicle lists */}
-      <SpecialInstructionsSection text={specialInstructionsText} />
-
-      {/* Hotel List (separate component) */}
-      {shouldRenderBottomHotelList && shouldShowHotels && loadingHotels && (
-        <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />
-      )}
-
-      {shouldRenderBottomHotelList && shouldShowHotels && !loadingHotels && hotelDetails && (
-        <ItineraryHotelListSection
-          hotelListRef={hotelListRef}
-          summaryStickyHeight={summaryStickyHeight}
-          hotels={hotelsForDisplay}
-          restrictedHotels={hotelDetails.restrictedHotels || []}
-          hotelTabs={hotelDetails.hotelTabs}
-          hotelRatesVisible={hotelDetails.hotelRatesVisible}
-          showHotelMargins={Boolean(hotelDetails.showHotelMargins)}
-          roomCount={Number(itinerary.roomCount || 1)}
-          onTotalChange={(total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }}
-          onToggleHotelRates={(visible) => setClipboardRatesVisible(visible)}
-          quoteId={quoteId!}
-          planId={itinerary.planId}
-          onRefresh={refreshHotelData}
-          onGroupTypeChange={handleHotelGroupTypeChange}
-          onGetSaveFunction={handleGetSaveFunction}
-          readOnly={hotelReadOnly}
-          onCreateVoucher={handleCreateVoucher}
-          onCancelVoucher={handleCancelVoucherSingle}
-          onBulkCancelVouchers={handleCancelVoucherItems}
-          onHotelSelectionsChange={handleHotelSelectionsChange}
-          pagination={hotelDetails.pagination}
-          routePagination={hotelDetails.routePagination}
-          onLoadMore={handleHotelLoadMore}
-          isLoadingMore={isLoadingMoreHotels}
-          mealPlanCode={itinerary?.meal_plan_code}
-          dayDestinationFallback={itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {}}
-        />
-      )}
-
-      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
-        ((itinerary.vehicles && itinerary.vehicles.length > 0) ||
-          (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length > 0)) && (
-        <VehicleSection
-          vehicleListRef={vehicleListRef}
-          summaryStickyHeight={summaryStickyHeight}
-          vehicles={itinerary.vehicles}
-          vehicleRateAvailability={itinerary.vehicleRateAvailability}
-          planId={itinerary.planId}
-          dateRange={itinerary.dateRange}
-          days={itinerary.days || []}
-          canViewCostBreakdown={canViewCostBreakdown}
-          showVendorDetails={!isAgentLogin}
-          onRefresh={refreshVehicleData}
-          onSelectedTotalChange={handleVehicleSelectedTotalChange}
-        />
-      )}
-
-      {shouldShowVehicles && vehicleBuildStatus === "READY" &&
-        (!itinerary.vehicles || itinerary.vehicles.length === 0) &&
-        (!itinerary.vehicleRateAvailability || itinerary.vehicleRateAvailability.length === 0) && (
-        <VehicleUnavailableState vehicleListRef={vehicleListRef} summaryStickyHeight={summaryStickyHeight} />
-      )}
-
-      {isConfirmedPresentation && itinerary?.planId && (
-        <div className="mt-6">
-          <IncidentalExpensesHistorySection
-            itineraryPlanId={itinerary.planId}
-            refreshToken={incidentalHistoryRefreshToken}
-          />
-        </div>
-      )}
-
-      {/* Package Includes & Overall Cost */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <PackageIncludesCard packageIncludes={itinerary.packageIncludes} />
-        <ItineraryOverallCost
-          itinerary={itinerary}
-          canViewCostBreakdown={canViewCostBreakdown}
-          shouldShowHotels={shouldShowHotels}
-          shouldShowVehicles={shouldShowVehicles}
-          financialTotals={financialTotals}
-          roomBreakdownRoomNights={roomBreakdownRoomNights}
-          selectedHotelMetaByRoute={selectedHotelMetaByRoute}
-          clipboardRatesVisible={clipboardRatesVisible}
-          isRoomCostPopoverOpen={isRoomCostPopoverOpen}
-          setIsRoomCostPopoverOpen={setIsRoomCostPopoverOpen}
-          computedVehicleAmount={computedVehicleAmount}
-          computedVehicleQty={computedVehicleQty}
-          effectiveEntryTicketAmount={effectiveEntryTicketAmount}
-          entryTicketBreakdownByLocation={entryTicketBreakdownByLocation}
-        />
-      </div>
-      <ItineraryActionButtons
+      <ItineraryDetailsTravelSections
         isConfirmedPresentation={isConfirmedPresentation}
-        onCopyClipboard={handleClipboardMode}
-        onDownloadPluckCard={handleDownloadPluckCard}
-        onOpenVoucher={() => setVoucherModal(true)}
-        onOpenIncidentalExpenses={() => setIncidentalModal(true)}
-        modifyItineraryHref={modifyItineraryHref}
-        onDownloadInvoice={handleDownloadInvoice}
-        readOnly={readOnly}
-        isConfirmedItinerary={isConfirmedItinerary}
-        onExtendTrip={() => setCancelModalOpen(true)}
-        onConfirmQuotation={openConfirmQuotationModal}
-        isOpeningConfirmQuotation={isOpeningConfirmQuotation}
-        canConfirmQuotation={canConfirmQuotation}
-        onCopyLink={handleCopyLink}
-        onShareWhatsApp={handleShareWhatsApp}
-        onShareEmail={handleShareEmail}
-        onBackToTop={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        header={{ summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId, isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference, scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref, itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal, modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton, hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels }}
+        daysContext={{ displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText }}
+        specialInstructionsText={specialInstructionsText}
+        hotelListRef={hotelListRef}
+        summaryStickyHeight={summaryStickyHeight}
+        shouldShowHotels={shouldShowHotels}
+        loadingHotels={loadingHotels}
+        hotelDetailsPresent={Boolean(hotelDetails)}
+        hotelList={{ hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onTotalChange: (total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }, onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} }}
+        shouldShowVehicles={shouldShowVehicles}
+        vehicleBuildStatus={vehicleBuildStatus}
+        hasVehicles={Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length))}
+        vehicleSection={{ vehicleListRef, summaryStickyHeight, vehicles: itinerary.vehicles, vehicleRateAvailability: itinerary.vehicleRateAvailability, planId: itinerary.planId, dateRange: itinerary.dateRange, days: itinerary.days || [], canViewCostBreakdown, showVendorDetails: !isAgentLogin, onRefresh: refreshVehicleData, onSelectedTotalChange: handleVehicleSelectedTotalChange }}
+        vehicleUnavailable={{ vehicleListRef, summaryStickyHeight }}
+        incidentalHistory={isConfirmedPresentation && itinerary.planId ? { planId: itinerary.planId, refreshToken: incidentalHistoryRefreshToken } : null}
+        packageIncludes={itinerary.packageIncludes}
+        cost={{ itinerary, canViewCostBreakdown, shouldShowHotels, shouldShowVehicles, financialTotals, roomBreakdownRoomNights, selectedHotelMetaByRoute, clipboardRatesVisible, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen, computedVehicleAmount, computedVehicleQty, effectiveEntryTicketAmount, entryTicketBreakdownByLocation }}
+        actions={{ isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true), onOpenIncidentalExpenses: () => setIncidentalModal(true), modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) }}
       />
 
 
