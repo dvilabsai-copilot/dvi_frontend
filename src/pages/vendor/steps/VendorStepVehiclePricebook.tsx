@@ -120,24 +120,95 @@ const PricebookDatePicker = ({
           <CalendarIcon className="h-4 w-4 text-purple-600" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-2" align="start">
-        <Calendar
-          key={defaultMonth ? format(defaultMonth, "yyyy-MM-dd") : "pricebook-calendar"}
-          mode="single"
-          selected={selected}
-          defaultMonth={defaultMonth || selected || new Date()}
-          disabled={
-            minDate
-              ? (date) => date < minDate
-              : undefined
-          }
-          onSelect={(date) => {
-            if (!date) return;
-            onChange(toYmd(date));
-          }}
-          initialFocus
-        />
-      </PopoverContent>
+<PopoverContent
+  className="w-[320px] max-w-[calc(100vw-16px)] rounded-xl p-2.5"
+  align="start"
+  sideOffset={4}
+>
+  <Calendar
+    key={
+      defaultMonth
+        ? format(defaultMonth, "yyyy-MM-dd")
+        : "pricebook-calendar"
+    }
+    mode="single"
+    selected={selected}
+    defaultMonth={defaultMonth || selected || new Date()}
+    captionLayout="dropdown"
+    fromYear={2000}
+    toYear={new Date().getFullYear() + 20}
+    className="w-full p-0"
+    classNames={{
+      vhidden: "sr-only",
+
+      months: "flex w-full flex-col",
+      month: "w-full space-y-2",
+
+      caption:
+        "relative flex w-full items-center justify-center",
+
+      caption_label:
+        "hidden",
+
+      caption_dropdowns:
+        "flex items-center justify-center gap-2",
+
+      dropdown_month:
+        "relative w-[125px]",
+
+      dropdown_year:
+        "relative w-[88px]",
+
+      dropdown:
+        "h-9 w-full cursor-pointer appearance-auto rounded-lg border border-slate-200 bg-white px-2.5 text-sm font-semibold text-slate-700 outline-none hover:border-slate-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-100",
+
+      nav: "hidden",
+
+      table:
+        "w-full border-collapse",
+
+      head_row:
+        "grid grid-cols-7",
+
+      head_cell:
+        "flex h-7 items-center justify-center text-xs font-normal text-slate-500",
+
+      row:
+        "grid grid-cols-7",
+
+      cell:
+        "relative flex h-9 items-center justify-center p-0 text-center text-sm focus-within:z-20",
+
+      day:
+        "h-8 w-8 rounded-lg p-0 text-sm font-normal hover:bg-slate-100 aria-selected:opacity-100",
+
+      day_selected:
+        "!bg-purple-700 !text-white hover:!bg-purple-700 hover:!text-white focus:!bg-purple-700 focus:!text-white",
+
+      day_today:
+        "bg-slate-100 text-slate-900",
+
+      day_outside:
+        "text-slate-300 opacity-70",
+
+      day_disabled:
+        "text-slate-300 opacity-50",
+
+      day_hidden:
+        "invisible",
+    }}
+    disabled={
+      minDate
+        ? (date) => date < minDate
+        : undefined
+    }
+    onSelect={(date) => {
+      if (!date) return;
+      onChange(toYmd(date));
+    }}
+    initialFocus
+  />
+</PopoverContent>
     </Popover>
   );
 };
