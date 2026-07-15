@@ -20,6 +20,7 @@ type ClipboardWorkflowOptions = {
   setClipboardRatesVisible: (value: boolean) => void;
   clipboardModal: boolean;
   clipboardType: ItineraryClipboardMode;
+  setClipboardType: (mode: ItineraryClipboardMode) => void;
   paraRecommendations: Array<{ label: string; groupType: number; hotels: ItineraryHotelDetailsResponse["hotels"] }>;
   selectedHotels: Record<string, boolean>;
   setSelectedHotels: (value: Record<string, boolean>) => void;
@@ -41,6 +42,7 @@ export function useItineraryClipboardWorkflow({
   setClipboardRatesVisible,
   clipboardModal,
   clipboardType,
+  setClipboardType,
   paraRecommendations,
   selectedHotels,
   setSelectedHotels,
@@ -102,9 +104,20 @@ export function useItineraryClipboardWorkflow({
     setSelectedHotels,
   });
 
+  const handleClipboardMode = useCallback((mode: ItineraryClipboardMode) => {
+    if (itineraryPreference === 2) {
+      void handleVehicleOnlyClipboardCopyRefactored(mode);
+      return;
+    }
+    setClipboardType(mode);
+    setSelectedHotels(buildDefaultClipboardSelection());
+    setClipboardModal(true);
+  }, [buildDefaultClipboardSelection, handleVehicleOnlyClipboardCopyRefactored, itineraryPreference, setClipboardModal, setClipboardType, setSelectedHotels]);
+
   return {
     buildDefaultClipboardSelection,
     handleVehicleOnlyClipboardCopyRefactored,
     handleCopyClipboard,
+    handleClipboardMode,
   };
 }
