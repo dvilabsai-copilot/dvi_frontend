@@ -184,9 +184,6 @@ import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/ut
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
 import { VehicleBuildErrorState } from "./itinerary-details/components/VehicleBuildErrorState";
-import { DeleteConfirmationDialog } from "./itinerary-details/components/DeleteConfirmationDialog";
-import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
-import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
@@ -204,6 +201,7 @@ import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryH
 import { ItineraryAddHotspotDialog } from "./itinerary-details/components/ItineraryAddHotspotDialog";
 import { ItineraryRouteProgressOverlay } from "./itinerary-details/components/ItineraryRouteProgressOverlay";
 import { ItineraryDetailsTravelSections } from "./itinerary-details/components/ItineraryDetailsTravelSections";
+import { ItineraryActivityGuideDialogs } from "./itinerary-details/components/ItineraryActivityGuideDialogs";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
@@ -1984,48 +1982,36 @@ const hotelTimelineLoading = Boolean(
       />
 
 
-      <DeleteConfirmationDialog
-        open={deleteHotspotModal.open}
-        title="Delete Hotspot"
-        description={<>Are you sure you want to delete "{deleteHotspotModal.hotspotName}"? This will also remove all associated activities.</>}
-        deleting={isDeleting}
-        onOpenChange={(open) => setDeleteHotspotModal({ ...deleteHotspotModal, open })}
-        onCancel={() => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false })}
-        onConfirm={handleDeleteHotspot}
-      />
-      <AddActivityDialog context={{
-        addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity,
-        previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime,
-        getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity,
-      }} />
-
-      <DeleteConfirmationDialog
-        open={deleteActivityModal.open}
-        title="Delete Activity"
-        description={<>Are you sure you want to delete "{deleteActivityModal.activityName}"?</>}
-        deleting={isDeletingActivity}
-        onOpenChange={(open) => setDeleteActivityModal({ ...deleteActivityModal, open })}
-        onCancel={() => setDeleteActivityModal({ open: false, planId: null, routeId: null, activityId: null, activityName: '' })}
-        onConfirm={handleDeleteActivity}
-      />
-
-      <GuideAssignmentDialog
-        guideModal={guideModal}
-        setGuideModal={setGuideModal}
-        formatDate={(value) => formatHeaderDate(value)}
-        onSave={handleSaveGuideAssignment}
-      />
-
-      <DeleteConfirmationDialog
-        open={deleteGuideModal.open}
-        title="Delete Guide"
-        description={Number(deleteGuideModal.assignment?.guideType || 0) === 1
-          ? "Are you sure you want to remove this whole-itinerary guide assignment?"
-          : "Are you sure you want to remove this guide assignment from the itinerary day?"}
-        deleting={deleteGuideModal.deleting}
-        onOpenChange={(open) => { if (!deleteGuideModal.deleting) setDeleteGuideModal((prev) => ({ ...prev, open })); }}
-        onCancel={() => setDeleteGuideModal({ open: false, assignment: null, deleting: false })}
-        onConfirm={() => void handleDeleteGuideAssignment()}
+      <ItineraryActivityGuideDialogs
+        hotspotDelete={{
+          open: deleteHotspotModal.open,
+          title: "Delete Hotspot",
+          description: <>Are you sure you want to delete "{deleteHotspotModal.hotspotName}"? This will also remove all associated activities.</>,
+          deleting: isDeleting,
+          onOpenChange: (open) => setDeleteHotspotModal({ ...deleteHotspotModal, open }),
+          onCancel: () => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false }),
+          onConfirm: handleDeleteHotspot,
+        }}
+        activity={{ context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } }}
+        activityDelete={{
+          open: deleteActivityModal.open,
+          title: "Delete Activity",
+          description: <>Are you sure you want to delete "{deleteActivityModal.activityName}"?</>,
+          deleting: isDeletingActivity,
+          onOpenChange: (open) => setDeleteActivityModal({ ...deleteActivityModal, open }),
+          onCancel: () => setDeleteActivityModal({ open: false, planId: null, routeId: null, activityId: null, activityName: "" }),
+          onConfirm: handleDeleteActivity,
+        }}
+        guide={{ guideModal, setGuideModal, formatDate: (value) => formatHeaderDate(value), onSave: handleSaveGuideAssignment }}
+        guideDelete={{
+          open: deleteGuideModal.open,
+          title: "Delete Guide",
+          description: Number(deleteGuideModal.assignment?.guideType || 0) === 1 ? "Are you sure you want to remove this whole-itinerary guide assignment?" : "Are you sure you want to remove this guide assignment from the itinerary day?",
+          deleting: deleteGuideModal.deleting,
+          onOpenChange: (open) => { if (!deleteGuideModal.deleting) setDeleteGuideModal((prev) => ({ ...prev, open })); },
+          onCancel: () => setDeleteGuideModal({ open: false, assignment: null, deleting: false }),
+          onConfirm: () => void handleDeleteGuideAssignment(),
+        }}
       />
 
       <ItineraryAddHotspotDialog

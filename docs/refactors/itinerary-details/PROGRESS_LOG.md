@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 272 — Extract activity and guide dialogs
+
+### Baseline
+- Starting point: Iteration 271 with the controller at 2,357 lines.
+- Scope: compose hotspot deletion, activity add/delete, and guide assignment/delete dialogs outside the controller.
+
+### Changes
+- Added `components/ItineraryActivityGuideDialogs.tsx`.
+- Dialog state, reset behavior, callbacks, and mutation ownership remain controller-owned.
+
+### Verification
+- Controller line count: 2,343; new component: 34 lines.
+- New component lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 271 — Extract itinerary travel sections
 
 ### Baseline
