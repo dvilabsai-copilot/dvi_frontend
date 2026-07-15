@@ -1,5 +1,23 @@
 # Progress log
 
+## Iteration 292 — Extract activity and guide workflow
+
+### Baseline
+- Starting point: Iteration 291 with the controller at 1,612 lines.
+- Scope: isolate activity availability/preview/mutations and guide availability, assignment, modal, and refresh workflows.
+
+### Changes
+- Added `hooks/useItineraryActivityGuideWorkflow.ts`.
+- Preserved activity preview/add/delete behavior, guide availability loading, assignment refreshes, modal opening, coverage checks, and existing mutation callbacks.
+- Removed the now-obsolete controller imports for the extracted boundaries.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,508; new hook: 163 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 291 — Extract route mutation workflow and guard early quotation render
 
 ### Baseline
