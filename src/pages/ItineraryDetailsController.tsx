@@ -38,7 +38,6 @@ import {
 } from "./itinerary-details/manual-hotspot-preview.shared";
 import { HotelArrivalPolicyRequest } from "@/services/itinerary";
 import { toast } from "sonner";
-import { useEffectivePreviewTimeline } from "./itinerary-details/hooks/useEffectivePreviewTimeline";
 import { useHotelHydratedDays } from "./itinerary-details/hooks/useHotelHydratedDays";
 import { useHotelsForDisplay } from "./itinerary-details/hooks/useHotelsForDisplay";
 import {
@@ -46,18 +45,6 @@ import {
   useExternalStayEntries,
 } from "./itinerary-details/hooks/useExternalStayEntries";
 import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
-import { useDestinationHotelDisplayName } from "./itinerary-details/hooks/useDestinationHotelDisplayName";
-import { useMatrixFitState } from "./itinerary-details/hooks/useMatrixFitState";
-import { usePreviewCityContext } from "./itinerary-details/hooks/usePreviewCityContext";
-import { useMatrixAvailabilityState } from "./itinerary-details/hooks/useMatrixAvailabilityState";
-import { usePreviewDecisionState } from "./itinerary-details/hooks/usePreviewDecisionState";
-import { useInsertionDecisionSummary } from "./itinerary-details/hooks/useInsertionDecisionSummary";
-import { usePreviewSlotState } from "./itinerary-details/hooks/usePreviewSlotState";
-import { useBestInsertionSlot } from "./itinerary-details/hooks/useBestInsertionSlot";
-import { usePreviewHotspotMeta } from "./itinerary-details/hooks/usePreviewHotspotMeta";
-import { useCurrentRouteHotspotState } from "./itinerary-details/hooks/useCurrentRouteHotspotState";
-import { useNormalizedAvailableHotspots } from "./itinerary-details/hooks/useNormalizedAvailableHotspots";
-import { useActiveAnchorFitInsight } from "./itinerary-details/hooks/useActiveAnchorFitInsight";
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
@@ -111,20 +98,12 @@ import {
   serializeFitHereAnchor as serializeFitHereAnchorUtil,
 } from "./itinerary-details/utils/fitHereAnchor.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
-import { getSelectedPreviewSegments as getSelectedPreviewSegmentsUtil } from "./itinerary-details/utils/fitHereSelectedPreview.utils";
-import {
-  getOptionalPreviewRemovedHotspotDetails,
-  getPreviewRemovedHotspotDetails,
-} from "./itinerary-details/utils/previewRemovedHotspots.utils";
-import { getPendingPriorityReplacementHotspotId } from "./itinerary-details/utils/previewPriority.utils";
 import {
   getAutoPreviewHighestRemovedPriority as getAutoPreviewHighestRemovedPriorityUtil,
   getAutoPreviewRemovedRows as getAutoPreviewRemovedRowsUtil,
   scoreAutoPreviewAttempt as scoreAutoPreviewAttemptUtil,
 } from "./itinerary-details/utils/autoPreviewScoring.utils";
 import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
-import { resolveActivePreviewTimeline } from "./itinerary-details/utils/activePreviewTimeline.utils";
-import { resolveActivePreviewResolution } from "./itinerary-details/utils/activePreviewResolution.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
 import { isMatrixApplyBlocked as isMatrixApplyBlockedUtil } from "./itinerary-details/utils/matrixApplyBlocked.utils";
 import { normalizeInsertionSlots } from "./itinerary-details/utils/normalizedInsertionSlots.utils";
@@ -246,16 +225,13 @@ import { ItineraryFitHereDialogs } from "./itinerary-details/components/Itinerar
 import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryMediaDialogs";
 import { ItineraryHotelDialogs } from "./itinerary-details/components/ItineraryHotelDialogs";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
+import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useDisplayItineraryDays } from "./itinerary-details/hooks/useDisplayItineraryDays";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
-import { useFilteredHotspots } from "./itinerary-details/hooks/useFilteredHotspots";
-import { useHotspotRouteCityContext } from "./itinerary-details/hooks/useHotspotRouteCityContext";
-import { useHotspotCityPresentation } from "./itinerary-details/hooks/useHotspotCityPresentation";
-import { useDestinationInsertionSlotLabel } from "./itinerary-details/hooks/useDestinationInsertionSlotLabel";
 import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
 import {
   buildCurrentRouteAttractionHotspotIds,
@@ -578,347 +554,90 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     [extractTravelToFromText],
   );
 
-  const defaultPreviewTimeline = useMemo(() => {
-    const routeId = addHotspotModal.routeId;
-    if (!routeId || !itinerary?.days?.length) return [];
-
-    const day = itinerary.days.find((d) => Number(d.id) === Number(routeId));
-    if (!day?.segments?.length) return [];
-
-    return day.segments
-      .map(mapDaySegmentToPreview)
-      .filter(Boolean);
-  }, [addHotspotModal.routeId, itinerary?.days, mapDaySegmentToPreview]);
-
-  const selectedPreviewSegments = useMemo(
-    () => getSelectedPreviewSegmentsUtil(
-      availableHotspots,
-      previewTimelinesByHotspot,
-      selectedHotspotIds,
-    ),
-    [availableHotspots, previewTimelinesByHotspot, selectedHotspotIds],
-  );
-
-  const activePreviewTimeline = useMemo(() => {
-    const sourceTimeline = (Array.isArray(manualPreviewState?.fullTimeline) && manualPreviewState.fullTimeline.length > 0)
-      ? manualPreviewState.fullTimeline
-      : (selectedHotspotId ? (previewTimelinesByHotspot[selectedHotspotId] || []) : []);
-    if (!selectedHotspotId && sourceTimeline.length === 0) return [];
-    return resolveActivePreviewTimeline(
-      sourceTimeline,
-      (manualPreviewState?.resolution || manualPreviewState || null) as Record<string, unknown> | null,
-      addHotspotModal.routeId,
-    );
-  }, [addHotspotModal.routeId, manualPreviewState, previewTimelinesByHotspot, selectedHotspotId]);
-
-  const activePreviewResolution = useMemo(
-    () => resolveActivePreviewResolution(
-      manualPreviewState,
-      groupPreviewResolution,
-      selectedHotspotId,
-      previewResolutionsByHotspot,
-    ),
-    [groupPreviewResolution, manualPreviewState, previewResolutionsByHotspot, selectedHotspotId],
-  );
-
-  const activePreviewValidation = useMemo(() => {
-    return activePreviewResolution?.validation || null;
-  }, [activePreviewResolution]);
-
-  const normalizedDecision = useMemo(() => {
-    return (activePreviewResolution as any)?.normalizedDecision
-      || (activePreviewResolution as any)?.resolution?.normalizedDecision
-      || (manualPreviewState as any)?.normalizedDecision
-      || null;
-  }, [activePreviewResolution, manualPreviewState]);
-
-  const previewRemovedHotspotDetails = useMemo(
-    () => getPreviewRemovedHotspotDetails(activePreviewResolution),
-    [activePreviewResolution],
-  );
-
-  const optionalPreviewRemovedHotspotDetails = useMemo(
-    () => getOptionalPreviewRemovedHotspotDetails(activePreviewResolution, previewRemovedHotspotDetails),
-    [activePreviewResolution, previewRemovedHotspotDetails],
-  );
-
-  const pendingPriorityReplacementHotspotId = useMemo(
-    () => getPendingPriorityReplacementHotspotId(
-      (groupPreviewResolution || activePreviewResolution) as Record<string, unknown> | null,
-      selectedHotspotIds,
-      topPriorityReplacementApproved,
-    ),
-    [activePreviewResolution, groupPreviewResolution, selectedHotspotIds, topPriorityReplacementApproved],
-  );
-
-  const pendingPriorityResolution = useMemo(() => {
-    if (!pendingPriorityReplacementHotspotId) return null;
-    return groupPreviewResolution || previewResolutionsByHotspot[pendingPriorityReplacementHotspotId] || null;
-  }, [groupPreviewResolution, pendingPriorityReplacementHotspotId, previewResolutionsByHotspot]);
-
-  // Scroll the confirm box into view when it appears
-  useEffect(() => {
-    if (pendingPriorityReplacementHotspotId && priorityConfirmRef.current) {
-      priorityConfirmRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [pendingPriorityReplacementHotspotId]);
-
-  const effectivePreviewTimeline = useEffectivePreviewTimeline({
-    activePreviewResolution,
-    activePreviewTimeline,
-    defaultPreviewTimeline,
-    groupPreviewResolution,
-    pendingPriorityReplacementHotspotId,
-    selectedHotspotId,
-    selectedHotspotIds,
-    selectedPreviewSegments,
-  });
-
-  // ── Route-intelligence: manualInsertionFit from backend ─────────────────────
-  const manualInsertionFit = useMemo(() => {
-    return (activePreviewResolution as any)?.manualInsertionFit ?? null;
-  }, [activePreviewResolution]);
-
-  const matrixFit = useMemo(() => {
-    return (activePreviewResolution as any)?.manualInsertionFit
-      || (groupPreviewResolution as any)?.manualInsertionFit
-      || null;
-  }, [activePreviewResolution, groupPreviewResolution]);
-
-  const activeManualOptimizer = useMemo(() => {
-    return (activePreviewResolution as any)?.manualOptimizer
-      || (activePreviewResolution as any)?.resolution?.manualOptimizer
-      || null;
-  }, [activePreviewResolution]);
-
-  const manualAttemptDisplayMeta = useMemo(() => {
-    const attempts = Array.isArray(activeManualOptimizer?.attempts) ? activeManualOptimizer.attempts : [];
-    const authoritative = attempts.length > 0 && attempts.every((attempt) => (
-      String(attempt?.source || '').toUpperCase() === 'REAL_CLUSTER_SIMULATION'
-    ));
-    const wrapperOnly = attempts.length > 0 && attempts.every((attempt) => (
-      String(attempt?.source || '').toUpperCase() === 'CANDIDATE_WRAPPER'
-    ));
-    return { attempts, authoritative, wrapperOnly };
-  }, [activeManualOptimizer]);
-
-  const backendForceConflictState = useMemo(() => {
-    const source = (activePreviewResolution as any)?.resolution || activePreviewResolution || null;
-    return {
-      canForceConflict: source?.canForceConflict === true,
-      finalConflictModeOnly: source?.finalConflictModeOnly === true,
-      selectedStrategyLabel: String(source?.selectedStrategyLabel || '').trim(),
-    };
-  }, [activePreviewResolution]);
-
-  const destinationHotelDisplayName = useDestinationHotelDisplayName({
-    addHotspotRouteId: addHotspotModal.routeId,
-    effectivePreviewTimeline,
-    hotelDetails,
+  const hotspotPreviewViewModel = useHotspotPreviewViewModel({
     itinerary,
-    matrixFit,
+    hotelDetails,
+    addHotspotModal,
+    activePreviewHotspotId,
+    availableHotspots,
+    previewTimelinesByHotspot,
+    previewResolutionsByHotspot,
+    groupPreviewResolution,
+    manualPreviewState,
+    selectedHotspotIds,
+    topPriorityReplacementApproved,
+    selectedHotspotAnchor,
+    addedInModalHotspotIds,
+    excludedHotspotIds,
+    hotspotFilterMeta,
+    activeHotspotCityTab,
+    setActiveHotspotCityTab,
+    hotspotSearchQuery,
+    hotspotListRef,
+    priorityConfirmRef,
+    selectedHotspotId,
+    selectedFitHereDay,
+    currentRouteForModal,
+    mapDaySegmentToPreview,
   });
-
   const {
+    defaultPreviewTimeline,
+    selectedPreviewSegments,
+    activePreviewTimeline,
+    activePreviewResolution,
+    activePreviewValidation,
+    normalizedDecision,
+    previewRemovedHotspotDetails,
+    optionalPreviewRemovedHotspotDetails,
+    pendingPriorityReplacementHotspotId,
+    pendingPriorityResolution,
+    effectivePreviewTimeline,
+    manualInsertionFit,
+    matrixFit,
+    activeManualOptimizer,
+    activeManualOptimizerSummary,
+    manualAttemptDisplayMeta,
+    backendForceConflictState,
+    destinationHotelDisplayName,
     matrixBuildSuggestion,
     hasValidChosenMatrixSlot,
     matrixFitAlreadyHasUsableData,
-  } = useMatrixFitState({
-    activePreviewResolution,
-    groupPreviewResolution,
-    matrixFit,
-  });
-
-  const {
     deriveHotspotCityContext,
     activePreviewHotspot,
     selectedPreviewCityContext,
     isDestinationSideManualPreview,
-  } = usePreviewCityContext({
-    activePreviewHotspotId,
-    activePreviewResolution,
-    addHotspotModal,
-    availableHotspots,
-    currentRouteForModal,
-    groupPreviewResolution,
-    hotspotFilterMeta,
-    manualPreviewState,
-    matrixFit,
-  });
-
-  const {
     matrixRequiresBuild,
     isMatrixMissingBlockedState,
     isMatrixBuiltButNoFeasibleSlot,
     shouldShowBuildMatrixButton,
-  } = useMatrixAvailabilityState({
-    activePreviewResolution,
-    activePreviewValidation,
-    groupPreviewResolution,
-    isDestinationSideManualPreview,
-    matrixFit,
-    matrixFitAlreadyHasUsableData,
-    normalizedDecision,
-  });
-
-  const {
     previewValidationReasonText,
     matrixApplyBlocked,
     decisionStatus,
     confirmActionConfig,
-  } = usePreviewDecisionState({
-    activePreviewResolution,
-    activePreviewValidation,
-    destinationHotelDisplayName,
-    groupPreviewResolution,
-    isMatrixBuiltButNoFeasibleSlot,
-    isMatrixMissingBlockedState,
-    matrixFit,
-    matrixRequiresBuild,
-    manualPreviewState,
-    normalizedDecision,
-  });
-
-  const insertionDecisionSummary = useInsertionDecisionSummary({
-    activePreviewHotspotId,
-    activePreviewResolution,
-    activePreviewValidation,
-    groupPreviewResolution,
-    isMatrixBuiltButNoFeasibleSlot,
-    isMatrixMissingBlockedState,
-    matrixApplyBlocked,
-    matrixFit,
-    matrixRequiresBuild,
-    manualPreviewState,
-  });
-
-  const {
+    insertionDecisionSummary,
     resolvedRemovalTimelineLeak,
     safeMatrixSlots,
     effectiveFitSlot,
     routeFitBadgeClass,
     normalizedInsertionSlots,
-  } = usePreviewSlotState({
-    activePreviewResolution,
-    destinationHotelDisplayName,
-    effectivePreviewTimeline,
-    matrixFit,
-    matrixRequiresBuild,
-    manualPreviewState,
-    selectedHotspotAnchor,
-    selectedHotspotId,
-  });
-
-      // ── From manualInsertionFit.allSlotResults ──
-  const activeAnchorFitInsight = useActiveAnchorFitInsight({
-    matrixRequiresBuild,
-    normalizedInsertionSlots,
-    addHotspotRouteId: addHotspotModal.routeId,
-    selectedHotspotId,
-    matrixFit,
-    manualPreviewState,
-    activePreviewResolution,
-    destinationHotelDisplayName,
-  });
-
-
-  const bestInsertionSlot = useBestInsertionSlot({
-    matrixRequiresBuild,
-    normalizedInsertionSlots,
-  });
-
-  const previewHotspotMetaById = usePreviewHotspotMeta({
-    addHotspotRouteId: addHotspotModal.routeId,
-    availableHotspots,
-    itineraryDays: itinerary?.days,
-  });
-
-  const {
+    activeAnchorFitInsight,
+    bestInsertionSlot,
+    previewHotspotMetaById,
     currentRouteAttractionHotspotIds,
     currentRouteManualHotspotIds,
     currentRouteManualHotspotMetaById,
     isCurrentPreviewAlreadyAdded,
-  } = useCurrentRouteHotspotState({
-    activePreviewHotspotId,
-    addedInModalHotspotIds,
-    excludedHotspotIds,
-    itineraryDays: itinerary?.days,
-    routeId: addHotspotModal.routeId,
-  });
-
-  const normalizeAvailableHotspots = useNormalizedAvailableHotspots({
-    excludedHotspotIds,
-    currentRouteAttractionHotspotIds,
-    currentRouteManualHotspotMetaById,
-  });
-
-  // Keep left list focused near latest selected card.
-  useEffect(() => {
-    if (!addHotspotModal.open) return;
-    if (!selectedHotspotId) return;
-
-    const raf = requestAnimationFrame(() => {
-      if (!hotspotListRef.current) return;
-      const card = hotspotListRef.current.querySelector(
-        `[data-hotspot-id="${selectedHotspotId}"]`
-      ) as HTMLElement | null;
-      if (!card) return;
-
-      const targetScrollTop = Math.max(0, card.offsetTop - 150);
-      hotspotListRef.current.scrollTo({ top: targetScrollTop, behavior: "auto" });
-    });
-
-    return () => cancelAnimationFrame(raf);
-  }, [addHotspotModal.open, selectedHotspotId]);
-
-  // Scroll list to top when search query changes
-  useEffect(() => {
-    if (hotspotListRef.current && addHotspotModal.open) {
-      hotspotListRef.current.scrollTop = 0;
-    }
-  }, [hotspotSearchQuery, addHotspotModal.open]);
-
-  const filteredHotspots = useFilteredHotspots({
-    availableHotspots,
-    searchQuery: hotspotSearchQuery,
-    currentRouteAttractionHotspotIds,
-    currentRouteManualHotspotIds,
-    addedInModalHotspotIds,
-  });
-
-  const { sourceCityLabel, destinationCityLabel, routeIsDifferentCity } = useHotspotRouteCityContext({
-    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
-    destinationCityKey: hotspotFilterMeta?.destinationCityKey,
-    routeDeparture: currentRouteForModal?.departure,
-    routeArrival: currentRouteForModal?.arrival,
-    modalLocationName: addHotspotModal.locationName,
-    selectedAnchorTo: selectedHotspotAnchor?.anchorTo,
-  });
-
-  const destinationInsertionSlotLabel = useDestinationInsertionSlotLabel({
-    matrixFit,
-    selectedAnchorSlot: (selectedHotspotAnchor as { slot?: unknown } | null)?.slot,
-    selectedPreviewCityContext,
+    normalizeAvailableHotspots,
+    filteredHotspots,
+    sourceCityLabel,
     destinationCityLabel,
-    destinationHotelDisplayName,
-  });
-
-  const {
+    routeIsDifferentCity,
+    destinationInsertionSlotLabel,
     hotspotListRows,
     hotspotCityBuckets,
     hotspotCityTabs,
     visibleHotspotsForActiveTab,
-  } = useHotspotCityPresentation({
-    filteredHotspots,
-    routeIsDifferentCity,
-    sourceCityLabel,
-    destinationCityLabel,
-    sourceCityKey: hotspotFilterMeta?.sourceCityKey,
-    activeHotspotCityTab,
-    selectedPreviewCityContext,
-    setActiveHotspotCityTab,
-    deriveHotspotCityContext,
-  });
+  } = hotspotPreviewViewModel;
 
   // Hotel selection modal state
   type AvailableHotel = {
@@ -2780,7 +2499,7 @@ const hotelTimelineLoading = Boolean(
                 destinationInsertionSlotLabel={destinationInsertionSlotLabel}
                 insertionDecisionSummary={insertionDecisionSummary}
                 manualAttemptDisplayMeta={manualAttemptDisplayMeta}
-                activeManualOptimizerSummary={activeManualOptimizer?.summary}
+                activeManualOptimizerSummary={activeManualOptimizerSummary}
                 activeAnchorFitInsight={activeAnchorFitInsight}
                 safeMatrixSlots={safeMatrixSlots}
                 destinationHotelDisplayName={destinationHotelDisplayName}
