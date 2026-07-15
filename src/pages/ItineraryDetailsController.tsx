@@ -224,7 +224,7 @@ import { useMediaModalController } from "./itinerary-details/hooks/useMediaModal
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
-import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
+import { useItineraryHotelDataWorkflow } from "./itinerary-details/hooks/useItineraryHotelDataWorkflow";
 import {
   buildArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
@@ -243,8 +243,6 @@ import { useHotelPaginationController } from "./itinerary-details/hooks/useHotel
 import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
-import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
-import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
@@ -799,78 +797,24 @@ const switchedRouteRef = useRef<string | null>(null);
     selectedHotelCoveredRouteIds, nonTboSelectedHotelEntries, externalStayEntries, prebookDataRef,
   } = quotationHotelContext;
 
-  // Cancellation modal state
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-
-  // Hotel voucher modal state
-  const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
-  const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
-
-  const {
-    handleHotelGroupTypeChange,
-    handleRebuildHotels,
-    refreshHotelData,
-    refreshVehicleData,
-  } = useHotelDataController({
-    quoteId: quoteId || null,
-    activeHotelGroupType,
-    isRebuildingHotels,
-    setActiveHotelGroupType,
-    setActiveHotelListTotal,
-    setHotelDetails,
-    setIsRebuildingHotels,
-    setItinerary,
-    setLoadingHotels,
+  const hotelDataWorkflow = useItineraryHotelDataWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotelSelectionState,
+    quoteId,
+    itineraryPlanId: Number(itinerary?.planId || 0),
+    hotelDetails,
     cacheRouteHotelDetails,
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
-  });
-
-  const {
-    handleCancelVoucherItems,
-    handleCancelVoucherSingle,
-    handleCreateVoucher,
-    handleGetSaveFunction,
-  } = useHotelVoucherController({
-    itineraryPlanId: Number(itinerary?.planId || 0),
     hotelSaveFunctionRef,
-    refreshHotelData,
-    setHotelVoucherModalOpen,
-    setSelectedHotelForVoucher,
   });
-
-  const handleHotelSelectionsChange = useCallback((selections: Record<number, {
-    provider: string;
-    hotelCode: string;
-    bookingCode: string;
-    roomType: string;
-    netAmount: number;
-    hotelName: string;
-    checkInDate: string;
-    checkOutDate: string;
-    groupType: number;
-    mealPlan?: string;
-    searchReference?: string;
-    roomId?: string;
-    rateId?: string;
-    multiNightBooking?: boolean;
-    stayKey?: string;
-    routeIds?: number[];
-    nights?: number;
-    nightlyRates?: Array<{
-      date: string;
-      amountAfterTax: number;
-      baseAmount?: number;
-      extraAdultCount?: number;
-      extraChildCount?: number;
-      extraAdultRate?: number;
-      extraChildRate?: number;
-    }>;
-    totalAmountAfterTax?: number;
-  } | null>) => {
-    setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
-    console.log('🏨 Hotel selections updated from HotelList:', selections);
-  }, []);
+  const {
+    handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData,
+    handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
+    cancelModalOpen, setCancelModalOpen, hotelVoucherModalOpen, setHotelVoucherModalOpen,
+    selectedHotelForVoucher, handleHotelSelectionsChange,
+  } = hotelDataWorkflow;
 
   const preparedPageWorkflow = useItineraryPreparedPageWorkflow({
     routeState,

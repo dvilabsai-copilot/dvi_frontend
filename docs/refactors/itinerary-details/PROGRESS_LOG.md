@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 290 — Extract hotel data workflow
+
+### Baseline
+- Starting point: Iteration 289 with the controller at 1,717 lines.
+- Scope: isolate hotel data refresh/rebuild, voucher actions, cancellation state, and HotelList selection merging.
+
+### Changes
+- Added `hooks/useItineraryHotelDataWorkflow.ts`.
+- Preserved hotel refresh callbacks, voucher save/cancel actions, selection merge behavior, and existing selection logging.
+
+### Verification
+- Controller line count: 1,661; new hook: 79 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 289 — Extract prepared-page loading workflow
 
 ### Baseline
