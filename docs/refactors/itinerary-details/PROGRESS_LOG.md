@@ -1,5 +1,40 @@
 # Progress log
 
+## Iteration 303 — Extract hotel/vehicle page workflow
+
+### Baseline
+- Starting point: Iteration 302 with the controller at 1,177 lines.
+- Scope: isolate vehicle-total synchronization, hotel/vehicle scroll anchors, vehicle selection guards, and hotel pagination wiring.
+
+### Changes
+- Added `hooks/useItineraryHotelPageWorkflow.ts`.
+- Preserved vehicle totals, selection availability, scroll refs, hotel pagination state, and route-state hotel updates.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,149; new hook: 76 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 302 — Extract stable page refs
+
+### Baseline
+- Starting point: Iteration 301 with the controller at 1,190 lines.
+- Scope: isolate the stable refs shared by hotel saving, mounted-state guards, initial loading, and route switching.
+
+### Changes
+- Added `hooks/useItineraryPageRefs.ts`.
+- Removed obsolete quotation-state destructuring that no longer had consumers after the workflow extractions.
+- Preserved ref identity and all loader/route-switch consumers.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,177; new hook: 12 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 301 — Extract supporting dialog workflow
 
 ### Baseline
