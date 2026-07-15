@@ -178,8 +178,6 @@ import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
-import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
-import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
 import {
   buildCurrentRouteAttractionHotspotIds,
   buildCurrentRouteManualHotspotIds,
@@ -215,6 +213,7 @@ import { useItinerarySupportingDialogWorkflow } from "./itinerary-details/hooks/
 import { useItineraryPageRefs } from "./itinerary-details/hooks/useItineraryPageRefs";
 import { useItineraryHotelPageWorkflow } from "./itinerary-details/hooks/useItineraryHotelPageWorkflow";
 import { useItineraryRouteProgressWorkflow } from "./itinerary-details/hooks/useItineraryRouteProgressWorkflow";
+import { useItineraryRouteSupportWorkflow } from "./itinerary-details/hooks/useItineraryRouteSupportWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -267,24 +266,13 @@ const location = useLocation();
     isVehicleOnlyItinerary, requiresHotelBookingFlow,
   } = useItineraryDisplayMode(itinerary, readOnly, presentationMode);
 
-  const openSourcePreview = useSourcePreviewController({
+  const routeSupportWorkflow = useItineraryRouteSupportWorkflow({
+    routeState,
     activeRouteQuoteId,
     quoteId,
     itineraryQuoteId: itinerary?.quoteId,
-    setOpen: setSourcePreviewOpen,
-    setLoading: setSourcePreviewLoading,
-    setError: setSourcePreviewError,
-    setMarkdown: setSourcePreviewMarkdown,
-    setHeading: setSourcePreviewHeading,
   });
-
-
-const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelDetailsCache({
-  routeHotelDetailsByQuoteId,
-  setRouteHotelDetailsByQuoteId,
-  routeHotelFetchPromisesRef,
-  fetchCompleteHotelDetailsRef,
-});
+  const { openSourcePreview, cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = routeSupportWorkflow;
 
   const deletionState = useItineraryDeletionState();
   const {

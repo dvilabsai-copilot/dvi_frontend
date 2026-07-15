@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 305 — Extract route support workflow
+
+### Baseline
+- Starting point: Iteration 304 with the controller at 1,134 lines.
+- Scope: isolate source-preview actions and route-family hotel-detail cache wiring.
+
+### Changes
+- Added `hooks/useItineraryRouteSupportWorkflow.ts`.
+- Preserved source-preview state callbacks, route hotel cache refs, and complete-hotel-detail handoff.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,122; new hook: 37 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 304 — Extract route progress workflow
 
 ### Baseline
