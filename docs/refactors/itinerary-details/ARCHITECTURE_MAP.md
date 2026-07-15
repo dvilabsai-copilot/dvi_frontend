@@ -246,3 +246,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Selected-attraction best-insertion-slot and requested-slot fallback presentation are isolated in `HotspotBestInsertionSlotPanel.tsx`.
 - Inserted-hotspot matrix route-leg metrics and distance comparison messaging are isolated in `HotspotPreviewRouteSummary.tsx`.
 - Inserted-hotspot status badges and route/timing insight presentation are isolated in `HotspotPreviewInsertedStatus.tsx`.
+- Priority-reschedule/P3-removal confirmation presentation is isolated in `HotspotPriorityConfirmation.tsx`.

@@ -256,6 +256,7 @@ import { HotspotPreviewSegmentSummary } from "./itinerary-details/components/Hot
 import { HotspotBestInsertionSlotPanel } from "./itinerary-details/components/HotspotBestInsertionSlotPanel";
 import { HotspotPreviewRouteSummary } from "./itinerary-details/components/HotspotPreviewRouteSummary";
 import { HotspotPreviewInsertedStatus } from "./itinerary-details/components/HotspotPreviewInsertedStatus";
+import { HotspotPriorityConfirmation } from "./itinerary-details/components/HotspotPriorityConfirmation";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3895,109 +3896,18 @@ const canShowGuideActionButton =
                                   effectiveSegTimeRange={effectiveSegTimeRange}
                                 />
 
-                                {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
-                                {pendingPriorityReplacementHotspotId && (
-                                  <div ref={priorityConfirmRef} className="mt-3 p-3 rounded-xl border border-red-200 bg-red-50">
-                                    {(() => {
-                                      const p3Rows = Array.isArray((pendingPriorityResolution as any)?.p3HotspotsToRemove)
-                                        ? (pendingPriorityResolution as any).p3HotspotsToRemove
-                                        : [];
-                                      const removedPriorityRows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
-                                        ? pendingPriorityResolution.removedTopPriorityHotspots
-                                        : [];
-                                      const affectedPriorityRows = Array.isArray(pendingPriorityResolution?.topPriorityAffected)
-                                        ? pendingPriorityResolution.topPriorityAffected
-                                        : [];
-                                      const sourceRows = p3Rows.length > 0
-                                        ? p3Rows
-                                        : (removedPriorityRows.length > 0 ? removedPriorityRows : affectedPriorityRows);
-                                      const affectedPriorityHotspots = sourceRows
-                                        .map((row) => {
-                                          const id = Number(row?.id ?? row?.hotspotId ?? row?.hotspot_id ?? 0);
-                                          const name = String(row?.name || row?.hotspot_name || row?.hotspotName || '').trim();
-                                          if (name) return name;
-                                          if (id > 0) return `Hotspot #${id}`;
-                                          return '';
-                                        })
-                                        .filter(Boolean);
-                                      const affectedPriorityLabel = affectedPriorityHotspots.length > 0
-                                        ? affectedPriorityHotspots.join(', ') : 'one or more priority hotspots';
-                                      const pluralSuffix = affectedPriorityHotspots.length === 1 ? '' : 's';
-                                      const removedPriorityRowsWithValues = sourceRows.map((row) => Number(
-                                        row?.priority
-                                        ?? row?.effectivePriority
-                                        ?? row?.normalizedPriority
-                                        ?? row?.rawPriority
-                                        ?? 0,
-                                      ));
-                                      const isP3RemovalConfirmation = removedPriorityRowsWithValues.some((priority: number) => priority === 3)
-                                        || pendingPriorityResolution?.requiresP3RemovalConfirmation === true;
-                                      return (
-                                        <div className="flex items-start gap-2 mb-3">
-                                          <div className="h-7 w-7 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 mt-0.5">
-                                            <AlertTriangle className="h-3.5 w-3.5" />
-                                          </div>
-                                          <div className="min-w-0 flex-1">
-                                            <p className="text-sm font-bold text-red-700">
-                                              {isP3RemovalConfirmation ? `Remove P3 Hotspot${pluralSuffix} & Recalculate?` : `Reschedule Priority Hotspot${pluralSuffix}?`}
-                                            </p>
-                                            <p className="text-xs text-red-700 mt-1 leading-5">
-                                              {isP3RemovalConfirmation
-                                                ? (
-                                                  <>
-                                                    Adding this hotspot requires removing these P3 hotspot{pluralSuffix}:
-                                                    <span className="font-semibold"> {affectedPriorityLabel}</span>.
-                                                    {' '}After removal, the route will be recalculated automatically.
-                                                  </>
-                                                )
-                                                : (
-                                                  <>
-                                                    Adding this hotspot requires moving these priority hotspot{pluralSuffix} from the current slot:
-                                                    <span className="font-semibold"> {affectedPriorityLabel}</span>.
-                                                    {' '}No hotspot is deleted. The timeline will be reshuffled and following items will be rescheduled.
-                                                  </>
-                                                )}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <Button
-                                        size="sm"
-                                        className="w-full bg-red-600 hover:bg-red-700 text-white"
-                                        onClick={handleConfirmPriorityReplacement}
-                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
-                                      >
-                                        {(() => {
-                                          const rows = Array.isArray(pendingPriorityResolution?.removedTopPriorityHotspots)
-                                            ? pendingPriorityResolution.removedTopPriorityHotspots
-                                            : [];
-                                          const isP3RemovalConfirmation = rows.some((row) => Number(
-                                            row?.priority
-                                            ?? row?.effectivePriority
-                                            ?? row?.normalizedPriority
-                                            ?? row?.rawPriority
-                                            ?? 0,
-                                          ) === 3) || pendingPriorityResolution?.requiresP3RemovalConfirmation === true;
-                                          return isP3RemovalConfirmation ? 'Remove P3 & Recalculate' : 'Confirm Reschedule';
-                                        })()}
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="w-full border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
-                                        onClick={handleCancelPriorityReplacement}
-                                        disabled={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
+                                  {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
+                                  {pendingPriorityReplacementHotspotId && (
+                                    <HotspotPriorityConfirmation
+                                      priorityConfirmRef={priorityConfirmRef}
+                                      pendingPriorityResolution={pendingPriorityResolution}
+                                      isBusy={isPreviewingHotspotId === pendingPriorityReplacementHotspotId}
+                                      onConfirm={handleConfirmPriorityReplacement}
+                                      onCancel={handleCancelPriorityReplacement}
+                                    />
+                                  )}
+                                </div>
+                              )}
                             {String(seg?.type || '').toLowerCase() === 'attraction' && (
                               <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
                                 {priorityLabel !== null && (
