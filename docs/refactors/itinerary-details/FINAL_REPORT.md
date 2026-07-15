@@ -7,7 +7,7 @@ Current facts:
 - Original `ItineraryDetails.tsx`: approximately 19,604 physical lines.
 - Stable router entrypoint `ItineraryDetails.tsx`: 14 lines.
 - Thin composition runtime `ItineraryDetailsRuntime.tsx`: 11 lines.
-- Transitional controller `ItineraryDetailsController.tsx`: 5,780 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
+- Transitional controller `ItineraryDetailsController.tsx`: 5,612 physical lines; it is explicitly documented as the remaining staging module to split by workflow.
 - Required documentation and architecture map: created.
 - Existing named/default exports: preserved so far.
 - Build baseline: passes.
@@ -66,6 +66,7 @@ Current facts:
 - New in this checkpoint: vehicle-build usable-row detection and intentional no-rate-state handling are isolated in `vehicleAvailability.utils.ts`.
 - New in this checkpoint: stable Fit Here segment helpers and timeline-row anchor construction are isolated in `useFitHereTimelineHelpers.ts`.
 - New in this checkpoint: TBO hotel selection totals, prebook-price comparison, and detailed passenger-flow requirements are isolated in `useTboHotelSelectionSummary.ts`.
+- New in this checkpoint: overall-cost rendering, hotel room-cost hover details, entry-ticket breakdown, and payable totals are isolated in `ItineraryOverallCost.tsx`.
 - New in this checkpoint: guide availability loading and loading/error cleanup are isolated in `useGuideAvailabilityLoader.ts`.
 - New in this checkpoint: guide assignment save validation, persistence, cost reconciliation, itinerary totals, and toast handling are isolated in `useGuideAssignmentSaveMutation.ts`.
 - New in this checkpoint: canonical hotel-selection merging and multi-night child-route cleanup are isolated in `useHotelSelectionsChangeMutation.ts`.

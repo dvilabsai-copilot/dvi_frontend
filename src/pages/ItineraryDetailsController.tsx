@@ -245,6 +245,7 @@ import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssig
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
 import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
+import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2772,194 +2773,25 @@ const canShowGuideActionButton =
       )}
 
       {/* Package Includes & Overall Cost */}
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid gap-6 lg:grid-cols-2">
         <PackageIncludesCard packageIncludes={itinerary.packageIncludes} />
-
-        {/* Overall Cost */}
-        <Card className="border-none shadow-none bg-gradient-to-br from-[#faf5ff] to-white">
-          <CardContent className="pt-2">
-            <h2 className="text-lg font-semibold text-[#4a4260] mb-4">
-              OVERALL COST
-            </h2>
-            <div className="space-y-2 text-sm">
-              {canViewCostBreakdown && (
-                <>
-              {/* ── Hotel Cost Group ── */}
-              {shouldShowHotels && (() => {
-                const roomTotal = Number(financialTotals.hotelAmount || 0);
-                const hotelRoomNights = Math.max(Number(roomBreakdownRoomNights || 0), 1);
-                const roomNightsLabel = `${hotelRoomNights} room-night${hotelRoomNights > 1 ? 's' : ''}`;
-
-                return (
-                  <Popover
-                    open={isRoomCostPopoverOpen && selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible}
-                    onOpenChange={(open) => {
-                      if (!open) setIsRoomCostPopoverOpen(false);
-                    }}
-                  >
-                    <PopoverTrigger asChild>
-                      <div
-                        className="flex justify-between cursor-pointer"
-                        onClick={(e) => {
-                          e.preventDefault();
-                        }}
-                        onMouseEnter={() => selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && setIsRoomCostPopoverOpen(true)}
-                        onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
-                      >
-                        <div className="flex items-center">
-                          <span className="text-[#6c6c6c]">Total Hotel Cost For ({roomNightsLabel})</span>
-                          {selectedHotelMetaByRoute.size > 0 && clipboardRatesVisible && (
-                            <span className="ml-1 inline-flex h-4 w-4 items-center justify-center text-[11px] leading-none">▶️</span>
-                          )}
-                        </div>
-                        <span className="text-[#4a4260]">₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-80 bg-white border border-[#ddd5e8] shadow-lg rounded-lg p-4"
-                      align="end"
-                      onMouseEnter={() => setIsRoomCostPopoverOpen(true)}
-                      onMouseLeave={() => setIsRoomCostPopoverOpen(false)}
-                    >
-                      <div className="space-y-2 text-sm">
-                        {Array.from(selectedHotelMetaByRoute.entries()).map(([routeId, meta]) => (
-                          <div key={routeId} className="flex justify-between text-[#6c6c6c]">
-                            <span>{meta.hotelName}{Number(meta.noOfRooms || 1) > 1 ? ` * ${Number(meta.noOfRooms)} rooms` : ''}</span>
-                            <span className="font-medium text-[#4a4260]">₹ {Number(meta.totalAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                          </div>
-                        ))}
-                        <div className="border-t border-[#ddd5e8] pt-2 mt-2 flex justify-between font-semibold text-[#4a4260]">
-                          <span>Total Hotel Cost</span>
-                          <span>₹ {roomTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                );
-              })()}
-              {itinerary.costBreakdown.totalAmenitiesCost !== undefined && itinerary.costBreakdown.totalAmenitiesCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Amenities Cost</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalAmenitiesCost.toFixed(2)}</span>
-                </div>
-              )}
-              {(Number(itinerary.extraBed || 0) > 0 || Number(itinerary.costBreakdown.extraBedCost || 0) > 0) && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Extra Bed Cost ({itinerary.extraBed || 0})</span>
-                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.extraBedCost || 0).toFixed(2)}</span>
-                </div>
-              )}
-              {(Number(itinerary.childWithBed || 0) > 0 || Number(itinerary.costBreakdown.childWithBedCost || 0) > 0) && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Child With Bed Cost ({itinerary.childWithBed || 0})</span>
-                  <span className="text-[#4a4260]">₹ {Number(itinerary.costBreakdown.childWithBedCost || 0).toFixed(2)}</span>
-                </div>
-              )}
-              {itinerary.costBreakdown.childWithoutBedCost !== undefined && itinerary.costBreakdown.childWithoutBedCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Child Without Bed Cost ({itinerary.childWithoutBed || 0})</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.childWithoutBedCost.toFixed(2)}</span>
-                </div>
-              )}
-
-
-              {/* ── Vehicle Cost Group ── */}
-{canViewCostBreakdown && shouldShowVehicles && computedVehicleAmount > 0 && (
-  <div className="flex justify-between">
-    <span className="text-[#6c6c6c]">
-      Total Vehicle Cost{computedVehicleQty ? ` (${computedVehicleQty})` : ''}
-    </span>
-    <span className="text-[#4a4260]">₹ {computedVehicleAmount.toFixed(2)}</span>
-  </div>
-)}
-
-              {/* ── Guide / Activity / Hotspot ── */}
-              {itinerary.costBreakdown.totalGuideCost !== undefined && itinerary.costBreakdown.totalGuideCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Guide Cost</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalGuideCost.toFixed(2)}</span>
-                </div>
-              )}
-              {effectiveEntryTicketAmount > 0 && (
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-[#6c6c6c]">Total Entry Ticket Cost</span>
-                    <span className="text-[#4a4260]">₹ {effectiveEntryTicketAmount.toFixed(2)}</span>
-                  </div>
-
-                  {entryTicketBreakdownByLocation.length > 0 && (
-                    <div className="ml-3 space-y-1">
-                      {entryTicketBreakdownByLocation.map((row) => (
-                        <div
-                          key={`${row.dayNumber}-${row.locationName}`}
-                          className="flex justify-between text-xs"
-                        >
-                          <span className="text-[#7a7a7a]">Day {row.dayNumber} - {row.locationName}</span>
-                          <span className="text-[#5e5e5e]">₹ {Number(row.amount || 0).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {itinerary.costBreakdown.totalActivityCost !== undefined && itinerary.costBreakdown.totalActivityCost > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Activity Cost</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.totalActivityCost.toFixed(2)}</span>
-                </div>
-              )}
-              {itinerary.costBreakdown.additionalMargin !== undefined && itinerary.costBreakdown.additionalMargin > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Total Additional Margin (10%)</span>
-                  <span className="text-[#4a4260]">₹ {itinerary.costBreakdown.additionalMargin.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* ── Total Amount ── */}
-                </>
-              )}
-
-              <div className="border-t border-[#e5d9f2] pt-3 mt-1">
-                <div className="flex justify-between font-semibold">
-                  <span className="text-[#4a4260]">Total Amount</span>
-                  <span className="text-[#4a4260]">₹ {financialTotals.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* ── Discounts / Adjustments (only when non-zero) ── */}
-              {(itinerary.costBreakdown.couponDiscount ?? 0) > 0 && (
-                <div className="flex justify-between text-[#d546ab]">
-                  <span>Coupon Discount</span>
-                  <span>- ₹ {itinerary.costBreakdown.couponDiscount!.toFixed(2)}</span>
-                </div>
-              )}
-              {(financialTotals.agentMargin ?? 0) > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-[#6c6c6c]">Agent Margin</span>
-                  <span className="text-[#4a4260]">₹ {financialTotals.agentMargin.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* ── Net Payable ── */}
-              <div className="border-t border-[#e5d9f2] pt-2 mt-1 space-y-1">
-                <div className="flex justify-between text-[#6c6c6c]">
-                  <span>Total Round Off</span>
-                  <span>
-                    {(financialTotals.totalRoundOff ?? 0) > 0 ? "+ " : ""}₹ {financialTotals.totalRoundOff.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-base font-bold pt-1">
-                  <span className="text-[#4a4260]">
-                    Net Payable To {itinerary.costBreakdown.companyName || "Doview Holidays India Pvt ltd"}
-                  </span>
-                  <span className="text-[#4a4260]">₹ {financialTotals.netPayable.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <ItineraryOverallCost
+          itinerary={itinerary}
+          canViewCostBreakdown={canViewCostBreakdown}
+          shouldShowHotels={shouldShowHotels}
+          shouldShowVehicles={shouldShowVehicles}
+          financialTotals={financialTotals}
+          roomBreakdownRoomNights={roomBreakdownRoomNights}
+          selectedHotelMetaByRoute={selectedHotelMetaByRoute}
+          clipboardRatesVisible={clipboardRatesVisible}
+          isRoomCostPopoverOpen={isRoomCostPopoverOpen}
+          setIsRoomCostPopoverOpen={setIsRoomCostPopoverOpen}
+          computedVehicleAmount={computedVehicleAmount}
+          computedVehicleQty={computedVehicleQty}
+          effectiveEntryTicketAmount={effectiveEntryTicketAmount}
+          entryTicketBreakdownByLocation={entryTicketBreakdownByLocation}
+        />
       </div>
-
       {/* Action Buttons */}
       {!isConfirmedPresentation && (
       <div className="flex flex-wrap gap-3 justify-center">

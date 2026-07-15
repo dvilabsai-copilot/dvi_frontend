@@ -4530,6 +4530,31 @@
 ### Line counts
 - Stable `ItineraryDetails.tsx`: 14 lines.
 - Transitional `ItineraryDetailsController.tsx`: 5,780 physical lines (down from 5,786 at the previous iteration).
+
+## Iteration 221 - Overall cost view component
+
+### Baseline
+- Starting checkpoint: `f41265d` on `refactor/itinerary-details-checkpoint` with TBO hotel selection summary extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/ItineraryOverallCost.tsx`.
+- Moved the overall-cost card, hotel room-cost popover, entry-ticket breakdown, and final payable rows out of `ItineraryDetailsController.tsx`.
+- Preserved live hotel/vehicle totals, clipboard-rate visibility, hover behavior, rounding display, and customer-facing labels.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed; controller lint retains documented pre-existing errors and warnings.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,612 physical lines (down from 5,780 at the previous iteration).
+- New component: 151 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining large hotspot and quotation dialog views are still scheduled for extraction.
 - New `useTboHotelSelectionSummary.ts`: 45 physical lines.
 
 ### Notes
