@@ -2707,29 +2707,6 @@ const hotelTimelineLoading = Boolean(
         onCancel={() => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false })}
         onConfirm={handleDeleteHotspot}
       />
-
-      {false && `
-
-{/* ① Placement */}
-                      <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
-                          {formatPreviewTime(activityPreview.hotspotTiming?.startTime)} – {formatPreviewTime(activityPreview.hotspotTiming?.endTime)}
-                              {formatPreviewTime(activityPreview.proposedTiming.startTime)} – {formatPreviewTime(activityPreview.proposedTiming.endTime)}
-                    {/* ② Hotspot Impact */}
-                          ② Hotspot Impact — {
-                            activityPreview.hasConflicts ? '⛔ Conflict'
-                              : activityPreview.proposedTiming?.willExtendHotspot ? '⚠️ Extends Window'
-                                : '✅ Fits within window'
-                          {' '}→{' '}
-                            <div key={idx}>• {conflict.reason}</div>
-                    {/* ③ Day Cascade */}
-                          ③ Day Cascade — everything after shifts +{activityPreview.cascade.shiftMinutes} min
-                                {seg.type === 'travel' ? '🚌 Travel'
-                                  : seg.type === 'break' ? '⏸ Break'
-                                    : seg.type === 'hotel' ? '🏨 Hotel'
-                                      : seg.type === 'return' ? '🔄 Return'
-                                        : '📍 Place'}
-                        ③ Day Cascade — <span className="font-semibold">No downstream impact.</span> Activity fits within the existing hotspot window.
-      `}
       <AddActivityDialog context={{
         addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity,
         previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime,

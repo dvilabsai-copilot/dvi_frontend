@@ -4835,6 +4835,28 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 243 - Remove unreachable legacy activity preview branch
+
+### Baseline
+- Starting checkpoint: `d72ed3a` on `refactor/itinerary-details-checkpoint` with the hotel list section extracted.
+
+### Changes
+- Removed the unreachable `false &&` legacy activity-preview JSX branch from `ItineraryDetailsController.tsx`.
+- Active activity preview/add/delete behavior remains owned by `AddActivityDialog` and the existing activity hooks; no runtime branch was changed.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Filtered TypeScript check found no errors in the page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,183 physical lines (down from 4,206 at the previous iteration).
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

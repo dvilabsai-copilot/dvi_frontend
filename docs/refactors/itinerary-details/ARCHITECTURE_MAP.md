@@ -256,3 +256,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Daily guide/header/segment composition is isolated in `ItineraryDaysSection.tsx`.
 - Hotel-list loading and vehicle-unavailable page states are isolated in `HotelListLoadingState.tsx` and `VehicleUnavailableState.tsx`.
 - Hotel-list scroll-anchor, pagination, selection, voucher, and refresh callback composition is isolated in `ItineraryHotelListSection.tsx`.
+- The unreachable legacy activity-preview JSX branch was removed after activity-dialog extraction; active activity preview/add/delete behavior remains in `AddActivityDialog` and its controller hooks.
