@@ -259,6 +259,7 @@ import { HotspotPreviewInsertedStatus } from "./itinerary-details/components/Hot
 import { HotspotPriorityConfirmation } from "./itinerary-details/components/HotspotPriorityConfirmation";
 import { HotspotPreviewAttractionMeta } from "./itinerary-details/components/HotspotPreviewAttractionMeta";
 import { HotspotConflictNotice } from "./itinerary-details/components/HotspotConflictNotice";
+import { HotspotConflictTimingDetails } from "./itinerary-details/components/HotspotConflictTimingDetails";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3923,146 +3924,15 @@ const canShowGuideActionButton =
                             {seg?.isConflict && (
                               <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
                                 <HotspotConflictNotice conflictReason={seg?.conflictReason} />
-                                {(() => {
-                                  const parseDurationMinutes = (value: unknown): number | null => {
-                                    const raw = String(value || '').trim();
-                                    if (!raw) return null;
-                                    const h = raw.match(/(\d+)\s*(?:hour|hours|hr|hrs|h)/i);
-                                    const m = raw.match(/(\d+)\s*(?:min|mins|m)/i);
-                                    if (!h && !m) return null;
-                                    const minutes = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
-                                    return Number.isFinite(minutes) && minutes > 0 ? minutes : null;
-                                  };
-                                  const getTimeRangeDurationMinutes = (range: string): number | null => {
-                                    const start = parseDisplayMinutes(range, 'start');
-                                    const end = parseDisplayMinutes(range, 'end');
-                                    if (start == null || end == null) return null;
-                                    let delta = end - start;
-                                    if (delta < 0) delta += 24 * 60;
-                                    return delta > 0 ? delta : null;
-                                  };
-                                  const formatMinutesLabel = (minutes: number): string => {
-                                    const safeMinutes = Math.max(1, Math.round(minutes));
-                                    const hours = Math.floor(safeMinutes / 60);
-                                    const mins = safeMinutes % 60;
-                                    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
-                                    if (hours > 0) return `${hours}h`;
-                                    return `${mins}m`;
-                                  };
-
-                                  const prevSeg = idx > 0 ? effectivePreviewTimeline[idx - 1] : null;
-                                  const nextSeg = idx + 1 < effectivePreviewTimeline.length ? effectivePreviewTimeline[idx + 1] : null;
-                                  const prevSegType = String(prevSeg?.type || '').toLowerCase();
-                                  const nextSegType = String(nextSeg?.type || '').toLowerCase();
-
-                                  let nearestPrevTravel: any = null;
-                                  for (let p = idx - 1; p >= 0; p -= 1) {
-                                    const cand = effectivePreviewTimeline[p];
-                                    if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
-                                      nearestPrevTravel = cand;
-                                      break;
-                                    }
-                                  }
-
-                                  let nearestNextTravel: any = null;
-                                  for (let n = idx + 1; n < effectivePreviewTimeline.length; n += 1) {
-                                    const cand = effectivePreviewTimeline[n];
-                                    if (String(cand?.type || '').toLowerCase() === 'travel' && String(cand?.timeRange || '').trim()) {
-                                      nearestNextTravel = cand;
-                                      break;
-                                    }
-                                  }
-
-                                  const arrivalMinutesFromPrev = (prevSegType === 'travel'
-                                    ? parseDisplayMinutes(String(prevSeg?.timeRange || ''), 'end')
-                                    : null)
-                                    ?? parseDisplayMinutes(String(nearestPrevTravel?.timeRange || ''), 'end');
-                                  const nextTravelStartMinutes = parseDisplayMinutes(
-                                    String(nextSeg?.timeRange || nearestNextTravel?.timeRange || ''),
-                                    'start'
-                                  );
-
-                                  const stayMinutesFromText = parseDurationMinutes(activityDuration);
-                                  const stayMinutesFromMeta = Number(
-                                    seg?.durationMin
-                                    ?? seg?.matrixFit?.insertedStopDurationMin
-                                    ?? seg?.matrixFit?.stopDurationMin
-                                    ?? seg?.matrixFit?.visitDurationMin
-                                    ?? seg?.matrixFit?.attractionDurationMin
-                                    ?? 0
-                                  );
-                                  let stayMinutes = stayMinutesFromText
-                                    ?? (Number.isFinite(stayMinutesFromMeta) && stayMinutesFromMeta > 0
-                                      ? Math.max(1, Math.round(stayMinutesFromMeta))
-                                      : null);
-                                  if (stayMinutes == null && arrivalMinutesFromPrev != null && nextTravelStartMinutes != null && nextTravelStartMinutes > arrivalMinutesFromPrev) {
-                                    stayMinutes = Math.max(1, Math.round(nextTravelStartMinutes - arrivalMinutesFromPrev));
-                                  }
-
-                                  let arrivalMinutes = arrivalMinutesFromPrev;
-                                  if (arrivalMinutes == null && nextTravelStartMinutes != null && stayMinutes != null) {
-                                    arrivalMinutes = nextTravelStartMinutes - stayMinutes;
-                                  }
-
-                                  const stayLabel =
-                                    formatPreviewDuration(activityDuration)
-                                    || (stayMinutes != null ? formatMinutesLabel(stayMinutes) : '');
-                                  const departureMinutes = arrivalMinutes != null && stayMinutes != null
-                                    ? arrivalMinutes + stayMinutes
-                                    : null;
-
-                                  const nextTravelTo = nextSegType === 'travel'
-                                    ? String(nextSeg?.toName || nextSeg?.to || '').trim()
-                                    : String(nearestNextTravel?.toName || nearestNextTravel?.to || '').trim();
-                                  const nextTravelRange = nextSegType === 'travel'
-                                    ? String(nextSeg?.timeRange || '').trim()
-                                    : String(nearestNextTravel?.timeRange || '').trim();
-                                  const nextTravelDurationMinutes = getTimeRangeDurationMinutes(nextTravelRange);
-                                  const hasTravelTimingConflict = (
-                                    departureMinutes != null
-                                    && nextTravelStartMinutes != null
-                                    && departureMinutes > nextTravelStartMinutes
-                                  );
-                                  const effectiveTravelStartMinutes = hasTravelTimingConflict
-                                    ? departureMinutes
-                                    : nextTravelStartMinutes;
-                                  const effectiveTravelEndMinutes = (
-                                    effectiveTravelStartMinutes != null
-                                    && nextTravelDurationMinutes != null
-                                  )
-                                    ? effectiveTravelStartMinutes + nextTravelDurationMinutes
-                                    : null;
-                                  const effectiveTravelRange = (
-                                    effectiveTravelStartMinutes != null
-                                    && effectiveTravelEndMinutes != null
-                                  )
-                                    ? `${formatMinutesToDisplay(effectiveTravelStartMinutes)} - ${formatMinutesToDisplay(effectiveTravelEndMinutes)}`
-                                    : nextTravelRange;
-
-                                  if (arrivalMinutes == null && !stayLabel && !nextTravelTo && !nextTravelRange) {
-                                    return null;
-                                  }
-
-                                  return (
-                                    <div className="mt-1.5 space-y-1 text-[11px] text-red-700">
-                                      <p>
-                                        Proposed arrival after anchor travel:{' '}
-                                        {arrivalMinutes != null ? formatMinutesToDisplay(arrivalMinutes) : 'before the next onward leg'}
-                                      </p>
-                                      <p>
-                                        Planned stay at hotspot: {stayLabel || 'as configured for this hotspot'}
-                                        {departureMinutes != null ? ` (leave around ${formatMinutesToDisplay(departureMinutes)})` : ''}
-                                      </p>
-                                      {(nextTravelTo || nextTravelRange) && (
-                                        <p>
-                                          Then travel to {nextTravelTo || 'hotel'}
-                                          {effectiveTravelRange ? ` (${effectiveTravelRange})` : ''}
-                                          {hasTravelTimingConflict ? ' after reschedule' : ''}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
+                                <HotspotConflictTimingDetails
+                                  segment={seg}
+                                  index={idx}
+                                  timeline={effectivePreviewTimeline}
+                                  activityDuration={activityDuration}
+                                  formatPreviewDuration={formatPreviewDuration}
+                                  parseDisplayMinutes={parseDisplayMinutes}
+                                  formatMinutesToDisplay={formatMinutesToDisplay}
+                                />
                               </div>
                             )}
                           </div>

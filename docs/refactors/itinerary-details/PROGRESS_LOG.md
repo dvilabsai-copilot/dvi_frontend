@@ -4661,6 +4661,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The detailed conflict timing analysis and quotation review shell are still scheduled for extraction.
 
+## Iteration 236 - Conflict timing details component
+
+### Baseline
+- Starting checkpoint: `42fdb58` on `refactor/itinerary-details-checkpoint` with the conflict notice heading extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotConflictTimingDetails.tsx`.
+- Moved conflict timing analysis for arrival, configured/derived stay duration, departure, onward travel, and reschedule ranges out of `ItineraryDetailsController.tsx`.
+- Preserved nearest-travel lookup, overnight time handling, duration fallbacks, conflict reschedule labeling, and injected display formatting callbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,500 physical lines (down from 4,630 at the previous iteration).
+- New component: 128 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation review shell and remaining page workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

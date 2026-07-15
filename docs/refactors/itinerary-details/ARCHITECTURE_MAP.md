@@ -249,3 +249,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Priority-reschedule/P3-removal confirmation presentation is isolated in `HotspotPriorityConfirmation.tsx`.
 - Attraction priority, visit-time, duration, and timing badges are isolated in `HotspotPreviewAttractionMeta.tsx`.
 - Conflict override/timing warning heading presentation is isolated in `HotspotConflictNotice.tsx`.
+- Conflicting hotspot arrival, stay, departure, and onward-travel timing analysis is isolated in `HotspotConflictTimingDetails.tsx`.
