@@ -257,6 +257,7 @@ import { HotspotBestInsertionSlotPanel } from "./itinerary-details/components/Ho
 import { HotspotPreviewRouteSummary } from "./itinerary-details/components/HotspotPreviewRouteSummary";
 import { HotspotPreviewInsertedStatus } from "./itinerary-details/components/HotspotPreviewInsertedStatus";
 import { HotspotPriorityConfirmation } from "./itinerary-details/components/HotspotPriorityConfirmation";
+import { HotspotPreviewAttractionMeta } from "./itinerary-details/components/HotspotPreviewAttractionMeta";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3909,31 +3910,13 @@ const canShowGuideActionButton =
                                 </div>
                               )}
                             {String(seg?.type || '').toLowerCase() === 'attraction' && (
-                              <div className="mt-2 flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                                {priorityLabel !== null && (
-                                  <span className="flex items-center font-bold text-indigo-700 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
-                                    Priority: {priorityLabel}
-                                  </span>
-                                )}
-                                {activityVisitTime && (
-                                  <span className="flex items-center font-bold text-[#d546ab] bg-[#fdf6ff] px-2 py-1 rounded border border-[#f3e8ff]">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    {activityVisitTime}
-                                  </span>
-                                )}
-                                {activityDuration && (
-                                  <span className="flex items-center">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    {formatPreviewDuration(seg?.duration || seg?.hotspot_traveling_time || seg?.hotspot_duration || hotspotMeta?.duration)}
-                                  </span>
-                                )}
-                                {activityTimings && (
-                                  <span className="flex items-center">
-                                    <Timer className="h-3 w-3 mr-1" />
-                                    {activityTimings}
-                                  </span>
-                                )}
-                              </div>
+                              <HotspotPreviewAttractionMeta
+                                priorityLabel={priorityLabel}
+                                activityVisitTime={activityVisitTime}
+                                activityDuration={activityDuration}
+                                activityDurationLabel={formatPreviewDuration(seg?.duration || seg?.hotspot_traveling_time || seg?.hotspot_duration || hotspotMeta?.duration)}
+                                activityTimings={activityTimings}
+                              />
                             )}
 
                             {seg?.isConflict && (
