@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 288 — Extract quotation confirmation workflow
+
+### Baseline
+- Starting point: Iteration 287 with the controller at 1,915 lines.
+- Scope: isolate quotation modal opening, passenger validation, hotel selection preparation, booking guards, completion, and submission orchestration.
+
+### Changes
+- Added `hooks/useItineraryQuotationConfirmationWorkflow.ts`.
+- Preserved wallet callbacks, supplier-provider classification, hotel/prebook payload preparation, confirmation guards, and existing toast/error paths.
+
+### Verification
+- Controller line count: 1,795; new hook: 159 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 287 — Extract hotel selection workflow
 
 ### Baseline

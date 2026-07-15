@@ -206,9 +206,7 @@ import { useActivityPreviewController } from "./itinerary-details/hooks/useActiv
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
-import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
-import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
-import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
+import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
 import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
 import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
@@ -226,8 +224,6 @@ import { useItineraryAddHotspotDialogProps } from "./itinerary-details/hooks/use
 import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
-import { useQuotationConfirmationModalController } from "./itinerary-details/hooks/useQuotationConfirmationModalController";
-import { useQuotationConfirmationSubmission } from "./itinerary-details/hooks/useQuotationConfirmationSubmission";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
@@ -235,7 +231,6 @@ import {
   buildArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
-import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
@@ -1336,132 +1331,18 @@ const getSelectedPreviewActivity = () =>
     handleConfirmQuotation: (options) => handleConfirmQuotation(options),
   });
 
-  const openConfirmQuotationModal = useQuotationConfirmationModalController({
-    itinerary,
-    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
-    guestDetails,
-    confirmDefaultNationality,
-    requiresDetailedPassengerFlow,
-    isVehicleOnlyItinerary,
-    isOpeningConfirmQuotation,
-    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
-    activeHotelGroupType,
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
-    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
-    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
-    setIsOpeningConfirmQuotation,
-    setConfirmQuotationModal,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    setHasAcceptedUpdatedPrice,
-    setConfirmOccupanciesTemplate,
-    setFormErrors,
-    resetConfirmWalletTopUpPanel,
-    setAdditionalAdults,
-    setAdditionalChildren,
-    setAdditionalInfants,
-    setWalletBalance,
-    setWalletBalanceAmount,
-    setAgentInfo,
-    setConfirmDefaultNationality,
-    setGuestDetails,
-    setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
-    setIsPrebooking,
-    refreshConfirmWalletBalance,
-    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
-    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
+  const quotationConfirmationWorkflow = useItineraryQuotationConfirmationWorkflow({
+    routeState, quotationState, hotelSelectionState, hotelWorkflowState, hotelContext: quotationHotelContext,
+    itinerary, hotelDetails, quoteId, requiresHotelBookingFlow, requiresDetailedPassengerFlow,
+    canConfirmQuotation, isVehicleOnlyItinerary, shouldEnableWalletTopUpOnConfirm,
+    tboSessionWindowMs: TBO_SESSION_WINDOW_MS, defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
+    loadConfirmedHotelsFromDb, normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
     isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-    parseStaahSearchReference,
-    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
-  });
-  const validateQuotationPassengers = useQuotationPassengerValidation({
-    guestDetails,
-    additionalAdults,
-    additionalChildren,
-    additionalInfants,
-    requiresDetailedPassengerFlow,
-    expectedAdults: Math.max(Number(itinerary?.adults || 0) - 1, 0),
-    expectedChildren: Math.max(Number(itinerary?.children || 0), 0),
-    expectedInfants: Math.max(Number(itinerary?.infants || 0), 0),
-    setFormErrors,
-  });
-
-  const prepareQuotationHotelSelections = useQuotationHotelSelectionPreparation({
-    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
-    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
-    activeHotelGroupType,
-    requiresHotelBookingFlow,
-    itineraryDays: itinerary?.days || [],
-    defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
-    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
-    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-    parseStaahSearchReference,
-    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
-    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
-    setSelectedHotelBookings: (updater: (previous: Record<number, Record<string, unknown>>) => Record<number, Record<string, unknown>>) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
-  });
-
-  const completeQuotationConfirmation = useQuotationConfirmationCompletion({
-    confirmDefaultNationality,
-    setConfirmQuotationModal,
-    setLoadingHotels,
-    setActiveHotelListTotal,
-    setSelectedVehicleTotalsByType,
-    setSelectedHotelBookings: (bookings) => setSelectedHotelBookings(bookings as unknown as typeof selectedHotelBookings),
-    setActiveHotelGroupType,
-    loadConfirmedHotelsFromDb,
-    setItinerary,
-    setHotelDetails,
-    setGuestDetails,
-    setAdditionalAdults,
-    setAdditionalChildren,
-    setAdditionalInfants,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown>,
-    setHasAcceptedUpdatedPrice,
-    setFormErrors,
-  });
-
-  const validateQuotationBookingGuards = useQuotationBookingGuards({
-    requiresHotelBookingFlow,
-    externalStayCount: externalStayEntries.length,
-    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
-    prebookData,
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<Record<string, unknown> | null>,
-    hasAcceptedUpdatedPrice,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    setHasAcceptedUpdatedPrice,
-  });
-  const handleConfirmQuotation = useQuotationConfirmationSubmission({
-    itinerary,
-    guestDetails,
-    confirmDefaultNationality,
-    additionalAdults,
-    additionalChildren,
-    additionalInfants,
-    confirmOccupanciesTemplate,
-    requiresHotelBookingFlow,
-    canConfirmQuotation,
-    requiresDetailedPassengerFlow,
-    hasAcceptedUpdatedPrice,
-    shouldEnableWalletTopUpOnConfirm,
-    agentInfo,
-    confirmRequiredAmount,
-    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
-    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
-    validateQuotationPassengers,
-    prepareQuotationHotelSelections,
-    validateQuotationBookingGuards: validateQuotationBookingGuards as unknown as (hotelBookings: readonly Record<string, unknown>[]) => Promise<{ clientIp?: string } | null>,
-    completeQuotationConfirmation,
-    refreshConfirmWalletBalance,
-    prepareWalletTopUpPanel,
-    resetConfirmWalletTopUpPanel,
-    setFormErrors,
-    setIsConfirmingQuotation,
-    setLoadingHotels,
-    setIsPrebooking,
-    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+    parseStaahSearchReference, getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
+    walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
   });
+  const { openConfirmQuotationModal, handleConfirmQuotation } = quotationConfirmationWorkflow;
 
   useEffect(() => {
     if (!pendingScrollDayNumber) {
