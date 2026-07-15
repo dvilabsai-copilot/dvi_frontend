@@ -1,5 +1,37 @@
 # Progress log
 
+## Iteration 307 — Guard null itinerary quotation counts
+
+### Baseline
+- Starting point: Iteration 306 with the controller at 1,084 lines.
+- Scope: make the quotation dialog's passenger-count boundary explicitly null-safe.
+
+### Changes
+- Typed the quotation dialog input from the shared itinerary response shape.
+- Preserved zero defaults when the itinerary response is temporarily `null` during loading.
+- Behaviour intentionally changed: No; this removes the null dereference reported by the attached trace.
+
+### Verification
+- Affected-hook ESLint passed; filtered TypeScript found no errors in the affected paths.
+- `git diff --check` passed.
+
+## Iteration 306 — Extract route options workflow
+
+### Baseline
+- Starting point: Iteration 305 with the controller at 1,122 lines.
+- Scope: isolate related-route loading, route-family cache reset, hotel prefetch, and route-option switching.
+
+### Changes
+- Added `hooks/useItineraryRouteOptionsWorkflow.ts`.
+- Preserved route-option normalization, family cache invalidation, prefetch behavior, route-switch loading guards, and vehicle/hotel refresh handoff.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,084; new hook: 88 lines.
+- New hook ESLint passed with the existing route-state dependency warning; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 305 — Extract route support workflow
 
 ### Baseline
