@@ -1,0 +1,2354 @@
+[
+  {
+    "path": "/login",
+    "sourceFile": "src/App.tsx",
+    "component": "Login",
+    "public": true,
+    "roles": [],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/arrival-policy.e2e.spec.ts",
+      "tests/e2e/legacy-fixture/vendor-crysta-pricebook.spec.ts",
+      "tests/e2e/legacy-fixture/vendor-crysta-readd-outstation.spec.ts",
+      "tests/e2e/legacy-fixture/vendor-hycross-pricebook.spec.ts",
+      "tests/e2e/nationality-uae-test.spec.ts",
+      "tests/e2e/smoke/auth-login.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/smoke/auth-login.spec.ts",
+    "rolePageLoadTests": {},
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 1
+  },
+  {
+    "path": "/partner-registration",
+    "sourceFile": "src/App.tsx",
+    "component": "PartnerRegistration",
+    "public": true,
+    "roles": [],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/smoke/public-routes.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/smoke/public-routes.spec.ts",
+    "rolePageLoadTests": {},
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 2
+  },
+  {
+    "path": "/pdf-preview/invoice/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "PdfPreviewPage",
+    "public": true,
+    "roles": [],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 3
+  },
+  {
+    "path": "/daily-moment/driver/:driverAssignmentId",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverDailyMomentRedirect",
+    "public": true,
+    "roles": [],
+    "dynamicParameters": [
+      "driverAssignmentId"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for driverAssignmentId"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 4
+  },
+  {
+    "path": "/daily-moment/public/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "DailyMomentDayView",
+    "public": true,
+    "roles": [],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 5
+  },
+  {
+    "path": "/",
+    "sourceFile": "src/App.tsx",
+    "component": "Dashboard",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "tests/e2e/setup/environment-preflight.mjs"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 6
+  },
+  {
+    "path": "/create-itinerary",
+    "sourceFile": "src/App.tsx",
+    "component": "CreateItinerary",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/nationality-uae-test.spec.ts",
+      "tests/e2e/ui-ux-contract.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 7
+  },
+  {
+    "path": "/download-packages",
+    "sourceFile": "src/App.tsx",
+    "component": "DownloadPackages",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Embeds an external package host and requires an explicit provider mock boundary.",
+    "declarationIndex": 8
+  },
+  {
+    "path": "/latest-itinerary",
+    "sourceFile": "src/App.tsx",
+    "component": "LatestItinerary",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 9
+  },
+  {
+    "path": "/confirmed-itinerary",
+    "sourceFile": "src/App.tsx",
+    "component": "ConfirmedItineraries",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 10
+  },
+  {
+    "path": "/book-activities",
+    "sourceFile": "src/App.tsx",
+    "component": "BookActivitiesPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 11
+  },
+  {
+    "path": "/confirmed-itinerary/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "ItineraryDetailsRouter",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 12
+  },
+  {
+    "path": "/cancelled-itinerary",
+    "sourceFile": "src/App.tsx",
+    "component": "CancelledItineraries",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 13
+  },
+  {
+    "path": "/itinerary-details/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "ItineraryDetailsRouter",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 14
+  },
+  {
+    "path": "/pdf-preview/travel-voucher/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "PdfPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 15
+  },
+  {
+    "path": "/pdf-preview/hotel-voucher/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "PdfPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 16
+  },
+  {
+    "path": "/pdf-preview/pluck-card/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "PdfPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 17
+  },
+  {
+    "path": "/accounts-manager",
+    "sourceFile": "src/App.tsx",
+    "component": "AccountsManager",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 18
+  },
+  {
+    "path": "/accounts-ledger",
+    "sourceFile": "src/App.tsx",
+    "component": "AccountsLedger",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 19
+  },
+  {
+    "path": "/daily-moment-tracker",
+    "sourceFile": "src/App.tsx",
+    "component": "DailyMomentTracker",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 20
+  },
+  {
+    "path": "/daily-moment",
+    "sourceFile": "src/App.tsx",
+    "component": "DailyMomentTracker",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 21
+  },
+  {
+    "path": "/daily-moment/day-view/:planId/:routeId",
+    "sourceFile": "src/App.tsx",
+    "component": "DailyMomentDayView",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "planId",
+      "routeId"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for planId, routeId"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 22
+  },
+  {
+    "path": "/hotels",
+    "sourceFile": "src/App.tsx",
+    "component": "Hotels",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/ui-ux-contract.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 23
+  },
+  {
+    "path": "/hotels/axisrooms",
+    "sourceFile": "src/App.tsx",
+    "component": "AxisroomsHotelsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 24
+  },
+  {
+    "path": "/hotels/new",
+    "sourceFile": "src/App.tsx",
+    "component": "HotelForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 25
+  },
+  {
+    "path": "/hotels/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "HotelForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 26
+  },
+  {
+    "path": "/hotels/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "HotelForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 27
+  },
+  {
+    "path": "/hotels/:id/rooms",
+    "sourceFile": "src/App.tsx",
+    "component": "RoomsRedirect",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "redirect",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 28
+  },
+  {
+    "path": "/hotels/:id/amenities",
+    "sourceFile": "src/App.tsx",
+    "component": "AmenitiesRedirect",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "redirect",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 29
+  },
+  {
+    "path": "/hotels/:id/pricebook",
+    "sourceFile": "src/App.tsx",
+    "component": "PriceBookRedirect",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "redirect",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 30
+  },
+  {
+    "path": "/hotels/:id/reviews",
+    "sourceFile": "src/App.tsx",
+    "component": "ReviewsRedirect",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "redirect",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 31
+  },
+  {
+    "path": "/hotels/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "PreviewRedirect",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "redirect",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 32
+  },
+  {
+    "path": "/vendor",
+    "sourceFile": "src/App.tsx",
+    "component": "VendorsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 33
+  },
+  {
+    "path": "/vendor/new",
+    "sourceFile": "src/App.tsx",
+    "component": "VendorFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/legacy-fixture/vendor-new-flow.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 34
+  },
+  {
+    "path": "/vendor/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "VendorFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 35
+  },
+  {
+    "path": "/vendor/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "VendorFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 36
+  },
+  {
+    "path": "/drivers",
+    "sourceFile": "src/App.tsx",
+    "component": "DriversPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 37
+  },
+  {
+    "path": "/driver",
+    "sourceFile": "src/App.tsx",
+    "component": "DriversPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/driver-new-flow.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 38
+  },
+  {
+    "path": "/drivers/new",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 39
+  },
+  {
+    "path": "/driver/new",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/driver-new-flow.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 40
+  },
+  {
+    "path": "/drivers/create",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 41
+  },
+  {
+    "path": "/driver/create",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 42
+  },
+  {
+    "path": "/drivers/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 43
+  },
+  {
+    "path": "/driver/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 44
+  },
+  {
+    "path": "/drivers/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverViewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [
+      "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/parameterized-routes.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 45
+  },
+  {
+    "path": "/driver/:id",
+    "sourceFile": "src/App.tsx",
+    "component": "DriverViewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 46
+  },
+  {
+    "path": "/vehicle-availability",
+    "sourceFile": "src/App.tsx",
+    "component": "VehicleAvailabilityPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/vehicle-availability-duplicate-registration.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 47
+  },
+  {
+    "path": "/hotspots",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotList",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/ui-ux-contract.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 48
+  },
+  {
+    "path": "/hotspots/new",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 49
+  },
+  {
+    "path": "/hotspots/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 50
+  },
+  {
+    "path": "/hotspots/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotPreview",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 51
+  },
+  {
+    "path": "/hotspot-distance-cache",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotDistanceCacheList",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 52
+  },
+  {
+    "path": "/hotspot-distance-cache/new",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotDistanceCacheForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 53
+  },
+  {
+    "path": "/hotspot-distance-cache/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "HotspotDistanceCacheForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 54
+  },
+  {
+    "path": "/activities",
+    "sourceFile": "src/App.tsx",
+    "component": "ActivityListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/ui-ux-contract.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 55
+  },
+  {
+    "path": "/activities/new",
+    "sourceFile": "src/App.tsx",
+    "component": "ActivityForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 56
+  },
+  {
+    "path": "/activities/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "ActivityForm",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 57
+  },
+  {
+    "path": "/activities/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "ActivityPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 58
+  },
+  {
+    "path": "/wallet",
+    "sourceFile": "src/App.tsx",
+    "component": "WalletHistory",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 59
+  },
+  {
+    "path": "/wallet-history",
+    "sourceFile": "src/App.tsx",
+    "component": "WalletHistory",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/external-sandbox/razorpay-local-sandbox.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 60
+  },
+  {
+    "path": "/staff",
+    "sourceFile": "src/App.tsx",
+    "component": "StaffListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 61
+  },
+  {
+    "path": "/staff/new",
+    "sourceFile": "src/App.tsx",
+    "component": "StaffFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 62
+  },
+  {
+    "path": "/staff/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "StaffFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 63
+  },
+  {
+    "path": "/staff/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "StaffPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 64
+  },
+  {
+    "path": "/agent",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 65
+  },
+  {
+    "path": "/agent/:id/preview/",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 66
+  },
+  {
+    "path": "/agent/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 67
+  },
+  {
+    "path": "/profile",
+    "sourceFile": "src/App.tsx",
+    "component": "Profile",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 68
+  },
+  {
+    "path": "/wallet-history",
+    "sourceFile": "src/App.tsx",
+    "component": "WalletHistory",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/external-sandbox/razorpay-local-sandbox.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 69
+  },
+  {
+    "path": "/subscription-history",
+    "sourceFile": "src/App.tsx",
+    "component": "SubscriptionHistory",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/external-sandbox/razorpay-local-sandbox.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 70
+  },
+  {
+    "path": "/payments/success",
+    "sourceFile": "src/App.tsx",
+    "component": "PaymentSuccess",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 71
+  },
+  {
+    "path": "/guide",
+    "sourceFile": "src/App.tsx",
+    "component": "GuideListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/guide-module-e2e.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 72
+  },
+  {
+    "path": "/guide/new",
+    "sourceFile": "src/App.tsx",
+    "component": "GuideFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 73
+  },
+  {
+    "path": "/guide/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "GuideFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 74
+  },
+  {
+    "path": "/guide/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "GuidePreview",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 75
+  },
+  {
+    "path": "/parking-charge-bulk-import",
+    "sourceFile": "src/App.tsx",
+    "component": "ParkingChargeBulkImport",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 76
+  },
+  {
+    "path": "/locations",
+    "sourceFile": "src/App.tsx",
+    "component": "LocationsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "tests/e2e/ui-ux-contract.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 77
+  },
+  {
+    "path": "/locations/between-hotspots",
+    "sourceFile": "src/App.tsx",
+    "component": "BetweenHotspotsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 78
+  },
+  {
+    "path": "/toll-charge",
+    "sourceFile": "src/App.tsx",
+    "component": "TollChargePage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 79
+  },
+  {
+    "path": "/locations/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "LocationsPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 80
+  },
+  {
+    "path": "/pricebook-export",
+    "sourceFile": "src/App.tsx",
+    "component": "PricebookExportPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 81
+  },
+  {
+    "path": "/settings/global",
+    "sourceFile": "src/App.tsx",
+    "component": "GlobalSettingsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 82
+  },
+  {
+    "path": "/settings/cities",
+    "sourceFile": "src/App.tsx",
+    "component": "CitiesPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 83
+  },
+  {
+    "path": "/settings/hotel-category",
+    "sourceFile": "src/App.tsx",
+    "component": "HotelCategoryPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 84
+  },
+  {
+    "path": "/settings/gst",
+    "sourceFile": "src/App.tsx",
+    "component": "GstSettingsPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 85
+  },
+  {
+    "path": "/settings/amenities",
+    "sourceFile": "src/App.tsx",
+    "component": "InbuiltAmenitiesPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 86
+  },
+  {
+    "path": "/settings/vehicle-type",
+    "sourceFile": "src/App.tsx",
+    "component": "VehicleTypePage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 87
+  },
+  {
+    "path": "/settings/language",
+    "sourceFile": "src/App.tsx",
+    "component": "LanguagePage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 88
+  },
+  {
+    "path": "/settings/role-permission",
+    "sourceFile": "src/App.tsx",
+    "component": "RolePermissionListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 89
+  },
+  {
+    "path": "/role-permission/new",
+    "sourceFile": "src/App.tsx",
+    "component": "RolePermissionFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 90
+  },
+  {
+    "path": "/role-permission/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "RolePermissionFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 91
+  },
+  {
+    "path": "/settings/subscription-plan",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentSubscriptionPlanListPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [
+      "src/layouts/Sidebar.tsx"
+    ],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 92
+  },
+  {
+    "path": "/agent-subscription-plan/new",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentSubscriptionPlanFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+    "rolePageLoadTests": {
+      "super-admin": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts",
+      "agent": "tests/e2e/admin-readonly/core-page-loads.readonly.spec.ts"
+    },
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 93
+  },
+  {
+    "path": "/agent-subscription-plan/:id/edit",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentSubscriptionPlanFormPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 94
+  },
+  {
+    "path": "/agent-subscription-plan/:id/preview",
+    "sourceFile": "src/App.tsx",
+    "component": "AgentSubscriptionPlanPreviewPage",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [
+      "id"
+    ],
+    "navigationSources": [],
+    "fixtureRequirements": [
+      "fixture for id"
+    ],
+    "existingTests": [],
+    "pageLoadTest": null,
+    "rolePageLoadTests": {},
+    "status": "blocked",
+    "blockerReason": "Requires an E2E-owned fixture for route parameters before direct page-load coverage can be enabled.",
+    "declarationIndex": 95
+  },
+  {
+    "path": "*",
+    "sourceFile": "src/App.tsx",
+    "component": "NotFound",
+    "public": false,
+    "roles": [
+      "super-admin",
+      "agent"
+    ],
+    "dynamicParameters": [],
+    "navigationSources": [],
+    "fixtureRequirements": [],
+    "existingTests": [
+      "tests/e2e/fixtures/network-monitor.ts",
+      "tests/e2e/hotel-day-continuity.spec.ts"
+    ],
+    "pageLoadTest": "tests/e2e/smoke/public-routes.spec.ts",
+    "rolePageLoadTests": {},
+    "status": "covered",
+    "blockerReason": null,
+    "declarationIndex": 96
+  }
+]
