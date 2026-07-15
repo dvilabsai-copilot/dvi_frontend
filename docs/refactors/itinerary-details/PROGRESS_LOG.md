@@ -4636,6 +4636,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining conflict explanation and quotation review shell are still scheduled for extraction.
 
+## Iteration 235 - Conflict notice component
+
+### Baseline
+- Starting checkpoint: `57fe284` on `refactor/itinerary-details-checkpoint` with attraction metadata extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotConflictNotice.tsx`.
+- Moved conflict override wording and the compact warning heading out of `ItineraryDetailsController.tsx` while leaving the detailed timing analysis boundary unchanged.
+- Preserved forced-manual-insertion messaging and raw conflict-reason fallback.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,630 physical lines (down from 4,633 at the previous iteration).
+- New component: 12 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The detailed conflict timing analysis and quotation review shell are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

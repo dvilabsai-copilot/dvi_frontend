@@ -258,6 +258,7 @@ import { HotspotPreviewRouteSummary } from "./itinerary-details/components/Hotsp
 import { HotspotPreviewInsertedStatus } from "./itinerary-details/components/HotspotPreviewInsertedStatus";
 import { HotspotPriorityConfirmation } from "./itinerary-details/components/HotspotPriorityConfirmation";
 import { HotspotPreviewAttractionMeta } from "./itinerary-details/components/HotspotPreviewAttractionMeta";
+import { HotspotConflictNotice } from "./itinerary-details/components/HotspotConflictNotice";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3921,11 +3922,7 @@ const canShowGuideActionButton =
 
                             {seg?.isConflict && (
                               <div className="mt-2 p-2 bg-white/50 rounded border border-red-100">
-                                <p className="text-xs text-red-600 font-medium leading-tight">
-                                  {/forced manual insertion after user confirmation/i.test(String(seg?.conflictReason || ''))
-                                    ? 'Manual override confirmed. This stop will be included; exact timing may shift.'
-                                    : seg?.conflictReason}
-                                </p>
+                                <HotspotConflictNotice conflictReason={seg?.conflictReason} />
                                 {(() => {
                                   const parseDurationMinutes = (value: unknown): number | null => {
                                     const raw = String(value || '').trim();
