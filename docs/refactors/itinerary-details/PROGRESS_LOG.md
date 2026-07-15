@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 287 — Extract hotel selection workflow
+
+### Baseline
+- Starting point: Iteration 286 with the controller at 1,952 lines.
+- Scope: isolate arrival-policy resolution, hotel selection, and supplier-search selection handlers.
+
+### Changes
+- Added `hooks/useItineraryHotelSelectionWorkflow.ts`.
+- Preserved hotel modal state, passenger-age setup, supplier booking normalization, quotation refresh, and all existing error/toast behavior.
+
+### Verification
+- Controller line count: 1,915; new hook: 80 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 286 — Extract hotspot mutation workflow
 
 ### Baseline

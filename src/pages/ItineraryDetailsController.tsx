@@ -223,7 +223,7 @@ import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useIt
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useHotspotApplyPresentation } from "./itinerary-details/hooks/useHotspotApplyPresentation";
 import { useItineraryAddHotspotDialogProps } from "./itinerary-details/hooks/useItineraryAddHotspotDialogProps";
-import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
+import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
 import { useQuotationConfirmationModalController } from "./itinerary-details/hooks/useQuotationConfirmationModalController";
@@ -255,9 +255,7 @@ import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-de
 import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
-import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
-import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHotelSearchSelectionMutation";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
@@ -1290,63 +1288,28 @@ const getSelectedPreviewActivity = () =>
     setGalleryActiveIdx,
     setVideoModal,
   });
-  const {
-    applyArrivalPolicyDecision,
-    resolveArrivalPolicyForArrivalTimeChange,
-    handleArrivalDateTimeChange,
-    openHotelSelectionModal,
-  } = useHotelArrivalPolicyController({
-    itinerary,
-    guestDetails,
-    latestArrivalPolicy,
-    lastArrivalPolicyDecisionKey,
-    setGuestDetails,
-    setHotelSearchChildAges,
-    setHotelSelectionModal,
-    setIsResolvingArrivalPolicy,
-    setLatestArrivalPolicy,
-    setArrivalPolicyConfirmModal,
+  const hotelSelectionWorkflow = useItineraryHotelSelectionWorkflow({
+    hotelWorkflowState,
+    hotelSelectionState,
+    quotationState,
+    routeState,
+    prebookDataRef,
+    quoteId,
+    readOnly,
+    shouldShowHotels,
     ensureHotelDetailsLoaded,
     parseDisplayTimeToHms,
     isEarlyMorningTime,
     normalizeDateToYmd,
     buildArrivalPolicyDecisionKey,
-  });
-  const handleSelectHotel = useHotelSelectionMutation({
-    readOnly,
-    quoteId: quoteId || null,
-    shouldShowHotels,
-    selectedMealPlan,
-    hotelSelectionModal,
-    setIsSelectingHotel,
-    setHotelSelectionModal,
-    setHotelSearchQuery,
-    setSelectedMealPlan,
-    setItinerary,
-    setHotelDetails,
-    getSafeErrorMessage,
-  });
-
-  const handleSelectHotelFromSearch = useHotelSearchSelectionMutation({
-    readOnly,
-    quoteId: quoteId || null,
-    shouldShowHotels,
-    selectedMealPlan,
-    hotelSelectionModal,
-    prebookDataRef,
     parseStaahSearchReference,
     isSupplierBookableHotel,
     getSafeErrorMessage,
-    setIsSelectingHotel,
-    setSelectedHotelBookings,
-    setPrebookData,
-    setHasAcceptedUpdatedPrice,
-    setHotelSelectionModal,
-    setHotelSearchQuery,
-    setSelectedMealPlan,
-    setItinerary,
-    setHotelDetails,
   });
+  const {
+    applyArrivalPolicyDecision, resolveArrivalPolicyForArrivalTimeChange, handleArrivalDateTimeChange,
+    openHotelSelectionModal, handleSelectHotel, handleSelectHotelFromSearch,
+  } = hotelSelectionWorkflow;
 
   const {
     handleWalletTopUpAndContinue,
