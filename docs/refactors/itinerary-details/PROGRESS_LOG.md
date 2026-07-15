@@ -5007,6 +5007,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 250 - Preview validation notice
+
+### Baseline
+- Starting checkpoint: `9a42a7e` on `refactor/itinerary-details-checkpoint` with preview timeline rows extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewValidationNotice.tsx`.
+- Moved preview-fit failures, removed-hotspot diagnostics, unscheduled-hotspot explanations, matrix rebuild action, and attempted-anchor messaging out of `ItineraryDetailsController.tsx`.
+- Preserved priority-confirmation gating, route-fit messaging, retry disabling, selected-anchor labels, and matrix rebuild callback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed serially (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 3,375 physical lines (down from 3,501 at the previous iteration).
+- New component: 172 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

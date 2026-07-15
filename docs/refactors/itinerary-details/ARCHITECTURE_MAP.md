@@ -263,3 +263,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Selected preview strategy, insertion-slot decision, optimizer diagnostics, anchor-fit insight, and matrix retry/no-feasible notices are isolated in `HotspotPreviewStrategyPanel.tsx`.
 - Candidate insertion-slot cards, route-fit metrics, distance comparisons, and decision-reason labels are isolated in `HotspotInsertionSlotsPanel.tsx`.
 - Effective preview segment rows, timing overrides, travel metrics, attraction/conflict details, insertion-slot evidence, and priority confirmation presentation are isolated in `HotspotPreviewTimelineRows.tsx`.
+- Preview-fit failures, removed/unscheduled hotspot diagnostics, attempted-anchor messaging, and matrix rebuild action are isolated in `HotspotPreviewValidationNotice.tsx`.
