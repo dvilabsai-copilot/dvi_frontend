@@ -52,7 +52,6 @@ import type {
   ItineraryDetailsProps,
   ItineraryGuideAssignment,
   ItineraryHotelDetailsResponse,
-  ItineraryHotelRow,
   ItineraryHotelTab,
   ItineraryPlanRouteOption,
   ItinerarySegment,
@@ -238,6 +237,7 @@ import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecomme
 import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
+import { dedupeItineraryHotelRows } from "./itinerary-details/utils/hotelRows.utils";
 import { ItineraryDetailsPageView } from "./itinerary-details/components/ItineraryDetailsPageView";
 import { useItineraryActivityGuideWorkflow } from "./itinerary-details/hooks/useItineraryActivityGuideWorkflow";
 
@@ -529,29 +529,6 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     setHotelPageByGroupRoute,
   });
 
-  const dedupeHotelRows = useCallback((rows: ItineraryHotelRow[]): ItineraryHotelRow[] => {
-    const seen = new Set<string>();
-    const unique: ItineraryHotelRow[] = [];
-
-    rows.forEach((row) => {
-      const key = [
-        Number(row.groupType || 0),
-        Number(row.itineraryRouteId || 0),
-        String(row.date || row.checkInDate || ''),
-        String(row.hotelCode || ''),
-        String(row.bookingCode || ''),
-        String(row.roomType || ''),
-        String(row.hotelName || ''),
-      ].join('|');
-
-      if (seen.has(key)) return;
-      seen.add(key);
-      unique.push(row);
-    });
-
-    return unique;
-  }, []);
-
   const {
     fetchCompleteHotelDetails,
     loadConfirmedHotelsFromDb,
@@ -559,7 +536,7 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   } = useHotelDetailsLoader({
     itineraryDaysCountRef,
     fetchCompleteHotelDetailsRef,
-    dedupeHotelRows,
+    dedupeHotelRows: dedupeItineraryHotelRows,
   });
 
   const costViewModel = useItineraryCostViewModel({

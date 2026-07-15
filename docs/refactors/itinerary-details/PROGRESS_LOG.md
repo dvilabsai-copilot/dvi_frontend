@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 297 — Extract hotel-row deduplication utility
+
+### Baseline
+- Starting point: Iteration 296 with the controller at 1,388 lines.
+- Scope: isolate stable hotel-row identity and duplicate filtering used by hotel detail hydration.
+
+### Changes
+- Added `utils/hotelRows.utils.ts` with `dedupeItineraryHotelRows`.
+- Preserved route/stay identity fields, first-row precedence, and hotel-loader callback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,360; utility: 24 lines.
+- Utility ESLint passed; filtered TypeScript found no errors in the affected utility/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 296 — Extract itinerary scroll effects
 
 ### Baseline
