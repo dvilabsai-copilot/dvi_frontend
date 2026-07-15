@@ -1,22 +1,5 @@
 # Regression log
 
-## 2026-07-15 — Iteration 252 verification repair
-
-### Failure
-The exact-source browser run initially exposed a React hook-order error while loading and then a cost-view crash when an intermediate itinerary payload omitted `costBreakdown`.
-
-### Classification
-- pre-existing defect surfaced during refactor verification
-
-### Root cause
-Loader/error returns preceded four later callbacks, so a loaded rerender changed the hook sequence. Separately, `ItineraryOverallCost` accessed optional cost-breakdown fields before the hydrated payload supplied that object.
-
-### Resolution
-Converted the four post-loader callbacks to render-local functions so early returns no longer skip hooks, and added a null-safe `costBreakdown` fallback without changing displayed labels or calculations.
-
-### Verification
-The exact refactor worktree was served on port 8082 with the local API base configured; both focused Playwright tests passed 2/2. Component lint, filtered TypeScript, and `git diff --check` passed.
-
 ## 2026-07-14 — Baseline before extraction
 
 ### Failure
