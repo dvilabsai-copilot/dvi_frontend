@@ -29,14 +29,9 @@ import {
 import { toast } from "sonner";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
-  useExternalStayEntries,
 } from "./itinerary-details/hooks/useExternalStayEntries";
-import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
-import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
-import { useTboHotelSelectionSummary } from "./itinerary-details/hooks/useTboHotelSelectionSummary";
-import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
   Activity,
@@ -80,17 +75,7 @@ import {
   isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
 } from "./itinerary-details/utils/guideAssignment.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
-import {
-  buildFitHereAnchorKey as buildFitHereAnchorKeyUtil,
-  serializeFitHereAnchor as serializeFitHereAnchorUtil,
-} from "./itinerary-details/utils/fitHereAnchor.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
-import {
-  getAutoPreviewHighestRemovedPriority as getAutoPreviewHighestRemovedPriorityUtil,
-  getAutoPreviewRemovedRows as getAutoPreviewRemovedRowsUtil,
-  scoreAutoPreviewAttempt as scoreAutoPreviewAttemptUtil,
-} from "./itinerary-details/utils/autoPreviewScoring.utils";
-import { buildAutoPreviewAnchorProgressText as buildAutoPreviewAnchorProgressTextUtil } from "./itinerary-details/utils/autoPreviewProgress.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
 import { isMatrixApplyBlocked as isMatrixApplyBlockedUtil } from "./itinerary-details/utils/matrixApplyBlocked.utils";
 import { normalizeInsertionSlots } from "./itinerary-details/utils/normalizedInsertionSlots.utils";
@@ -200,21 +185,16 @@ import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
 import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
-import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
-import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
 import { useRouteHotelDetailsCache } from "./itinerary-details/hooks/useRouteHotelDetailsCache";
-import { getFitHereTriedState } from "./itinerary-details/utils/fitHereAttemptStatus.utils";
 import {
   buildCurrentRouteAttractionHotspotIds,
   buildCurrentRouteManualHotspotIds,
   buildCurrentRouteManualHotspotMetaById,
 } from "./itinerary-details/utils/routeHotspotIds.utils";
-import { useFitHereHotspotSelection } from "./itinerary-details/hooks/useFitHereHotspotSelection";
 import { useItineraryRouteState } from "./itinerary-details/hooks/useItineraryRouteState";
-import { useQuotationState } from "./itinerary-details/hooks/useQuotationState";
-import { useQuotationConfirmationViewModel } from "./itinerary-details/hooks/useQuotationConfirmationViewModel";
+import { useItineraryQuotationState } from "./itinerary-details/hooks/useItineraryQuotationState";
 import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelectionState";
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
@@ -225,14 +205,9 @@ import { useActivityPreviewController } from "./itinerary-details/hooks/useActiv
 import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
 import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
-import { useQuotationPassengerValidation } from "./itinerary-details/hooks/useQuotationPassengerValidation";
-import { useQuotationConfirmationCompletion } from "./itinerary-details/hooks/useQuotationConfirmationCompletion";
-import { useQuotationBookingGuards } from "./itinerary-details/hooks/useQuotationBookingGuards";
-import { useVehicleBuildController } from "./itinerary-details/hooks/useVehicleBuildController";
-import { usePreparedItineraryPageLoader } from "./itinerary-details/hooks/usePreparedItineraryPageLoader";
-import { useRouteRebuildMutation } from "./itinerary-details/hooks/useRouteRebuildMutation";
-import { useRouteTimePatchMutation } from "./itinerary-details/hooks/useRouteTimePatchMutation";
-import { useArrivalPolicyRouteTimeController } from "./itinerary-details/hooks/useArrivalPolicyRouteTimeController";
+import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
+import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
+import { useItineraryRouteMutationWorkflow } from "./itinerary-details/hooks/useItineraryRouteMutationWorkflow";
 import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArrivalPolicyDecisionDialog";
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
@@ -242,30 +217,19 @@ import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useIt
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useHotspotApplyPresentation } from "./itinerary-details/hooks/useHotspotApplyPresentation";
 import { useItineraryAddHotspotDialogProps } from "./itinerary-details/hooks/useItineraryAddHotspotDialogProps";
-import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
+import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
-import { useQuotationConfirmationModalController } from "./itinerary-details/hooks/useQuotationConfirmationModalController";
-import { useQuotationConfirmationSubmission } from "./itinerary-details/hooks/useQuotationConfirmationSubmission";
 import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
 import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
-import { mergeHotelSelections } from "./itinerary-details/hooks/useHotelSelectionsChangeMutation";
+import { useItineraryHotelDataWorkflow } from "./itinerary-details/hooks/useItineraryHotelDataWorkflow";
 import {
   buildArrivalPolicyDecisionKey,
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
-import { useQuotationHotelSelectionPreparation } from "./itinerary-details/hooks/useQuotationHotelSelectionPreparation";
-import { useHotspotAddMutation } from "./itinerary-details/hooks/useHotspotAddMutation";
+import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
-import { useHotspotMatrixPreviewController } from "./itinerary-details/hooks/useHotspotMatrixPreviewController";
-import { useHotspotPreviewMutation } from "./itinerary-details/hooks/useHotspotPreviewMutation";
-import { useHotspotPriorityReplacementController } from "./itinerary-details/hooks/useHotspotPriorityReplacementController";
-import { useFitHerePreviewController } from "./itinerary-details/hooks/useFitHerePreviewController";
-import { useFitHereDialogController } from "./itinerary-details/hooks/useFitHereDialogController";
-import { useFitHereConfirmationReset } from "./itinerary-details/hooks/useFitHereConfirmationReset";
-import { useFitHereConfirmationState } from "./itinerary-details/hooks/useFitHereConfirmationState";
-import { useFitHereConfirmationRefresh } from "./itinerary-details/hooks/useFitHereConfirmationRefresh";
-import { useHotspotDeleteMutation } from "./itinerary-details/hooks/useHotspotDeleteMutation";
+import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
 import { useGuideState } from "./itinerary-details/hooks/useGuideState";
 import { useItineraryDeletionState } from "./itinerary-details/hooks/useItineraryDeletionState";
@@ -276,14 +240,9 @@ import { useHotelPaginationController } from "./itinerary-details/hooks/useHotel
 import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
-import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
-import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
-import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
-import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
+import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
-import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
-import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHotelSearchSelectionMutation";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
@@ -343,13 +302,14 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
   fetchCompleteHotelDetailsRef,
 });
 
+  const deletionState = useItineraryDeletionState();
   const {
     deleteHotspotModal, setDeleteHotspotModal, isDeleting, setIsDeleting,
     routeNeedsRebuild, setRouteNeedsRebuild, isRebuilding, setIsRebuilding,
     excludedHotspotIds, setExcludedHotspotIds,
     allHotspotsPreviewModal, setAllHotspotsPreviewModal,
     deleteActivityModal, setDeleteActivityModal, isDeletingActivity, setIsDeletingActivity,
-  } = useItineraryDeletionState();
+  } = deletionState;
 
   const activityState = useActivityState();
   const {
@@ -778,7 +738,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     copyHtmlToClipboard,
   });
 
-  const quotationState = useQuotationState();
+  const quotationState = useItineraryQuotationState({ itinerary, financialTotals });
   const {
     confirmQuotationModal, setConfirmQuotationModal, voucherModal, setVoucherModal, pluckCardModal, setPluckCardModal,
     invoiceModal, setInvoiceModal, invoiceType, setInvoiceType, incidentalModal, setIncidentalModal,
@@ -790,23 +750,9 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
     additionalInfants, setAdditionalInfants, formErrors, setFormErrors, prebookData, setPrebookData, isPrebooking, setIsPrebooking,
     isOpeningConfirmQuotation, setIsOpeningConfirmQuotation, hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice,
     confirmOccupanciesTemplate, setConfirmOccupanciesTemplate,
+    confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix,
+    confirmOccupancyPreview, defaultPassenger, getPassengerFieldError,
   } = quotationState;
-  const {
-    confirmRequiredAmount,
-    isWalletInsufficientForConfirm,
-    confirmRoomCount,
-    confirmPassengerMix,
-    confirmOccupancyPreview,
-    defaultPassenger,
-    getPassengerFieldError,
-  } = useQuotationConfirmationViewModel({
-    itinerary,
-    financialTotals,
-    walletBalanceAmount,
-    confirmOccupanciesTemplate,
-    formErrors,
-    guestNationality: guestDetails.nationality,
-  });
   const currentItineraryPlanId = Number(itinerary?.planId || 0);
 
   const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
@@ -825,223 +771,67 @@ const latestRouteRequestRef = useRef(0);
 
 // Prevent route-tab navigation from causing a duplicate details fetch.
 const switchedRouteRef = useRef<string | null>(null);
-  const prebookDataRef = useRef<any | null>(null);
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
-
-  const {
-    prebookTotalAmount,
-    selectedTboHotelTotal,
-    hasSelectedTboHotels,
-    requiresDetailedPassengerFlow,
-    hasPrebookPriceChanged,
-    prebookHotelEntries,
-  } = useTboHotelSelectionSummary({
+  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
+  const quotationHotelContext = useItineraryQuotationHotelContext({
     selectedHotelBookings,
+    hotelDetails,
+    activeHotelGroupType,
     prebookData,
     requiresHotelBookingFlow,
-  });
-  const { getCoveredRouteIdsFromHotelSelections, selectedHotelCoveredRouteIds } = useHotelSelectionCoverage({
-    selectedHotelBookings,
-  });
-
-  // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({
-    selectedHotelBookings,
-    selectedHotelCoveredRouteIds,
-    hotelDetails,
-  });
-
-  const externalStayEntries = useExternalStayEntries({
-    hotelDetails,
-    activeHotelGroupType,
-  });
-
-  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-
-  useEffect(() => {
-    prebookDataRef.current = prebookData;
-  }, [prebookData]);
-
-  useEffect(() => {
-    if (!shouldShowHotels) {
-      setHotelDetails(null);
-      setSelectedHotelBookings({});
-      setActiveHotelGroupType(null);
-      setPrebookData(null);
-      prebookDataRef.current = null;
-      setHasAcceptedUpdatedPrice(false);
-      setConfirmOccupanciesTemplate(null);
-    }
-  }, [shouldShowHotels, itinerary?.planId]);
-
-  // Cancellation modal state
-  const [cancelModalOpen, setCancelModalOpen] = useState(false);
-
-  // Hotel voucher modal state
-  const [hotelVoucherModalOpen, setHotelVoucherModalOpen] = useState(false);
-  const [selectedHotelForVoucher, setSelectedHotelForVoucher] = useState<HotelVoucherItem | null>(null);
-
-  const {
-    handleHotelGroupTypeChange,
-    handleRebuildHotels,
-    refreshHotelData,
-    refreshVehicleData,
-  } = useHotelDataController({
-    quoteId: quoteId || null,
-    activeHotelGroupType,
-    isRebuildingHotels,
-    setActiveHotelGroupType,
-    setActiveHotelListTotal,
+    shouldShowHotels,
+    itineraryPlanId: itinerary?.planId,
     setHotelDetails,
-    setIsRebuildingHotels,
-    setItinerary,
-    setLoadingHotels,
+    setSelectedHotelBookings,
+    setActiveHotelGroupType,
+    setPrebookData,
+    setHasAcceptedUpdatedPrice,
+    setConfirmOccupanciesTemplate,
+  });
+  const {
+    prebookTotalAmount, selectedTboHotelTotal, hasSelectedTboHotels, requiresDetailedPassengerFlow,
+    hasPrebookPriceChanged, prebookHotelEntries, getCoveredRouteIdsFromHotelSelections,
+    selectedHotelCoveredRouteIds, nonTboSelectedHotelEntries, externalStayEntries, prebookDataRef,
+  } = quotationHotelContext;
+
+  const hotelDataWorkflow = useItineraryHotelDataWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotelSelectionState,
+    quoteId,
+    itineraryPlanId: Number(itinerary?.planId || 0),
+    hotelDetails,
     cacheRouteHotelDetails,
     fetchCompleteHotelDetails,
     loadHotelDetailsForItinerary,
-  });
-
-  const {
-    handleCancelVoucherItems,
-    handleCancelVoucherSingle,
-    handleCreateVoucher,
-    handleGetSaveFunction,
-  } = useHotelVoucherController({
-    itineraryPlanId: Number(itinerary?.planId || 0),
     hotelSaveFunctionRef,
-    refreshHotelData,
-    setHotelVoucherModalOpen,
-    setSelectedHotelForVoucher,
   });
+  const {
+    handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData,
+    handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
+    cancelModalOpen, setCancelModalOpen, hotelVoucherModalOpen, setHotelVoucherModalOpen,
+    selectedHotelForVoucher, handleHotelSelectionsChange,
+  } = hotelDataWorkflow;
 
-  const handleHotelSelectionsChange = useCallback((selections: Record<number, {
-    provider: string;
-    hotelCode: string;
-    bookingCode: string;
-    roomType: string;
-    netAmount: number;
-    hotelName: string;
-    checkInDate: string;
-    checkOutDate: string;
-    groupType: number;
-    mealPlan?: string;
-    searchReference?: string;
-    roomId?: string;
-    rateId?: string;
-    multiNightBooking?: boolean;
-    stayKey?: string;
-    routeIds?: number[];
-    nights?: number;
-    nightlyRates?: Array<{
-      date: string;
-      amountAfterTax: number;
-      baseAmount?: number;
-      extraAdultCount?: number;
-      extraChildCount?: number;
-      extraAdultRate?: number;
-      extraChildRate?: number;
-    }>;
-    totalAmountAfterTax?: number;
-  } | null>) => {
-    setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
-    console.log('🏨 Hotel selections updated from HotelList:', selections);
-  }, []);
-
-  const { handleVehicleSelectedTotalChange } = useVehicleSelectionTotalsController({
-    setSelectedVehicleTotalsByType,
-  });
-
-  const shouldShowRebuildHotelsButton = useMemo(() => {
-    if (!hotelDetails?.hotels?.length) return false;
-    if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
-    return hotelDetails.hotels.every((h) => !isSupplierBookableHotel(h));
-  }, [hotelDetails]);
-
-  const hasUsableVehicleRows = hasUsableVehicleRowsUtil;
-
-  const prepareVehicleBuild = useVehicleBuildController({
-    pushPageLoaderStage,
-    hasUsableVehicleRows,
-    setVehicleBuildStatus,
-    setVehicleBuildError,
-  });
-
-  const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
+  const preparedPageWorkflow = useItineraryPreparedPageWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotelSelectionState,
+    hotelDetails,
+    quoteId,
+    pathname: location.pathname,
     isMountedRef,
     latestRouteRequestRef,
     currentFetchRef,
-    setLoading,
-    setLoadingHotels,
-    setPageReady,
-    setError,
-    setPageLoaderHistory,
+    switchedRouteRef,
+    autoLoadStartedQuotes,
     pushPageLoaderStage,
     getDetailsDeduped,
     loadHotelDetailsForItinerary,
     cacheRouteHotelDetails,
-    setItinerary,
-    setHotelDetails,
-    setActiveHotelListTotal,
-    setVehicleBuildStatus,
-    setVehicleBuildError,
-    prepareVehicleBuild,
+    isSupplierBookableHotel,
   });
-
-  useEffect(() => {
-    if (!quoteId) {
-      setError("Missing quote id in URL");
-      setLoading(false);
-      return;
-    }
-
-    // Prevent wrong API call when this component is opened on confirmed route
-    if (location.pathname.startsWith("/confirmed-itinerary/")) {
-      console.warn(
-        "⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.",
-        { quoteId, pathname: location.pathname }
-      );
-      setLoading(false);
-      return;
-    }
-
-    // If we're already fetching this quoteId, skip duplicate fetch
-    // If we're already fetching this quoteId, skip duplicate fetch
-if (currentFetchRef.current === quoteId) {
-  console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
-  return;
-}
-
-// If route tab click already started loading this quoteId, skip the re-fetch caused by URL change.
-if (switchedRouteRef.current === quoteId) {
-  console.log("⚡ [ItineraryDetails] Route already loading from tab switch, skipping duplicate re-fetch:", quoteId);
-  // The URL changed, so the previous effect cleanup may have marked this ref false.
-  // Keep it true because the route-tab handler is still loading this same page.
-  isMountedRef.current = true;
-  switchedRouteRef.current = null;
-  return;
-}
-
-// React StrictMode can mount/effect twice in dev; keep the initial staged load single-shot.
-    if (autoLoadStartedQuotes.has(quoteId)) {
-      return;
-    }
-    autoLoadStartedQuotes.add(quoteId);
-
-    // Mark that we're fetching this quoteId
-    currentFetchRef.current = quoteId;
-    isMountedRef.current = true;
-
-    void loadPreparedItineraryPage(quoteId);
-
-    // Cleanup: Mark component as unmounted
-    return () => {
-      isMountedRef.current = false;
-      currentFetchRef.current = null;
-      if (quoteId) {
-        autoLoadStartedQuotes.delete(quoteId);
-      }
-    };
-  }, [quoteId, location.pathname, loadPreparedItineraryPage]);
+  const { handleVehicleSelectedTotalChange, shouldShowRebuildHotelsButton, loadPreparedItineraryPage } = preparedPageWorkflow;
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -1055,78 +845,32 @@ if (switchedRouteRef.current === quoteId) {
     setLoadingHotels,
     loadHotelDetailsForItinerary,
   });
-  const handleDeleteHotspot = useHotspotDeleteMutation({
-    deleteHotspotModal,
+  const routeMutationWorkflow = useItineraryRouteMutationWorkflow({
+    routeState,
+    hotelWorkflowState,
+    hotspotState,
+    deletionState,
     itinerary,
-    quoteId: quoteId || null,
+    hotelDetails,
+    quoteId,
     shouldShowHotels,
+    requiresHotelBookingFlow,
     addHotspotModalOpen: addHotspotModal.open,
     selectedHotspotAnchor,
     normalizeAvailableHotspots,
-    setIsDeleting,
-    setAddedInModalHotspotIds,
-    setExcludedHotspotIds,
-    setItinerary,
-    setAvailableHotspots,
-    setDeleteHotspotModal,
-    setRouteNeedsRebuild,
-    setHotelDetails,
-    setHotspotFilterMeta,
-  });
-
-  const handleRebuildRoute = useRouteRebuildMutation({
-    quoteId: quoteId || null,
-    itinerary,
-    shouldShowHotels,
-    setItinerary,
-    setHotelDetails,
-    setIsRebuilding,
-    setRouteProgressTitle,
-    setRouteProgressHistory,
-    setRouteTimeEstimatedMs,
-    setRouteNeedsRebuild,
     getRouteTimeUpdateEstimateMs,
     startRouteTimeProgress,
     stopRouteTimeProgress,
     pushRouteProgressStage,
   });
-
-  const dayHasManualInserts = (day): boolean => {
-    const segments = Array.isArray(day?.segments) ? day.segments : [];
-    return segments.some((seg) => (
-      String(seg?.type || '').toLowerCase() === 'attraction'
-      && (seg?.planOwnWay === true || seg?.isManual === true)
-    ));
-  };
-
-  const applyRouteTimePatch = useRouteTimePatchMutation({
-    quoteId: quoteId || null,
-    hotelDetails,
-    setIsApplyingRouteTimeUpdate,
-    getRouteTimeUpdateEstimateMs,
-    setRouteTimeEstimatedMs,
-    setRouteProgressTitle,
-    setRouteProgressHistory,
-    startRouteTimeProgress,
-    stopRouteTimeProgress,
-    pushRouteProgressStage,
-    setItinerary,
-    setHotelDetails,
-    setRouteTimeProgressPercent,
-    setPendingScrollDayNumber,
-  });
-
   const {
-    handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
-    persistArrivalPolicyDecision: persistArrivalPolicyDecision,
-  } = useArrivalPolicyRouteTimeController({
-    itinerary,
-    requiresHotelBookingFlow,
+    handleDeleteHotspot,
+    handleRebuildRoute,
+    dayHasManualInserts,
     applyRouteTimePatch,
-    setIsResolvingArrivalPolicy,
-    setPendingRouteTimeUpdate,
-    setArrivalPolicyConfirmModal,
-  });
+    handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
+    persistArrivalPolicyDecision,
+  } = routeMutationWorkflow;
 
   const openDeleteHotspotModal = (
     planId: number,
@@ -1303,251 +1047,80 @@ const getSelectedPreviewActivity = () =>
     setSelectedHotspotIds,
   });
 
-  const buildFitHereAnchorKey = buildFitHereAnchorKeyUtil;
-
-  const serializeFitHereAnchor = useCallback(serializeFitHereAnchorUtil, []);
-
-  const buildAutoFitHereAnchorsForDay = useAutoFitHereAnchors({
-    buildFitHereAnchorForTimelineRow,
-  });
-
-  const getAutoPreviewRemovedRows = getAutoPreviewRemovedRowsUtil;
-  const getAutoPreviewHighestRemovedPriority = getAutoPreviewHighestRemovedPriorityUtil;
-  const scoreAutoPreviewAttempt = scoreAutoPreviewAttemptUtil;
-
-  const buildAutoPreviewAnchorProgressText = useCallback(buildAutoPreviewAnchorProgressTextUtil, []);
-
-  const handleSelectFitHotspot = useFitHereHotspotSelection({
-    previewRequestIdRef,
-    stopFitHereProgressTimer,
-    setSelectedFitHotspot,
-    setTriedFitHereAnchors,
-    setFitHereModal,
-    setAutoFitHereModal,
-    resetManualHotspotPreviewState,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-  });
-
-  const handleFitHereClick = useFitHerePreviewController({
+  const fitHereWorkflow = useItineraryFitHereWorkflow({
+    hotspotState,
+    deletionState,
+    routeState,
+    itinerary,
+    quoteId,
     selectedFitHotspot,
-    itineraryPlanId: itinerary?.planId || null,
-    buildFitHereAnchorKey,
+    selectedFitHereDay,
+    addHotspotModal,
+    fitHereModal,
+    availableHotspots,
+    shouldShowHotels,
+    buildFitHereAnchorForTimelineRow,
     startFitHereProgressTimer,
     stopFitHereProgressTimer,
-    setFitHereModal,
-  });
-
-  const handleAutoPreviewFitHere = useAutoFitHerePreviewController({
-    itineraryPlanId: itinerary?.planId,
-    selectedFitHereDay,
-    buildAutoFitHereAnchorsForDay,
-    buildFitHereAnchorKey,
-    serializeFitHereAnchor,
-    buildAutoPreviewAnchorProgressText,
-    setSelectedFitHotspot,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setFitHereModal,
-    setAutoFitHereModal,
-    previewRequestIdRef,
-    resetManualHotspotPreviewStateButKeepActiveHotspot,
-    stopFitHereProgressTimer,
-  });
-
-  const { handleFitHereCancel, handleRetryFitHere } = useFitHereDialogController({
-    fitHereModal,
-    stopFitHereProgressTimer,
-    getFitHereTriedState,
-    setTriedFitHereAnchors,
-    setFitHereModal,
-    handleFitHereClick,
-  });
-
-  const resetFitHereAfterConfirmation = useFitHereConfirmationReset({
-    setSelectedFitHotspot,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setManualPreviewState,
-    setPreviewTimelinesByHotspot,
-    setPreviewResolutionsByHotspot,
-    setGroupPreviewTimeline,
-    setGroupPreviewResolution,
-    setTempModalTimeline,
-    setFitHereModal,
-    setAutoFitHereModal,
-    setTriedFitHereAnchors,
-  });
-
-  const applyFitHereConfirmationState = useFitHereConfirmationState({
-    itinerary,
-    availableHotspots,
-    setAddedInModalHotspotIds,
-    setExcludedHotspotIds,
-    setAvailableHotspots,
-    setItinerary,
-    setRouteNeedsRebuild,
-  });
-
-  const refreshAfterFitHereConfirmation = useFitHereConfirmationRefresh({
-    quoteId,
-    shouldShowHotels,
-    setItinerary,
-    setHotelDetails,
-  });
-
-  const getFitHereRefreshScrollStorageKey = useCallback(() => {
-    const normalizedQuoteId = String(quoteId || "").trim();
-    return normalizedQuoteId ? `fit-here-refresh-day:${normalizedQuoteId}` : null;
-  }, [quoteId]);
-
-  const handleConfirmFitHere = useFitHereConfirmationMutation({
-    itinerary,
-    fitHereModal,
-    selectedFitHotspot,
-    selectedFitHereDay,
-    fallbackRouteId: addHotspotModal.routeId,
-    handleFitHereClick,
-    stopFitHereProgressTimer,
-    setConfirmFitHereLoading,
-    resetFitHereAfterConfirmation,
-    applyFitHereConfirmationState,
-    refreshAfterFitHereConfirmation,
-    getFitHereRefreshScrollStorageKey,
-  });
-  const { handlePreviewHotspot, handleRemovePreviewHotspot } = useHotspotPreviewMutation({
-    addHotspotModal,
-    activePreviewHotspotId,
-    selectedHotspotAnchor,
-    previewRequestIdRef,
-    timelinePreviewRef,
     resetManualHotspotPreviewState,
-    getManualTimingPolicyFromPreview,
-    setActivePreviewHotspotId,
-    setSelectedHotspotIds,
-    setForceReplacementApprovedByHotspot,
-    setTopPriorityReplacementApproved,
-    setIsPreviewingHotspotId,
-    setManualPreviewState,
-    setPreviewTimelinesByHotspot,
-    setPreviewResolutionsByHotspot,
-    setGroupPreviewResolution,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
   });
-
-  const { handleConfirmPriorityReplacement, handleCancelPriorityReplacement } = useHotspotPriorityReplacementController({
+  const {
+    buildFitHereAnchorKey, handleSelectFitHotspot, handleFitHereClick, handleAutoPreviewFitHere,
+    handleFitHereCancel, handleRetryFitHere, handleConfirmFitHere, getFitHereRefreshScrollStorageKey,
+  } = fitHereWorkflow;
+  const hotspotMutationWorkflow = useItineraryHotspotMutationWorkflow({
+    hotspotState,
+    deletionState,
+    routeState,
+    previewModel: hotspotPreviewViewModel,
+    selectedHotspotAnchor,
+    selectedHotspotId,
     groupPreviewResolution,
     pendingPriorityReplacementHotspotId,
-    selectedHotspotId,
-    selectedHotspotIds,
-    handlePreviewHotspot,
-    handleRemovePreviewHotspot,
-    setForceReplacementApprovedByHotspot,
-    setTopPriorityReplacementApproved,
-  });
-
-  const handleBuildMatrixAndPreviewAgain = useHotspotMatrixPreviewController({
-    activePreviewHotspotId,
-    planId: addHotspotModal.planId,
-    routeId: addHotspotModal.routeId,
-    isDestinationSideManualPreview,
-    resetManualHotspotPreviewStateButKeepActiveHotspot,
-    handlePreviewHotspot,
-    setIsBuildingMatrix,
-  });
-
-  const handleAddHotspot = useHotspotAddMutation({
-    readOnly,
     addHotspotModal,
-    selectedHotspotAnchor,
-    activePreviewResolution,
-    manualPreviewState,
-    activePreviewHotspotId,
-    groupPreviewResolution,
-    topPriorityReplacementApproved,
-    selectedPreviewSegments,
-    currentRouteAttractionHotspotIds,
-    addedInModalHotspotIds,
-    selectedHotspotIds,
     itinerary,
-    quoteId: quoteId || null,
+    quoteId,
+    readOnly,
     shouldShowHotels,
-    normalizeAvailableHotspots,
+    isDestinationSideManualPreview,
+    resetManualHotspotPreviewState,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
     getManualTimingPolicyFromPreview,
     filterAvailableHotspotsForAnchor,
-    resetManualHotspotPreviewState,
-    setIsAddingHotspot,
-    setIsApplyingPreviewHotspot,
-    setAddedInModalHotspotIds,
-    setAvailableHotspots,
-    setRouteNeedsRebuild,
-    setActivePreviewHotspotId,
-    setItinerary,
-    setHotelDetails,
-    setHotspotFilterMeta,
   });
+  const {
+    handlePreviewHotspot, handleRemovePreviewHotspot, handleConfirmPriorityReplacement,
+    handleCancelPriorityReplacement, handleBuildMatrixAndPreviewAgain, handleAddHotspot,
+  } = hotspotMutationWorkflow;
 
   const { toImgSrc, openGalleryModal, openVideoModal } = useMediaModalController({
     setGalleryModal,
     setGalleryActiveIdx,
     setVideoModal,
   });
-  const {
-    applyArrivalPolicyDecision,
-    resolveArrivalPolicyForArrivalTimeChange,
-    handleArrivalDateTimeChange,
-    openHotelSelectionModal,
-  } = useHotelArrivalPolicyController({
-    itinerary,
-    guestDetails,
-    latestArrivalPolicy,
-    lastArrivalPolicyDecisionKey,
-    setGuestDetails,
-    setHotelSearchChildAges,
-    setHotelSelectionModal,
-    setIsResolvingArrivalPolicy,
-    setLatestArrivalPolicy,
-    setArrivalPolicyConfirmModal,
+  const hotelSelectionWorkflow = useItineraryHotelSelectionWorkflow({
+    hotelWorkflowState,
+    hotelSelectionState,
+    quotationState,
+    routeState,
+    prebookDataRef,
+    quoteId,
+    readOnly,
+    shouldShowHotels,
     ensureHotelDetailsLoaded,
     parseDisplayTimeToHms,
     isEarlyMorningTime,
     normalizeDateToYmd,
     buildArrivalPolicyDecisionKey,
-  });
-  const handleSelectHotel = useHotelSelectionMutation({
-    readOnly,
-    quoteId: quoteId || null,
-    shouldShowHotels,
-    selectedMealPlan,
-    hotelSelectionModal,
-    setIsSelectingHotel,
-    setHotelSelectionModal,
-    setHotelSearchQuery,
-    setSelectedMealPlan,
-    setItinerary,
-    setHotelDetails,
-    getSafeErrorMessage,
-  });
-
-  const handleSelectHotelFromSearch = useHotelSearchSelectionMutation({
-    readOnly,
-    quoteId: quoteId || null,
-    shouldShowHotels,
-    selectedMealPlan,
-    hotelSelectionModal,
-    prebookDataRef,
     parseStaahSearchReference,
     isSupplierBookableHotel,
     getSafeErrorMessage,
-    setIsSelectingHotel,
-    setSelectedHotelBookings,
-    setPrebookData,
-    setHasAcceptedUpdatedPrice,
-    setHotelSelectionModal,
-    setHotelSearchQuery,
-    setSelectedMealPlan,
-    setItinerary,
-    setHotelDetails,
   });
+  const {
+    applyArrivalPolicyDecision, resolveArrivalPolicyForArrivalTimeChange, handleArrivalDateTimeChange,
+    openHotelSelectionModal, handleSelectHotel, handleSelectHotelFromSearch,
+  } = hotelSelectionWorkflow;
 
   const {
     handleWalletTopUpAndContinue,
@@ -1574,132 +1147,18 @@ const getSelectedPreviewActivity = () =>
     handleConfirmQuotation: (options) => handleConfirmQuotation(options),
   });
 
-  const openConfirmQuotationModal = useQuotationConfirmationModalController({
-    itinerary,
-    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
-    guestDetails,
-    confirmDefaultNationality,
-    requiresDetailedPassengerFlow,
-    isVehicleOnlyItinerary,
-    isOpeningConfirmQuotation,
-    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
-    activeHotelGroupType,
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown | null>,
-    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
-    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>,
-    setIsOpeningConfirmQuotation,
-    setConfirmQuotationModal,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    setHasAcceptedUpdatedPrice,
-    setConfirmOccupanciesTemplate,
-    setFormErrors,
-    resetConfirmWalletTopUpPanel,
-    setAdditionalAdults,
-    setAdditionalChildren,
-    setAdditionalInfants,
-    setWalletBalance,
-    setWalletBalanceAmount,
-    setAgentInfo,
-    setConfirmDefaultNationality,
-    setGuestDetails,
-    setSelectedHotelBookings: (updater) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
-    setIsPrebooking,
-    refreshConfirmWalletBalance,
-    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
-    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
+  const quotationConfirmationWorkflow = useItineraryQuotationConfirmationWorkflow({
+    routeState, quotationState, hotelSelectionState, hotelWorkflowState, hotelContext: quotationHotelContext,
+    itinerary, hotelDetails, quoteId, requiresHotelBookingFlow, requiresDetailedPassengerFlow,
+    canConfirmQuotation, isVehicleOnlyItinerary, shouldEnableWalletTopUpOnConfirm,
+    tboSessionWindowMs: TBO_SESSION_WINDOW_MS, defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
+    loadConfirmedHotelsFromDb, normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
     isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-    parseStaahSearchReference,
-    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
-  });
-  const validateQuotationPassengers = useQuotationPassengerValidation({
-    guestDetails,
-    additionalAdults,
-    additionalChildren,
-    additionalInfants,
-    requiresDetailedPassengerFlow,
-    expectedAdults: Math.max(Number(itinerary?.adults || 0) - 1, 0),
-    expectedChildren: Math.max(Number(itinerary?.children || 0), 0),
-    expectedInfants: Math.max(Number(itinerary?.infants || 0), 0),
-    setFormErrors,
-  });
-
-  const prepareQuotationHotelSelections = useQuotationHotelSelectionPreparation({
-    selectedHotelBookings: selectedHotelBookings as unknown as Record<number, Record<string, unknown>>,
-    hotelDetails: hotelDetails as unknown as { hotels?: Array<Record<string, unknown>>; hotelTabs?: Array<{ groupType?: number }> } | null,
-    activeHotelGroupType,
-    requiresHotelBookingFlow,
-    itineraryDays: itinerary?.days || [],
-    defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
-    normalizeHotelProvider: normalizeHotelProvider as (hotel: Record<string, unknown>) => string,
-    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
-    parseStaahSearchReference,
-    getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
-    getCoveredRouteIdsFromHotelSelections: getCoveredRouteIdsFromHotelSelections as (selections: Record<number, Record<string, unknown>>) => Set<number>,
-    setSelectedHotelBookings: (updater: (previous: Record<number, Record<string, unknown>>) => Record<number, Record<string, unknown>>) => setSelectedHotelBookings((previous) => updater(previous as unknown as Record<number, Record<string, unknown>>) as unknown as typeof previous),
-  });
-
-  const completeQuotationConfirmation = useQuotationConfirmationCompletion({
-    confirmDefaultNationality,
-    setConfirmQuotationModal,
-    setLoadingHotels,
-    setActiveHotelListTotal,
-    setSelectedVehicleTotalsByType,
-    setSelectedHotelBookings: (bookings) => setSelectedHotelBookings(bookings as unknown as typeof selectedHotelBookings),
-    setActiveHotelGroupType,
-    loadConfirmedHotelsFromDb,
-    setItinerary,
-    setHotelDetails,
-    setGuestDetails,
-    setAdditionalAdults,
-    setAdditionalChildren,
-    setAdditionalInfants,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<unknown>,
-    setHasAcceptedUpdatedPrice,
-    setFormErrors,
-  });
-
-  const validateQuotationBookingGuards = useQuotationBookingGuards({
-    requiresHotelBookingFlow,
-    externalStayCount: externalStayEntries.length,
-    tboSessionWindowMs: TBO_SESSION_WINDOW_MS,
-    prebookData,
-    prebookDataRef: prebookDataRef as unknown as React.MutableRefObject<Record<string, unknown> | null>,
-    hasAcceptedUpdatedPrice,
-    setPrebookData: (data) => setPrebookData(data as typeof prebookData),
-    setHasAcceptedUpdatedPrice,
-  });
-  const handleConfirmQuotation = useQuotationConfirmationSubmission({
-    itinerary,
-    guestDetails,
-    confirmDefaultNationality,
-    additionalAdults,
-    additionalChildren,
-    additionalInfants,
-    confirmOccupanciesTemplate,
-    requiresHotelBookingFlow,
-    canConfirmQuotation,
-    requiresDetailedPassengerFlow,
-    hasAcceptedUpdatedPrice,
-    shouldEnableWalletTopUpOnConfirm,
-    agentInfo,
-    confirmRequiredAmount,
-    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
-    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
-    validateQuotationPassengers,
-    prepareQuotationHotelSelections,
-    validateQuotationBookingGuards: validateQuotationBookingGuards as unknown as (hotelBookings: readonly Record<string, unknown>[]) => Promise<{ clientIp?: string } | null>,
-    completeQuotationConfirmation,
-    refreshConfirmWalletBalance,
-    prepareWalletTopUpPanel,
-    resetConfirmWalletTopUpPanel,
-    setFormErrors,
-    setIsConfirmingQuotation,
-    setLoadingHotels,
-    setIsPrebooking,
-    isSupplierBookableHotel: isSupplierBookableHotel as (hotel: Record<string, unknown>) => boolean,
+    parseStaahSearchReference, getHotelSelectionAmount: getHotelSelectionAmount as (hotel: Record<string, unknown>) => number,
     inferHotelProvider: inferHotelProvider as (hotel: Record<string, unknown>) => string,
+    walletTopUp: { handleWalletTopUpAndContinue, prepareWalletTopUpPanel, refreshConfirmWalletBalance, resetConfirmWalletTopUpPanel },
   });
+  const { openConfirmQuotationModal, handleConfirmQuotation } = quotationConfirmationWorkflow;
 
   useEffect(() => {
     if (!pendingScrollDayNumber) {

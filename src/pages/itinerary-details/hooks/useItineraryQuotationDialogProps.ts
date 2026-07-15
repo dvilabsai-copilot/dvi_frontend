@@ -7,10 +7,10 @@ type QuotationState = ReturnType<typeof useQuotationState>;
 
 type QuotationDialogOptions = {
   state: QuotationState;
-  itinerary: NonNullable<QuotationProps["passenger"]["guestDetails"]> extends never ? never : {
+  itinerary: (NonNullable<QuotationProps["passenger"]["guestDetails"]> extends never ? never : {
     children?: number;
     infants?: number;
-  };
+  }) | null;
   requiresHotelBookingFlow: boolean;
   shouldEnableWalletTopUpOnConfirm: boolean;
   confirmRequiredAmount: number;
@@ -101,8 +101,8 @@ export function useItineraryQuotationDialogProps({
       confirmPassengerMix,
       confirmOccupancyPreview,
       requiresDetailedPassengerFlow,
-      childrenCount: Number(itinerary.children || 0),
-      infantsCount: Number(itinerary.infants || 0),
+      childrenCount: Number(itinerary?.children || 0),
+      infantsCount: Number(itinerary?.infants || 0),
       isOpeningConfirmQuotation,
       isPrebooking,
       prebookData: state.prebookData,
@@ -160,4 +160,3 @@ export function useItineraryQuotationDialogProps({
     },
   };
 }
-

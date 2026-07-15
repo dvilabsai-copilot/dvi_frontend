@@ -1,5 +1,151 @@
 # Progress log
 
+## Iteration 291 — Extract route mutation workflow and guard early quotation render
+
+### Baseline
+- Starting point: Iteration 290 with the controller at 1,661 lines.
+- Scope: isolate hotspot deletion, route rebuild, route-time patching, arrival-policy continuation, and protect quotation dialog props while itinerary data is still loading.
+
+### Changes
+- Added `hooks/useItineraryRouteMutationWorkflow.ts`.
+- Preserved route progress callbacks, hotspot refresh/filter reconciliation, hotel refresh, route rebuild state, and arrival-policy decision handling.
+- Made quotation child/infant counts null-safe when the dialog renders before the itinerary response arrives.
+- Behaviour intentionally changed: No; the null-safe guard prevents a loading-time crash while retaining the same loaded-state values.
+
+### Verification
+- Controller line count: 1,612; new hook: 79 lines.
+- Affected-hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 290 — Extract hotel data workflow
+
+### Baseline
+- Starting point: Iteration 289 with the controller at 1,717 lines.
+- Scope: isolate hotel data refresh/rebuild, voucher actions, cancellation state, and HotelList selection merging.
+
+### Changes
+- Added `hooks/useItineraryHotelDataWorkflow.ts`.
+- Preserved hotel refresh callbacks, voucher save/cancel actions, selection merge behavior, and existing selection logging.
+
+### Verification
+- Controller line count: 1,661; new hook: 79 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 289 — Extract prepared-page loading workflow
+
+### Baseline
+- Starting point: Iteration 288 with the controller at 1,795 lines.
+- Scope: isolate vehicle-build preparation, staged itinerary loading, duplicate-load guards, and initial route-load lifecycle.
+
+### Changes
+- Added `hooks/useItineraryPreparedPageWorkflow.ts`.
+- Preserved confirmed-route short-circuiting, StrictMode load deduplication, route-tab handoff, cleanup refs, and vehicle-build status transitions.
+
+### Verification
+- Controller line count: 1,717; new hook: 120 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 288 — Extract quotation confirmation workflow
+
+### Baseline
+- Starting point: Iteration 287 with the controller at 1,915 lines.
+- Scope: isolate quotation modal opening, passenger validation, hotel selection preparation, booking guards, completion, and submission orchestration.
+
+### Changes
+- Added `hooks/useItineraryQuotationConfirmationWorkflow.ts`.
+- Preserved wallet callbacks, supplier-provider classification, hotel/prebook payload preparation, confirmation guards, and existing toast/error paths.
+
+### Verification
+- Controller line count: 1,795; new hook: 159 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 287 — Extract hotel selection workflow
+
+### Baseline
+- Starting point: Iteration 286 with the controller at 1,952 lines.
+- Scope: isolate arrival-policy resolution, hotel selection, and supplier-search selection handlers.
+
+### Changes
+- Added `hooks/useItineraryHotelSelectionWorkflow.ts`.
+- Preserved hotel modal state, passenger-age setup, supplier booking normalization, quotation refresh, and all existing error/toast behavior.
+
+### Verification
+- Controller line count: 1,915; new hook: 80 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 286 — Extract hotspot mutation workflow
+
+### Baseline
+- Starting point: Iteration 285 with the controller at 2,002 lines.
+- Scope: isolate hotspot preview, priority replacement, matrix-rebuild retry, and add-hotspot mutation orchestration.
+
+### Changes
+- Added `hooks/useItineraryHotspotMutationWorkflow.ts`.
+- Preserved preview reset behavior, priority callbacks, matrix command behavior, route-rebuild flags, and add-hotspot mutation inputs.
+
+### Verification
+- Controller line count: 1,952; new hook: 104 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 285 — Extract Fit Here workflow
+
+### Baseline
+- Starting point: Iteration 284 with the controller at 2,109 lines.
+- Scope: isolate manual/automatic Fit Here selection, preview, retry/cancel, confirmation reset, state application, and refresh orchestration.
+
+### Changes
+- Added `hooks/useItineraryFitHereWorkflow.ts`.
+- Preserved anchor serialization, progress timing, confirmation refresh, route-rebuild flags, and Fit Here dialog callbacks.
+
+### Verification
+- Controller line count: 2,002; new hook: 91 lines.
+- New hook lint and filtered TypeScript passed; production build passed with existing warnings.
+- Focused Playwright pair was attempted but both tests stopped before `#itinerary-day-1` because the local fixture/API did not render the itinerary; the changed Fit Here workflow was not reached.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 284 — Extract quotation hotel context
+
+### Baseline
+- Starting point: Iteration 283 with the controller at 2,138 lines.
+- Scope: isolate TBO summary, selected-hotel coverage, non-TBO review entries, external-stay entries, and hotel-flow reset synchronization.
+
+### Changes
+- Added `hooks/useItineraryQuotationHotelContext.ts`.
+- Preserved the plan-change reset trigger, hotel visibility reset behavior, and all quotation review data shapes.
+
+### Verification
+- Controller line count: 2,109; new hook: 72 lines.
+- New hook lint and filtered TypeScript passed; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 283 — Extract quotation state composition
+
+### Baseline
+- Starting point: Iteration 282 with the controller at 2,153 lines.
+- Scope: compose quotation state and its confirmation view model behind one typed hook.
+
+### Changes
+- Added `hooks/useItineraryQuotationState.ts`.
+- Quotation state setters, confirmation occupancy calculations, passenger defaults, and validation lookup behavior remain unchanged.
+
+### Verification
+- Controller line count: 2,138; new hook: 24 lines.
+- New hook lint and filtered TypeScript passed; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 282 — Remove obsolete controller imports
 
 ### Baseline
