@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 276 — Extract quotation dialog props
+
+### Baseline
+- Starting point: Iteration 275 with the controller at 2,282 lines.
+- Scope: move quotation confirmation overview/review/passenger/travel/footer prop assembly into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryQuotationDialogProps.ts`.
+- Quotation state, wallet/prebook mutations, validation, and submission remain controller-owned; the hook only composes the existing dialog props.
+
+### Verification
+- Controller line count: 2,234; new hook: 163 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 275 — Extract media dialog props
 
 ### Baseline

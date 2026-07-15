@@ -244,6 +244,7 @@ import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArr
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
 import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
+import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useItineraryQuotationDialogProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1913,6 +1914,40 @@ const hotelTimelineLoading = Boolean(
     formatTime: formatPreviewTime,
     formatDuration: formatActivityDuration,
   });
+  const quotationDialogProps = useItineraryQuotationDialogProps({
+    state: quotationState,
+    itinerary,
+    requiresHotelBookingFlow,
+    shouldEnableWalletTopUpOnConfirm,
+    confirmRequiredAmount,
+    isWalletInsufficientForConfirm,
+    confirmRoomCount,
+    confirmPassengerMix,
+    confirmOccupancyPreview,
+    requiresDetailedPassengerFlow,
+    isOpeningConfirmQuotation,
+    isPrebooking,
+    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
+    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
+    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
+    hasPrebookPriceChanged,
+    defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
+    normalizePrebookItems,
+    resolvePrebookInclusions,
+    resolvePrebookMealPlan,
+    normalizeCancellationPolicyItems,
+    normalizeMealPlanLabel,
+    parseWalletAmount,
+    formatCurrency,
+    handleWalletTopUpAndContinue,
+    refreshConfirmWalletBalance,
+    defaultPassenger,
+    getPassengerFieldError,
+    handleArrivalDateTimeChange,
+    resetConfirmWalletTopUpPanel,
+    handleConfirmQuotation,
+    canConfirmQuotation,
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2137,90 +2172,7 @@ const hotelTimelineLoading = Boolean(
 
       <ItineraryMediaDialogs {...mediaDialogProps} />
 
-      <QuotationConfirmationDialog
-        open={confirmQuotationModal}
-        onOpenChange={setConfirmQuotationModal}
-        overview={{
-          agentInfo,
-          walletBalance,
-          walletBalanceAmount,
-          parseWalletAmount,
-          confirmRequiredAmount,
-          formatCurrency,
-          shouldEnableWalletTopUpOnConfirm,
-          showWalletTopUpPanel,
-          walletShortfallAmount,
-          walletTopUpAmount,
-          setWalletTopUpAmount,
-          walletTopUpRemark,
-          setWalletTopUpRemark,
-          isWalletTopUpSubmitting,
-          handleWalletTopUpAndContinue,
-          refreshConfirmWalletBalance,
-          isWalletInsufficientForConfirm,
-          requiresHotelBookingFlow,
-          confirmRoomCount,
-          confirmPassengerMix,
-          confirmOccupancyPreview,
-          requiresDetailedPassengerFlow,
-          childrenCount: Number(itinerary?.children || 0),
-          infantsCount: Number(itinerary?.infants || 0),
-          isOpeningConfirmQuotation,
-          isPrebooking,
-          prebookData,
-        }}
-        hotelReview={{
-          requiresHotelBookingFlow,
-          externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
-          defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
-          hasAcceptedUpdatedPrice,
-          setHasAcceptedUpdatedPrice,
-          prebookData,
-          isPrebooking,
-          isOpeningConfirmQuotation,
-          nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
-          prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
-          hasPrebookPriceChanged,
-          normalizePrebookItems,
-          resolvePrebookInclusions,
-          resolvePrebookMealPlan,
-          normalizeCancellationPolicyItems,
-          normalizeMealPlanLabel,
-        }}
-        passenger={{
-          guestDetails,
-          setGuestDetails,
-          formErrors,
-          setFormErrors,
-          requiresDetailedPassengerFlow,
-          additionalAdults,
-          setAdditionalAdults,
-          additionalChildren,
-          setAdditionalChildren,
-          additionalInfants,
-          setAdditionalInfants,
-          defaultPassenger,
-          getPassengerFieldError,
-        }}
-        travel={{ guestDetails, setGuestDetails, handleArrivalDateTimeChange }}
-        footer={{
-          setConfirmQuotationModal,
-          setGuestDetails,
-          confirmDefaultNationality,
-          setAdditionalAdults,
-          setAdditionalChildren,
-          setAdditionalInfants,
-          setPrebookData,
-          setHasAcceptedUpdatedPrice,
-          setFormErrors,
-          resetConfirmWalletTopUpPanel,
-          handleConfirmQuotation,
-          isConfirmingQuotation,
-          isPrebooking,
-          isWalletTopUpSubmitting,
-          canConfirmQuotation,
-        }}
-      />
+      <QuotationConfirmationDialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal} {...quotationDialogProps} />
 
       <ItineraryFitHereDialogs {...fitHereDialogProps} />
 
