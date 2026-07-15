@@ -24,7 +24,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, Clock, MapPin, Car, Calendar, Plus, Trash2, ArrowRight, Ticket, Building2, Timer, Loader2, RefreshCw, Edit, AlertTriangle, Route, Utensils } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, Car, Calendar, Plus, ArrowRight, Ticket, Building2, Timer, Loader2, RefreshCw, AlertTriangle, Route, Utensils } from "lucide-react";
 import { TimePickerPopover } from "@/components/itinerary/TimePickerPopover";
 import { ItineraryService } from "@/services/itinerary";
 import { AgentAPI } from "@/services/agentService";
@@ -263,6 +263,7 @@ import { HotspotConflictTimingDetails } from "./itinerary-details/components/Hot
 import { QuotationHotelReviewSections } from "./itinerary-details/components/QuotationHotelReviewSections";
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
 import { QuotationConfirmationOverview } from "./itinerary-details/components/QuotationConfirmationOverview";
+import { ItineraryDayGuideCard } from "./itinerary-details/components/ItineraryDayGuideCard";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2643,58 +2644,12 @@ const canShowGuideActionButton =
               <CardContent className="pt-2">
 
                 {currentGuideAssignment && (
-                  <div className="mb-4 flex items-center justify-between rounded-lg bg-[#f8f5fc] px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-[#4a4260]">
-                        Guide
-                        {currentGuideAssignment.guideLanguageLabels.length > 0 && (
-                          <>
-                            {" "}
-                            Language - <span className="text-[#d546ab]">{currentGuideAssignment.guideLanguageLabels.join(", ")}</span>
-                          </>
-                        )}
-                      </p>
-                      {currentGuideAssignment.guideSlotLabels.length > 0 && (
-                        <p className="mt-1 text-sm text-[#6c6c6c]">
-                          Slot Timing -{" "}
-                          <span className="font-medium text-[#4a4260]">
-                            {currentGuideAssignment.guideSlotLabels.join(", ")}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="ml-4 flex items-center gap-2">
-                      <span className="text-lg font-bold text-[#d546ab]">
-                        ₹ {Number(currentGuideAssignment.guideCost || 0).toFixed(2)}
-                      </span>
-                      {!readOnly && (
-                        <>
-                         <button
-  type="button"
-  className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-[#d546ab]"
-  onClick={() =>
-    void openGuideModal(
-      Number(currentGuideAssignment.guideType || 0) === 1 ? null : day,
-      currentGuideAssignment,
-      Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2
-    )
-  }
-  aria-label="Edit guide"
->
-  <Edit className="h-4 w-4" />
-</button>
-                          <button
-                            type="button"
-                            className="rounded-full p-2 text-[#4a4260] hover:bg-white hover:text-red-600"
-                            onClick={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })}
-                            aria-label="Delete guide"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <ItineraryDayGuideCard
+                    assignment={currentGuideAssignment}
+                    readOnly={readOnly}
+                    onEdit={() => void openGuideModal(Number(currentGuideAssignment.guideType || 0) === 1 ? null : day, currentGuideAssignment, Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2)}
+                    onDelete={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })}
+                  />
                 )}
 
 
