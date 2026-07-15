@@ -4556,6 +4556,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining large hotspot and quotation dialog views are still scheduled for extraction.
 
+## Iteration 223 - Non-TBO quotation hotel review component
+
+### Baseline
+- Starting checkpoint: `98aeb43` on `refactor/itinerary-details-checkpoint` with action controls extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/QuotationNonTboSelectedHotels.tsx`.
+- Reused one typed expandable hotel-review renderer for both the no-prebook and prebook quotation paths.
+- Preserved provider labels, continuous-stay details, selected price, hotel code, meal plan, cancellation/rate/amenity/inclusion policies, and provider-specific notices.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 5,232 physical lines (down from 5,452 at the previous iteration).
+- New component: 102 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The large hotspot dialog and remaining quotation review shell are still scheduled for extraction.
+
 ## Iteration 222 - Action buttons view component
 
 ### Baseline

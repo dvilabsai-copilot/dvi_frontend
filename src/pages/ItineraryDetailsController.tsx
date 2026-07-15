@@ -247,6 +247,7 @@ import { SpecialInstructionsSection } from "./itinerary-details/components/Speci
 import { PackageIncludesCard } from "./itinerary-details/components/PackageIncludesCard";
 import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
+import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -5011,124 +5012,17 @@ const canShowGuideActionButton =
               <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
                 <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
                 <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
-                {nonTboSelectedHotelEntries.map((hotel, index: number) => {
-                  const detailRow = (hotel?.matchedHotelRow || hotel) as any;
-                  const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
-                  const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
-                  const hotelInclusions = resolvePrebookInclusions(detailRow);
-                  const hotelMealType = resolvePrebookMealPlan(detailRow);
-                  const hotelCancellation = normalizeCancellationPolicyItems(
-                    detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
-                  );
+                <QuotationNonTboSelectedHotels
+                  entries={nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>}
+                  normalizePrebookItems={normalizePrebookItems}
+                  resolvePrebookInclusions={resolvePrebookInclusions}
+                  resolvePrebookMealPlan={resolvePrebookMealPlan}
+                  normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
+                  normalizeMealPlanLabel={normalizeMealPlanLabel}
+                  keyPrefix="ntbo-only"
+                  providerNote="Policies and rate conditions are managed by the provider. TBO prebook is not applicable."
+                />
 
-                  return (
-                    <details key={`ntbo-only-${hotel?.routeId ?? index}`} className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3">
-                      <summary className="cursor-pointer list-none">
-                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
-                            <p className="text-xs text-[#6c6c6c]">
-                              {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
-                                <>
-                                  Stay: <span className="font-medium text-[#4a4260]">
-                                    {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
-                                  </span>
-                                  {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
-                                </>
-                              ) : null}
-                            </p>
-                            <p className="text-xs text-[#6c6c6c]">
-                              Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
-                              {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
-                            </p>
-                            {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
-                              <p className="text-xs text-green-700 font-medium">
-                                Continuous stay selected for {hotel.displayRouteIds.length} route(s)
-                              </p>
-                            ) : null}
-                            <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
-                          </div>
-                          <div className="text-sm text-left md:text-right">
-                            <p className="text-[#6c6c6c]">Selected Price</p>
-                            <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </summary>
-
-                      <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
-                        {hotelMealType ? (
-                          <p className="text-xs text-[#6c6c6c]">
-                            Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
-                          </p>
-                        ) : null}
-
-                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
-                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
-                          <div className="mt-2">
-                            {hotelCancellation.length > 0 ? (
-                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                {hotelCancellation.map((item, idx) => (
-                                  <li key={`ntbo-only-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
-                            )}
-                          </div>
-                        </details>
-
-                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
-                          <div className="mt-2">
-                            {hotelRateConditions.length > 0 ? (
-                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                {hotelRateConditions.map((item, idx) => (
-                                  <li key={`ntbo-only-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-[#4a4260]">No rate conditions available</p>
-                            )}
-                          </div>
-                        </details>
-
-                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
-                          <div className="mt-2">
-                            {hotelAmenities.length > 0 ? (
-                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                {hotelAmenities.map((item, idx) => (
-                                  <li key={`ntbo-only-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-[#4a4260]">No amenities available</p>
-                            )}
-                          </div>
-                        </details>
-
-                        <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                          <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
-                          <div className="mt-2">
-                            {hotelInclusions.length > 0 ? (
-                              <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                {hotelInclusions.map((item, idx) => (
-                                  <li key={`ntbo-only-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-[#4a4260]">No inclusions available</p>
-                            )}
-                          </div>
-                        </details>
-
-                        <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
-                          Policies and rate conditions are managed by the provider. TBO prebook is not applicable.
-                        </p>
-                      </div>
-                    </details>
-                  );
-                })}
                 <QuotationNonTboAcceptanceNotice
                   accepted={hasAcceptedUpdatedPrice}
                   setAccepted={setHasAcceptedUpdatedPrice}
@@ -5165,131 +5059,17 @@ const canShowGuideActionButton =
                 {nonTboSelectedHotelEntries.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
-                    {nonTboSelectedHotelEntries.map((hotel, index: number) => {
-                      const detailRow = (hotel?.matchedHotelRow || hotel) as any;
-                      const hotelAmenities = normalizePrebookItems(detailRow?.amenities || detailRow?.facilities);
-                      const hotelRateConditions = normalizePrebookItems(detailRow?.rateConditions);
-                      const hotelInclusions = resolvePrebookInclusions(detailRow);
-                      const hotelMealType = resolvePrebookMealPlan(detailRow);
-                      const hotelCancellation = normalizeCancellationPolicyItems(
-                        detailRow?.cancellationPolicy || detailRow?.cancellationPoliciesText,
-                      );
+                    <QuotationNonTboSelectedHotels
+                      entries={nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>}
+                      normalizePrebookItems={normalizePrebookItems}
+                      resolvePrebookInclusions={resolvePrebookInclusions}
+                      resolvePrebookMealPlan={resolvePrebookMealPlan}
+                      normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
+                      normalizeMealPlanLabel={normalizeMealPlanLabel}
+                      keyPrefix="non-tbo-hotel"
+                      providerNote="This hotel is managed outside TBO. Details shown here come from the selected provider record."
+                    />
 
-                      return (
-                        <details
-                          key={`non-tbo-hotel-${hotel?.routeId ?? index}`}
-                          className="rounded-lg border border-[#e5d9f2] bg-white p-4 space-y-3"
-                        >
-                          <summary className="cursor-pointer list-none">
-                            <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
-                              <div>
-                                <p className="font-semibold text-[#4a4260]">{hotel?.hotelName || `Hotel ${index + 1}`}</p>
-                                <p className="text-xs text-[#6c6c6c]">
-                                  {hotel?.displayCheckInDate && hotel?.displayCheckOutDate ? (
-                                    <>
-                                      Stay: <span className="font-medium text-[#4a4260]">
-                                        {hotel.displayCheckInDate} to {hotel.displayCheckOutDate}
-                                      </span>
-                                      {hotel?.displayNights ? ` · ${hotel.displayNights} night(s)` : ''}
-                                    </>
-                                  ) : null}
-                                </p>
-                                <p className="text-xs text-[#6c6c6c]">
-                                  Provider: <span className="uppercase font-medium">{hotel?.provider || 'Non-TBO'}</span>
-                                  {hotel?.roomType ? ` · ${hotel.roomType}` : ''}
-                                </p>
-                                {hotel?.multiNightBooking && Array.isArray(hotel?.displayRouteIds) && hotel.displayRouteIds.length > 1 ? (
-                                  <p className="text-xs text-green-700 font-medium">
-                                    Continuous stay selected for {hotel.displayRouteIds.length} route(s)
-                                  </p>
-                                ) : null}
-                                <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
-                              </div>
-                              <div className="text-sm text-left md:text-right">
-                                <p className="text-[#6c6c6c]">Selected Price</p>
-                                <p className="font-semibold text-[#4a4260]">₹ {Number(hotel?.netAmount || 0).toFixed(2)}</p>
-                              </div>
-                            </div>
-                          </summary>
-
-                          <div className="pt-3 space-y-3 border-t border-[#f1e7fb]">
-                            <div>
-                              <p className="text-xs text-[#6c6c6c]">Hotel Code: {hotel?.hotelCode || detailRow?.hotelCode || '-'}</p>
-                              {hotel?.routeId ? <p className="text-xs text-[#6c6c6c]">Route ID: {hotel.routeId}</p> : null}
-                              {hotelMealType ? (
-                                <p className="text-xs text-[#6c6c6c]">
-                                  Meal Plan: <span className="font-medium text-[#4a4260]">{normalizeMealPlanLabel(hotelMealType)}</span>
-                                </p>
-                              ) : null}
-                            </div>
-
-                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2" open>
-                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Cancellation Policy ({hotelCancellation.length})</summary>
-                              <div className="mt-2">
-                                {hotelCancellation.length > 0 ? (
-                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                    {hotelCancellation.map((item, idx) => (
-                                      <li key={`non-tbo-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="text-sm text-[#4a4260]">No cancellation policy available</p>
-                                )}
-                              </div>
-                            </details>
-
-                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Rate Conditions ({hotelRateConditions.length})</summary>
-                              <div className="mt-2">
-                                {hotelRateConditions.length > 0 ? (
-                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                    {hotelRateConditions.map((item, idx) => (
-                                      <li key={`non-tbo-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="text-sm text-[#4a4260]">No rate conditions available</p>
-                                )}
-                              </div>
-                            </details>
-
-                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Amenities ({hotelAmenities.length})</summary>
-                              <div className="mt-2">
-                                {hotelAmenities.length > 0 ? (
-                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                    {hotelAmenities.map((item, idx) => (
-                                      <li key={`non-tbo-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="text-sm text-[#4a4260]">No amenities available</p>
-                                )}
-                              </div>
-                            </details>
-
-                            <details className="rounded-lg border border-[#eadcfb] bg-[#fcf9ff] px-3 py-2">
-                              <summary className="cursor-pointer text-sm font-medium text-[#4a4260]">Package Inclusions ({hotelInclusions.length})</summary>
-                              <div className="mt-2">
-                                {hotelInclusions.length > 0 ? (
-                                  <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
-                                    {hotelInclusions.map((item, idx) => (
-                                      <li key={`non-tbo-inc-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <p className="text-sm text-[#4a4260]">No inclusions available</p>
-                                )}
-                              </div>
-                            </details>
-
-                            <p className="text-xs text-[#9c7fb8] bg-[#f5eeff] border border-[#e5d9f2] rounded px-2 py-1">
-                              This hotel is managed outside TBO. Details shown here come from the selected provider record.
-                            </p>
-                          </div>
-                        </details>
-                      );
-                    })}
                   </div>
                 )}
 

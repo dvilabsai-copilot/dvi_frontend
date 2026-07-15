@@ -105,6 +105,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - TBO hotel selection totals, prebook-price comparison, and detailed passenger-flow requirements are isolated in `useTboHotelSelectionSummary.ts`.
 - Overall-cost rendering, hotel room-cost hover details, entry-ticket breakdown, and payable totals are isolated in `ItineraryOverallCost.tsx`.
 - Clipboard/share menus, quotation actions, confirmed-document actions, and back-to-top behavior are isolated in `ItineraryActionButtons.tsx`.
+- Shared non-TBO selected-hotel review cards and policy sections are isolated in `QuotationNonTboSelectedHotels.tsx`.
 - The former inline insertion-slot implementation is no longer retained as a commented compatibility fragment; the utility is the sole implementation.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
