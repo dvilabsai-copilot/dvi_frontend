@@ -38,6 +38,7 @@ The first 1,300 lines contain API/domain types for timeline segments, days, hots
 - Gallery, video, clipboard, source-preview, share, and all-hotspots-preview prop shaping are isolated in `useItineraryMediaDialogProps`; media state remains controller-owned.
 - Quotation confirmation overview/review/passenger/travel/footer prop assembly is isolated in `useItineraryQuotationDialogProps`; quotation state and mutations remain controller-owned.
 - Voucher, pluck-card, invoice, incidental-expense, cancellation, and hotel-voucher prop assembly are isolated in `useItineraryAncillaryModalProps`; ancillary state remains controller-owned.
+- Copy-link, WhatsApp-share, and email-share actions are isolated in `useItineraryShareActions`; presentation decides when they are exposed.
 - Fit Here progress interval lifecycle and loading-step updates are isolated in `useFitHereProgressTimer`; Fit Here modal state remains controller-owned.
 
 ## Effects, refs, and browser coupling

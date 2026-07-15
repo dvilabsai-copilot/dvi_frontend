@@ -246,6 +246,7 @@ import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItine
 import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
 import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useItineraryQuotationDialogProps";
 import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
+import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1972,6 +1973,7 @@ const hotelTimelineLoading = Boolean(
     setHotelVoucherModalOpen,
     onHotelVoucherSuccess: refreshHotelData,
   });
+  const { handleCopyLink, handleShareWhatsApp, handleShareEmail } = useItineraryShareActions(setShareModal);
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2014,18 +2016,6 @@ const hotelTimelineLoading = Boolean(
     setSelectedHotels(buildDefaultClipboardSelection());
     setClipboardModal(true);
   };
-
-  const handleCopyLink = () => {
-    void navigator.clipboard.writeText(window.location.href);
-    toast.success("Link copied to clipboard!");
-  };
-
-  const handleShareWhatsApp = () => {
-    const message = `Check out this itinerary: ${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
-  };
-
-  const handleShareEmail = () => setShareModal(true);
 
   const hotspotForceConflictMode = (
     (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)

@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 278 — Extract share actions
+
+### Baseline
+- Starting point: Iteration 277 with the controller at 2,209 lines.
+- Scope: move copy-link, WhatsApp-share, and email-share actions into a small hook.
+
+### Changes
+- Added `hooks/useItineraryShareActions.ts`.
+- Clipboard/share behavior and toast text remain unchanged; the controller still decides when to expose the actions.
+
+### Verification
+- Controller line count: 2,199; new hook: 19 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 277 — Extract ancillary modal props
 
 ### Baseline
