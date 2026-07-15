@@ -253,6 +253,7 @@ import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/Ho
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
 import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/HotspotPreviewWaitingSegment";
 import { HotspotPreviewSegmentSummary } from "./itinerary-details/components/HotspotPreviewSegmentSummary";
+import { HotspotBestInsertionSlotPanel } from "./itinerary-details/components/HotspotBestInsertionSlotPanel";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3725,64 +3726,14 @@ const canShowGuideActionButton =
 
                             {isUserSelected && String(seg?.type || '').toLowerCase() === 'attraction' && (
                               <div className="mt-3 space-y-2">
-                                {/* ── manualInsertionFit: Best slot panel ── */}
                                 {!matrixRequiresBuild && effectiveFitSlot && (
-                                  <div className="border border-blue-200 bg-blue-50 p-3 rounded-lg text-sm">
-                                    <p className="font-bold text-blue-900 text-[11px] mb-1.5 uppercase tracking-wide">Best insertion slot</p>
-                                    <div className="flex items-start gap-2">
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-xs font-semibold text-gray-800 truncate">
-                                          {effectiveFitSlot.fromName} → {((
-                                            /^hotel$/i.test(String(effectiveFitSlot.toName || '').trim())
-                                            || (
-                                              String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
-                                              && String(effectiveFitSlot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
-                                            )
-                                            || Number((effectiveFitSlot as any)?.destinationHotelId || 0) > 0
-                                          ) && destinationHotelDisplayName) ? destinationHotelDisplayName : effectiveFitSlot.toName}
-                                        </p>
-                                        {selectedSlotHasRouteData && effectiveFitSlot.roadDetourKm != null && (
-                                          <p className="text-[10px] text-gray-600 mt-0.5">
-                                            Extra distance: +{Number(effectiveFitSlot.roadDetourKm).toFixed(1)} km
-                                          </p>
-                                        )}
-                                        {effectiveFitSlot.finalDecisionReason && (
-                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">Final reason: {effectiveFitSlot.finalDecisionReason}</p>
-                                        )}
-                                        {!effectiveFitSlot.finalDecisionReason && effectiveFitSlot.decisionReason && (
-                                          <p className="text-[10px] text-gray-500 mt-0.5 italic">{effectiveFitSlot.decisionReason}</p>
-                                        )}
-                                      </div>
-                                      <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${routeFitBadgeClass(effectiveFitSlot.routeFitType)}`}>
-                                        {effectiveFitSlot.displayLabel || effectiveFitSlot.label}
-                                      </span>
-                                    </div>
-                                    {effectiveFitSlot?.distanceComparisonNote && (
-                                      <p className="text-[10px] text-blue-700 mt-1">Note: {effectiveFitSlot.distanceComparisonNote}</p>
-                                    )}
-                                    {/* Requested slot if different */}
-                                    {matrixFit?.requestedSlot && matrixFit.requestedSlot.routeFitType === 'MATRIX_UNAVAILABLE' && (
-                                      <div className="mt-2 pt-2 border-t border-blue-200">
-                                        <p className="text-[10px] font-semibold text-gray-500 mb-0.5">Requested slot:</p>
-                                        <p className="text-[10px] text-gray-600">
-                                          {matrixFit.requestedSlot.fromName} → {((
-                                            /^hotel$/i.test(String(matrixFit.requestedSlot.toName || '').trim())
-                                            || (
-                                              String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
-                                              && String(matrixFit.requestedSlot.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
-                                            )
-                                            || Number((matrixFit.requestedSlot as any)?.destinationHotelId || 0) > 0
-                                          ) && destinationHotelDisplayName) ? destinationHotelDisplayName : matrixFit.requestedSlot.toName}
-                                        </p>
-                                        <span className="text-[10px] text-gray-400 italic">{matrixFit.requestedSlot.label}</span>
-                                      </div>
-                                    )}
-                                    {matrixFit?.warning && (
-                                      <p className="mt-1.5 text-[10px] text-amber-700 bg-amber-50 rounded px-2 py-1">
-                                        ⚠ {matrixFit.warning}
-                                      </p>
-                                    )}
-                                  </div>
+                                  <HotspotBestInsertionSlotPanel
+                                    slot={effectiveFitSlot}
+                                    matrixFit={matrixFit}
+                                    destinationHotelDisplayName={destinationHotelDisplayName}
+                                    selectedSlotHasRouteData={selectedSlotHasRouteData}
+                                    routeFitBadgeClass={routeFitBadgeClass}
+                                  />
                                 )}
 
                                 {/* Inserted hotspot route summary */}
