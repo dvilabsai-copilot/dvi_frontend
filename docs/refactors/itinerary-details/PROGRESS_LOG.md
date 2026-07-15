@@ -5032,6 +5032,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 251 - Add-hotspot preview pane
+
+### Baseline
+- Starting checkpoint: `cdfe69f` on `refactor/itinerary-details-checkpoint` with preview validation notices extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewPane.tsx`.
+- Moved the right-side proposed timeline composition, Fit Here selection state, preview strategy/validation panels, timeline notices/rows, and apply action out of `ItineraryDetailsController.tsx`.
+- Preserved all preview inputs, helper callbacks, loading/disabled conditions, selected-anchor behavior, and hotspot-apply semantics.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed serially (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 3,307 physical lines (down from 3,375 at the previous iteration).
+- New component: 252 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The Add Hotspot dialog shell, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

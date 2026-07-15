@@ -257,6 +257,7 @@ import { HotspotDialogListColumn } from "./itinerary-details/components/HotspotD
 import { HotspotPreviewStrategyPanel } from "./itinerary-details/components/HotspotPreviewStrategyPanel";
 import { HotspotPreviewTimelineRows } from "./itinerary-details/components/HotspotPreviewTimelineRows";
 import { HotspotPreviewValidationNotice } from "./itinerary-details/components/HotspotPreviewValidationNotice";
+import { HotspotPreviewPane } from "./itinerary-details/components/HotspotPreviewPane";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2813,146 +2814,77 @@ const hotelTimelineLoading = Boolean(
               />
 
               {/* Right Column: Preview */}
-              <div className="w-full lg:w-1/2 lg:border-l lg:pl-4 border-t lg:border-t-0 pt-4 lg:pt-0 flex flex-col overflow-y-auto min-h-0 pr-1">
-                <h3 className="font-semibold text-[#4a4260] mb-4 flex items-center gap-2 flex-shrink-0">
-                  <Clock className="h-4 w-4" />
-                  Proposed Timeline
-                </h3>
-                <HotspotFitHereEmptyState visible={!selectedFitHotspot && !manualPreviewState} />
-                {selectedFitHotspot && selectedFitHereDay && !manualPreviewState && (
-                  <div className="mb-4 space-y-4">
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <HotspotFitHereSelectionHeader selectedFitHotspot={selectedFitHotspot} />
-                      <p className="mt-2 text-sm text-slate-600">
-                        Choose the exact anchor below. We’ll calculate a preview for that position before anything is saved.
-                      </p>
-                    </div>
+              <HotspotPreviewPane
+                timelinePreviewRef={timelinePreviewRef}
+                isPreviewingHotspotId={isPreviewingHotspotId}
+                effectivePreviewTimeline={effectivePreviewTimeline}
+                selectedFitHotspot={selectedFitHotspot}
+                selectedFitHereDay={selectedFitHereDay}
+                manualPreviewState={manualPreviewState}
+                buildFitHereAnchorForTimelineRow={buildFitHereAnchorForTimelineRow}
+                getFitHereSegmentLabel={getFitHereSegmentLabel}
+                getFitHereSegmentTime={getFitHereSegmentTime}
+                renderFitHereButton={renderFitHereButton}
+                isFitHereSelectionMode={isFitHereSelectionMode}
+                activePreviewHotspotId={activePreviewHotspotId}
+                selectedHotspotAnchor={selectedHotspotAnchor}
+                bestInsertionSlot={bestInsertionSlot}
+                matrixRequiresBuild={matrixRequiresBuild}
+                isMatrixBuiltButNoFeasibleSlot={isMatrixBuiltButNoFeasibleSlot}
+                isMatrixMissingBlockedState={isMatrixMissingBlockedState}
+                backendStrategyLabel={backendForceConflictState.selectedStrategyLabel}
+                matrixFit={matrixFit}
+                selectedPreviewCityContext={selectedPreviewCityContext}
+                destinationInsertionSlotLabel={destinationInsertionSlotLabel}
+                insertionDecisionSummary={insertionDecisionSummary}
+                manualAttemptDisplayMeta={manualAttemptDisplayMeta}
+                activeManualOptimizerSummary={activeManualOptimizer?.summary}
+                activeAnchorFitInsight={activeAnchorFitInsight}
+                safeMatrixSlots={safeMatrixSlots}
+                destinationHotelDisplayName={destinationHotelDisplayName}
+                isBuildingMatrix={isBuildingMatrix}
+                isApplyingPreviewHotspot={isApplyingPreviewHotspot}
+                matrixBuildCommand={String(matrixBuildSuggestion?.command || "")}
+                onBuildMatrixAndPreviewAgain={handleBuildMatrixAndPreviewAgain}
+                routeFitBadgeClass={routeFitBadgeClass}
+                pendingPriorityReplacementHotspotId={pendingPriorityReplacementHotspotId}
+                previewRemovedHotspotDetails={previewRemovedHotspotDetails}
+                activePreviewValidation={activePreviewValidation}
+                hasManualOpeningOrTimingConflict={hasManualOpeningOrTimingConflict}
+                previewValidationReasonText={previewValidationReasonText}
+                shouldShowBuildMatrixButton={shouldShowBuildMatrixButton}
+                activePreviewResolution={activePreviewResolution}
+                manualInsertionFit={manualInsertionFit}
+                getManualTimingPolicyFromPreview={getManualTimingPolicyFromPreview}
+                formatManualPolicyTime={formatManualPolicyTime}
+                resolvedRemovalTimelineLeak={resolvedRemovalTimelineLeak}
+                optionalPreviewRemovedHotspotDetails={optionalPreviewRemovedHotspotDetails}
+                groupPreviewResolution={groupPreviewResolution}
+                previewHotspotMetaById={previewHotspotMetaById}
+                selectedHotelMetaByRoute={selectedHotelMetaByRoute}
+                previewRouteId={Number(addHotspotModal.routeId || 0)}
+                selectedHotspotId={selectedHotspotId}
+                extractTravelToFromText={extractTravelToFromText}
+                parseDisplayMinutes={parseDisplayMinutes}
+                formatMinutesToDisplay={formatMinutesToDisplay}
+                normalizeDurationAgainstDistance={normalizeDurationAgainstDistance}
+                effectiveFitSlot={effectiveFitSlot}
+                normalizedInsertionSlots={normalizedInsertionSlots}
+                onRemove={handleRemovePreviewHotspot}
+                priorityConfirmRef={priorityConfirmRef}
+                pendingPriorityResolution={pendingPriorityResolution}
+                onConfirmPriorityReplacement={handleConfirmPriorityReplacement}
+                onCancelPriorityReplacement={handleCancelPriorityReplacement}
+                formatPreviewDuration={formatPreviewDuration}
+                hotspotForceConflictMode={hotspotForceConflictMode}
+                isCurrentPreviewAlreadyAdded={isCurrentPreviewAlreadyAdded}
+                matrixApplyBlocked={matrixApplyBlocked}
+                hotspotEffectiveDecisionBlocked={hotspotEffectiveDecisionBlocked}
+                hotspotBlockForValidation={hotspotBlockForValidation}
+                handleAddHotspot={handleAddHotspot}
+                hotspotApplyLabel={hotspotApplyLabel}
+              />
 
-                    <HotspotFitHereTimelineRows
-                      selectedFitHereDay={selectedFitHereDay}
-                      selectedFitHotspot={selectedFitHotspot}
-                      buildFitHereAnchorForTimelineRow={buildFitHereAnchorForTimelineRow}
-                      getFitHereSegmentLabel={getFitHereSegmentLabel}
-                      getFitHereSegmentTime={getFitHereSegmentTime}
-                      renderFitHereButton={renderFitHereButton}
-                    />
-                  </div>
-                )}
-                <HotspotPreviewStrategyPanel
-                  visible={!isFitHereSelectionMode && Boolean(activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot))}
-                  activePreviewHotspotId={activePreviewHotspotId}
-                  selectedHotspotAnchor={selectedHotspotAnchor}
-                  bestInsertionSlot={bestInsertionSlot}
-                  matrixRequiresBuild={matrixRequiresBuild}
-                  isMatrixBuiltButNoFeasibleSlot={isMatrixBuiltButNoFeasibleSlot}
-                  isMatrixMissingBlockedState={isMatrixMissingBlockedState}
-                  backendStrategyLabel={backendForceConflictState.selectedStrategyLabel}
-                  matrixFit={matrixFit}
-                  selectedPreviewCityContext={selectedPreviewCityContext}
-                  destinationInsertionSlotLabel={destinationInsertionSlotLabel}
-                  insertionDecisionSummary={insertionDecisionSummary}
-                  manualAttemptDisplayMeta={manualAttemptDisplayMeta}
-                  activeManualOptimizerSummary={activeManualOptimizer?.summary}
-                  activeAnchorFitInsight={activeAnchorFitInsight}
-                  activePreviewResolution={activePreviewResolution}
-                  safeMatrixSlots={safeMatrixSlots}
-                  destinationHotelDisplayName={destinationHotelDisplayName}
-                  isBuildingMatrix={isBuildingMatrix}
-                  isPreviewingHotspotId={isPreviewingHotspotId}
-                  isApplyingPreviewHotspot={isApplyingPreviewHotspot}
-                  matrixBuildCommand={String(matrixBuildSuggestion?.command || "")}
-                  onBuildMatrixAndPreviewAgain={handleBuildMatrixAndPreviewAgain}
-                  routeFitBadgeClass={routeFitBadgeClass}
-                />
-                <HotspotPreviewValidationNotice
-                  visible={!pendingPriorityReplacementHotspotId}
-                  previewRemovedHotspotDetails={previewRemovedHotspotDetails}
-                  activePreviewValidation={activePreviewValidation}
-                  isMatrixBuiltButNoFeasibleSlot={isMatrixBuiltButNoFeasibleSlot}
-                  hasManualOpeningOrTimingConflict={hasManualOpeningOrTimingConflict}
-                  previewValidationReasonText={previewValidationReasonText}
-                  shouldShowBuildMatrixButton={shouldShowBuildMatrixButton}
-                  activePreviewHotspotId={activePreviewHotspotId}
-                  isBuildingMatrix={isBuildingMatrix}
-                  isPreviewingHotspotId={isPreviewingHotspotId}
-                  isApplyingPreviewHotspot={isApplyingPreviewHotspot}
-                  onBuildMatrixAndPreviewAgain={handleBuildMatrixAndPreviewAgain}
-                  selectedHotspotAnchor={selectedHotspotAnchor}
-                  selectedPreviewCityContext={selectedPreviewCityContext}
-                  destinationInsertionSlotLabel={destinationInsertionSlotLabel}
-                  activePreviewResolution={activePreviewResolution}
-                />
-
-                <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
-                  <HotspotPreviewLoadingState visible={Boolean(isPreviewingHotspotId)} />
-
-                  {effectivePreviewTimeline.length > 0 ? (
-                    <>
-                      <HotspotPreviewTimelineNotices
-                        effectivePreviewTimelineLength={effectivePreviewTimeline.length}
-                        sameCityShuffleApplied={(activePreviewResolution as any)?.sameCityShuffleApplied === true}
-                        manualInsertionFit={manualInsertionFit}
-                        resolvedEndLabel={(() => {
-                          const manualTimingPolicy = getManualTimingPolicyFromPreview(manualPreviewState)
-                            || getManualTimingPolicyFromPreview(activePreviewResolution)
-                            || getManualTimingPolicyFromPreview(groupPreviewResolution);
-                          return formatManualPolicyTime(manualTimingPolicy?.endTime) || "route end time";
-                        })()}
-                        resolvedRemovalTimelineLeak={resolvedRemovalTimelineLeak}
-                        optionalPreviewRemovedHotspotDetails={optionalPreviewRemovedHotspotDetails}
-                      />
-
-
-
-                      <HotspotPreviewTimelineRows
-                        effectivePreviewTimeline={effectivePreviewTimeline}
-                        previewHotspotMetaById={previewHotspotMetaById}
-                        selectedHotelMetaByRoute={selectedHotelMetaByRoute}
-                        previewRouteId={Number(addHotspotModal.routeId || 0)}
-                        selectedHotspotId={selectedHotspotId}
-                        destinationHotelDisplayName={destinationHotelDisplayName}
-                        extractTravelToFromText={extractTravelToFromText}
-                        parseDisplayMinutes={parseDisplayMinutes}
-                        formatMinutesToDisplay={formatMinutesToDisplay}
-                        normalizeDurationAgainstDistance={normalizeDurationAgainstDistance}
-                        effectiveFitSlot={effectiveFitSlot}
-                        matrixRequiresBuild={matrixRequiresBuild}
-                        matrixFit={matrixFit}
-                        normalizedInsertionSlots={normalizedInsertionSlots}
-                        routeFitBadgeClass={routeFitBadgeClass}
-                        activeAnchorFitInsight={activeAnchorFitInsight}
-                        onRemove={handleRemovePreviewHotspot}
-                        pendingPriorityReplacementHotspotId={pendingPriorityReplacementHotspotId}
-                        priorityConfirmRef={priorityConfirmRef}
-                        pendingPriorityResolution={pendingPriorityResolution}
-                        isPreviewingHotspotId={isPreviewingHotspotId}
-                        onConfirmPriorityReplacement={handleConfirmPriorityReplacement}
-                        onCancelPriorityReplacement={handleCancelPriorityReplacement}
-                        formatPreviewDuration={formatPreviewDuration}
-                      />
-
-                      <HotspotPreviewApplyAction
-                        isFitHereSelectionMode={isFitHereSelectionMode}
-                        forceConflict={hotspotForceConflictMode}
-                        loading={isApplyingPreviewHotspot}
-                        disabled={
-                          isApplyingPreviewHotspot
-                          || isBuildingMatrix
-                          || !activePreviewHotspotId
-                          || isCurrentPreviewAlreadyAdded
-                          || matrixApplyBlocked
-                          || hotspotEffectiveDecisionBlocked
-                          || hotspotBlockForValidation
-                        }
-                        onClick={handleAddHotspot}
-                        label={hotspotApplyLabel}
-                      />
-                    </>
-                  ) : (
-                    <HotspotPreviewEmptyTimeline />
-                  )}
-                </div>
-              </div>
             </div>
           </div>
           <HotspotDialogFooter
