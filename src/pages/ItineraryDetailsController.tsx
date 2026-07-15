@@ -3055,10 +3055,6 @@ const hotelTimelineLoading = Boolean(
 
       <SourcePreviewDialog open={sourcePreviewOpen} setOpen={setSourcePreviewOpen} heading={sourcePreviewHeading} loading={sourcePreviewLoading} error={sourcePreviewError} markdown={sourcePreviewMarkdown} />
       <ShareEmailDialog open={shareModal} setOpen={setShareModal} quoteId={String(quoteId || "")} />
-      {/* stale preview text retained temporarily for encoding-safe cleanup
-                                    ⚠️ Will extend hotspot end time
-                                    • {c.reason}
-      */}
       <AllHotspotsPreviewDialog
         open={allHotspotsPreviewModal.open}
         loading={allHotspotsPreviewModal.loading}

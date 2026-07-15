@@ -17,6 +17,19 @@
 ### Notes
 - The controller remains transitional work; further cohesive extractions are still required.
 
+## Iteration 254 — Remove stale preview comment
+
+### Baseline
+- Starting point: Iteration 253 at commit `39b7fed`.
+- Scope: delete an obsolete commented-out preview fragment left beside the active dialog.
+
+### Changes
+- Removed only non-executable comment text; no JSX, API call, condition, or user-visible behavior changed.
+
+### Verification
+- Controller line count: 3,269.
+- `git diff --check` passed.
+
 ## Iteration 51 — Para recommendations hook
 
 ### Baseline
