@@ -69,11 +69,6 @@ import {
   isSupplierBookableHotel,
   normalizeMealPlanLabel,
 } from "./itinerary-details/utils/domain.utils";
-import {
-  findGuideAssignmentForDay,
-  isAttractionCoveredByGuide as isAttractionCoveredByGuideUtil,
-  isGuidePriceAvailableForDay as isGuidePriceAvailableForDayUtil,
-} from "./itinerary-details/utils/guideAssignment.utils";
 import { deriveHotspotCityContext as deriveHotspotCityContextUtil } from "./itinerary-details/utils/hotspotCityContext.utils";
 import { mapDaySegmentToPreview as mapDaySegmentToPreviewUtil } from "./itinerary-details/utils/fitHerePreviewTimeline.utils";
 import { getPreviewValidationReasonText } from "./itinerary-details/utils/previewValidationReason.utils";
@@ -199,11 +194,6 @@ import { useHotelSelectionState } from "./itinerary-details/hooks/useHotelSelect
 import { useMediaShareState } from "./itinerary-details/hooks/useMediaShareState";
 import { useHotelWorkflowState } from "./itinerary-details/hooks/useHotelWorkflowState";
 import { useActivityState } from "./itinerary-details/hooks/useActivityState";
-import { useGuideModalController } from "./itinerary-details/hooks/useGuideModalController";
-import { useGuideDeleteMutation } from "./itinerary-details/hooks/useGuideDeleteMutation";
-import { useActivityPreviewController } from "./itinerary-details/hooks/useActivityPreviewController";
-import { useActivityAvailabilityLoader } from "./itinerary-details/hooks/useActivityAvailabilityLoader";
-import { useActivityMutationController } from "./itinerary-details/hooks/useActivityMutationController";
 import { useVehicleOnlyClipboardAction } from "./itinerary-details/hooks/useVehicleOnlyClipboardAction";
 import { useItineraryQuotationConfirmationWorkflow } from "./itinerary-details/hooks/useItineraryQuotationConfirmationWorkflow";
 import { useItineraryPreparedPageWorkflow } from "./itinerary-details/hooks/useItineraryPreparedPageWorkflow";
@@ -220,8 +210,6 @@ import { useItineraryAddHotspotDialogProps } from "./itinerary-details/hooks/use
 import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
-import { useGuideAvailabilityLoader } from "./itinerary-details/hooks/useGuideAvailabilityLoader";
-import { useGuideAssignmentSaveMutation } from "./itinerary-details/hooks/useGuideAssignmentSaveMutation";
 import { useItineraryHotelDataWorkflow } from "./itinerary-details/hooks/useItineraryHotelDataWorkflow";
 import {
   buildArrivalPolicyDecisionKey,
@@ -237,7 +225,6 @@ import { useRouteTimeProgressController } from "./itinerary-details/hooks/useRou
 import { useVehicleTotalsSync } from "./itinerary-details/hooks/useVehicleTotalsSync";
 import { useItineraryScrollController } from "./itinerary-details/hooks/useItineraryScrollController";
 import { useHotelPaginationController } from "./itinerary-details/hooks/useHotelPaginationController";
-import { useGuideDataRefresh } from "./itinerary-details/hooks/useGuideDataRefresh";
 import { useItineraryDocumentActions } from "./itinerary-details/hooks/useItineraryDocumentActions";
 import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetailsLoader";
 import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
@@ -249,6 +236,7 @@ import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecomme
 import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
+import { useItineraryActivityGuideWorkflow } from "./itinerary-details/hooks/useItineraryActivityGuideWorkflow";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
 export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "./itinerary-details/itinerary-details.types";
@@ -891,141 +879,36 @@ const switchedRouteRef = useRef<string | null>(null);
     });
   };
 
-  const openAddActivityModal = useActivityAvailabilityLoader({
-    setAddActivityModal,
-    setActivityPreview,
-    setPreviewingActivityId,
-    setAvailableActivities,
-    setLoadingActivities,
-  });
-
-  const { handleAddActivity, handleDeleteActivity } = useActivityMutationController({
-    addActivityModal,
-    activityPreview,
-    deleteActivityModal,
-    quoteId: quoteId || null,
+  const activityGuideWorkflow = useItineraryActivityGuideWorkflow({
+    activityState,
+    guideState,
+    deletionState,
+    routeState,
+    itinerary,
+    quoteId,
+    readOnly,
     shouldShowHotels,
-    setIsAddingActivity,
-    setIsDeletingActivity,
-    setAddActivityModal,
-    setDeleteActivityModal,
-    setActivityPreview,
-    setPreviewingActivityId,
-    setItinerary,
-    setHotelDetails,
     setActiveHotelListTotal,
   });
-
-const getSelectedPreviewActivity = () =>
-  availableActivities.find((activity) => activity.id === activityPreview?.activity?.id) || null;
-
-  const { handleOpenPreviewAllHotspots, handlePreviewActivity } = useActivityPreviewController({
-    addActivityModal,
-    setPreviewingActivityId,
-    setActivityPreview,
-    setAllHotspotsPreviewModal,
-  });
-
-  const openDeleteActivityModal = (
-    planId: number,
-    routeId: number,
-    activityId: number,
-    activityName: string
-  ) => {
-    setDeleteActivityModal({
-      open: true,
-      planId,
-      routeId,
-      activityId,
-      activityName,
-    });
-  };
-
-  const { loadGuideAssignments, refreshGuideData } = useGuideDataRefresh({
-    quoteId,
-    itineraryPlanId: itinerary?.planId,
-    setGuideAssignments,
-    setItinerary,
-  });
-
-  const openGuideModal = useGuideModalController({
-    readOnly,
-    itineraryPlanId: Number(itinerary?.planId || 0),
-    setGuideModal,
-  });
-
-  const handleAddGuideClick = (day: ItineraryDay) => {
-    const existing = guideAssignments.find((assignment) => (
-      Number(assignment.guideType || 0) === 2
-      && Number(assignment.routeId || 0) === Number(day.id)
-    ));
-    void openGuideModal(day, existing ?? null, 2);
-  };
-
-  const handleWholeItineraryGuideClick = () => {
-    const existing = guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
-    void openGuideModal(null, existing, 1);
-  };
-
-  const loadGuideAvailability = useGuideAvailabilityLoader({
-    setGuideAvailability,
-    setGuideAvailabilityLoading,
-  });
-
-  const getGuideAssignmentForDay = useCallback(
-    (day: ItineraryDay) => findGuideAssignmentForDay(guideAssignments, day),
-    [guideAssignments],
-  );
-
-  const isGuidePriceAvailableForDay = useCallback(
-    (day: ItineraryDay) => isGuidePriceAvailableForDayUtil(
-      guideAvailability,
-      itinerary?.guideForItinerary,
-      day,
-    ),
-    [guideAvailability, itinerary?.guideForItinerary],
-  );
-
-  const isAttractionCoveredByGuide = (
-    segment: AttractionSegment,
-    assignment: ItineraryGuideAssignment | null,
-  ): boolean => isAttractionCoveredByGuideUtil(segment, assignment, parseDisplayMinutes);
-
-  useEffect(() => {
-    const planId = Number(itinerary?.planId || 0);
-
-    if (!(planId > 0)) {
-      setGuideAvailability(null);
-      return;
-    }
-
-    void loadGuideAvailability(planId);
-  }, [itinerary?.planId, loadGuideAvailability]);
-
-  const handleSaveGuideAssignment = useGuideAssignmentSaveMutation({
-    guideModal,
-    itineraryDays: itinerary?.days,
-    refreshGuideData,
-    setGuideAssignments,
-    setGuideModal,
-    setItinerary,
-  });
-
-  const handleDeleteGuideAssignment = useGuideDeleteMutation({
-    itineraryPlanId: Number(itinerary?.planId || 0),
-    deleteGuideModal,
-    refreshGuideData,
-    setDeleteGuideModal,
-  });
-
-  useEffect(() => {
-    const planId = Number(itinerary?.planId || 0);
-    if (!(planId > 0)) {
-      setGuideAssignments([]);
-      return;
-    }
-    void loadGuideAssignments(planId);
-  }, [itinerary?.planId, loadGuideAssignments]);
+  const {
+    openAddActivityModal,
+    handleAddActivity,
+    handleDeleteActivity,
+    getSelectedPreviewActivity,
+    handleOpenPreviewAllHotspots,
+    handlePreviewActivity,
+    openDeleteActivityModal,
+    openGuideModal,
+    handleAddGuideClick,
+    handleWholeItineraryGuideClick,
+    getGuideAssignmentForDay,
+    isGuidePriceAvailableForDay,
+    isAttractionCoveredByGuide,
+    handleSaveGuideAssignment,
+    handleDeleteGuideAssignment,
+    activityViewState,
+    guideViewState,
+  } = activityGuideWorkflow;
 
   const openAddHotspotModal = useAddHotspotModalController({
     itinerary,
