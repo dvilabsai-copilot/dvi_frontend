@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 281 — Extract display-mode policy
+
+### Baseline
+- Starting point: Iteration 280 with the controller at 2,191 lines.
+- Scope: centralize confirmed/read-only presentation, hotel/vehicle visibility, and cost-role policy.
+
+### Changes
+- Added `hooks/useItineraryDisplayMode.ts`.
+- The hook preserves the existing preference mapping and confirmed-itinerary checks; no rendering or API behavior changes.
+
+### Verification
+- Controller line count: 2,181; new hook: 24 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 280 — Extract Add Hotspot dialog orchestration
 
 ### Baseline
