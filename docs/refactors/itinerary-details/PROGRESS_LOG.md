@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 295 — Extract loaded page view composition
+
+### Baseline
+- Starting point: Iteration 294 with the controller at 1,433 lines.
+- Scope: move the loaded itinerary markup and child-component mounting into a dedicated page view component.
+
+### Changes
+- Added `components/ItineraryDetailsPageView.tsx`.
+- Preserved loading/error/vehicle-build guards in the controller while moving loaded-page banners, progress overlay, travel sections, activity/guide dialogs, hotspot dialog, hotel/media/quotation/Fit Here dialogs, and ancillary modal mounting into the view component.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,420; new view: 63 lines.
+- View/controller ESLint passed with the controller's existing hook-dependency warnings; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 294 — Extract clipboard selection effects
 
 ### Baseline

@@ -237,6 +237,7 @@ import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecomme
 import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 import { useItineraryDisplayMode } from "./itinerary-details/hooks/useItineraryDisplayMode";
+import { ItineraryDetailsPageView } from "./itinerary-details/components/ItineraryDetailsPageView";
 import { useItineraryActivityGuideWorkflow } from "./itinerary-details/hooks/useItineraryActivityGuideWorkflow";
 
 // Preserve the historical type exports consumed by HotelList and other modules.
@@ -1343,45 +1344,40 @@ const hotelTimelineLoading = Boolean(
     setClipboardModal(true);
   };
 
-  return (
-    <div className="w-full max-w-full space-y-1 pb-8">
-      {isConfirmedPresentation && <ConfirmedQuoteBanner />}
-
-      <ItineraryRouteProgressOverlay
-        visible={isApplyingRouteTimeUpdate || isRebuilding || isSwitchingRouteOption}
-        isSwitchingRouteOption={isSwitchingRouteOption}
-        routeProgressTitle={routeProgressTitle}
-        routeProgressDetail={routeProgressDetail}
-        routeProgressPercent={routeTimeProgressPercent}
-        routeTimeEstimatedMs={routeTimeEstimatedMs}
-        routeProgressHistory={routeProgressHistory}
-      />
-
-      <ItineraryDetailsTravelSections
-        isConfirmedPresentation={isConfirmedPresentation}
-        header={{ summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId, isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference, scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref, itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal, modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton, hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels }}
-        daysContext={{ displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText }}
-        specialInstructionsText={specialInstructionsText}
-        hotelListRef={hotelListRef}
-        summaryStickyHeight={summaryStickyHeight}
-        shouldShowHotels={shouldShowHotels}
-        loadingHotels={loadingHotels}
-        hotelDetailsPresent={Boolean(hotelDetails)}
-        hotelList={{ hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onTotalChange: (total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }, onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} }}
-        shouldShowVehicles={shouldShowVehicles}
-        vehicleBuildStatus={vehicleBuildStatus}
-        hasVehicles={Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length))}
-        vehicleSection={{ vehicleListRef, summaryStickyHeight, vehicles: itinerary.vehicles, vehicleRateAvailability: itinerary.vehicleRateAvailability, planId: itinerary.planId, dateRange: itinerary.dateRange, days: itinerary.days || [], canViewCostBreakdown, showVendorDetails: !isAgentLogin, onRefresh: refreshVehicleData, onSelectedTotalChange: handleVehicleSelectedTotalChange }}
-        vehicleUnavailable={{ vehicleListRef, summaryStickyHeight }}
-        incidentalHistory={isConfirmedPresentation && itinerary.planId ? { planId: itinerary.planId, refreshToken: incidentalHistoryRefreshToken } : null}
-        packageIncludes={itinerary.packageIncludes}
-        cost={{ itinerary, canViewCostBreakdown, shouldShowHotels, shouldShowVehicles, financialTotals, roomBreakdownRoomNights, selectedHotelMetaByRoute, clipboardRatesVisible, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen, computedVehicleAmount, computedVehicleQty, effectiveEntryTicketAmount, entryTicketBreakdownByLocation }}
-        actions={{ isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true), onOpenIncidentalExpenses: () => setIncidentalModal(true), modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) }}
-      />
-
-
-      <ItineraryActivityGuideDialogs
-        hotspotDelete={{
+  return <ItineraryDetailsPageView
+      isConfirmedPresentation={isConfirmedPresentation}
+      routeProgress={{
+        visible: isApplyingRouteTimeUpdate || isRebuilding || isSwitchingRouteOption,
+        isSwitchingRouteOption,
+        routeProgressTitle,
+        routeProgressDetail,
+        routeProgressPercent: routeTimeProgressPercent,
+        routeTimeEstimatedMs,
+        routeProgressHistory,
+      }}
+      travelSections={{
+        isConfirmedPresentation,
+        header: { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId, isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference, scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref, itinerary, handleDownloadPluckCard, setVoucherModal, setIncidentalModal, modifyItineraryHref, handleDownloadInvoice, shouldShowRebuildHotelsButton, hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels },
+        daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
+        specialInstructionsText,
+        hotelListRef,
+        summaryStickyHeight,
+        shouldShowHotels,
+        loadingHotels,
+        hotelDetailsPresent: Boolean(hotelDetails),
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onTotalChange: (total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }, onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} },
+        shouldShowVehicles,
+        vehicleBuildStatus,
+        hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
+        vehicleSection: { vehicleListRef, summaryStickyHeight, vehicles: itinerary.vehicles, vehicleRateAvailability: itinerary.vehicleRateAvailability, planId: itinerary.planId, dateRange: itinerary.dateRange, days: itinerary.days || [], canViewCostBreakdown, showVendorDetails: !isAgentLogin, onRefresh: refreshVehicleData, onSelectedTotalChange: handleVehicleSelectedTotalChange },
+        vehicleUnavailable: { vehicleListRef, summaryStickyHeight },
+        incidentalHistory: isConfirmedPresentation && itinerary.planId ? { planId: itinerary.planId, refreshToken: incidentalHistoryRefreshToken } : null,
+        packageIncludes: itinerary.packageIncludes,
+        cost: { itinerary, canViewCostBreakdown, shouldShowHotels, shouldShowVehicles, financialTotals, roomBreakdownRoomNights, selectedHotelMetaByRoute, clipboardRatesVisible, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen, computedVehicleAmount, computedVehicleQty, effectiveEntryTicketAmount, entryTicketBreakdownByLocation },
+        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true), onOpenIncidentalExpenses: () => setIncidentalModal(true), modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+      }}
+      activityGuideDialogs={{
+        hotspotDelete: {
           open: deleteHotspotModal.open,
           title: "Delete Hotspot",
           description: <>Are you sure you want to delete "{deleteHotspotModal.hotspotName}"? This will also remove all associated activities.</>,
@@ -1389,9 +1385,9 @@ const hotelTimelineLoading = Boolean(
           onOpenChange: (open) => setDeleteHotspotModal({ ...deleteHotspotModal, open }),
           onCancel: () => setDeleteHotspotModal({ open: false, planId: null, routeId: null, routeHotspotId: null, masterHotspotId: null, hotspotName: "", hotspotWasPrebuilt: false }),
           onConfirm: handleDeleteHotspot,
-        }}
-        activity={{ context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } }}
-        activityDelete={{
+        },
+        activity: { context: { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } },
+        activityDelete: {
           open: deleteActivityModal.open,
           title: "Delete Activity",
           description: <>Are you sure you want to delete "{deleteActivityModal.activityName}"?</>,
@@ -1399,9 +1395,9 @@ const hotelTimelineLoading = Boolean(
           onOpenChange: (open) => setDeleteActivityModal({ ...deleteActivityModal, open }),
           onCancel: () => setDeleteActivityModal({ open: false, planId: null, routeId: null, activityId: null, activityName: "" }),
           onConfirm: handleDeleteActivity,
-        }}
-        guide={{ guideModal, setGuideModal, formatDate: (value) => formatHeaderDate(value), onSave: handleSaveGuideAssignment }}
-        guideDelete={{
+        },
+        guide: { guideModal, setGuideModal, formatDate: (value) => formatHeaderDate(value), onSave: handleSaveGuideAssignment },
+        guideDelete: {
           open: deleteGuideModal.open,
           title: "Delete Guide",
           description: Number(deleteGuideModal.assignment?.guideType || 0) === 1 ? "Are you sure you want to remove this whole-itinerary guide assignment?" : "Are you sure you want to remove this guide assignment from the itinerary day?",
@@ -1409,25 +1405,16 @@ const hotelTimelineLoading = Boolean(
           onOpenChange: (open) => { if (!deleteGuideModal.deleting) setDeleteGuideModal((prev) => ({ ...prev, open })); },
           onCancel: () => setDeleteGuideModal({ open: false, assignment: null, deleting: false }),
           onConfirm: () => void handleDeleteGuideAssignment(),
-        }}
-      />
-
-      <ItineraryAddHotspotDialog {...addHotspotDialogProps} />
-
-      <ArrivalHotelDecisionModal {...arrivalPolicyDialogProps} />
-
-      <ItineraryHotelDialogs {...hotelDialogProps} />
-
-      <ItineraryMediaDialogs {...mediaDialogProps} />
-
-      <QuotationConfirmationDialog open={confirmQuotationModal} onOpenChange={setConfirmQuotationModal} {...quotationDialogProps} />
-
-      <ItineraryFitHereDialogs {...fitHereDialogProps} />
-
-      {ancillaryModalProps && <ItineraryAncillaryModals {...ancillaryModalProps} />}
-
-    </div>
-  );
+        },
+      }}
+      addHotspotDialog={addHotspotDialogProps}
+      arrivalPolicyDialog={arrivalPolicyDialogProps}
+      hotelDialogs={hotelDialogProps}
+      mediaDialogs={mediaDialogProps}
+      quotation={{ open: confirmQuotationModal, onOpenChange: setConfirmQuotationModal, ...quotationDialogProps }}
+      fitHereDialogs={fitHereDialogProps}
+      ancillaryModals={ancillaryModalProps}
+    />;
 };
 
 export default ItineraryDetails;
