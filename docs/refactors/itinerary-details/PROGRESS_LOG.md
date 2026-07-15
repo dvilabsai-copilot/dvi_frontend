@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 265 — Extract route progress overlay
+
+### Baseline
+- Starting point: Iteration 264 with the controller at 2,659 lines.
+- Scope: move the route-time/rebuild progress overlay presentation and progress-ring calculations into a focused component.
+
+### Changes
+- Added `components/ItineraryRouteProgressOverlay.tsx`.
+- The controller still owns route progress state and visibility conditions; the new component preserves the existing overlay copy, progress history, and loading indicator.
+
+### Verification
+- Controller line count: 2,594; new component: 68 lines.
+- New component lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 264 — Extract arrival-policy decision workflow
 
 ### Baseline
