@@ -1,9 +1,7 @@
-import { useMemo } from "react";
 import { useSelectedHotelSummary } from "./useSelectedHotelSummary";
 import { useComputedHotelCost } from "./useComputedHotelCost";
 import { useRoomBreakdownNights } from "./useRoomBreakdownNights";
 import { useComputedVehicleTotals } from "./useComputedVehicleTotals";
-import { useEntryTicketSummary } from "./useEntryTicketSummary";
 import { useHotelsForDisplay } from "./useHotelsForDisplay";
 import { useFinancialTotals } from "./useFinancialTotals";
 import { useHotelHydratedDays } from "./useHotelHydratedDays";
@@ -63,7 +61,7 @@ export function useItineraryCostViewModel({
     selectedVehicleTotalsByType,
     costBreakdown: itinerary?.costBreakdown,
   });
-  const { entryTicketBreakdownByLocation, entryTicketLocationWiseTotal } = useEntryTicketSummary(itinerary?.days);
+  const entryTicketBreakdownByLocation = itinerary?.costBreakdown?.entryTicketBreakdown || [];
   const hotelsForDisplay = useHotelsForDisplay({
     hotelDetails,
     itineraryDays: itinerary?.days,
@@ -75,22 +73,8 @@ export function useItineraryCostViewModel({
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
     overallCost: itinerary?.overallCost,
-    computedHotelCost,
-    computedVehicleAmount,
-    shouldShowHotels,
-    shouldShowVehicles,
-    hasRequiredVehicleSelection,
-    selectedVehicleTotalsByType,
-    activeHotelListTotal,
-    selectedHotelTotal,
-    entryTicketBreakdownCount: entryTicketBreakdownByLocation.length,
-    entryTicketLocationWiseTotal,
   });
-  const effectiveEntryTicketAmount = useMemo(() => {
-    const fallback = Number(itinerary?.costBreakdown?.totalHotspotCost || 0);
-    if (entryTicketBreakdownByLocation.length > 0) return Number(entryTicketLocationWiseTotal || 0);
-    return Number.isFinite(fallback) ? fallback : 0;
-  }, [entryTicketBreakdownByLocation.length, entryTicketLocationWiseTotal, itinerary?.costBreakdown?.totalHotspotCost]);
+  const effectiveEntryTicketAmount = itinerary?.costBreakdown?.totalHotspotCost || 0;
   const hotelHydratedDays = useHotelHydratedDays({ itineraryDays: itinerary?.days, selectedHotelMetaByRoute });
   const displayDays = useDisplayItineraryDays({ hotelHydratedDays, itineraryDays: itinerary?.days });
 
@@ -102,7 +86,6 @@ export function useItineraryCostViewModel({
     computedVehicleAmount,
     computedVehicleQty,
     entryTicketBreakdownByLocation,
-    entryTicketLocationWiseTotal,
     hotelsForDisplay,
     financialTotals,
     effectiveEntryTicketAmount,

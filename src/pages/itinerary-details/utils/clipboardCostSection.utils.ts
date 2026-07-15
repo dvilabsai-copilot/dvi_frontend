@@ -53,8 +53,14 @@ export const buildClipboardCostSectionHtml = ({
     ? totals.entryTicketBreakdown.map((item) => `
                   <tr>
                     <td style="${styles.cellStyle}padding-left:18px;color:#5d5d5d;">Day ${escapeHtml(item.dayNumber || 0)} - ${escapeHtml(item.locationName || 'Sightseeing Location')}</td>
-                    <td style="${styles.cellStyle}color:#5d5d5d;">${escapeHtml(formatClipboardMoneyWithSymbol(item.amount || 0))}</td>
+                    <td style="${styles.cellStyle}color:#5d5d5d;">${escapeHtml(formatClipboardMoneyWithSymbol(item.total || 0))}</td>
                   </tr>
+                  ${(item.travellers || []).map((traveller) => `
+                    <tr>
+                      <td style="${styles.cellStyle}padding-left:36px;color:#888;font-size:10px;">${escapeHtml(traveller.label)} (${escapeHtml(traveller.quantity)} x ${escapeHtml(formatClipboardMoneyWithSymbol(traveller.unitCost))})</td>
+                      <td style="${styles.cellStyle}color:#888;font-size:10px;">${escapeHtml(formatClipboardMoneyWithSymbol(traveller.total))}</td>
+                    </tr>
+                  `).join('')}
                 `).join('')
     : '';
 

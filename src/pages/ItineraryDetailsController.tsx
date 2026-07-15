@@ -815,7 +815,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
         vehicleUnavailable: { vehicleListRef, summaryStickyHeight },
         incidentalHistory: isConfirmedPresentation && itinerary.planId ? { planId: itinerary.planId, refreshToken: incidentalHistoryRefreshToken } : null,
         packageIncludes: itinerary.packageIncludes,
-        cost: { itinerary, canViewCostBreakdown, shouldShowHotels, shouldShowVehicles, financialTotals, roomBreakdownRoomNights, selectedHotelMetaByRoute, clipboardRatesVisible, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen, computedVehicleAmount, computedVehicleQty, effectiveEntryTicketAmount, entryTicketBreakdownByLocation },
+        cost: { itinerary, canViewCostBreakdown, financialTotals },
         actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true), onOpenIncidentalExpenses: () => setIncidentalModal(true), modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
       }}
       activityGuideDialogs={{

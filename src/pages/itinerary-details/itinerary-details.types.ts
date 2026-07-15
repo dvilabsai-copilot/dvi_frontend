@@ -345,6 +345,27 @@ export type PackageIncludes = {
   rateNote: string | null;
 };
 
+export type EntryTicketTravellerBreakdown = {
+  type: "adult" | "child" | "infant";
+  label: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+};
+
+export type EntryTicketBreakdown = {
+  dayNumber: number;
+  date: string | null;
+  locationId: number;
+  hotspotId: number;
+  routeHotspotId: number;
+  locationName: string;
+  total: number;
+  entryTicketRequired: boolean;
+  nationality: number;
+  travellers: EntryTicketTravellerBreakdown[];
+};
+
 export type CostBreakdown = {
   // Hotel costs
   totalRoomCost?: number | null;
@@ -364,6 +385,7 @@ export type CostBreakdown = {
   // Activity/Guide costs
   totalGuideCost?: number | null;
   totalHotspotCost?: number | null;
+  entryTicketBreakdown?: EntryTicketBreakdown[];
   totalActivityCost?: number | null;
 
   // Final calculations
