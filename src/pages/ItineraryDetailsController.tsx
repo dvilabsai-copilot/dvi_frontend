@@ -3383,32 +3383,6 @@ const canShowGuideActionButton =
                       </div>
                     ) : null}
 
-                    {optionalPreviewRemovedHotspotDetails.length > 0 ? (
-                      <div className="p-3 rounded-xl border border-amber-200 bg-amber-50 shadow-sm">
-                        <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
-                        <p className="text-xs text-amber-700 mt-1 leading-4">
-                          To fit your selected hotspot(s), these optional hotspots will be removed:
-                        </p>
-                        <ul className="mt-2 space-y-2 text-xs text-amber-800">
-                          {optionalPreviewRemovedHotspotDetails.map((row) => (
-                            <li key={`optional-removed-${row.key}`} className="rounded-lg border border-amber-200 bg-white/70 p-2">
-                              <p className="font-semibold">
-                                {row.name}
-                                {row.workPriorityLabel || row.priorityLabel ? ` • ${row.workPriorityLabel || row.priorityLabel}` : ''}
-                              </p>
-                              {row.reason ? (
-                                <p className="mt-1 leading-4">{row.reason}</p>
-                              ) : null}
-                              {row.removalReasonCode ? (
-                                <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-amber-700">
-                                  {row.removalReasonCode}
-                                </p>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : null}
                   </div>
                 )}
                 <div ref={timelinePreviewRef} className="flex-1 space-y-3 min-h-0 pb-4">
@@ -3427,6 +3401,7 @@ const canShowGuideActionButton =
                           return formatManualPolicyTime(manualTimingPolicy?.endTime) || "route end time";
                         })()}
                         resolvedRemovalTimelineLeak={resolvedRemovalTimelineLeak}
+                        optionalPreviewRemovedHotspotDetails={optionalPreviewRemovedHotspotDetails}
                       />
 
 

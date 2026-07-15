@@ -7,8 +7,11 @@ import { HotspotPreviewDayEndOverflowNotice } from "./HotspotPreviewDayEndOverfl
 import { HotspotPreviewRescheduleNotice } from "./HotspotPreviewRescheduleNotice";
 
 type PlannedRemoval = {
+  key?: string;
   name?: string;
   priority?: number;
+  workPriorityLabel?: string;
+  priorityLabel?: string;
   reason?: string;
   removalReasonCode?: string;
 };
@@ -29,6 +32,7 @@ type HotspotPreviewTimelineNoticesProps = {
   manualInsertionFit: ManualInsertionFit | null;
   resolvedEndLabel: string;
   resolvedRemovalTimelineLeak: boolean;
+  optionalPreviewRemovedHotspotDetails: PlannedRemoval[];
 };
 
 /** Renders warning/status notices immediately above the proposed hotspot timeline. */
@@ -38,6 +42,7 @@ export const HotspotPreviewTimelineNotices: React.FC<HotspotPreviewTimelineNotic
   manualInsertionFit,
   resolvedEndLabel,
   resolvedRemovalTimelineLeak,
+  optionalPreviewRemovedHotspotDetails,
 }) => {
   if (effectivePreviewTimelineLength <= 0) return null;
   const removalPlan = manualInsertionFit?.lowPriorityRemovalPlanPreview;
@@ -74,6 +79,21 @@ export const HotspotPreviewTimelineNotices: React.FC<HotspotPreviewTimelineNotic
           ) : null}
           <HotspotPreviewResolvedTimelineNotice />
           <HotspotPreviewOverflowLeakNotice visible={import.meta.env.DEV && resolvedRemovalTimelineLeak} />
+        </div>
+      )}
+      {optionalPreviewRemovedHotspotDetails.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm">
+          <p className="text-sm font-bold text-amber-800">Optional hotspots will be removed</p>
+          <p className="mt-1 text-xs leading-4 text-amber-700">To fit your selected hotspot(s), these optional hotspots will be removed:</p>
+          <ul className="mt-2 space-y-2 text-xs text-amber-800">
+            {optionalPreviewRemovedHotspotDetails.map((row) => (
+              <li key={`optional-removed-${row.key || row.name}`} className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                <p className="font-semibold">{row.name}{row.workPriorityLabel || row.priorityLabel ? ` • ${row.workPriorityLabel || row.priorityLabel}` : ""}</p>
+                {row.reason ? <p className="mt-1 leading-4">{row.reason}</p> : null}
+                {row.removalReasonCode ? <p className="mt-1 font-mono text-[11px] uppercase tracking-wide text-amber-700">{row.removalReasonCode}</p> : null}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </>
