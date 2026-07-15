@@ -30,6 +30,20 @@
 - Controller line count: 3,270 (the final export is line 3,270).
 - `git diff --check` passed.
 
+## Iteration 255 — Extract route-family normalization helper
+
+### Baseline
+- Starting point: Iteration 254 at commit `b21714d`.
+- Scope: move the pure route-family quote-id normalizer out of the controller.
+
+### Changes
+- Added `utils/routeFamily.utils.ts` and replaced the local callback with its stable exported function.
+- Input normalization and `-R<number>` stripping behavior are unchanged.
+
+### Verification
+- Controller line count: 3,263; new utility: 7 lines.
+- Utility lint, filtered TypeScript, and `git diff --check` passed.
+
 ## Iteration 51 — Para recommendations hook
 
 ### Baseline

@@ -372,6 +372,7 @@ import { useSelectedHotelSummary } from "./itinerary-details/hooks/useSelectedHo
 import { useComputedHotelCost } from "./itinerary-details/hooks/useComputedHotelCost";
 import { useComputedVehicleTotals } from "./itinerary-details/hooks/useComputedVehicleTotals";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
+import { normalizeRouteFamilyBaseQuoteId } from "./itinerary-details/utils/routeFamily.utils";
 import { useEntryTicketSummary } from "./itinerary-details/hooks/useEntryTicketSummary";
 import { useFinancialTotals } from "./itinerary-details/hooks/useFinancialTotals";
 import { useRoomBreakdownNights } from "./itinerary-details/hooks/useRoomBreakdownNights";
@@ -457,14 +458,6 @@ const location = useLocation();
     setHeading: setSourcePreviewHeading,
   });
 
-
-const normalizeRouteFamilyBaseQuoteId = useCallback((value?: string | null) => {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-
-  const match = raw.match(/^(.*)-R(\d+)$/i);
-  return String(match?.[1] || raw).trim();
-}, []);
 
 const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelDetailsCache({
   routeHotelDetailsByQuoteId,
