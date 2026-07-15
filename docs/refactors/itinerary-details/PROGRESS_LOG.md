@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 294 — Extract clipboard selection effects
+
+### Baseline
+- Starting point: Iteration 293 with the controller at 1,449 lines.
+- Scope: isolate clipboard recommendation defaults, hotel-rate visibility synchronization, and active hotel-group initialization.
+
+### Changes
+- Added `hooks/useItineraryClipboardSelectionWorkflow.ts`.
+- Preserved clipboard selection defaults, rate visibility updates, and hotel-tab initialization behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,433; new hook: 49 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 293 — Extract hotspot preview workflow
 
 ### Baseline

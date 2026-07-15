@@ -216,6 +216,7 @@ import {
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
 import { useItineraryHotspotPreviewWorkflow } from "./itinerary-details/hooks/useItineraryHotspotPreviewWorkflow";
+import { useItineraryClipboardSelectionWorkflow } from "./itinerary-details/hooks/useItineraryClipboardSelectionWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -596,24 +597,16 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
   // ✅ Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useParaRecommendations(hotelDetails);
 
-  const buildDefaultClipboardSelection = useCallback(() => {
-    const next: Record<string, boolean> = {};
-    paraRecommendations.forEach((_item, idx) => {
-      next[`para-${idx}`] = true;
-    });
-    return next;
-  }, [paraRecommendations]);
-
-  useEffect(() => {
-    setClipboardRatesVisible(Boolean(hotelDetails?.hotelRatesVisible));
-  }, [hotelDetails]);
-
-  useEffect(() => {
-    if (!hotelDetails?.hotelTabs?.length) return;
-    if (activeHotelGroupType == null) {
-      setActiveHotelGroupType(hotelDetails.hotelTabs[0].groupType);
-    }
-  }, [hotelDetails, activeHotelGroupType]);
+  const { buildDefaultClipboardSelection } = useItineraryClipboardSelectionWorkflow({
+    hotelDetails,
+    activeHotelGroupType,
+    setActiveHotelGroupType,
+    setClipboardRatesVisible,
+    clipboardModal,
+    paraRecommendations,
+    selectedHotels,
+    setSelectedHotels,
+  });
 
   useEffect(() => {
     const firstDay = itinerary?.days?.find((day) => Number(day.dayNumber) === 1) || itinerary?.days?.[0];
@@ -643,15 +636,6 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
       );
     }
   }, [hotelDetails, itinerary]);
-
-  useEffect(() => {
-    if (!clipboardModal || !paraRecommendations.length) return;
-
-    const hasAnySelected = Object.values(selectedHotels).some(Boolean);
-    if (!hasAnySelected) {
-      setSelectedHotels(buildDefaultClipboardSelection());
-    }
-  }, [clipboardModal, paraRecommendations, selectedHotels, buildDefaultClipboardSelection]);
 
   const {
     getSelectedClipboardGroups,
