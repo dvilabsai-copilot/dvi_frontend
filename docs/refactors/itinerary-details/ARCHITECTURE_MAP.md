@@ -261,3 +261,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Matrix-missing retry guidance and no-feasible-slot insertion warnings are isolated in `HotspotMatrixMissingNotice.tsx` and `HotspotMatrixNoFeasibleNotice.tsx`.
 - Bounded manual-optimizer attempt diagnostics are isolated in `HotspotManualAttemptLog.tsx`.
 - Selected preview strategy, insertion-slot decision, optimizer diagnostics, anchor-fit insight, and matrix retry/no-feasible notices are isolated in `HotspotPreviewStrategyPanel.tsx`.
+- Candidate insertion-slot cards, route-fit metrics, distance comparisons, and decision-reason labels are isolated in `HotspotInsertionSlotsPanel.tsx`.

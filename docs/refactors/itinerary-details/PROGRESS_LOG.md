@@ -4957,6 +4957,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The timeline column, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 248 - Insertion-slot evidence panel
+
+### Baseline
+- Starting checkpoint: `5e0e31b` on `refactor/itinerary-details-checkpoint` with the preview strategy panel extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotInsertionSlotsPanel.tsx`.
+- Moved all candidate insertion-slot cards, route-fit metrics, distance comparisons, and decision-reason labels out of `ItineraryDetailsController.tsx`.
+- Preserved destination-hotel substitution, best-slot badges, route-data suppression, and route-fit badge callback behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed serially (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 3,871 physical lines (down from 3,996 at the previous iteration).
+- New component: 86 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The timeline row derivation/rendering, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
