@@ -245,6 +245,7 @@ import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialo
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
 import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
 import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useItineraryQuotationDialogProps";
+import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1948,6 +1949,29 @@ const hotelTimelineLoading = Boolean(
     handleConfirmQuotation,
     canConfirmQuotation,
   });
+  const ancillaryModalProps = useItineraryAncillaryModalProps({
+    itineraryPlanId: itinerary?.planId || 0,
+    voucherModal,
+    setVoucherModal,
+    pluckCardModal,
+    setPluckCardModal,
+    invoiceModal,
+    setInvoiceModal,
+    invoiceType,
+    incidentalModal,
+    setIncidentalModal,
+    onIncidentalSuccess: () => setIncidentalHistoryRefreshToken((current) => current + 1),
+    cancelModalOpen,
+    setCancelModalOpen,
+    onCancellationSuccess: () => {
+      toast.success("Itinerary data will be refreshed");
+      window.location.reload();
+    },
+    selectedHotelForVoucher,
+    hotelVoucherModalOpen,
+    setHotelVoucherModalOpen,
+    onHotelVoucherSuccess: refreshHotelData,
+  });
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2176,56 +2200,7 @@ const hotelTimelineLoading = Boolean(
 
       <ItineraryFitHereDialogs {...fitHereDialogProps} />
 
-      {itinerary?.planId && (
-        <ItineraryAncillaryModals
-          voucher={{
-            isOpen: voucherModal,
-            onClose: () => setVoucherModal(false),
-            itineraryPlanId: itinerary.planId,
-          }}
-          pluckCard={{
-            isOpen: pluckCardModal,
-            onClose: () => setPluckCardModal(false),
-            itineraryPlanId: itinerary.planId,
-          }}
-          invoice={{
-            isOpen: invoiceModal,
-            onClose: () => setInvoiceModal(false),
-            itineraryPlanId: itinerary.planId,
-            type: invoiceType,
-          }}
-          incidentalExpenses={{
-            isOpen: incidentalModal,
-            onClose: () => setIncidentalModal(false),
-            itineraryPlanId: itinerary.planId,
-            onSuccess: () => setIncidentalHistoryRefreshToken((current) => current + 1),
-          }}
-          cancellation={{
-            open: cancelModalOpen,
-            onOpenChange: setCancelModalOpen,
-            itineraryPlanId: itinerary.planId,
-            onSuccess: () => {
-              toast.success('Itinerary data will be refreshed');
-              window.location.reload();
-            },
-          }}
-          hotelVoucher={selectedHotelForVoucher ? {
-            open: hotelVoucherModalOpen,
-            onOpenChange: setHotelVoucherModalOpen,
-            itineraryPlanId: itinerary.planId,
-            routeId: selectedHotelForVoucher.routeId,
-            hotelId: selectedHotelForVoucher.hotelId,
-            hotelName: selectedHotelForVoucher.hotelName,
-            hotelEmail: selectedHotelForVoucher.hotelEmail,
-            hotelStateCity: selectedHotelForVoucher.hotelStateCity,
-            routeDates: selectedHotelForVoucher.routeDates,
-            dayNumbers: selectedHotelForVoucher.dayNumbers,
-            hotelDetailsIds: selectedHotelForVoucher.hotelDetailsIds,
-            initialStatus: selectedHotelForVoucher.initialStatus,
-            onSuccess: refreshHotelData,
-          } : null}
-        />
-      )}
+      {ancillaryModalProps && <ItineraryAncillaryModals {...ancillaryModalProps} />}
 
     </div>
   );

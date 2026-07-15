@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 277 — Extract ancillary modal props
+
+### Baseline
+- Starting point: Iteration 276 with the controller at 2,234 lines.
+- Scope: move voucher, pluck-card, invoice, incidental-expense, cancellation, and hotel-voucher prop assembly into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryAncillaryModalProps.ts`.
+- Ancillary modal state, refresh behavior, cancellation reload, and voucher mutations remain controller-owned.
+
+### Verification
+- Controller line count: 2,209; new hook: 60 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 276 — Extract quotation dialog props
 
 ### Baseline
