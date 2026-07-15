@@ -12,7 +12,7 @@
 - Behaviour intentionally changed: No.
 
 ### Verification
-- Controller line count: 1,360; utility: 24 lines.
+- Controller line count: 1,365; utility: 24 lines.
 - Utility ESLint passed; filtered TypeScript found no errors in the affected utility/controller paths.
 - Production build passed with existing warnings; `git diff --check` passed.
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
