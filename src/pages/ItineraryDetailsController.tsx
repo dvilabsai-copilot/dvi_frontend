@@ -598,36 +598,19 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     visibleHotspotsForActiveTab,
   } = hotspotPreviewViewModel;
 
-  // Hotel selection modal state
-  type AvailableHotel = {
-    id: number;
-    name: string;
-    address: string;
-    category: string;
-    checkIn: string;
-    checkOut: string;
-    distance: string;
-  };
   const hotelWorkflowState = useHotelWorkflowState();
   const {
     hotelSelectionModal, setHotelSelectionModal, hotelSearchChildAges, setHotelSearchChildAges,
     isResolvingArrivalPolicy, setIsResolvingArrivalPolicy, latestArrivalPolicy, setLatestArrivalPolicy,
     pendingRouteTimeUpdate, setPendingRouteTimeUpdate, lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey,
     arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal, roomSelectionModal, setRoomSelectionModal,
-    availableHotels, setAvailableHotels, loadingHotels, setLoadingHotels, isRebuildingHotels, setIsRebuildingHotels,
+    loadingHotels, setLoadingHotels, isRebuildingHotels, setIsRebuildingHotels,
     isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate, routeTimeProgressPercent, setRouteTimeProgressPercent,
     routeTimeEstimatedMs, setRouteTimeEstimatedMs, routeProgressTitle, setRouteProgressTitle,
     routeProgressDetail, setRouteProgressDetail, routeProgressHistory, setRouteProgressHistory,
     pendingScrollDayNumber, setPendingScrollDayNumber, routeTimeProgressTimerRef,
     isSelectingHotel, setIsSelectingHotel, hotelSearchQuery, setHotelSearchQuery, selectedMealPlan, setSelectedMealPlan,
   } = hotelWorkflowState;
-
-  // Filter hotels based on search query
-  const filteredHotels = availableHotels.filter(
-    (h) =>
-      h.name.toLowerCase().includes(hotelSearchQuery.toLowerCase()) ||
-      h.address.toLowerCase().includes(hotelSearchQuery.toLowerCase())
-  );
 
   const pushPageLoaderStage = useCallback((stage: string, detail?: string) => {
     setPageLoaderStage(stage);

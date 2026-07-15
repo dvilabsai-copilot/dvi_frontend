@@ -1,5 +1,20 @@
 # Progress log
 
+## Iteration 268 — Remove dead hotel-search scaffolding
+
+### Baseline
+- Starting point: Iteration 267 with the controller at 2,553 lines.
+- Scope: remove obsolete hotel-search DTO/filter scaffolding left behind after the active hotel dialogs and loaders were extracted.
+
+### Changes
+- Removed the unused `AvailableHotel` type, unused workflow-state fields, and the unreachable filtered-hotel list derivation.
+- No active hotel selection, loading, or rendering path changed.
+
+### Verification
+- Controller line count: 2,536.
+- Filtered TypeScript and `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 267 — Extract Fit Here progress timer
 
 ### Baseline
