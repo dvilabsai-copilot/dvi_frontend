@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 263 — Extract Add Hotspot dialog layout
+
+### Baseline
+- Starting point: Iteration 262 at commit `3939f02` with the controller at 2,874 lines.
+- Scope: move the Add Hotspot dialog shell, two-column layout, and child composition outside the controller.
+
+### Changes
+- Added `components/ItineraryAddHotspotDialog.tsx`.
+- The controller still owns modal reset behavior, hotspot list/preview props, selection, Fit Here, matrix, and mutation callbacks.
+
+### Verification
+- Controller line count: 2,758; new component: 35 lines.
+- Exact-source Playwright pair: 2 passed.
+- New component lint and filtered TypeScript passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 262 — Extract cost and display view-model
 
 ### Baseline
