@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 308 — Extract clipboard workflow
+
+### Baseline
+- Starting point: Iteration 307 with the controller at 1,084 lines.
+- Scope: isolate clipboard selection initialization, content building, vehicle-only copy, and hotel clipboard actions.
+
+### Changes
+- Added `hooks/useItineraryClipboardWorkflow.ts`.
+- Preserved recommended/highlights/para selection, vehicle-only formatting, backend clipboard retrieval, merge behavior, toasts, and modal reset behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,046; new hook: 110 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected paths.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 307 — Guard null itinerary quotation counts
 
 ### Baseline
