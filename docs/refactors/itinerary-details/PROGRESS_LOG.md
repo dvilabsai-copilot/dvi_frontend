@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 310 — Remove unused controller declarations
+
+### Baseline
+- Starting point: Iteration 309 with the controller at 998 lines.
+- Scope: remove imports and state destructuring left behind after workflow extraction.
+
+### Changes
+- Removed unused legacy UI/API/type imports and unused setters/view-model fields.
+- Restored the active-hotspot setter required by the add-hotspot workflow; no runtime behavior was intentionally changed.
+- Kept the three-file router/runtime/controller boundary because each file has a separate export/composition responsibility.
+
+### Verification
+- Controller line count: 862.
+- Affected-controller unused-variable lint passed; production build passed; `git diff --check` passed.
+- Filtered TypeScript reported no controller errors; the repository still has pre-existing `GstSetting` errors in `Settings/GstSettings`.
+
 ## Iteration 309 — Extract page guards and arrival hydration
 
 ### Baseline
