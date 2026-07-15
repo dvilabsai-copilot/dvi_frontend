@@ -338,6 +338,11 @@ const handleVehicleTypeKeyDown = (
 const selectedPermitStateLabel =
   stateOptions.find((state) => state.id === permitForm.state)?.label || "";
 
+const destinationStateOptions = useMemo(
+  () => stateOptions.filter((state) => state.id !== permitForm.state),
+  [stateOptions, permitForm.state],
+);
+
 const filteredPermitStateOptions = useMemo(() => {
   const query = permitStateSearchText.trim().toLowerCase();
 
@@ -420,29 +425,30 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 
     setSaving(true);
     try {
-      for (const [destStateId, cost] of Object.entries(destinationCosts)) {
-        // An empty input represents null and must not alter the stored value.
-        // The string "0" is intentionally not treated as empty.
-        if (cost === null || cost === undefined || String(cost).trim() === "") {
-          continue;
+      const items = destinationStateOptions.map((state) => {
+        const rawCost = String(destinationCosts[state.id] ?? "").trim();
+        const permitCost = rawCost === "" ? 0 : Number(rawCost);
+        if (!Number.isFinite(permitCost) || permitCost < 0) {
+          throw new Error(`Permit cost for ${state.label} must be zero or greater`);
         }
+        return {
+          vehicle_type_id: Number(permitForm.vehicleType),
+          source_state_id: Number(permitForm.state),
+          destination_state_id: Number(state.id),
+          permit_cost: permitCost,
+        };
+      });
 
-        await api(`/vendors/${vendorId}/permit-costs`, {
-          method: "POST",
-          body: JSON.stringify({
-            vehicle_type_id: Number(permitForm.vehicleType),
-            source_state_id: Number(permitForm.state),
-            destination_state_id: Number(destStateId),
-            permit_cost: Number(cost),
-          }),
-        });
-      }
+      await api(`/vendors/${vendorId}/permit-costs`, {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
       await fetchPermitCosts();
       setIsAddMode(false);
       toast.success("Permit cost saved successfully");
     } catch (e) {
       console.error("Failed to save permit costs", e);
-      toast.error("Failed to save permit costs");
+      toast.error(e instanceof Error ? e.message : "Failed to save permit costs");
     } finally {
       setSaving(false);
     }
@@ -841,11 +847,13 @@ filteredPermitStateOptions.map((state, index) => {
         <div className="mt-6">
           <h3 className="mb-4 text-md font-semibold text-gray-700">Destination State Permit Costs</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-2 border rounded-md">
-            {stateOptions.map((state) => (
+            {destinationStateOptions.map((state) => (
               <div key={state.id} className="flex items-center gap-2">
                 <Label className="w-32 text-xs truncate">{state.label}</Label>
                 <Input 
-                  type="number" 
+                  type="number"
+                  min="0"
+                  step="0.01"
                   placeholder="Cost" 
                   className="h-8 text-xs"
                   value={destinationCosts[state.id] ?? ""}
