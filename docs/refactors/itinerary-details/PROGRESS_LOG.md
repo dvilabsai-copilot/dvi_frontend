@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 267 — Extract Fit Here progress timer
+
+### Baseline
+- Starting point: Iteration 266 with the controller at 2,575 lines.
+- Scope: move Fit Here progress interval lifecycle and loading-step updates into a dedicated hook.
+
+### Changes
+- Added `hooks/useFitHereProgressTimer.ts`.
+- Timer cleanup, interval cadence, and loading-step cap are unchanged; the controller still owns Fit Here modal state.
+
+### Verification
+- Controller line count: 2,553; new hook: 34 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 266 — Extract quotation confirmation view model
 
 ### Baseline

@@ -213,6 +213,7 @@ import { ItineraryAddHotspotDialog } from "./itinerary-details/components/Itiner
 import { ItineraryRouteProgressOverlay } from "./itinerary-details/components/ItineraryRouteProgressOverlay";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
+import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
 import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
@@ -445,33 +446,10 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     priorityConfirmRef, previewRequestIdRef, fitHereProgressTimerRef,
   } = hotspotState;
 
-  const stopFitHereProgressTimer = () => {
-    if (fitHereProgressTimerRef.current) {
-      window.clearInterval(fitHereProgressTimerRef.current);
-      fitHereProgressTimerRef.current = null;
-    }
-  };
-
-  const startFitHereProgressTimer = () => {
-    stopFitHereProgressTimer();
-
-    fitHereProgressTimerRef.current = window.setInterval(() => {
-      setFitHereModal((prev) => {
-        if (!prev.open || !prev.loading) return prev;
-
-        return {
-          ...prev,
-          loadingStepIndex: Math.min(prev.loadingStepIndex + 1, 10),
-        };
-      });
-    }, 700);
-  };
-
-  useEffect(() => {
-    return () => {
-      stopFitHereProgressTimer();
-    };
-  }, []);
+  const { startFitHereProgressTimer, stopFitHereProgressTimer } = useFitHereProgressTimer({
+    timerRef: fitHereProgressTimerRef,
+    setFitHereModal,
+  });
 
   const selectedHotspotId = activePreviewHotspotId ?? (selectedHotspotIds.length > 0
     ? selectedHotspotIds[selectedHotspotIds.length - 1]
