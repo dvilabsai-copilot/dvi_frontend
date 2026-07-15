@@ -4982,6 +4982,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The timeline row derivation/rendering, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
 
+## Iteration 249 - Preview timeline rows
+
+### Baseline
+- Starting checkpoint: `a2043f8` on `refactor/itinerary-details-checkpoint` with insertion-slot evidence extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewTimelineRows.tsx`.
+- Moved effective preview segment derivation, timing overrides, travel metrics, attraction metadata, conflict details, insertion-slot evidence, and priority confirmation presentation out of `ItineraryDetailsController.tsx`.
+- Preserved all timeline helper inputs, route-fit calculations, selected-segment highlighting, removal callback, and priority-confirm/cancel callbacks.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed serially (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 3,501 physical lines (down from 3,871 at the previous iteration).
+- New component: 452 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
