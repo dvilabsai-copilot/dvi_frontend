@@ -1,5 +1,56 @@
 # Progress log
 
+## Iteration 295 — Extract loaded page view composition
+
+### Baseline
+- Starting point: Iteration 294 with the controller at 1,433 lines.
+- Scope: move the loaded itinerary markup and child-component mounting into a dedicated page view component.
+
+### Changes
+- Added `components/ItineraryDetailsPageView.tsx`.
+- Preserved loading/error/vehicle-build guards in the controller while moving loaded-page banners, progress overlay, travel sections, activity/guide dialogs, hotspot dialog, hotel/media/quotation/Fit Here dialogs, and ancillary modal mounting into the view component.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,420; new view: 63 lines.
+- View/controller ESLint passed with the controller's existing hook-dependency warnings; filtered TypeScript found no errors in the affected paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 294 — Extract clipboard selection effects
+
+### Baseline
+- Starting point: Iteration 293 with the controller at 1,449 lines.
+- Scope: isolate clipboard recommendation defaults, hotel-rate visibility synchronization, and active hotel-group initialization.
+
+### Changes
+- Added `hooks/useItineraryClipboardSelectionWorkflow.ts`.
+- Preserved clipboard selection defaults, rate visibility updates, and hotel-tab initialization behavior.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,433; new hook: 49 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
+## Iteration 293 — Extract hotspot preview workflow
+
+### Baseline
+- Starting point: Iteration 292 with the controller at 1,495 lines.
+- Scope: isolate hotspot preview selection, route-day lookup, reset callbacks, and preview view-model composition.
+
+### Changes
+- Added `hooks/useItineraryHotspotPreviewWorkflow.ts`.
+- Preserved active-hotspot selection, Fit Here day/route lookup, preview reset behavior, anchor state, hotspot filtering, and view-model inputs.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,449; new hook: 120 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 292 — Extract activity and guide workflow
 
 ### Baseline
