@@ -251,6 +251,7 @@ import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/Qu
 import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSelectionCard";
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
 import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
+import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/HotspotPreviewWaitingSegment";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3684,33 +3685,10 @@ const canShowGuideActionButton =
 
                         // If waiting segment, render a distinct waiting block
                         if (isWaitingSegment) {
-                          return (
-                            <div
-                              key={`${idx}-waiting`}
-                              className="p-3 rounded-lg border-2 border-orange-200 bg-orange-50 transition-all"
-                            >
-                              <div className="flex justify-between items-start mb-1 gap-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase bg-orange-200 text-orange-800">
-                                    ⏳ waiting
-                                  </span>
-                                  <span className="text-xs font-bold text-[#4a4260]">
-                                    {effectiveSegTimeRange}
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-sm font-bold text-orange-700">{seg?.text || 'Waiting'}</p>
-                              {seg?.reason && (
-                                <p className="text-xs text-orange-600 mt-1">{seg.reason}</p>
-                              )}
-                              {seg?.gapMinutes > 0 && (
-                                <p className="text-xs text-orange-500 mt-1">
-                                  Gap: {Math.floor(seg.gapMinutes / 60) > 0 ? `${Math.floor(seg.gapMinutes / 60)}h ` : ''}{seg.gapMinutes % 60}min
-                                </p>
-                              )}
-                            </div>
-                          );
+                          return <HotspotPreviewWaitingSegment segment={seg} index={idx} timeRange={effectiveSegTimeRange} />;
                         }
+
+
 
                         return (
                           <div

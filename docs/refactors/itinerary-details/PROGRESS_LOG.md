@@ -4631,6 +4631,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The large hotspot timeline-row renderer and remaining quotation review shell are still scheduled for extraction.
 
+## Iteration 228 - Waiting timeline segment component
+
+### Baseline
+- Starting checkpoint: `696da41` on `refactor/itinerary-details-checkpoint` with optional-removal notices consolidated.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewWaitingSegment.tsx`.
+- Moved synthetic waiting-gap rendering, gap-duration formatting, and waiting-state labels out of the proposed timeline map.
+- Preserved waiting text, reason, gap minutes, time range, and timeline keys.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,895 physical lines (down from 4,917 at the previous iteration).
+- New component: 30 lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The main hotspot timeline-row renderer and remaining quotation review shell are still scheduled for extraction.
+
 ## Iteration 227 - Optional-removal timeline notice
 
 ### Baseline

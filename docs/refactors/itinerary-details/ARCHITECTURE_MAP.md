@@ -110,6 +110,7 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Proposed-timeline reschedule, overflow, resolved-removal, and leak notices are isolated in `HotspotPreviewTimelineNotices.tsx`.
 - Sticky proposed-timeline apply/selection controls are isolated in `HotspotPreviewApplyAction.tsx`.
 - Optional-hotspot-removal warnings are consolidated into `HotspotPreviewTimelineNotices.tsx`.
+- Synthetic waiting-gap rendering is isolated in `HotspotPreviewWaitingSegment.tsx`.
 - The former inline insertion-slot implementation is no longer retained as a commented compatibility fragment; the utility is the sole implementation.
 - Vehicle total synchronization is isolated in `useVehicleTotalsSync`; it derives active vehicle types, clears stale quote totals, and seeds cheapest defaults without owning vehicle API actions.
 - Sticky summary measurement, section scrolling, and day-count ref tracking are isolated in `useItineraryScrollController`.
