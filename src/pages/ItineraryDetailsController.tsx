@@ -247,6 +247,7 @@ import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItine
 import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useItineraryQuotationDialogProps";
 import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
+import { useHotspotApplyPresentation } from "./itinerary-details/hooks/useHotspotApplyPresentation";
 import { useHotelArrivalPolicyController } from "./itinerary-details/hooks/useHotelArrivalPolicyController";
 import { useMediaModalController } from "./itinerary-details/hooks/useMediaModalController";
 import { useEnsureHotelDetailsLoaded } from "./itinerary-details/hooks/useEnsureHotelDetailsLoaded";
@@ -1974,6 +1975,26 @@ const hotelTimelineLoading = Boolean(
     onHotelVoucherSuccess: refreshHotelData,
   });
   const { handleCopyLink, handleShareWhatsApp, handleShareEmail } = useItineraryShareActions(setShareModal);
+  const hotspotApplyPresentation = useHotspotApplyPresentation({
+    backendForceConflictState,
+    activePreviewValidation,
+    matrixApplyBlocked,
+    confirmActionConfig,
+    isCurrentPreviewAlreadyAdded,
+    isMatrixMissingBlockedState,
+    matrixRequiresBuild,
+    isMatrixBuiltButNoFeasibleSlot,
+    manualPreviewState,
+    activePreviewResolution,
+    groupPreviewResolution,
+    isManualRelaxedRouteFitPolicy,
+  });
+  const {
+    hotspotForceConflictMode,
+    hotspotEffectiveDecisionBlocked,
+    hotspotBlockForValidation,
+    hotspotApplyLabel,
+  } = hotspotApplyPresentation;
 
   const vehicleBuildInProgress = shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 
@@ -2016,32 +2037,6 @@ const hotelTimelineLoading = Boolean(
     setSelectedHotels(buildDefaultClipboardSelection());
     setClipboardModal(true);
   };
-
-  const hotspotForceConflictMode = (
-    (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)
-    && activePreviewValidation?.readyToApply === false
-    && activePreviewValidation?.requiresPriorityConfirmation !== true
-    && !matrixApplyBlocked
-  );
-  const hotspotEffectiveDecisionBlocked = confirmActionConfig.disabled && !hotspotForceConflictMode;
-  const hotspotBlockForValidation = activePreviewValidation?.readyToApply === false && !hotspotForceConflictMode;
-  const hotspotApplyLabel = isCurrentPreviewAlreadyAdded
-    ? "Added"
-    : isMatrixMissingBlockedState || matrixRequiresBuild
-      ? "Build matrix from the warning box above"
-      : isMatrixBuiltButNoFeasibleSlot && !(
-        isManualRelaxedRouteFitPolicy(manualPreviewState)
-        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-        || isManualRelaxedRouteFitPolicy(groupPreviewResolution)
-      )
-        ? "Cannot Add - Off Route"
-        : matrixApplyBlocked
-          ? "Cannot Apply"
-          : activePreviewValidation?.requiresForceConfirmation === true
-            ? "Confirm Force Add (Opening / Timing Conflict)"
-            : hotspotForceConflictMode
-              ? "Confirm Force Add (Conflict)"
-              : confirmActionConfig.label;
 
   return (
     <div className="w-full max-w-full space-y-1 pb-8">

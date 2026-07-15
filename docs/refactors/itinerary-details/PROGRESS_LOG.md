@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 279 — Extract hotspot apply presentation
+
+### Baseline
+- Starting point: Iteration 278 with the controller at 2,199 lines.
+- Scope: move hotspot force-conflict gating, validation blocking, and apply-button label derivation into a focused hook.
+
+### Changes
+- Added `hooks/useHotspotApplyPresentation.ts`.
+- Preview state, mutation callbacks, and business decisions remain controller/view-model inputs; the hook preserves all existing labels and gates.
+
+### Verification
+- Controller line count: 2,194; new hook: 62 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 278 — Extract share actions
 
 ### Baseline
