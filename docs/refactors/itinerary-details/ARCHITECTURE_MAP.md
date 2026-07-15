@@ -245,3 +245,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Itinerary UI source strings are stored as valid UTF-8; currency, punctuation, status symbols, and emoji rendering no longer depend on mojibake literals.
 - Selected-attraction best-insertion-slot and requested-slot fallback presentation are isolated in `HotspotBestInsertionSlotPanel.tsx`.
 - Inserted-hotspot matrix route-leg metrics and distance comparison messaging are isolated in `HotspotPreviewRouteSummary.tsx`.
+- Inserted-hotspot status badges and route/timing insight presentation are isolated in `HotspotPreviewInsertedStatus.tsx`.

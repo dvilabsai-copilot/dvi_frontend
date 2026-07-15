@@ -255,6 +255,7 @@ import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/Hot
 import { HotspotPreviewSegmentSummary } from "./itinerary-details/components/HotspotPreviewSegmentSummary";
 import { HotspotBestInsertionSlotPanel } from "./itinerary-details/components/HotspotBestInsertionSlotPanel";
 import { HotspotPreviewRouteSummary } from "./itinerary-details/components/HotspotPreviewRouteSummary";
+import { HotspotPreviewInsertedStatus } from "./itinerary-details/components/HotspotPreviewInsertedStatus";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3887,43 +3888,12 @@ const canShowGuideActionButton =
                                   </div>
                                 )}
 
-                                {/* Show current insertion status on the inserted hotspot row */}
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase bg-green-100 text-green-700">
-                                    Inserted hotspot
-                                  </span>
-                                  {!matrixRequiresBuild && activeAnchorFitInsight?.label && (
-                                    <span
-                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                        activeAnchorFitInsight.tone === 'green'
-                                          ? 'bg-green-100 text-green-700'
-                                          : activeAnchorFitInsight.tone === 'red'
-                                            ? 'bg-red-100 text-red-700'
-                                            : 'bg-amber-100 text-amber-700'
-                                      }`}
-                                    >
-                                      {activeAnchorFitInsight.insertedLabel || activeAnchorFitInsight.label}
-                                    </span>
-                                  )}
-                                  {!matrixRequiresBuild && activeAnchorFitInsight?.anchorLegLabel && (
-                                    <span className="text-[10px] text-gray-500">
-                                      Between: {activeAnchorFitInsight.anchorLegLabel}
-                                    </span>
-                                  )}
-                                  {selectedSlotHasRouteData && activeAnchorFitInsight?.extraDistanceLabel && (
-                                    <span className="text-[11px] font-semibold text-[#4a4260]">
-                                      Extra distance: {activeAnchorFitInsight.extraDistanceLabel}
-                                    </span>
-                                  )}
-                                  {selectedSlotHasRouteData && String(effectiveSegTimeRange || '').trim() && (
-                                    <span className="text-[11px] font-semibold text-[#4a4260]">
-                                      Timing: {String(effectiveSegTimeRange || '').trim()}
-                                    </span>
-                                  )}
-                                  {(activeAnchorFitInsight as any)?.reason && (
-                                    <span className="w-full text-[10px] text-gray-500 italic">{(activeAnchorFitInsight as any).reason}</span>
-                                  )}
-                                </div>
+                                <HotspotPreviewInsertedStatus
+                                  matrixRequiresBuild={matrixRequiresBuild}
+                                  activeAnchorFitInsight={activeAnchorFitInsight}
+                                  selectedSlotHasRouteData={selectedSlotHasRouteData}
+                                  effectiveSegTimeRange={effectiveSegTimeRange}
+                                />
 
                                 {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
                                 {pendingPriorityReplacementHotspotId && (
