@@ -1,5 +1,20 @@
 # Progress log
 
+## Iteration 282 — Remove obsolete controller imports
+
+### Baseline
+- Starting point: Iteration 281 with the controller at 2,181 lines.
+- Scope: remove preview/quotation imports that had no remaining references after responsibility extraction.
+
+### Changes
+- Removed 28 dead imports from `ItineraryDetailsController.tsx`; no runtime code or public exports changed.
+
+### Verification
+- Controller line count: 2,153.
+- Controller lint retains the existing `any` error and hook-dependency warnings; no new diagnostics were introduced.
+- Filtered TypeScript passed and `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 281 — Extract display-mode policy
 
 ### Baseline
