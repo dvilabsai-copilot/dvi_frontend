@@ -261,6 +261,8 @@ import { QuotationHotelReviewSections } from "./itinerary-details/components/Quo
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
 import { QuotationConfirmationOverview } from "./itinerary-details/components/QuotationConfirmationOverview";
 import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDaysSection";
+import { HotelListLoadingState } from "./itinerary-details/components/HotelListLoadingState";
+import { VehicleUnavailableState } from "./itinerary-details/components/VehicleUnavailableState";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2588,18 +2590,7 @@ const hotelTimelineLoading = Boolean(
 
       {/* Hotel List (separate component) */}
       {shouldRenderBottomHotelList && shouldShowHotels && loadingHotels && (
-        <div
-          ref={hotelListRef}
-          id="hotel-list-section"
-          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
-        >
-          <Card className="border border-[#e5d9f2] bg-white">
-            <CardContent className="py-10 flex items-center justify-center gap-3 text-[#6c6c6c]">
-              <Loader2 className="h-5 w-5 animate-spin text-[#d546ab]" />
-              <span>Loading hotel list for all days...</span>
-            </CardContent>
-          </Card>
-        </div>
+        <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />
       )}
 
       {shouldRenderBottomHotelList && shouldShowHotels && !loadingHotels && hotelDetails && (
@@ -2670,17 +2661,7 @@ const hotelTimelineLoading = Boolean(
       {shouldShowVehicles && vehicleBuildStatus === "READY" &&
         (!itinerary.vehicles || itinerary.vehicles.length === 0) &&
         (!itinerary.vehicleRateAvailability || itinerary.vehicleRateAvailability.length === 0) && (
-        <div
-          ref={vehicleListRef}
-          id="vehicle-list-section"
-          style={{ scrollMarginTop: `${summaryStickyHeight + 12}px` }}
-        >
-          <Card className="border border-[#e5d9f2] bg-white">
-            <CardContent className="py-10 px-6">
-              <div className="text-center text-[#6c6c6c]">No vehicle available</div>
-            </CardContent>
-          </Card>
-        </div>
+        <VehicleUnavailableState vehicleListRef={vehicleListRef} summaryStickyHeight={summaryStickyHeight} />
       )}
 
       {isConfirmedPresentation && itinerary?.planId && (

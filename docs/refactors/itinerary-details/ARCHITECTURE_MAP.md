@@ -254,3 +254,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Quotation summary/wallet/rooming/passenger/loading notice composition is isolated in `QuotationConfirmationOverview.tsx`, with insufficient-wallet controls in `QuotationWalletInsufficientPanel.tsx`.
 - Assigned-guide summary, cost, edit, and delete presentation is isolated in `ItineraryDayGuideCard.tsx`.
 - Daily guide/header/segment composition is isolated in `ItineraryDaysSection.tsx`.
+- Hotel-list loading and vehicle-unavailable page states are isolated in `HotelListLoadingState.tsx` and `VehicleUnavailableState.tsx`.
