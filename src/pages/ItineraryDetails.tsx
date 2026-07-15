@@ -1,7 +1,8 @@
 // Stable router/HMR entrypoint for the itinerary details page.
-// The runtime implementation lives in a separate composition module so this
-// route module remains small while the workflow extractions continue.
-import { ItineraryDetails as ItineraryDetailsNamed } from "./ItineraryDetailsRuntime";
+// Keep both named and default exports for the lazy router contract.
+import ItineraryDetailsController, {
+  ItineraryDetails as ItineraryDetailsNamed,
+} from "./ItineraryDetailsController";
 
 export type {
   ItineraryHotelRow,
@@ -11,4 +12,4 @@ export type {
 
 export const ItineraryDetails = ItineraryDetailsNamed;
 
-export default ItineraryDetailsNamed;
+export default ItineraryDetailsController;
