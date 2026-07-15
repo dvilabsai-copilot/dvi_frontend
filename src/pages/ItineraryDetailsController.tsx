@@ -248,6 +248,7 @@ import { PackageIncludesCard } from "./itinerary-details/components/PackageInclu
 import { ItineraryOverallCost } from "./itinerary-details/components/ItineraryOverallCost";
 import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/components/ItineraryActionButtons";
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
+import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSelectionCard";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2967,280 +2968,32 @@ const canShowGuideActionButton =
                 {!loadingHotspots && visibleHotspotsForActiveTab.length > 0 && (
                   <div className="grid grid-cols-1 gap-4">
                     {visibleHotspotsForActiveTab.map((hotspot) => (
-                      (() => {
-                        const isSelected = Number(selectedFitHotspot?.id || 0) === Number(hotspot.id);
-                        const hotspotId = Number(hotspot.id);
-                        const backendStatus = String(hotspot.availabilityStatus || '').trim().toUpperCase();
-                        const availabilityReason = String(hotspot.availabilityReason || '').trim().toLowerCase();
-
-                        const isDeletedFromTimeline =
-                          excludedHotspotIds.map(Number).includes(hotspotId) ||
-                          backendStatus === 'EXCLUDED_BY_ROUTE' ||
-                          availabilityReason.includes('excluded for this route') ||
-                          availabilityReason.includes('currently excluded');
-
-                        const isActuallyInCurrentTimeline =
-                          currentRouteAttractionHotspotIds.has(hotspotId) ||
-                          addedInModalHotspotIds.has(hotspotId);
-                        const isAddedOnOtherRoute =
-                          hotspot.alreadyAddedOnOtherRoute === true
-                          || backendStatus === 'ACTIVE_OTHER_ROUTE';
-                        const isAdded =
-                          isActuallyInCurrentTimeline ||
-                          (
-                            !isDeletedFromTimeline &&
-                            (
-                              (hotspot.alreadyAdded === true && !isAddedOnOtherRoute) ||
-                              backendStatus === 'ACTIVE_THIS_ROUTE'
-                            )
-                          );
-                        const isAlsoOnOtherRoute = isAddedOnOtherRoute;
-                        const isActionDisabled =
-                          isAdded ||
-                          (
-                            hotspot.actionDisabled === true &&
-                            !isAddedOnOtherRoute &&
-                            !isDeletedFromTimeline
-                          );
-                        const timingText = String(hotspot.timings || '').trim().toLowerCase();
-                        const hasUsableTimings = timingText.length > 0 && timingText !== 'no timings available';
-                        const isClosedTiming = !hasUsableTimings;
-                        const hotspotTimeline = previewTimelinesByHotspot[hotspot.id] || [];
-                        const hasConflict = hotspotTimeline.some(
-                          (seg) => seg?.isConflict === true && Number(seg?.locationId) === hotspot.id,
-                        );
-                        const isLoadingThis = isPreviewingHotspotId === hotspot.id;
-                        const manualMeta = currentRouteManualHotspotMetaById.get(hotspotId) || null;
-                        const resolvedRouteHotspotId = Number(
-                          (hotspot as any).routeHotspotId ||
-                          manualMeta?.routeHotspotId ||
-                          0,
-                        );
-                        const isManualAddedOnCurrentRoute =
-                          isAdded &&
-                          (
-                            currentRouteManualHotspotIds.has(hotspotId) ||
-                            addedInModalHotspotIds.has(hotspotId) ||
-                            hotspot.isManual === true ||
-                            hotspot.planOwnWay === true ||
-                            manualMeta?.isManual === true
-                          ) &&
-                          resolvedRouteHotspotId > 0;
-
-                        return (
-                          <div
-                            key={hotspot.id}
-                            data-hotspot-id={hotspot.id}
-                            className={`border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white ${isSelected ? 'ring-2 ring-[#d546ab]' : ''}`}
-                          >
-                            <div className="p-4">
-                              <div className="flex gap-3 mb-3">
-                                <div className="relative flex-shrink-0">
-                                  <img
-                                    src={
-                                      toImgSrc(hotspot.image || null)
-                                      || "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
-                                    }
-                                    alt={hotspot.name}
-                                    className="rounded-lg object-cover shadow-sm w-[120px] h-[86px] sm:w-[148px] sm:h-[102px]"
-                                  />
-                                  <div className="absolute top-1 right-1 flex flex-col gap-1">
-                                    <button
-                                      type="button"
-                                      title="Click to View the Images"
-                                      className="bg-white/90 hover:bg-white rounded-full p-1 shadow"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        openGalleryModal(
-                                          Array.isArray(hotspot.galleryImages) && hotspot.galleryImages.length > 0
-                                            ? hotspot.galleryImages
-                                            : hotspot.image ? [hotspot.image] : [],
-                                          hotspot.name,
-                                        );
-                                      }}
-                                    >
-                                      🖼️
-                                    </button>
-                                    {hotspot.videoUrl && (
-                                      <button
-                                        type="button"
-                                        title="Click to View the Video"
-                                        className="bg-white/90 hover:bg-white rounded-full p-1 shadow"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openVideoModal(hotspot.videoUrl || '', hotspot.name);
-                                        }}
-                                      >
-                                        ▶️
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="mb-2">
-                                    <div className="min-w-0">
-                                      <h4 className="font-semibold text-base text-[#4a4260] break-words">
-                                        {hotspot.name}
-                                      </h4>
-                                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                                        {hotspot.visitAgain && (
-                                          <span className="text-[9px] font-bold text-white bg-blue-500 px-2 py-0.5 rounded whitespace-nowrap">
-                                            Visit Again
-                                          </span>
-                                        )}
-                                        {isDeletedFromTimeline && (
-                                          <span className="text-[9px] font-bold text-white bg-orange-500 px-2 py-0.5 rounded whitespace-nowrap">
-                                            Deleted from timeline
-                                          </span>
-                                        )}
-                                        {isSelected && (
-                                          <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${hasConflict
-                                              ? 'bg-red-100 text-red-700'
-                                              : 'bg-green-100 text-green-700'
-                                            }`}>
-                                            {hasConflict ? 'Conflict' : 'Selected'}
-                                          </span>
-                                        )}
-                                        {isAdded && (
-                                          <span className="text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-green-100 text-green-700">
-                                            Added
-                                          </span>
-                                        )}
-                                        {isAlsoOnOtherRoute && (
-                                          <span className="inline-flex shrink-0 whitespace-nowrap text-[10px] px-2 py-0.5 rounded-full uppercase font-bold bg-blue-100 text-blue-800">
-                                            Also used on another day
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                      {isManualAddedOnCurrentRoute ? (
-                                        <div className="flex items-center gap-2">
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                            disabled
-                                          >
-                                            Added
-                                          </Button>
-
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                                            onClick={() => {
-                                              if (!(resolvedRouteHotspotId > 0)) {
-                                                toast.error('Could not find the route hotspot row ID. Please refresh and try again.');
-                                                return;
-                                              }
-
-                                              openDeleteHotspotModal(
-                                                addHotspotModal.planId || itinerary?.planId || 0,
-                                                addHotspotModal.routeId || 0,
-                                                resolvedRouteHotspotId,
-                                                hotspotId,
-                                                hotspot.name,
-                                                true,
-                                              );
-                                            }}
-                                          >
-                                            <Trash2 className="mr-1 h-4 w-4" />
-                                            Delete
-                                          </Button>
-                                        </div>
-                                      ) : isAdded ? (
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          className="border-slate-200 bg-slate-100 text-slate-500"
-                                          disabled
-                                        >
-                                          Added
-                                        </Button>
-                                      ) : (
-                                        <div className="flex gap-2">
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot}
-                                            onClick={() => {
-                                              if (isFitHereSelectionMode) {
-                                                handleSelectFitHotspot(hotspot);
-                                                toast.info('Now choose the exact Fit Here position from the timeline on the right.');
-                                                return;
-                                              }
-
-                                              handlePreviewHotspot(hotspot.id);
-                                            }}
-                                            className="bg-[#d546ab] hover:bg-[#c03d9f] text-white"
-                                          >
-                                            {isLoadingThis ? (
-                                              <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Previewing
-                                              </>
-                                            ) : (
-                                              hotspot.buttonLabel || 'Preview'
-                                            )}
-                                          </Button>
-                                          {isFitHereSelectionMode && (
-                                            <Button
-                                              type="button"
-                                              size="sm"
-                                              variant="outline"
-                                              disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot || autoFitHereModal.loading}
-                                              onClick={() => {
-                                                void handleAutoPreviewFitHere(hotspot);
-                                              }}
-                                              className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                            >
-                                              Auto-Preview
-                                            </Button>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-[#6c6c6c] mb-3 line-clamp-2">
-                                    {hotspot.description}
-                                  </p>
-                                  <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">
-                                    {hotspot.amount > 0 && (
-                                      <span className="flex items-center">
-                                        <Ticket className="h-3 w-3 mr-1" />
-                                        ₹ {hotspot.amount.toFixed(2)}
-                                      </span>
-                                    )}
-                                    {hotspot.timeSpend > 0 && (
-                                      <span className="flex items-center">
-                                        <Clock className="h-3 w-3 mr-1" />
-                                        {hotspot.timeSpend} hrs
-                                      </span>
-                                    )}
-                                    {hotspot.timings && String(hotspot.timings).trim().toLowerCase() !== 'no timings available' && (
-                                      <span className="flex items-center">
-                                        <Timer className="h-3 w-3 mr-1" />
-                                        {hotspot.timings}
-                                      </span>
-                                    )}
-                                    {isClosedTiming && (
-                                      <span className="flex items-center text-[#a35c1a]">
-                                        <Timer className="h-3 w-3 mr-1" />
-                                        No timings available
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()
+                      <HotspotSelectionCard
+                        key={hotspot.id}
+                        hotspot={hotspot}
+                        selected={Number(selectedFitHotspot?.id || 0) === Number(hotspot.id)}
+                        excludedHotspotIds={excludedHotspotIds}
+                        currentRouteAttractionHotspotIds={currentRouteAttractionHotspotIds}
+                        currentRouteManualHotspotIds={currentRouteManualHotspotIds}
+                        addedInModalHotspotIds={addedInModalHotspotIds}
+                        manualMetaById={currentRouteManualHotspotMetaById as ReadonlyMap<number, unknown>}
+                        getPreviewTimeline={(hotspotId) => previewTimelinesByHotspot[hotspotId] || []}
+                        isFitHereSelectionMode={isFitHereSelectionMode}
+                        isPreviewingHotspotId={isPreviewingHotspotId}
+                        isBuildingMatrix={isBuildingMatrix}
+                        isApplyingPreviewHotspot={isApplyingPreviewHotspot}
+                        autoPreviewLoading={autoFitHereModal.loading}
+                        toImgSrc={toImgSrc}
+                        openGalleryModal={openGalleryModal}
+                        openVideoModal={openVideoModal}
+                        onDeleteManual={(routeHotspotId, hotspotId, hotspotName) => openDeleteHotspotModal(addHotspotModal.planId || itinerary?.planId || 0, addHotspotModal.routeId || 0, routeHotspotId, hotspotId, hotspotName, true)}
+                        onSelectFitHotspot={handleSelectFitHotspot}
+                        onPreviewHotspot={handlePreviewHotspot}
+                        onAutoPreviewFitHere={handleAutoPreviewFitHere}
+                        toast={toast}
+                      />
                     ))}
+
                   </div>
                 )}
               </div>
