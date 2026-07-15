@@ -1,5 +1,21 @@
 # Progress log
 
+## Iteration 270 — Extract route-options view model
+
+### Baseline
+- Starting point: Iteration 269 with the controller at 2,513 lines.
+- Scope: move route-option de-duplication/sorting and route-family base-quote fallback derivation into a typed hook.
+
+### Changes
+- Added `hooks/useItineraryRouteOptionsViewModel.ts`.
+- Route switching, prefetch, and URL behavior remain controller-owned; the hook only derives the existing option list and family key.
+
+### Verification
+- Controller line count: 2,495; new hook: 37 lines.
+- New hook lint and filtered TypeScript passed.
+- `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 269 — Remove obsolete commented DTO block
 
 ### Baseline

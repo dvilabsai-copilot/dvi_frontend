@@ -315,9 +315,9 @@ import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSel
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
 import { useHotelSearchSelectionMutation } from "./itinerary-details/hooks/useHotelSearchSelectionMutation";
 import { extractTravelFromToFromText as extractTravelFromToFromTextUtil, extractTravelToFromText as extractTravelToFromTextUtil } from "./itinerary-details/utils/hotspotText.utils";
-import { normalizeRouteFamilyBaseQuoteId } from "./itinerary-details/utils/routeFamily.utils";
 import { useItinerarySummaryValues } from "./itinerary-details/hooks/useItinerarySummaryValues";
 import { useParaRecommendations } from "./itinerary-details/hooks/useParaRecommendations";
+import { useItineraryRouteOptionsViewModel } from "./itinerary-details/hooks/useItineraryRouteOptionsViewModel";
 import { PAGE_LOADER_STAGE_DETAILS } from "./itinerary-details/itinerary-details.constants";
 import { canViewItineraryCostBreakdown, getAuthenticatedRole } from "@/lib/itinerary-cost-visibility";
 
@@ -1788,30 +1788,12 @@ const getSelectedPreviewActivity = () =>
 
 useRelatedRouteOptionsLoader({ quoteId, itinerary, setLatestRouteOptions });
 
-const getQuoteNumber = (value?: string) => {
-  const match = String(value || "").match(/(\d+)$/);
-  return match ? Number(match[1]) : 0;
-};
-
-const itineraryRouteOptions = useMemo(() => {
-  return Array.from(
-    new Map(latestRouteOptions.map((option) => [option.quoteId, option])).values()
-  ).sort((a, b) => getQuoteNumber(a.quoteId) - getQuoteNumber(b.quoteId));
-}, [latestRouteOptions]);
-
-const routeFamilyBaseQuoteId = useMemo(() => {
-  const fromApi = String((itinerary as any)?.routeFamilyBaseQuoteId || "").trim();
-  if (fromApi) return fromApi;
-
-  return normalizeRouteFamilyBaseQuoteId(
-    activeRouteQuoteId || quoteId || itinerary?.quoteId,
-  );
-}, [
-  activeRouteQuoteId,
+const { itineraryRouteOptions, routeFamilyBaseQuoteId } = useItineraryRouteOptionsViewModel({
+  latestRouteOptions,
   itinerary,
-  normalizeRouteFamilyBaseQuoteId,
+  activeRouteQuoteId,
   quoteId,
-]);
+});
 
 useEffect(() => {
   if (!routeFamilyBaseQuoteId) return;
