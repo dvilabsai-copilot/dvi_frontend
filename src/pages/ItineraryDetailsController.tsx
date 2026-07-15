@@ -250,6 +250,7 @@ import { ItineraryActionButtons, type ClipboardMode } from "./itinerary-details/
 import { QuotationNonTboSelectedHotels } from "./itinerary-details/components/QuotationNonTboSelectedHotels";
 import { HotspotSelectionCard } from "./itinerary-details/components/HotspotSelectionCard";
 import { HotspotPreviewTimelineNotices } from "./itinerary-details/components/HotspotPreviewTimelineNotices";
+import { HotspotPreviewApplyAction } from "./itinerary-details/components/HotspotPreviewApplyAction";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2415,6 +2416,32 @@ const hotelTimelineLoading = Boolean(
 
   const handleShareEmail = useCallback(() => setShareModal(true), [setShareModal]);
 
+  const hotspotForceConflictMode = (
+    (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)
+    && activePreviewValidation?.readyToApply === false
+    && activePreviewValidation?.requiresPriorityConfirmation !== true
+    && !matrixApplyBlocked
+  );
+  const hotspotEffectiveDecisionBlocked = confirmActionConfig.disabled && !hotspotForceConflictMode;
+  const hotspotBlockForValidation = activePreviewValidation?.readyToApply === false && !hotspotForceConflictMode;
+  const hotspotApplyLabel = isCurrentPreviewAlreadyAdded
+    ? "Added"
+    : isMatrixMissingBlockedState || matrixRequiresBuild
+      ? "Build matrix from the warning box above"
+      : isMatrixBuiltButNoFeasibleSlot && !(
+        isManualRelaxedRouteFitPolicy(manualPreviewState)
+        || isManualRelaxedRouteFitPolicy(activePreviewResolution)
+        || isManualRelaxedRouteFitPolicy(groupPreviewResolution)
+      )
+        ? "Cannot Add - Off Route"
+        : matrixApplyBlocked
+          ? "Cannot Apply"
+          : activePreviewValidation?.requiresForceConfirmation === true
+            ? "Confirm Force Add (Opening / Timing Conflict)"
+            : hotspotForceConflictMode
+              ? "Confirm Force Add (Conflict)"
+              : confirmActionConfig.label;
+
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
       {isConfirmedPresentation && <ConfirmedQuoteBanner />}
@@ -4354,57 +4381,22 @@ const canShowGuideActionButton =
                         );
                       })}
 
-                      <div className="pt-4 sticky bottom-0 bg-white">
-                        {(() => {
-                          const forceConflictMode =
-                            (backendForceConflictState.canForceConflict || backendForceConflictState.finalConflictModeOnly)
-                            && activePreviewValidation?.readyToApply === false
-                            && activePreviewValidation?.requiresPriorityConfirmation !== true
-                            && !matrixApplyBlocked;
-                          const effectiveDecisionBlocked = confirmActionConfig.disabled && !forceConflictMode;
-                          const blockForValidation =
-                            activePreviewValidation?.readyToApply === false && !forceConflictMode;
-                          if (isFitHereSelectionMode) {
-                            return <HotspotSelectionNotice />;
-                          }
-                          return (
-                        <HotspotApplyButton
-                          forceConflict={forceConflictMode}
-                          loading={isApplyingPreviewHotspot}
-                          disabled={
-                            isApplyingPreviewHotspot
-                            || isBuildingMatrix
-                            || !activePreviewHotspotId
-                            || isCurrentPreviewAlreadyAdded
-                            || matrixApplyBlocked
-                            || effectiveDecisionBlocked
-                            || blockForValidation
-                          }
-                          onClick={handleAddHotspot}
-                          label={
-                            isCurrentPreviewAlreadyAdded
-                              ? 'Added'
-                              : isMatrixMissingBlockedState || matrixRequiresBuild
-                                ? 'Build matrix from the warning box above'
-                                : isMatrixBuiltButNoFeasibleSlot
-                                  && !(
-                                    isManualRelaxedRouteFitPolicy(manualPreviewState)
-                                    || isManualRelaxedRouteFitPolicy(activePreviewResolution)
-                                    || isManualRelaxedRouteFitPolicy(groupPreviewResolution)
-                                  )
-                                  ? 'Cannot Add - Off Route'
-                                  : matrixApplyBlocked
-                                    ? 'Cannot Apply'
-                                    : activePreviewValidation?.requiresForceConfirmation === true
-                                      ? 'Confirm Force Add (Opening / Timing Conflict)'
-                                      : forceConflictMode
-                                        ? 'Confirm Force Add (Conflict)'
-                                        : confirmActionConfig.label
-                          }
-                        />
-                          );
-                        })()}
-                      </div>
+                      <HotspotPreviewApplyAction
+                        isFitHereSelectionMode={isFitHereSelectionMode}
+                        forceConflict={hotspotForceConflictMode}
+                        loading={isApplyingPreviewHotspot}
+                        disabled={
+                          isApplyingPreviewHotspot
+                          || isBuildingMatrix
+                          || !activePreviewHotspotId
+                          || isCurrentPreviewAlreadyAdded
+                          || matrixApplyBlocked
+                          || hotspotEffectiveDecisionBlocked
+                          || hotspotBlockForValidation
+                        }
+                        onClick={handleAddHotspot}
+                        label={hotspotApplyLabel}
+                      />
                     </>
                   ) : (
                     <HotspotPreviewEmptyTimeline />
