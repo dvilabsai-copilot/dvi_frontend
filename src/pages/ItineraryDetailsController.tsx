@@ -2535,26 +2535,7 @@ const hotelTimelineLoading = Boolean(
       />
 
 
-                {false && <>
-                  <Card>
-                    <CardContent>
-                      <div>
-                        <div>
-                          <div>
-                  <span>
-                  <span className="text-xl font-bold text-[#d546ab] sm:text-2xl">
-                    ₹ {overallTripCostWithHotels}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-          </div>
-          </CardContent>
-        </Card>
-                </>}
-
-{/* Daily Itinerary */}
+      {/* Daily Itinerary */}
       <ItineraryDaysSection context={{
         displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly,
         guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay,

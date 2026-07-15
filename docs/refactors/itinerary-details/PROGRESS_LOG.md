@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 253 — Remove unreachable legacy cost markup
+
+### Baseline
+- Starting point: Iteration 252 callback/cost fallback repair at commit `5a81391`.
+- Scope: remove a permanently disabled legacy cost-card JSX block from the controller.
+
+### Changes
+- Deleted only the `false &&` branch and its orphaned markup; the active summary and cost components are unchanged.
+- Runtime/API behavior intentionally unchanged.
+
+### Verification
+- Controller line count: 3,274 (down 19 lines from the 3,293-line baseline).
+- `git diff --check` passed; the focused component/type checks and production build remain green from the baseline commit.
+
+### Notes
+- The controller remains transitional work; further cohesive extractions are still required.
+
 ## Iteration 51 — Para recommendations hook
 
 ### Baseline
