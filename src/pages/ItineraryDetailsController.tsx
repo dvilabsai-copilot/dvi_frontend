@@ -213,6 +213,7 @@ import { useItineraryHotspotDialogWorkflow } from "./itinerary-details/hooks/use
 import { useItineraryQuotationDialogWorkflow } from "./itinerary-details/hooks/useItineraryQuotationDialogWorkflow";
 import { useItineraryMediaDialogWorkflow } from "./itinerary-details/hooks/useItineraryMediaDialogWorkflow";
 import { useItinerarySupportingDialogWorkflow } from "./itinerary-details/hooks/useItinerarySupportingDialogWorkflow";
+import { useItineraryPageRefs } from "./itinerary-details/hooks/useItineraryPageRefs";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -586,14 +587,13 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
   const {
     confirmQuotationModal, setConfirmQuotationModal, voucherModal, setVoucherModal, pluckCardModal, setPluckCardModal,
     invoiceModal, setInvoiceModal, invoiceType, setInvoiceType, incidentalModal, setIncidentalModal,
-    incidentalHistoryRefreshToken, setIncidentalHistoryRefreshToken, isConfirmingQuotation, setIsConfirmingQuotation,
-    walletBalance, setWalletBalance, walletBalanceAmount, setWalletBalanceAmount, showWalletTopUpPanel, setShowWalletTopUpPanel,
-    walletTopUpAmount, setWalletTopUpAmount, walletTopUpRemark, setWalletTopUpRemark, walletShortfallAmount, setWalletShortfallAmount,
-    isWalletTopUpSubmitting, setIsWalletTopUpSubmitting, agentInfo, setAgentInfo, guestDetails, setGuestDetails,
-    confirmDefaultNationality, setConfirmDefaultNationality, additionalAdults, setAdditionalAdults, additionalChildren, setAdditionalChildren,
-    additionalInfants, setAdditionalInfants, formErrors, setFormErrors, prebookData, setPrebookData, isPrebooking, setIsPrebooking,
-    isOpeningConfirmQuotation, setIsOpeningConfirmQuotation, hasAcceptedUpdatedPrice, setHasAcceptedUpdatedPrice,
-    confirmOccupanciesTemplate, setConfirmOccupanciesTemplate,
+    incidentalHistoryRefreshToken, setIncidentalHistoryRefreshToken,
+    walletTopUpAmount, setWalletTopUpAmount, walletTopUpRemark, setWalletTopUpRemark,
+    agentInfo, setAgentInfo, guestDetails, setGuestDetails,
+    prebookData, setPrebookData, isPrebooking, setIsPrebooking,
+    isOpeningConfirmQuotation, setIsOpeningConfirmQuotation,
+    setWalletBalance, setWalletBalanceAmount, setShowWalletTopUpPanel, setWalletShortfallAmount,
+    setIsWalletTopUpSubmitting, setHasAcceptedUpdatedPrice, setConfirmOccupanciesTemplate,
     confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix,
     confirmOccupancyPreview, defaultPassenger, getPassengerFieldError,
   } = quotationState;
@@ -601,20 +601,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
 
   const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(currentItineraryPlanId);
 
-  // ✅ Reference to hotel save function
-  const hotelSaveFunctionRef = React.useRef<(() => Promise<boolean>) | null>(null);
-
-  // ✅ Track if component is mounted to prevent state updates after unmount
-  const isMountedRef = useRef(true);
-
-// ✅ Track which quoteId we're currently fetching to prevent duplicate fetches
-const currentFetchRef = useRef<string | null>(null);
-
-// ✅ Prevent older route/detail API responses from overwriting the latest selected route
-const latestRouteRequestRef = useRef(0);
-
-// Prevent route-tab navigation from causing a duplicate details fetch.
-const switchedRouteRef = useRef<string | null>(null);
+  const { hotelSaveFunctionRef, isMountedRef, currentFetchRef, latestRouteRequestRef, switchedRouteRef } = useItineraryPageRefs();
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
   const quotationHotelContext = useItineraryQuotationHotelContext({
