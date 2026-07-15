@@ -4761,6 +4761,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining day-level composition and quotation dialog shell are still scheduled for extraction.
 
+## Iteration 240 - Daily itinerary section
+
+### Baseline
+- Starting checkpoint: `16e0c66` on `refactor/itinerary-details-checkpoint` with the day guide card extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/ItineraryDaysSection.tsx`.
+- Moved daily display-day mapping, guide assignment derivation, day header composition, and segment composition out of `ItineraryDetailsController.tsx`.
+- Preserved day-level guide gating, manual-override detection, guide callbacks, route rebuild callbacks, segment context, and daily display ordering.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,241 physical lines (down from 4,341 at the previous iteration).
+- New component: 114 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. Hotel/vehicle page sections, quotation dialog shell, and remaining workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

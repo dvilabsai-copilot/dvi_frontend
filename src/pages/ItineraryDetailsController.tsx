@@ -91,7 +91,6 @@ import type {
   GuideAvailabilityResponse,
   GuideModalOptions,
   HotspotAnchor,
-  HotspotSegment,
   HotelAvailabilityMeta,
   ItineraryDay,
   ItineraryDetailsResponse,
@@ -239,8 +238,6 @@ import { ShareEmailDialog, SourcePreviewDialog } from "./itinerary-details/compo
 import { DeleteConfirmationDialog } from "./itinerary-details/components/DeleteConfirmationDialog";
 import { AllHotspotsPreviewDialog } from "./itinerary-details/components/AllHotspotsPreviewDialog";
 import { ClipboardDialog } from "./itinerary-details/components/ClipboardDialog";
-import { ItineraryDayHeader } from "./itinerary-details/components/ItineraryDayHeader";
-import { ItinerarySegments } from "./itinerary-details/components/ItinerarySegments";
 import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
@@ -263,7 +260,7 @@ import { HotspotConflictTimingDetails } from "./itinerary-details/components/Hot
 import { QuotationHotelReviewSections } from "./itinerary-details/components/QuotationHotelReviewSections";
 import { QuotationWalletInsufficientPanel } from "./itinerary-details/components/QuotationWalletInsufficientPanel";
 import { QuotationConfirmationOverview } from "./itinerary-details/components/QuotationConfirmationOverview";
-import { ItineraryDayGuideCard } from "./itinerary-details/components/ItineraryDayGuideCard";
+import { ItineraryDaysSection } from "./itinerary-details/components/ItineraryDaysSection";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2577,112 +2574,15 @@ const hotelTimelineLoading = Boolean(
                 </>}
 
 {/* Daily Itinerary */}
-<div>
-{(() => {
-  return (
-    <>
-{displayDays.map((day) => {
-  const { intercityDistance, sightseeingDistance } = getDisplayDistances(day);
-  const guestFoodPreferenceText = getGuestFoodPreferenceText(itinerary, day);
-  const dayHasManualOverride = day.segments.some((segment) => (
-    String(segment?.type || '').toLowerCase() === 'attraction'
-    && (
-      (segment as AttractionSegment).planOwnWay === true
-      || (segment as AttractionSegment).isManual === true
-    )
-  ));
-
-  const addHotspotCta = day.segments.find(
-    (segment): segment is HotspotSegment => segment.type === "hotspot"
-  );
-  const canShowAddHotspotButton = !readOnly;
-  const addHotspotLocationName = day.arrival || day.departure || "Location";
- const isWholeItineraryGuideMode = Number(itinerary.guideForItinerary || 0) === 1;
-
-const wholeItineraryGuideAssignment =
-  guideAssignments.find((assignment) => Number(assignment.guideType || 0) === 1) ?? null;
-
-const dayGuideAssignment =
-  guideAssignments.find((assignment) => (
-    Number(assignment.guideType || 0) === 2
-    && Number(assignment.routeId || 0) === Number(day.id)
-  )) ?? null;
-
-const currentGuideAssignment =
-  isWholeItineraryGuideMode && Number(day.dayNumber || 0) === 1
-    ? wholeItineraryGuideAssignment
-    : dayGuideAssignment;
-
-const dayFlowGuideAssignment = getGuideAssignmentForDay(day);
-const guidePriceAvailableForDay = isGuidePriceAvailableForDay(day);
-
-const isGuideEnabledForItinerary = [1, 2].includes(Number(itinerary?.guideForItinerary || 0));
-
-const canShowGuideActionButton =
-  Boolean(currentGuideAssignment) ||
-  (
-    isGuideEnabledForItinerary &&
-    guideAvailability !== null &&
-    !guideAvailabilityLoading &&
-    guidePriceAvailableForDay === true
-  );
-
-  return (
-    <section
-      key={day.id}
-      className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm"
-    >
-             {/* Compact day header */}
-            <ItineraryDayHeader context={{
-              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook,
-              canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName,
-              readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText,
-              intercityDistance, openGuideModal, setDeleteGuideModal,
-            }} />
-
-            <Card className="border border-[#e5d9f2] bg-white">
-              <CardContent className="pt-2">
-
-                {currentGuideAssignment && (
-                  <ItineraryDayGuideCard
-                    assignment={currentGuideAssignment}
-                    readOnly={readOnly}
-                    onEdit={() => void openGuideModal(Number(currentGuideAssignment.guideType || 0) === 1 ? null : day, currentGuideAssignment, Number(currentGuideAssignment.guideType || 0) === 1 ? 1 : 2)}
-                    onDelete={() => setDeleteGuideModal({ open: true, assignment: currentGuideAssignment, deleting: false })}
-                  />
-                )}
-
-
-                {/* Segments */}
-                {false && <>
-                      {/* Connector dots — only between real segments, never around hotspot CTAs */}
-                                <span className="flex items-center gap-1">⏱ {segment.duration}</span>
-                                        ₹{segment.amount.toFixed(0)}
-                                {/* Thumbnail with overlaid gallery/video icons — matches PHP layout */}
-                                      🖼️
-                                        ▶️
-                                                  {activity.startTime} – {activity.endTime}
-                                                  ₹ {activity.amount.toFixed(2)}
-                                                🖼️
-                                  <span>⏱ {segment.duration}</span>
-                                  <span className="ml-2">🔘 {segment.note}</span>
-                </>}
-                <ItinerarySegments context={{
-                  day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly,
-                  openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc,
-                  isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText,
-                  extractTravelToFromText,
-                }} />
-              </CardContent>
-            </Card>
-    </section>
-          );
-        })}
-          </>
-        );
-      })()}
-      </div>
-
+      <ItineraryDaysSection context={{
+        displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly,
+        guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay,
+        routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook,
+        openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal,
+        destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal,
+        openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide,
+        openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText,
+      }} />
       {/* Special Instructions — outside the sticky summary and before hotel/vehicle lists */}
       <SpecialInstructionsSection text={specialInstructionsText} />
 
