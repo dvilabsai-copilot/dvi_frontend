@@ -266,6 +266,7 @@ import { HotspotDialogListColumn } from "./itinerary-details/components/HotspotD
 import { HotspotMatrixMissingNotice } from "./itinerary-details/components/HotspotMatrixMissingNotice";
 import { HotspotMatrixNoFeasibleNotice } from "./itinerary-details/components/HotspotMatrixNoFeasibleNotice";
 import { HotspotManualAttemptLog } from "./itinerary-details/components/HotspotManualAttemptLog";
+import { HotspotPreviewStrategyPanel } from "./itinerary-details/components/HotspotPreviewStrategyPanel";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -2847,107 +2848,32 @@ const hotelTimelineLoading = Boolean(
                     />
                   </div>
                 )}
-                {!isFitHereSelectionMode && (activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot)) && (
-                  <div className="mb-3 p-3 rounded-xl border border-[#f0d9ea] bg-[#fff7fc] shadow-sm flex-shrink-0">
-                    <p className="text-xs text-[#6c6c6c]">
-                      {backendForceConflictState.selectedStrategyLabel
-                        || ((matrixFit as any)?.cityEndpointInsertionMode === true
-                        ? 'Selected Timing-Safe Schedule'
-                        : matrixFit?.singleHotspotInsertionMode === true
-                        ? 'Selected Timing-Safe Schedule'
-                        : isMatrixMissingBlockedState
-                          ? 'Route-fit matrix data missing'
-                          : isMatrixBuiltButNoFeasibleSlot
-                            ? 'Conflict Mode Only'
-                            : 'Selected Timing-Safe Schedule')}
-                    </p>
-                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot ? (
-                      <p className="text-sm font-semibold text-[#4a4260] mt-0.5">
-                        {((matrixFit as any)?.cityEndpointInsertionMode === true
-                          ? (matrixFit?.chosenSlot?.label || matrixFit?.bestSlot?.label || null)
-                          : null) || bestInsertionSlot?.slot || (
-                          selectedPreviewCityContext === 'DESTINATION_CITY'
-                            ? ((destinationInsertionSlotLabel || '').replace(/^Will\s+be\s+inserted\s+/i, '') || 'Computing best slot...')
-                            : 'Computing best slot...'
-                        )}
-                      </p>
-                    ) : isMatrixMissingBlockedState ? (
-                      <p className="text-sm font-semibold text-red-700 mt-0.5">
-                        Cannot preview accurate insertion until matrix data is built.
-                      </p>
-                    ) : (
-                      <p className="text-sm font-semibold text-orange-700 mt-0.5">
-                        This hotspot adds extra distance or off-route travel. Since this is a manual add, it can still be inserted if the rebuilt route reaches the hotel within the allowed manual timing window.
-                      </p>
-                    )}
-
-                    {insertionDecisionSummary && (
-                      <p
-                        className={`mt-2 text-xs font-semibold ${
-                          insertionDecisionSummary.willInsert ? 'text-green-700' : 'text-red-700'
-                        }`}
-                      >
-                        {insertionDecisionSummary.text}
-                      </p>
-                    )}
-
-                                {manualAttemptDisplayMeta.attempts.length > 0 && (
-                                  <HotspotManualAttemptLog
-                                    meta={manualAttemptDisplayMeta}
-                                    selectedSummary={activeManualOptimizer?.summary}
-                                    wrapperOnly={manualAttemptDisplayMeta.wrapperOnly}
-                                  />
-                                )}
-                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activePreviewResolution?.anchorPreference?.honored === false && (
-                      <p className="text-xs text-amber-700 mt-1">
-                        The system tested the available insertion positions and selected the best timing / lowest extra-distance slot.
-                      </p>
-                    )}
-
-                    {!isMatrixMissingBlockedState && !isMatrixBuiltButNoFeasibleSlot && activeAnchorFitInsight && (
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span
-                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                            activeAnchorFitInsight.tone === 'green'
-                              ? 'bg-green-100 text-green-700'
-                              : activeAnchorFitInsight.tone === 'red'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {activeAnchorFitInsight.label}
-                        </span>
-                        {activeAnchorFitInsight.extraDistanceLabel && (
-                          <span className="text-xs font-semibold text-[#4a4260]">
-                            {activeAnchorFitInsight.extraDistanceLabel}
-                          </span>
-                        )}
-                        {activeAnchorFitInsight.anchorLegLabel && (
-                          <span className="text-xs text-[#6c6c6c]">
-                            Anchor leg: {activeAnchorFitInsight.anchorLegLabel}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <HotspotMatrixMissingNotice
-                      visible={isMatrixMissingBlockedState}
-                      activePreviewHotspotId={activePreviewHotspotId}
-                      isBuildingMatrix={isBuildingMatrix}
-                      isPreviewingHotspotId={isPreviewingHotspotId}
-                      isApplyingPreviewHotspot={isApplyingPreviewHotspot}
-                      onBuildAndPreview={handleBuildMatrixAndPreviewAgain}
-                      command={String(matrixBuildSuggestion?.command || "")}
-                    />
-                    <HotspotMatrixNoFeasibleNotice
-                      visible={isMatrixBuiltButNoFeasibleSlot}
-                      safeMatrixSlots={safeMatrixSlots}
-                      destinationHotelDisplayName={destinationHotelDisplayName}
-                      destinationHotelName={String((matrixFit as any)?.destinationHotelName || "")}
-                      routeFitBadgeClass={routeFitBadgeClass}
-                    />
-                  </div>
-                )}
+                <HotspotPreviewStrategyPanel
+                  visible={!isFitHereSelectionMode && Boolean(activePreviewHotspotId && (selectedHotspotAnchor || bestInsertionSlot || matrixRequiresBuild || isMatrixBuiltButNoFeasibleSlot))}
+                  activePreviewHotspotId={activePreviewHotspotId}
+                  selectedHotspotAnchor={selectedHotspotAnchor}
+                  bestInsertionSlot={bestInsertionSlot}
+                  matrixRequiresBuild={matrixRequiresBuild}
+                  isMatrixBuiltButNoFeasibleSlot={isMatrixBuiltButNoFeasibleSlot}
+                  isMatrixMissingBlockedState={isMatrixMissingBlockedState}
+                  backendStrategyLabel={backendForceConflictState.selectedStrategyLabel}
+                  matrixFit={matrixFit}
+                  selectedPreviewCityContext={selectedPreviewCityContext}
+                  destinationInsertionSlotLabel={destinationInsertionSlotLabel}
+                  insertionDecisionSummary={insertionDecisionSummary}
+                  manualAttemptDisplayMeta={manualAttemptDisplayMeta}
+                  activeManualOptimizerSummary={activeManualOptimizer?.summary}
+                  activeAnchorFitInsight={activeAnchorFitInsight}
+                  activePreviewResolution={activePreviewResolution}
+                  safeMatrixSlots={safeMatrixSlots}
+                  destinationHotelDisplayName={destinationHotelDisplayName}
+                  isBuildingMatrix={isBuildingMatrix}
+                  isPreviewingHotspotId={isPreviewingHotspotId}
+                  isApplyingPreviewHotspot={isApplyingPreviewHotspot}
+                  matrixBuildCommand={String(matrixBuildSuggestion?.command || "")}
+                  onBuildMatrixAndPreviewAgain={handleBuildMatrixAndPreviewAgain}
+                  routeFitBadgeClass={routeFitBadgeClass}
+                />
                 {!pendingPriorityReplacementHotspotId && (
                   <div className="mb-2 flex-shrink-0 space-y-2 max-h-32 overflow-y-auto pr-1">
                     {previewRemovedHotspotDetails.length > 0
