@@ -260,6 +260,7 @@ import { HotspotPriorityConfirmation } from "./itinerary-details/components/Hots
 import { HotspotPreviewAttractionMeta } from "./itinerary-details/components/HotspotPreviewAttractionMeta";
 import { HotspotConflictNotice } from "./itinerary-details/components/HotspotConflictNotice";
 import { HotspotConflictTimingDetails } from "./itinerary-details/components/HotspotConflictTimingDetails";
+import { QuotationHotelReviewSections } from "./itinerary-details/components/QuotationHotelReviewSections";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -4237,117 +4238,24 @@ const canShowGuideActionButton =
               visible={requiresHotelBookingFlow && (isOpeningConfirmQuotation || isPrebooking) && !prebookData}
             />
 
-            {requiresHotelBookingFlow && externalStayEntries.length > 0 && (
-              <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                <div>
-                  <h3 className="font-semibold text-amber-900">External / self-arranged stay required</h3>
-                  <p className="text-xs text-amber-800 mt-1">
-                    These city/date rows do not have supplier-bookable rooms. They will be shown in the itinerary, but they will not be sent to prebook or final supplier booking.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {externalStayEntries.map((entry, index: number) => (
-                    <div
-                      key={`external-stay-${entry.routeId || 'na'}-${index}`}
-                      className="rounded-md border border-amber-100 bg-white/80 px-3 py-2"
-                    >
-                      <p className="text-sm font-medium text-amber-900">
-                        Route {entry.routeId || '-'}
-                        {entry.destination ? ` · ${entry.destination}` : ''}
-                        {entry.day ? ` · ${entry.day}` : ''}
-                      </p>
-                      <p className="text-xs text-amber-800 mt-1">
-                        {entry.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <label className="flex items-start gap-2 text-sm text-amber-900">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={hasAcceptedUpdatedPrice}
-                    onChange={(e) => setHasAcceptedUpdatedPrice(e.target.checked)}
-                  />
-                  <span>
-                    I understand these hotel stays are external/self-arranged and will not be booked through supplier APIs.
-                  </span>
-                </label>
-              </div>
-            )}
-
-            {requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
-              <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-                <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
-                <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
-                <QuotationNonTboSelectedHotels
-                  entries={nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>}
-                  normalizePrebookItems={normalizePrebookItems}
-                  resolvePrebookInclusions={resolvePrebookInclusions}
-                  resolvePrebookMealPlan={resolvePrebookMealPlan}
-                  normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
-                  normalizeMealPlanLabel={normalizeMealPlanLabel}
-                  keyPrefix="ntbo-only"
-                  providerNote="Policies and rate conditions are managed by the provider. TBO prebook is not applicable."
-                />
-
-                <QuotationNonTboAcceptanceNotice
-                  accepted={hasAcceptedUpdatedPrice}
-                  setAccepted={setHasAcceptedUpdatedPrice}
-                />
-              </div>
-            )}
-
-          {requiresHotelBookingFlow && prebookData && (
-  <div className="space-y-3 border border-[#e5d9f2] rounded-lg p-4 bg-[#faf5ff]">
-    <h3 className="font-semibold text-[#4a4260]">Prebook Review</h3>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-      <div>
-        <p className="text-[#6c6c6c]">Hotel Final Cost</p>
-        <p className="font-semibold text-[#4a4260]">
-          ₹ {Number(prebookData.updatedTotalPrice || prebookData.finalPrice || prebookData.totalAmount || 0).toFixed(2)}
-        </p>
-      </div>
-
-      <div>
-        <p className="text-[#6c6c6c]">Hotels Prebooked</p>
-        <p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p>
-      </div>
-    </div>
-
-                <QuotationPrebookHotelRows
-                  entries={prebookHotelEntries}
-                  normalizePrebookItems={normalizePrebookItems}
-                  resolvePrebookInclusions={resolvePrebookInclusions}
-                  resolvePrebookMealPlan={resolvePrebookMealPlan}
-                  normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
-                  normalizeMealPlanLabel={normalizeMealPlanLabel}
-                />
-                {nonTboSelectedHotelEntries.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-[#6c6c6c] uppercase tracking-wide mt-1">Non-TBO Selected Hotels</p>
-                    <QuotationNonTboSelectedHotels
-                      entries={nonTboSelectedHotelEntries as unknown as Array<Record<string, unknown>>}
-                      normalizePrebookItems={normalizePrebookItems}
-                      resolvePrebookInclusions={resolvePrebookInclusions}
-                      resolvePrebookMealPlan={resolvePrebookMealPlan}
-                      normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
-                      normalizeMealPlanLabel={normalizeMealPlanLabel}
-                      keyPrefix="non-tbo-hotel"
-                      providerNote="This hotel is managed outside TBO. Details shown here come from the selected provider record."
-                    />
-
-                  </div>
-                )}
-
-                <QuotationPrebookAcceptanceNotice
-                  priceChanged={hasPrebookPriceChanged}
-                  accepted={hasAcceptedUpdatedPrice}
-                  setAccepted={setHasAcceptedUpdatedPrice}
-                />
-              </div>
-            )}
+            <QuotationHotelReviewSections
+              requiresHotelBookingFlow={requiresHotelBookingFlow}
+              externalStayEntries={externalStayEntries as readonly Record<string, unknown>[]}
+              defaultExternalStayMessage={DEFAULT_EXTERNAL_STAY_MESSAGE}
+              hasAcceptedUpdatedPrice={hasAcceptedUpdatedPrice}
+              setHasAcceptedUpdatedPrice={setHasAcceptedUpdatedPrice}
+              prebookData={prebookData}
+              isPrebooking={isPrebooking}
+              isOpeningConfirmQuotation={isOpeningConfirmQuotation}
+              nonTboSelectedHotelEntries={nonTboSelectedHotelEntries as readonly Record<string, unknown>[]}
+              prebookHotelEntries={prebookHotelEntries as readonly Record<string, unknown>[]}
+              hasPrebookPriceChanged={hasPrebookPriceChanged}
+              normalizePrebookItems={normalizePrebookItems}
+              resolvePrebookInclusions={resolvePrebookInclusions}
+              resolvePrebookMealPlan={resolvePrebookMealPlan}
+              normalizeCancellationPolicyItems={normalizeCancellationPolicyItems}
+              normalizeMealPlanLabel={normalizeMealPlanLabel}
+            />
             <QuotationPassengerForm
               guestDetails={guestDetails}
               setGuestDetails={setGuestDetails}

@@ -250,3 +250,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Attraction priority, visit-time, duration, and timing badges are isolated in `HotspotPreviewAttractionMeta.tsx`.
 - Conflict override/timing warning heading presentation is isolated in `HotspotConflictNotice.tsx`.
 - Conflicting hotspot arrival, stay, departure, and onward-travel timing analysis is isolated in `HotspotConflictTimingDetails.tsx`.
+- Quotation external-stay, non-TBO, and TBO prebook hotel review sections are isolated in `QuotationHotelReviewSections.tsx`.

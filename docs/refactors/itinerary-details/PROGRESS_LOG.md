@@ -4686,6 +4686,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation review shell and remaining page workflow composition are still scheduled for extraction.
 
+## Iteration 237 - Quotation hotel review sections
+
+### Baseline
+- Starting checkpoint: `3234f5a` on `refactor/itinerary-details-checkpoint` with conflict timing analysis extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/QuotationHotelReviewSections.tsx`.
+- Moved external/self-arranged stay acknowledgement, non-TBO selected-hotel review, and TBO prebook hotel review sections out of `ItineraryDetailsController.tsx`.
+- Preserved acceptance state wiring, supplier/prebook gating, hotel cost/count display, normalization callbacks, and acceptance notices.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,408 physical lines (down from 4,500 at the previous iteration).
+- New component: 117 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The quotation dialog shell and remaining page workflow composition are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline
