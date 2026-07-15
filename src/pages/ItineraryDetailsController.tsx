@@ -178,7 +178,6 @@ import { ItineraryActivityGuideDialogs } from "./itinerary-details/components/It
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useFitHereProgressTimer } from "./itinerary-details/hooks/useFitHereProgressTimer";
-import { useHotspotPreviewViewModel } from "./itinerary-details/hooks/useHotspotPreviewViewModel";
 import { useItineraryCostViewModel } from "./itinerary-details/hooks/useItineraryCostViewModel";
 import { useClipboardContentBuilder } from "./itinerary-details/hooks/useClipboardContentBuilder";
 import { useSourcePreviewController } from "./itinerary-details/hooks/useSourcePreviewController";
@@ -216,6 +215,7 @@ import {
 } from "./itinerary-details/utils/routeArrivalPolicy.utils";
 import { QuotationConfirmationDialog } from "./itinerary-details/components/QuotationConfirmationDialog";
 import { useItineraryHotspotMutationWorkflow } from "./itinerary-details/hooks/useItineraryHotspotMutationWorkflow";
+import { useItineraryHotspotPreviewWorkflow } from "./itinerary-details/hooks/useItineraryHotspotPreviewWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -317,13 +317,10 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     addHotspotModal, setAddHotspotModal, loadingHotspots, setLoadingHotspots,
     isAddingHotspot, setIsAddingHotspot, hotspotSearchQuery, setHotspotSearchQuery,
     availableHotspots, setAvailableHotspots, hotspotFilterMeta, setHotspotFilterMeta,
-    previewTimelinesByHotspot, setPreviewTimelinesByHotspot, previewResolutionsByHotspot, setPreviewResolutionsByHotspot,
-    groupPreviewTimeline, setGroupPreviewTimeline, groupPreviewResolution, setGroupPreviewResolution,
-    tempModalTimeline, setTempModalTimeline, forceReplacementApprovedByHotspot, setForceReplacementApprovedByHotspot,
-    topPriorityReplacementApproved, setTopPriorityReplacementApproved, isPreviewingHotspotId, setIsPreviewingHotspotId,
+    groupPreviewResolution,
     activePreviewHotspotId, setActivePreviewHotspotId, addedInModalHotspotIds, setAddedInModalHotspotIds,
-    manualPreviewState, setManualPreviewState, isApplyingPreviewHotspot, setIsApplyingPreviewHotspot,
-    isBuildingMatrix, setIsBuildingMatrix, selectedHotspotIds, setSelectedHotspotIds,
+    manualPreviewState, isApplyingPreviewHotspot, setIsApplyingPreviewHotspot,
+    isBuildingMatrix, setIsBuildingMatrix, setSelectedHotspotIds,
     selectedHotspotAnchor, setSelectedHotspotAnchor, activeHotspotCityTab, setActiveHotspotCityTab,
     selectedFitHotspot, setSelectedFitHotspot, triedFitHereAnchors, setTriedFitHereAnchors,
     fitHereModal, setFitHereModal, autoFitHereModal, setAutoFitHereModal,
@@ -335,20 +332,6 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     timerRef: fitHereProgressTimerRef,
     setFitHereModal,
   });
-
-  const selectedHotspotId = activePreviewHotspotId ?? (selectedHotspotIds.length > 0
-    ? selectedHotspotIds[selectedHotspotIds.length - 1]
-    : null);
-
-  const selectedFitHereDay = useMemo(
-    () => itinerary?.days?.find((day) => Number(day.id) === Number(addHotspotModal.routeId || 0)) || null,
-    [addHotspotModal.routeId, itinerary?.days],
-  );
-
-  const currentRouteForModal = useMemo(
-    () => itinerary?.days?.find((day) => Number(day.id) === Number(addHotspotModal.routeId || 0)) || null,
-    [addHotspotModal.routeId, itinerary?.days],
-  );
 
   const isFitHereSelectionMode = addHotspotModal.open;
 
@@ -372,24 +355,6 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     );
   }
 
-  const resetManualHotspotPreviewState = useCallback(() => {
-    setManualPreviewState(null);
-    setPreviewTimelinesByHotspot({});
-    setPreviewResolutionsByHotspot({});
-    setGroupPreviewTimeline([]);
-    setGroupPreviewResolution(null);
-    setTempModalTimeline([]);
-    setForceReplacementApprovedByHotspot({});
-    setTopPriorityReplacementApproved(false);
-    setSelectedHotspotIds([]);
-    setIsPreviewingHotspotId(null);
-  }, []);
-
-  const resetManualHotspotPreviewStateButKeepActiveHotspot = useCallback((candidateId: number) => {
-    resetManualHotspotPreviewState();
-    setActivePreviewHotspotId(candidateId);
-  }, [resetManualHotspotPreviewState]);
-
   const extractTravelToFromText = extractTravelToFromTextUtil;
   const extractTravelFromToFromText = extractTravelFromToFromTextUtil;
 
@@ -398,32 +363,21 @@ const { cacheRouteHotelDetails, loadAndCacheRouteHotelDetails } = useRouteHotelD
     [extractTravelToFromText],
   );
 
-  const hotspotPreviewViewModel = useHotspotPreviewViewModel({
+  const hotspotPreviewWorkflow = useItineraryHotspotPreviewWorkflow({
+    hotspotState,
+    deletionState,
     itinerary,
     hotelDetails,
-    addHotspotModal,
-    activePreviewHotspotId,
-    availableHotspots,
-    previewTimelinesByHotspot,
-    previewResolutionsByHotspot,
-    groupPreviewResolution,
-    manualPreviewState,
-    selectedHotspotIds,
-    topPriorityReplacementApproved,
-    selectedHotspotAnchor,
-    addedInModalHotspotIds,
-    excludedHotspotIds,
-    hotspotFilterMeta,
-    activeHotspotCityTab,
-    setActiveHotspotCityTab,
-    hotspotSearchQuery,
-    hotspotListRef,
-    priorityConfirmRef,
+    mapDaySegmentToPreview,
+  });
+  const {
     selectedHotspotId,
     selectedFitHereDay,
     currentRouteForModal,
-    mapDaySegmentToPreview,
-  });
+    resetManualHotspotPreviewState,
+    resetManualHotspotPreviewStateButKeepActiveHotspot,
+    hotspotPreviewViewModel,
+  } = hotspotPreviewWorkflow;
   const {
     defaultPreviewTimeline,
     selectedPreviewSegments,

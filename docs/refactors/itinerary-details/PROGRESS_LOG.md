@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 293 — Extract hotspot preview workflow
+
+### Baseline
+- Starting point: Iteration 292 with the controller at 1,495 lines.
+- Scope: isolate hotspot preview selection, route-day lookup, reset callbacks, and preview view-model composition.
+
+### Changes
+- Added `hooks/useItineraryHotspotPreviewWorkflow.ts`.
+- Preserved active-hotspot selection, Fit Here day/route lookup, preview reset behavior, anchor state, hotspot filtering, and view-model inputs.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,449; new hook: 120 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 292 — Extract activity and guide workflow
 
 ### Baseline
