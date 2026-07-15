@@ -4536,6 +4536,31 @@
 ### Notes
 - Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining selected-attraction preview panels and quotation review shell are still scheduled for extraction.
 
+## Iteration 231 - Preview route-summary component
+
+### Baseline
+- Starting checkpoint: `c0ef386` on `refactor/itinerary-details-checkpoint` with the best insertion-slot panel extracted.
+
+### Changes
+- Created `src/pages/itinerary-details/components/HotspotPreviewRouteSummary.tsx`.
+- Moved inserted-hotspot matrix route-leg metrics, distance formatting, and comparison-note presentation out of `ItineraryDetailsController.tsx`.
+- Preserved route-leg fallbacks, destination-hotel labeling, duration rounding, and the existing selected-slot data guard.
+- Behaviour intentionally changed: No.
+
+### Verification
+- New component ESLint check passed.
+- Filtered TypeScript check found no errors in the new component or page controller.
+- Targeted Playwright: 2 passed (`itinerary-anchor-hotspot-smoke`, `itinerary-hotspot-modal-regression`).
+- `git diff --check` passed after restoring generated Playwright artifacts.
+
+### Line counts
+- Stable `ItineraryDetails.tsx`: 14 lines.
+- Transitional `ItineraryDetailsController.tsx`: 4,770 physical lines (down from 4,792 at the previous iteration).
+- New component: 43 physical lines.
+
+### Notes
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line source-file target. The remaining selected-attraction preview panels and quotation review shell are still scheduled for extraction.
+
 ## Iteration 220 - TBO hotel selection summary hook
 
 ### Baseline

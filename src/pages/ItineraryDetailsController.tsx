@@ -254,6 +254,7 @@ import { HotspotPreviewApplyAction } from "./itinerary-details/components/Hotspo
 import { HotspotPreviewWaitingSegment } from "./itinerary-details/components/HotspotPreviewWaitingSegment";
 import { HotspotPreviewSegmentSummary } from "./itinerary-details/components/HotspotPreviewSegmentSummary";
 import { HotspotBestInsertionSlotPanel } from "./itinerary-details/components/HotspotBestInsertionSlotPanel";
+import { HotspotPreviewRouteSummary } from "./itinerary-details/components/HotspotPreviewRouteSummary";
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
@@ -3736,44 +3737,21 @@ const canShowGuideActionButton =
                                   />
                                 )}
 
-                                {/* Inserted hotspot route summary */}
                                 {seg?.matrixFit?.routeLegSummary && selectedSlotHasRouteData && (
-                                  <div className="border border-emerald-200 bg-emerald-50 p-3 rounded-lg text-xs text-emerald-900 space-y-1">
-                                    <p className="font-semibold">Route summary:</p>
-                                    <p>
-                                      {effectiveFitSlot?.fromName || seg?.matrixFit?.fromName || 'A'} → {seg?.text || seg?.name || 'Inserted hotspot'}:{' '}
-                                      {seg?.matrixFit?.routeLegSummary?.acDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.acDistanceKm).toFixed(1)} km` : '--'}
-                                      {' / '}
-                                      {seg?.matrixFit?.routeLegSummary?.acDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.acDurationMin)))} min` : '--'}
-                                    </p>
-                                    <p>
-                                      {seg?.text || seg?.name || 'Inserted hotspot'} → {((
-                                        /^hotel$/i.test(String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim())
-                                        || (
-                                          String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
-                                          && String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
-                                        )
-                                        || Number((effectiveFitSlot as any)?.destinationHotelId || 0) > 0
-                                      ) && destinationHotelDisplayName)
-                                        ? destinationHotelDisplayName
-                                        : (effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B')}:{' '}
-                                      {seg?.matrixFit?.routeLegSummary?.cbDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.cbDistanceKm).toFixed(1)} km` : '--'}
-                                      {' / '}
-                                      {seg?.matrixFit?.routeLegSummary?.cbDurationMin != null ? `${Math.max(1, Math.round(Number(seg.matrixFit.routeLegSummary.cbDurationMin)))} min` : '--'}
-                                    </p>
-                                    <p>
-                                      Via total: {seg?.matrixFit?.routeLegSummary?.viaDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.viaDistanceKm).toFixed(1)} km` : '--'}
-                                    </p>
-                                    <p>
-                                      Direct: {seg?.matrixFit?.routeLegSummary?.directDistanceKm != null ? `${Number(seg.matrixFit.routeLegSummary.directDistanceKm).toFixed(1)} km` : '--'}
-                                    </p>
-                                    <p>
-                                      Extra: +{seg?.matrixFit?.routeLegSummary?.extraDistanceKm != null ? Number(Math.max(0, Number(seg.matrixFit.routeLegSummary.extraDistanceKm))).toFixed(1) : '--'} km
-                                    </p>
-                                    {seg?.matrixFit?.distanceComparisonNote && (
-                                      <p className="text-emerald-800">Note: {seg.matrixFit.distanceComparisonNote}</p>
-                                    )}
-                                  </div>
+                                  <HotspotPreviewRouteSummary
+                                    fromName={effectiveFitSlot?.fromName || seg?.matrixFit?.fromName || 'A'}
+                                    insertedName={seg?.text || seg?.name || 'Inserted hotspot'}
+                                    destinationName={((
+                                      /^hotel$/i.test(String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim())
+                                      || (
+                                        String((matrixFit as any)?.destinationHotelName || '').trim().length > 0
+                                        && String(effectiveFitSlot?.toName || seg?.matrixFit?.toName || '').trim().toLowerCase() === String((matrixFit as any)?.destinationHotelName || '').trim().toLowerCase()
+                                      )
+                                      || Number((effectiveFitSlot as any)?.destinationHotelId || 0) > 0
+                                    ) && destinationHotelDisplayName) ? destinationHotelDisplayName : (effectiveFitSlot?.toName || seg?.matrixFit?.toName || 'B')}
+                                    routeLegSummary={seg.matrixFit.routeLegSummary}
+                                    distanceComparisonNote={seg.matrixFit.distanceComparisonNote}
+                                  />
                                 )}
 
                                 {/* Show all insertion slots */}

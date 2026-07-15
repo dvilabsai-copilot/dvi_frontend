@@ -244,3 +244,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Quotation confirmation-modal opening, wallet/customer hydration, traveller prefill, recommended-hotel reconciliation, and prebook session guards are isolated in `useQuotationConfirmationModalController.ts`.
 - Itinerary UI source strings are stored as valid UTF-8; currency, punctuation, status symbols, and emoji rendering no longer depend on mojibake literals.
 - Selected-attraction best-insertion-slot and requested-slot fallback presentation are isolated in `HotspotBestInsertionSlotPanel.tsx`.
+- Inserted-hotspot matrix route-leg metrics and distance comparison messaging are isolated in `HotspotPreviewRouteSummary.tsx`.
