@@ -221,11 +221,7 @@ import { autoLoadStartedQuotes, getDetailsDeduped } from "./itinerary-details/ut
 import { ItineraryPageLoader } from "./itinerary-details/components/ItineraryPageLoader";
 import { ItineraryDetailsErrorState } from "./itinerary-details/components/ItineraryDetailsErrorState";
 import { VehicleBuildErrorState } from "./itinerary-details/components/VehicleBuildErrorState";
-import { GalleryDialog, VideoDialog } from "./itinerary-details/components/MediaDialogs";
-import { ShareEmailDialog, SourcePreviewDialog } from "./itinerary-details/components/ShareAndSourceDialogs";
 import { DeleteConfirmationDialog } from "./itinerary-details/components/DeleteConfirmationDialog";
-import { AllHotspotsPreviewDialog } from "./itinerary-details/components/AllHotspotsPreviewDialog";
-import { ClipboardDialog } from "./itinerary-details/components/ClipboardDialog";
 import { GuideAssignmentDialog } from "./itinerary-details/components/GuideAssignmentDialog";
 import { AddActivityDialog } from "./itinerary-details/components/AddActivityDialog";
 import { SpecialInstructionsSection } from "./itinerary-details/components/SpecialInstructionsSection";
@@ -249,6 +245,7 @@ import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQu
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
 import { ItineraryFitHereDialogs } from "./itinerary-details/components/ItineraryFitHereDialogs";
+import { ItineraryMediaDialogs } from "./itinerary-details/components/ItineraryMediaDialogs";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
@@ -3019,28 +3016,29 @@ const hotelTimelineLoading = Boolean(
         />
       )}
 
-      <GalleryDialog state={galleryModal} setState={setGalleryModal} activeIndex={galleryActiveIdx} setActiveIndex={setGalleryActiveIdx} />
-      <VideoDialog state={videoModal} setState={setVideoModal} />
-      <ClipboardDialog
-        open={clipboardModal}
-        preference={itineraryPreference}
-        clipboardType={clipboardType}
-        recommendations={paraRecommendations}
-        selectedHotels={selectedHotels}
-        onOpenChange={setClipboardModal}
-        onSelectionChange={setSelectedHotels}
-        onCopy={handleCopyClipboard}
-      />
-
-      <SourcePreviewDialog open={sourcePreviewOpen} setOpen={setSourcePreviewOpen} heading={sourcePreviewHeading} loading={sourcePreviewLoading} error={sourcePreviewError} markdown={sourcePreviewMarkdown} />
-      <ShareEmailDialog open={shareModal} setOpen={setShareModal} quoteId={String(quoteId || "")} />
-      <AllHotspotsPreviewDialog
-        open={allHotspotsPreviewModal.open}
-        loading={allHotspotsPreviewModal.loading}
-        data={allHotspotsPreviewModal.data}
-        onOpenChange={(open) => setAllHotspotsPreviewModal(prev => ({ ...prev, open }))}
-        formatTime={formatPreviewTime}
-        formatDuration={formatActivityDuration}
+      <ItineraryMediaDialogs
+        gallery={{ state: galleryModal, setState: setGalleryModal, activeIndex: galleryActiveIdx, setActiveIndex: setGalleryActiveIdx }}
+        video={{ state: videoModal, setState: setVideoModal }}
+        clipboard={{
+          open: clipboardModal,
+          preference: itineraryPreference,
+          clipboardType,
+          recommendations: paraRecommendations,
+          selectedHotels,
+          onOpenChange: setClipboardModal,
+          onSelectionChange: setSelectedHotels,
+          onCopy: handleCopyClipboard,
+        }}
+        source={{ open: sourcePreviewOpen, setOpen: setSourcePreviewOpen, heading: sourcePreviewHeading, loading: sourcePreviewLoading, error: sourcePreviewError, markdown: sourcePreviewMarkdown }}
+        shareEmail={{ open: shareModal, setOpen: setShareModal, quoteId: String(quoteId || "") }}
+        allHotspotsPreview={{
+          open: allHotspotsPreviewModal.open,
+          loading: allHotspotsPreviewModal.loading,
+          data: allHotspotsPreviewModal.data,
+          onOpenChange: (open) => setAllHotspotsPreviewModal((prev) => ({ ...prev, open })),
+          formatTime: formatPreviewTime,
+          formatDuration: formatActivityDuration,
+        }}
       />
 
       <QuotationConfirmationDialog

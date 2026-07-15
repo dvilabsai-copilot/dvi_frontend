@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 259 — Extract media and sharing dialogs
+
+### Baseline
+- Starting point: Iteration 258 at commit `087fc80` with the controller at 3,237 lines.
+- Scope: compose gallery, video, clipboard, source-preview, email-share, and all-hotspots-preview dialogs outside the controller.
+
+### Changes
+- Added `src/pages/itinerary-details/components/ItineraryMediaDialogs.tsx`.
+- Clipboard generation, selection state, source loading, sharing state, and preview state remain owned by existing controllers/page state.
+
+### Verification
+- Controller line count: 3,235; new component: 29 lines.
+- Exact-source Playwright pair: 2 passed.
+- Filtered TypeScript and new-component lint passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 258 — Extract Fit Here dialog composition
 
 ### Baseline
