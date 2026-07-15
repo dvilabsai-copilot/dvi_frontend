@@ -269,3 +269,4 @@ The confirmed-quote read-only banner is isolated in `ConfirmedQuoteBanner.tsx`; 
 - Route-family base-quote normalization is isolated in `routeFamily.utils.ts`.
 - Quotation confirmation shell composition is isolated in `QuotationConfirmationDialog.tsx`; the controller still owns its state, validation, and submission callbacks.
 - Itinerary-level voucher, invoice, incidental-expense, cancellation, and hotel-voucher composition is isolated in `ItineraryAncillaryModals.tsx`.
+- Manual and automatic Fit Here preview dialog composition is isolated in `ItineraryFitHereDialogs.tsx`; state and mutation callbacks remain in the controller/hooks.

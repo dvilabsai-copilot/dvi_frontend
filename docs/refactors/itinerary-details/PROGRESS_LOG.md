@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 258 — Extract Fit Here dialog composition
+
+### Baseline
+- Starting point: Iteration 257 at commit `2ab527c` with the controller at 3,240 lines.
+- Scope: compose manual and automatic Fit Here preview dialogs outside the controller.
+
+### Changes
+- Added `src/pages/itinerary-details/components/ItineraryFitHereDialogs.tsx`.
+- Manual/automatic preview state, retry/confirm handlers, stale-request invalidation, and modal transitions remain controller-owned.
+
+### Verification
+- Controller line count: 3,237; new component: 18 lines.
+- Exact-source Playwright pair: 2 passed.
+- Filtered TypeScript and new-component lint passed.
+- Production build passed with existing warnings.
+- Generated Playwright artifacts were restored.
+
 ## Iteration 257 — Extract ancillary itinerary modals
 
 ### Baseline

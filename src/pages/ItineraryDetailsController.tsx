@@ -34,11 +34,6 @@ import { HotelSearchModal } from "@/components/hotels/HotelSearchModal";
 import { ArrivalHotelDecisionModal } from "@/components/hotels/ArrivalHotelDecisionModal";
 import { HotelRoomSelectionModal } from "@/components/hotels/HotelRoomSelectionModal";
 import { SupplementDisplay } from "@/components/hotels/SupplementDisplay";
-import {
-  ManualFitHerePreviewDialog,
-  ManualFitHerePreviewResponse,
-} from "@/components/itinerary/manual-fit/ManualFitHerePreviewDialog";
-import { AutoFitHerePreviewDialog } from "@/components/itinerary/manual-fit/AutoFitHerePreviewDialog";
 import { MarkdownPreview } from "@/components/itinerary/MarkdownPreview";
 import {
   buildExactManualHotspotPreviewPayload,
@@ -253,6 +248,7 @@ import { HotspotPreviewPane } from "./itinerary-details/components/HotspotPrevie
 import { ConfirmedQuoteBanner } from "./itinerary-details/components/ConfirmedQuoteBanner";
 import { ItineraryHeader } from "./itinerary-details/components/ItineraryHeader";
 import { ItineraryAncillaryModals } from "./itinerary-details/components/ItineraryAncillaryModals";
+import { ItineraryFitHereDialogs } from "./itinerary-details/components/ItineraryFitHereDialogs";
 import { useHotspotState } from "./itinerary-details/hooks/useHotspotState";
 import { useAutoFitHerePreviewController } from "./itinerary-details/hooks/useAutoFitHerePreviewController";
 import { useFitHereConfirmationMutation } from "./itinerary-details/hooks/useFitHereConfirmationMutation";
@@ -3132,54 +3128,55 @@ const hotelTimelineLoading = Boolean(
         }}
       />
 
-      <ManualFitHerePreviewDialog
-        open={fitHereModal.open}
-        loading={fitHereModal.loading}
-        loadingStepIndex={fitHereModal.loadingStepIndex}
-        failedReason={fitHereModal.failedReason}
-        attempt={fitHereModal.attempt}
-        selectedHotspot={selectedFitHotspot}
-        baseTimeline={selectedFitHereDay?.segments || []}
-        onClose={handleFitHereCancel}
-        onConfirm={handleConfirmFitHere}
-        onRetry={handleRetryFitHere}
-        confirmLoading={confirmFitHereLoading}
-      />
-
-      <AutoFitHerePreviewDialog
-        open={autoFitHereModal.open}
-        loading={autoFitHereModal.loading}
-        failedReason={autoFitHereModal.failedReason}
-        results={autoFitHereModal.results}
-        selectedAnchorKey={autoFitHereModal.selectedAnchorKey}
-        selectedHotspot={selectedFitHotspot}
-        baseTimeline={selectedFitHereDay?.segments || []}
-        loadingAnchorCount={autoFitHereModal.loadingAnchorCount || 0}
-        loadingStartedAtMs={autoFitHereModal.loadingStartedAtMs || null}
-        performanceSummary={autoFitHereModal.performanceSummary || null}
-        onClose={() => {
-          previewRequestIdRef.current += 1;
-          setAutoFitHereModal({
-            open: false,
-            loading: false,
-            failedReason: null,
-            results: [],
-            selectedAnchorKey: null,
-            loadingAnchorCount: 0,
-            loadingStartedAtMs: null,
-            performanceSummary: null,
-          });
+      <ItineraryFitHereDialogs
+        manual={{
+          open: fitHereModal.open,
+          loading: fitHereModal.loading,
+          loadingStepIndex: fitHereModal.loadingStepIndex,
+          failedReason: fitHereModal.failedReason,
+          attempt: fitHereModal.attempt,
+          selectedHotspot: selectedFitHotspot,
+          baseTimeline: selectedFitHereDay?.segments || [],
+          onClose: handleFitHereCancel,
+          onConfirm: handleConfirmFitHere,
+          onRetry: handleRetryFitHere,
+          confirmLoading: confirmFitHereLoading,
         }}
-        onSelectAnchorKey={(anchorKey) => {
-          setAutoFitHereModal((prev) => ({
-            ...prev,
-            selectedAnchorKey: anchorKey,
-          }));
+        automatic={{
+          open: autoFitHereModal.open,
+          loading: autoFitHereModal.loading,
+          failedReason: autoFitHereModal.failedReason,
+          results: autoFitHereModal.results,
+          selectedAnchorKey: autoFitHereModal.selectedAnchorKey,
+          selectedHotspot: selectedFitHotspot,
+          baseTimeline: selectedFitHereDay?.segments || [],
+          loadingAnchorCount: autoFitHereModal.loadingAnchorCount || 0,
+          loadingStartedAtMs: autoFitHereModal.loadingStartedAtMs || null,
+          performanceSummary: autoFitHereModal.performanceSummary || null,
+          onClose: () => {
+            previewRequestIdRef.current += 1;
+            setAutoFitHereModal({
+              open: false,
+              loading: false,
+              failedReason: null,
+              results: [],
+              selectedAnchorKey: null,
+              loadingAnchorCount: 0,
+              loadingStartedAtMs: null,
+              performanceSummary: null,
+            });
+          },
+          onSelectAnchorKey: (anchorKey) => {
+            setAutoFitHereModal((prev) => ({
+              ...prev,
+              selectedAnchorKey: anchorKey,
+            }));
+          },
+          onConfirm: (options, attempt) => {
+            void handleConfirmFitHere(options, attempt);
+          },
+          confirmLoading: confirmFitHereLoading,
         }}
-        onConfirm={(options, attempt) => {
-          void handleConfirmFitHere(options, attempt);
-        }}
-        confirmLoading={confirmFitHereLoading}
       />
 
       {itinerary?.planId && (
