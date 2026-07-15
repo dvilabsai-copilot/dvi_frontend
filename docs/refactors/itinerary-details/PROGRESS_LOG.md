@@ -1,5 +1,22 @@
 # Progress log
 
+## Iteration 299 — Extract quotation dialog workflow
+
+### Baseline
+- Starting point: Iteration 298 with the controller at 1,270 lines.
+- Scope: isolate quotation confirmation dialog state/review/action prop assembly from the page controller.
+
+### Changes
+- Added `hooks/useItineraryQuotationDialogWorkflow.ts`.
+- Preserved confirmation amount/passenger/occupancy values, hotel review normalization, wallet callbacks, arrival-time handling, and submission/reset handlers.
+- Behaviour intentionally changed: No.
+
+### Verification
+- Controller line count: 1,245; new hook: 51 lines.
+- New hook ESLint passed; filtered TypeScript found no errors in the affected hook/controller paths.
+- Production build passed with existing warnings; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 298 — Extract hotspot dialog workflow
 
 ### Baseline

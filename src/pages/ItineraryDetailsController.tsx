@@ -200,7 +200,6 @@ import { useArrivalPolicyDecisionDialog } from "./itinerary-details/hooks/useArr
 import { useFitHereDialogProps } from "./itinerary-details/hooks/useFitHereDialogProps";
 import { useItineraryHotelDialogProps } from "./itinerary-details/hooks/useItineraryHotelDialogProps";
 import { useItineraryMediaDialogProps } from "./itinerary-details/hooks/useItineraryMediaDialogProps";
-import { useItineraryQuotationDialogProps } from "./itinerary-details/hooks/useItineraryQuotationDialogProps";
 import { useItineraryAncillaryModalProps } from "./itinerary-details/hooks/useItineraryAncillaryModalProps";
 import { useItineraryShareActions } from "./itinerary-details/hooks/useItineraryShareActions";
 import { useItineraryHotelSelectionWorkflow } from "./itinerary-details/hooks/useItineraryHotelSelectionWorkflow";
@@ -216,6 +215,7 @@ import { useItineraryHotspotPreviewWorkflow } from "./itinerary-details/hooks/us
 import { useItineraryClipboardSelectionWorkflow } from "./itinerary-details/hooks/useItineraryClipboardSelectionWorkflow";
 import { useItineraryScrollEffects } from "./itinerary-details/hooks/useItineraryScrollEffects";
 import { useItineraryHotspotDialogWorkflow } from "./itinerary-details/hooks/useItineraryHotspotDialogWorkflow";
+import { useItineraryQuotationDialogWorkflow } from "./itinerary-details/hooks/useItineraryQuotationDialogWorkflow";
 import { useAddHotspotModalController } from "./itinerary-details/hooks/useAddHotspotModalController";
 import { useItineraryFitHereWorkflow } from "./itinerary-details/hooks/useItineraryFitHereWorkflow";
 import { useWalletTopUpController } from "./itinerary-details/hooks/useWalletTopUpController";
@@ -1048,39 +1048,14 @@ const hotelTimelineLoading = Boolean(
     formatTime: formatPreviewTime,
     formatDuration: formatActivityDuration,
   });
-  const quotationDialogProps = useItineraryQuotationDialogProps({
+  const quotationDialogProps = useItineraryQuotationDialogWorkflow({
     state: quotationState,
     itinerary,
     requiresHotelBookingFlow,
     shouldEnableWalletTopUpOnConfirm,
-    confirmRequiredAmount,
-    isWalletInsufficientForConfirm,
-    confirmRoomCount,
-    confirmPassengerMix,
-    confirmOccupancyPreview,
-    requiresDetailedPassengerFlow,
-    isOpeningConfirmQuotation,
-    isPrebooking,
-    externalStayEntries: externalStayEntries as readonly Record<string, unknown>[],
-    nonTboSelectedHotelEntries: nonTboSelectedHotelEntries as readonly Record<string, unknown>[],
-    prebookHotelEntries: prebookHotelEntries as readonly Record<string, unknown>[],
-    hasPrebookPriceChanged,
-    defaultExternalStayMessage: DEFAULT_EXTERNAL_STAY_MESSAGE,
-    normalizePrebookItems,
-    resolvePrebookInclusions,
-    resolvePrebookMealPlan,
-    normalizeCancellationPolicyItems,
-    normalizeMealPlanLabel,
-    parseWalletAmount,
-    formatCurrency,
-    handleWalletTopUpAndContinue,
-    refreshConfirmWalletBalance,
-    defaultPassenger,
-    getPassengerFieldError,
-    handleArrivalDateTimeChange,
-    resetConfirmWalletTopUpPanel,
-    handleConfirmQuotation,
-    canConfirmQuotation,
+    confirmation: { confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix, confirmOccupancyPreview, requiresDetailedPassengerFlow, isOpeningConfirmQuotation, isPrebooking, hasPrebookPriceChanged, canConfirmQuotation },
+    hotelContext: { externalStayEntries, nonTboSelectedHotelEntries, prebookHotelEntries },
+    actions: { handleWalletTopUpAndContinue, refreshConfirmWalletBalance, defaultPassenger, getPassengerFieldError, handleArrivalDateTimeChange, resetConfirmWalletTopUpPanel, handleConfirmQuotation },
   });
   const ancillaryModalProps = useItineraryAncillaryModalProps({
     itineraryPlanId: itinerary?.planId || 0,
