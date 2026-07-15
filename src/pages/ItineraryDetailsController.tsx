@@ -29,13 +29,10 @@ import {
 import { toast } from "sonner";
 import {
   DEFAULT_EXTERNAL_STAY_MESSAGE,
-  useExternalStayEntries,
 } from "./itinerary-details/hooks/useExternalStayEntries";
-import { useNonTboSelectedHotelEntries } from "./itinerary-details/hooks/useNonTboSelectedHotelEntries";
 import { useAutoFitHereAnchors } from "./itinerary-details/hooks/useAutoFitHereAnchors";
 import { useVehicleRateSelectionGuard } from "./itinerary-details/hooks/useVehicleRateSelectionGuard";
 import { useFitHereTimelineHelpers } from "./itinerary-details/hooks/useFitHereTimelineHelpers";
-import { useTboHotelSelectionSummary } from "./itinerary-details/hooks/useTboHotelSelectionSummary";
 import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "./itinerary-details/utils/vehicleAvailability.utils";
 import { FitHereAnchorButton } from "./itinerary-details/components/FitHereAnchorButton";
 import type {
@@ -278,7 +275,7 @@ import { useHotelDetailsLoader } from "./itinerary-details/hooks/useHotelDetails
 import { useHotelDataController } from "./itinerary-details/hooks/useHotelDataController";
 import { useHotelVoucherController, type HotelVoucherItem } from "./itinerary-details/hooks/useHotelVoucherController";
 import { useVehicleSelectionTotalsController } from "./itinerary-details/hooks/useVehicleSelectionTotalsController";
-import { useHotelSelectionCoverage } from "./itinerary-details/hooks/useHotelSelectionCoverage";
+import { useItineraryQuotationHotelContext } from "./itinerary-details/hooks/useItineraryQuotationHotelContext";
 import { useHotelClipboardAction } from "./itinerary-details/hooks/useHotelClipboardAction";
 import { useHotelSelectionMutation } from "./itinerary-details/hooks/useHotelSelectionMutation";
 import { useRouteOptionSwitchController } from "./itinerary-details/hooks/useRouteOptionSwitchController";
@@ -810,54 +807,28 @@ const latestRouteRequestRef = useRef(0);
 
 // Prevent route-tab navigation from causing a duplicate details fetch.
 const switchedRouteRef = useRef<string | null>(null);
-  const prebookDataRef = useRef<any | null>(null);
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
-
-  const {
-    prebookTotalAmount,
-    selectedTboHotelTotal,
-    hasSelectedTboHotels,
-    requiresDetailedPassengerFlow,
-    hasPrebookPriceChanged,
-    prebookHotelEntries,
-  } = useTboHotelSelectionSummary({
+  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
+  const quotationHotelContext = useItineraryQuotationHotelContext({
     selectedHotelBookings,
-    prebookData,
-    requiresHotelBookingFlow,
-  });
-  const { getCoveredRouteIdsFromHotelSelections, selectedHotelCoveredRouteIds } = useHotelSelectionCoverage({
-    selectedHotelBookings,
-  });
-
-  // Non-TBO user-selected hotels — shown in the review modal but NOT sent to prebook API
-  const nonTboSelectedHotelEntries = useNonTboSelectedHotelEntries({
-    selectedHotelBookings,
-    selectedHotelCoveredRouteIds,
-    hotelDetails,
-  });
-
-  const externalStayEntries = useExternalStayEntries({
     hotelDetails,
     activeHotelGroupType,
+    prebookData,
+    requiresHotelBookingFlow,
+    shouldShowHotels,
+    itineraryPlanId: itinerary?.planId,
+    setHotelDetails,
+    setSelectedHotelBookings,
+    setActiveHotelGroupType,
+    setPrebookData,
+    setHasAcceptedUpdatedPrice,
+    setConfirmOccupanciesTemplate,
   });
-
-  const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
-
-  useEffect(() => {
-    prebookDataRef.current = prebookData;
-  }, [prebookData]);
-
-  useEffect(() => {
-    if (!shouldShowHotels) {
-      setHotelDetails(null);
-      setSelectedHotelBookings({});
-      setActiveHotelGroupType(null);
-      setPrebookData(null);
-      prebookDataRef.current = null;
-      setHasAcceptedUpdatedPrice(false);
-      setConfirmOccupanciesTemplate(null);
-    }
-  }, [shouldShowHotels, itinerary?.planId]);
+  const {
+    prebookTotalAmount, selectedTboHotelTotal, hasSelectedTboHotels, requiresDetailedPassengerFlow,
+    hasPrebookPriceChanged, prebookHotelEntries, getCoveredRouteIdsFromHotelSelections,
+    selectedHotelCoveredRouteIds, nonTboSelectedHotelEntries, externalStayEntries, prebookDataRef,
+  } = quotationHotelContext;
 
   // Cancellation modal state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);

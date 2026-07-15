@@ -1,5 +1,20 @@
 # Progress log
 
+## Iteration 284 — Extract quotation hotel context
+
+### Baseline
+- Starting point: Iteration 283 with the controller at 2,138 lines.
+- Scope: isolate TBO summary, selected-hotel coverage, non-TBO review entries, external-stay entries, and hotel-flow reset synchronization.
+
+### Changes
+- Added `hooks/useItineraryQuotationHotelContext.ts`.
+- Preserved the plan-change reset trigger, hotel visibility reset behavior, and all quotation review data shapes.
+
+### Verification
+- Controller line count: 2,109; new hook: 72 lines.
+- New hook lint and filtered TypeScript passed; `git diff --check` passed.
+- Completion criteria are not yet met: the transitional controller remains above the 1,000-line target.
+
 ## Iteration 283 — Extract quotation state composition
 
 ### Baseline
