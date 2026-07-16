@@ -898,19 +898,51 @@ const totalRows = [
         )}
       </div>
 
-      {/* Horizontal Table View */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs w-12">#</th>
-              {showVendorDetails && <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Vendor Name</th>}
-              {showVendorDetails && <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Branch Name</th>}
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[100px]">Vehicle Origin</th>
-              <th className="text-center py-2 px-3 font-semibold text-gray-600 uppercase text-xs">Qty</th>
-              <th className="text-right py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Total Amount</th>
-            </tr>
-          </thead>
+   {/* Vehicle Table View */}
+<div className="w-full min-w-0 overflow-x-hidden">
+  <table className="w-full table-fixed text-sm">
+    <colgroup>
+      <col className="w-[5%]" />
+
+      {showVendorDetails && <col className="w-[22%]" />}
+      {showVendorDetails && <col className="w-[20%]" />}
+
+      <col className={showVendorDetails ? "w-[23%]" : "w-[45%]"} />
+      <col className="w-[8%]" />
+      <col className={showVendorDetails ? "w-[22%]" : "w-[42%]"} />
+    </colgroup>
+
+    <thead>
+      <tr className="border-b border-gray-200 bg-gray-50">
+        <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+          #
+        </th>
+
+        {showVendorDetails && (
+          <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+            Vendor Name
+          </th>
+        )}
+
+        {showVendorDetails && (
+          <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+            Branch Name
+          </th>
+        )}
+
+        <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+          Vehicle Origin
+        </th>
+
+        <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-gray-600">
+          Qty
+        </th>
+
+        <th className="break-words px-2 py-2 text-right text-xs font-semibold uppercase text-gray-600">
+          Total Amount
+        </th>
+      </tr>
+    </thead>
           <tbody>
             {sortedVehicles.map((v, index) => {
               const rowKey =
@@ -1078,11 +1110,16 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                   
                   {/* Expanded Row - PHP-style full pricing breakdown */}
                   {canViewCostBreakdown && isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <td colSpan={showVendorDetails ? 6 : 4} className="py-4 px-4">
-                        <div className="ml-6 space-y-3">
-
-                          <div style={{ width: '100%' }} className="space-y-3">
+                   <tr className="border-b border-gray-100 bg-gray-50">
+  <td
+    colSpan={showVendorDetails ? 6 : 4}
+    className="min-w-0 overflow-hidden px-2 py-3"
+  >
+    <div
+      data-testid="vehicle-cost-breakdown"
+      className="w-full min-w-0 space-y-3"
+    >
+      <div className="w-full min-w-0 space-y-3">
 
                           {/* ── Day-wise per-route table ── */}
                           <div>
@@ -1120,9 +1157,25 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 </Button>
                               </div>
                             </div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-xs border border-gray-300 bg-white border-collapse">
-                                <thead>
+                            <div className="w-full min-w-0 overflow-x-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-[10px] leading-tight [overflow-wrap:anywhere] [&_td]:!whitespace-normal [&_th]:!whitespace-normal">
+    <colgroup>
+      <col className="w-[8%]" />
+      <col className="w-[12%]" />
+      <col className="w-[12%]" />
+      <col className="w-[7%]" />
+      <col className="w-[7%]" />
+      <col className="w-[7%]" />
+      <col className="w-[10%]" />
+      <col className="w-[8%]" />
+      <col className="w-[6%]" />
+      <col className="w-[6%]" />
+      <col className="w-[6%]" />
+      <col className="w-[5%]" />
+      <col className="w-[6%]" />
+    </colgroup>
+
+    <thead>
                                   <tr className="bg-purple-100">
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Date</th>
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700">Route</th>
@@ -1217,12 +1270,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             </div>
                           </div>
 
-                          {/* ── Stacked full-width summary tables ── */}
-                          <div className="space-y-3">
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+                       {/* ── Responsive compact summary tables ── */}
+<div className="grid w-full min-w-0 grid-cols-1 items-start gap-3 xl:grid-cols-3">
+  <div className="w-full min-w-0 overflow-hidden">
+    <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-xs [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-100">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
@@ -1269,11 +1320,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 </tbody>
                               </table>
                             </div>
-
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+<div className="w-full min-w-0 overflow-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-xs [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-100">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
