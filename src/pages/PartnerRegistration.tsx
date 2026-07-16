@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -14,8 +14,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  sendLoginEmailOtp,
-  verifyLoginEmailOtp,
+  registerPartner,
+  sendRegistrationEmailOtp,
+  verifyRegistrationEmailOtp,
 } from "@/services/auth";
 
 const RegistrationStep = ({
@@ -50,10 +51,18 @@ const RegistrationStep = ({
 const IconInput = ({
   icon,
   placeholder,
+  value,
+  onChange,
+  type = "text",
+  id,
   className = "",
 }: {
   icon: React.ReactNode;
   placeholder: string;
+  value?: string;
+  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  id?: string;
   className?: string;
 }) => (
   <div className={`relative ${className}`}>
@@ -61,6 +70,10 @@ const IconInput = ({
       {icon}
     </span>
     <Input
+      id={id}
+      type={type}
+      value={value}
+      onChange={onChange}
       placeholder={placeholder}
       className="h-14 rounded-xl border-[#e7e9f5] bg-white pl-14 text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
     />
@@ -105,7 +118,31 @@ export default function PartnerRegistration() {
   const [emailVerificationOtp, setEmailVerificationOtp] = useState("");
   const [emailOtpSent, setEmailOtpSent] = useState(false);
   const [emailOtpVerified, setEmailOtpVerified] = useState(false);
+  const [emailVerificationToken, setEmailVerificationToken] = useState("");
   const [emailOtpLoading, setEmailOtpLoading] = useState(false);
+  const [emailResendIn, setEmailResendIn] = useState(0);
+  const [companyName, setCompanyName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [pan, setPan] = useState("");
+  const [declarationAccepted, setDeclarationAccepted] = useState(false);
+  const [registrationLoading, setRegistrationLoading] = useState(false);
+
+  useEffect(() => {
+    if (emailResendIn <= 0) return;
+    const timer = window.setInterval(() => {
+      setEmailResendIn((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [emailResendIn]);
+
+  const resetEmailVerification = (value: string) => {
+    setEmailVerificationId(value);
+    setEmailOtpSent(false);
+    setEmailOtpVerified(false);
+    setEmailVerificationOtp("");
+    setEmailVerificationToken("");
+    setEmailResendIn(0);
+  };
 
   const handleSendEmailVerificationOtp = async () => {
     const emailValue = emailVerificationId.trim();
@@ -122,10 +159,12 @@ export default function PartnerRegistration() {
     setEmailOtpLoading(true);
 
     try {
-      await sendLoginEmailOtp(emailValue);
+      await sendRegistrationEmailOtp(emailValue);
       setEmailOtpSent(true);
       setEmailOtpVerified(false);
       setEmailVerificationOtp("");
+      setEmailVerificationToken("");
+      setEmailResendIn(60);
 
       toast({
         title: "OTP sent",
@@ -158,8 +197,9 @@ export default function PartnerRegistration() {
     setEmailOtpLoading(true);
 
     try {
-      await verifyLoginEmailOtp(emailValue, otpValue);
+      const result = await verifyRegistrationEmailOtp(emailValue, otpValue);
       setEmailOtpVerified(true);
+      setEmailVerificationToken(String(result?.verificationToken || ""));
 
       toast({
         title: "Email verified",
@@ -173,6 +213,72 @@ export default function PartnerRegistration() {
       });
     } finally {
       setEmailOtpLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    const normalizedEmail = emailVerificationId.trim().toLowerCase();
+    const normalizedPan = pan.trim().toUpperCase();
+
+    if (!companyName.trim() || !mobile.trim() || !normalizedEmail || !normalizedPan) {
+      toast({
+        title: "Complete your details",
+        description: "Company name, mobile number, email, and PAN are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(normalizedPan)) {
+      toast({
+        title: "Invalid PAN",
+        description: "Enter a valid 10-character PAN number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!emailOtpVerified || !emailVerificationToken) {
+      toast({
+        title: "Verify your email",
+        description: "Verify the registration email before creating the account.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!declarationAccepted) {
+      toast({
+        title: "Declaration required",
+        description: "Accept the declaration before creating the account.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRegistrationLoading(true);
+    try {
+      await registerPartner({
+        companyName: companyName.trim(),
+        mobile: mobile.trim(),
+        email: normalizedEmail,
+        pan: normalizedPan,
+        emailVerificationToken,
+        declarationAccepted,
+      });
+      toast({
+        title: "Registration submitted",
+        description: "Your application is pending approval. You can sign in after approval.",
+      });
+      navigate("/login", { replace: true });
+    } catch (e: any) {
+      toast({
+        title: "Unable to create account",
+        description: e?.message || "Please review your details and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRegistrationLoading(false);
     }
   };
 
@@ -267,6 +373,8 @@ export default function PartnerRegistration() {
                 <IconInput
                   icon={<Building2 className="h-5 w-5" />}
                   placeholder="Enter your company name"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
                 />
               </div>
 
@@ -277,6 +385,9 @@ export default function PartnerRegistration() {
                 <IconInput
                   icon={<Phone className="h-5 w-5" />}
                   placeholder="Enter mobile number"
+                  value={mobile}
+                  onChange={(event) => setMobile(event.target.value)}
+                  type="tel"
                 />
               </div>
 
@@ -287,6 +398,9 @@ export default function PartnerRegistration() {
                 <IconInput
                   icon={<Mail className="h-5 w-5" />}
                   placeholder="Enter email ID"
+                  value={emailVerificationId}
+                  onChange={(event) => resetEmailVerification(event.target.value)}
+                  type="email"
                 />
               </div>
             </div>
@@ -306,6 +420,8 @@ export default function PartnerRegistration() {
               <IconInput
                 icon={<CreditCard className="h-5 w-5" />}
                 placeholder="Enter 10 digit PAN number (e.g. ABCDE1234F)"
+                value={pan}
+                onChange={(event) => setPan(event.target.value.toUpperCase())}
               />
             </div>
           </section>
@@ -313,23 +429,28 @@ export default function PartnerRegistration() {
           <section className="rounded-3xl border border-[#f0eff8] bg-white p-7">
             <SectionTitle
               icon={<Phone className="h-7 w-7" />}
-              title="Mobile Verification"
-              subtitle="We will send an OTP to verify your mobile number"
+              title="Mobile Contact"
+              subtitle="Use a mobile number that your onboarding team can reach"
             />
 
             <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_260px]">
               <div>
                 <label className="mb-3 block text-sm font-extrabold text-[#090c36]">
-                  Enter OTP <span className="text-red-500">*</span>
+                  Mobile number <span className="text-red-500">*</span>
                 </label>
                 <Input
-                  placeholder="Enter OTP received on your mobile number"
+                  type="tel"
+                  value={mobile}
+                  onChange={(event) => setMobile(event.target.value)}
+                  placeholder="Enter mobile number"
                   className="h-14 rounded-xl border-[#e7e9f5] bg-white text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
                 />
               </div>
 
               <div className="flex items-end">
-                <VerifiedCard text="Same as above mobile number" />
+                <div className="rounded-xl border border-[#e5e2f5] bg-[#faf9ff] px-4 py-3 text-sm font-semibold leading-5 text-[#62658c]">
+                  Mobile verification will be completed during onboarding approval.
+                </div>
               </div>
             </div>
           </section>
@@ -341,7 +462,7 @@ export default function PartnerRegistration() {
     subtitle="Save your email ID and verify it using OTP"
   />
 
-  <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
+          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
     <div>
       <label className="mb-3 block text-sm font-extrabold text-[#090c36]">
         Email ID <span className="text-red-500">*</span>
@@ -355,12 +476,10 @@ export default function PartnerRegistration() {
         <Input
           value={emailVerificationId}
           onChange={(e) => {
-            setEmailVerificationId(e.target.value);
-            setEmailOtpSent(false);
-            setEmailOtpVerified(false);
-            setEmailVerificationOtp("");
+            resetEmailVerification(e.target.value);
           }}
-          placeholder="Enter email ID of your choice"
+          type="email"
+          placeholder="Enter the email you will use to sign in"
           className="h-14 rounded-xl border-[#e7e9f5] bg-white pl-14 text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
         />
       </div>
@@ -370,14 +489,16 @@ export default function PartnerRegistration() {
       <Button
         type="button"
         onClick={handleSendEmailVerificationOtp}
-        disabled={emailOtpLoading}
+        disabled={emailOtpLoading || emailResendIn > 0}
         className="h-14 w-full rounded-xl bg-[#4424ff] text-base font-extrabold text-white shadow-lg shadow-[#4424ff]/20 hover:bg-[#3518e8]"
       >
         {emailOtpLoading && !emailOtpSent
-          ? "Sending OTP..."
-          : emailOtpSent
-            ? "Resend OTP"
-            : "Save & Send OTP"}
+          ? "Sending code..."
+          : emailResendIn > 0
+            ? `Resend code in ${emailResendIn}s`
+            : emailOtpSent
+              ? "Resend code"
+              : "Send verification code"}
       </Button>
     </div>
   </div>
@@ -389,9 +510,11 @@ export default function PartnerRegistration() {
       </label>
 
       <Input
+        inputMode="numeric"
+        maxLength={6}
         value={emailVerificationOtp}
-        onChange={(e) => setEmailVerificationOtp(e.target.value)}
-        placeholder="Enter OTP received on your email ID"
+        onChange={(e) => setEmailVerificationOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+        placeholder="Enter 6-digit code"
         disabled={!emailOtpSent || emailOtpVerified}
         className="h-14 rounded-xl border-[#e7e9f5] bg-white text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff] disabled:bg-[#f8f8fc]"
       />
@@ -404,10 +527,10 @@ export default function PartnerRegistration() {
         <Button
           type="button"
           onClick={handleVerifyEmailVerificationOtp}
-          disabled={!emailOtpSent || emailOtpLoading}
+          disabled={!emailOtpSent || emailOtpLoading || emailVerificationOtp.length !== 6}
           className="h-14 w-full rounded-xl border border-[#4424ff]/25 bg-white text-[#4424ff] hover:bg-[#f4f1ff] font-bold text-base shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {emailOtpLoading && emailOtpSent ? "Verifying..." : "Verify OTP"}
+          {emailOtpLoading && emailOtpSent ? "Verifying..." : "Verify email"}
         </Button>
       )}
     </div>
@@ -415,9 +538,8 @@ export default function PartnerRegistration() {
 
   {emailOtpSent && !emailOtpVerified && (
     <p className="mt-4 text-sm font-semibold text-[#62658c]">
-      OTP has been sent to{" "}
-      <span className="text-[#4424ff]">{emailVerificationId}</span>. Please
-      verify before creating the account.
+      A verification code has been sent to{" "}
+      <span className="text-[#4424ff]">{emailVerificationId}</span>. Verify this email before creating the account.
     </p>
   )}
 </section>
@@ -427,6 +549,8 @@ export default function PartnerRegistration() {
               <input
                 id="registrationDeclaration"
                 type="checkbox"
+                checked={declarationAccepted}
+                onChange={(event) => setDeclarationAccepted(event.target.checked)}
                 className="mt-1 h-6 w-6 rounded border-[#b8b2ff] accent-[#4424ff]"
               />
 
@@ -452,9 +576,11 @@ export default function PartnerRegistration() {
 
             <Button
               type="button"
+              onClick={handleCreateAccount}
+              disabled={registrationLoading}
               className="mt-7 h-16 w-full rounded-xl bg-[#4424ff] text-lg font-extrabold text-white shadow-lg shadow-[#4424ff]/25 hover:bg-[#3518e8]"
             >
-              Create Account
+              {registrationLoading ? "Submitting..." : "Create Account"}
               <ArrowRight className="ml-4 h-6 w-6" />
             </Button>
           </div>

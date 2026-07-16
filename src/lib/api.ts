@@ -96,16 +96,25 @@ export async function api(path: string, opts: ApiOptions = {} ) {
   //console.debug(`[api] response ${res.status} ${res.statusText} for ${method} ${url}`);
 
   if (!res.ok) {
-    // Handle 401 Unauthorized - redirect to login
-    if (res.status === 401) {
+    // Only protected requests represent an expired session. Public login and
+    // OTP requests must stay on their screen so they can show the API error.
+    if (res.status === 401 && auth) {
       clearToken();
       window.location.href = '/login';
       throw new Error('Session expired. Please login again.');
     }
 
     const text = await res.text().catch(() => "");
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      const apiMessage = parsed?.message;
+      message = Array.isArray(apiMessage) ? apiMessage.join(', ') : apiMessage || text;
+    } catch {
+      // Keep the raw response when it is not JSON.
+    }
     throw new Error(
-      `API ${method} ${url} failed: ${res.status} ${res.statusText} ${text}`.trim()
+      message || `API ${method} ${url} failed: ${res.status} ${res.statusText}`
     );
   }
 
