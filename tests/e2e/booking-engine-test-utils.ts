@@ -1,16 +1,88 @@
-import { expect, type APIRequestContext } from '@playwright/test';
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const API_BASE_URL =
-  process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
+  process.env.E2E_API_BASE_URL!;
+
+function plusDays(base: Date, days: number): Date {
+  const result = new Date(base.getTime());
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function formatIso0530(date: Date, hour: number, minute: number): string {
+  const ymd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return `${ymd}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00+05:30`;
+}
+
+export function buildMultiRoomBookingPayload(now = new Date()) {
+  const day1 = plusDays(now, 4);
+  const day2 = plusDays(now, 5);
+  const day3 = plusDays(now, 6);
+  const day4 = plusDays(now, 7);
+  const route = (locationName: string, nextLocation: string, date: Date, km: number, dayNumber: number) => ({
+    location_name: locationName,
+    next_visiting_location: nextLocation,
+    itinerary_route_date: formatIso0530(date, 0, 0),
+    no_of_days: dayNumber,
+    no_of_km: km,
+    direct_to_next_visiting_place: 0,
+    via_route: '',
+    via_routes: [],
+  });
+
+  return {
+    plan: {
+      agent_id: 8,
+      staff_id: 0,
+      location_id: 0,
+      arrival_point: 'Chennai International Airport',
+      departure_point: 'Chennai International Airport',
+      itinerary_preference: 3,
+      itinerary_type: 2,
+      preferred_hotel_category: [2],
+      hotel_facilities: [],
+      trip_start_date: formatIso0530(day1, 8, 0),
+      trip_end_date: formatIso0530(day4, 20, 0),
+      pick_up_date_and_time: formatIso0530(day1, 8, 0),
+      arrival_type: 1,
+      departure_type: 1,
+      no_of_nights: 3,
+      no_of_days: 4,
+      budget: 20000,
+      entry_ticket_required: 0,
+      guide_for_itinerary: 0,
+      nationality: 229,
+      food_type: 0,
+      meal_plan_code: 'CP',
+      meal_plan_breakfast: 1,
+      meal_plan_lunch: 0,
+      meal_plan_dinner: 0,
+      adult_count: 2,
+      child_count: 1,
+      infant_count: 0,
+      special_instructions: 'PW_E2E multi-room booking contract',
+    },
+    routes: [
+      route('Chennai International Airport', 'Chennai', day1, 16.61, 1),
+      route('Chennai', 'Mahabalipuram', day2, 52.07, 2),
+      route('Mahabalipuram', 'Pondicherry', day3, 86.57, 3),
+      route('Pondicherry', 'Chennai International Airport', day4, 40.17, 4),
+    ],
+    vehicles: [{ vehicle_type_id: 1, vehicle_count: 1 }],
+    travellers: [
+      { room_id: 1, traveller_type: 1 },
+      { room_id: 1, traveller_type: 2, traveller_age: '7', child_bed_type: 1 },
+      { room_id: 2, traveller_type: 1 },
+    ],
+    previousDayBillingDecisionProvided: false,
+    previousDayBillingConfirmed: false,
+  };
+}
 
 const USER_EMAIL =
-  process.env.E2E_HOTSPOT_USER ??
-  process.env.E2E_VENDOR_USER ??
-  'admin@dvi.co.in';
+  process.env.E2E_ADMIN_EMAIL!;
 const USER_PASSWORD =
-  process.env.E2E_HOTSPOT_PASSWORD ??
-  process.env.E2E_VENDOR_PASSWORD ??
-  'Keerthi@2404ias';
+  process.env.E2E_ADMIN_PASSWORD!;
 
 export const SCENARIO_QUOTE_ENV = {
   beforeNoonSameCity: 'E2E_BOOKING_RULE_QUOTE_BEFORE_NOON_SAME_CITY',
@@ -72,7 +144,7 @@ export async function loginForToken(request: APIRequestContext): Promise<string>
   return token;
 }
 
-export async function seedAuthToken(storage: { addInitScript: Function }, request: APIRequestContext): Promise<string> {
+export async function seedAuthToken(storage: Pick<Page, 'addInitScript'>, request: APIRequestContext): Promise<string> {
   const token = await loginForToken(request);
   await storage.addInitScript((t: string) => {
     window.localStorage.setItem('accessToken', t);

@@ -48,24 +48,38 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingRow, setDeletingRow] = useState<PermitRow | null>(null);
-  const [editingRow, setEditingRow] = useState<PermitRow | null>(null);
 
-  // Dropdowns
-  const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
-  const [stateOptions, setStateOptions] = useState<Option[]>([]);
+ // Dropdowns
+const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
+const [driverCostVehicleTypeIds, setDriverCostVehicleTypeIds] = useState<
+  number[]
+>([]);
+const [stateOptions, setStateOptions] = useState<Option[]>([]);
 
   /** ---------- ADD FORM STATE ---------- */
   const [permitForm, setPermitForm] = useState({
     vehicleType: "",
     state: "",
   });
-  const [permitFieldErrors, setPermitFieldErrors] = useState<Partial<Record<"vehicleType" | "state", string>>>({});
-  const [destinationCostError, setDestinationCostError] = useState("");
 
-  const [destinationCosts, setDestinationCosts] = useState<{ [key: string]: string }>({});
-  const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] = useState(false);
+  const [destinationCosts, setDestinationCosts] = useState<{
+  [key: string]: string;
+}>({});
+
+// Vehicle Type dropdown
+const [isVehicleTypeDropdownOpen, setIsVehicleTypeDropdownOpen] =
+  useState(false);
+const [vehicleTypeSearchText, setVehicleTypeSearchText] = useState("");
+const [highlightedVehicleTypeIndex, setHighlightedVehicleTypeIndex] =
+  useState(0);
+const vehicleTypeListRef = useRef<HTMLDivElement | null>(null);
+
+// State dropdown
+const [isPermitStateDropdownOpen, setIsPermitStateDropdownOpen] =
+  useState(false);
 const [permitStateSearchText, setPermitStateSearchText] = useState("");
-const [highlightedPermitStateIndex, setHighlightedPermitStateIndex] = useState(0);
+const [highlightedPermitStateIndex, setHighlightedPermitStateIndex] =
+  useState(0);
 const permitStateListRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (vendorId) {
@@ -73,6 +87,49 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
       fetchDropdowns();
     }
   }, [vendorId]);
+
+  useEffect(() => {
+    const vehicleTypeId = Number(permitForm.vehicleType);
+    const sourceStateId = Number(permitForm.state);
+
+    if (!vendorId || !vehicleTypeId || !sourceStateId) {
+      setDestinationCosts({});
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSelectedPermitCosts = async () => {
+      try {
+        const data = (await api(`/vendors/${vendorId}/permit-costs`)) as any[];
+        if (cancelled) return;
+
+        const costs: { [key: string]: string } = {};
+        data.forEach((pc: any) => {
+          if (
+            Number(pc.vehicle_type_id) === vehicleTypeId &&
+            Number(pc.source_state_id) === sourceStateId &&
+            pc.permit_cost !== null &&
+            pc.permit_cost !== undefined
+          ) {
+            costs[String(pc.destination_state_id)] = String(pc.permit_cost);
+          }
+        });
+        setDestinationCosts(costs);
+      } catch (e) {
+        if (!cancelled) {
+          console.error("Failed to fetch permit costs for selected vehicle and state", e);
+          setDestinationCosts({});
+        }
+      }
+    };
+
+    void loadSelectedPermitCosts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vendorId, permitForm.vehicleType, permitForm.state]);
 
   const fetchPermitCosts = async () => {
     setLoading(true);
@@ -101,67 +158,190 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
     }
   };
 
-  const fetchDropdowns = async () => {
-    try {
-      const [vtRes, sRes] = await Promise.all([
-        api("/dropdowns/vehicle-types"),
-        api("/dropdowns/permit-states"),
-      ]);
-      const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
-      const stateItems = ((sRes as any)?.items ?? sRes ?? []) as any[];
+ const fetchDropdowns = async () => {
+  try {
+    const [vtRes, driverCostRes, sRes] = await Promise.all([
+      api("/dropdowns/vehicle-types"),
+      api(`/vendors/${vendorId}/vehicle-type-costs`),
+      api("/dropdowns/permit-states"),
+    ]);
 
-      setVehicleTypeOptions(
-        vehicleItems.map((v: any) => ({
+    const vehicleItems = ((vtRes as any)?.items ?? vtRes ?? []) as any[];
+    const driverCostItems = (driverCostRes ?? []) as any[];
+    const stateItems = ((sRes as any)?.items ?? sRes ?? []) as any[];
+
+    setVehicleTypeOptions(
+      vehicleItems
+        .map((v: any) => ({
           id: String(v.id ?? v.vehicle_type_id ?? ""),
-          label: String(v.label ?? v.name ?? v.vehicle_type_title ?? ""),
+          label: String(
+            v.label ??
+              v.name ??
+              v.vehicle_type_title ??
+              v.vehicle_type_name ??
+              ""
+          ),
         }))
-      );
-      setStateOptions(
-        stateItems.map((s: any) => ({
+        .filter((v: Option) => v.id && v.label)
+    );
+
+    setDriverCostVehicleTypeIds(
+      Array.from(
+        new Set(
+          driverCostItems
+            .map((row: any) => Number(row.vehicle_type_id))
+            .filter((id: number) => Number.isFinite(id) && id > 0)
+        )
+      )
+    );
+
+    setStateOptions(
+      stateItems
+        .map((s: any) => ({
           id: String(s.id ?? s.state_id ?? ""),
           label: String(s.label ?? s.name ?? s.state_name ?? ""),
         }))
-      );
-    } catch (e) {
-      console.error("Failed to fetch dropdowns", e);
-    }
-  };
+        .filter((s: Option) => s.id && s.label)
+    );
+  } catch (e) {
+    console.error("Failed to fetch dropdowns", e);
+  }
+};
 
   const handleFormChange = (
     field: keyof typeof permitForm,
     value: string
   ): void => {
     setPermitForm((prev) => ({ ...prev, [field]: value }));
-    setPermitFieldErrors((prev) => ({ ...prev, [field]: undefined }));
-    setDestinationCostError("");
-    if (field === "state" || field === "vehicleType") {
-      // Fetch existing costs for this combination if editing
-      // For now, just clear
-      setDestinationCosts({});
-    }
   };
 
   const resetPermitEditor = () => {
-    setPermitFieldErrors({});
-    setDestinationCostError("");
-    setEditingRow(null);
+    setPermitForm({ vehicleType: "", state: "" });
+    setDestinationCosts({});
     setIsAddMode(false);
   };
 
-  const filteredRows = useMemo(() => {
-    if (!searchText.trim()) return rows;
-    const q = searchText.toLowerCase();
-    return rows.filter(
-      (r) => {
-        const vtLabel = vehicleTypeOptions.find(o => o.id === r.vehicleType)?.label || "";
-        const sLabel = stateOptions.find(o => o.id === r.sourceState)?.label || "";
-        return vtLabel.toLowerCase().includes(q) || sLabel.toLowerCase().includes(q);
-      }
-    );
-  }, [rows, searchText, vehicleTypeOptions, stateOptions]);
+ const filteredRows = useMemo(() => {
+  if (!searchText.trim()) return rows;
+  const q = searchText.toLowerCase();
 
-  const selectedPermitStateLabel =
+  return rows.filter((r) => {
+    const vtLabel =
+      vehicleTypeOptions.find((o) => o.id === r.vehicleType)?.label || "";
+
+    const sLabel =
+      stateOptions.find((o) => o.id === r.sourceState)?.label || "";
+
+    return (
+      vtLabel.toLowerCase().includes(q) ||
+      sLabel.toLowerCase().includes(q)
+    );
+  });
+}, [rows, searchText, vehicleTypeOptions, stateOptions]);
+
+const permitVehicleTypeOptions = useMemo(() => {
+  const configuredIds = new Set(
+    driverCostVehicleTypeIds.map((id) => String(id))
+  );
+
+  return vehicleTypeOptions.filter((option) =>
+    configuredIds.has(String(option.id))
+  );
+}, [vehicleTypeOptions, driverCostVehicleTypeIds]);
+
+const selectedVehicleTypeLabel =
+  permitVehicleTypeOptions.find(
+    (vehicle) => vehicle.id === permitForm.vehicleType
+  )?.label || "";
+
+const filteredPermitVehicleTypeOptions = useMemo(() => {
+  const query = vehicleTypeSearchText.trim().toLowerCase();
+
+  if (!query) return permitVehicleTypeOptions;
+
+  return permitVehicleTypeOptions.filter((vehicle) =>
+    vehicle.label.toLowerCase().includes(query)
+  );
+}, [permitVehicleTypeOptions, vehicleTypeSearchText]);
+
+const handleVehicleTypeSelect = (vehicleTypeId: string) => {
+  handleFormChange("vehicleType", vehicleTypeId);
+  setVehicleTypeSearchText("");
+  setIsVehicleTypeDropdownOpen(false);
+};
+
+const handleVehicleTypeKeyDown = (
+  e: React.KeyboardEvent<HTMLInputElement>
+) => {
+  if (!filteredPermitVehicleTypeOptions.length) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+
+    setHighlightedVehicleTypeIndex((prev) => {
+      const nextIndex =
+        prev >= filteredPermitVehicleTypeOptions.length - 1 ? 0 : prev + 1;
+
+      requestAnimationFrame(() => {
+        const listEl = vehicleTypeListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-vehicle-type-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+
+    setHighlightedVehicleTypeIndex((prev) => {
+      const nextIndex =
+        prev <= 0 ? filteredPermitVehicleTypeOptions.length - 1 : prev - 1;
+
+      requestAnimationFrame(() => {
+        const listEl = vehicleTypeListRef.current;
+        const itemEl = listEl?.querySelector<HTMLElement>(
+          `[data-vehicle-type-index="${nextIndex}"]`
+        );
+
+        itemEl?.scrollIntoView({
+          block: "nearest",
+        });
+      });
+
+      return nextIndex;
+    });
+  }
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+
+    const selectedVehicle =
+      filteredPermitVehicleTypeOptions[highlightedVehicleTypeIndex];
+
+    if (selectedVehicle) {
+      handleVehicleTypeSelect(selectedVehicle.id);
+    }
+  }
+
+  if (e.key === "Escape") {
+    setIsVehicleTypeDropdownOpen(false);
+  }
+};
+
+const selectedPermitStateLabel =
   stateOptions.find((state) => state.id === permitForm.state)?.label || "";
+
+const destinationStateOptions = useMemo(
+  () => stateOptions.filter((state) => state.id !== permitForm.state),
+  [stateOptions, permitForm.state],
+);
 
 const filteredPermitStateOptions = useMemo(() => {
   const query = permitStateSearchText.trim().toLowerCase();
@@ -243,94 +423,43 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
   const handleSavePermit = async () => {
     if (!vendorId) return;
 
-    const fieldErrors: Partial<Record<"vehicleType" | "state", string>> = {};
-    if (!String(permitForm.vehicleType ?? "").trim()) fieldErrors.vehicleType = "This value is required.";
-    if (!String(permitForm.state ?? "").trim()) fieldErrors.state = "This value is required.";
-
-    if (Object.keys(fieldErrors).length > 0) {
-      setPermitFieldErrors(fieldErrors);
-      return;
-    }
-    setPermitFieldErrors({});
-
-    const hasAnyDestinationCost = Object.values(destinationCosts).some((cost) =>
-      String(cost ?? "").trim()
-    );
-
-    if (!hasAnyDestinationCost) {
-      setDestinationCostError("Please enter at least one destination state permit cost.");
-      return;
-    }
-
-    const selectedVehicleTypeId = Number(permitForm.vehicleType);
-    const selectedSourceStateId = Number(permitForm.state);
-    const groupAlreadyExists = rows.some(
-      (row) =>
-        row.vehicleTypeId === selectedVehicleTypeId &&
-        row.sourceStateId === selectedSourceStateId,
-    );
-    if (!editingRow && groupAlreadyExists) {
-      toast.error("Permit charges already exist for this vehicle type and source state.");
-      return;
-    }
-
-    setDestinationCostError("");
     setSaving(true);
     try {
-      // In legacy PHP, it saves multiple destination states.
-      // My backend updateVendorPermitCost currently handles one at a time.
-      // I should probably update the backend to handle multiple or loop here.
-      // I'll loop here for now to match the UI.
-      for (const destStateId in destinationCosts) {
-        const cost = destinationCosts[destStateId];
-        if (cost) {
-          await api(`/vendors/${vendorId}/permit-costs`, {
-            method: "POST",
-            body: JSON.stringify({
-              vehicle_type_id: Number(permitForm.vehicleType),
-              source_state_id: Number(permitForm.state),
-              destination_state_id: Number(destStateId),
-              permit_cost: Number(cost),
-            }),
-          });
+      const items = destinationStateOptions.map((state) => {
+        const rawCost = String(destinationCosts[state.id] ?? "").trim();
+        const permitCost = rawCost === "" ? 0 : Number(rawCost);
+        if (!Number.isFinite(permitCost) || permitCost < 0) {
+          throw new Error(`Permit cost for ${state.label} must be zero or greater`);
         }
-      }
+        return {
+          vehicle_type_id: Number(permitForm.vehicleType),
+          source_state_id: Number(permitForm.state),
+          destination_state_id: Number(state.id),
+          permit_cost: permitCost,
+        };
+      });
+
+      await api(`/vendors/${vendorId}/permit-costs`, {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
       await fetchPermitCosts();
-      setPermitFieldErrors({});
-      setDestinationCostError("");
-      setEditingRow(null);
       setIsAddMode(false);
       toast.success("Permit cost saved successfully");
     } catch (e) {
       console.error("Failed to save permit costs", e);
-      toast.error("Failed to save permit costs");
+      toast.error(e instanceof Error ? e.message : "Failed to save permit costs");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleEdit = async (row: PermitRow) => {
+  const handleEdit = (row: PermitRow) => {
     setPermitForm({
       vehicleType: String(row.vehicleTypeId),
       state: String(row.sourceStateId),
     });
     setIsAddMode(true);
-    setLoading(true);
-    try {
-      const data = (await api(`/vendors/${vendorId}/permit-costs`)) as any[];
-      const costs: { [key: string]: string } = {};
-      data.forEach((pc: any) => {
-        if (pc.vehicle_type_id === row.vehicleTypeId && pc.source_state_id === row.sourceStateId) {
-          costs[pc.destination_state_id] = String(pc.permit_cost);
-        }
-      });
-      setDestinationCosts(costs);
-      setEditingRow(row);
-    } catch (e) {
-      console.error("Failed to fetch permit costs for edit", e);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const handleDeletePermitGroup = async (row: PermitRow) => {
@@ -343,7 +472,6 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       );
       toast.success("Deleted successfully");
       setDeletingRow(null);
-      setEditingRow(null);
       await fetchPermitCosts();
     } catch (e: any) {
       console.error("Failed to delete permit cost group", e);
@@ -382,9 +510,6 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             onClick={() => {
               setPermitForm({ vehicleType: "", state: "" });
               setDestinationCosts({});
-              setPermitFieldErrors({});
-              setDestinationCostError("");
-              setEditingRow(null);
               setIsAddMode(true);
             }}
             disabled={!vendorId}
@@ -546,33 +671,102 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-1">
-          <Label>
-            Vehicle Type <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={permitForm.vehicleType}
-            onValueChange={(v) => handleFormChange("vehicleType", v)}
-          >
-            <SelectTrigger className={permitFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}>
-              <SelectValue placeholder="Choose Vehicle Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {vehicleTypeOptions.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {permitFieldErrors.vehicleType ? (
-            <p className="text-xs text-red-600">{permitFieldErrors.vehicleType}</p>
-          ) : null}
+      <div className="space-y-1">
+  <Label>Vehicle Type</Label>
+
+  <div
+    className="relative"
+    onBlur={(e) => {
+      const nextFocusedElement = e.relatedTarget as Node | null;
+
+      if (
+        !nextFocusedElement ||
+        !e.currentTarget.contains(nextFocusedElement)
+      ) {
+        setIsVehicleTypeDropdownOpen(false);
+      }
+    }}
+  >
+    <button
+      type="button"
+      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-left text-sm"
+      onClick={() => {
+        setIsVehicleTypeDropdownOpen((prev) => !prev);
+        setHighlightedVehicleTypeIndex(0);
+      }}
+    >
+      <span
+        className={
+          selectedVehicleTypeLabel ? "text-gray-900" : "text-gray-500"
+        }
+      >
+        {selectedVehicleTypeLabel || "Choose Vehicle Type"}
+      </span>
+
+      <span className="text-gray-500">⌄</span>
+    </button>
+
+    {isVehicleTypeDropdownOpen ? (
+      <div className="absolute left-0 top-[46px] z-[100] w-full rounded-xl border border-purple-200 bg-white p-2 shadow-lg">
+        <Input
+          value={vehicleTypeSearchText}
+          onChange={(e) => {
+            setVehicleTypeSearchText(e.target.value);
+            setHighlightedVehicleTypeIndex(0);
+          }}
+          onKeyDown={handleVehicleTypeKeyDown}
+          placeholder="Type to search..."
+          className="mb-2 h-12 rounded-lg border-purple-400 text-sm focus-visible:ring-2 focus-visible:ring-purple-500"
+          autoFocus
+        />
+
+        <div
+          ref={vehicleTypeListRef}
+          className="max-h-60 overflow-y-auto pr-1"
+        >
+          {filteredPermitVehicleTypeOptions.length > 0 ? (
+            filteredPermitVehicleTypeOptions.map((vehicle, index) => {
+              const isHighlighted =
+                index === highlightedVehicleTypeIndex;
+              const isSelected =
+                permitForm.vehicleType === vehicle.id;
+
+              return (
+                <button
+                  key={vehicle.id}
+                  type="button"
+                  data-vehicle-type-index={index}
+                  className={`block w-full rounded-md px-3 py-2 text-left text-sm ${
+                    isHighlighted || isSelected
+                      ? "bg-purple-100 text-purple-700"
+                      : "text-gray-800 hover:bg-purple-50"
+                  }`}
+                  onMouseEnter={() =>
+                    setHighlightedVehicleTypeIndex(index)
+                  }
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() =>
+                    handleVehicleTypeSelect(vehicle.id)
+                  }
+                >
+                  {vehicle.label}
+                </button>
+              );
+            })
+          ) : (
+            <div className="px-3 py-3 text-sm text-gray-500">
+              No vehicle types found
+            </div>
+          )}
         </div>
+      </div>
+    ) : null}
+  </div>
+</div>
 
         <div className="space-y-1">
           <Label>
-            State <span className="text-red-500">*</span>
+            State
           </Label>
 <div
   className="relative"
@@ -586,11 +780,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
 >
   <button
     type="button"
-    className={`flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-left text-sm ${
-      permitFieldErrors.state
-        ? "border-red-400 ring-red-300"
-        : "border-input"
-    }`}
+    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-left text-sm"
     onClick={() => {
   setIsPermitStateDropdownOpen((prev) => !prev);
   setHighlightedPermitStateIndex(0);
@@ -649,9 +839,6 @@ filteredPermitStateOptions.map((state, index) => {
     </div>
   ) : null}
 </div>
-          {permitFieldErrors.state ? (
-            <p className="text-xs text-red-600">{permitFieldErrors.state}</p>
-          ) : null}
         </div>
       </div>
 
@@ -660,25 +847,23 @@ filteredPermitStateOptions.map((state, index) => {
         <div className="mt-6">
           <h3 className="mb-4 text-md font-semibold text-gray-700">Destination State Permit Costs</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-h-96 overflow-y-auto p-2 border rounded-md">
-            {stateOptions.map((state) => (
+            {destinationStateOptions.map((state) => (
               <div key={state.id} className="flex items-center gap-2">
                 <Label className="w-32 text-xs truncate">{state.label}</Label>
                 <Input 
-                  type="number" 
+                  type="number"
+                  min="0"
+                  step="0.01"
                   placeholder="Cost" 
                   className="h-8 text-xs"
-                  value={destinationCosts[state.id] || ""}
+                  value={destinationCosts[state.id] ?? ""}
                   onChange={(e) => {
-                    setDestinationCostError("");
                     setDestinationCosts(prev => ({...prev, [state.id]: e.target.value}));
                   }}
                 />
               </div>
             ))}
           </div>
-          {destinationCostError ? (
-            <p className="mt-2 text-xs text-red-600">{destinationCostError}</p>
-          ) : null}
         </div>
       )}
 

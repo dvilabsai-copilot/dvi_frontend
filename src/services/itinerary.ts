@@ -96,7 +96,7 @@ export interface StayExtensionPreviewResponse {
 }
 
 export type HotspotAnchorPayload = {
-  anchorType?: "after_travel";
+  anchorType?: "after_travel" | "BETWEEN_ROWS";
   anchorIndex?: number;
 };
 
@@ -695,7 +695,7 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
   async getAvailableHotspotsForAnchor(data: {
     planId: number;
     routeId: number;
-    anchorType: "after_travel";
+    anchorType: "after_travel" | "BETWEEN_ROWS";
     anchorIndex: number;
   }) {
     return api("itineraries/hotspots/available-for-anchor", {
@@ -1118,6 +1118,10 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
   destination_location?: string;
   agent_id?: number;
   staff_id?: number;
+  guide_id?: number;
+  vendor_id?: number;
+  include_cancelled?: boolean;
+  search?: string;
   search_value?: string;
 }) {
   const queryParams = new URLSearchParams();
@@ -1125,8 +1129,10 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
   Object.entries(params).forEach(([key, value]) => {
     if (value === undefined || value === null || value === "") return;
 
-    if (key === "search_value") {
-      queryParams.append("search[value]", String(value));
+    if (key === "search" || key === "search_value") {
+      if (!queryParams.has("search")) {
+        queryParams.append("search", String(value));
+      }
       return;
     }
 

@@ -11,6 +11,7 @@ import {
 } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { AlertTriangle, Check, Copy, Loader2 } from "lucide-react";
+import { FloatingHoverTooltip, getFloatingTooltipPosition } from "../components/FloatingHoverTooltip";
 
 
 export interface DayWisePricingItem {
@@ -89,6 +90,9 @@ export interface ItineraryVehicleRow {
   vehicleTypeId?: number;
   vehicleTypeName?: string;
   isAssigned?: boolean;
+  rateAvailable?: boolean;
+  missingRateTypes?: Array<'Local' | 'Outstation'>;
+  rateAvailabilityMessage?: string | null;
   selectedTimeLimitId?: number;
   availableSlabs?: Array<{
     timeLimitId: number;
@@ -391,6 +395,8 @@ export type VehicleListProps = {
   }) => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
   routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
+  canViewCostBreakdown?: boolean;
+  showVendorDetails?: boolean;
 };
 
 export const VehicleList: React.FC<VehicleListProps> = ({
@@ -402,6 +408,8 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   onSelectedTotalChange,
   dateRange,
   routes,
+  canViewCostBreakdown = true,
+  showVendorDetails = true,
 }) => {
   const [hoveredTotalAmountIndex, setHoveredTotalAmountIndex] = useState<number | null>(null);
   const [vehicleOriginTooltip, setVehicleOriginTooltip] = useState<{
@@ -437,32 +445,6 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     setHoveredTotalAmountIndex(null);
     setVehicleOriginTooltip(null);
   }, [vehicleIdentitySignature]);
-
-  const getFloatingTooltipPosition = (
-    clientX: number,
-    clientY: number,
-    tooltipWidth = 320,
-    tooltipHeight = 150,
-  ) => {
-    const padding = 12;
-    const offset = 14;
-
-    let left = clientX + offset;
-    let top = clientY + offset;
-
-    if (left + tooltipWidth + padding > window.innerWidth) {
-      left = clientX - tooltipWidth - offset;
-    }
-
-    if (top + tooltipHeight + padding > window.innerHeight) {
-      top = clientY - tooltipHeight - offset;
-    }
-
-    return {
-      left: Math.max(padding, left),
-      top: Math.max(padding, top),
-    };
-  };
 
   const showVehicleOriginTooltip = (
     index: number,
@@ -916,19 +898,51 @@ const totalRows = [
         )}
       </div>
 
-      {/* Horizontal Table View */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs w-12">#</th>
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Vendor Name</th>
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Branch Name</th>
-              <th className="text-left py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[100px]">Vehicle Origin</th>
-              <th className="text-center py-2 px-3 font-semibold text-gray-600 uppercase text-xs">Qty</th>
-              <th className="text-right py-2 px-3 font-semibold text-gray-600 uppercase text-xs min-w-[120px]">Total Amount</th>
-            </tr>
-          </thead>
+   {/* Vehicle Table View */}
+<div className="w-full min-w-0 overflow-x-hidden">
+  <table className="w-full table-fixed text-sm">
+    <colgroup>
+      <col className="w-[5%]" />
+
+      {showVendorDetails && <col className="w-[22%]" />}
+      {showVendorDetails && <col className="w-[20%]" />}
+
+      <col className={showVendorDetails ? "w-[23%]" : "w-[45%]"} />
+      <col className="w-[8%]" />
+      <col className={showVendorDetails ? "w-[22%]" : "w-[42%]"} />
+    </colgroup>
+
+    <thead>
+      <tr className="border-b border-gray-200 bg-gray-50">
+        <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+          #
+        </th>
+
+        {showVendorDetails && (
+          <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+            Vendor Name
+          </th>
+        )}
+
+        {showVendorDetails && (
+          <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+            Branch Name
+          </th>
+        )}
+
+        <th className="break-words px-2 py-2 text-left text-xs font-semibold uppercase text-gray-600">
+          Vehicle Origin
+        </th>
+
+        <th className="px-2 py-2 text-center text-xs font-semibold uppercase text-gray-600">
+          Qty
+        </th>
+
+        <th className="break-words px-2 py-2 text-right text-xs font-semibold uppercase text-gray-600">
+          Total Amount
+        </th>
+      </tr>
+    </thead>
           <tbody>
             {sortedVehicles.map((v, index) => {
               const rowKey =
@@ -953,13 +967,15 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
               return (
                 <React.Fragment key={rowKey}>
                   <tr
-                    onClick={() =>
-                      setExpandedVendorEligibleId((prev) => (prev === rowKey ? null : rowKey))
-                    }
-                    className="border-b border-gray-100 hover:bg-purple-50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (!canViewCostBreakdown) return;
+                      setExpandedVendorEligibleId((prev) => (prev === rowKey ? null : rowKey));
+                    }}
+                    className={`border-b border-gray-100 hover:bg-purple-50 transition-colors ${canViewCostBreakdown ? "cursor-pointer" : ""}`}
                   >
-                    <td className="py-3 px-3">
-                      <input
+                      <td className="py-3 px-3">
+                        {canViewCostBreakdown ? (
+                        <input
                         type="radio"
                         id={radioId}
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
@@ -970,11 +986,12 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                         }
                         onChange={() => handleRadioChange(v, index)}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
-                      />
-                    </td>
-                    <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>
-                    <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>
+                          className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                        />
+                        ) : null}
+                      </td>
+                    {showVendorDetails && <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>}
+                    {showVendorDetails && <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>}
                     <td
                       className="py-3 px-3 text-gray-600 text-xs relative"
                       onMouseEnter={(e) => showVehicleOriginTooltip(index, e)}
@@ -992,14 +1009,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       </span>
 
                       {vehicleOriginTooltip?.index === index && (
-                        <div
-                          className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]"
-                          style={{
-                            left: `${vehicleOriginTooltip.left}px`,
-                            top: `${vehicleOriginTooltip.top}px`,
-                            pointerEvents: "none",
-                          }}
-                        >
+                        <FloatingHoverTooltip left={vehicleOriginTooltip.left} top={vehicleOriginTooltip.top}>
                           <div className="mb-2 border-b border-gray-200 pb-2">
                             <div className="flex justify-between gap-4">
                               <span className="text-gray-700 font-semibold">Vehicle Origin</span>
@@ -1044,12 +1054,12 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                           <div className="mt-2 border-t border-gray-200 pt-2 text-xs text-purple-900 font-semibold">
                             Permit source state is derived from vehicle number prefix.
                           </div>
-                        </div>
+                        </FloatingHoverTooltip>
                       )}
                     </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
                     <td 
-                      className="py-3 px-3 text-right font-semibold text-gray-900"
+                      className={`py-3 px-3 text-right font-semibold text-gray-900 ${canViewCostBreakdown ? "" : "[&>span]:hidden"}`}
                       onMouseEnter={() => setHoveredTotalAmountIndex(index)}
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
@@ -1057,14 +1067,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       <span className="ml-2 text-xs text-gray-500">{isExpanded ? "▼" : "▶"}</span>
                       
                       {/* Hover Tooltip - Price Breakdown */}
-                      {hoveredTotalAmountIndex === index && (
-                        <div className="fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 w-80 text-sm z-[9999]" 
-                             style={{
-                               bottom: 'auto',
-                               right: '20px',
-                               top: '80px',
-                               pointerEvents: 'none'
-                             }}>
+                       {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
+                        <FloatingHoverTooltip left={0} top={80} style={{ right: "20px", left: "auto" }}>
                           <div className="mb-2 border-b border-gray-200 pb-2">
                             <div className="flex justify-between mb-1">
                               <span className="text-gray-700 font-semibold">Subtotal Vehicle</span>
@@ -1099,18 +1103,23 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
   </span>
 </div>
 
-                        </div>
+                        </FloatingHoverTooltip>
                       )}
                     </td>
                   </tr>
                   
                   {/* Expanded Row - PHP-style full pricing breakdown */}
-                  {isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
-                    <tr className="border-b border-gray-100 bg-gray-50">
-                      <td colSpan={6} className="py-4 px-4">
-                        <div className="ml-6 space-y-3">
-
-                          <div style={{ width: '100%' }} className="space-y-3">
+                  {canViewCostBreakdown && isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
+                   <tr className="border-b border-gray-100 bg-gray-50">
+  <td
+    colSpan={showVendorDetails ? 6 : 4}
+    className="min-w-0 overflow-hidden px-2 py-3"
+  >
+    <div
+      data-testid="vehicle-cost-breakdown"
+      className="w-full min-w-0 space-y-3"
+    >
+      <div className="w-full min-w-0 space-y-3">
 
                           {/* ── Day-wise per-route table ── */}
                           <div>
@@ -1148,9 +1157,25 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 </Button>
                               </div>
                             </div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-xs border border-gray-300 bg-white border-collapse">
-                                <thead>
+                            <div className="w-full min-w-0 overflow-x-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-[10px] leading-tight [overflow-wrap:anywhere] [&_td]:!whitespace-normal [&_th]:!whitespace-normal">
+    <colgroup>
+      <col className="w-[8%]" />
+      <col className="w-[12%]" />
+      <col className="w-[12%]" />
+      <col className="w-[7%]" />
+      <col className="w-[7%]" />
+      <col className="w-[7%]" />
+      <col className="w-[10%]" />
+      <col className="w-[8%]" />
+      <col className="w-[6%]" />
+      <col className="w-[6%]" />
+      <col className="w-[6%]" />
+      <col className="w-[5%]" />
+      <col className="w-[6%]" />
+    </colgroup>
+
+    <thead>
                                   <tr className="bg-purple-100">
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700 whitespace-nowrap">Date</th>
                                     <th className="border border-gray-300 text-left py-1 px-1 font-semibold text-gray-700">Route</th>
@@ -1245,12 +1270,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             </div>
                           </div>
 
-                          {/* ── Stacked full-width summary tables ── */}
-                          <div className="space-y-3">
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+    {/* ── Full-width stacked summary tables ── */}
+<div className="w-full min-w-0 space-y-3">
+  <div className="w-full min-w-0 overflow-hidden">
+    <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-100">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
@@ -1297,11 +1320,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                 </tbody>
                               </table>
                             </div>
-
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+<div className="w-full min-w-0 overflow-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-xs [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-100">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
@@ -1378,10 +1398,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                               </table>
                             </div>
 
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+                            <div className="w-full min-w-0 overflow-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-600">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-white">

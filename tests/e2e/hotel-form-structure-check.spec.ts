@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Hotel Form Tabs - Direct Check', () => {
-  const baseUrl = 'http://localhost:8080';
+  const baseUrl = process.env.E2E_FRONTEND_BASE_URL!;
 
   test('should verify hotel form tabs are present and working', async ({ page, context }) => {
     // Set a cookie or local storage to bypass login if possible
@@ -13,8 +13,8 @@ test.describe('Hotel Form Tabs - Direct Check', () => {
     const signInBtn = page.locator('button:has-text("Sign")');
     
     if (await emailInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await emailInput.fill('admin@dvi.co.in');
-      await passwordInput.fill('Keerthi@2404ias');
+      await emailInput.fill(process.env.E2E_ADMIN_EMAIL!);
+      await passwordInput.fill(process.env.E2E_ADMIN_PASSWORD!);
       await signInBtn.click();
       
       // Wait for auth to complete

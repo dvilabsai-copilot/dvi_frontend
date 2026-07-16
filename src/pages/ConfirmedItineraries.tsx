@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -67,6 +67,8 @@ export const ConfirmedItineraries: React.FC = () => {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -82,7 +84,7 @@ export const ConfirmedItineraries: React.FC = () => {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedItinerary, setSelectedItinerary] = useState<ConfirmedItinerary | null>(null);
 
-  const fetchItineraries = async () => {
+  const fetchItineraries = useCallback(async () => {
     setLoading(true);
     try {
       const start = (currentPage - 1) * pageSize;
@@ -97,18 +99,19 @@ export const ConfirmedItineraries: React.FC = () => {
         destination_location: filters.destination,
         agent_id: filters.agentId ? Number(filters.agentId) : undefined,
         staff_id: filters.staffId ? Number(filters.staffId) : undefined,
+        search: debouncedSearch || undefined,
       });
 
       setItineraries(response.data);
       setTotalRecords(response.recordsTotal);
       setFilteredRecords(response.recordsFiltered);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch confirmed itineraries', error);
-      toast.error(error?.message || 'Failed to load confirmed itineraries');
+      toast.error(error instanceof Error ? error.message : 'Failed to load confirmed itineraries');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, filters, debouncedSearch]);
 
   const fetchFilterData = async () => {
     try {
@@ -119,7 +122,7 @@ export const ConfirmedItineraries: React.FC = () => {
 
       setAgents(agentsData);
       setLocations(locationsData);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to fetch filter data', error);
       toast.error('Failed to load filter options');
     }
@@ -130,19 +133,30 @@ export const ConfirmedItineraries: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchItineraries();
-  }, [currentPage, pageSize]);
+    const timer = window.setTimeout(() => void fetchItineraries(), 0);
 
-  const handleFilterChange = (field: string, value: string) => {
-    setFilters({ ...filters, [field]: value });
+    return () => window.clearTimeout(timer);
+  }, [fetchItineraries]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+      setCurrentPage(1);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleFilterChange = (field: keyof typeof filters, value: string) => {
+    setFilters((previous) => ({ ...previous, [field]: value }));
+    setCurrentPage(1);
   };
 
   const handleSearch = () => {
     setCurrentPage(1); // Reset to first page
-    fetchItineraries();
   };
 
-   const handleClear = () => {
+  const handleClear = () => {
     setFilters({
       startDate: '',
       endDate: '',
@@ -151,11 +165,11 @@ export const ConfirmedItineraries: React.FC = () => {
       agentId: '',
       staffId: '',
     });
+    setSearchTerm('');
+    setDebouncedSearch('');
     setStartDateObj(undefined);
     setEndDateObj(undefined);
     setCurrentPage(1);
-    // Fetch will be triggered by useEffect
-    setTimeout(fetchItineraries, 0);
   };
 
   const openLatestItineraryTicket = (itinerary: ConfirmedItinerary) => {
@@ -391,6 +405,9 @@ export const ConfirmedItineraries: React.FC = () => {
                 type="text"
                 className="w-48"
                 placeholder="Search..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                aria-label="Search confirmed itineraries"
               />
             </div>
           </div>

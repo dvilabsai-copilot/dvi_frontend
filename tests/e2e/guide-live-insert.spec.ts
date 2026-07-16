@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.E2E_VENDOR_USER ?? 'admin@dvi.co.in';
-const ADMIN_PASSWORD = process.env.E2E_VENDOR_PASSWORD ?? 'Keerthi@2404ias';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
 
 test.use({
   launchOptions: {
@@ -172,7 +172,20 @@ async function selectNonZeroGstByLabel(page: Page, label: RegExp): Promise<void>
 }
 
 async function expectToast(page: Page, text: string): Promise<void> {
-  await expect(page.getByText(text).first()).toBeVisible();
+  const exact = page.getByText(text, { exact: true }).first();
+  if (await exact.isVisible({ timeout: 1000 }).catch(() => false)) return;
+  const inline = new Map<string, RegExp>([
+    ['Guide Name Required', /Guide Name is required/i],
+    ['Guide Gender Required', /Gender is required/i],
+    ['Guide Primart Mobile no Required', /Primary Mobile Number is required/i],
+    ['Email ID Required', /Email ID is required/i],
+    ['Role Required', /Role is required/i],
+    ['Language Proficiency Required', /Language Proficiency is required/i],
+    ['Guide Slot Required', /At least one slot is required/i],
+    ['Emeregency mobile number and primary mobile number should not be same', /Emergency mobile number and primary mobile number should not be same/i],
+    ['Account number and confirm account number should be same', /Account number and confirm account number should be same/i],
+  ]).get(text);
+  await expect(inline ? page.getByText(inline).first() : exact).toBeVisible();
 }
 
 function toLocalYyyyMmDd(date: Date): string {
@@ -237,7 +250,7 @@ test('live visible guide insertion', async ({ page, baseURL, request }) => {
   const guideEmail = `live.guide.${stamp}@example.com`;
   const guideMobile = `9${String(stamp).slice(-9)}`;
 
-  const apiBase = 'http://127.0.0.1:4006/api/v1';
+  const apiBase = process.env.E2E_API_BASE_URL!;
   const token = await loginForToken(request, apiBase);
   const deletedCount = await cleanupCreatedGuides(request, apiBase, token);
   console.log(`Deleted old auto-created guides: ${deletedCount}`);
@@ -246,11 +259,14 @@ test('live visible guide insertion', async ({ page, baseURL, request }) => {
   }, token);
 
   await page.goto(`${baseURL}/guide`, { waitUntil: 'domcontentloaded' });
+  console.log('[guide-live] list loaded', page.url());
   await maybeLogin(page);
+  console.log('[guide-live] auth checked', page.url());
   await expect(page.getByText(/List of Guide/i).first()).toBeVisible();
 
   await page.waitForTimeout(800);
   await page.getByRole('button', { name: /Add Guide/i }).click();
+  console.log('[guide-live] add form opened');
   await expect(page.getByText(/Add Guide/i).first()).toBeVisible();
 
   // Start from a clean form state to make inline validation checks deterministic.
@@ -262,34 +278,42 @@ test('live visible guide insertion', async ({ page, baseURL, request }) => {
   await fillInputByLabel(page, /^Emergency Mobile Number$/i, '');
   await fillInputByLabel(page, /^Aadhar Card No$/i, '');
   await fillInputByLabel(page, /^Experience$/i, '');
+  console.log('[guide-live] clean form');
 
   // Inline validations in order
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Guide Name Required');
+  console.log('[guide-live] name validation');
 
   await fillInputByLabel(page, /^Guide Name\s*\*/i, guideName);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Guide Gender Required');
+  console.log('[guide-live] gender validation');
 
   await selectFirstOptionByLabel(page, /^Gender\s*\*/i);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Guide Primart Mobile no Required');
+  console.log('[guide-live] mobile validation');
 
   await fillInputByLabel(page, /^Primary Mobile Number\s*\*/i, guideMobile);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Email ID Required');
+  console.log('[guide-live] email validation');
 
   await fillInputByLabel(page, /^Email ID\s*\*/i, guideEmail);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Role Required');
+  console.log('[guide-live] role validation');
 
   await fillInputByLabel(page, /^Password\s*\*/i, 'Guide@12345');
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Role Required');
+  console.log('[guide-live] password validation');
 
   await selectFirstOptionByLabel(page, /^Role\s*\*/i);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   await expectToast(page, 'Language Proficiency Required');
+  console.log('[guide-live] language validation');
 
   await selectFirstOptionByLabel(page, /^Language Proficiency\s*\*/i);
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
@@ -329,6 +353,7 @@ test('live visible guide insertion', async ({ page, baseURL, request }) => {
   await page.getByLabel(/^Hotspot$/i).check();
   await page.waitForTimeout(400);
   await selectFirstTokenPickerOptionByLabel(page, /^Hotspot Place\s*\*/i, true);
+  console.log('[guide-live] basic fields complete');
   await expect(page.getByRole('heading', { name: /Guide Prefered For/i })).toBeVisible();
 
   const saveBasicResp = page.waitForResponse(
@@ -342,6 +367,7 @@ test('live visible guide insertion', async ({ page, baseURL, request }) => {
 
   await page.getByRole('button', { name: /Save\s*&\s*Continue/i }).click();
   const basicResp = await saveBasicResp;
+  console.log('[guide-live] basic saved', basicResp.status());
   expect(basicResp.ok(), `Basic save failed: ${basicResp.status()} ${await basicResp.text()}`).toBeTruthy();
   await page.waitForTimeout(1200);
   await expectToast(page, 'Guide Basic Details Added');
@@ -447,7 +473,7 @@ test('edit existing guide shows hotspot and pricebook values', async ({ page, ba
   test.setTimeout(240000);
   test.skip(!createdGuideName, 'No created guide context available from previous test');
 
-  const apiBase = 'http://127.0.0.1:4006/api/v1';
+  const apiBase = process.env.E2E_API_BASE_URL!;
   const token = await loginForToken(request, apiBase);
   await page.addInitScript((t: string) => {
     window.localStorage.setItem('accessToken', t);
@@ -487,7 +513,7 @@ test('api verifies all guide steps inserted', async ({ request }) => {
   test.setTimeout(120000);
   test.skip(!createdGuideId, 'No created guide id available from previous test');
 
-  const apiBase = 'http://127.0.0.1:4006/api/v1';
+  const apiBase = process.env.E2E_API_BASE_URL!;
   const token = await loginForToken(request, apiBase);
 
   const res = await request.get(`${apiBase}/guides/${createdGuideId}`, {

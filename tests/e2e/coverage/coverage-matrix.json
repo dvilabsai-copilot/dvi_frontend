@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-07-15T19:41:50.634Z",
+  "source": {
+    "routeFile": "src/App.tsx",
+    "pageRoot": "src/pages",
+    "serviceRoot": "src/services",
+    "backendRoot": "../api.dvi.travel/src"
+  },
+  "routes": {
+    "total": 96,
+    "covered": 63,
+    "blocked": 28,
+    "redirect": 5,
+    "byRole": {
+      "super-admin": {
+        "total": 91,
+        "covered": 56,
+        "uncovered": 30,
+        "redirect": 5
+      },
+      "agent": {
+        "total": 91,
+        "covered": 60,
+        "uncovered": 26,
+        "redirect": 5
+      }
+    },
+    "withoutPageLoadTest": 33
+  },
+  "controls": {
+    "total": 2062,
+    "uncovered": 1955,
+    "covered": 107,
+    "byType": {
+      "select": 213,
+      "combobox": 144,
+      "input": 289,
+      "popover": 26,
+      "button": 1004,
+      "number": 106,
+      "file": 16,
+      "submit": 25,
+      "tab": 6,
+      "textarea": 38,
+      "date": 23,
+      "link": 29,
+      "option": 1,
+      "checkbox": 44,
+      "switch": 8,
+      "email": 16,
+      "text": 53,
+      "search": 1,
+      "radio": 4,
+      "time": 8,
+      "hidden": 2,
+      "url": 4,
+      "password": 1,
+      "tel": 1
+    },
+    "withoutWorkflowTest": 1955
+  },
+  "pages": {
+    "total": 417,
+    "covered": 45,
+    "unmapped": 361,
+    "blocked": 11,
+    "byRole": {
+      "super-admin": {
+        "total": 415,
+        "covered": 40,
+        "uncovered": 375
+      },
+      "agent": {
+        "total": 415,
+        "covered": 42,
+        "uncovered": 373
+      }
+    },
+    "reachable": 56,
+    "withoutPageLoadTest": 11,
+    "withControls": 144
+  },
+  "apis": {
+    "total": 990,
+    "uncovered": 918,
+    "covered": 41,
+    "blocked": 31,
+    "byClassification": {
+      "ui-supporting": 423,
+      "ui-reachable": 43,
+      "backend-contract": 524
+    },
+    "byExternalSystem": {
+      "internal": 959,
+      "external-provider": 31
+    },
+    "uiReachable": {
+      "total": 43,
+      "uncovered": 18,
+      "covered": 24,
+      "blocked": 1,
+      "withUiWorkflowEvidence": 24,
+      "withConsumerWorkflowEvidence": 3,
+      "withApiOnlyEvidence": 0,
+      "withoutEvidence": 16,
+      "withoutExactWorkflowEvidence": 19
+    },
+    "withoutUiWorkflowEvidence": 19
+  },
+  "defaultExcluded": [
+    {
+      "file": "tests/e2e/external-sandbox/axisrooms-munnar-hotel-details.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/external-sandbox/hotel-pricebook-axisrooms-153.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/external-sandbox/razorpay-local-sandbox.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-environment/itinerary-php-nest-parity.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/guide-pricebook.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/hotel-edit-17446-full-flow.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-anchor-hotspot-smoke.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-apj-dvi2026071.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-auto-preview-day1-dvi202606167.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-auto-preview-gandhi-dvi2026071.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-day1-dvi202606167.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-exact-anchor-apj-dvi2026071.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-fit-here-preview-confirm-replay.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-hotspot-insert-4-sequence.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-hotspot-modal-regression.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/itinerary-hotspot-replacement-box.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/legacy-route-options-16.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/vendor-crysta-pricebook.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/vendor-crysta-readd-outstation.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/vendor-hycross-pricebook.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/legacy-fixture/vendor-new-flow.spec.ts",
+      "classification": "blocked"
+    },
+    {
+      "file": "tests/e2e/quarantine/production-hotel-api.spec.ts",
+      "classification": "quarantine"
+    },
+    {
+      "file": "tests/e2e/quarantine/production-hotel-creation.spec.ts",
+      "classification": "quarantine"
+    },
+    {
+      "file": "tests/e2e/quarantine/seed-booking-test-data-prod.ts",
+      "classification": "quarantine"
+    },
+    {
+      "file": "tests/e2e/vehicle-availability-duplicate-registration.spec.ts",
+      "classification": "blocked"
+    }
+  ],
+  "findings": {
+    "fixedRecordDependencies": 37,
+    "destructiveWorkflows": 17,
+    "cleanupMissing": 4
+  }
+}

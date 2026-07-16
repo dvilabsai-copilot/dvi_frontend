@@ -442,6 +442,7 @@ const VendorsPage: React.FC = () => {
             <div className="hotel-search-box">
               <label>Search:</label>
               <input
+                placeholder="Search vendors"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -534,14 +535,16 @@ const VendorsPage: React.FC = () => {
                           >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button
-                          className="hotel-action-circle del"
-                          title="Delete"
-                          type="button"
-                          onClick={() => handleDeleteVendor(row)}
-                          >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                       <button
+  className="hotel-action-circle del"
+  title="Delete disabled"
+  type="button"
+  onClick={() => handleDeleteVendor(row)}
+  disabled
+  aria-disabled="true"
+>
+  <Trash2 className="w-4 h-4" />
+</button>
                       </div>
                     </td>
                     <td className="text-uppercase">{row.name}</td>
@@ -848,10 +851,24 @@ const VendorsPage: React.FC = () => {
           border-color:#fecaca;
           background:#fef2f2;
         }
-        .hotel-action-circle.del:hover {
-          background:#fee2e2;
-          border-color:#fca5a5;
-        }
+       .hotel-action-circle.del:hover {
+  background:#fee2e2;
+  border-color:#fca5a5;
+}
+
+.hotel-action-circle.del:disabled {
+  color:#9ca3af;
+  border-color:#e5e7eb;
+  background:#f3f4f6;
+  cursor:not-allowed;
+  opacity:.65;
+}
+
+.hotel-action-circle.del:disabled:hover {
+  color:#9ca3af;
+  border-color:#e5e7eb;
+  background:#f3f4f6;
+}
 
         .hotel-toggle {
           position:relative;

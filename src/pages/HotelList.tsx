@@ -60,19 +60,19 @@ type HotelListProps = {
     isPlaceholderOnly: boolean;
     message: string;
   };
-  quoteId: string; // âœ… Required: Quote ID from parent
-  planId: number; // âœ… Required: Plan ID for hotel selection
+  quoteId: string; // ✅ Required: Quote ID from parent
+  planId: number; // ✅ Required: Plan ID for hotel selection
   // Optional: in case you later wire an API to persist the toggle
   onToggleHotelRates?: (visible: boolean) => void;
   // Callback to refresh parent data after hotel update
   onRefresh?: () => void;
   // Callback when hotel group type (recommendation tab) changes
   onGroupTypeChange?: (groupType: number) => void;
-  // âœ… Callback to get save function reference (called once on mount)
+  // ✅ Callback to get save function reference (called once on mount)
   onGetSaveFunction?: (saveFn: () => Promise<boolean>) => void;
-  // âœ… NEW: Read-only mode for confirmed itinerary
+  // ✅ NEW: Read-only mode for confirmed itinerary
   readOnly?: boolean;
-  // âœ… NEW: Callback to open hotel voucher modal
+  // ✅ NEW: Callback to open hotel voucher modal
   onCreateVoucher?: (hotelData: {
     routeId: number;
     hotelId: number;
@@ -103,10 +103,10 @@ type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>) => void | Promise<void>;
-  // âœ… NEW: Callback when total selected hotel amount changes
+  // ✅ NEW: Callback when total selected hotel amount changes
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
-  // âœ… NEW: Callback when hotel selections change (for confirm quotation payload)
+  // ✅ NEW: Callback when hotel selections change (for confirm quotation payload)
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
   dayDestinationFallback?: Record<number, string>;
   /** Pagination metadata: Record<groupType, { hasMore, page, pageSize, total }> */
@@ -143,11 +143,11 @@ type HotelRoomDetail = {
   childWithoutBed?: number;
   extraBedCount?: number;
   perNightAmount?: number;
-  pricePerNight?: number; // âœ… Price from TBO API
+  pricePerNight?: number; // ✅ Price from TBO API
   taxAmount?: number;
   totalAmount?: number;
-  groupType?: number; // âœ… Tier/category from TBO API
-  [key: string]: any; // keep flexible â€“ we only use a few fields
+  groupType?: number; // ✅ Tier/category from TBO API
+  [key: string]: any; // keep flexible – we only use a few fields
 };
 
 type ManualRoomMealMismatchWarning = {
@@ -224,11 +224,11 @@ const MealPlanCell: React.FC<{ mealPlanText: string; selectedCode?: string | nul
       <span>{text}</span>
       {matches ? (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700 border border-green-300" title={`Matches selected plan: ${MEAL_CODE_LABEL[selectedCode]}`}>
-          âœ“ {MEAL_CODE_LABEL[selectedCode]}
+          ✓ {MEAL_CODE_LABEL[selectedCode]}
         </span>
       ) : (
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-300" title={`Selected: ${MEAL_CODE_LABEL[selectedCode] ?? selectedCode}`}>
-          âš  {MEAL_CODE_LABEL[selectedCode] ?? selectedCode}
+          ⚠ {MEAL_CODE_LABEL[selectedCode] ?? selectedCode}
         </span>
       )}
     </span>
@@ -348,19 +348,19 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
-  quoteId, // âœ… Receive quoteId from parent
-  planId, // âœ… Receive planId from parent
+  quoteId, // ✅ Receive quoteId from parent
+  planId, // ✅ Receive planId from parent
   onToggleHotelRates,
   onRefresh,
   onGroupTypeChange,
   onGetSaveFunction,
-  readOnly = false, // âœ… NEW: Default to edit mode
-  onCreateVoucher, // âœ… NEW: Callback for voucher creation
+  readOnly = false, // ✅ NEW: Default to edit mode
+  onCreateVoucher, // ✅ NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
-  onTotalChange, // âœ… NEW: Callback for total amount changes
+  onTotalChange, // ✅ NEW: Callback for total amount changes
   roomCount = 1,
-  onHotelSelectionsChange, // âœ… NEW: Callback for selections
+  onHotelSelectionsChange, // ✅ NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
   routePagination,
@@ -812,7 +812,7 @@ const getExpandedRouteId = (): number => {
     return normalizeMealPlanLabel(hotel?.mealPlan);
   };
 
-  // âœ… Track selected hotel PER GROUP TYPE and PER STAY
+  // ✅ Track selected hotel PER GROUP TYPE and PER STAY
   // Structure: selectedByGroup[groupType][stayKey] = selected hotel row
   // This allows separate selections for previous-day billed stays on the same route.
   const [selectedByGroup, setSelectedByGroup] = useState<Record<number, Record<string, ItineraryHotelRow>>>({});
@@ -875,10 +875,10 @@ const getExpandedRouteId = (): number => {
     };
   };
 
-  // âœ… Track unsaved hotel selections (for batch save on confirm)
+  // ✅ Track unsaved hotel selections (for batch save on confirm)
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
-  // âœ… Local copy of hotels that can be updated immediately
+  // ✅ Local copy of hotels that can be updated immediately
   const [localHotels, setLocalHotels] = useState<ItineraryHotelRow[]>(hotels);
   const [localRestrictedHotels, setLocalRestrictedHotels] = useState<ItineraryHotelRow[]>(restrictedHotels);
 
@@ -894,7 +894,7 @@ const getExpandedRouteId = (): number => {
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // âœ… Track sync operation
+  const [isSyncing, setIsSyncing] = useState(false); // ✅ Track sync operation
 
   // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
@@ -1041,10 +1041,10 @@ const getExpandedRouteId = (): number => {
     });
   }, [hotels]);
 
-  // âœ… Track selected room-type option key per hotel inside expanded panel
+  // ✅ Track selected room-type option key per hotel inside expanded panel
   // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
   const [selectedRoomTypeByHotel, setSelectedRoomTypeByHotel] = useState<Record<string, string>>({});
-  // âœ… Track which hotel's room type dropdown is open
+  // ✅ Track which hotel's room type dropdown is open
   const [, setRoomTypeDropdownOpen] = useState<string | null>(null);
 
   // Confirmation dialog state
@@ -1066,7 +1066,7 @@ const getExpandedRouteId = (): number => {
     hotel_name: string;
   } | null>(null);
 
-  // âœ… NEW: Hotel search query for expanded row
+  // ✅ NEW: Hotel search query for expanded row
   const [hotelSearchQuery, setHotelSearchQuery] = useState<string>("");
   const [selectedVoucherRows, setSelectedVoucherRows] = useState<Record<string, {
     routeId: number;
@@ -1138,7 +1138,7 @@ const getExpandedRouteId = (): number => {
     setRoomDetails(updatedHotels);
   }, [hotels, localRestrictedHotels]);
 
-  // âœ… Get selected hotels for a specific groupType
+  // ✅ Get selected hotels for a specific groupType
   const getSelectedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
     const hotelsForGroup = localHotels.filter(
       (h) => toNumber(h.groupType) === toNumber(groupType),
@@ -1208,19 +1208,19 @@ const getExpandedRouteId = (): number => {
     return selectedHotels;
   };
 
-  // âœ… Calculate total for a specific groupType (sum of selected hotels)
+  // ✅ Calculate total for a specific groupType (sum of selected hotels)
   const getGroupTotal = (groupType: number): number => {
     const selectedHotels = getSelectedHotelsForGroup(groupType);
     return selectedHotels.reduce((sum, h) => sum + getHotelAmountWithRooms(h), 0);
   };
 
-  // âœ… Get active tab total
+  // ✅ Get active tab total
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
     return getGroupTotal(activeGroupType);
   };
 
-  // âœ… Get overall total (sum of active groupType only, as per requirements)
+  // ✅ Get overall total (sum of active groupType only, as per requirements)
   const getOverallSelectedHotelTotal = (): number => {
     if (readOnly) {
       return localHotels.reduce(
@@ -1462,7 +1462,7 @@ const getExpandedRouteId = (): number => {
   const currentHotelRows = useMemo(() => {
     if (!localHotels || !localHotels.length || activeGroupType === null) return [];
     
-    // âœ… For confirmed itineraries (readOnly mode), show ONLY ONE confirmed hotel per route
+    // ✅ For confirmed itineraries (readOnly mode), show ONLY ONE confirmed hotel per route
     if (readOnly) {
       const hotelsByRoute = new Map<number, ItineraryHotelRow>();
       const confirmedHotels = localHotels.filter(
@@ -1679,7 +1679,7 @@ const getExpandedRouteId = (): number => {
       ),
     );
 
-    // âœ… Sort to put selected hotel first, then remaining hotels
+    // ✅ Sort to put selected hotel first, then remaining hotels
     const selectedHotelId = hotel.hotelId;
     if (selectedHotelId) {
       uniqueHotels.sort((a, b) => {
@@ -1691,7 +1691,7 @@ const getExpandedRouteId = (): number => {
       });
     }
 
-    console.log('âœ… Filtered from local state:', uniqueHotels.length, 'hotels');
+    console.log('✅ Filtered from local state:', uniqueHotels.length, 'hotels');
     
     if (uniqueHotels.length > 0) {
       setRoomDetails(uniqueHotels);
@@ -1737,16 +1737,16 @@ const getExpandedRouteId = (): number => {
   const handleSyncRoute = async (routeId: number) => {
     if (!quoteId) return;
     
-    // âœ… BLOCK sync when in read-only mode (confirmed itinerary)
+    // ✅ BLOCK sync when in read-only mode (confirmed itinerary)
     if (readOnly) {
-      console.log('â›” [HotelList] Blocked handleSyncRoute - read-only mode');
+      console.log('⛔ [HotelList] Blocked handleSyncRoute - read-only mode');
       return;
     }
 
-    // âœ… Check for unsaved changes and warn user
+    // ✅ Check for unsaved changes and warn user
     if (unsavedSelections.size > 0) {
       const confirmed = window.confirm(
-        `âš ï¸ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from TBO.\n\nDo you want to continue?`
+        `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from TBO.\n\nDo you want to continue?`
       );
       if (!confirmed) return;
       
@@ -1766,14 +1766,14 @@ const getExpandedRouteId = (): number => {
     // Save current expanded state to restore it after sync
     const currentExpandedKey = expandedRowKey;
     
-    // âœ… Show loader
+    // ✅ Show loader
     setIsSyncing(true);
     
     try {
-      // âœ… Pass clearCache: true to force backend to bypass its memory cache
+      // ✅ Pass clearCache: true to force backend to bypass its memory cache
       const response = await ItineraryService.getHotelRoomDetails(quoteId, routeId, true);
       
-      // âœ… API returns 'rooms' property, not 'roomDetails'
+      // ✅ API returns 'rooms' property, not 'roomDetails'
       const roomsRaw = response?.rooms || response?.roomDetails || [];
       const normalizedRooms: HotelRoomDetail[] = roomsRaw.map((r: any) => normalizeRoom(r));
       
@@ -1798,7 +1798,7 @@ const getExpandedRouteId = (): number => {
       );
       
       if (uniqueRooms.length > 0) {
-        // âœ… Update cache for ALL groupTypes for this route
+        // ✅ Update cache for ALL groupTypes for this route
         const groupedByTier = new Map<number, any[]>();
         uniqueRooms.forEach((room: any) => {
           if (!groupedByTier.has(room.groupType)) {
@@ -1833,7 +1833,7 @@ const getExpandedRouteId = (): number => {
       console.error('Error syncing hotels:', err);
       toast.error('Failed to sync hotels');
     } finally {
-      // âœ… Hide loader
+      // ✅ Hide loader
       setIsSyncing(false);
     }
   };
@@ -1989,11 +1989,11 @@ const getExpandedRouteId = (): number => {
 
   // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
   const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
-    console.log('ðŸ¨ Choose button clicked', room);
+    console.log('🏨 Choose button clicked', room);
     
-    // âœ… BLOCK hotel selection when in read-only mode (confirmed itinerary)
+    // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
     if (readOnly) {
-      console.log('â›” [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
+      console.log('⛔ [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
       return;
     }
     
@@ -2002,7 +2002,7 @@ const getExpandedRouteId = (): number => {
     const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
     if (!resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-      console.error('âŒ Missing required fields:', {
+      console.error('❌ Missing required fields:', {
         itineraryPlanId: resolvedPlanId,
         itineraryRouteId: resolvedRouteId,
         hotelId: resolvedHotelId,
@@ -2146,14 +2146,14 @@ const getExpandedRouteId = (): number => {
 
     setIsUpdatingHotel(true);
     try {
-      console.log("ðŸ¨ [HotelList] Storing hotel selection in state:", {
+      console.log("🏨 [HotelList] Storing hotel selection in state:", {
         hotelName: room.hotelName,
         hotelId: room.hotelId,
         groupType: pendingHotelAction.groupType,
         isReplacing,
       });
       
-      // âœ… Store selection by groupType and routeId
+      // ✅ Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       const selectionRouteIds = Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 0
@@ -2260,7 +2260,7 @@ const getExpandedRouteId = (): number => {
           date: (normalizedRoom as any).checkInDate || '',
           totalAmount: getHotelDisplayAmount(normalizedRoom),
         } as any;
-        console.warn('âš ï¸ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
+        console.warn('⚠️ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
         // Re-use the normal flow with the fallback
         const routeScopedFallbackSelections = selectionRouteIds.map((selectedRouteId, index) =>
           buildRouteScopedHotel(fallbackHotel, Number(selectedRouteId), index),
@@ -2409,13 +2409,13 @@ const getExpandedRouteId = (): number => {
       // Update selectedHotelId so selected state remains reflected in the list.
       setSelectedHotelId(Number(normalizedRoom.hotelId));
       
-      toast.success("Hotel selected! ðŸ‘", {
+      toast.success("Hotel selected! 👍", {
         description: `${normalizedRoom.hotelName} - Changes will be saved when you confirm the quotation`,
       });
       
       // Keep user on the current tier tab; auto-switching causes cross-day selection confusion.
     } catch (err) {
-      console.error("âŒ [HotelList] Error selecting hotel:", err);
+      console.error("❌ [HotelList] Error selecting hotel:", err);
       setShowConfirmDialog(false);
       setPendingHotelAction(null);
       toast.error("Failed to select hotel", {
@@ -2433,7 +2433,7 @@ const getExpandedRouteId = (): number => {
       return true;
     }
 
-    console.log(`ðŸ’¾ Saving ${unsavedSelections.size} hotel selections to database...`);
+    console.log(`💾 Saving ${unsavedSelections.size} hotel selections to database...`);
     
     const savePromises: Promise<any>[] = [];
     
@@ -2444,7 +2444,7 @@ const getExpandedRouteId = (): number => {
       const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
       if (!resolvedPlanId || !resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-        console.error('âŒ Skipping invalid hotel selection payload:', { selectionKey, room });
+        console.error('❌ Skipping invalid hotel selection payload:', { selectionKey, room });
         return;
       }
       
@@ -2467,15 +2467,15 @@ const getExpandedRouteId = (): number => {
 
     try {
       await Promise.all(savePromises);
-      console.log("âœ… All hotel selections saved successfully");
+      console.log("✅ All hotel selections saved successfully");
       
       // Clear unsaved selections
       setUnsavedSelections(new Map());
       
-      toast.success(`âœ… ${savePromises.length} hotel selection(s) saved successfully!`);
+      toast.success(`✅ ${savePromises.length} hotel selection(s) saved successfully!`);
       return true;
     } catch (error) {
-      console.error("âŒ Error saving hotel selections:", error);
+      console.error("❌ Error saving hotel selections:", error);
       toast.error("Failed to save some hotel selections");
       return false;
     }
@@ -2488,7 +2488,7 @@ const getExpandedRouteId = (): number => {
     }
   }, [onGetSaveFunction]);
 
-  // âœ… Notify parent when active group total changes (active groupType only)
+  // ✅ Notify parent when active group total changes (active groupType only)
   React.useEffect(() => {
     if (!onTotalChange) return;
 
@@ -2528,7 +2528,7 @@ const getExpandedRouteId = (): number => {
       <CardContent className="pt-2">
         {/* Header + Display Rates toggle */}
         <div className="flex justify-between items-center py-2 mb-1">
-          {/* âœ… Read-only mode: Show simple "Hotel Details (â‚¹ total)" like PHP */}
+          {/* ✅ Read-only mode: Show simple "Hotel Details (₹ total)" like PHP */}
           {readOnly ? (
             <h2 className="text-lg font-semibold text-[#4a4260]">
               Hotel Details ({formatCurrency(getOverallSelectedHotelTotal())})
@@ -2570,10 +2570,10 @@ const getExpandedRouteId = (): number => {
           </div>
         </div>
 
-        {/* âœ… Unsaved Changes Indicator */}
+        {/* ✅ Unsaved Changes Indicator */}
         {unsavedSelections.size > 0 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
-            <span className="text-amber-600 font-medium">âš ï¸ {unsavedSelections.size} unsaved hotel selection(s)</span>
+            <span className="text-amber-600 font-medium">⚠️ {unsavedSelections.size} unsaved hotel selection(s)</span>
             <span className="text-amber-600 text-sm">- Changes will be saved when you confirm the quotation</span>
           </div>
         )}
@@ -2593,8 +2593,8 @@ const getExpandedRouteId = (): number => {
           </div>
         )}
 
-        {/* Recommended Hotel Groups â€“ based on real backend groups */}
-        {/* âœ… IN READ-ONLY MODE: Hide tabs completely, no group type display */}
+        {/* Recommended Hotel Groups – based on real backend groups */}
+        {/* ✅ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
           <div className={styles["hotel-list-nav"]}>
             {hotelTabs && hotelTabs.length > 0 ? (
@@ -2718,7 +2718,7 @@ const getExpandedRouteId = (): number => {
                 return (
                   <React.Fragment key={rowKey}>
                     {/* MAIN ROW */}
-                    {/* âœ… IN READ-ONLY MODE: Make row non-clickable */}
+                    {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
                       className={`border-t ${
                         !readOnly && loadingRowKey === null ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
@@ -2829,7 +2829,7 @@ const getExpandedRouteId = (): number => {
                         >
                           {loadingRowKey === rowKey ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
-                              Loading room detailsâ€¦
+                              Loading room details…
                             </div>
                           ) : roomDetails.length === 0 ? (
                             <div className="text-center py-4 text-[#6c6c6c]">
@@ -2859,7 +2859,7 @@ const getExpandedRouteId = (): number => {
                                       Syncing...
                                     </>
                                   ) : (
-                                    <>ðŸ”„ Sync Fresh Hotels</>
+                                    <>🔄 Sync Fresh Hotels</>
                                   )}
                                 </Button>
                               </div>
@@ -3235,7 +3235,7 @@ const getExpandedRouteId = (): number => {
                                     <div className="grid grid-cols-2 gap-2 mb-3 pb-3 border-b">
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
-                                          <span className="text-[#7c3aed] text-xs">ðŸ“¥</span>
+                                          <span className="text-[#7c3aed] text-xs">📥</span>
                                         </div>
                                         <div>
                                           <p className="text-xs font-semibold text-[#4a4260]">02:00 PM</p>
@@ -3244,7 +3244,7 @@ const getExpandedRouteId = (): number => {
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#f3e8ff] flex items-center justify-center">
-                                          <span className="text-[#7c3aed] text-xs">ðŸ“¤</span>
+                                          <span className="text-[#7c3aed] text-xs">📤</span>
                                         </div>
                                         <div>
                                           <p className="text-xs font-semibold text-[#4a4260]">12:00 PM</p>
@@ -3474,7 +3474,7 @@ const getExpandedRouteId = (): number => {
                                       className="border-[#7c3aed] text-[#7c3aed] hover:bg-[#f3eeff]"
                                     >
                                       {isLoadingMore ? (
-                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loadingâ€¦</>
+                                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Loading…</>
                                       ) : (
                                         `Load More for this day (${remaining} remaining)`
                                       )}

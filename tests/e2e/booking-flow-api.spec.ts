@@ -1,10 +1,11 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
+import { buildMultiRoomBookingPayload } from './booking-engine-test-utils';
 
-const USER_EMAIL = process.env.E2E_USER ?? process.env.E2E_HOTSPOT_USER ?? 'admin@dvi.co.in';
-const USER_PASSWORD = process.env.E2E_PASSWORD ?? process.env.E2E_HOTSPOT_PASSWORD ?? 'Keerthi@2404ias';
-const API_BASE_URL = process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:4006/api/v1';
+const USER_EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const USER_PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
+const API_BASE_URL = process.env.E2E_API_BASE_URL!;
 
-async function loginForToken(request: any) {
+async function loginForToken(request: APIRequestContext) {
   const response = await request.post(`${API_BASE_URL}/auth/login`, {
     data: { email: USER_EMAIL, password: USER_PASSWORD },
   });
@@ -45,23 +46,8 @@ test('Complete booking flow: search → prebook → confirm with API payload log
 
   // Step 1: Create itinerary with 2 rooms, 2 adults + 1 child
   console.log('\n📝 Step 1: Create Itinerary (2 rooms, 2 adults + 1 child)');
-  const createRes = await request.post(`${API_BASE_URL}/itineraries`, {
-    data: {
-      itinerary_name: 'E2E Multi-room Test',
-      trip_type: 'multi-day',
-      country_id: 1,
-      state_id: 1,
-      number_of_days: 4,
-      number_of_room: 2,
-      number_of_adult: 2,
-      number_of_child: 1,
-      days: [
-        { day_number: 1, date: formatYmd(day1) },
-        { day_number: 2, date: formatYmd(plusDays(now, 5)) },
-        { day_number: 3, date: formatYmd(plusDays(now, 6)) },
-        { day_number: 4, date: formatYmd(day4) },
-      ],
-    },
+  const createRes = await request.post(`${API_BASE_URL}/itineraries/?type=itineary_basic_info`, {
+    data: buildMultiRoomBookingPayload(now),
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -83,11 +69,14 @@ test('Complete booking flow: search → prebook → confirm with API payload log
    plan_id: planId,
     roomCount: 2,
     guestCount: 3, // 2 adults + 1 child
+    adultCount: 2,
+    childCount: 1,
+    childAges: [7],
     checkInDate: formatYmd(day1),
     checkOutDate: formatYmd(day4),
     guestNationality: 'IN',
     travelDate: formatYmd(day1),
-    cityId: 1,
+    cityCode: '418069',
   };
   
   console.log(`📤 SEARCH REQUEST:`, searchPayload);
@@ -100,53 +89,54 @@ test('Complete booking flow: search → prebook → confirm with API payload log
   if (!searchRes.ok()) {
     const body = await searchRes.text();
     console.error(`Search failed (${searchRes.status()}): ${body}`);
-    throw new Error(`Search failed: ${searchRes.status()}`);
+    throw new Error(`Search failed: ${searchRes.status()} ${body}`);
   }
 
   const searchJson = await searchRes.json();
-  console.log(`📥 SEARCH RESPONSE: ${searchJson?.data?.length || 0} hotels found`);
-  expect(searchJson?.data?.length).toBeGreaterThan(0);
+  const hotels = Array.isArray(searchJson?.data) ? searchJson.data : searchJson?.data?.hotels ?? [];
+  console.log(`📥 SEARCH RESPONSE: ${hotels.length} hotels found`);
+  expect(hotels.length).toBeGreaterThan(0);
 
   // Step 3: Prebook with child details in occupancies and passengers
   console.log('\n📋 Step 3: Prebook Hotel (with child info)');
-  const hotelId = searchJson?.data?.[0]?.hotel_id;
-  const rateId = searchJson?.data?.[0]?.rooms?.[0]?.rate_id;
+  const hotel = hotels[0];
+  const hotelCode = hotel?.hotelCode;
+  const bookingCode = hotel?.searchReference;
+  expect(hotelCode).toBeTruthy();
+  expect(bookingCode).toBeTruthy();
   
   const prebookPayload = {
-    quote_id: quoteId,
-    plan_id: planId,
-    hotel_id: hotelId,
+    itinerary_plan_ID: planId,
     hotel_bookings: [
       {
-        room_id: 1,
+        routeId: 1,
+        provider: 'tbo',
+        hotelCode,
+        hotelName: hotel?.hotelName,
+        bookingCode,
+        roomType: hotel?.roomType || hotel?.roomTypes?.[0]?.roomName,
+        checkInDate: formatYmd(day1),
+        checkOutDate: formatYmd(day4),
+        numberOfRooms: 2,
+        guestNationality: 'IN',
+        netAmount: Number(hotel?.netAmount ?? hotel?.price ?? 0),
+        searchInitiatedAt: new Date().toISOString(),
         occupancies: [
-          { adults: 2, children: 1, child_age: [7] },
+          { adults: 1, children: 1, childrenAges: [7] },
+          { adults: 1, children: 0 },
         ],
         passengers: [
-          { pax_type: 1, name: 'Adult 1', age: 34, nationality: 'IN' },
-          { pax_type: 1, name: 'Adult 2', age: 32, nationality: 'IN' },
-          { pax_type: 2, name: 'Child 1', age: 7, nationality: 'IN' },
+          { title: 'Mr', firstName: 'Adult', lastName: 'One', paxType: 1, leadPassenger: true, age: 34 },
+          { title: 'Mr', firstName: 'Adult', lastName: 'Two', paxType: 1, leadPassenger: false, age: 32 },
+          { title: 'Master', firstName: 'Child', lastName: 'One', paxType: 2, leadPassenger: false, age: 7 },
         ],
-        rate_id: rateId,
-        check_in: formatYmd(day1),
-        check_out: formatYmd(day4),
-      },
-      {
-        room_id: 2,
-        occupancies: [
-          { adults: 0, children: 0 },
-        ],
-        passengers: [],
-        rate_id: rateId,
-        check_in: formatYmd(day1),
-        check_out: formatYmd(day4),
       },
     ],
   };
   
   console.log(`📤 PREBOOK REQUEST:`, JSON.stringify(prebookPayload, null, 2));
 
-  const prebookRes = await request.post(`${API_BASE_URL}/hotels/prebook`, {
+  const prebookRes = await request.post(`${API_BASE_URL}/itineraries/hotels/prebook`, {
     data: prebookPayload,
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -154,7 +144,7 @@ test('Complete booking flow: search → prebook → confirm with API payload log
   if (!prebookRes.ok()) {
     const body = await prebookRes.text();
     console.error(`Prebook failed (${prebookRes.status()}): ${body}`);
-    throw new Error(`Prebook failed: ${prebookRes.status()}`);
+    throw new Error(`Prebook failed: ${prebookRes.status()} ${body}`);
   }
 
   const prebookJson = await prebookRes.json();
@@ -167,26 +157,44 @@ test('Complete booking flow: search → prebook → confirm with API payload log
   // Step 4: Confirm quotation with child details
   console.log('\n✍️ Step 4: Confirm Quotation (with child details)');
   const confirmPayload = {
-    quote_id: quoteId,
-    plan_id: planId,
-    child_name: 'E2E Child 1',
-    child_age: 7,
+    itinerary_plan_ID: planId,
+    agent: 8,
+    primary_guest_salutation: 'Mr',
+    primary_guest_name: 'Adult One',
+    primary_guest_contact_no: '9876543210',
+    primary_guest_age: '34',
+    primary_guest_email_id: USER_EMAIL,
+    adult_name: ['Adult One', 'Adult Two'],
+    adult_age: ['34', '32'],
+    child_name: ['Child One'],
+    child_age: ['7'],
+    arrival_date_time: `${formatYmd(day1)} 8:00 AM`,
+    arrival_place: 'Chennai International Airport',
+    departure_date_time: `${formatYmd(day4)} 8:00 PM`,
+    departure_place: 'Chennai International Airport',
+    price_confirmation_type: 'old',
     hotel_bookings: [
       {
+        provider: 'tbo',
+        routeId: 1,
+        hotelCode,
+        hotelName: hotel?.hotelName,
+        bookingCode,
+        roomType: hotel?.roomType || hotel?.roomTypes?.[0]?.roomName,
+        checkInDate: formatYmd(day1),
+        checkOutDate: formatYmd(day4),
+        numberOfRooms: 2,
+        guestNationality: 'IN',
+        netAmount: Number(hotel?.netAmount ?? hotel?.price ?? 0),
         occupancies: [
-          { adults: 2, children: 1, child_age: [7] },
+          { adults: 1, children: 1, childrenAges: [7] },
+          { adults: 1, children: 0 },
         ],
         passengers: [
-          { pax_type: 1, name: 'Adult 1', age: 34, nationality: 'IN' },
-          { pax_type: 1, name: 'Adult 2', age: 32, nationality: 'IN' },
-          { pax_type: 2, name: 'E2E Child 1', age: 7, nationality: 'IN' },
+          { title: 'Mr', firstName: 'Adult', lastName: 'One', paxType: 1, leadPassenger: true, age: 34 },
+          { title: 'Mr', firstName: 'Adult', lastName: 'Two', paxType: 1, leadPassenger: false, age: 32 },
+          { title: 'Mr', firstName: 'Child', lastName: 'One', paxType: 2, leadPassenger: false, age: 7 },
         ],
-      },
-      {
-        occupancies: [
-          { adults: 0, children: 0 },
-        ],
-        passengers: [],
       },
     ],
   };
@@ -201,7 +209,7 @@ test('Complete booking flow: search → prebook → confirm with API payload log
   if (!confirmRes.ok()) {
     const body = await confirmRes.text();
     console.error(`Confirm failed (${confirmRes.status()}): ${body}`);
-    throw new Error(`Confirm failed: ${confirmRes.status()}`);
+    throw new Error(`Confirm failed: ${confirmRes.status()} ${body}`);
   }
 
   const confirmJson = await confirmRes.json();

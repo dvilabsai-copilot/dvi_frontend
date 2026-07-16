@@ -35,6 +35,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 
 import { ItineraryService } from "@/services/itinerary";
+import { getToken } from "@/lib/api";
 
 // ------------------------------------------------------------------
 // small local util (no date-fns)
@@ -47,10 +48,44 @@ function formatToDDMMYYYY(date: Date | undefined) {
   return `${d}/${m}/${y}`;
 }
 
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(
+      base64.length + ((4 - (base64.length % 4)) % 4),
+      "=",
+    );
+
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 // ------------------------------------------------------------------
 // COMPONENT
 // ------------------------------------------------------------------
 export const LatestItinerary = () => {
+  const token = getToken();
+  const loggedInUser = token ? parseJwt(token) : null;
+
+  const role = Number(loggedInUser?.role ?? 0);
+  const staffId = Number(loggedInUser?.staffId ?? 0);
+
+  const isAgent = role === 4;
+  const isAccounts = role === 6;
+
+  const isTravelExpert =
+    (role === 3 || role === 8 || staffId > 0) &&
+    !isAgent &&
+    !isAccounts;
+
+  const canDownloadExcel =
+    role === 1 || // Admin
+    isTravelExpert ||
+    isAccounts;
+
   // table state
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -696,14 +731,16 @@ export const LatestItinerary = () => {
                             <Edit className="h-3.5 w-3.5" />
                           </div>
                         </Link>
-                        <button
-                          title="Download Excel"
-                          onClick={() => handleDownloadExcel(itinerary)}
-                          disabled={downloadInProgressId === itinerary.id}
-                          className="h-6 w-6 rounded flex items-center justify-center text-[#555] hover:text-[#d546ab] hover:bg-[#f3e8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </button>
+                       {canDownloadExcel && (
+  <button
+    title="Download Excel"
+    onClick={() => handleDownloadExcel(itinerary)}
+    disabled={downloadInProgressId === itinerary.id}
+    className="h-6 w-6 rounded flex items-center justify-center text-[#555] hover:text-[#d546ab] hover:bg-[#f3e8ff] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    <Download className="h-3.5 w-3.5" />
+  </button>
+)}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm break-words whitespace-normal">

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-const EMAIL = process.env.PROD_EMAIL || 'admin@dvi.co.in';
-const PASSWORD = process.env.PROD_PASSWORD || 'Keerthi@2404ias';
+const EMAIL = process.env.E2E_ADMIN_EMAIL!;
+const PASSWORD = process.env.E2E_ADMIN_PASSWORD!;
 
 async function loginIfNeeded(page) {
   const url = page.url();

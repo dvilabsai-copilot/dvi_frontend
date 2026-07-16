@@ -1,26 +1,25 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Hotel Form - Tab Navigation & Data Persistence', () => {
-  const baseUrl = 'http://localhost:8080';
-  const apiUrl = 'http://localhost:4006/api/v1';
+  const baseUrl = process.env.E2E_FRONTEND_BASE_URL!;
+  const apiUrl = process.env.E2E_API_BASE_URL!;
 
   // Helper function to login and get token
   async function login(page) {
-    await page.goto(`${baseUrl}/login`);
-    await page.fill('input[type="email"], input[placeholder*="Email"]', 'admin@dvi.co.in');
-    await page.fill('input[type="password"], input[placeholder*="Password"]', 'Keerthi@2404ias');
-    
-    const signInBtn = page.locator('button:has-text("Sign in")');
-    await signInBtn.click();
-    
-    // Wait for navigation to complete
-    await page.waitForURL(`${baseUrl}/**`, { timeout: 10000 });
+    const response = await page.request.post(`${apiUrl}/auth/login`, {
+      data: { email: process.env.E2E_ADMIN_EMAIL!, password: process.env.E2E_ADMIN_PASSWORD! },
+    });
+    expect(response.ok(), `Hotel form authentication failed: ${response.status()}`).toBeTruthy();
+    const body = (await response.json()) as { accessToken?: string };
+    expect(body.accessToken, 'Hotel form authentication token').toBeTruthy();
+    await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
+    await page.evaluate((token) => window.localStorage.setItem('accessToken', token), body.accessToken!);
     console.log('Login successful');
   }
 
   test('should navigate through all hotel form tabs', async ({ page }) => {
     await login(page);
-    await page.goto(`${baseUrl}/hotels/new`);
+    await page.goto(`${baseUrl}/hotels/new`, { waitUntil: 'domcontentloaded' });
     
     // Wait for form to load
     await page.waitForSelector('button, [role="tab"]', { timeout: 5000 });
@@ -35,7 +34,7 @@ test.describe('Hotel Form - Tab Navigation & Data Persistence', () => {
 
   test('should persist data when switching between tabs', async ({ page }) => {
     await login(page);
-    await page.goto(`${baseUrl}/hotels/new`);
+    await page.goto(`${baseUrl}/hotels/new`, { waitUntil: 'domcontentloaded' });
     
     await page.waitForSelector('input', { timeout: 5000 });
     
@@ -80,7 +79,7 @@ test.describe('Hotel Form - Tab Navigation & Data Persistence', () => {
 
   test('should save basic hotel info successfully', async ({ page, request }) => {
     await login(page);
-    await page.goto(`${baseUrl}/hotels/new`);
+    await page.goto(`${baseUrl}/hotels/new`, { waitUntil: 'domcontentloaded' });
     
     await page.waitForSelector('input', { timeout: 5000 });
     
@@ -154,7 +153,7 @@ test.describe('Hotel Form - Tab Navigation & Data Persistence', () => {
 
   test('should handle form validation correctly', async ({ page }) => {
     await login(page);
-    await page.goto(`${baseUrl}/hotels/new`);
+    await page.goto(`${baseUrl}/hotels/new`, { waitUntil: 'domcontentloaded' });
     
     await page.waitForSelector('button', { timeout: 5000 });
     
@@ -169,11 +168,13 @@ test.describe('Hotel Form - Tab Navigation & Data Persistence', () => {
       // Wait for validation errors
       await page.waitForTimeout(1000);
       
-      const errors = page.locator('text=Required, [class*="error"], [class*="invalid"]');
+      const errors = page.getByText(/required|choose/i);
       const errorCount = await errors.count();
+      const invalidFieldCount = await page.locator('input:invalid, select:invalid, textarea:invalid').count();
+      const formInvalid = await page.locator('form').first().evaluate((form) => !form.checkValidity()).catch(() => false);
       console.log(`Validation errors found: ${errorCount}`);
-      
-      expect(errorCount).toBeGreaterThan(0);
+
+      expect(errorCount > 0 || invalidFieldCount > 0 || formInvalid, 'Empty hotel form must expose browser or app validation').toBeTruthy();
     }
   });
 

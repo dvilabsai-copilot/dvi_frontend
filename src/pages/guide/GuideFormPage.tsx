@@ -1217,7 +1217,7 @@ const handleDownloadExcel = () => {
                       const d = dates?.[0];
                       setDateOfBirth(d ? format(d, "yyyy-MM-dd") : "");
                     }}
-                    render={({ ...props }, ref) => (
+                    render={({ render: _render, ...props }, ref) => (
                       <div className="relative">
                         <Input
                           {...props}
@@ -1849,7 +1849,7 @@ const handleDownloadExcel = () => {
       endDate: prev.endDate && prev.endDate < newStart ? "" : prev.endDate,
     }));
   }}
-  render={({ ...props }, ref) => (
+  render={({ render: _render, ...props }, ref) => (
     <Input
       {...props}
       ref={ref as React.Ref<HTMLInputElement>}
@@ -1878,7 +1878,7 @@ const handleDownloadExcel = () => {
       endDate: format(selected, "yyyy-MM-dd"),
     }));
   }}
-  render={({ ...props }, ref) => (
+  render={({ render: _render, ...props }, ref) => (
     <Input
       {...props}
       ref={ref as React.Ref<HTMLInputElement>}

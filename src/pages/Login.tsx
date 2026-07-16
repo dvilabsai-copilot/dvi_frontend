@@ -106,8 +106,9 @@ const loginOverlayMessages = [
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-const [loading, setLoading] = useState(false);
-const [activeSlide, setActiveSlide] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [activeSlide, setActiveSlide] = useState(0);
   const [activeStatsSet, setActiveStatsSet] = useState(0);
   const [activeOverlayMessage, setActiveOverlayMessage] = useState(0);
   const { toast } = useToast();
@@ -146,10 +147,10 @@ const [activeSlide, setActiveSlide] = useState(0);
       await login(email, password);
       toast({ title: "Logged in" });
       navigate("/");
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Login failed",
-        description: e.message,
+        description: e instanceof Error ? e.message : "Unable to sign in",
         variant: "destructive",
       });
     } finally {
@@ -436,7 +437,7 @@ const [activeSlide, setActiveSlide] = useState(0);
 
           <form className="mt-9 space-y-6" onSubmit={onSubmit}>
             <div>
-              <label className="block text-sm font-bold text-[#151735] mb-3">
+              <label htmlFor="login-email" className="block text-sm font-bold text-[#151735] mb-3">
                 Partner ID / Email
               </label>
 
@@ -458,6 +459,7 @@ const [activeSlide, setActiveSlide] = useState(0);
                 </span>
 
                 <Input
+                  id="login-email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your Partner ID or Email"
@@ -467,7 +469,7 @@ const [activeSlide, setActiveSlide] = useState(0);
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-[#151735] mb-3">
+              <label htmlFor="login-password" className="block text-sm font-bold text-[#151735] mb-3">
                 Password
               </label>
 
@@ -489,12 +491,21 @@ const [activeSlide, setActiveSlide] = useState(0);
                 </span>
 
                 <Input
-                  type="password"
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   className="h-14 pl-14 rounded-xl border-[#e0e3f4] bg-white text-[#101344] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
                 />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#4424ff]"
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
               </div>
             </div>
 
@@ -517,7 +528,7 @@ const [activeSlide, setActiveSlide] = useState(0);
   disabled={loading}
   className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25"
 >
-  {loading ? "Signing in..." : "Login"}
+  {loading ? "Signing in..." : "Sign in"}
 </Button>
 
 <Button
