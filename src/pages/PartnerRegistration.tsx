@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -11,6 +12,11 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+import {
+  sendLoginEmailOtp,
+  verifyLoginEmailOtp,
+} from "@/services/auth";
 
 const RegistrationStep = ({
   number,
@@ -93,6 +99,82 @@ const VerifiedCard = ({ text }: { text: string }) => (
 
 export default function PartnerRegistration() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [emailVerificationId, setEmailVerificationId] = useState("");
+  const [emailVerificationOtp, setEmailVerificationOtp] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpVerified, setEmailOtpVerified] = useState(false);
+  const [emailOtpLoading, setEmailOtpLoading] = useState(false);
+
+  const handleSendEmailVerificationOtp = async () => {
+    const emailValue = emailVerificationId.trim();
+
+    if (!emailValue) {
+      toast({
+        title: "Email required",
+        description: "Please enter the email ID you want to verify.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmailOtpLoading(true);
+
+    try {
+      await sendLoginEmailOtp(emailValue);
+      setEmailOtpSent(true);
+      setEmailOtpVerified(false);
+      setEmailVerificationOtp("");
+
+      toast({
+        title: "OTP sent",
+        description: "Please check your email ID for the OTP.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Unable to send OTP",
+        description: e?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setEmailOtpLoading(false);
+    }
+  };
+
+  const handleVerifyEmailVerificationOtp = async () => {
+    const emailValue = emailVerificationId.trim();
+    const otpValue = emailVerificationOtp.trim();
+
+    if (!emailValue || !otpValue) {
+      toast({
+        title: "OTP required",
+        description: "Please enter the email ID and OTP.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setEmailOtpLoading(true);
+
+    try {
+      await verifyLoginEmailOtp(emailValue, otpValue);
+      setEmailOtpVerified(true);
+
+      toast({
+        title: "Email verified",
+        description: "Email verification completed successfully.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "OTP verification failed",
+        description: e?.message || "Invalid or expired OTP.",
+        variant: "destructive",
+      });
+    } finally {
+      setEmailOtpLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#f4efff] px-4 py-8">
@@ -252,29 +334,93 @@ export default function PartnerRegistration() {
             </div>
           </section>
 
-          <section className="rounded-3xl border border-[#f0eff8] bg-white p-7">
-            <SectionTitle
-              icon={<Mail className="h-7 w-7" />}
-              title="Email Verification"
-              subtitle="We will send an OTP to verify your email ID"
-            />
+<section className="rounded-3xl border border-[#f0eff8] bg-white p-7">
+  <SectionTitle
+    icon={<Mail className="h-7 w-7" />}
+    title="Email Verification"
+    subtitle="Save your email ID and verify it using OTP"
+  />
 
-            <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_260px]">
-              <div>
-                <label className="mb-3 block text-sm font-extrabold text-[#090c36]">
-                  Enter OTP <span className="text-red-500">*</span>
-                </label>
-                <Input
-                  placeholder="Enter OTP received on your email ID"
-                  className="h-14 rounded-xl border-[#e7e9f5] bg-white text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
-                />
-              </div>
+  <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
+    <div>
+      <label className="mb-3 block text-sm font-extrabold text-[#090c36]">
+        Email ID <span className="text-red-500">*</span>
+      </label>
 
-              <div className="flex items-end">
-                <VerifiedCard text="Same as above email ID" />
-              </div>
-            </div>
-          </section>
+      <div className="relative">
+        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[#676a92]">
+          <Mail className="h-5 w-5" />
+        </span>
+
+        <Input
+          value={emailVerificationId}
+          onChange={(e) => {
+            setEmailVerificationId(e.target.value);
+            setEmailOtpSent(false);
+            setEmailOtpVerified(false);
+            setEmailVerificationOtp("");
+          }}
+          placeholder="Enter email ID of your choice"
+          className="h-14 rounded-xl border-[#e7e9f5] bg-white pl-14 text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
+        />
+      </div>
+    </div>
+
+    <div className="flex items-end">
+      <Button
+        type="button"
+        onClick={handleSendEmailVerificationOtp}
+        disabled={emailOtpLoading}
+        className="h-14 w-full rounded-xl bg-[#4424ff] text-base font-extrabold text-white shadow-lg shadow-[#4424ff]/20 hover:bg-[#3518e8]"
+      >
+        {emailOtpLoading && !emailOtpSent
+          ? "Sending OTP..."
+          : emailOtpSent
+            ? "Resend OTP"
+            : "Save & Send OTP"}
+      </Button>
+    </div>
+  </div>
+
+  <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_240px]">
+    <div>
+      <label className="mb-3 block text-sm font-extrabold text-[#090c36]">
+        Enter OTP <span className="text-red-500">*</span>
+      </label>
+
+      <Input
+        value={emailVerificationOtp}
+        onChange={(e) => setEmailVerificationOtp(e.target.value)}
+        placeholder="Enter OTP received on your email ID"
+        disabled={!emailOtpSent || emailOtpVerified}
+        className="h-14 rounded-xl border-[#e7e9f5] bg-white text-[#0d1042] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff] disabled:bg-[#f8f8fc]"
+      />
+    </div>
+
+    <div className="flex items-end">
+      {emailOtpVerified ? (
+        <VerifiedCard text="Email ID verified successfully" />
+      ) : (
+        <Button
+          type="button"
+          onClick={handleVerifyEmailVerificationOtp}
+          disabled={!emailOtpSent || emailOtpLoading}
+          className="h-14 w-full rounded-xl border border-[#4424ff]/25 bg-white text-[#4424ff] hover:bg-[#f4f1ff] font-bold text-base shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {emailOtpLoading && emailOtpSent ? "Verifying..." : "Verify OTP"}
+        </Button>
+      )}
+    </div>
+  </div>
+
+  {emailOtpSent && !emailOtpVerified && (
+    <p className="mt-4 text-sm font-semibold text-[#62658c]">
+      OTP has been sent to{" "}
+      <span className="text-[#4424ff]">{emailVerificationId}</span>. Please
+      verify before creating the account.
+    </p>
+  )}
+</section>
 
           <div className="rounded-3xl bg-white px-2">
             <div className="flex items-start gap-4">
