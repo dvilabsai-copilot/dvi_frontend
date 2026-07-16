@@ -1270,10 +1270,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             </div>
                           </div>
 
-                       {/* ── Responsive compact summary tables ── */}
-<div className="grid w-full min-w-0 grid-cols-1 items-start gap-3 xl:grid-cols-3">
+    {/* ── Full-width stacked summary tables ── */}
+<div className="w-full min-w-0 space-y-3">
   <div className="w-full min-w-0 overflow-hidden">
-    <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-xs [overflow-wrap:anywhere]">
+    <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-100">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-gray-700">
@@ -1398,10 +1398,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                               </table>
                             </div>
 
-                            <div className="overflow-x-auto">
-                              <table
-                                className="w-full border border-gray-300 bg-white text-sm table-fixed border-collapse"
-                              >
+                            <div className="w-full min-w-0 overflow-hidden">
+  <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
                                 <thead>
                                   <tr className="bg-purple-600">
                                     <th colSpan={2} className="border border-gray-300 px-1 py-1 text-left font-semibold text-white">
