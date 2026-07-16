@@ -30,6 +30,7 @@ import { AccountsLedger } from "./pages/accounts/AccountsLedger";
 import Hotels from "./pages/Hotels";
 import AxisroomsHotelsPage from "./pages/AxisroomsHotels";
 import Login from "./pages/Login";
+import EmailLogin from "./pages/EmailLogin";
 import PartnerRegistration from "./pages/PartnerRegistration";
 import HotelForm from "./pages/hotel-form/HotelForm";
 import { DailyMomentTracker } from "./pages/daily-moment-tracker/DailyMomentTracker";
@@ -200,6 +201,7 @@ const App = () => (
         <Routes>
        {/* Public */}
 <Route path="/login" element={<Login />} />
+<Route path="/email-login" element={<EmailLogin />} />
 <Route path="/partner-registration" element={<PartnerRegistration />} />
 <Route path="/pdf-preview/invoice/:id" element={<PdfPreviewPage />} />
 

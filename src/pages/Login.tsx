@@ -1,7 +1,11 @@
 // src/pages/Login.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login} from "@/services/auth";
+import {
+  login,
+  sendLoginEmailOtp,
+  verifyLoginEmailOtp,
+} from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 //import { Card, CardContent } from "@/components/ui/card";
@@ -106,6 +110,10 @@ const loginOverlayMessages = [
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginMode, setLoginMode] = useState<"password" | "emailOtp">("password");
+  const [emailOtp, setEmailOtp] = useState("");
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  const [emailOtpResendIn, setEmailOtpResendIn] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
@@ -136,6 +144,14 @@ export default function Login() {
     };
   }, []);
 
+  useEffect(() => {
+    if (emailOtpResendIn <= 0) return;
+    const timer = window.setInterval(() => {
+      setEmailOtpResendIn((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [emailOtpResendIn]);
+
   const currentBannerSlide = loginBannerSlides[activeSlide];
   const currentStatsSet = loginStatsSets[activeStatsSet];
 
@@ -151,6 +167,70 @@ export default function Login() {
       toast({
         title: "Login failed",
         description: e instanceof Error ? e.message : "Unable to sign in",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const switchLoginMode = (mode: "password" | "emailOtp") => {
+    setLoginMode(mode);
+    setEmailOtp("");
+    setEmailOtpSent(false);
+    setEmailOtpResendIn(0);
+  };
+
+  const sendEmailOtp = async () => {
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      toast({
+        title: "Email required",
+        description: "Enter your registered partner email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendLoginEmailOtp(normalizedEmail);
+      setEmail(normalizedEmail);
+      setEmailOtp("");
+      setEmailOtpSent(true);
+      setEmailOtpResendIn(60);
+      toast({ title: "Verification code sent", description: "Check your email for the login code." });
+    } catch (e: unknown) {
+      toast({
+        title: "Unable to send code",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(emailOtp.trim())) {
+      toast({
+        title: "Invalid code",
+        description: "Enter the six-digit code sent to your email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await verifyLoginEmailOtp(email.trim(), emailOtp.trim());
+      toast({ title: "Logged in" });
+      navigate("/");
+    } catch (e: unknown) {
+      toast({
+        title: "Verification failed",
+        description: e instanceof Error ? e.message : "Invalid or expired code.",
         variant: "destructive",
       });
     } finally {
@@ -435,10 +515,10 @@ export default function Login() {
             Welcome back! Please login to continue managing your travel business.
           </p>
 
-          <form className="mt-9 space-y-6" onSubmit={onSubmit}>
+          <form className="mt-9 space-y-6" onSubmit={loginMode === "password" ? onSubmit : verifyEmailOtp}>
             <div>
               <label htmlFor="login-email" className="block text-sm font-bold text-[#151735] mb-3">
-                Partner ID / Email
+                Partner email address
               </label>
 
               <div className="relative">
@@ -461,88 +541,124 @@ export default function Login() {
                 <Input
                   id="login-email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your Partner ID or Email"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (loginMode === "emailOtp") {
+                      setEmailOtpSent(false);
+                      setEmailOtp("");
+                      setEmailOtpResendIn(0);
+                    }
+                  }}
+                  type="email"
+                  placeholder="name@company.com"
                   className="h-14 pl-14 rounded-xl border-[#e0e3f4] bg-white text-[#101344] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
                 />
               </div>
             </div>
 
-            <div>
-              <label htmlFor="login-password" className="block text-sm font-bold text-[#151735] mb-3">
-                Password
-              </label>
+            {loginMode === "password" ? (
+              <>
+                <div>
+                  <label htmlFor="login-password" className="block text-sm font-bold text-[#151735] mb-3">
+                    Password
+                  </label>
 
-              <div className="relative">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[#56598a]">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                </span>
+                  <div className="relative">
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[#56598a]">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    </span>
 
-                <Input
-                  id="login-password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  className="h-14 pl-14 rounded-xl border-[#e0e3f4] bg-white text-[#101344] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((visible) => !visible)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#4424ff]"
-                >
-                  {showPassword ? "Hide" : "Show"}
+                    <Input
+                      id="login-password"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="h-14 pl-14 rounded-xl border-[#e0e3f4] bg-white text-[#101344] placeholder:text-[#9a9cc0] shadow-sm focus-visible:ring-[#4424ff]"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword((visible) => !visible)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#4424ff]"
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <input id="rememberMe" type="checkbox" className="h-4 w-4 rounded border-[#9a9cc0] accent-[#4424ff]" />
+                  <label htmlFor="rememberMe" className="text-sm font-semibold text-[#24264a]">Remember Me</label>
+                </div>
+
+                <Button type="submit" disabled={loading} className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25">
+                  {loading ? "Signing in..." : "Sign in with Password"}
+                </Button>
+
+                <button type="button" onClick={() => switchLoginMode("emailOtp")} className="w-full text-sm font-extrabold text-[#4424ff] hover:underline">
+                  Sign in with Email OTP
                 </button>
-              </div>
-            </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-xl bg-[#f7f5ff] px-4 py-3 text-sm font-semibold text-[#62658c]">
+                  We will send a 6-digit verification code to your registered email.
+                </div>
 
-            <div className="flex items-center gap-3">
-              <input
-                id="rememberMe"
-                type="checkbox"
-                className="h-4 w-4 rounded border-[#9a9cc0] accent-[#4424ff]"
-              />
-              <label
-                htmlFor="rememberMe"
-                className="text-sm font-semibold text-[#24264a]"
-              >
-                Remember Me
-              </label>
-            </div>
+                {!emailOtpSent ? (
+                  <Button type="button" onClick={sendEmailOtp} disabled={loading} className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25">
+                    {loading ? "Sending code..." : "Send verification code"}
+                  </Button>
+                ) : (
+                  <>
+                    <div>
+                      <label htmlFor="login-email-otp" className="block text-sm font-bold text-[#151735] mb-3">
+                        Enter verification code
+                      </label>
+                      <Input
+                        id="login-email-otp"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        value={emailOtp}
+                        onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="000000"
+                        disabled={loading}
+                        className="h-14 rounded-xl text-center text-xl tracking-[0.45em]"
+                      />
+                    </div>
+                    <Button type="submit" disabled={loading || emailOtp.length !== 6} className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25">
+                      {loading ? "Verifying..." : "Verify & Sign in"}
+                    </Button>
+                    <button type="button" disabled={emailOtpResendIn > 0 || loading} onClick={sendEmailOtp} className="w-full text-sm font-extrabold text-[#4424ff] hover:underline disabled:cursor-not-allowed disabled:text-[#9a9cc0]">
+                      {emailOtpResendIn > 0 ? `Resend code in ${emailOtpResendIn}s` : "Resend code"}
+                    </button>
+                  </>
+                )}
 
-            <Button
-  type="submit"
-  disabled={loading}
-  className="w-full h-14 rounded-xl bg-[#4424ff] hover:bg-[#3518e8] text-white font-bold text-base shadow-lg shadow-[#4424ff]/25"
->
-  {loading ? "Signing in..." : "Sign in"}
-</Button>
-
-<Button
-  type="button"
-  onClick={() =>
-    navigate("/partner-registration", {
-      state: { loginEmail: email.trim() },
-    })
-  }
-  className="w-full h-14 rounded-xl border border-[#4424ff]/25 bg-white text-[#4424ff] hover:bg-[#f4f1ff] font-bold text-base shadow-sm"
->
-  Login via Email Verification
-</Button>
+                <button type="button" onClick={() => switchLoginMode("password")} className="w-full text-sm font-extrabold text-[#4424ff] hover:underline">
+                  Sign in with password
+                </button>
+              </>
+            )}
           </form>
+
+          <div className="mt-7 border-t border-[#ececf7] pt-6 text-center">
+            <p className="text-sm font-medium text-[#6f7195]">
+              New to DVI Holidays?
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/partner-registration")}
+              className="mt-2 text-sm font-extrabold text-[#4424ff] hover:underline"
+            >
+              Create a travel partner account
+            </button>
+          </div>
         </div>
       </div>
     </div>
