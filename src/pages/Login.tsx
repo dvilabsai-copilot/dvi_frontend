@@ -1,7 +1,7 @@
 // src/pages/Login.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "@/services/auth";
+import { login} from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 //import { Card, CardContent } from "@/components/ui/card";
@@ -106,8 +106,8 @@ const loginOverlayMessages = [
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [activeSlide, setActiveSlide] = useState(0);
+const [loading, setLoading] = useState(false);
+const [activeSlide, setActiveSlide] = useState(0);
   const [activeStatsSet, setActiveStatsSet] = useState(0);
   const [activeOverlayMessage, setActiveOverlayMessage] = useState(0);
   const { toast } = useToast();
@@ -156,6 +156,8 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  
 
     return (
 <div className="min-h-screen w-full bg-[#eadfff] flex items-center justify-center px-4 sm:px-8 lg:px-10 py-4 lg:py-5 overflow-hidden">
@@ -520,11 +522,14 @@ export default function Login() {
 
 <Button
   type="button"
-  onClick={() => navigate("/partner-registration")}
+  onClick={() =>
+    navigate("/partner-registration", {
+      state: { loginEmail: email.trim() },
+    })
+  }
   className="w-full h-14 rounded-xl border border-[#4424ff]/25 bg-white text-[#4424ff] hover:bg-[#f4f1ff] font-bold text-base shadow-sm"
 >
   Login via Email Verification
-
 </Button>
           </form>
         </div>
