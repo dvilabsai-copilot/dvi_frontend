@@ -194,6 +194,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, focused ESLint for the extracted header, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:locations` passed (3/3). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 16 — VendorStepVehicleTypeCostView.tsx
+
+- Starting line count: 1033 physical lines in the current authored-source scan.
+- Reason: the vehicle-type cost step combined three pricing tables, add/edit forms, navigation, and three duplicated delete-confirmation dialogs.
+- Extracted module: `src/pages/vendor/steps/VendorStepVehicleTypeCostDeleteDialogs.tsx` owns the driver-cost, outstation, and local delete confirmations. The parent retains all table data, forms, pricing callbacks, validation, and navigation.
+- Ending line count: 914 physical lines; the extracted delete-dialog module is 13 lines.
+- Compatibility: delete IDs, confirmation copy, warning text, callback order, close/reset behavior, pricing tables, and step navigation remain unchanged. The confirmation icon is valid UTF-8 `⚠️`.
+- Validation: `npx tsc --noEmit`, focused ESLint for the extracted dialog module, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:vendors` passed (5/5). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

@@ -118,6 +118,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: source/destination filter presentation moved to `LocationsPreviewHeader.tsx`; the parent retains all context orchestration and remaining route/toll UI.
 - Compatibility strategy: pass the existing context object, preserve source-change destination reset, option lists, Get Info callback, navigation, and labels without changing API requests.
 
+## VendorStepVehicleTypeCostView baseline and extraction design
+
+- Status: COMPLETED after the authenticated vendor group passed 5/5.
+- Incoming contract: the vehicle-type cost step receives the existing vendor-step context and renders driver-cost, outstation, and local pricing tables plus add/edit/delete actions.
+- Completed boundary: delete confirmation presentation moved to `VendorStepVehicleTypeCostDeleteDialogs.tsx`; pricing forms, table callbacks, state ownership, validation, and navigation remain in the parent.
+- Compatibility strategy: pass the same context object and preserve delete ID handling, warning copy, callback order, and modal close/reset behavior.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

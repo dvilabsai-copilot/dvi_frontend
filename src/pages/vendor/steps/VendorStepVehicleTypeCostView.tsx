@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VendorStepVehicleTypeCostDeleteDialogs } from "./VendorStepVehicleTypeCostDeleteDialogs";
 
 export function VendorStepVehicleTypeCostView({ context }: { context: Record<string, any> }) {
   const { activeTab, deleteDriverCostId, deleteLocalId, deleteOutstationId, driverCostRows, driverCostSearch, driverCostVehicleTypeOptions, driverFieldErrors, driverFormFields, driverFormVehicleType, editingDriverRow, editingLocalRow, editingOutstationRow, filteredDriverCostRows, filteredLocalRows, filteredOutstationRows, handleCopyDriverCost, handleDeleteDriverCost, handleDeleteLocal, handleDeleteOutstation, handleDownloadDriverCostCsv, handleSaveDriverCost, handleSaveLocal, handleSaveOutstation, localFieldErrors, localFormFields, localFormVehicleType, localRows, localSaveLocked, localSearch, onBack, onNext, openAddDriverCost, openAddLocal, openAddOutstation, openEditDriverCost, openEditLocal, openEditOutstation, outstationFieldErrors, outstationFormFields, outstationFormVehicleType, outstationRows, outstationSaveLocked, outstationSearch, renderTableHeader, renderTopTabs, saving, setDeleteDriverCostId, setDeleteLocalId, setDeleteOutstationId, setDriverCostSearch, setDriverFieldErrors, setDriverFormFields, setDriverFormVehicleType, setEditingDriverRow, setLocalFieldErrors, setLocalFormFields, setLocalFormVehicleType, setLocalSaveLocked, setLocalSearch, setOutstationFieldErrors, setOutstationFormFields, setOutstationFormVehicleType, setOutstationSaveLocked, setOutstationSearch, setShowDriverCostModal, setShowLocalModal, setShowOutstationModal, showDriverCostModal, showLocalModal, showOutstationModal, vehicleTypeOptions, vendorId } = context;
@@ -905,128 +906,8 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
         
            </Dialog>
 
-      {deleteDriverCostId !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-            <div className="mb-3 text-4xl text-gray-500">ðŸ—‘ï¸</div>
-
-            <h2 className="text-xl font-semibold text-gray-700">
-              Are you sure?
-            </h2>
-
-            <p className="mt-3 text-sm text-gray-600">
-              Do you really want to delete this record?
-            </p>
-            <p className="mt-2 text-sm font-semibold text-red-600">
-              All related local and outstation rates will be permanently deleted.
-            </p>
-            <p className="text-sm text-gray-600">
-              This process cannot be undone. Do you want to continue?
-            </p>
-
-            <div className="mt-6 flex justify-center gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setDeleteDriverCostId(null)}
-              >
-                Close
-              </Button>
-
-              <Button
-                type="button"
-                className="bg-red-500 text-white hover:bg-red-600"
-                onClick={async () => {
-                  await handleDeleteDriverCost(deleteDriverCostId);
-                  setDeleteDriverCostId(null);
-                }}
-              >
-                Delete
-              </Button>
-            </div>
-          </div>
-        </div>        
-      )}
+      <VendorStepVehicleTypeCostDeleteDialogs context={context} />
     
-     {deleteOutstationId !== null && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-      <div className="mb-3 text-4xl text-gray-500">ðŸ—‘ï¸</div>
-
-      <h2 className="text-xl font-semibold text-gray-700">
-        Are you sure?
-      </h2>
-
-      <p className="mt-3 text-sm text-gray-600">
-        Do you really want to delete this record?
-      </p>
-      <p className="text-sm text-gray-600">
-        This process cannot be undone.
-      </p>
-
-      <div className="mt-6 flex justify-center gap-3">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setDeleteOutstationId(null)}
-        >
-          Close
-        </Button>
-
-        <Button
-          type="button"
-          className="bg-red-500 text-white hover:bg-red-600"
-          onClick={async () => {
-            await handleDeleteOutstation(deleteOutstationId);
-            setDeleteOutstationId(null);
-          }}
-        >
-          Delete
-        </Button>
-      </div>
-    </div>
-  </div>
-)}
-
-{deleteLocalId !== null && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
-      <div className="mb-3 text-4xl text-gray-500">ðŸ—‘ï¸</div>
-
-      <h2 className="text-xl font-semibold text-gray-700">
-        Are you sure?
-      </h2>
-
-      <p className="mt-3 text-sm text-gray-600">
-        Do you really want to delete this record?
-      </p>
-      <p className="text-sm text-gray-600">
-        This process cannot be undone.
-      </p>
-
-      <div className="mt-6 flex justify-center gap-3">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => setDeleteLocalId(null)}
-        >
-          Close
-        </Button>
-
-        <Button
-          type="button"
-          className="bg-red-500 text-white hover:bg-red-600"
-          onClick={async () => {
-            await handleDeleteLocal(deleteLocalId);
-            setDeleteLocalId(null);
-          }}
-        >
-          Delete
-        </Button>
-      </div>
-    </div>
-  </div>
-)}
 </Card>
   );
 }
