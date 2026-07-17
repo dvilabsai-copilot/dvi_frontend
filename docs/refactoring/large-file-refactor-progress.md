@@ -154,6 +154,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, focused ESLint for the page and export module, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:vendors` passed (5/5). Build output retains existing dependency/chunk warnings.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 12 — ConfirmedItineraryDetails.tsx
+
+- Starting line count: 1062 physical lines in the current authored-source scan.
+- Reason: the confirmed itinerary details page combined itinerary loading/rendering, cancellation state/API orchestration, guide-slot cancellation flow, and two large cancellation result dialogs.
+- Extracted module: `src/pages/ConfirmedItineraryCancellationResults.tsx` owns the guide-slot and itinerary cancellation result dialog presentation. The parent retains all service calls, validation, state transitions, refresh behavior, and main itinerary rendering.
+- Ending line count: 933 physical lines; the extracted result-dialog module is 74 lines.
+- Compatibility: confirmed itinerary route/export, cancellation payloads, guide-slot actions, result amounts/breakdowns, close/reset callbacks, and user-facing labels remain unchanged. Currency symbols in the extracted presentation are valid UTF-8 `₹` characters.
+- Validation: `npx tsc --noEmit`, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:confirmed-itinerary` passed (4/4). The parent retains pre-existing explicit-`any` and hook-dependency diagnostics; the extracted module adds none.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

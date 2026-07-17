@@ -90,6 +90,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: generic export conversion/download helpers moved to `src/pages/vendor/vendorExport.ts`; page state, API calls, markup, inline styles, and navigation remain in `VendorsPage`.
 - Compatibility strategy: preserve export headers/order, CSV BOM/quoting, Excel fallback, PDF styling, filenames, and all existing UI callback timing. Error catches use `unknown` and retain the same user-facing fallback messages.
 
+## ConfirmedItineraryDetails baseline and extraction design
+
+- Status: COMPLETED after the authenticated confirmed-itinerary group passed 4/4.
+- Incoming contract: default/named `ConfirmedItineraryDetails` route renders confirmed itinerary details and owns itinerary cancellation plus guide-slot cancellation workflows.
+- Completed boundary: guide-slot and itinerary cancellation result dialogs moved to `ConfirmedItineraryCancellationResults.tsx`; service calls, validation, state resets, refresh behavior, and primary itinerary rendering remain in the page.
+- Compatibility strategy: pass only result values, selected guide-slot label, and existing close/reset callbacks; preserve dialog labels, amount breakdowns, cancellation reference, refund formatting, and route/API behavior.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.
