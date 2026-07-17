@@ -15,7 +15,7 @@ Authored files were enumerated with `rg --files src` for `.ts`, `.tsx`, `.js`, `
 | NOT_STARTED | `src/pages/book-activities/BookActivitiesPage.css` | 1220 / 1220 | stylesheet | medium | map selectors before any cascade-safe split |
 | COMPLETED | `src/pages/locations/LocationsPage.tsx` | 933 / 933 | page/orchestration | high | dialogs extracted into typed sibling presentation module |
 | COMPLETED | `src/pages/agent/AgentFormPage.tsx` | 900 / 900 | complex form | high | configuration, staff, and wallet presentation extracted into typed sibling module |
-| NOT_STARTED | `src/pages/dashboard/DashboardAdminView.tsx` | 1115 / 1106 | dashboard presentation | medium | role-specific sections and widgets |
+| COMPLETED | `src/pages/dashboard/DashboardAdminView.tsx` | 905 / 905 | dashboard presentation | medium | welcome/profit/stats overview extracted into typed sibling component |
 | NOT_STARTED | `src/components/itinerary/manual-fit/ManualFitHerePreviewDialog.tsx` | 1101 / 1101 | dialog/orchestration | high | shared timeline rows only after comparison |
 | NOT_STARTED | `src/pages/accounts/AccountsManager.tsx` | 1064 / 1064 | manager/page | high | loading, filters, table, dialogs |
 | NOT_STARTED | `src/pages/vehicle-availability/VehicleAvailabilityPage.tsx` | 1057 / 1055 | page/orchestration | high | data state, filters, form/dialog presentation |
@@ -54,6 +54,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Incoming contract: default `AgentFormPage` export at `/agent/:id/edit`; the page loads agent, staff, wallet, subscription, and configuration data through `AgentAPI`.
 - Completed boundary: configuration tab markup, staff modal markup, and wallet modal markup moved to `src/pages/agent/AgentFormTabs.tsx`; data loading, validation, API fallback order, local-storage staff overrides, wallet refresh, and navigation remain in the page.
 - Compatibility strategy: components receive controlled values/setters and callbacks only; no request paths, payload fields, labels, tab order, local-storage keys, or toast messages changed.
+
+## DashboardAdminView baseline and extraction design
+
+- Status: COMPLETED after the overview-only extraction compiled and the admin dashboard rendering path remained covered by the existing authenticated dashboard checks.
+- Incoming contract: `Dashboard.tsx` passes a context object containing dashboard stats, carousel state/API, list rows, filters, pagination, and callbacks; `DashboardAdminView` remains the named export.
+- Completed boundary: welcome/profit/stats cards and the four-slide carousel moved to `DashboardAdminOverview.tsx`; list orchestration and remaining dashboard sections stay in the parent.
+- Compatibility strategy: the extracted component receives only `DashboardStats`, carousel API/setter, and current slide; no API calls, context shape, labels, styles, or navigation behavior changed.
 
 ## Validation policy
 

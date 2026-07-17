@@ -85,3 +85,18 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
+
+## Iteration 7 — DashboardAdminView.tsx
+
+- Starting line count: 1215 physical lines in the current authored-source scan.
+- Reason: the admin dashboard view combined the welcome/profit/stats carousel with daily moment, star performers, three paginated data tables, and most-visited hotels.
+- Extracted module: `src/pages/dashboard/DashboardAdminOverview.tsx` now owns the welcome, profit, stats cards, and overview carousel. The parent retains all list state, filters, pagination, and dashboard interaction callbacks.
+- Ending line count: 905 physical lines; the extracted overview module is 328 lines.
+- Compatibility: `DashboardAdminView` export and Dashboard.tsx context contract remain unchanged; all labels, encoding artifacts, links, carousel behavior, styling, and data bindings were copied without changing request/state ownership.
+- Validation: `npx tsc --noEmit`, focused ESLint for the new overview module, production `npm run build`, and direct Playwright dashboard checks were run. The direct dashboard check passed the admin and agent-role dashboard tests (2/3); the remaining authenticated-agent case has a pre-existing fixture assertion expecting the admin welcome label and a `/build/undefined` ORB monitor failure. The grouped UI/UX runner currently fails before test execution with a duplicate Playwright `test()` registration error after the environment's `.bin` links disappeared.
+- Aggregate validation: `npm run e2e:group` failed before executing a suite because the environment's missing `node_modules/.bin` links caused `npx` to load duplicate Playwright test packages (`test() does not expect to be called here`). This is a runner/dependency-resolution failure, not a dashboard assertion.
+- Status: COMPLETED locally; focused dashboard checks and build remain the source validation evidence.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
