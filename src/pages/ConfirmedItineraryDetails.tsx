@@ -591,7 +591,6 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
               ]}
               hotelRatesVisible={true}
               quoteId={id!}
-              planId={confirmedPlanId ?? 0}
               readOnly={true}
             />
           </CardContent>

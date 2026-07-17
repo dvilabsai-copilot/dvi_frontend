@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/vendor/steps/VendorStepVehicleTypeCost.tsx
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,16 +19,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { VendorStepVehicleTypeCostView } from "./VendorStepVehicleTypeCostView";
 import { api } from "@/lib/api";
 import { Option } from "../vendorFormTypes";
 import { toast } from "sonner";
+
 type Props = {
   vendorId?: number;
   onBack: () => void;
   onNext: () => void;
 };
+
 // ======== Types for local UI state ========
+
 type DriverCostRow = {
   id: number;
   vehicleType: string;
@@ -40,6 +42,7 @@ type DriverCostRow = {
   morningCharges: string;
   eveningCharges: string;
 };
+
 type OutstationKmLimitRow = {
   id: number;
   vehicleType: string;
@@ -48,6 +51,7 @@ type OutstationKmLimitRow = {
   limit: string;
   status: string;
 };
+
 type LocalKmLimitRow = {
   id: number;
   vehicleType: string;
@@ -57,7 +61,9 @@ type LocalKmLimitRow = {
   km: string;
   status: string;
 };
+
 type ActiveTab = "driverCost" | "outstation" | "local";
+
 type DriverFieldErrors = Partial<{
   vehicleType: string;
   driverBhatta: string;
@@ -67,23 +73,27 @@ type DriverFieldErrors = Partial<{
   morningCharges: string;
   eveningCharges: string;
 }>;
+
 type OutstationFieldErrors = Partial<{
   vehicleType: string;
   title: string;
   limit: string;
 }>;
+
 type LocalFieldErrors = Partial<{
   vehicleType: string;
   title: string;
   hours: string;
   km: string;
 }>;
+
 const extractApiErrorMessage = (error: unknown, fallback: string) => {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const jsonMatch = message.match(/\{"message":"([^"]+)"/);
   if (jsonMatch?.[1]) return jsonMatch[1];
   return message || fallback;
 };
+
 const showOrangeWarningToast = (message: string) => {
   toast(message, {
     position: "top-center",
@@ -96,6 +106,7 @@ const showOrangeWarningToast = (message: string) => {
     duration: 3500,
   });
 };
+
 const showKmLimitSaveErrorToast = (error: unknown, fallback: string, vehicleTypeLabel?: string) => {
   const message = extractApiErrorMessage(error, fallback);
   if (/already exist for this vehicle type/i.test(message)) {
@@ -108,6 +119,7 @@ const showKmLimitSaveErrorToast = (error: unknown, fallback: string, vehicleType
   toast.error(message);
   return false;
 };
+
 export const VendorStepVehicleTypeCost: React.FC<Props> = ({
   vendorId,
   onBack,
@@ -119,8 +131,10 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
 const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
 const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
+
   // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
+
   // ---- Driver Cost state ----
   const [driverCostRows, setDriverCostRows] = useState<DriverCostRow[]>([]);
   const [driverCostSearch, setDriverCostSearch] = useState("");
@@ -128,6 +142,7 @@ const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
   const [editingDriverRow, setEditingDriverRow] = useState<DriverCostRow | null>(
     null
   );
+
   const [driverFormVehicleType, setDriverFormVehicleType] = useState<string>("");
 const [driverFormFields, setDriverFormFields] = useState({
   driverBhatta: "0",
@@ -138,6 +153,7 @@ const [driverFormFields, setDriverFormFields] = useState({
   eveningCharges: "0",
 });
   const [driverFieldErrors, setDriverFieldErrors] = useState<DriverFieldErrors>({});
+
   // ---- Outstation KM Limit state ----
   const [outstationRows, setOutstationRows] = useState<OutstationKmLimitRow[]>(
     []
@@ -146,6 +162,7 @@ const [driverFormFields, setDriverFormFields] = useState({
   const [showOutstationModal, setShowOutstationModal] = useState(false);
   const [editingOutstationRow, setEditingOutstationRow] =
     useState<OutstationKmLimitRow | null>(null);
+
   const [outstationFormVehicleType, setOutstationFormVehicleType] =
     useState<string>("");
   const [outstationFormFields, setOutstationFormFields] = useState({
@@ -154,12 +171,14 @@ const [driverFormFields, setDriverFormFields] = useState({
   });
   const [outstationFieldErrors, setOutstationFieldErrors] = useState<OutstationFieldErrors>({});
   const [outstationSaveLocked, setOutstationSaveLocked] = useState(false);
+
   // ---- Local KM Limit state ----
   const [localRows, setLocalRows] = useState<LocalKmLimitRow[]>([]);
   const [localSearch, setLocalSearch] = useState("");
   const [showLocalModal, setShowLocalModal] = useState(false);
   const [editingLocalRow, setEditingLocalRow] =
     useState<LocalKmLimitRow | null>(null);
+
   const [localFormVehicleType, setLocalFormVehicleType] = useState<string>("");
   const [localFormFields, setLocalFormFields] = useState({
     title: "",
@@ -168,23 +187,28 @@ const [driverFormFields, setDriverFormFields] = useState({
   });
   const [localFieldErrors, setLocalFieldErrors] = useState<LocalFieldErrors>({});
   const [localSaveLocked, setLocalSaveLocked] = useState(false);
+
 const isValidNumberInput = (value: string): boolean => {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return false;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0;
 };
+
 const numberOrZero = (value: string): number => {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return 0;
+
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 };
+
   useEffect(() => {
     if (vendorId) {
       fetchData();
     }
   }, [vendorId]);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -193,7 +217,9 @@ const numberOrZero = (value: string): number => {
         api(`/vendors/${vendorId}/outstation-km-limits`),
         api(`/vendors/${vendorId}/local-km-limits`),
       ]);
+
   await fetchDropdowns();
+
       setDriverCostRows((dc as any[]).map(r => ({
         id: Number(r.vendor_vehicle_type_ID),
         vehicleType: String(r.vehicle_type_id),
@@ -205,6 +231,7 @@ const numberOrZero = (value: string): number => {
         morningCharges: String(r.driver_early_morning_charges ?? r.morning_charges ?? 0),
         eveningCharges: String(r.driver_evening_charges ?? r.evening_charges ?? 0),
       })));
+
       setOutstationRows((out as any[]).map(r => ({
         id: Number(r.kms_limit_id),
         vehicleType: String(r.vehicle_type_id),
@@ -213,6 +240,7 @@ const numberOrZero = (value: string): number => {
         limit: String(r.kms_limit),
         status: Number(r.status) === 1 ? "Active" : "Inactive",
       })));
+
       setLocalRows((loc as any[]).map(r => ({
         id: Number(r.time_limit_id),
         vehicleType: String(r.vehicle_type_id),
@@ -228,6 +256,7 @@ const numberOrZero = (value: string): number => {
       setLoading(false);
     }
   };
+
   const fetchDropdowns = async () => {
     try {
       const vtRes = await api("/dropdowns/vehicle-types");
@@ -257,7 +286,9 @@ const numberOrZero = (value: string): number => {
       console.error("Failed to fetch dropdowns", e);
     }
   };
+
   // ====== Helpers for tables (simple client-side search) ======
+
   const filteredDriverCostRows = useMemo(() => {
     if (!driverCostSearch.trim()) return driverCostRows;
     const q = driverCostSearch.toLowerCase();
@@ -268,6 +299,7 @@ const numberOrZero = (value: string): number => {
       }
     );
   }, [driverCostRows, driverCostSearch, vehicleTypeOptions]);
+
   const filteredOutstationRows = useMemo(() => {
     if (!outstationSearch.trim()) return outstationRows;
     const q = outstationSearch.toLowerCase();
@@ -278,29 +310,36 @@ const numberOrZero = (value: string): number => {
       }
     );
   }, [outstationRows, outstationSearch, vehicleTypeOptions]);
+
  const filteredLocalRows = useMemo(() => {
   if (!localSearch.trim()) return localRows;
   const q = localSearch.toLowerCase();
+
   return localRows.filter((row) => {
     const vtLabel =
       vehicleTypeOptions.find((o) => o.id === row.vehicleType)?.label || "";
+
     return (
       vtLabel.toLowerCase().includes(q) ||
       row.title.toLowerCase().includes(q)
     );
   });
 }, [localRows, localSearch, vehicleTypeOptions]);
+
 const driverCostVehicleTypeOptions = useMemo(() => {
   const selectedVehicleTypeIds = new Set(
     driverCostRows.map((row) => String(row.vehicleTypeId))
   );
+
   return vehicleTypeOptions.filter((option) =>
     selectedVehicleTypeIds.has(String(option.id))
   );
 }, [driverCostRows, vehicleTypeOptions]);
+
 // ============================================================
 // Driver Cost modal handlers
 // ============================================================
+
  const openAddDriverCost = () => {
   setEditingDriverRow(null);
   setDriverFormVehicleType("");
@@ -315,6 +354,7 @@ const driverCostVehicleTypeOptions = useMemo(() => {
   setDriverFieldErrors({});
   setShowDriverCostModal(true);
 };
+
  const openEditDriverCost = (row: DriverCostRow) => {
   setEditingDriverRow(row);
   setDriverFormVehicleType(row.vehicleType);
@@ -329,16 +369,20 @@ const driverCostVehicleTypeOptions = useMemo(() => {
   setDriverFieldErrors({});
   setShowDriverCostModal(true);
 };
+
   const handleSaveDriverCost = async () => {
     if (!vendorId) return;
+
  const errors: DriverFieldErrors = {};
 if (!String(driverFormVehicleType ?? "").trim()) {
   errors.vehicleType = "This value is required.";
 }
+
 if (Object.keys(errors).length > 0) {
   setDriverFieldErrors(errors);
   return;
 }
+
 setDriverFieldErrors({});
 setSaving(true);
 try {
@@ -351,6 +395,7 @@ extra_cost: numberOrZero(driverFormFields.extraCost),
 morning_charges: numberOrZero(driverFormFields.morningCharges),
 evening_charges: numberOrZero(driverFormFields.eveningCharges),
 };
+
 await api(
   editingDriverRow
     ? `/vendors/${vendorId}/vehicle-type-costs/${editingDriverRow.id}`
@@ -369,18 +414,22 @@ await api(
       setSaving(false);
     }
   };
+
 const handleDeleteDriverCost = async (rowId: number) => {
   setSaving(true);
+
   try {
     if (vendorId) {
       await api(`/vendors/${vendorId}/vehicle-type-costs/${rowId}`, {
         method: "DELETE",
       });
     }
+
     setDriverCostRows((prev) => prev.filter((row) => row.id !== rowId));
     toast.success("Deleted successfully");
   } catch (e) {
     console.error("Failed to delete driver cost", e);
+
     // Keep UI delete working even if backend DELETE route is missing
       toast.error("Delete failed. Backend API is not deleting this record.");
   } finally {
@@ -390,6 +439,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
   // ============================================================
   // Outstation KM modal handlers
   // ============================================================
+
   const openAddOutstation = () => {
     setEditingOutstationRow(null);
     setOutstationFormVehicleType("");
@@ -398,6 +448,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setOutstationSaveLocked(false);
     setShowOutstationModal(true);
   };
+
   const openEditOutstation = (row: OutstationKmLimitRow) => {
     setEditingOutstationRow(row);
     setOutstationFormVehicleType(row.vehicleType);
@@ -406,9 +457,11 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setOutstationSaveLocked(false);
     setShowOutstationModal(true);
   };
+
   const handleSaveOutstation = async () => {
     if (!vendorId) return;
     if (outstationSaveLocked) return;
+
     const errors: OutstationFieldErrors = {};
     if (!String(outstationFormVehicleType ?? "").trim()) {
       errors.vehicleType = "This value is required.";
@@ -419,10 +472,12 @@ const handleDeleteDriverCost = async (rowId: number) => {
     if (!isValidNumberInput(outstationFormFields.limit)) {
       errors.limit = "Please enter valid KM limit";
     }
+
     if (Object.keys(errors).length > 0) {
       setOutstationFieldErrors(errors);
       return;
     }
+
     setOutstationFieldErrors({});
     setSaving(true);
     try {
@@ -451,13 +506,17 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setSaving(false);
     }
   };
+
   const handleDeleteOutstation = async (rowId: number) => {
   if (!vendorId) return;
+
   setSaving(true);
+
   try {
     await api(`/vendors/${vendorId}/outstation-km-limits/${rowId}`, {
       method: "DELETE",
     });
+
     setOutstationRows((prev) => prev.filter((row) => row.id !== rowId));
   } catch (e) {
     console.error("Failed to delete outstation limit", e);
@@ -465,9 +524,11 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setSaving(false);
   }
 };
+
   // ============================================================
   // Local KM modal handlers
   // ============================================================
+
   const openAddLocal = () => {
     setEditingLocalRow(null);
     setLocalFormVehicleType("");
@@ -476,6 +537,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setLocalSaveLocked(false);
     setShowLocalModal(true);
   };
+
   const openEditLocal = (row: LocalKmLimitRow) => {
     setEditingLocalRow(row);
     setLocalFormVehicleType(row.vehicleType);
@@ -488,9 +550,11 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setLocalSaveLocked(false);
     setShowLocalModal(true);
   };
+
   const handleSaveLocal = async () => {
     if (!vendorId) return;
     if (localSaveLocked) return;
+
     const errors: LocalFieldErrors = {};
     if (!String(localFormVehicleType ?? "").trim()) {
       errors.vehicleType = "This value is required.";
@@ -504,10 +568,12 @@ const handleDeleteDriverCost = async (rowId: number) => {
     if (!isValidNumberInput(localFormFields.km)) {
       errors.km = "Please enter valid KM limit";
     }
+
     if (Object.keys(errors).length > 0) {
       setLocalFieldErrors(errors);
       return;
     }
+
     setLocalFieldErrors({});
     setSaving(true);
     try {
@@ -537,13 +603,17 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setSaving(false);
     }
   };
+
 const handleDeleteLocal = async (rowId: number) => {
   if (!vendorId) return;
+
   setSaving(true);
+
   try {
     await api(`/vendors/${vendorId}/local-km-limits/${rowId}`, {
       method: "DELETE",
     });
+
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
     toast.success("Deleted successfully");
   } catch (e) {
@@ -553,9 +623,11 @@ const handleDeleteLocal = async (rowId: number) => {
     setSaving(false);
   }
 };
+
   // ============================================================
   // Render helpers
   // ============================================================
+
   const renderTopTabs = () => (
     <div className="flex border-b border-gray-200 text-sm font-medium">
       <button
@@ -593,6 +665,7 @@ const handleDeleteLocal = async (rowId: number) => {
       </button>
     </div>
   );
+
   const renderTableHeader = (cols: string[]) => (
     <thead className="bg-gray-50 text-xs uppercase text-gray-500">
       <tr>
@@ -607,26 +680,31 @@ const handleDeleteLocal = async (rowId: number) => {
       </tr>
     </thead>
   );
+
     const getVehicleTypeLabel = (row: DriverCostRow) =>
     vehicleTypeOptions.find((o) => o.id === row.vehicleType)?.label ||
     row.vehicleType;
+
   const driverCostExportRows = filteredDriverCostRows.map((row, index) => ({
     "S.NO": index + 1,
     "VEHICLE TYPE": getVehicleTypeLabel(row),
-    "DRIVER BHATTA(â‚¹)": row.driverBhatta,
-    "FOOD COST(â‚¹)": row.foodCost,
-    "ACCOMODATION COST(â‚¹)": row.accommodationCost,
-    "EXTRA COST(â‚¹)": row.extraCost,
-    "MORNING CHARGES(â‚¹)": row.morningCharges,
-    "EVENING CHARGES(â‚¹)": row.eveningCharges,
+    "DRIVER BHATTA(₹)": row.driverBhatta,
+    "FOOD COST(₹)": row.foodCost,
+    "ACCOMODATION COST(₹)": row.accommodationCost,
+    "EXTRA COST(₹)": row.extraCost,
+    "MORNING CHARGES(₹)": row.morningCharges,
+    "EVENING CHARGES(₹)": row.eveningCharges,
   }));
+
   const handleCopyDriverCost = async () => {
     const text = driverCostExportRows
       .map((row) => Object.values(row).join("\t"))
       .join("\n");
+
     await navigator.clipboard.writeText(text);
     toast.success("Copied successfully");
   };
+
   const handleDownloadDriverCostCsv = () => {
     const headers = Object.keys(driverCostExportRows[0] || {});
     const csv = [
@@ -637,91 +715,1041 @@ const handleDeleteLocal = async (rowId: number) => {
           .join(",")
       ),
     ].join("\n");
+
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+
     a.href = url;
     a.download = "vehicle-type-driver-cost.csv";
     a.click();
+
     URL.revokeObjectURL(url);
   };
+
   // ============================================================
   // MAIN RENDER
   // ============================================================
-  const vehicleTypeCostViewContext = {
-    activeTab,
-    deleteDriverCostId,
-    deleteLocalId,
-    deleteOutstationId,
-    driverCostRows,
-    driverCostSearch,
-    driverCostVehicleTypeOptions,
-    driverFieldErrors,
-    driverFormFields,
-    driverFormVehicleType,
-    editingDriverRow,
-    editingLocalRow,
-    editingOutstationRow,
-    filteredDriverCostRows,
-    filteredLocalRows,
-    filteredOutstationRows,
-    handleCopyDriverCost,
-    handleDeleteDriverCost,
-    handleDeleteLocal,
-    handleDeleteOutstation,
-    handleDownloadDriverCostCsv,
-    handleSaveDriverCost,
-    handleSaveLocal,
-    handleSaveOutstation,
-    localFieldErrors,
-    localFormFields,
-    localFormVehicleType,
-    localRows,
-    localSaveLocked,
-    localSearch,
-    onBack,
-    onNext,
-    openAddDriverCost,
-    openAddLocal,
-    openAddOutstation,
-    openEditDriverCost,
-    openEditLocal,
-    openEditOutstation,
-    outstationFieldErrors,
-    outstationFormFields,
-    outstationFormVehicleType,
-    outstationRows,
-    outstationSaveLocked,
-    outstationSearch,
-    renderTableHeader,
-    renderTopTabs,
-    saving,
-    setDeleteDriverCostId,
-    setDeleteLocalId,
-    setDeleteOutstationId,
-    setDriverCostSearch,
-    setDriverFieldErrors,
-    setDriverFormFields,
-    setDriverFormVehicleType,
-    setEditingDriverRow,
-    setLocalFieldErrors,
-    setLocalFormFields,
-    setLocalFormVehicleType,
-    setLocalSaveLocked,
-    setLocalSearch,
-    setOutstationFieldErrors,
-    setOutstationFormFields,
-    setOutstationFormVehicleType,
-    setOutstationSaveLocked,
-    setOutstationSearch,
-    setShowDriverCostModal,
-    setShowLocalModal,
-    setShowOutstationModal,
-    showDriverCostModal,
-    showLocalModal,
-    showOutstationModal,
-    vehicleTypeOptions,
-    vendorId
-  };
-  return <VendorStepVehicleTypeCostView context={vehicleTypeCostViewContext} />;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-1">
+        <CardTitle className="text-pink-600 text-lg">
+          Vehicle Type – Driver Cost
+        </CardTitle>
+        {!vendorId && (
+          <p className="text-xs text-red-500">
+            Save <span className="font-semibold">Basic Info</span> and{" "}
+            <span className="font-semibold">Branch</span> before configuring
+            driver cost.
+          </p>
+        )}
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {renderTopTabs()}
+
+        {/* ---------- DRIVER COST TAB ---------- */}
+        {activeTab === "driverCost" && (
+          <div className="pt-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-700">
+                List of Vehicle Type - Driver Cost
+              </h2>
+              <Button
+                type="button"
+                className="bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-full px-4 py-2 text-sm font-semibold"
+                onClick={openAddDriverCost}
+                disabled={!vendorId}
+              >
+                + Add Vehicle Type - Driver Cost
+              </Button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <select className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+                  <option>10</option>
+                  <option>25</option>
+                  <option>50</option>
+                </select>
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span>Search:</span>
+                <Input
+                  value={driverCostSearch}
+                  onChange={(e) => setDriverCostSearch(e.target.value)}
+                  className="h-8 w-48 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                {renderTableHeader([
+                  "S.NO",
+                  "ACTION",
+                  "VEHICLE TYPE",
+                  "DRIVER BHATTA(₹)",
+                  "FOOD COST(₹)",
+                  "ACCOMODATION COST(₹)",
+                  "EXTRA COST(₹)",
+                  "MORNING CHARGES(₹)",
+                  "EVENING CHARGES(₹)",
+                ])}
+                <tbody className="bg-white">
+                  {filteredDriverCostRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="px-4 py-6 text-center text-sm text-gray-500"
+                      >
+                        No data available in table
+                      </td>
+                    </tr>
+                  )}
+                  {filteredDriverCostRows.map((row, index) => (
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {index + 1}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100 space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs"
+                          type="button"
+                          onClick={() => openEditDriverCost(row)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs text-red-600 border-red-200"
+                          type="button"
+                          onClick={() => setDeleteDriverCostId(row.id)}
+                        >
+                          Delete
+                        </Button>
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {vehicleTypeOptions.find(o => o.id === row.vehicleType)?.label || row.vehicleType}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.driverBhatta}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.foodCost}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.accommodationCost}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.extraCost}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.morningCharges}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.eveningCharges}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
+              <span>
+                Showing 0 to {filteredDriverCostRows.length} of{" "}
+                {driverCostRows.length} entries
+              </span>
+              <div className="flex items-center gap-2">
+
+              <Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleCopyDriverCost}
+>
+  Copy
+</Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleDownloadDriverCostCsv}
+>
+  Excel
+</Button>
+<Button
+  type="button"
+  variant="outline"
+  size="sm"
+  className="h-8 px-3 text-xs"
+  onClick={handleDownloadDriverCostCsv}
+>
+  CSV
+</Button>
+
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- OUTSTATION KM LIMIT TAB ---------- */}
+        {activeTab === "outstation" && (
+          <div className="pt-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-700">
+                List of Outstation KM Limit
+              </h2>
+              <Button
+                type="button"
+                className="bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-full px-4 py-2 text-sm font-semibold"
+                onClick={openAddOutstation}
+                disabled={!vendorId}
+              >
+                + Add Outstation KM Limit
+              </Button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <select className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+                  <option>10</option>
+                  <option>25</option>
+                  <option>50</option>
+                </select>
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span>Search:</span>
+                <Input
+                  value={outstationSearch}
+                  onChange={(e) => setOutstationSearch(e.target.value)}
+                  className="h-8 w-48 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                {renderTableHeader([
+                  "S.NO",
+                  "ACTION",
+                  "VENDOR",
+                  "VEHICLE TYPE",
+                  "OUTSTATION KM LIMIT TITLE",
+                  "OUTSTATION KM LIMIT",
+                  "STATUS",
+                ])}
+                <tbody className="bg-white">
+                  {filteredOutstationRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-4 py-6 text-center text-sm text-gray-500"
+                      >
+                        No data available in table
+                      </td>
+                    </tr>
+                  )}
+                  {filteredOutstationRows.map((row, index) => (
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {index + 1}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100 space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs"
+                          type="button"
+                          onClick={() => openEditOutstation(row)}
+                        >
+                          Edit
+                        </Button>
+                     <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteOutstationId(row.id)}
+>
+  Delete
+</Button>
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {/* Vendor column: in PHP this is vendor name; here just show current vendorId */}
+                        {vendorId ?? "-"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {vehicleTypeOptions.find(o => o.id === row.vehicleType)?.label || row.vehicleType}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.title}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.limit}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.status}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
+              <span>
+                Showing 0 to {filteredOutstationRows.length} of{" "}
+                {outstationRows.length} entries
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  Copy
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  Excel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  CSV
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ---------- LOCAL KM LIMIT TAB ---------- */}
+        {activeTab === "local" && (
+          <div className="pt-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <h2 className="text-base font-semibold text-gray-700">
+                List of Local KM Limit
+              </h2>
+              <Button
+                type="button"
+                className="bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-full px-4 py-2 text-sm font-semibold"
+                onClick={openAddLocal}
+                disabled={!vendorId}
+              >
+                + Add Local KM Limit
+              </Button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <select className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
+                  <option>10</option>
+                  <option>25</option>
+                  <option>50</option>
+                </select>
+                <span>entries</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span>Search:</span>
+                <Input
+                  value={localSearch}
+                  onChange={(e) => setLocalSearch(e.target.value)}
+                  className="h-8 w-48 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                {renderTableHeader([
+                  "S.NO",
+                  "ACTION",
+                  "VENDOR",
+                  "VEHICLE TYPE",
+                  "TITLE",
+                  "HOURS",
+                  "KM",
+                  "STATUS",
+                ])}
+                <tbody className="bg-white">
+                  {filteredLocalRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-6 text-center text-sm text-gray-500"
+                      >
+                        No data available in table
+                      </td>
+                    </tr>
+                  )}
+                  {filteredLocalRows.map((row, index) => (
+                    <tr key={row.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {index + 1}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100 space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-xs"
+                          type="button"
+                          onClick={() => openEditLocal(row)}
+                        >
+                          Edit
+                        </Button>
+                       <Button
+  variant="outline"
+  size="sm"
+  className="h-7 px-3 text-xs text-red-600 border-red-200"
+  type="button"
+  onClick={() => setDeleteLocalId(row.id)}
+>
+  Delete
+</Button>
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {vendorId ?? "-"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {vehicleTypeOptions.find(o => o.id === row.vehicleType)?.label || row.vehicleType}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.title}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.hours}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.km}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-100">
+                        {row.status}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-gray-500">
+              <span>
+                Showing 0 to {filteredLocalRows.length} of {localRows.length}{" "}
+                entries
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  Copy
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  Excel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                >
+                  CSV
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FOOTER BUTTONS */}
+        <div className="mt-6 flex justify-between">
+          <Button variant="outline" type="button" onClick={onBack}>
+            Back
+          </Button>
+          <Button
+            type="button"
+            onClick={onNext}
+            disabled={!vendorId}
+            className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600"
+          >
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+
+      {/* ============================================================
+          MODALS
+          ============================================================ */}
+
+      {/* DRIVER COST MODAL */}
+      <Dialog
+  open={showDriverCostModal}
+  onOpenChange={(open) => {
+    setShowDriverCostModal(open);
+    if (!open) {
+      setEditingDriverRow(null);
+    }
+  }}
+>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              Vehicle Type - Driver Cost
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">
+                Vehicle type <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={driverFormVehicleType}
+                onValueChange={(value) => {
+                  setDriverFormVehicleType(value);
+                  setDriverFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
+              >
+                <SelectTrigger
+                  className={`w-full ${driverFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
+                  <SelectValue placeholder="Choose Any One" />
+                </SelectTrigger>
+   <SelectContent>
+  {vehicleTypeOptions.map((v) => (
+    <SelectItem key={v.id} value={v.id}>
+      {v.label}
+    </SelectItem>
+  ))}
+</SelectContent>
+              </Select>
+              {driverFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{driverFieldErrors.vehicleType}</p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="space-y-1">
+  <Label>Driver Bhatta (₹)</Label>
+  <Input
+    placeholder="Driver Bhatta"
+    value={driverFormFields.driverBhatta}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        driverBhatta: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Driver Food Cost (₹)</Label>
+  <Input
+    placeholder="Food Cost"
+    value={driverFormFields.foodCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        foodCost: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Driver Accomodation Cost (₹)</Label>
+  <Input
+    placeholder="Accomodation Cost"
+    value={driverFormFields.accommodationCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        accommodationCost: e.target.value,
+      }));
+    }}
+  />
+</div>
+            <div className="space-y-1">
+  <Label>Extra Cost (₹)</Label>
+  <Input
+    placeholder="Extra Cost"
+    value={driverFormFields.extraCost}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        extraCost: e.target.value,
+      }));
+    }}
+  />
+</div>
+              <div className="space-y-1">
+  <Label>Early Morning Charges Per Hour (Before 6 AM) (₹)</Label>
+  <Input
+    placeholder="Early Morning Charges"
+    value={driverFormFields.morningCharges}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        morningCharges: e.target.value,
+      }));
+    }}
+  />
+</div>
+              <div className="space-y-1">
+  <Label>Evening Charges Per Hour (After 8 PM) (₹)</Label>
+  <Input
+    placeholder="Evening Charges"
+    value={driverFormFields.eveningCharges}
+    onChange={(e) => {
+      setDriverFormFields((prev) => ({
+        ...prev,
+        eveningCharges: e.target.value,
+      }));
+    }}
+  />
+</div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-gray-100 text-gray-700 px-6"
+              onClick={() => setShowDriverCostModal(false)}
+            >
+              Cancel
+            </Button>
+           <Button
+  type="button"
+  className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
+  onClick={handleSaveDriverCost}
+  disabled={saving}
+>
+  {saving ? "Saving..." : editingDriverRow ? "Update" : "Save"}
+</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* OUTSTATION KM LIMIT MODAL */}
+      <Dialog
+        open={showOutstationModal}
+        onOpenChange={(open) => {
+          setShowOutstationModal(open);
+          if (!open) {
+            setOutstationSaveLocked(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              {editingOutstationRow
+                ? "Update Outstation KM Limit"
+                : "Add Outstation KM Limit"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>
+                Vehicle type <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={outstationFormVehicleType}
+                onValueChange={(value) => {
+                  setOutstationSaveLocked(false);
+                  setOutstationFormVehicleType(value);
+                  setOutstationFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
+              >
+                <SelectTrigger
+                  className={`w-full ${outstationFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
+                  <SelectValue placeholder="Choose Vehicle Type" />
+                </SelectTrigger>
+                <SelectContent>
+  {driverCostVehicleTypeOptions.length === 0 ? (
+    <div className="px-3 py-2 text-sm text-gray-500">
+      Add vehicle type in Driver Cost first
+    </div>
+  ) : (
+    driverCostVehicleTypeOptions.map((v) => (
+      <SelectItem key={v.id} value={v.id}>
+        {v.label}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
+              </Select>
+              {outstationFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.vehicleType}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label>
+                Outstation KM Limit Title{" "}
+                <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="Outstation KM Limit Title"
+                className={outstationFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
+                value={outstationFormFields.title}
+                onChange={(e) => {
+                  setOutstationSaveLocked(false);
+                  setOutstationFormFields((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }));
+                  setOutstationFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }}
+              />
+              {outstationFieldErrors.title ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.title}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label>
+                Outstation KM Limit <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="Outstation KM Limit"
+                className={outstationFieldErrors.limit ? "border-red-400 focus-visible:ring-red-300" : ""}
+                value={outstationFormFields.limit}
+                onChange={(e) => {
+                  setOutstationSaveLocked(false);
+                  setOutstationFormFields((prev) => ({
+                    ...prev,
+                    limit: e.target.value,
+                  }));
+                  setOutstationFieldErrors((prev) => ({ ...prev, limit: undefined }));
+                }}
+              />
+              {outstationFieldErrors.limit ? (
+                <p className="text-xs text-red-600">{outstationFieldErrors.limit}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-gray-100 text-gray-700 px-6"
+              onClick={() => setShowOutstationModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
+              onClick={handleSaveOutstation}
+              disabled={saving || outstationSaveLocked}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LOCAL KM LIMIT MODAL */}
+      <Dialog
+        open={showLocalModal}
+        onOpenChange={(open) => {
+          setShowLocalModal(open);
+          if (!open) {
+            setLocalSaveLocked(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              {editingLocalRow ? "Update Local KM Limit" : "Add Local KM Limit"}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <Label>
+                Vehicle type <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={localFormVehicleType}
+                onValueChange={(value) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormVehicleType(value);
+                  setLocalFieldErrors((prev) => ({ ...prev, vehicleType: undefined }));
+                }}
+              >
+                <SelectTrigger
+                  className={`w-full ${localFieldErrors.vehicleType ? "border-red-400 focus-visible:ring-red-300" : ""}`}
+                >
+                  <SelectValue placeholder="Choose Vehicle Type" />
+                </SelectTrigger>
+                <SelectContent>
+  {driverCostVehicleTypeOptions.length === 0 ? (
+    <div className="px-3 py-2 text-sm text-gray-500">
+      Add vehicle type in Driver Cost first
+    </div>
+  ) : (
+    driverCostVehicleTypeOptions.map((v) => (
+      <SelectItem key={v.id} value={v.id}>
+        {v.label}
+      </SelectItem>
+    ))
+  )}
+</SelectContent>
+              </Select>
+              {localFieldErrors.vehicleType ? (
+                <p className="text-xs text-red-600">{localFieldErrors.vehicleType}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label>
+                Title <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                placeholder="Enter Title"
+                className={localFieldErrors.title ? "border-red-400 focus-visible:ring-red-300" : ""}
+                value={localFormFields.title}
+                onChange={(e) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormFields((prev) => ({
+                    ...prev,
+                    title: e.target.value,
+                  }));
+                  setLocalFieldErrors((prev) => ({ ...prev, title: undefined }));
+                }}
+              />
+              {localFieldErrors.title ? (
+                <p className="text-xs text-red-600">{localFieldErrors.title}</p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label>
+                  Hours <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="Enter Hours"
+                  className={localFieldErrors.hours ? "border-red-400 focus-visible:ring-red-300" : ""}
+                value={localFormFields.hours}
+                onChange={(e) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormFields((prev) => ({
+                    ...prev,
+                    hours: e.target.value,
+                  }));
+                    setLocalFieldErrors((prev) => ({ ...prev, hours: undefined }));
+                  }}
+                />
+                {localFieldErrors.hours ? (
+                  <p className="text-xs text-red-600">{localFieldErrors.hours}</p>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                <Label>
+                  Kilometer(KM) <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="KM Limit"
+                  className={localFieldErrors.km ? "border-red-400 focus-visible:ring-red-300" : ""}
+                value={localFormFields.km}
+                onChange={(e) => {
+                  setLocalSaveLocked(false);
+                  setLocalFormFields((prev) => ({
+                    ...prev,
+                    km: e.target.value,
+                  }));
+                    setLocalFieldErrors((prev) => ({ ...prev, km: undefined }));
+                  }}
+                />
+                {localFieldErrors.km ? (
+                  <p className="text-xs text-red-600">{localFieldErrors.km}</p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 flex justify-between gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="bg-gray-100 text-gray-700 px-6"
+              onClick={() => setShowLocalModal(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600 px-8"
+              onClick={handleSaveLocal}
+              disabled={saving || localSaveLocked}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+
+        
+           </Dialog>
+
+      {deleteDriverCostId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+            <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+            <h2 className="text-xl font-semibold text-gray-700">
+              Are you sure?
+            </h2>
+
+            <p className="mt-3 text-sm text-gray-600">
+              Do you really want to delete this record?
+            </p>
+            <p className="mt-2 text-sm font-semibold text-red-600">
+              All related local and outstation rates will be permanently deleted.
+            </p>
+            <p className="text-sm text-gray-600">
+              This process cannot be undone. Do you want to continue?
+            </p>
+
+            <div className="mt-6 flex justify-center gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDeleteDriverCostId(null)}
+              >
+                Close
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-red-500 text-white hover:bg-red-600"
+                onClick={async () => {
+                  await handleDeleteDriverCost(deleteDriverCostId);
+                  setDeleteDriverCostId(null);
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>        
+      )}
+    
+     {deleteOutstationId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteOutstationId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteOutstation(deleteOutstationId);
+            setDeleteOutstationId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+
+{deleteLocalId !== null && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="w-[380px] rounded-lg bg-white px-7 py-6 text-center shadow-xl">
+      <div className="mb-3 text-4xl text-gray-500">🗑️</div>
+
+      <h2 className="text-xl font-semibold text-gray-700">
+        Are you sure?
+      </h2>
+
+      <p className="mt-3 text-sm text-gray-600">
+        Do you really want to delete this record?
+      </p>
+      <p className="text-sm text-gray-600">
+        This process cannot be undone.
+      </p>
+
+      <div className="mt-6 flex justify-center gap-3">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setDeleteLocalId(null)}
+        >
+          Close
+        </Button>
+
+        <Button
+          type="button"
+          className="bg-red-500 text-white hover:bg-red-600"
+          onClick={async () => {
+            await handleDeleteLocal(deleteLocalId);
+            setDeleteLocalId(null);
+          }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
+</Card>
+  );
 };
