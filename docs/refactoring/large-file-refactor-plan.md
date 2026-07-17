@@ -104,6 +104,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: `DailyMomentDayDialogs.tsx` owns only the two reusable dialog presentations and receives async save callbacks; service calls and day state remain in the page.
 - Compatibility strategy: preserve field labels, validation text, callback timing, opening/closing KM payload values, status reason submission, and modal close/reset behavior while removing dialog-local explicit-`any` catches.
 
+## BasicStep baseline and extraction design
+
+- Status: COMPLETED after the hotel-form Playwright group passed 11/11.
+- Incoming contract: `BasicStep` renders the hotel basic-information form and uses a local `ChipInput` for phone/email arrays; it owns dependent location option loading and create/update mutations.
+- Completed boundary: `ChipInput.tsx` owns only chip parsing/validation and keyboard/focus presentation; the parent keeps form state, option effects, payload mapping, API mutation behavior, and navigation.
+- Compatibility strategy: pass controlled `value`/`onChange` props, preserve chip validation and key handling, and retain existing form field names, labels, and save timing.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

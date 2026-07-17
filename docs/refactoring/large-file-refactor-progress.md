@@ -174,6 +174,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, `E2E_ALLOW_WRITES=true npm run e2e:group:ui-ux` passed (6/6), and production `npm run build` passed. The required aggregate `npm run e2e:group` reached the guides group before the five-minute shell timeout/EPIPE; no Daily Moment assertion failure was returned. The parent retains pre-existing explicit-`any`/empty-catch diagnostics; the new dialog module adds none.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 14 — BasicStep.tsx
+
+- Starting line count: 1044 physical lines in the current authored-source scan.
+- Reason: the hotel basic-information step combined a reusable phone/email chip editor with API option normalization, dependent country/state/city loading, form submission, and navigation.
+- Extracted module: `src/pages/hotel-form/ChipInput.tsx` owns chip parsing, phone/email validation, keyboard behavior, focus handling, and chip removal. `BasicStep.tsx` retains form state, dependent option effects, payload mapping, mutation callbacks, and navigation.
+- Ending line count: 930 physical lines; the extracted chip editor is 57 lines.
+- Compatibility: hotel form field wiring, phone/email validation, Enter/comma/space/Tab behavior, Backspace removal, labels, and save/navigation behavior remain unchanged. The extracted remove glyph is valid UTF-8 `×`.
+- Validation: `npx tsc --noEmit`, focused ESLint for `ChipInput.tsx`, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:hotels` passed (11/11). The required aggregate `npm run e2e:group` reached the activities group before the five-minute shell timeout/EPIPE; no hotel-form assertion failure was returned. The parent retains its pre-existing dynamic-response `any` diagnostics.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
