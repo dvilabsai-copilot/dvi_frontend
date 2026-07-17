@@ -13,6 +13,7 @@ import {
   ManualFitHereResultType,
 } from "./ManualFitHerePreviewDialog";
 import { AutoFitHerePreviewDialogView } from "./AutoFitHerePreviewDialogView";
+import { getTimelineRowDistance, getTimelineRowName, getTimelineRowTime } from "./AutoFitHerePreviewTimelineUtils";
 type AutoFitHerePreviewResultRow = {
   anchorKey: string;
   anchor?: {
@@ -60,30 +61,6 @@ type AutoFitHerePreviewDialogProps = {
   ) => void;
   confirmLoading?: boolean;
 };
-const getTimelineRowName = (row: any): string =>
-  String(
-    row?.name ||
-      row?.title ||
-      row?.text ||
-      row?.hotspotName ||
-      row?.description ||
-      row?.hotelName ||
-      "Row",
-  ).trim();
-const getTimelineRowTime = (row: any): string =>
-  String(
-    row?.timeRange ||
-      row?.visitTime ||
-      row?.time ||
-      "",
-  ).trim();
-const getTimelineRowDistance = (row: any): string =>
-  String(
-    row?.distance ||
-      row?.hotspot_travelling_distance ||
-      row?.travelDistance ||
-      "",
-  ).trim();
 const formatDurationValue = (value: unknown): string => {
   if (!value) return "";
   if (value instanceof Date && !Number.isNaN(value.getTime())) {

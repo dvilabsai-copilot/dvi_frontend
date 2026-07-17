@@ -125,6 +125,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: delete confirmation presentation moved to `VendorStepVehicleTypeCostDeleteDialogs.tsx`; pricing forms, table callbacks, state ownership, validation, and navigation remain in the parent.
 - Compatibility strategy: pass the same context object and preserve delete ID handling, warning copy, callback order, and modal close/reset behavior.
 
+## AutoFitHerePreviewDialog baseline and extraction design
+
+- Status: COMPLETED after the itinerary group passed 16/16, including manual hotspot preview coverage.
+- Incoming contract: `AutoFitHerePreviewDialog` consumes the manual Fit Here response types and renders anchor-selection, timeline, result, and confirmation states through its existing view component.
+- Completed boundary: timeline row name/time/distance normalization moved to `AutoFitHerePreviewTimelineUtils.ts`; result derivation, rescue/removal rules, state ownership, and view context remain in the dialog.
+- Compatibility strategy: preserve fallback field precedence, formatting, labels, and all callback/context contracts while keeping the utility pure and side-effect free.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

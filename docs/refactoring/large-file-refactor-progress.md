@@ -204,6 +204,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, focused ESLint for the extracted dialog module, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:vendors` passed (5/5). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 17 — AutoFitHerePreviewDialog.tsx
+
+- Starting line count: 1012 physical lines in the current authored-source scan.
+- Reason: the auto Fit Here preview dialog combined timeline row formatting with duration/operating-hour normalization, rescue/removal analysis, result-state derivation, and dialog composition.
+- Extracted module: `src/components/itinerary/manual-fit/AutoFitHerePreviewTimelineUtils.ts` owns the shared timeline row name/time/distance normalization used by the preview derivation and view context.
+- Ending line count: 989 physical lines; the extracted utility module is 5 lines.
+- Compatibility: auto Fit Here labels, timeline fallback values, distance display, result derivation, anchor selection, removal acknowledgement, and callbacks remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the extracted utility, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:itinerary` passed (16/16, including manual hotspot preview coverage). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
