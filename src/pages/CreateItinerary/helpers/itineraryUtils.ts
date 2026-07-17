@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/CreateItinerary/itineraryUtils.ts
 
 import type { LocationOption } from "@/services/itineraryDropdownsMock";
@@ -19,6 +20,14 @@ function parseDDMMYYYYParts(dateStr: string) {
   const [d, m, y] = (dateStr || "").split("/").map(Number);
   if (!d || !m || !y) return null;
   return { d, m, y };
+}
+
+// Public Date parser used by save/policy helpers.
+export function parseDDMMYYYY(dateStr: string): Date | null {
+  const parts = parseDDMMYYYYParts(dateStr);
+  if (!parts) return null;
+  const date = new Date(parts.y, parts.m - 1, parts.d);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function parseTimeParts(timeStr: string) {

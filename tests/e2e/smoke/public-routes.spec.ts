@@ -20,8 +20,8 @@ test('@smoke unknown routes render the not-found page', async ({ page }) => {
 test('@smoke partner registration exposes verification and declaration controls', async ({ page }) => {
   await page.goto('/partner-registration', { waitUntil: 'domcontentloaded' });
 
-  await expect(page.getByPlaceholder('Enter OTP received on your mobile number')).toBeVisible();
-  await expect(page.getByPlaceholder('Enter OTP received on your email ID')).toBeVisible();
+  await expect(page.getByPlaceholder('Enter mobile number').first()).toBeVisible();
+  await expect(page.getByPlaceholder('Enter 6-digit code')).toBeVisible();
 
   const declaration = page.getByRole('checkbox', { name: /I hereby declare/i });
   await expect(declaration).not.toBeChecked();

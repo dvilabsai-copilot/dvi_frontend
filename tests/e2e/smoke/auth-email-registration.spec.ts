@@ -15,7 +15,7 @@ test('@smoke email sign-in keeps public errors on the email screen', async ({ pa
   await page.getByRole('button', { name: 'Send verification code' }).click();
 
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByText('No active partner account was found for this email.')).toBeVisible();
+  await expect(page.getByText('No active partner account was found for this email.', { exact: true })).toBeVisible();
   await expect(page.locator('#login-email-otp')).toHaveCount(0);
 });
 
