@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
+import { AlertTriangle, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { ManualFitHerePreviewDialogView } from "./ManualFitHerePreviewDialogView";
 import {
   FIT_HERE_LOADING_STEPS,
