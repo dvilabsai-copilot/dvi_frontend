@@ -56,3 +56,17 @@
 ## Next iteration
 
 Rescan authored source files and select the highest-value remaining file over 1000 lines. Current candidates include `src/pages/locations/LocationsPage.tsx`, `src/pages/agent/AgentFormPage.tsx`, and `src/pages/dashboard/DashboardAdminView.tsx`.
+
+## Iteration 5 — LocationsPage.tsx
+
+- Starting line count: 1360 physical lines in the baseline snapshot.
+- Reason: largest remaining behavior-heavy authored page; it combined location CRUD orchestration, filters, pagination, delete/undo workflows, toll editing, and five dialog presentations.
+- Extracted module: `src/pages/locations/components/LocationDialogs.tsx` now owns the delete-selected, delete-location-name, update-location-name, rename, and toll dialog presentations with typed props. The page retains API calls, state, effects, validation, pagination, and callback timing.
+- Ending line count: 933 physical lines.
+- Compatibility: `/locations` route, default export, `locationsApi` calls, labels, toast text, dialog callbacks, autosuggest behavior, table structure, and navigation remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the page and extracted module, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:locations` passed (3/3). Build output retains only existing dependency/browser/chunk warnings.
+- Status: COMPLETED locally; this iteration is ready to commit. Aggregate `npm run e2e:group` remains required by the autonomous loop and will be rerun before the next iteration.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate until a cascade-safe split is mapped.

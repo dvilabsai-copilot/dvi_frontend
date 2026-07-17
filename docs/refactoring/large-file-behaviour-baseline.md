@@ -47,3 +47,14 @@ This document records behavior before each selected file is changed. It is inten
 - Observable request contract: exact endpoint paths, HTTP methods, cache policies, no-cache headers, query parameter names/order, payload fields, fallback handling, and return casts are compatibility-sensitive and were inventoried before extraction.
 - Consumers/tests: pages and hooks call individual `ItineraryService` methods directly; no consumer was changed. Existing itinerary, confirmed-itinerary, hotel, activity, and vehicle Playwright groups cover the affected request paths. No new API behavior or UI workflow was introduced.
 - Known quirks: legacy explicit `any` payload fields and text-encoding artifacts remain in the compatibility facade; they were not broadened or “cleaned up” during extraction.
+
+## locations/LocationsPage.tsx (pre-extraction)
+
+- Purpose/routes: authenticated admin/agent location master list at `/locations`; row preview navigates to `/locations/:id/preview`.
+- Export/consumers: default `LocationsPage` export consumed by `App.tsx`; child `AddLocationDialog` and `EditLocationDialog` own add/edit form markup and submit callbacks.
+- API calls: `locationsApi.dropdowns`, `list` (including same-source/destination fallback pagination), `create`, `update`, `modifyName`, `updateLocationName`, `deleteLocationName`, `remove`, `restore`, `tolls`, and `saveTolls`.
+- State/effects: paginated rows/total/page/page size; source/destination/search filters with 300ms debounce; dropdown loading; selected/edit rows; add progress loader; rename/delete dialogs; delete-selected popup filters, pagination, selected IDs; toll dialog; effects for initial dropdown/list loading, debounced search, popup filtering, and dialog option animation frames.
+- Interactions: add, modify, update/rename, delete by location name, delete selected rows with undo, toll editing, source/destination autosuggest filters, clear/search/page-size controls, row selection, preview/edit/delete action buttons, and pagination.
+- Validation/messages: same-location routes under 10 km are rejected; exact toast/error strings, progress stages, undo timing, dialog labels, table headers, and text-encoding artifacts are compatibility-sensitive.
+- Styling/accessibility: Tailwind classes, shadcn Dialog/Table/Select/Button/Input structure, autosuggest props, and row/button event propagation are covered by selectors and visual layout.
+- Baseline tests: `E2E_ALLOW_WRITES=true npm run e2e:group:locations` passed 3/3 (admin/agent page load plus filters/search/clear/page-size workflow).

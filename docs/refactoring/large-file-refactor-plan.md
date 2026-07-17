@@ -13,7 +13,7 @@ Authored files were enumerated with `rg --files src` for `.ts`, `.tsx`, `.js`, `
 | COMPLETED | `src/pages/hotel-form/RoomsStep.tsx` | 891 / 891 | complex form | high | picker widgets and repeated room row extracted |
 | COMPLETED | `src/services/itinerary.ts` | 879 / 879 | API service facade | high | PDF, route actions, and back-office domains extracted behind compatibility facade |
 | NOT_STARTED | `src/pages/book-activities/BookActivitiesPage.css` | 1220 / 1220 | stylesheet | medium | map selectors before any cascade-safe split |
-| NOT_STARTED | `src/pages/locations/LocationsPage.tsx` | 1198 / 1195 | page/orchestration | high | data loading, filters, table/presentation |
+| COMPLETED | `src/pages/locations/LocationsPage.tsx` | 933 / 933 | page/orchestration | high | dialogs extracted into typed sibling presentation module |
 | NOT_STARTED | `src/pages/agent/AgentFormPage.tsx` | 1164 / 1164 | complex form | high | form sections, validation, payload mapping |
 | NOT_STARTED | `src/pages/dashboard/DashboardAdminView.tsx` | 1115 / 1106 | dashboard presentation | medium | role-specific sections and widgets |
 | NOT_STARTED | `src/components/itinerary/manual-fit/ManualFitHerePreviewDialog.tsx` | 1101 / 1101 | dialog/orchestration | high | shared timeline rows only after comparison |
@@ -25,7 +25,7 @@ Authored files were enumerated with `rg --files src` for `.ts`, `.tsx`, `.js`, `
 | COMPLETED | `src/pages/activity/ActivityFormView.tsx` | 945 / 945 | form presentation | high | review and preview tabs extracted |
 | COMPLETED | `src/pages/HotelList.tsx` | 877 / 877 | hotel selection page | high | selection state, rows, actions, dialogs extracted |
 
-The next iteration is exactly one file: `src/services/itinerary.ts`, selected because it is now the largest remaining authored source file and combines multiple itinerary endpoint domains behind one facade.
+The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`, selected after the itinerary service reduction because it is the largest remaining behavior-heavy page.
 
 ## RoomsStep baseline and extraction design
 
@@ -41,6 +41,12 @@ The next iteration is exactly one file: `src/services/itinerary.ts`, selected be
 - Status: COMPLETED; baseline and endpoint inventory were recorded before editing.
 - Compatibility strategy: preserve every existing named export and request path; split only cohesive endpoint groups into internal modules, with `src/services/itinerary.ts` retaining the public facade.
 - Extracted domains: PDF transport, route/activity/hotspot/vehicle actions, and confirmed/back-office/incidental/hotel-search endpoints.
+
+## LocationsPage baseline and extraction design
+
+- Status: COMPLETED after focused location Playwright coverage passed 3/3.
+- Incoming contract: default `LocationsPage` export, `/locations` route, `locationsApi`, navigation to `/locations/:id/preview`, and child add/edit dialogs.
+- Completed boundary: orchestration/API state remains in the page while delete-selected, location-name, rename, and toll dialog presentation lives in `src/pages/locations/components/LocationDialogs.tsx`; labels, selectors, toast messages, pagination, filters, and callback timing were preserved.
 
 ## Validation policy
 
