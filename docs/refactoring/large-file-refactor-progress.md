@@ -143,6 +143,17 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Aggregate validation: `npm run e2e:group` failed before executing a suite because the environment's missing `node_modules/.bin` links caused `npx` to load duplicate Playwright test packages (`test() does not expect to be called here`). This is a runner/dependency-resolution failure, not a dashboard assertion.
 - Status: COMPLETED locally; focused dashboard checks and build remain the source validation evidence.
 
+## Iteration 11 — VendorsPage.tsx
+
+- Starting line count: 1079 physical lines in the current authored-source scan.
+- Reason: the vendor list page combined list orchestration, client-side filtering/sorting/pagination, CRUD/status actions, inline styles, and four export implementations.
+- Extracted module: `src/pages/vendor/vendorExport.ts` owns the generic Copy/CSV/Excel/PDF export helpers and date suffix generation. The page retains all data loading, table markup, controls, navigation, and mutation callbacks.
+- Small safety cleanup: vendor load/delete/status catches now use `unknown` with a typed error-message helper, removing three pre-existing explicit-`any` diagnostics without changing fallback text.
+- Ending line count: 996 physical lines; the extracted export module is 91 lines.
+- Compatibility: `/vendor`, add/edit navigation, search/page-size controls, sort arrows, export formats (including CSV BOM and Excel fallback), status toggle, delete confirmation, labels, and API paths remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the page and export module, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:vendors` passed (5/5). Build output retains existing dependency/chunk warnings.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

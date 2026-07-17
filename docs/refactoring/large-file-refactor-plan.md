@@ -83,6 +83,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: shared response/result types, loading-step metadata, and controlled dialog props moved to `ManualFitHerePreviewTypes.ts`; the original module re-exports the public response/result types and retains all result interpretation, timeline normalization, acknowledgement state, and view composition.
 - Compatibility strategy: preserve the original type import path, callback option shape, loading-step labels/order, and `ManualFitHerePreviewDialogView` context contract without changing API calls or UI markup.
 
+## VendorsPage baseline and extraction design
+
+- Status: COMPLETED after the authenticated vendor-list group passed 5/5.
+- Incoming contract: default `VendorsPage` export at `/vendor`; list data comes from `listVendors`, mutations use the existing vendor API paths, and the table exposes search, paging, sort, status, delete, and four export controls.
+- Completed boundary: generic export conversion/download helpers moved to `src/pages/vendor/vendorExport.ts`; page state, API calls, markup, inline styles, and navigation remain in `VendorsPage`.
+- Compatibility strategy: preserve export headers/order, CSV BOM/quoting, Excel fallback, PDF styling, filenames, and all existing UI callback timing. Error catches use `unknown` and retain the same user-facing fallback messages.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.
