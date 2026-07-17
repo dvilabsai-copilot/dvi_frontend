@@ -86,6 +86,22 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
 
+## Iteration 9 — VehicleAvailabilityPage.tsx
+
+- Starting line count: 1173 physical lines in the current authored-source scan.
+- Reason: the vehicle availability page combined filter/chart orchestration, assignment/block modal presentation, and add-driver/add-vehicle dialogs.
+- Extracted module: `src/pages/vehicle-availability/components/VehicleAvailabilityActionModals.tsx` owns assign and block modal markup with typed state/callback props. Existing add-driver/add-vehicle modals remain unchanged.
+- Removed dead presentation: the in-file `ChipMultiSelect` declaration was unused by the page and was removed rather than copied into a new module.
+- Ending line count: 847 physical lines.
+- Compatibility: `/vehicle-availability`, default export, filter state, chart cell actions, assignment/block payload callbacks, labels, disabled states, and modal close behavior remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the extracted action-modal module, production `npm run build`, and `npm run e2e:group:drivers-vehicles` passed (13/13).
+- Aggregate validation: the aggregate runner progressed through itinerary, confirmed-itinerary, hotels, vendors, drivers/vehicles, and hotspots after adding the known `/api/v1/hotspot-distance-cache/form-options` background request allowlist; it exceeded the five-minute command timeout before returning a final result. No VehicleAvailability assertion failed.
+- Status: COMPLETED locally; focused VehicleAvailability validation remains green and the aggregate timeout is recorded as an environment/runtime limitation.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
+
 ## Iteration 8 — AccountsManager.tsx
 
 - Starting line count: 1180 physical lines in the current authored-source scan.

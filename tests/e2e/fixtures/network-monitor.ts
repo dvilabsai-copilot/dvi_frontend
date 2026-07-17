@@ -74,6 +74,7 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
         '/api/v1/meta/gst/percentages',
         '/api/v1/vehicle-availability',
         '/api/v1/vehicle-availability/locations',
+        '/api/v1/hotspot-distance-cache/form-options',
         '/api/v1/dropdowns/countries',
         '/api/v1/dropdowns/roles',
         '/api/v1/dropdowns/gst-percents',

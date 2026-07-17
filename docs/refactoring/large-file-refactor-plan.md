@@ -18,7 +18,7 @@ Authored files were enumerated with `rg --files src` for `.ts`, `.tsx`, `.js`, `
 | COMPLETED | `src/pages/dashboard/DashboardAdminView.tsx` | 905 / 905 | dashboard presentation | medium | welcome/profit/stats overview extracted into typed sibling component |
 | NOT_STARTED | `src/components/itinerary/manual-fit/ManualFitHerePreviewDialog.tsx` | 1101 / 1101 | dialog/orchestration | high | shared timeline rows only after comparison |
 | COMPLETED | `src/pages/accounts/AccountsManager.tsx` | 846 / 846 | manager/page | high | component table renderer and formatting metadata extracted |
-| NOT_STARTED | `src/pages/vehicle-availability/VehicleAvailabilityPage.tsx` | 1057 / 1055 | page/orchestration | high | data state, filters, form/dialog presentation |
+| COMPLETED | `src/pages/vehicle-availability/VehicleAvailabilityPage.tsx` | 847 / 847 | page/orchestration | high | assignment/block modal presentation extracted |
 | NOT_STARTED | `src/components/itinerary/manual-fit/AutoFitHerePreviewDialog.tsx` | 1012 / 1012 | dialog/orchestration | high | compare with manual-fit before shared extraction |
 | NOT_STARTED | `src/pages/ConfirmedItineraryDetails.tsx` | 1006 / 999 | details page | high | read-only sections, calculations, dialogs |
 | NOT_STARTED | `src/pages/locations/LocationsPreviewPage.tsx` | 1005 / 1005 | preview page | medium | preview sections and data orchestration |
@@ -68,6 +68,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Incoming contract: named `AccountsManager` export at `/accounts-manager`; the page owns accounts list/summary/agent/payment-mode/quote-search calls and opens `PayNowModal` for due rows.
 - Completed boundary: component-specific table headers/rows and formatting metadata moved to typed sibling modules; filters, totals, infinite-scroll listener, exports, API payloads, and payment callbacks remain in the page.
 - Compatibility strategy: `AccountsRow` optional display fields model the existing backend variants; the extracted renderer receives rows and the existing pay-now callback only.
+
+## VehicleAvailabilityPage baseline and extraction design
+
+- Status: COMPLETED after the existing drivers/vehicles group passed 13/13 before and after extraction.
+- Incoming contract: default `VehicleAvailabilityPage` export at `/vehicle-availability`; page uses vehicle availability lookups, chart rows/cells, add-driver/add-vehicle dialogs, assignment, blocking, and share-link actions.
+- Completed boundary: assignment and block modal markup moved to `VehicleAvailabilityActionModals.tsx`; lookup loading, filter/search state, chart rendering, API calls, and modal state transitions remain in the page.
+- Compatibility strategy: the new component receives the existing selected-cell state, option lists, setters, and submit callbacks; no endpoint, payload, label, or action timing changed.
 
 ## Validation policy
 
