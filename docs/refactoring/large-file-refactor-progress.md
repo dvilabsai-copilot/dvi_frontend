@@ -164,6 +164,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:confirmed-itinerary` passed (4/4). The parent retains pre-existing explicit-`any` and hook-dependency diagnostics; the extracted module adds none.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 13 — DailyMomentDayView.tsx
+
+- Starting line count: 1050 physical lines in the current authored-source scan.
+- Reason: the daily moment day view combined reusable Not Visited and kilometer-entry dialogs with hotspot/activity/guide cards, day accordion orchestration, PDF rendering, uploads, charges, and ratings.
+- Extracted module: `src/pages/daily-moment-tracker/DailyMomentDayDialogs.tsx` owns the controlled Not Visited and KM dialogs. The parent retains service calls through callbacks, day/card state, uploads, ratings, charges, PDF generation, and page rendering.
+- Ending line count: 968 physical lines; the extracted dialog module is 78 lines.
+- Compatibility: daily-moment route, status reason submission, opening/closing KM payloads, validation, loading labels, modal close/reset behavior, and existing card callbacks remain unchanged. The extraction also replaces dialog-local `any` catches with `unknown` error messages.
+- Validation: `npx tsc --noEmit`, `E2E_ALLOW_WRITES=true npm run e2e:group:ui-ux` passed (6/6), and production `npm run build` passed. The required aggregate `npm run e2e:group` reached the guides group before the five-minute shell timeout/EPIPE; no Daily Moment assertion failure was returned. The parent retains pre-existing explicit-`any`/empty-catch diagnostics; the new dialog module adds none.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

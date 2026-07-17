@@ -97,6 +97,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: guide-slot and itinerary cancellation result dialogs moved to `ConfirmedItineraryCancellationResults.tsx`; service calls, validation, state resets, refresh behavior, and primary itinerary rendering remain in the page.
 - Compatibility strategy: pass only result values, selected guide-slot label, and existing close/reset callbacks; preserve dialog labels, amount breakdowns, cancellation reference, refund formatting, and route/API behavior.
 
+## DailyMomentDayView baseline and extraction design
+
+- Status: COMPLETED after the UI-focused Playwright group passed 6/6.
+- Incoming contract: default `DailyMomentDayView` route owns day accordion state, daily moment mutations, ratings/charges, uploads, and PDF export; cards use the local Not Visited and KM dialogs.
+- Completed boundary: `DailyMomentDayDialogs.tsx` owns only the two reusable dialog presentations and receives async save callbacks; service calls and day state remain in the page.
+- Compatibility strategy: preserve field labels, validation text, callback timing, opening/closing KM payload values, status reason submission, and modal close/reset behavior while removing dialog-local explicit-`any` catches.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.
