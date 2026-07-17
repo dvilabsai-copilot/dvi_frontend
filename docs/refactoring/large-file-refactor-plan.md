@@ -132,6 +132,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: timeline row name/time/distance normalization moved to `AutoFitHerePreviewTimelineUtils.ts`; result derivation, rescue/removal rules, state ownership, and view context remain in the dialog.
 - Compatibility strategy: preserve fallback field precedence, formatting, labels, and all callback/context contracts while keeping the utility pure and side-effect free.
 
+## LocationsPreviewPage baseline and extraction design
+
+- Status: COMPLETED after the authenticated locations group passed 3/3.
+- Incoming contract: `LocationsPreviewPage` owns preview data loading, via/suggested route CRUD, validation, pagination, exports, and the `LocationsPreviewView` context.
+- Completed boundary: compact pagination item calculation moved to `locationsPreviewPagination.ts`; all state, API calls, validation, export handlers, and context assembly remain in the page.
+- Compatibility strategy: preserve current/total page boundary behavior, ellipsis ordering, and existing view context field names without changing route or API behavior.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

@@ -15,6 +15,7 @@ import {
 import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
 import { AutoSuggestSelect, AutoSuggestOption } from "@/components/AutoSuggestSelect";
 import { LocationsPreviewView } from "./LocationsPreviewView";
+import { getCompactPaginationItems, type PaginationItem } from "./locationsPreviewPagination";
 export default function LocationsPreviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -129,30 +130,6 @@ const suggestedRouteTotalPages = Math.max(
   1,
   Math.ceil(suggestedRoutes.length / suggestedRoutePageSize)
 );
-type PaginationItem = number | "ellipsis";
-const getCompactPaginationItems = (
-  totalPages: number,
-  currentPage: number
-): PaginationItem[] => {
-  if (totalPages <= 5) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1);
-  }
-  if (currentPage <= 3) {
-    return [1, 2, 3, "ellipsis", totalPages];
-  }
-  if (currentPage >= totalPages - 2) {
-    return [1, "ellipsis", totalPages - 2, totalPages - 1, totalPages];
-  }
-  return [
-    1,
-    "ellipsis",
-    currentPage - 1,
-    currentPage,
-    currentPage + 1,
-    "ellipsis",
-    totalPages,
-  ];
-};
 const renderHighlightedRouteSuggestion = (route: string) => {
   const query = routeSuggestionSearch.trim();
   if (!query) return route;

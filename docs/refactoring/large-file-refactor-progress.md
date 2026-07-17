@@ -214,6 +214,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, focused ESLint for the extracted utility, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:itinerary` passed (16/16, including manual hotspot preview coverage). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 18 — LocationsPreviewPage.tsx
+
+- Starting line count: 1005 physical lines in the current authored-source scan.
+- Reason: the locations preview controller combined route/toll loading, pagination state, suggested-route validation, CRUD mutations, CSV/Excel exports, and the view context assembly.
+- Extracted module: `src/pages/locations/locationsPreviewPagination.ts` owns the pure compact pagination-item calculation. The page retains all API orchestration, validation, exports, mutations, and context ownership.
+- Ending line count: 982 physical lines; the extracted utility module is 10 lines.
+- Compatibility: pagination item order/ellipsis behavior, current-page boundaries, table callbacks, API payloads, export output, and view context remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the extracted utility, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:locations` passed (3/3). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit/EPIPE without a returned source failure. The parent retains its existing context/explicit-`any` contract.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
