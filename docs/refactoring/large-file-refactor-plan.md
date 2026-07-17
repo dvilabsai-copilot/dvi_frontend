@@ -111,6 +111,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: `ChipInput.tsx` owns only chip parsing/validation and keyboard/focus presentation; the parent keeps form state, option effects, payload mapping, API mutation behavior, and navigation.
 - Compatibility strategy: pass controlled `value`/`onChange` props, preserve chip validation and key handling, and retain existing form field names, labels, and save timing.
 
+## LocationsPreviewView baseline and extraction design
+
+- Status: COMPLETED after the authenticated locations group passed 3/3.
+- Incoming contract: `LocationsPreviewView` receives a broad context from the locations preview page and renders filter controls, route/toll tables, exports, and CRUD dialogs.
+- Completed boundary: source/destination filter presentation moved to `LocationsPreviewHeader.tsx`; the parent retains all context orchestration and remaining route/toll UI.
+- Compatibility strategy: pass the existing context object, preserve source-change destination reset, option lists, Get Info callback, navigation, and labels without changing API requests.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

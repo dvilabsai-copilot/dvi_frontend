@@ -184,6 +184,16 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 - Validation: `npx tsc --noEmit`, focused ESLint for `ChipInput.tsx`, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:hotels` passed (11/11). The required aggregate `npm run e2e:group` reached the activities group before the five-minute shell timeout/EPIPE; no hotel-form assertion failure was returned. The parent retains its pre-existing dynamic-response `any` diagnostics.
 - Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
 
+## Iteration 15 — LocationsPreviewView.tsx
+
+- Starting line count: 1043 physical lines in the current authored-source scan.
+- Reason: the locations preview view combined the source/destination filter bar with location details, toll editing, via-route CRUD, suggested-route tables, pagination, exports, and multiple dialogs.
+- Extracted module: `src/pages/locations/LocationsPreviewHeader.tsx` owns the controlled source/destination filter bar and Get Info action. The parent retains all route/toll state, table markup, dialogs, pagination, and API callbacks.
+- Ending line count: 1000 physical lines; the extracted header module is 21 lines.
+- Compatibility: `/locations/:id/preview` filter values, dependent destination reset, autosuggest options, Get Info callback, navigation, and labels remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the extracted header, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:locations` passed (3/3). The required aggregate `npm run e2e:group` timed out at the five-minute shell limit without a returned source failure. The parent retains its existing context/explicit-`any` contract.
+- Status: COMPLETED locally; generated Playwright artifacts remain untracked and excluded from commits.
+
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

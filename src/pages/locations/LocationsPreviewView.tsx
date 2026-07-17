@@ -1,67 +1,24 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2, Copy, FileSpreadsheet, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { LocationAutosuggestInput } from "./components/LocationAutosuggestInput";
 import { AutoSuggestSelect } from "@/components/AutoSuggestSelect";
 import { locationsApi } from "@/services/locations";
+import { LocationsPreviewHeader } from "./LocationsPreviewHeader";
 
 export function LocationsPreviewView({ context }: { context: Record<string, any> }) {
   const { addRouteModalOpen, addingSuggestionDays, addingSuggestionForm, confirmDeleteSelectedSuggestion, deleteSuggestedRouteId, destinationOptions, editingSuggestionDays, editingSuggestionForm, editingSuggestionId, editingViaRouteId, filteredRouteSuggestions, getCompactPaginationItems, handleAddToSuggestedRoutes, handleCopySuggestedRoutes, handleCopyViaRoutes, handleDeleteSelectedSuggestion, handleDeleteViaRoute, handleEditSelectedSuggestion, handleExportSuggestedRoutesCSV, handleExportSuggestedRoutesExcel, handleExportViaRoutesCSV, handleExportViaRoutesExcel, handleGetInfo, handleSaveEditedSuggestion, handleSaveNewSuggestedRoute, handleUpdateTolls, isAddSuggestionDetailsStep, location, navigate, openAddViaRouteDialog, openEditViaRouteDialog, pageLoading, renderHighlightedRouteSuggestion, resetAddSuggestionState, resetViaRouteForm, resizeSuggestionDays, routeSuggestionSearch, routeSuggestions, saveViaRoute, selectedDestination, selectedSource, setAddRouteModalOpen, setAddingSuggestionDays, setAddingSuggestionForm, setDeleteSuggestedRouteId, setDeleteViaRouteId, setEditingSuggestionDays, setEditingSuggestionForm, setEditingSuggestionId, setEditingViaRouteId, setIsAddSuggestionDetailsStep, setLastViaRouteLookupValue, setRouteSuggestionSearch, setSelectedDestination, setSelectedSource, setSuggestedRouteCurrentPage, setSuggestedRoutePageSize, setTolls, setViaRouteCurrentPage, setViaRouteDialogOpen, setViaRouteForm, setViaRoutePageSize, sourceOptions, suggestedRouteCurrentPage, suggestedRoutePageSize, suggestedRouteTotalPages, suggestedRoutes, suggestionDayOptions, tolls, viaRouteCurrentPage, viaRouteDeleting, viaRouteDialogOpen, viaRouteForm, viaRouteLookupLoading, viaRoutePageSize, viaRoutePlaceOptions, viaRouteSaving, viaRouteTotalPages, viaRoutes } = context;
   const { deleteViaRouteId } = context;
- if (pageLoading) {
+  if (pageLoading) {
   return (
     <div className="p-6">
       <p>Loading...</p>
     </div>
   );
 }
-
   return (
     <div className="p-6 space-y-6">
-      {/* Back button */}
-      <Button variant="outline" onClick={() => navigate("/locations")}>
-        â† Back to List
-      </Button>
-
-      {/* Filter Bar */}
-      <div className="bg-white rounded-lg border p-4">
-        <h3 className="text-lg font-semibold mb-4">Filter</h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div>
-    <label className="text-sm font-medium mb-2 block">Source Location *</label>
-    <AutoSuggestSelect
-      mode="single"
-      value={selectedSource}
-      onChange={(value) => {
-        const nextValue = String(value || "");
-        setSelectedSource(nextValue);
-        setSelectedDestination("");
-      }}
-      options={sourceOptions}
-      placeholder="Choose Source Location"
-    />
-  </div>
-
-  <div>
-    <label className="text-sm font-medium mb-2 block">Destination Location *</label>
-    <AutoSuggestSelect
-      mode="single"
-      value={selectedDestination}
-      onChange={(value) => setSelectedDestination(String(value || ""))}
-      options={destinationOptions}
-      placeholder="Choose Destination Location"
-    />
-  </div>
-
-  <div className="flex items-end">
-    <Button onClick={handleGetInfo} className="w-full">
-      Get Info
-    </Button>
-  </div>
-</div>
-      </div>
+      <LocationsPreviewHeader context={context} />
 
       {/* Location Details Section */}
       {location && (
