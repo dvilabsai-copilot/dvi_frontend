@@ -11,11 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Check, ChevronsUpDown, ChevronRight, X, Pencil, Trash2, Star, Copy, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarIcon, Check, ChevronsUpDown, ChevronRight, X, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatTime24As12 } from "@/components/itinerary/TimePickerPopover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ActivityDatePickerField, ActivityTimePickerField } from "./ActivityFormFields";
+import { ActivityReviewTab } from "./ActivityReviewTab";
+import { ActivityPreviewTab } from "./ActivityPreviewTab";
 import { TABS, buildActivityImageUrl, buildDuration, durationHours, durationMinutes, durationSeconds, splitDuration, formatReviewDateTime, formatYmdLabel } from "./activityForm.utils";
 import type { ActivityPricingUnitType } from "./activityForm.utils";
 
@@ -858,459 +860,47 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
             </div>
           )}
 
-{/* Tab 3: Feedback & Review */}
-{activeTab === 3 && (
-  <div className="mx-auto max-w-[929px] space-y-4">
-    <h2 className="text-[18px] font-semibold text-primary">
-      Review & Feedback
-    </h2>
-
-    <div className="grid grid-cols-[224px_1fr] gap-6 items-start">
-      {/* Left: Rating */}
-      <Card className="h-[413px] w-[224px] rounded-2xl border-[#eadcff] shadow-none">
-        <CardContent className="p-4">
-          <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
-            Rating
-          </h3>
-
-          <Select
-            value={reviewRating}
-            onValueChange={setReviewRating}
-            disabled={isReadonly}
-          >
-            <SelectTrigger className="h-[44px] rounded-xl border-[#eadcff] text-[14px]">
-              <SelectValue placeholder="Select Rating" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">1 Star</SelectItem>
-              <SelectItem value="2">2 Stars</SelectItem>
-              <SelectItem value="3">3 Stars</SelectItem>
-              <SelectItem value="4">4 Stars</SelectItem>
-              <SelectItem value="5">5 Stars</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <p className="my-4 text-[13px] leading-5 text-[#8a86a3]">
-            All reviews are from genuine customers
-          </p>
-
-          <Label className="text-[13px] font-semibold text-[#1f2937]">
-            Feedback <span className="text-red-500">*</span>
-          </Label>
-
-          <Textarea
-            value={reviewFeedback}
-            onChange={(e) => setReviewFeedback(e.target.value)}
-            disabled={isReadonly}
-            className="mt-3 h-[120px] resize-none rounded-xl border-[#eadcff] px-3 py-2 text-[14px]"
-          />
-
-          {!isReadonly && (
-            <div className="mt-3 flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={cancelEditReview}
-                className="h-[38px] rounded-xl px-5 text-[14px]"
-              >
-                Cancel
-              </Button>
-
-              <Button
-                type="button"
-                onClick={handleSaveReview}
-                className="h-[38px] rounded-xl px-5 text-[14px]"
-              >
-                {editingReviewId ? "Update" : "Save"}
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Right: List of Reviews */}
-      <Card className="h-[413px] min-w-0 rounded-2xl border-[#eadcff] shadow-none">
-        <CardContent className="p-4">
-          <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
-            List of Reviews
-          </h3>
-
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-[15px]">Show</span>
-
-            <Select
-              value={String(reviewPageSize)}
-              onValueChange={(v) => setReviewPageSize(Number(v))}
-            >
-              <SelectTrigger className="h-[40px] w-[74px] rounded-xl border-[#eadcff]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="10">10</SelectItem>
-                <SelectItem value="25">25</SelectItem>
-                <SelectItem value="50">50</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <span className="text-[15px]">entries</span>
-          </div>
-
-          <div className="mb-3 flex items-center gap-3">
-            <span className="text-[15px]">Search:</span>
-
-            <Input
-              value={reviewSearch}
-              onChange={(e) => setReviewSearch(e.target.value)}
-              className="h-[42px] w-[220px] rounded-xl border-[#eadcff] text-[14px]"
+          {/* Tab 3: Feedback & Review */}
+          {activeTab === 3 && (
+            <ActivityReviewTab
+              isReadonly={isReadonly}
+              reviewRating={reviewRating}
+              setReviewRating={setReviewRating}
+              reviewFeedback={reviewFeedback}
+              setReviewFeedback={setReviewFeedback}
+              cancelEditReview={cancelEditReview}
+              handleSaveReview={handleSaveReview}
+              editingReviewId={editingReviewId}
+              reviewPageSize={reviewPageSize}
+              setReviewPageSize={setReviewPageSize}
+              reviewSearch={reviewSearch}
+              setReviewSearch={setReviewSearch}
+              handleReviewCopy={handleReviewCopy}
+              handleReviewExcel={handleReviewExcel}
+              handleReviewCSV={handleReviewCSV}
+              paginatedReviews={paginatedReviews}
+              reviewPage={reviewPage}
+              renderStars={renderStars}
+              startEditReview={startEditReview}
+              deleteReview={deleteReview}
+              filteredReviews={filteredReviews}
+              setReviewPage={setReviewPage}
+              totalReviewPages={totalReviewPages}
+              goToPrevTab={goToPrevTab}
+              goToNextTab={goToNextTab}
             />
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReviewCopy}
-              className="h-[42px] min-w-[92px] rounded-xl border-[#7c5cff] text-[#4f46e5]"
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReviewExcel}
-              className="h-[42px] min-w-[92px] rounded-xl border-green-500 text-green-600"
-            >
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
-              Excel
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleReviewCSV}
-              className="h-[42px] min-w-[84px] rounded-xl border-gray-300 text-gray-600"
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              CSV
-            </Button>
-          </div>
-
-          <div className="overflow-hidden rounded-xl border border-[#eadcff]">
-            <Table className="w-full text-[13px]">
-              <TableHeader className="bg-[#fbf7ff]">
-                <TableRow>
-                  <TableHead className="w-[75px] px-3 py-2 font-semibold">
-                    S.NO â†•
-                  </TableHead>
-                  <TableHead className="w-[95px] px-3 py-2 font-semibold">
-                    RATING â†•
-                  </TableHead>
-                  <TableHead className="w-[135px] px-3 py-2 font-semibold">
-                    DESCRIPTION â†•
-                  </TableHead>
-                  <TableHead className="w-[166px] px-3 py-2 font-semibold whitespace-nowrap">
-                    CREATED ON â†•
-                  </TableHead>
-                  <TableHead className="w-[103px] px-3 py-2 text-center font-semibold whitespace-nowrap">
-                    ACTIONS â†•
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {paginatedReviews.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-gray-500">
-                      No data available in table
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedReviews.map((review, index) => (
-                    <TableRow key={review.id}>
-                      <TableCell className="px-3 py-2">
-                        {(reviewPage - 1) * reviewPageSize + index + 1}
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2">
-                        <div className="flex items-center gap-0.5">
-                          {renderStars(review.rating)}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2">
-                        {review.description}
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2 whitespace-nowrap">
-                        {formatReviewDateTime(review.createdOn)}
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg border-[#eadcff]"
-                            onClick={() => startEditReview(review)}
-                            disabled={isReadonly}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-
-                         <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 rounded-lg border-[#eadcff]"
-                          onClick={() => {
-                            const confirmed = window.confirm("Delete this review?");
-                            if (!confirmed) return;
-
-                            deleteReview(review.id);
-                          }}
-                          disabled={isReadonly}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-[14px] text-gray-500">
-              Showing{" "}
-              {filteredReviews.length > 0
-                ? (reviewPage - 1) * reviewPageSize + 1
-                : 0}{" "}
-              to {Math.min(reviewPage * reviewPageSize, filteredReviews.length)} of{" "}
-              {filteredReviews.length} entries
-            </span>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={reviewPage <= 1}
-                onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
-                className="h-[40px]"
-              >
-                Previous
-              </Button>
-
-              <Button
-                variant="outline"
-                disabled={reviewPage >= totalReviewPages}
-                onClick={() =>
-                  setReviewPage((p) => Math.min(totalReviewPages, p + 1))
-                }
-                className="h-[40px]"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-
-    <div className="flex items-center justify-between border-t pt-4">
-      <Button variant="secondary" onClick={goToPrevTab}>
-        Back
-      </Button>
-
-      {!isReadonly && (
-        <Button onClick={goToNextTab}>
-          Update & Continue
-        </Button>
-      )}
-    </div>
-  </div>
-)}
+          )}
           {/* Tab 4: Preview */}
           {activeTab === 4 && (
-            <div className="space-y-6">
-              <h2 className="text-xl font-medium">Preview</h2>
-
-              {/* Basic Info */}
-              <div>
-                <h3 className="text-lg font-medium text-primary mb-4">
-                  Basic Info
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <Label className="text-gray-500">Activity Title</Label>
-                    <p className="font-medium">{formData.title || "-"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Hotspot Places</Label>
-                    <p className="font-medium">{formData.hotspot || "-"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">
-                      Max Allowed Person Count
-                    </Label>
-                    <p className="font-medium">
-                      {formData.maxAllowedPersonCount}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-gray-500">Duration</Label>
-                    <p className="font-medium">{formData.duration}</p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <Label className="text-gray-500">Description</Label>
-                  <p className="font-medium">{formData.description || "-"}</p>
-                </div>
-              </div>
-
-              {/* Images */}
-              {(serverImages.length > 0 || imagePreviews.length > 0) && (
-                <div>
-                  <h3 className="text-lg font-medium text-primary mb-4">
-                    Images
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {serverImages.map((img, index) => (
-                      <img
-                        key={`sv-${img.id}`}
-                        src={img.url}
-                        alt={`Image ${index + 1}`}
-                        className="w-20 h-20 object-cover rounded"
-                      />
-                    ))}
-                    {imagePreviews.map((preview, index) => (
-                      <img
-                        key={index}
-                        src={preview}
-                        alt={`Preview ${index}`}
-                        className="w-20 h-20 object-cover rounded"
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Default Available Time */}
-              <div>
-                <h3 className="text-lg font-medium text-primary mb-4">
-                  Default Available Time
-                </h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-pink-100">
-                      <TableHead>S.NO</TableHead>
-                      <TableHead>START TIME</TableHead>
-                      <TableHead>END TIME</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {formData.defaultAvailableTimes.map((time, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{time.startTime ? formatTime24As12(time.startTime) : "-"}</TableCell>
-                        <TableCell>{time.endTime ? formatTime24As12(time.endTime) : "-"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Special Day */}
-              <div>
-                <h3 className="text-lg font-medium text-primary mb-4">
-                  Special Day
-                </h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-pink-100">
-                      <TableHead>S.NO</TableHead>
-                      <TableHead>DATE</TableHead>
-                      <TableHead>START TIME</TableHead>
-                      <TableHead>END TIME</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {formData.specialDays.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={4}
-                          className="text-center text-gray-500"
-                        >
-                          No Special Time Found !!!
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      formData.specialDays.map((day, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>{formatYmdLabel(day.date)}</TableCell>
-                          <TableCell>
-                            {day.timeSlots[0]?.startTime ? formatTime24As12(day.timeSlots[0].startTime) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {day.timeSlots[0]?.endTime ? formatTime24As12(day.timeSlots[0].endTime) : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Reviews */}
-              <div>
-                <h3 className="text-lg font-medium text-primary mb-4">Review</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-pink-100">
-                      <TableHead>S.NO</TableHead>
-                      <TableHead>RATING</TableHead>
-                      <TableHead>DESCRIPTION</TableHead>
-                      <TableHead>CREATED ON</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {formData.reviews.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={4}
-                          className="text-center text-gray-500"
-                        >
-                          No reviews yet
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      formData.reviews.map((review, index) => (
-                        <TableRow key={review.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell>{review.rating} STARS</TableCell>
-                          <TableCell>{review.description}</TableCell>
-                          <TableCell>{formatReviewDateTime(review.createdOn)}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {/* Buttons */}
-              <div className="flex items-center justify-between pt-6 border-t">
-                <Button variant="secondary" onClick={goToPrevTab}>
-                  Back
-                </Button>
-                <Button onClick={handleSubmit}>
-                  {isEdit ? "Submit" : "Submit"}
-                </Button>
-              </div>
-            </div>
+            <ActivityPreviewTab
+              formData={formData}
+              serverImages={serverImages}
+              imagePreviews={imagePreviews}
+              isEdit={isEdit}
+              goToPrevTab={goToPrevTab}
+              handleSubmit={handleSubmit}
+            />
           )}
-
-
         </CardContent>
          </Card>
       {deleteImageIndex !== null && (
@@ -1352,3 +942,4 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
     </div>
   );
 }
+
