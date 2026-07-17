@@ -76,6 +76,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Completed boundary: assignment and block modal markup moved to `VehicleAvailabilityActionModals.tsx`; lookup loading, filter/search state, chart rendering, API calls, and modal state transitions remain in the page.
 - Compatibility strategy: the new component receives the existing selected-cell state, option lists, setters, and submit callbacks; no endpoint, payload, label, or action timing changed.
 
+## ManualFitHerePreviewDialog baseline and extraction design
+
+- Status: COMPLETED after the dialog contract extraction compiled and the grouped itinerary suite executed without a Fit Here assertion failure.
+- Incoming contract: `ManualFitHerePreviewDialog` is consumed by the manual and auto Fit Here flows; `AutoFitHerePreviewDialog` imports `ManualFitHerePreviewResponse` and `ManualFitHereResultType` from the existing module path.
+- Completed boundary: shared response/result types, loading-step metadata, and controlled dialog props moved to `ManualFitHerePreviewTypes.ts`; the original module re-exports the public response/result types and retains all result interpretation, timeline normalization, acknowledgement state, and view composition.
+- Compatibility strategy: preserve the original type import path, callback option shape, loading-step labels/order, and `ManualFitHerePreviewDialogView` context contract without changing API calls or UI markup.
+
 ## Validation policy
 
 For each candidate: record a behavior baseline, run the narrow baseline tests, add only focused characterization tests when coverage is missing, extract one responsibility at a time, then run TypeScript, focused lint/tests, production build, and relevant Playwright coverage. Existing unrelated repository lint failures are recorded separately rather than hidden.

@@ -86,6 +86,20 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
 
+## Iteration 10 — ManualFitHerePreviewDialog.tsx
+
+- Starting line count: 1101 physical lines in the current authored-source scan.
+- Reason: the manual Fit Here preview dialog mixed its public response/prop contract and loading-step model with result interpretation, timeline normalization, removal-proof presentation data, and dialog orchestration. The visual markup was already isolated in `ManualFitHerePreviewDialogView.tsx`.
+- Extracted module: `src/components/itinerary/manual-fit/ManualFitHerePreviewTypes.ts` owns the shared result union, response shape, loading-step metadata, and controlled dialog props. The original module re-exports the response/result types so `AutoFitHerePreviewDialog` and existing consumers retain their import path.
+- Ending line count: 877 physical lines; the extracted contract module is 177 lines.
+- Compatibility: manual Fit Here and Auto Fit Here imports, dialog callbacks, loading labels, result variants, acknowledgement payloads, and route preview behavior remain unchanged.
+- Validation: `npx tsc --noEmit` and focused ESLint for both modules passed. `E2E_ALLOW_WRITES=true npm run e2e:group:itinerary` executed 16 tests; 13 passed and 3 failed in existing environment-sensitive flows (guide-total text, random five-day fixture day visibility, and vehicle-only details visibility) after unrelated API/browser timing, with no Fit Here assertion failure reported. Generated failure artifacts remain untracked and are excluded from commits.
+- Status: COMPLETED locally; focused source validation is green and the grouped itinerary failures are recorded as environment/runtime failures rather than attributed to this type-only extraction.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
+
 ## Iteration 9 — VehicleAvailabilityPage.tsx
 
 - Starting line count: 1173 physical lines in the current authored-source scan.
