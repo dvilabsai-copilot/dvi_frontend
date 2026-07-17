@@ -8,8 +8,45 @@ import { formatHeaderDate } from "../utils/timeline.utils";
 
 export interface ItineraryDayHeaderProps { context: Record<string, any>; }
 
-export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({ context }) => {
-  const { day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirect, canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName, readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText, intercityDistance, openGuideModal, setDeleteGuideModal } = context;
+export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
+  context,
+}) => {
+  const {
+    day,
+    itinerary,
+    summaryStickyHeight,
+    routeNeedsRebuild,
+    dayHasManualOverride,
+    isRebuilding,
+    handleRebuildRoute,
+    handleUpdateRouteTimesDirect,
+    canShowGuideActionButton,
+    openSourcePreview,
+    canShowAddHotspotButton,
+    openAddHotspotModal,
+    addHotspotCta,
+    addHotspotLocationName,
+    readOnly,
+    isWholeItineraryGuideMode,
+    handleWholeItineraryGuideClick,
+    handleAddGuideClick,
+    currentGuideAssignment,
+    guestFoodPreferenceText,
+    intercityDistance,
+    openGuideModal,
+    setDeleteGuideModal,
+  } = context;
+
+  const itineraryPreference = Number(
+    itinerary?.itineraryPreference ??
+    itinerary?.itinerary_preference ??
+    0
+  );
+
+  const shouldShowFoodPreference =
+    itineraryPreference === 1 ||
+    itineraryPreference === 3;
+
   return (
 <div
   id={`itinerary-day-${day.dayNumber}`}
@@ -180,11 +217,19 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({ context 
     </div>
 
     <div className="contents">
-      <div className="order-1 flex shrink-0 items-center gap-2 text-sm lg:col-start-1 lg:row-start-2">
-        <Utensils className="h-5 w-5 text-[#d546ab]" />
-        <span className="font-semibold text-[#d546ab]">Food Preference:</span>
-        <span className="font-medium">{guestFoodPreferenceText}</span>
-      </div>
+     {shouldShowFoodPreference && (
+  <div className="order-1 flex shrink-0 items-center gap-2 text-sm lg:col-start-1 lg:row-start-2">
+    <Utensils className="h-5 w-5 text-[#d546ab]" />
+
+    <span className="font-semibold text-[#d546ab]">
+      Food Preference:
+    </span>
+
+    <span className="font-medium">
+      {guestFoodPreferenceText}
+    </span>
+  </div>
+)}
 
         {canShowGuideActionButton && (
           <Button
