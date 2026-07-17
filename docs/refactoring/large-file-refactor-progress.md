@@ -70,3 +70,18 @@ Rescan authored source files and select the highest-value remaining file over 10
 ## Next iteration
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate until a cascade-safe split is mapped.
+
+## Iteration 6 — AgentFormPage.tsx
+
+- Starting line count: 1265 physical lines in the current authored-source scan.
+- Reason: four-tab agent edit wizard mixed data loading, staff persistence/CRUD, wallet history/actions, configuration state, tab markup, and two modal presentations.
+- Extracted module: `src/pages/agent/AgentFormTabs.tsx` owns the configuration tab, staff dialog, and wallet dialog presentation with typed state props. API calls, local-storage staff overrides, validation, state transitions, and navigation remain in `AgentFormPage`.
+- Ending line count: 900 physical lines; the extracted module is 504 lines.
+- Compatibility: `/agent/:id/edit`, default export, tab labels, field labels, dialog copy, wallet/staff callbacks, configuration payload, local-storage keys, and existing API fallback behavior remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for `AgentFormTabs.tsx`, production `npm run build`, and `E2E_ALLOW_WRITES=true npm run e2e:group:staff-agents` passed (10/10). The parent retains its pre-existing explicit-`any` and hook-dependency diagnostics; the extracted module adds none. Build output retains existing dependency/browser/chunk warnings.
+- Aggregate validation: `E2E_ALLOW_WRITES=true npm run e2e:group` was attempted after this iteration but exceeded the five-minute command timeout while progressing through the grouped suites; no source assertion failure was returned before timeout. Focused validation remains green.
+- Status: COMPLETED locally; the aggregate timeout is recorded as an environment/runtime limitation rather than a passing result.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.

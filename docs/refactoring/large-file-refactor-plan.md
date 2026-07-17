@@ -14,7 +14,7 @@ Authored files were enumerated with `rg --files src` for `.ts`, `.tsx`, `.js`, `
 | COMPLETED | `src/services/itinerary.ts` | 879 / 879 | API service facade | high | PDF, route actions, and back-office domains extracted behind compatibility facade |
 | NOT_STARTED | `src/pages/book-activities/BookActivitiesPage.css` | 1220 / 1220 | stylesheet | medium | map selectors before any cascade-safe split |
 | COMPLETED | `src/pages/locations/LocationsPage.tsx` | 933 / 933 | page/orchestration | high | dialogs extracted into typed sibling presentation module |
-| NOT_STARTED | `src/pages/agent/AgentFormPage.tsx` | 1164 / 1164 | complex form | high | form sections, validation, payload mapping |
+| COMPLETED | `src/pages/agent/AgentFormPage.tsx` | 900 / 900 | complex form | high | configuration, staff, and wallet presentation extracted into typed sibling module |
 | NOT_STARTED | `src/pages/dashboard/DashboardAdminView.tsx` | 1115 / 1106 | dashboard presentation | medium | role-specific sections and widgets |
 | NOT_STARTED | `src/components/itinerary/manual-fit/ManualFitHerePreviewDialog.tsx` | 1101 / 1101 | dialog/orchestration | high | shared timeline rows only after comparison |
 | NOT_STARTED | `src/pages/accounts/AccountsManager.tsx` | 1064 / 1064 | manager/page | high | loading, filters, table, dialogs |
@@ -47,6 +47,13 @@ The next iteration is exactly one file: `src/pages/locations/LocationsPage.tsx`,
 - Status: COMPLETED after focused location Playwright coverage passed 3/3.
 - Incoming contract: default `LocationsPage` export, `/locations` route, `locationsApi`, navigation to `/locations/:id/preview`, and child add/edit dialogs.
 - Completed boundary: orchestration/API state remains in the page while delete-selected, location-name, rename, and toll dialog presentation lives in `src/pages/locations/components/LocationDialogs.tsx`; labels, selectors, toast messages, pagination, filters, and callback timing were preserved.
+
+## AgentFormPage baseline and extraction design
+
+- Status: COMPLETED after the authenticated staff/agent Playwright group passed 10/10 before and after extraction.
+- Incoming contract: default `AgentFormPage` export at `/agent/:id/edit`; the page loads agent, staff, wallet, subscription, and configuration data through `AgentAPI`.
+- Completed boundary: configuration tab markup, staff modal markup, and wallet modal markup moved to `src/pages/agent/AgentFormTabs.tsx`; data loading, validation, API fallback order, local-storage staff overrides, wallet refresh, and navigation remain in the page.
+- Compatibility strategy: components receive controlled values/setters and callbacks only; no request paths, payload fields, labels, tab order, local-storage keys, or toast messages changed.
 
 ## Validation policy
 
