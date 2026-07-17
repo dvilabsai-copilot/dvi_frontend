@@ -1,5 +1,45 @@
 // REPLACE-WHOLE-FILE: src/services/itinerary.ts
-import { api, API_BASE_URL, getToken } from "@/lib/api";
+import { api } from "@/lib/api";
+import {
+  downloadAuthenticatedFile,
+  fetchPdfDocument,
+} from "./itineraryPdf";
+export type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
+import type { PdfDocumentOptions, PdfDocumentResult } from "./itineraryPdf";
+import { itineraryRouteActions } from "./itineraryRouteActions";
+import {
+  addIncidentalExpense,
+  deleteIncidentalHistory,
+  downloadHotelVoucherPdf,
+  downloadInvoicePdf,
+  downloadPluckCardPdf,
+  downloadVehicleVoucherPdf,
+  downloadVoucherPdf,
+  getAccountsItineraries,
+  getCancelledItineraries,
+  getConfirmedAgents,
+  getConfirmedGuideAssignments,
+  getConfirmedItineraries,
+  getConfirmedItineraryDetails,
+  getConfirmedLocations,
+  getHotelInfo,
+  getIncidentalAvailableComponents,
+  getIncidentalAvailableMargin,
+  getIncidentalHistory,
+  getInvoiceData,
+  getLatestAgents,
+  getLatestLocations,
+  getPluckCardData,
+  getPluckCardDataByConfirmedId,
+  getRoomAvailability,
+  getVoucherDetails,
+  searchHotels,
+  cancelConfirmedGuideSlot,
+  type AccountsItineraryListParams,
+  type CancelledItineraryListParams,
+  type ConfirmedItineraryListParams,
+  type HotelSearchParams,
+} from "./itineraryBackOffice";
 
 export type ItinerarySaveType =
   | "itineary_basic_info"
@@ -135,91 +175,17 @@ type LatestItineraryParams = {
   staffId?: number | null;
 };
 
-export type PdfDocumentOptions = {
-  auth?: boolean;
-};
-
-export type PdfDocumentResult = {
-  fileName: string;
-  objectUrl: string;
-};
-
 export const ItineraryService = {
-    async fetchPdfDocument(path: string, fallbackFileName: string, options: PdfDocumentOptions = {}): Promise<PdfDocumentResult> {
-    const auth = options.auth !== false;
-    const token = auth ? getToken() : "";
-    const res = await fetch(`${API_BASE_URL}/${path.replace(/^\/+/, '')}`, {
-      method: "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    const contentType = res.headers.get("content-type") || "";
-
-    if (!res.ok) {
-      if (res.status === 401 && auth) {
-        localStorage.removeItem("accessToken");
-        window.location.href = "/login";
-        throw new Error("Session expired. Please login again.");
-      }
-      const text = await res.text().catch(() => "");
-      let message = `Download failed: ${res.status} ${res.statusText}`.trim();
-
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed?.message) {
-          message = Array.isArray(parsed.message)
-            ? parsed.message.join(", ")
-            : String(parsed.message);
-        }
-      } catch {
-        if (text) message = `${message} ${text}`.trim();
-      }
-
-      throw new Error(message);
-    }
-
-    if (contentType.includes("application/json")) {
-      const text = await res.text().catch(() => "");
-      let message = "Download failed";
-
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed?.message) {
-          message = Array.isArray(parsed.message)
-            ? parsed.message.join(", ")
-            : String(parsed.message);
-        }
-      } catch {
-        if (text) message = text;
-      }
-
-      throw new Error(message);
-    }
-
-    const blob = await res.blob();
-    const disposition = res.headers.get("content-disposition") || "";
-    const nameMatch =
-      disposition.match(/filename\*=(?:UTF-8'')?([^;]+)/i) ||
-      disposition.match(/filename="?([^"]+)"?/i);
-    const fileName = decodeURIComponent(
-      (nameMatch?.[1] || fallbackFileName).replace(/(^["']|["']$)/g, ""),
-    );
-    return {
-      fileName,
-      objectUrl: window.URL.createObjectURL(blob),
-    };
+  async fetchPdfDocument(
+    path: string,
+    fallbackFileName: string,
+    options: PdfDocumentOptions = {},
+  ): Promise<PdfDocumentResult> {
+    return fetchPdfDocument(path, fallbackFileName, options);
   },
 
-    async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
-    const { fileName, objectUrl } = await this.fetchPdfDocument(path, fallbackFileName);
-    const anchor = document.createElement("a");
-    anchor.href = objectUrl;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => window.URL.revokeObjectURL(objectUrl), 30000);
-    return fileName;
+  async downloadAuthenticatedFile(path: string, fallbackFileName: string) {
+    return downloadAuthenticatedFile(path, fallbackFileName);
   },
 
   async create(data: any, type?: ItinerarySaveType) {
@@ -548,19 +514,19 @@ export const ItineraryService = {
 
 // inside ItineraryService
   async getHotelRoomDetails(quoteId: string, itineraryRouteId?: number, clearCache: boolean = false) {
-    // ✅ Add timestamp to URL to bust browser cache
+    // âœ… Add timestamp to URL to bust browser cache
     const timestamp = Date.now();
     
-    // ✅ Build URL with clearCache parameter to force backend to bypass its memory cache
+    // âœ… Build URL with clearCache parameter to force backend to bypass its memory cache
     let url = `/itineraries/hotel_room_details/${quoteId}?_ts=${timestamp}`;
     if (itineraryRouteId) {
       url += `&itineraryRouteId=${itineraryRouteId}`;
     }
     if (clearCache) {
-      url += `&clearCache=true`; // ✅ Tell backend to clear its memory cache
+      url += `&clearCache=true`; // âœ… Tell backend to clear its memory cache
     }
     
-    // ✅ Force bypass browser cache with cache-busting headers and no-store cache policy
+    // âœ… Force bypass browser cache with cache-busting headers and no-store cache policy
     const res = await api(url, {
       method: "GET",
       cache: "no-store",
@@ -573,338 +539,7 @@ export const ItineraryService = {
     return res; // api() already returns the JSON response directly
   },
 
-  async deleteHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api(`itineraries/hotspot/${planId}/${routeId}/${hotspotId}`, {
-      method: "DELETE",
-    });
-  },
-
-  async rebuildRoute(planId: number, routeId: number) {
-    return api(`itineraries/${planId}/route/${routeId}/rebuild`, {
-      method: "POST",
-    });
-  },
-
-  async rebuildRouteHotspots(planId: number, routeId: number) {
-    return api(`itineraries/${planId}/routes/${routeId}/rebuild-hotspots`, {
-      method: "POST",
-    });
-  },
-
-async getAvailableActivities(hotspotId: number, planId?: number, routeId?: number) {
-  const params = new URLSearchParams();
-
-  if (planId) params.set("planId", String(planId));
-  if (routeId) params.set("routeId", String(routeId));
-
-  const query = params.toString();
-
-  return api(`itineraries/activities/available/${hotspotId}${query ? `?${query}` : ""}`, {
-    method: "GET",
-  });
-},
-
-  async previewActivityAddition(data: {
-    planId: number;
-    routeId: number;
-    routeHotspotId: number;
-    hotspotId: number;
-    activityId: number;
-  }) {
-    return api(`itineraries/activities/preview`, {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async previewActivityForAllHotspots(data: {
-    planId: number;
-    routeId: number;
-    activityId: number;
-  }) {
-    return api(`itineraries/activities/preview-all-hotspots`, {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async smartPreviewActivity(
-    planId: number,
-    data: {
-      routeId: number;
-      activityId: number;
-      gapIndex?: number;
-      hotspotId?: number;
-      routeHotspotId?: number;
-      mode?: "preview" | "applyPreview";
-    },
-  ) {
-    return api(`itineraries/${planId}/activity/smart-preview`, {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async smartInsertActivity(
-    planId: number,
-    data: {
-      routeId: number;
-      activityId: number;
-      gapIndex: number;
-      hotspotId?: number;
-      routeHotspotId?: number;
-      allowTopPriorityRemoval?: boolean;
-    },
-  ) {
-    return api(`itineraries/${planId}/activity/smart-insert`, {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async addActivity(data: {
-    planId: number;
-    routeId: number;
-    routeHotspotId: number;
-    hotspotId: number;
-    activityId: number;
-    amount?: number;
-    startTime?: string;
-    endTime?: string;
-    duration?: string;
-    skipConflictCheck?: boolean;
-  }) {
-    return api(`itineraries/activities/add`, {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async deleteActivity(planId: number, routeId: number, activityId: number) {
-    return api(`itineraries/activities/${planId}/${routeId}/${activityId}`, {
-      method: "DELETE",
-    });
-  },
-
-  async getAvailableHotspots(routeId: number) {
-    return api(`itineraries/hotspots/available/${routeId}`, {
-      method: "GET",
-    });
-  },
-
-  async getAvailableHotspotsForAnchor(data: {
-    planId: number;
-    routeId: number;
-    anchorType: "after_travel" | "BETWEEN_ROWS";
-    anchorIndex: number;
-  }) {
-    return api("itineraries/hotspots/available-for-anchor", {
-      method: "POST",
-      body: data,
-    });
-  },
-
-  async addHotspot(planId: number, routeId: number, hotspotId: number) {
-    return api("itineraries/hotspots/add", {
-      method: "POST",
-      body: { planId, routeId, hotspotId },
-    });
-  },
-
-  async previewAddHotspot(
-    planId: number,
-    routeId: number,
-    hotspotId: number,
-    anchor?: HotspotAnchorPayload,
-    options?: {
-      allowTopPriorityRemoval?: boolean;
-      selectedHotspotIds?: number[];
-    },
-  ) {
-    return api(`itineraries/${planId}/manual-hotspot/preview`, {
-      method: "POST",
-      body: {
-        routeId,
-        hotspotId,
-        anchorType: anchor?.anchorType,
-        anchorIndex: anchor?.anchorIndex,
-        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
-        selectedHotspotIds: Array.isArray(options?.selectedHotspotIds)
-          ? options?.selectedHotspotIds
-          : undefined,
-      },
-    });
-  },
-
-  async addManualHotspot(
-    planId: number,
-    routeId: number,
-    hotspotId: number,
-    anchor?: HotspotAnchorPayload,
-    options?: {
-      allowTopPriorityRemoval?: boolean;
-    },
-  ) {
-    return api(`itineraries/${planId}/manual-hotspot`, {
-      method: "POST",
-      body: {
-        routeId,
-        hotspotId,
-        anchorType: anchor?.anchorType,
-        anchorIndex: anchor?.anchorIndex,
-        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
-      },
-    });
-  },
-
-  async previewManualHotspotFitHere(
-    planId: number,
-    payload: ManualFitHerePreviewPayload,
-  ) {
-    return api(`itineraries/${planId}/manual-hotspot/fit-preview`, {
-      method: "POST",
-      body: payload,
-    });
-  },
-
-  async previewManualHotspotAutoFitHere(
-    planId: number,
-    payload: ManualFitHereAutoPreviewPayload,
-  ) {
-    return api(`itineraries/${planId}/manual-hotspot/auto-fit-preview`, {
-      method: "POST",
-      body: payload,
-    });
-  },
-
-  async confirmManualHotspotFitHere(
-    planId: number,
-    payload: {
-      attemptId: string;
-      allowTimingRisk?: boolean;
-      allowPriorityRemoval?: boolean;
-      allowClosedHotspotConflict?: boolean;
-      acknowledgedRemovedHotspotIds?: number[];
-    },
-  ) {
-    return api(`itineraries/${planId}/manual-hotspot/fit-confirm`, {
-      method: "POST",
-      body: payload,
-    });
-  },
-
-  async applyManualHotspots(
-    planId: number,
-    routeId: number,
-    hotspotIds: number[],
-    anchor?: HotspotAnchorPayload,
-    options?: {
-      allowTopPriorityRemoval?: boolean;
-      forceConflictInsertion?: boolean;
-      matrixPreferredSlot?: MatrixPreferredSlotPayload;
-      manualTimingPolicy?: any;
-    },
-  ) {
-    return api(`itineraries/${planId}/manual-hotspots/apply`, {
-      method: "POST",
-      body: {
-        routeId,
-        hotspotIds,
-        anchorType: anchor?.anchorType,
-        anchorIndex: anchor?.anchorIndex,
-        allowTopPriorityRemoval: options?.allowTopPriorityRemoval === true,
-        forceConflictInsertion: options?.forceConflictInsertion === true,
-        matrixPreferredSlot: options?.matrixPreferredSlot,
-        manualTimingPolicy: options?.manualTimingPolicy,
-      },
-    });
-  },
-
-  async buildMissingManualHotspotMatrix(planId: number, routeId: number, candidateHotspotId: number) {
-    return api(`itineraries/${planId}/routes/${routeId}/manual-hotspots/${candidateHotspotId}/build-matrix`, {
-      method: "POST",
-    });
-  },
-
-  async removeManualHotspot(planId: number, hotspotId: number) {
-    return api(`itineraries/${planId}/manual-hotspot/${hotspotId}`, {
-      method: "DELETE",
-    });
-  },
-
-  async updateRouteTimes(
-    planId: number,
-    routeId: number,
-    startTime: string,
-    endTime: string,
-    options?: {
-      previousDayBillingDecisionProvided?: boolean;
-      previousDayBillingConfirmed?: boolean;
-    },
-  ) {
-    return api(`itineraries/${planId}/route/${routeId}/times`, {
-      method: "PATCH",
-      body: {
-        startTime,
-        endTime,
-        previousDayBillingDecisionProvided: options?.previousDayBillingDecisionProvided,
-        previousDayBillingConfirmed: options?.previousDayBillingConfirmed,
-      },
-    });
-  },
-
-  async getAvailableHotels(routeId: number) {
-    return api(`itineraries/hotels/available/${routeId}`, {
-      method: "GET",
-    });
-  },
-
-  async selectHotel(
-    planId: number,
-    routeId: number,
-    hotelId: number,
-    roomTypeId: number,
-    mealPlan?: { all?: boolean; breakfast?: boolean; lunch?: boolean; dinner?: boolean },
-    groupType?: number,  // ✅ Add groupType parameter
-  ) {
-    return api("itineraries/hotels/select", {
-      method: "POST",
-      body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType },  // ✅ Send groupType
-    });
-  },
-
-  async selectVehicleVendor(
-    planId: number,
-    vehicleTypeId: number,
-    vendorEligibleId: number
-  ) {
-    return api("itineraries/vehicles/select-vendor", {
-      method: "POST",
-      body: { planId, vehicleTypeId, vendorEligibleId },
-    });
-  },
-
-  async selectVehicleSlab(
-    planId: number,
-    vehicleTypeId: number,
-    vendorEligibleId: number,
-    timeLimitId: number
-  ) {
-    return api("itineraries/vehicles/select-slab", {
-      method: "POST",
-      body: { planId, vehicleTypeId, vendorEligibleId, timeLimitId },
-    });
-  },
-
-  async autoSelectVehicleSlabs(
-    planId: number,
-    vehicleTypeId?: number,
-  ) {
-    return api("itineraries/vehicles/auto-select-slabs", {
-      method: "POST",
-      body: { planId, vehicleTypeId },
-    });
-  },
+  ...itineraryRouteActions,
 
   async getCustomerInfoForm(planId: number) {
     return api(`itineraries/customer-info/${planId}`, {
@@ -970,7 +605,7 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
         phoneNo?: string;
       }>;
     }>;
-    // ✅ NEW: Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
+    // âœ… NEW: Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
     hotel_bookings?: Array<{
       routeId: number;
       provider: string; // "TBO" | "ResAvenue" | "HOBSE"
@@ -1019,7 +654,7 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
       }>;
       prebookContext?: any;
     }>;
-    // ✅ NEW: Primary guest fallback (used by backend if lead passenger missing)
+    // âœ… NEW: Primary guest fallback (used by backend if lead passenger missing)
     primaryGuest?: {
       salutation: string;
       name: string;
@@ -1108,52 +743,16 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
     });
   },
 
-  async getConfirmedItineraries(params: {
-  draw?: number;
-  start?: number;
-  length?: number;
-  start_date?: string;
-  end_date?: string;
-  source_location?: string;
-  destination_location?: string;
-  agent_id?: number;
-  staff_id?: number;
-  guide_id?: number;
-  vendor_id?: number;
-  include_cancelled?: boolean;
-  search?: string;
-  search_value?: string;
-}) {
-  const queryParams = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-
-    if (key === "search" || key === "search_value") {
-      if (!queryParams.has("search")) {
-        queryParams.append("search", String(value));
-      }
-      return;
-    }
-
-    queryParams.append(key, String(value));
-  });
-
-  return api(`itineraries/confirmed?${queryParams.toString()}`, {
-    method: "GET",
-  });
-},
+  async getConfirmedItineraries(params: ConfirmedItineraryListParams) {
+    return getConfirmedItineraries(params);
+  },
 
   async getConfirmedItineraryDetails(id: string) {
-    return api(`itineraries/confirmed/${id}`, {
-      method: "GET",
-    });
+    return getConfirmedItineraryDetails(id);
   },
 
   async getConfirmedGuideAssignments(confirmedId: number) {
-    return api(`itineraries/confirmed/${confirmedId}/guides`, {
-      method: "GET",
-    });
+    return getConfirmedGuideAssignments(confirmedId);
   },
 
   async cancelConfirmedGuideSlot(
@@ -1167,137 +766,76 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
       reason?: string;
     },
   ) {
-    return api(`itineraries/confirmed/${confirmedId}/guides/cancel-slot`, {
-      method: "POST",
-      body: data,
-    });
+    return cancelConfirmedGuideSlot(confirmedId, data);
   },
 
-  async getCancelledItineraries(params: {
-  draw?: number;
-  start?: number;
-  length?: number;
-  agent_id?: number;
-  search_value?: string;
-}) {
-  const queryParams = new URLSearchParams();
-  
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
+  async getCancelledItineraries(params: CancelledItineraryListParams) {
+    return getCancelledItineraries(params);
+  },
 
-    if (key === "search_value") {
-      queryParams.append("search[value]", String(value));
-      return;
-    }
-
-    queryParams.append(key, String(value));
-  });
-
-  return api(`itineraries/cancelled?${queryParams.toString()}`, {
-    method: "GET",
-  });
-},
-
-  async getAccountsItineraries(params: {
-    draw?: number;
-    start?: number;
-    length?: number;
-    agent_id?: number;
-  }) {
-    const queryParams = new URLSearchParams();
-    
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        queryParams.append(key, String(value));
-      }
-    });
-
-    return api(`itineraries/accounts?${queryParams.toString()}`, {
-      method: "GET",
-    });
+  async getAccountsItineraries(params: AccountsItineraryListParams) {
+    return getAccountsItineraries(params);
   },
 
   async getConfirmedAgents() {
-    return api("itineraries/confirmed/agents", {
-      method: "GET",
-    });
+    return getConfirmedAgents();
   },
 
   async getConfirmedLocations() {
-    return api("itineraries/confirmed/locations", {
-      method: "GET",
-    });
+    return getConfirmedLocations();
   },
 
   async getLatestAgents() {
-    return api("itineraries/latest/agents", {
-      method: "GET",
-    });
+    return getLatestAgents();
   },
 
   async getLatestLocations() {
-    return api("itineraries/latest/locations", {
-      method: "GET",
-    });
+    return getLatestLocations();
   },
 
   async getVoucherDetails(id: number) {
-    return api(`itineraries/${id}/voucher-details`, {
-      method: "GET",
-    });
+    return getVoucherDetails(id);
   },
 
   async downloadVoucherPdf(id: number) {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/voucher-pdf`, `voucher-details-${id}.pdf`);
+    return downloadVoucherPdf(id);
   },
 
   async downloadHotelVoucherPdf(id: number) {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/hotel-voucher-pdf`, `hotel-voucher-${id}.pdf`);
+    return downloadHotelVoucherPdf(id);
   },
 
   async downloadVehicleVoucherPdf(id: number) {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/vehicle-voucher-pdf`, `transport-voucher-${id}.pdf`);
+    return downloadVehicleVoucherPdf(id);
   },
 
   async getPluckCardData(id: number) {
-    return api(`itineraries/${id}/pluck-card-data`, {
-      method: "GET",
-    });
+    return getPluckCardData(id);
   },
 
   async downloadPluckCardPdf(id: number) {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/pluck-card-pdf`, `pluck-card-${id}.pdf`);
+    return downloadPluckCardPdf(id);
   },
 
   async getPluckCardDataByConfirmedId(confirmedId: number) {
-    return api(`itineraries/confirmed/${confirmedId}/pluck-card-data`, {
-      method: "GET",
-    });
+    return getPluckCardDataByConfirmedId(confirmedId);
   },
 
   async getInvoiceData(id: number) {
-    return api(`itineraries/${id}/invoice-data`, {
-      method: "GET",
-    });
+    return getInvoiceData(id);
   },
 
   async downloadInvoicePdf(id: number, type: "tax" | "proforma" = "tax") {
-    return this.downloadAuthenticatedFile(`itineraries/${id}/invoice-pdf?type=${encodeURIComponent(type)}`, `${type}-invoice-${id}.pdf`);
+    return downloadInvoicePdf(id, type);
   },
 
   // Incidental Expenses
   async getIncidentalAvailableComponents(itineraryPlanId: number) {
-    return api(`incidental-expenses/available-components?itineraryPlanId=${itineraryPlanId}`, {
-      method: "GET",
-    });
+    return getIncidentalAvailableComponents(itineraryPlanId);
   },
 
   async getIncidentalAvailableMargin(itineraryPlanId: number, componentType: number, componentId?: number) {
-    let url = `incidental-expenses/available-margin?itineraryPlanId=${itineraryPlanId}&componentType=${componentType}`;
-    if (componentId) url += `&componentId=${componentId}`;
-    return api(url, {
-      method: "GET",
-    });
+    return getIncidentalAvailableMargin(itineraryPlanId, componentType, componentId);
   },
 
   async addIncidentalExpense(data: {
@@ -1308,66 +846,34 @@ async getAvailableActivities(hotspotId: number, planId?: number, routeId?: numbe
     reason: string;
     createdBy: number;
   }) {
-    return api(`incidental-expenses`, {
-      method: "POST",
-      body: data,
-    });
+    return addIncidentalExpense(data);
   },
 
   async getIncidentalHistory(itineraryPlanId: number) {
-    return api(`incidental-expenses/history?itineraryPlanId=${itineraryPlanId}`, {
-      method: "GET",
-    });
+    return getIncidentalHistory(itineraryPlanId);
   },
 
   async deleteIncidentalHistory(id: number) {
-    return api(`incidental-expenses/history/${id}`, {
-      method: "DELETE",
-    });
+    return deleteIncidentalHistory(id);
   },
 
   // Real-time hotel search
-  async searchHotels(searchParams: {
-    cityCode: string;
-    checkInDate: string;
-    checkOutDate: string;
-    roomCount: number;
-    guestCount: number;
-    adultCount?: number;
-    childCount?: number;
-    infantCount?: number;
-    childAges?: number[];
-    guestNationality?: string;
-    hotelName?: string;
-  }) {
-    const payload = {
-      ...searchParams,
-      guestNationality: searchParams.guestNationality,
-    };
-
-    return api("hotels/search", {
-      method: "POST",
-      body: payload,
-    });
+  async searchHotels(searchParams: HotelSearchParams) {
+    return searchHotels(searchParams);
   },
 
   // Get detailed information for a specific hotel (TBO API)
   async getHotelInfo(hotelCode: string) {
-    return api(`hotels/${hotelCode}`, {
-      method: "GET",
-    });
+    return getHotelInfo(hotelCode);
   },
 
   // Get room availability for specific hotel
   async getRoomAvailability(
     hotelCode: string,
     checkInDate: string,
-    checkOutDate: string
+    checkOutDate: string,
   ) {
-    return api(`hotels/${hotelCode}/availability`, {
-      method: "POST",
-      body: { checkInDate, checkOutDate },
-    });
+    return getRoomAvailability(hotelCode, checkInDate, checkOutDate);
   },
 };
 
