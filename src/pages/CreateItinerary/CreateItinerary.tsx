@@ -1583,7 +1583,12 @@ const addDay = () => {
     if (!entryTicketRequired) errors.entryTicketRequired = "Please select Entry Ticket Required option";
     if (!guideRequired) errors.guideRequired = "Please select Guide for Itinerary option";
     if (!nationality) errors.nationality = "Please select Nationality";
-    if (!foodPreference) errors.foodPreference = "Please select Food Preference";
+    if (
+  itineraryPreference !== "vehicle" &&
+  !foodPreference
+) {
+  errors.foodPreference = "Please select Food Preference";
+}
 
     if (
       (itineraryPreference === "hotel" || itineraryPreference === "both") &&
@@ -1801,17 +1806,24 @@ const foodTypeByLabel: Record<string, number> = {
       ? selectedHotelFacilityIds
       : [];
 
-const food_type_id = resolveOptionId(
-  foodPreference,
-  foodPreferences
-);
-if (!Number.isInteger(food_type_id) || food_type_id <= 0) {
+const shouldUseFoodPreference =
+  itineraryPreference !== "vehicle";
+
+const food_type_id = shouldUseFoodPreference
+  ? resolveOptionId(foodPreference, foodPreferences)
+  : 0;
+
+if (
+  shouldUseFoodPreference &&
+  (!Number.isInteger(food_type_id) || food_type_id <= 0)
+) {
   throw new Error(
     `Invalid food preference value: ${String(foodPreference)}`
   );
 }
 
-const shouldUseMealPlan = itineraryPreference !== "vehicle";
+const shouldUseMealPlan =
+  itineraryPreference !== "vehicle";
 
 const normalizedMealPlanCode =
   shouldUseMealPlan && mealPlanCode !== "__ALL__" ? mealPlanCode : "";
