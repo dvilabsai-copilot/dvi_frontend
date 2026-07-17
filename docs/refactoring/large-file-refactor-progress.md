@@ -86,6 +86,22 @@ Rescan authored source files and select the next largest behavior-heavy file ove
 
 Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
 
+## Iteration 8 — AccountsManager.tsx
+
+- Starting line count: 1180 physical lines in the current authored-source scan.
+- Reason: account payout orchestration, filters, totals, infinite scrolling, CSV/Excel export, payment modal state, and the large component-specific table renderer were combined in one page.
+- Extracted modules: `src/pages/accounts/AccountsSectionTable.tsx` owns hotel and generic component table markup; `src/pages/accounts/accountsManagerUtils.ts` owns INR/number formatting and section metadata. The page retains API calls, filters, pagination/scroll state, totals, export behavior, and PayNow callbacks.
+- Related type improvement: `AccountsRow` now declares the optional backend display fields previously read dynamically, allowing the extraction and totals/grouping code to remain type-safe without `any` casts.
+- Ending line count: 846 physical lines; the table module is 328 lines.
+- Compatibility: `/accounts-manager`, named `AccountsManager` export, section ordering, headers, labels, pay-now disabled rules, formatting, export payloads, and infinite-scroll behavior remain unchanged.
+- Validation: `npx tsc --noEmit`, focused ESLint for the page and extracted modules, production build, and direct authenticated admin-readonly route checks passed (2/2). The npm wrapper's grep forwarding remains unreliable in this environment, so the focused Playwright check used the repository's local Playwright CLI directly.
+- Aggregate validation: `E2E_ALLOW_WRITES=true npm run e2e:group` progressed through multiple suites but exceeded the five-minute command timeout before producing a final aggregate result; no source failure was returned by the runner.
+- Status: COMPLETED locally; focused AccountsManager validation remains green and the aggregate timeout is recorded as an environment/runtime limitation.
+
+## Next iteration
+
+Rescan authored source files and select the next largest behavior-heavy file over 1000 lines, excluding the deferred stylesheet candidate.
+
 ## Iteration 7 — DashboardAdminView.tsx
 
 - Starting line count: 1215 physical lines in the current authored-source scan.
