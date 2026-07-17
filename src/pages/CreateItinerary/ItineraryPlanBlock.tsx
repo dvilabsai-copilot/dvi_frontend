@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState, Dispatch, SetStateAction } from "react";
-import { differenceInCalendarDays } from "date-fns";
-
+import { useMemo, useState, Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,7 +23,6 @@ import {
 } from "@/components/itinerary/TimePickerPopover";
 import {
   AutoSuggestSelect,
-  AutoSuggestOption,
 } from "@/components/AutoSuggestSelect";
 import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
@@ -33,6 +30,15 @@ import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itinera
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
+import {
+  buildVehicleOnlyTravellerRooms,
+  getMealPlanLabel,
+  getSafeTravellerCount,
+  mapMultiValuesToStringIds,
+} from "./helpers/itineraryPlanBlock.utils";
+import { useItineraryPlanDates } from "./helpers/useItineraryPlanDates";
+import { useItineraryPlanDefaults } from "./helpers/useItineraryPlanDefaults";
+import { useItineraryPlanOptions } from "./helpers/useItineraryPlanOptions";
 // type RoomRow = {
 //   id: number;
 //   adults: number;
@@ -129,101 +135,6 @@ type ItineraryPlanBlockProps = {
 };
 
 
-function mapMultiValuesToStringIds(vals: unknown, options: SimpleOption[]): string[] {
-  const arr = Array.isArray(vals) ? vals : [];
-
-  const byId = new Map(options.map((o) => [String(o.id), String(o.id)]));
-  const byLabel = new Map(
-    options.map((o) => [o.label.trim().toLowerCase(), String(o.id)])
-  );
-
-  const out: string[] = [];
-
-  for (const raw of arr) {
-    const s = String(raw ?? "").trim();
-    if (!s) continue;
-
-    // if AutoSuggestSelect emits id values
-    const direct = byId.get(s);
-    if (direct) {
-      out.push(direct);
-      continue;
-    }
-
-    // if AutoSuggestSelect emits labels
-    const fromLabel = byLabel.get(s.toLowerCase());
-    if (fromLabel) out.push(fromLabel);
-  }
-
-  // unique
-  return Array.from(new Set(out));
-}
-
-function parseDDMMYYYY(str: string): Date | undefined {
-  if (!str) return undefined;
-  const [d, m, y] = str.split("/").map(Number);
-  if (!d || !m || !y) return undefined;
-  return new Date(y, m - 1, d);
-}
-
-function formatDDMMYYYY(date: Date): string {
-  const dd = date.getDate().toString().padStart(2, "0");
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const yy = date.getFullYear();
-  return `${dd}/${mm}/${yy}`;
-}
-
-
-
-function findIdByLabel(
-  options: SimpleOption[],
-  matcher: (labelLower: string) => boolean
-): string | undefined {
-  const opt = options.find((o) => matcher(o.label.toLowerCase()));
-  return opt ? String(opt.id) : undefined;
-}
-
-function getSafeTravellerCount(value: unknown, minimum = 0): number {
-  const numeric = Math.floor(Number(value));
-
-  if (!Number.isFinite(numeric)) {
-    return minimum;
-  }
-
-  return Math.max(minimum, numeric);
-}
-
-function buildVehicleOnlyTravellerRooms({
-  adults,
-  children,
-  infants,
-}: {
-  adults: number;
-  children: number;
-  infants: number;
-}): RoomRow[] {
-  return [
-    {
-      id: 1,
-      roomCount: 1,
-      adults: getSafeTravellerCount(adults, 1),
-      children: getSafeTravellerCount(children, 0),
-      infants: getSafeTravellerCount(infants, 0),
-      childrenDetails: Array.from(
-        { length: getSafeTravellerCount(children, 0) },
-        () => ({
-          age: "",
-          bedType: "Without Bed" as const,
-          hotelApprovalAccepted: false,
-        })
-      ),
-    },
-  ];
-}
-
-
-  
-
 export const ItineraryPlanBlock = ({
   itineraryPreference,
   setItineraryPreference,
@@ -290,11 +201,29 @@ export const ItineraryPlanBlock = ({
   onDefaultRouteSelect,
 }: ItineraryPlanBlockProps) => {
 const isMobile = useIsMobile();
-const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
-const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
-const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+
+const {
+  isTripDatesOpen,
+  setHoveredToDate,
+  isSelectingDeparture,
+  tripStartDateObj,
+  tripEndDateObj,
+  previewRange,
+  previewNoOfDays,
+  previewNoOfNights,
+  previewArrivalDateLabel,
+  previewDepartureDateLabel,
+  handleTripDayClick,
+  handleTripDatesOpenChange,
+  disablePastAndToday,
+} = useItineraryPlanDates({
+  tripStartDate,
+  tripEndDate,
+  setTripStartDate,
+  setTripEndDate,
+});
 
 const vehicleOnlyTravellerTotals = useMemo(() => {
   const totals = (rooms || []).reduce(
@@ -335,100 +264,6 @@ const handleVehicleOnlyTravellerChange = (
   setRooms(() => buildVehicleOnlyTravellerRooms(nextCounts));
 };
 
-const tripStartDateObj = parseDDMMYYYY(tripStartDate);
-const tripEndDateObj = parseDDMMYYYY(tripEndDate);
-
-
-
-const previewRange = useMemo(() => {
-  if (!tripStartDateObj) {
-    return undefined;
-  }
-
-  // Final selected range
-  if (tripEndDateObj) {
-    return { from: tripStartDateObj, to: tripEndDateObj };
-  }
-
- // Live hover preview before departure click
-if (hoveredToDate) {
-  // Ignore hover before arrival (match click behavior)
-  if (hoveredToDate < tripStartDateObj) {
-    return { from: tripStartDateObj, to: tripStartDateObj };
-  }
-
-  return { from: tripStartDateObj, to: hoveredToDate };
-}
-
-  // Only arrival selected
-  return { from: tripStartDateObj, to: tripStartDateObj };
-}, [tripStartDateObj, tripEndDateObj, hoveredToDate]);
-
-const previewToDate = tripEndDateObj
-  ? tripEndDateObj
-  : hoveredToDate
-  ? hoveredToDate
-  : tripStartDateObj;
-
-const previewNoOfDays = useMemo(() => {
-  if (!tripStartDateObj || !previewToDate) return 1;
-
-  const from =
-    previewToDate >= tripStartDateObj ? tripStartDateObj : previewToDate;
-  const to =
-    previewToDate >= tripStartDateObj ? previewToDate : tripStartDateObj;
-
-  return Math.max(1, differenceInCalendarDays(to, from) + 1);
-}, [tripStartDateObj, previewToDate]);
-
-const previewNoOfNights = useMemo(
-  () => Math.max(0, previewNoOfDays - 1),
-  [previewNoOfDays]
-);
-
-const previewArrivalDateLabel = tripStartDateObj
-  ? formatDDMMYYYY(tripStartDateObj)
-  : "DD/MM/YYYY";
-
-const previewDepartureDateLabel =
-  tripEndDateObj
-    ? formatDDMMYYYY(tripEndDateObj)
-    : hoveredToDate && tripStartDateObj && hoveredToDate >= tripStartDateObj
-    ? formatDDMMYYYY(hoveredToDate)
-    : tripStartDateObj
-    ? "Select end date"
-    : "DD/MM/YYYY";
-
-const handleTripDayClick = (day: Date, disabled?: boolean) => {
-  if (disabled) return;
-
-  const clickedDate = formatDDMMYYYY(day);
-
-  // First click, or when full range already exists -> start fresh from clicked date
-  if (!tripStartDateObj || tripEndDateObj || !isSelectingDeparture) {
-    setTripStartDate(clickedDate);
-    setTripEndDate("");
-    setHoveredToDate(undefined);
-    setIsSelectingDeparture(true);
-    return;
-  }
-
-  // While selecting departure:
-  // If clicked date is before arrival, treat it as a new arrival date
-  if (day < tripStartDateObj) {
-    setTripStartDate(clickedDate);
-    setTripEndDate("");
-    setHoveredToDate(undefined);
-    setIsSelectingDeparture(true);
-    return;
-  }
-
-  // Valid departure selection
-  setTripEndDate(clickedDate);
-  setHoveredToDate(undefined);
-  setIsSelectingDeparture(false);
-  setIsTripDatesOpen(false);
-};
   const hotelCategory: string[] = selectedHotelCategoryIds.map((id) => String(id));
   const handleHotelCategoryChange = (vals: string[]) => {
     const ids = (vals || [])
@@ -445,99 +280,44 @@ const handleHotelFacilityChange = (vals: string[]) => {
 };
 
 
-  // Disable all dates before tomorrow (including today)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const disablePastAndToday = (date: Date) => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d <= today;
-  };
+  const {
+    agentOptions,
+    locationOptions,
+    hotelCategoryAutoOptions,
+    hotelFacilityAutoOptions,
+    nationalityOptions,
+  } = useItineraryPlanOptions({
+    agents,
+    locations,
+    hotelCategoryOptions,
+    hotelFacilityOptions,
+    nationalities,
+  });
 
-  const agentOptions: AutoSuggestOption[] = agents.map((a) => ({
-    value: String(a.id),
-    label: a.name,
-  }));
-
-  const locationOptions: AutoSuggestOption[] = locations.map((loc) => ({
-    value: loc.name,
-    label: loc.name,
-  }));
-
-  const hotelCategoryAutoOptions: AutoSuggestOption[] = hotelCategoryOptions.map(
-    (item) => ({
-      value: String(item.id),
-      label: item.label,
-    })
-  );
-
-  const hotelFacilityAutoOptions: AutoSuggestOption[] = hotelFacilityOptions.map(
-    (item) => ({
-      value: String(item.id),
-      label: item.label,
-    })
-  );
-
-  const nationalityOptions: AutoSuggestOption[] = nationalities.map((item) => ({
-    value: String(item.id),
-    label: item.label,
-  }));
-
-
-  // Itinerary Type default → "Customize"
-  useEffect(() => {
-    if (!itineraryTypeSelect && itineraryTypes.length) {
-      const defId = findIdByLabel(itineraryTypes, (l) => l.includes("custom"));
-      if (defId) setItineraryTypeSelect(defId);
-    }
-  }, [itineraryTypeSelect, itineraryTypes, setItineraryTypeSelect]);
-
-  // Arrival / Departure Type default → "By Flight"
-  useEffect(() => {
-    if (!travelTypes.length) return;
-    const flightId = findIdByLabel(travelTypes, (l) => l.includes("flight"));
-    if (flightId) {
-      if (!arrivalType) setArrivalType(flightId);
-      if (!departureType) setDepartureType(flightId);
-    }
-  }, [arrivalType, departureType, travelTypes, setArrivalType, setDepartureType]);
-
-  // Entry Ticket default → "No"
-  useEffect(() => {
-    if (!entryTicketRequired && entryTicketOptions.length) {
-      const defId = findIdByLabel(entryTicketOptions, (l) => l === "no");
-      if (defId) setEntryTicketRequired(defId);
-    }
-  }, [entryTicketRequired, entryTicketOptions, setEntryTicketRequired]);
-
-  // Guide default → "No"
-  useEffect(() => {
-    if (!guideRequired && guideOptions.length) {
-      const defId = findIdByLabel(guideOptions, (l) => l === "no");
-      if (defId) setGuideRequired(defId);
-    }
-  }, [guideRequired, guideOptions, setGuideRequired]);
-
-  // Nationality default → "India"
-  useEffect(() => {
-    if (!nationality && nationalities.length) {
-      const defId = findIdByLabel(nationalities, (l) => l.includes("india"));
-      if (defId) setNationality(defId);
-    }
-  }, [nationality, nationalities, setNationality]);
-
-  // Food Preference default → "Vegetarian"
-  useEffect(() => {
-    if (!foodPreference && foodPreferences.length) {
-      const defId = findIdByLabel(foodPreferences, (l) => l.includes("veg"));
-      if (defId) setFoodPreference(defId);
-    }
-  }, [foodPreference, foodPreferences, setFoodPreference]);
-
-  // Budget default → 15000
-  useEffect(() => {
-    if (budget === "" || budget === 0) setBudget(15000);
-  }, [budget, setBudget]);
+  useItineraryPlanDefaults({
+    itineraryTypeSelect,
+    setItineraryTypeSelect,
+    itineraryTypes,
+    arrivalType,
+    departureType,
+    setArrivalType,
+    setDepartureType,
+    travelTypes,
+    entryTicketRequired,
+    setEntryTicketRequired,
+    entryTicketOptions,
+    guideRequired,
+    setGuideRequired,
+    guideOptions,
+    nationality,
+    setNationality,
+    nationalities,
+    foodPreference,
+    setFoodPreference,
+    foodPreferences,
+    budget,
+    setBudget,
+  });
 
 
 
@@ -719,27 +499,9 @@ const handleHotelFacilityChange = (vals: string[]) => {
       data-field="tripEndDate"
     >
       <Label className="text-sm block mb-1">Trip Dates *</Label>
-     <Popover
-  open={isTripDatesOpen}
-  onOpenChange={(open) => {
-    setIsTripDatesOpen(open);
-
-    if (!open) {
-      setHoveredToDate(undefined);
-      setIsSelectingDeparture(false);
-      return;
-    }
-
-    // When reopening:
-    // if a full range already exists, next click should start a fresh arrival selection
-    if (tripStartDateObj && tripEndDateObj) {
-      setIsSelectingDeparture(false);
-    } else if (tripStartDateObj && !tripEndDateObj) {
-      setIsSelectingDeparture(true);
-    } else {
-      setIsSelectingDeparture(false);
-    }
-  }}
+      <Popover
+   open={isTripDatesOpen}
+   onOpenChange={handleTripDatesOpenChange}
 >
   <PopoverTrigger asChild>
     <Button
@@ -1126,9 +888,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
         <SelectItem value="__ALL__">All Meal Plans</SelectItem>
         {mealPlanOptions.map((item) => (
           <SelectItem key={item.code} value={item.code}>
-            {item.description
-              ? `${item.label} (${item.description})`
-              : item.label}
+            {getMealPlanLabel(item)}
           </SelectItem>
         ))}
       </SelectContent>
