@@ -103,47 +103,45 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     return String(value || '').replace(/_/g, ' ').trim() || '-';
   };
 
+  const tableColumnCount = showRates ? 9 : 8;
+  const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
+  const tableCellClass = 'px-3 py-3 align-top text-[12px] text-[#4f5159]';
+
   return (
     <>
         {/* Hotel Table */}
         <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
           <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1680px]">
+          <table className="w-full min-w-[1180px] border-collapse text-left">
             <thead>
               <tr>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
+                <th className={`${tableHeaderClass} w-[135px]`}>
                   DAY
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
+                <th className={`${tableHeaderClass} w-[125px]`}>
                   DESTINATION
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[220px]">
-                  HOTEL NAME - CATEGORY
+                <th className={`${tableHeaderClass} min-w-[220px]`}>
+                  HOTEL
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
-                  HOTEL CHECK-IN DATE
+                <th className={`${tableHeaderClass} w-[145px]`}>
+                  HOTEL STAY
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[190px]">
-                  ACTUAL GUEST ARRIVAL / CHECK-IN TIME
+                <th className={`${tableHeaderClass} min-w-[165px]`}>
+                  GUEST ARRIVAL
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
-                  CHECK-OUT DATE
+                <th className={`${tableHeaderClass} min-w-[220px]`}>
+                  EARLY CHECK-IN &amp; BILLING
                 </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
-                  EARLY CHECK-IN
-                </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[170px]">
-                  PAYMENT STATUS
-                </th>
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
-                  HOTEL ROOM TYPE
+                <th className={`${tableHeaderClass} min-w-[150px]`}>
+                  ROOM TYPE
                 </th>
                 {showRates && (
-                  <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
+                  <th className={`${tableHeaderClass} whitespace-nowrap`}>
                     PRICE
                   </th>
                 )}
-                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
+                <th className={`${tableHeaderClass} whitespace-nowrap`}>
                   MEAL PLAN
                 </th>
               </tr>
@@ -211,15 +209,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         }
                       }}
                     >
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
+                      <td className={`${tableCellClass} font-medium`}>
                         {hotel.day}
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] font-medium">
+                      <td className={`${tableCellClass} font-medium`}>
                         {resolvedDestination}
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
+                      <td className={tableCellClass}>
                         <div>
-                          <div>
+                          <div className="font-medium leading-5 text-[#3f4149]">
                             {hotel.hotelName
                               ? (() => {
                                   const starCategory = normalizeHotelStarCategory(hotel.category);
@@ -241,31 +239,42 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
-                        {formatHotelDate(hotel.hotelCheckInDate)}
+                      <td className={tableCellClass}>
+                        <div className="space-y-1 text-[11px] leading-4">
+                          <div><span className="text-[#85818d]">Check-in:</span> <span className="font-medium">{formatHotelDate(hotel.hotelCheckInDate)}</span></div>
+                          <div><span className="text-[#85818d]">Check-out:</span> <span className="font-medium">{formatHotelDate(hotel.checkOutDate)}</span></div>
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
-                        {formatGuestArrival(hotel.actualGuestArrivalAt)}
+                      <td className={tableCellClass}>
+                        {hotel.actualGuestArrivalAt ? (
+                          <div className="rounded-md bg-[#f8f5fc] px-2.5 py-2 text-[11px] leading-4 text-[#4a4260]">
+                            <div className="font-semibold">{formatGuestArrival(hotel.actualGuestArrivalAt)}</div>
+                            {hotel.earlyCheckIn && <div className="mt-0.5 text-[#81768e]">Physical arrival / check-in</div>}
+                          </div>
+                        ) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
-                        {formatHotelDate(hotel.checkOutDate)}
+                      <td className={tableCellClass}>
+                        {hotel.earlyCheckIn ? (
+                          <div className="space-y-1.5">
+                            <span className="inline-flex rounded-full bg-[#fbe7f6] px-2.5 py-1 text-[11px] font-semibold text-[#ad2e8b]">
+                              Room blocked from previous night
+                            </span>
+                            <div className="text-[11px] leading-4 text-[#686270]">
+                              {hotel.earlyCheckInExtraPaymentApplicable
+                                ? formatEarlyCheckInPaymentStatus(hotel.earlyCheckInPaymentStatus)
+                                : 'No extra payment recorded'}
+                            </div>
+                          </div>
+                        ) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
-                        {hotel.earlyCheckIn ? 'Yes' : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
-                        {hotel.earlyCheckInExtraPaymentApplicable
-                          ? formatEarlyCheckInPaymentStatus(hotel.earlyCheckInPaymentStatus)
-                          : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
+                      <td className={tableCellClass}>
                         {getRoomTypeDisplay(hotel)}
                         {!isExternalStay && effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
                           ? ` (${effectiveRooms} Rooms)`
                           : ""}
                       </td>
                       {showRates && (
-                        <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap font-bold text-[#303238]">
+                        <td className={`${tableCellClass} whitespace-nowrap font-bold text-[#303238]`}>
                           {formatCurrency(rowTotal)}
                           {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
                             <span className="ml-1 text-[11px] font-normal text-gray-500">
@@ -274,13 +283,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           )}
                         </td>
                       )}
-                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] flex items-center justify-between gap-2">
-                        {isExternalStay ? (
-                          getMealPlanDisplay(hotel)
-                        ) : (
-                          <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
-                        )}
-                        {canShowHotelCancelAction && (
+                      <td className={tableCellClass}>
+                        <div className="flex items-center justify-between gap-2">
+                          {isExternalStay ? (
+                            getMealPlanDisplay(hotel)
+                          ) : (
+                            <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />
+                          )}
+                          {canShowHotelCancelAction && (
                           hotel.voucherCancelled ? (
                             <Button
                               size="sm"
@@ -314,14 +324,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               Cancel Voucher
                             </Button>
                           )
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
 
                     {hotel.earlyCheckIn && hotel.hotelierEarlyCheckInNote && (
                       <tr className="border-t border-amber-200 bg-amber-50">
                         <td
-                          colSpan={showRates ? 11 : 10}
+                          colSpan={tableColumnCount}
                           className="px-6 py-3 text-sm text-amber-900"
                         >
                           <span className="font-semibold">Note for hotelier:</span>{' '}
@@ -334,7 +345,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     {isExpanded && (
                       <tr className="bg-[#fdf6ff] border-t">
                         <td
-                          colSpan={showRates ? 11 : 10}
+                          colSpan={tableColumnCount}
                           className="px-4 py-3 text-sm text-[#4a4260]"
                         >
                           {loadingRowKey === rowKey ? (

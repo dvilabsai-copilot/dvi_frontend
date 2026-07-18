@@ -47,6 +47,13 @@ export const useHotelHydratedDays = ({
       const previousHotelName = previousDay
         ? selectedHotelMetaByRoute.get(previousDay.id)?.hotelName?.trim() || null
         : null;
+      const isEarlyArrivalHotelFlow =
+        dayIndex === 0 &&
+        segments.some((segment) => {
+          if (segment.type !== 'checkin' || !segment.time) return false;
+          const checkinMinutes = parseDisplayMinutes(segment.time);
+          return checkinMinutes !== null && isEarlyMorningTime(parseDisplayTimeToHms(segment.time));
+        });
 
       let firstTravelSeen = false;
       let derivedHotelArrivalMinutes: number | null = null;
@@ -180,7 +187,19 @@ export const useHotelHydratedDays = ({
             to = currentHotelName;
           }
 
-          if (isFirstTravelOfDay && previousHotelName) {
+          if (isFirstTravelOfDay && currentHotelName && isEarlyArrivalHotelFlow) {
+            const normalizedFrom = normalizeTimelineLabel(segment.from);
+            const normalizedDeparture = normalizeTimelineLabel(day.departure);
+            const normalizedArrival = normalizeTimelineLabel(day.arrival);
+
+            if (
+              /\bhotel\b/i.test(String(segment.from || '').trim()) ||
+              normalizedFrom === normalizedDeparture ||
+              normalizedFrom === normalizedArrival
+            ) {
+              from = currentHotelName;
+            }
+          } else if (isFirstTravelOfDay && previousHotelName) {
             const normalizedFrom = normalizeTimelineLabel(segment.from);
             const normalizedDeparture = normalizeTimelineLabel(day.departure);
             const normalizedArrival = normalizeTimelineLabel(day.arrival);
