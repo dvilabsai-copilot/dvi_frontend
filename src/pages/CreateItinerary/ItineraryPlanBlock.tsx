@@ -523,72 +523,142 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </Button>
   </PopoverTrigger>
 
-  <PopoverContent
+ <PopoverContent
   side="bottom"
   align="start"
-  sideOffset={8}
+  sideOffset={4}
   avoidCollisions={true}
-  collisionPadding={16}
-  className="z-[9999] w-[calc(100vw-2rem)] max-w-[700px] max-h-[calc(100vh-2rem)] overflow-y-auto overscroll-contain p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
-  style={{
-    maxHeight:
-      "min(calc(100vh - 2rem), var(--radix-popover-content-available-height))",
-  }}
+  collisionPadding={8}
+  className="z-[9999] w-auto max-w-[calc(100vw-1rem)] overflow-visible p-0 bg-white border border-[#e5d7f6] rounded-xl shadow-xl"
 >
-   <div className="sticky top-0 z-10 border-b border-[#efe7fb] px-4 py-3 bg-white">
-  <div className="space-y-2">
-    <div className="text-sm font-medium text-[#4a4260]">
+ <div className="border-b border-[#efe7fb] bg-white px-3 py-2">
+  <div className="space-y-1.5">
+    <div className="text-xs font-medium text-[#4a4260]">
       {tripStartDateObj && !tripEndDateObj
         ? "Select departure date"
         : "Select trip dates"}
     </div>
 
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <div className="rounded-full bg-[#f8f3ff] px-3 py-1 font-medium text-[#5c2db1] border border-[#eadcff]">
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <div className="rounded-full border border-[#eadcff] bg-[#f8f3ff] px-2 py-0.5 font-medium text-[#5c2db1]">
         Arrival: {previewArrivalDateLabel}
       </div>
-      <div className="rounded-full bg-[#f8f3ff] px-3 py-1 font-medium text-[#5c2db1] border border-[#eadcff]">
+
+      <div className="rounded-full border border-[#eadcff] bg-[#f8f3ff] px-2 py-0.5 font-medium text-[#5c2db1]">
         Departure: {previewDepartureDateLabel}
       </div>
-      <div className="rounded-full bg-[#f3ecfb] px-3 py-1 font-medium text-[#5c2db1]">
+
+      <div className="rounded-full bg-[#f3ecfb] px-2 py-0.5 font-medium text-[#5c2db1]">
         {previewNoOfNights} Night{previewNoOfNights !== 1 ? "s" : ""}
       </div>
-      <div className="rounded-full bg-[#f3ecfb] px-3 py-1 font-medium text-[#5c2db1]">
+
+      <div className="rounded-full bg-[#f3ecfb] px-2 py-0.5 font-medium text-[#5c2db1]">
         {previewNoOfDays} Day{previewNoOfDays !== 1 ? "s" : ""}
       </div>
     </div>
   </div>
 </div>
 
-    <Calendar
-      mode="range"
-      numberOfMonths={isMobile ? 1 : 2}
-      showOutsideDays={false}
-      selected={previewRange}
-      onDayClick={(day, modifiers) => {
-        handleTripDayClick(day, modifiers.disabled);
-      }}
-      onDayMouseEnter={(day, modifiers) => {
-        if (
-          modifiers.disabled ||
-          !tripStartDateObj ||
-          tripEndDateObj ||
-          !isSelectingDeparture
-        ) {
-          return;
-        }
+   <Calendar
+  mode="range"
+  numberOfMonths={isMobile ? 1 : 2}
+  showOutsideDays={false}
 
-        setHoveredToDate(day);
-      }}
-      disabled={disablePastAndToday}
-      defaultMonth={tripStartDateObj || undefined}
-      initialFocus
-      classNames={{
-        day_today: "",
-        day_range_middle: "bg-[#f3ecfb] text-[#2f2f2f]",
-        day_hidden: "invisible",
-      }}
-    />
+  // Month and year can now be changed from dropdowns.
+  captionLayout="dropdown-buttons"
+  fromYear={today.getFullYear()}
+  toYear={today.getFullYear() + 10}
+
+  selected={previewRange}
+  onDayClick={(day, modifiers) => {
+    handleTripDayClick(day, modifiers.disabled);
+  }}
+  onDayMouseEnter={(day, modifiers) => {
+    if (
+      modifiers.disabled ||
+      !tripStartDateObj ||
+      tripEndDateObj ||
+      !isSelectingDeparture
+    ) {
+      return;
+    }
+
+    setHoveredToDate(day);
+  }}
+  disabled={disablePastAndToday}
+  defaultMonth={tripStartDateObj || undefined}
+  initialFocus
+  className="p-2"
+  classNames={{
+    months:
+      "flex flex-col sm:flex-row gap-3 space-y-0 sm:space-x-0",
+
+    month:
+      "min-h-[248px] space-y-2",
+
+    caption:
+      "relative flex h-7 items-center justify-center",
+
+    caption_dropdowns:
+  "flex items-center justify-center gap-1",
+
+vhidden: "sr-only",
+
+caption_label:
+  "relative z-[1] flex h-7 items-center rounded-md border border-[#e5d7f6] bg-white px-2 pr-6 text-xs font-medium text-[#4a4260] pointer-events-none",
+
+    dropdown:
+      "absolute inset-0 z-[2] h-full w-full cursor-pointer opacity-0",
+
+    dropdown_month:
+      "relative",
+
+    dropdown_year:
+      "relative",
+
+    dropdown_icon:
+      "pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[#6b6680]",
+
+    nav:
+      "flex items-center space-x-1",
+
+    nav_button:
+      "h-6 w-6 border border-[#e5d7f6] bg-transparent p-0 opacity-70 hover:opacity-100",
+
+    nav_button_previous:
+      "absolute left-0",
+
+    nav_button_next:
+      "absolute right-0",
+
+    table:
+      "w-full border-collapse",
+
+    head_row:
+      "flex",
+
+    head_cell:
+      "w-8 rounded-md text-center text-[11px] font-normal text-muted-foreground",
+
+    row:
+      "mt-1 flex w-full",
+
+    cell:
+      "relative h-8 w-8 p-0 text-center text-xs [&:has([aria-selected].day-range-start)]:rounded-l-md [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+
+    day:
+      "h-8 w-8 p-0 text-xs font-normal aria-selected:opacity-100",
+
+    day_today:
+      "",
+
+    day_range_middle:
+      "bg-[#f3ecfb] text-[#2f2f2f]",
+
+    day_hidden:
+      "invisible",
+  }}
+/>
   </PopoverContent>
 </Popover>
 
