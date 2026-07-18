@@ -1,7 +1,6 @@
 // REPLACE-WHOLE-FILE: src/pages/VehicleAvailability/VehicleAvailabilityPage.tsx
 
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { Ban, Pencil, Share2 } from "lucide-react";
 import AutoSuggestSelect from "@/components/AutoSuggestSelect";
 import {
@@ -22,6 +21,10 @@ import {
 } from "@/services/vehicle-availability";
 import { AddVehicleModal } from "./modals/AddVehicleModal";
 import { AddDriverModal } from "./modals/AddDriverModal";
+import {
+  VehicleAvailabilityActionModals,
+  type SelectedCell,
+} from "./components/VehicleAvailabilityActionModals";
 
 
 function clsx(...parts: Array<string | false | null | undefined>) {
@@ -45,221 +48,6 @@ function includeOptionIfMissing(options: SimpleOption[], id: number, fallbackLab
   return [{ id, label: fallbackLabel }, ...options];
 }
 
-type ChipOption = { value: string; label: string };
-
-function ChipMultiSelect({
-  options,
-  values,
-  onChange,
-  placeholder,
-}: {
-  options: ChipOption[];
-  values: string[];
-  onChange: (next: string[]) => void;
-  placeholder: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [focusedIndex, setFocusedIndex] = useState(0);
-  const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const dropdownRef = React.useRef<HTMLDivElement | null>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-
-  useEffect(() => {
-    const handleOutside = (e: PointerEvent) => {
-      if (
-        rootRef.current &&
-        !rootRef.current.contains(e.target as Node) &&
-        !dropdownRef.current?.contains(e.target as Node)
-      ) {
-        setOpen(false);
-        setFocusedIndex(0);
-      }
-    };
-    document.addEventListener("pointerdown", handleOutside);
-    return () => document.removeEventListener("pointerdown", handleOutside);
-  }, []);
-
-  const selectedSet = useMemo(() => new Set(values.map(String)), [values]);
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return options.filter((opt) => {
-      if (selectedSet.has(String(opt.value))) return false;
-      if (!term) return true;
-      return (
-        String(opt.label).toLowerCase().includes(term) ||
-        String(opt.value).toLowerCase().includes(term)
-      );
-    });
-  }, [options, query, selectedSet]);
-
-  useEffect(() => {
-    if (focusedIndex >= filtered.length) {
-      setFocusedIndex(filtered.length > 0 ? filtered.length - 1 : 0);
-    }
-  }, [filtered.length, focusedIndex]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const updatePosition = () => {
-      const rect = rootRef.current?.getBoundingClientRect();
-      if (!rect) return;
-
-      const width = Math.max(rect.width, 280);
-      const openBelow = window.innerHeight - rect.bottom > 220;
-      const top = openBelow ? rect.bottom + 6 : Math.max(8, rect.top - 280 - 6);
-
-      setDropdownStyle({
-        position: "fixed",
-        left: rect.left,
-        top,
-        width,
-        zIndex: 10000,
-      });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open]);
-
-  function addValue(value: string) {
-    const next = String(value);
-    if (!next || selectedSet.has(next)) return;
-    onChange([...values, next]);
-    setQuery("");
-    setOpen(true);
-    setFocusedIndex(0);
-  }
-
-  function removeValue(value: string) {
-    onChange(values.filter((item) => String(item) !== String(value)));
-    setOpen(true);
-    setFocusedIndex(0);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Backspace" && !query.trim() && values.length > 0) {
-      e.preventDefault();
-      removeValue(values[values.length - 1]);
-      return;
-    }
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      if (open && filtered[focusedIndex]) {
-        addValue(filtered[focusedIndex].value);
-      } else if (query.trim()) {
-        addValue(query.trim());
-      }
-      return;
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setOpen(true);
-      setFocusedIndex((current) => Math.min(current + 1, Math.max(filtered.length - 1, 0)));
-      return;
-    }
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setOpen(true);
-      setFocusedIndex((current) => Math.max(current - 1, 0));
-      return;
-    }
-    if (e.key === "Escape") {
-      setOpen(false);
-    }
-  }
-
-  return (
-    <div ref={rootRef} className="relative">
-      <div
-        className="min-h-11 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm shadow-sm focus-within:ring-1 focus-within:ring-purple-400"
-        onClick={() => setOpen(true)}
-      >
-        <div className="flex flex-wrap items-center gap-1.5">
-          {values.length === 0 ? (
-            <span className="px-1 py-1 text-slate-400">{placeholder}</span>
-          ) : null}
-          {values.map((value) => {
-            const option = options.find((item) => String(item.value) === String(value));
-            return (
-              <span
-                key={String(value)}
-                className="inline-flex items-center gap-1 rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-xs text-slate-700"
-              >
-                <span className="max-w-[160px] truncate">{option?.label ?? value}</span>
-                <button
-                  type="button"
-                  className="leading-none text-slate-500 hover:text-slate-800"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    removeValue(String(value));
-                  }}
-                  aria-label={`Remove ${option?.label ?? value}`}
-                >
-                  ×
-                </button>
-              </span>
-            );
-          })}
-          <input
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-              setFocusedIndex(0);
-            }}
-            onFocus={() => setOpen(true)}
-            onKeyDown={handleKeyDown}
-            className="min-w-[90px] flex-1 border-0 bg-transparent px-1 py-1 outline-none"
-            placeholder={values.length === 0 ? "" : ""}
-          />
-        </div>
-      </div>
-
-      {open
-        ? createPortal(
-          <div
-            ref={dropdownRef}
-            className="max-h-56 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg"
-            style={dropdownStyle}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-slate-500">No results</div>
-          ) : (
-            filtered.map((option, idx) => (
-              <button
-                key={option.value}
-                type="button"
-                className={[
-                  "block w-full px-3 py-2 text-left text-sm",
-                  idx === focusedIndex ? "bg-purple-50 text-purple-700" : "bg-white text-slate-700",
-                ].join(" ")}
-                onMouseEnter={() => setFocusedIndex(idx)}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  addValue(option.value);
-                }}
-              >
-                {option.label}
-              </button>
-              ))
-          )}
-          </div>,
-          document.body
-        )
-        : null}
-    </div>
-  );
-}
-
-type SelectedCell = { row: VehicleAvailabilityRow; cell: VehicleAvailabilityCell } | null;
 
 export default function VehicleAvailabilityPage() {
   const initialRange = useMemo(() => defaultMonthRange(), []);
@@ -1005,143 +793,28 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         </div>
       </div>
 
-      {assignModalOpen && assignContext ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/40 p-4"
-          onClick={() => {
-            if (assigning) return;
-            setAssignModalOpen(false);
-            setAssignContext(null);
-          }}
-        >
-          <div
-            className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 text-base font-semibold text-slate-900">Assign Vehicle</div>
-            <div className="mb-4 text-xs text-slate-600">
-              {assignContext.cell.itineraryQuoteId || `Plan #${assignContext.cell.itineraryPlanId}`} • {assignContext.cell.date}
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Vehicle</label>
-                <select
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
-                  value={assignVehicleId === "" ? "" : String(assignVehicleId)}
-                  onChange={(e) => setAssignVehicleId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">Choose Vehicle</option>
-                  {assignVehicleOptions.map((v) => (
-                    <option key={v.id} value={String(v.id)}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm text-slate-700">Driver (optional)</label>
-                <select
-                  className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm"
-                  value={assignDriverId === "" ? "" : String(assignDriverId)}
-                  onChange={(e) => setAssignDriverId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">Choose Driver</option>
-                  {assignDriverOptions.map((v) => (
-                    <option key={v.id} value={String(v.id)}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                className="rounded border border-slate-300 px-3 py-2 text-sm text-slate-700"
-                disabled={assigning}
-                onClick={() => {
-                  setAssignModalOpen(false);
-                  setAssignContext(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                disabled={assigning}
-                onClick={submitAssignVehicle}
-              >
-                {assigning ? "Saving..." : "Assign"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-            {blockModalOpen && blockContext ? (
-        <div
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4"
-          onClick={() => {
-            if (blocking) return;
-            setBlockModalOpen(false);
-            setBlockContext(null);
-          }}
-        >
-          <div
-            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-slate-900">
-              Block Vehicle
-            </h2>
-
-            <div className="mt-2 text-sm text-slate-600">
-              {blockContext.row.registrationNumber} — {blockContext.cell.date}
-            </div>
-
-            <div className="mt-4">
-              <label className="mb-1 block text-sm text-slate-700">
-                Reason
-              </label>
-
-              <textarea
-                className="min-h-[100px] w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-purple-400"
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-                placeholder="Enter blocking reason"
-              />
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={blocking}
-                className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-700 disabled:opacity-60"
-                onClick={() => {
-                  setBlockModalOpen(false);
-                  setBlockContext(null);
-                  setBlockReason("");
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                disabled={blocking}
-                className="rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
-                onClick={submitBlockVehicle}
-              >
-                {blocking ? "Blocking..." : "Block Vehicle"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <VehicleAvailabilityActionModals
+        assignModalOpen={assignModalOpen}
+        setAssignModalOpen={setAssignModalOpen}
+        assignContext={assignContext}
+        setAssignContext={setAssignContext}
+        assigning={assigning}
+        assignVehicleId={assignVehicleId}
+        setAssignVehicleId={setAssignVehicleId}
+        assignDriverId={assignDriverId}
+        setAssignDriverId={setAssignDriverId}
+        assignVehicleOptions={assignVehicleOptions}
+        assignDriverOptions={assignDriverOptions}
+        submitAssignVehicle={submitAssignVehicle}
+        blockModalOpen={blockModalOpen}
+        setBlockModalOpen={setBlockModalOpen}
+        blockContext={blockContext}
+        setBlockContext={setBlockContext}
+        blocking={blocking}
+        blockReason={blockReason}
+        setBlockReason={setBlockReason}
+        submitBlockVehicle={submitBlockVehicle}
+      />
 
       <AddVehicleModal
         open={addVehicleOpen}

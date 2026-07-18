@@ -38,6 +38,21 @@ export interface AccountsRow {
   routeDate?: string;
   vehicleId?: number;
   vendorId?: number;
+  receivableFromAgentAmount?: number | string | null;
+  agentReceivable?: number | string | null;
+  receivableFromAgentName?: string | null;
+  inhandAmount?: number | string | null;
+  marginAmount?: number | string | null;
+  taxAmount?: number | string | null;
+  transactionDate?: string | null;
+  date?: string | null;
+  guestName?: string | null;
+  guest?: string | null;
+  roomCount?: number | string | null;
+  arrivalStart?: string | null;
+  arrivalStartDate?: string | null;
+  destinationEnd?: string | null;
+  destinationEndDate?: string | null;
 }
 
 export interface AccountsSummary {
