@@ -1,4 +1,4 @@
-import { useMemo, useState, Dispatch, SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Clock3 } from "lucide-react";
@@ -39,6 +47,12 @@ import {
 import { useItineraryPlanDates } from "./helpers/useItineraryPlanDates";
 import { useItineraryPlanDefaults } from "./helpers/useItineraryPlanDefaults";
 import { useItineraryPlanOptions } from "./helpers/useItineraryPlanOptions";
+import {
+  TRANSPORT_EARLY_ARRIVAL_CUTOFF,
+  TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
+  TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE,
+  type TransportEarlyArrivalOption,
+} from "./helpers/transportEarlyArrival";
 // type RoomRow = {
 //   id: number;
 //   adults: number;
@@ -123,6 +137,14 @@ type ItineraryPlanBlockProps = {
   specialInstructions: string;
   setSpecialInstructions: (val: string) => void;
 
+  requiresTransportEarlyArrivalPreference: boolean;
+  transportEarlyArrivalOption: TransportEarlyArrivalOption | "";
+  setTransportEarlyArrivalOption: (value: TransportEarlyArrivalOption) => void;
+  transportEarlyArrivalHotelName: string;
+  setTransportEarlyArrivalHotelName: (value: string) => void;
+  transportEarlyArrivalRestMinutes: number;
+  setTransportEarlyArrivalRestMinutes: (value: number) => void;
+
   validationErrors?: { [key: string]: string };
   
   // ✅ Calculated from arrival/departure dates
@@ -193,6 +215,13 @@ export const ItineraryPlanBlock = ({
 
   specialInstructions,
   setSpecialInstructions,
+  requiresTransportEarlyArrivalPreference,
+  transportEarlyArrivalOption,
+  setTransportEarlyArrivalOption,
+  transportEarlyArrivalHotelName,
+  setTransportEarlyArrivalHotelName,
+  transportEarlyArrivalRestMinutes,
+  setTransportEarlyArrivalRestMinutes,
   validationErrors,
   noOfNights,
   noOfDays,
@@ -201,8 +230,82 @@ export const ItineraryPlanBlock = ({
   onDefaultRouteSelect,
 }: ItineraryPlanBlockProps) => {
 const isMobile = useIsMobile();
+const today = new Date();
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+const [isTransportEarlyArrivalDialogOpen, setIsTransportEarlyArrivalDialogOpen] =
+  useState(false);
+const [draftTransportEarlyArrivalOption, setDraftTransportEarlyArrivalOption] =
+  useState<TransportEarlyArrivalOption | "">(transportEarlyArrivalOption);
+const [draftTransportEarlyArrivalHotelName, setDraftTransportEarlyArrivalHotelName] =
+  useState(transportEarlyArrivalHotelName);
+const [draftTransportEarlyArrivalRestMinutes, setDraftTransportEarlyArrivalRestMinutes] =
+  useState(transportEarlyArrivalRestMinutes);
+const [transportEarlyArrivalDialogError, setTransportEarlyArrivalDialogError] =
+  useState("");
+const previousTransportEarlyArrivalTriggerKey = useRef<string | null>(null);
+const hasTransportEarlyArrivalPrerequisites = Boolean(
+  arrivalLocation.trim() &&
+    departureLocation.trim() &&
+    tripStartDate &&
+    tripEndDate,
+);
+const transportEarlyArrivalTriggerKey = `${itineraryPreference}|${startTime}`;
+
+useEffect(() => {
+  if (!requiresTransportEarlyArrivalPreference || !hasTransportEarlyArrivalPrerequisites) {
+    setIsTransportEarlyArrivalDialogOpen(false);
+    previousTransportEarlyArrivalTriggerKey.current = null;
+    return;
+  }
+
+  if (
+    previousTransportEarlyArrivalTriggerKey.current !==
+    transportEarlyArrivalTriggerKey
+  ) {
+    previousTransportEarlyArrivalTriggerKey.current = transportEarlyArrivalTriggerKey;
+    setDraftTransportEarlyArrivalOption("");
+    setDraftTransportEarlyArrivalHotelName(transportEarlyArrivalHotelName);
+    setDraftTransportEarlyArrivalRestMinutes(transportEarlyArrivalRestMinutes);
+    setTransportEarlyArrivalDialogError("");
+    setIsTransportEarlyArrivalDialogOpen(true);
+  }
+}, [
+  requiresTransportEarlyArrivalPreference,
+  hasTransportEarlyArrivalPrerequisites,
+  transportEarlyArrivalTriggerKey,
+  transportEarlyArrivalHotelName,
+  transportEarlyArrivalRestMinutes,
+]);
+
+const openTransportEarlyArrivalDialog = () => {
+  setDraftTransportEarlyArrivalOption(transportEarlyArrivalOption);
+  setDraftTransportEarlyArrivalHotelName(transportEarlyArrivalHotelName);
+  setDraftTransportEarlyArrivalRestMinutes(transportEarlyArrivalRestMinutes);
+  setTransportEarlyArrivalDialogError("");
+  setIsTransportEarlyArrivalDialogOpen(true);
+};
+
+const handleConfirmTransportEarlyArrival = () => {
+  if (!draftTransportEarlyArrivalOption) {
+    setTransportEarlyArrivalDialogError("Select how Day 1 should begin.");
+    return;
+  }
+
+  setTransportEarlyArrivalOption(draftTransportEarlyArrivalOption);
+  setTransportEarlyArrivalHotelName(
+    draftTransportEarlyArrivalOption === "HOTEL_REST"
+      ? draftTransportEarlyArrivalHotelName.trim()
+      : "",
+  );
+  setTransportEarlyArrivalRestMinutes(
+    draftTransportEarlyArrivalOption === "HOTEL_REST"
+      ? draftTransportEarlyArrivalRestMinutes
+      : TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
+  );
+  setTransportEarlyArrivalDialogError("");
+  setIsTransportEarlyArrivalDialogOpen(false);
+};
 
 const {
   isTripDatesOpen,
@@ -762,6 +865,144 @@ caption_label:
   </div>
 </div>
 </div>
+
+  {requiresTransportEarlyArrivalPreference && hasTransportEarlyArrivalPrerequisites && (
+    <div data-field="transportEarlyArrivalOption" className="-mt-2 mb-2">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-auto w-full justify-between border-amber-300 bg-amber-50 px-3 py-2 text-left hover:bg-amber-100"
+        onClick={openTransportEarlyArrivalDialog}
+      >
+        <span>
+          <span className="block text-sm font-medium text-amber-950">
+            Early-morning arrival preference
+          </span>
+          <span className="block text-xs text-amber-900">
+            {transportEarlyArrivalOption === "HOTEL_REST"
+              ? "Proceed to a hotel first"
+              : transportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+                ? "Take a refreshment or waiting break"
+                : `Choose how Day 1 should begin before ${TRANSPORT_EARLY_ARRIVAL_CUTOFF} AM`}
+          </span>
+          {transportEarlyArrivalOption === "HOTEL_REST" && (
+            <span className="mt-1 block max-w-4xl text-xs text-amber-900">
+              {TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE}
+            </span>
+          )}
+        </span>
+        <span className="text-xs font-medium text-purple-700">Change</span>
+      </Button>
+      {validationErrors?.transportEarlyArrivalOption && (
+        <p className="mt-1 text-sm text-red-600">
+          {validationErrors.transportEarlyArrivalOption}
+        </p>
+      )}
+    </div>
+  )}
+
+  <Dialog
+    open={isTransportEarlyArrivalDialogOpen}
+    onOpenChange={setIsTransportEarlyArrivalDialogOpen}
+  >
+    <DialogContent data-field="transportEarlyArrivalOption" className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Early-morning arrival preference</DialogTitle>
+        <DialogDescription>
+          Ask the guest: Would you like to choose how Day 1 should begin before {TRANSPORT_EARLY_ARRIVAL_CUTOFF} AM?
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => {
+            setDraftTransportEarlyArrivalOption("HOTEL_REST");
+            setTransportEarlyArrivalDialogError("");
+          }}
+          className={draftTransportEarlyArrivalOption === "HOTEL_REST"
+            ? "rounded-lg border-2 border-purple-600 bg-white p-4 text-left"
+            : "rounded-lg border bg-white p-4 text-left"}
+        >
+          <div className="font-medium">
+            Proceed directly to a hotel for freshening up and rest
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Hotel charges may apply.
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setDraftTransportEarlyArrivalOption("REFRESHMENT_BEFORE_SIGHTSEEING");
+            setTransportEarlyArrivalDialogError("");
+          }}
+          className={draftTransportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+            ? "rounded-lg border-2 border-purple-600 bg-white p-4 text-left"
+            : "rounded-lg border bg-white p-4 text-left"}
+        >
+          <div className="font-medium">
+            Start the tour immediately with a refreshment/break stop
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Begin sightseeing after the refreshment or break stop.
+          </div>
+        </button>
+      </div>
+
+      {draftTransportEarlyArrivalOption === "HOTEL_REST" && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label htmlFor="transport-early-arrival-hotel">Hotel name (optional)</Label>
+            <Input
+              id="transport-early-arrival-hotel"
+              value={draftTransportEarlyArrivalHotelName}
+              onChange={(event) => setDraftTransportEarlyArrivalHotelName(event.target.value)}
+              placeholder="Enter hotel name"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              If provided, this helps identify the intended hotel. Leave blank
+              if the guest will decide after reaching the arrival city.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="transport-early-arrival-rest">Rest duration (minutes)</Label>
+            <Input
+              id="transport-early-arrival-rest"
+              type="number"
+              min={30}
+              max={720}
+              value={draftTransportEarlyArrivalRestMinutes}
+              onChange={(event) => setDraftTransportEarlyArrivalRestMinutes(Number(event.target.value || 0))}
+            />
+          </div>
+        </div>
+      )}
+
+      {draftTransportEarlyArrivalOption === "HOTEL_REST" && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          {TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE}
+        </p>
+      )}
+
+      {transportEarlyArrivalDialogError && (
+        <p className="text-sm text-red-600">
+          {transportEarlyArrivalDialogError}
+        </p>
+      )}
+
+      <DialogFooter>
+        <Button
+          type="button"
+          onClick={handleConfirmTransportEarlyArrival}
+          disabled={!draftTransportEarlyArrivalOption}
+        >
+          Use this preference
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
         
 

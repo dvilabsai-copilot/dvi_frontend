@@ -428,6 +428,10 @@ export type ItineraryDetailsResponse = {
   specialInstructions?: string | null;
   special_instruction?: string | null;
   specialInstruction?: string | null;
+  transport_early_arrival_option?: string | null;
+  transport_early_arrival_hotel_name?: string | null;
+  transport_early_arrival_rest_minutes?: number | null;
+  earlyArrivalPreferenceMessage?: string | null;
   quoteId: string;
   dateRange: string;
   dayCount?: number;

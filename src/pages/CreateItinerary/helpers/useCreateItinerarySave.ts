@@ -49,6 +49,10 @@ export function useCreateItinerarySave(context: Record<string, any>) {
     setPendingPayload,
     lastArrivalPolicyDecisionKey,
     isSaving,
+    requiresTransportEarlyArrivalPreference,
+    transportEarlyArrivalOption,
+    transportEarlyArrivalHotelName,
+    transportEarlyArrivalRestMinutes,
   } = context;
 
   const validateBeforeSave = (): boolean => {
@@ -81,7 +85,10 @@ export function useCreateItinerarySave(context: Record<string, any>) {
       errors.hotelCategory = "Please select at least one Hotel Category";
     }
 
-
+    if (requiresTransportEarlyArrivalPreference && !transportEarlyArrivalOption) {
+      errors.transportEarlyArrivalOption =
+        "Please select the guest's early-arrival preference.";
+    }
 
     const firstRoute = routeDetails[0];
     if (!firstRoute?.source) errors.firstRouteSource = "Please fill first day From location";
@@ -143,6 +150,10 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
         break;
       case "hotelCategory":
         selector = "[data-field='hotelCategory']";
+        break;
+      case "transportEarlyArrivalOption":
+      case "transportEarlyArrivalHotelName":
+        selector = "[data-field='transportEarlyArrivalOption']";
         break;
       case "firstRouteSource":
       case "firstRouteNext":
@@ -383,6 +394,20 @@ const meal_plan_code = shouldUseMealPlan
     infant_count: totalInfants,
 
     special_instructions: specialInstructions || "",
+
+    transport_early_arrival_option: requiresTransportEarlyArrivalPreference
+      ? transportEarlyArrivalOption || undefined
+      : undefined,
+    transport_early_arrival_hotel_name:
+      transportEarlyArrivalOption === "HOTEL_REST"
+        ? String(transportEarlyArrivalHotelName || "").trim() || null
+        : null,
+    transport_early_arrival_rest_minutes:
+      transportEarlyArrivalOption === "HOTEL_REST"
+        ? Number(transportEarlyArrivalRestMinutes || 180)
+        : transportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+          ? 60
+          : null,
   };
 
   // Ã¢Å“â€¦ inject itinerary_plan_id ONLY when editing
@@ -453,7 +478,14 @@ const getArrivalPolicyDecisionKey = (request: HotelArrivalPolicyRequest | null) 
     return null;
   }
 
-  return `${request.routeDate}|${arrivalTimeHms}`;
+  return [
+    itineraryPreference,
+    request.routeDate,
+    arrivalTimeHms,
+    request.arrivalCityName,
+    request.routeSourceCityName,
+    request.nightStayCityName,
+  ].join("|");
 };
 
 const isEarlyArrivalPolicyRequest = (request: HotelArrivalPolicyRequest | null) => {
@@ -548,6 +580,13 @@ const continueToRouteConfirmation = () => {
 
     const payload = buildPayload();
     setPendingPayload(payload);
+
+    // Transport Only early-arrival handling is an inline preference. It must
+    // not open the hotel previous-day billing modal or create hotel rows/costs.
+    if (itineraryPreference === "vehicle" && requiresTransportEarlyArrivalPreference) {
+      continueToRouteConfirmation();
+      return;
+    }
 
     const request = buildArrivalPolicyRequest();
     if (!request) {

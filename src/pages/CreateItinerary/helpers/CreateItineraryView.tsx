@@ -24,6 +24,10 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     startTime, setStartTime, endTime, setEndTime, hotelCategoryOptions, hotelFacilityOptions,
     specialInstructions, setSpecialInstructions, validationErrors, selectedHotelCategoryIds,
     setSelectedHotelCategoryIds, selectedHotelFacilityIds, setSelectedHotelFacilityIds,
+    requiresTransportEarlyArrivalPreference, transportEarlyArrivalOption,
+    setTransportEarlyArrivalOption, transportEarlyArrivalHotelName,
+    setTransportEarlyArrivalHotelName, transportEarlyArrivalRestMinutes,
+    setTransportEarlyArrivalRestMinutes,
     noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
     setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
     openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
@@ -92,6 +96,13 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
         hotelFacilityOptions={hotelFacilityOptions}
         specialInstructions={specialInstructions}
         setSpecialInstructions={setSpecialInstructions}
+        requiresTransportEarlyArrivalPreference={requiresTransportEarlyArrivalPreference}
+        transportEarlyArrivalOption={transportEarlyArrivalOption}
+        setTransportEarlyArrivalOption={setTransportEarlyArrivalOption}
+        transportEarlyArrivalHotelName={transportEarlyArrivalHotelName}
+        setTransportEarlyArrivalHotelName={setTransportEarlyArrivalHotelName}
+        transportEarlyArrivalRestMinutes={transportEarlyArrivalRestMinutes}
+        setTransportEarlyArrivalRestMinutes={setTransportEarlyArrivalRestMinutes}
         validationErrors={validationErrors}
         selectedHotelCategoryIds={selectedHotelCategoryIds}
         setSelectedHotelCategoryIds={setSelectedHotelCategoryIds}

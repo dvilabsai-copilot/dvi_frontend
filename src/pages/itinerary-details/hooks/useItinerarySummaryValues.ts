@@ -20,6 +20,19 @@ export const useItinerarySummaryValues = ({ netPayable, overallCost, itinerary }
     return String(rawValue || "").trim();
   }, [itinerary]);
 
-  return { overallTripCostWithHotels, specialInstructionsText };
+  const earlyArrivalPreferenceMessage = useMemo(() => {
+    const source = itinerary as any;
+    return String(
+      source?.earlyArrivalPreferenceMessage ??
+        source?.plan?.earlyArrivalPreferenceMessage ??
+        "",
+    ).trim();
+  }, [itinerary]);
+
+  return {
+    overallTripCostWithHotels,
+    specialInstructionsText,
+    earlyArrivalPreferenceMessage,
+  };
 };
 

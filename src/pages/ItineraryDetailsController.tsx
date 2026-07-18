@@ -312,7 +312,7 @@ const location = useLocation();
     displayDays,
   } = costViewModel;
 
-const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySummaryValues({
+const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferenceMessage } = useItinerarySummaryValues({
   netPayable: financialTotals.netPayable,
   overallCost: itinerary?.overallCost,
   itinerary: itinerary as Record<string, unknown> | null,
@@ -826,6 +826,7 @@ const { overallTripCostWithHotels, specialInstructionsText } = useItinerarySumma
 },
         daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
+        earlyArrivalPreferenceMessage,
         hotelListRef,
         summaryStickyHeight,
         shouldShowHotels,
