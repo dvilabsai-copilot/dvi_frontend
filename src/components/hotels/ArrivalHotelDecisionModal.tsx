@@ -32,20 +32,20 @@ export const ArrivalHotelDecisionModal: React.FC<ArrivalHotelDecisionModalProps>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Previous-Day Hotel Billing Confirmation</DialogTitle>
+          <DialogTitle>Early-Morning Hotel Check-in Confirmation</DialogTitle>
           <DialogDescription>
-            Arrival before 8:00 AM can use immediate hotel check-in only with previous-day billing approval.
+            Immediate hotel check-in before 8:00 AM requires the room to be blocked from the previous night, with extra payment applicable.
           </DialogDescription>
         </DialogHeader>
 
         <div className="rounded-md border border-[#e5d9f2] bg-[#faf5ff] p-4 text-sm text-[#4a4260]">
-          <p className="font-medium">Billing impact</p>
+          <p className="font-medium">Room blocking and payment impact</p>
           <p className="mt-2">
-            If arrival is on <strong>{arrivalDate || 'selected date'}</strong>, previous-day check-in starts from{' '}
-            <strong>{previousDayDate || 'previous date'}</strong>.
+            If the guest arrives on <strong>{arrivalDate || 'selected date'}</strong>, the hotel check-in date will be{' '}
+            <strong>{previousDayDate || 'previous date'}</strong>. The guest will physically arrive and check in the next morning.
           </p>
           <p className="mt-2 text-xs text-[#6c6c6c]">
-            Select Yes to search hotels from previous day. Select No to continue same-day flow.
+            Select Yes to block the room from the previous night with extra payment. Select No to continue the same-day hotel flow.
           </p>
         </div>
 
@@ -55,14 +55,14 @@ export const ArrivalHotelDecisionModal: React.FC<ArrivalHotelDecisionModalProps>
             onClick={onDeclinePreviousDayBilling}
             disabled={isLoading}
           >
-            No, keep same-day booking
+            No, keep same-day check-in
           </Button>
           <Button
             className="bg-[#d546ab] hover:bg-[#c4359a] text-white"
             onClick={onConfirmPreviousDayBilling}
             disabled={isLoading}
           >
-            Yes, use previous-day billing
+            Yes, block room from previous night
           </Button>
         </DialogFooter>
       </DialogContent>
