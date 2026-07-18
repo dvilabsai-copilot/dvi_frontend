@@ -20,7 +20,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
   <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
     <div>
       <h3 className="mb-4 text-4xl font-bold text-slate-700">
-        Welcome back, Admin ðŸ‘‹ðŸ»
+        Welcome back, Admin 👋🏻
       </h3>
 
       <p className="mb-8 max-w-[650px] text-xl leading-8 text-gray-400">
