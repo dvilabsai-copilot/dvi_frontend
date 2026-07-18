@@ -39,7 +39,7 @@ return (
           </div>
 
           <div className="absolute right-4 top-4 rounded-lg bg-pink-50 px-3 py-2 text-[18px] font-medium text-violet-600">
-            ðŸš— {branch.vehicleCount}
+            {"\u{1F698}"} {branch.vehicleCount}
           </div>
         </button>
       );
@@ -160,7 +160,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
               onClick={() => handleEditVehicle(row)}
               className="text-[24px] text-violet-500 leading-none"
             >
-              âœŽ
+              {"\u270E"}
             </button>
 
            <button
@@ -168,7 +168,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   onClick={()=>setDeleteVehicleId(row.id)}
   className="text-[22px] text-red-400 leading-none"
 >
-  ðŸ—‘
+  {"\u{1F5D1}"}
 </button>
           </div>
         </td>
@@ -551,7 +551,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
   <div className="space-y-4 pt-4">
     <div className="flex items-center gap-4">
       <div className="h-px flex-1 bg-slate-200" />
-      <span className="text-xl text-pink-500">â˜†</span>
+       <span className="text-xl text-pink-500">{"\u2606"}</span>
       <div className="h-px flex-1 bg-slate-200" />
     </div>
 
@@ -563,7 +563,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
       {vehicleDocuments.length === 0 ? (
         <>
           <div className="mb-4 text-[72px] leading-none text-slate-100">
-            â‡§
+            {"\u21E7"}
           </div>
 
           <p className="mb-4 text-[18px] font-medium text-slate-600">
@@ -711,7 +711,7 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
   <div className="w-[380px] rounded-xl bg-white px-7 py-6 text-center shadow-xl">
     <div className="mb-4 text-[42px] text-slate-500">
-      ðŸ—‘
+      {"\u{1F5D1}"}
     </div>
 
     <h2 className="text-[22px] font-semibold text-slate-700">

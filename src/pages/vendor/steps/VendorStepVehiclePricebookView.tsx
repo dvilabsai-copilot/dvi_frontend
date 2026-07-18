@@ -121,22 +121,22 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                       VEHICLE TYPE
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      DRIVER COST(â‚¹)
+                      DRIVER COST(({"\u20B9"}))
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      FOOD COST(â‚¹)
+                      FOOD COST(({"\u20B9"}))
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      ACCOMMODATION COST(â‚¹)
+                      ACCOMMODATION COST(({"\u20B9"}))
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      EXTRA COST(â‚¹)
+                      EXTRA COST(({"\u20B9"}))
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      MORNING CHARGE(â‚¹)
+                      MORNING CHARGE(({"\u20B9"}))
                     </th>
                     <th className="px-4 py-3 text-left font-semibold">
-                      EVENING CHARGE(â‚¹)
+                      EVENING CHARGE(({"\u20B9"}))
                     </th>
                   </tr>
                 </thead>
@@ -213,28 +213,28 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                               </p>
                                 </div>
                             <div className="col-span-2">
-                              <Label className="text-xs">Extra KM Charge(â‚¹)</Label>
+                              <Label className="text-xs">Extra KM Charge(({"\u20B9"}))</Label>
                               <Input
                                 value={row.extra_km_charge}
                                 onChange={(e) => setExtraCell(absoluteIndex, "extra_km_charge", e.target.value)}
                               />
                             </div>
                             <div className="col-span-2">
-                              <Label className="text-xs">Extra Hour Charge(â‚¹)</Label>
+                              <Label className="text-xs">Extra Hour Charge(({"\u20B9"}))</Label>
                               <Input
                                 value={row.extra_hour_charge}
                                 onChange={(e) => setExtraCell(absoluteIndex, "extra_hour_charge", e.target.value)}
                               />
                             </div>
                             <div className="col-span-3">
-                              <Label className="text-xs">Early Morning Charges (â‚¹)(Before 6 AM)</Label>
+                              <Label className="text-xs">Early Morning Charges (({"\u20B9"}))(Before 6 AM)</Label>
                               <Input
                                 value={row.early_morning_charges}
                                 onChange={(e) => setExtraCell(absoluteIndex, "early_morning_charges", e.target.value)}
                               />
                             </div>
                             <div className="col-span-3">
-                              <Label className="text-xs">Evening Charges (â‚¹)(After 8 PM)</Label>
+                              <Label className="text-xs">Evening Charges (({"\u20B9"}))(After 8 PM)</Label>
                               <Input
                                 value={row.evening_charges}
                                 onChange={(e) => setExtraCell(absoluteIndex, "evening_charges", e.target.value)}
@@ -325,7 +325,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                               type="button"
                               className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200"
                               title="Delete this KM limit"
-                              onClick={() => setDeleteConfirm({ open: true, type: "local", id: r.time_limit_id, label: `${r.vehicle_type_title} â€” ${r.time_limit_title}` })}
+                              onClick={() => setDeleteConfirm({ open: true, type: "local", id: r.time_limit_id, label: `${r.vehicle_type_title} \u2014 ${r.time_limit_title}` })}
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -338,7 +338,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                               <p className="text-sm text-purple-600">{r.time_limit_title}</p>
                             </div>
                             <div>
-                              <Label className="text-xs">Rental Charge(â‚¹)</Label>
+                              <Label className="text-xs">Rental Charge(({"\u20B9"}))</Label>
                               <Input
                                 placeholder="Enter the Rental Charge"
                                 value={localRentalByRow[k] ?? ""}
@@ -468,7 +468,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                               type="button"
                               className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-200"
                               title="Delete this KM limit"
-                              onClick={() => setDeleteConfirm({ open: true, type: "outstation", id: r.kms_limit_id, label: `${r.vehicle_type_title} â€” ${r.kms_limit_title ?? r.kms_limit + " KM"}` })}
+                              onClick={() => setDeleteConfirm({ open: true, type: "outstation", id: r.kms_limit_id, label: `${r.vehicle_type_title} \u2014 ${r.kms_limit_title ?? r.kms_limit + " KM"}` })}
                             >
                               <X className="h-3 w-3" />
                             </button>
@@ -481,7 +481,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
                               <p className="text-sm text-purple-600">{r.kms_limit} KM</p>
                             </div>
                             <div>
-                              <Label className="text-xs">Rental Charge(â‚¹)</Label>
+                              <Label className="text-xs">Rental Charge(({"\u20B9"}))</Label>
                               <Input
                                 placeholder="Enter the Rental Charge"
                                 value={outstationRentalByRow[k] ?? ""}

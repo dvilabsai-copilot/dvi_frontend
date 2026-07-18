@@ -10,6 +10,7 @@ import { PackageIncludesCard } from "./PackageIncludesCard";
 import { SpecialInstructionsSection } from "./SpecialInstructionsSection";
 import { VehicleSection } from "./VehicleSection";
 import { VehicleUnavailableState } from "./VehicleUnavailableState";
+import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPreferenceDialog";
 
 type Props = {
   isConfirmedPresentation: boolean;
@@ -17,6 +18,10 @@ type Props = {
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
   earlyArrivalPreferenceMessage: string;
+  transportEarlyArrivalDialog: Omit<ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>, "onConfirm" | "onOpenChange"> & {
+    onOpenChange: ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>["onOpenChange"];
+    onConfirm: ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>["onConfirm"];
+  };
   hotelListRef: ComponentProps<typeof HotelListLoadingState>["hotelListRef"];
   summaryStickyHeight: number;
   shouldShowHotels: boolean;
@@ -40,6 +45,7 @@ export function ItineraryDetailsTravelSections({
   daysContext,
   specialInstructionsText,
   earlyArrivalPreferenceMessage,
+  transportEarlyArrivalDialog,
   hotelListRef,
   summaryStickyHeight,
   shouldShowHotels,
@@ -65,6 +71,7 @@ export function ItineraryDetailsTravelSections({
           {earlyArrivalPreferenceMessage}
         </div>
       )}
+      <TransportEarlyArrivalPreferenceDialog {...transportEarlyArrivalDialog} />
       <ItineraryDaysSection context={daysContext} />
       <SpecialInstructionsSection text={specialInstructionsText} />
       {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}

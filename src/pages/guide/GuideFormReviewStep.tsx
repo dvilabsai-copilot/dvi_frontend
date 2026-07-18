@@ -139,13 +139,13 @@ export const GuideFormReviewStep = ({ context }: { context: Record<string, any> 
             <TableHeader className="bg-[#fbf7ff]">
               <TableRow>
                 <TableHead className="w-[75px] px-3 py-2 font-semibold">
-                  S.NO ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢
+                  S.NO {"\u2195"}
                 </TableHead>
                 <TableHead className="w-[95px] px-3 py-2 font-semibold">
-                  RATING ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢
+                  RATING {"\u2195"}
                 </TableHead>
                 <TableHead className="w-[135px] px-3 py-2 font-semibold">
-                  DESCRIPTION ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢
+                  DESCRIPTION {"\u2195"}
                 </TableHead>
                 <TableHead className="w-[166px] whitespace-nowrap px-3 py-2 font-semibold">
                 CREATED ON

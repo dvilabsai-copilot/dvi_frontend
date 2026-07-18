@@ -150,7 +150,7 @@ return (
       </div>
 
       <div className="flex items-center gap-1 text-green-600 font-medium">
-        <span className="text-lg">â–²</span>
+                <span className="text-lg">{"\u25B2"}</span>
         <span>{adminData.starPerformer.performance}%</span>
       </div>
     </div>

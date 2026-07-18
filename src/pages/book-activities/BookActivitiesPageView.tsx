@@ -654,7 +654,7 @@ export function BookActivitiesPageView({ context }: { context: Record<string, an
                                   <span className="ba-agent-option-main">
                                     <span className="ba-agent-option-name">{agent.name}</span>
                                     <span className="ba-agent-option-meta">
-                                      {[agent.email, agent.phone].filter(Boolean).join(" â€¢ ") || "No contact details"}
+                  {[agent.email, agent.phone].filter(Boolean).join(" \u2022 ") || "No contact details"}
                                     </span>
                                   </span>
                                   <span className="ba-agent-wallet-badge">{agent.walletBalanceLabel}</span>

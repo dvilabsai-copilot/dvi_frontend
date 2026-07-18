@@ -264,7 +264,7 @@ useEffect(() => {
     transportEarlyArrivalTriggerKey
   ) {
     previousTransportEarlyArrivalTriggerKey.current = transportEarlyArrivalTriggerKey;
-    setDraftTransportEarlyArrivalOption("");
+    setDraftTransportEarlyArrivalOption(transportEarlyArrivalOption);
     setDraftTransportEarlyArrivalHotelName(transportEarlyArrivalHotelName);
     setDraftTransportEarlyArrivalRestMinutes(transportEarlyArrivalRestMinutes);
     setTransportEarlyArrivalDialogError("");
@@ -274,6 +274,7 @@ useEffect(() => {
   requiresTransportEarlyArrivalPreference,
   hasTransportEarlyArrivalPrerequisites,
   transportEarlyArrivalTriggerKey,
+  transportEarlyArrivalOption,
   transportEarlyArrivalHotelName,
   transportEarlyArrivalRestMinutes,
 ]);
@@ -943,10 +944,10 @@ caption_label:
             : "rounded-lg border bg-white p-4 text-left"}
         >
           <div className="font-medium">
-            Start the tour immediately with a refreshment/break stop
+    Take a refreshment or waiting break before sightseeing
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
-            Begin sightseeing after the refreshment or break stop.
+            Begin sightseeing at the earliest practical time after the refreshment or waiting break.
           </div>
         </button>
       </div>

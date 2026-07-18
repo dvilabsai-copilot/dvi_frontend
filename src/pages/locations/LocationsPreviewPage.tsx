@@ -276,7 +276,7 @@ useEffect(() => {
   };
   const parseRouteDetailsToDays = (value: string, nightsValue?: string) => {
     const items = value
-      .split(/\r?\n|â†’|,/g)
+      .split(/\r?\n|\u2192|,/g)
       .map((item) => item.trim())
       .filter((item) => item.length > 0);
     const totalNights = Math.max(Number(nightsValue || items.length || 0), 0);
@@ -338,7 +338,7 @@ useEffect(() => {
       );
       if (invalidLocations.length > 0) {
         toast.error(
-          `Not found in backend locations: ${invalidLocations.join(", ")}`
+          `Not found in backend locations: ${invalidLocations.join(" \u2192 ")}`
         );
         return false;
       }
@@ -479,11 +479,11 @@ resetViaRouteForm();
     const headers = ["S.NO", "VIA ROUTE LOCATION", "CITY", "STATE", "LATITUDE", "LONGITUDE"];
     const rows = viaRoutes.map((route, idx) => [
       String(idx + 1),
-      route.via_route_location || "â€”",
-      route.via_route_location_city || "â€”",
-      route.via_route_location_state || "â€”",
-      route.via_route_location_lattitude || "â€”",
-      route.via_route_location_longitude || "â€”",
+      route.via_route_location || "\u2014",
+      route.via_route_location_city || "\u2014",
+      route.via_route_location_state || "\u2014",
+      route.via_route_location_lattitude || "\u2014",
+      route.via_route_location_longitude || "\u2014",
     ]);
     const text = [
       headers.join("\t"),
@@ -496,9 +496,9 @@ resetViaRouteForm();
   const headers = ["S.NO", "ROUTES", "NO OF NIGHTS", "ROUTE DETAILS"];
   const rows = suggestedRoutes.map((route, idx) => [
     String(idx + 1),
-    route.routes || "â€”",
-    route.no_of_nights || "â€”",
-    route.route_details || "â€”",
+    route.routes || "\u2014",
+    route.no_of_nights || "\u2014",
+    route.route_details || "\u2014",
   ]);
   const text = [
     headers.join("\t"),
@@ -529,11 +529,11 @@ const handleExportViaRoutesCSV = () => {
   const headers = ["S.NO", "VIA ROUTE LOCATION", "CITY", "STATE", "LATITUDE", "LONGITUDE"];
   const rows = viaRoutes.map((route, idx) => [
     String(idx + 1),
-    route.via_route_location || "â€”",
-    route.via_route_location_city || "â€”",
-    route.via_route_location_state || "â€”",
-    route.via_route_location_lattitude || "â€”",
-    route.via_route_location_longitude || "â€”",
+    route.via_route_location || "\u2014",
+    route.via_route_location_city || "\u2014",
+    route.via_route_location_state || "\u2014",
+    route.via_route_location_lattitude || "\u2014",
+    route.via_route_location_longitude || "\u2014",
   ]);
   const csv = [
     headers.map(escapeCsvValue).join(","),
@@ -546,11 +546,11 @@ const handleExportViaRoutesExcel = () => {
   const headers = ["S.NO", "VIA ROUTE LOCATION", "CITY", "STATE", "LATITUDE", "LONGITUDE"];
   const rows = viaRoutes.map((route, idx) => [
     String(idx + 1),
-    route.via_route_location || "â€”",
-    route.via_route_location_city || "â€”",
-    route.via_route_location_state || "â€”",
-    route.via_route_location_lattitude || "â€”",
-    route.via_route_location_longitude || "â€”",
+    route.via_route_location || "\u2014",
+    route.via_route_location_city || "\u2014",
+    route.via_route_location_state || "\u2014",
+    route.via_route_location_lattitude || "\u2014",
+    route.via_route_location_longitude || "\u2014",
   ]);
   const tableHtml = `
     <table>
@@ -573,9 +573,9 @@ const handleExportSuggestedRoutesCSV = () => {
   const headers = ["S.NO", "ROUTES", "NO OF NIGHTS", "ROUTE DETAILS"];
   const rows = suggestedRoutes.map((route, idx) => [
     String(idx + 1),
-    route.routes || "â€”",
-    route.no_of_nights || "â€”",
-    route.route_details || "â€”",
+    route.routes || "\u2014",
+    route.no_of_nights || "\u2014",
+    route.route_details || "\u2014",
   ]);
   const csv = [
     headers.map(escapeCsvValue).join(","),
@@ -588,9 +588,9 @@ const handleExportSuggestedRoutesExcel = () => {
   const headers = ["S.NO", "ROUTES", "NO OF NIGHTS", "ROUTE DETAILS"];
   const rows = suggestedRoutes.map((route, idx) => [
     String(idx + 1),
-    route.routes || "â€”",
-    route.no_of_nights || "â€”",
-    route.route_details || "â€”",
+    route.routes || "\u2014",
+    route.no_of_nights || "\u2014",
+    route.route_details || "\u2014",
   ]);
   const tableHtml = `
     <table>
@@ -682,7 +682,7 @@ const handleSaveNewSuggestedRoute = async () => {
   const routeDetails = addingSuggestionDays
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
-    .join(" â†’ ");
+    .join(" \u2192 ");
   if (!routeName) {
     toast.warning("Source and destination are required");
     return;
@@ -759,7 +759,7 @@ const confirmDeleteSelectedSuggestion = async () => {
   const routeDetails = editingSuggestionDays
     .map((item) => item.trim())
     .filter((item) => item.length > 0)
-    .join(" â†’ ");
+    .join(" \u2192 ");
   if (!routeName) {
     toast.warning("Source and destination are required");
     return;

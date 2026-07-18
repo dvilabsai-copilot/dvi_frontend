@@ -51,7 +51,7 @@ export function AmenityPicker({
             <span key={String(id)} className="inline-flex items-center gap-1 text-xs border rounded-full px-2 py-1 bg-gray-50">
               {option?.name ?? id}
               <button type="button" className="leading-none text-gray-500 hover:text-gray-700" onClick={() => remove(id)}>
-                Ã—
+                  {"\u00D7"}
               </button>
             </span>
           );
@@ -92,7 +92,7 @@ export function RoomTypeAutocomplete({
   value,
   onChange,
   options,
-  placeholder = "Type room typeâ€¦",
+  placeholder = "Type room type\u2026",
   dropdownId,
 }: {
   value: string;

@@ -613,12 +613,12 @@ const handleDeleteLocal = async (rowId: number) => {
   const driverCostExportRows = filteredDriverCostRows.map((row, index) => ({
     "S.NO": index + 1,
     "VEHICLE TYPE": getVehicleTypeLabel(row),
-    "DRIVER BHATTA(â‚¹)": row.driverBhatta,
-    "FOOD COST(â‚¹)": row.foodCost,
-    "ACCOMODATION COST(â‚¹)": row.accommodationCost,
-    "EXTRA COST(â‚¹)": row.extraCost,
-    "MORNING CHARGES(â‚¹)": row.morningCharges,
-    "EVENING CHARGES(â‚¹)": row.eveningCharges,
+    "DRIVER BHATTA(\u20B9)": row.driverBhatta,
+    "FOOD COST(\u20B9)": row.foodCost,
+    "ACCOMODATION COST(\u20B9)": row.accommodationCost,
+    "EXTRA COST(\u20B9)": row.extraCost,
+    "MORNING CHARGES(\u20B9)": row.morningCharges,
+    "EVENING CHARGES(\u20B9)": row.eveningCharges,
   }));
   const handleCopyDriverCost = async () => {
     const text = driverCostExportRows

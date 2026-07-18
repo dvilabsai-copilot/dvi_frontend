@@ -668,7 +668,7 @@ const handleReviewExcel = () => {
             amount: formData.pricing.foreignInfant,
           },
         ];
-  const hotspotLabel = hotspotOptions.find((o) => o.id === formData.hotspotId)?.label?.split(" â€” ")[0] || formData.title || "Activity";
+    const hotspotLabel = hotspotOptions.find((o) => o.id === formData.hotspotId)?.label?.split(" \u2014 ")[0] || formData.title || "Activity";
   useEffect(() => {
     const startObj = parseDMY(priceStartDate);
     const endObj = parseDMY(priceEndDate);

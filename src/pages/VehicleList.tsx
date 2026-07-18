@@ -149,10 +149,9 @@ export interface ItineraryVehicleRow {
 }
 
 const formatCurrencyINR = (value: number | string | undefined | null) => {
-  const n =
-    typeof value === "number" ? value : parseFloat((value as string) || "0");
-  if (Number.isNaN(n)) return "Ã¢â€šÂ¹ 0.00";
-  return `Ã¢â€šÂ¹ ${n.toLocaleString("en-IN", {
+  const amount = typeof value === "number" ? value : Number.parseFloat(String(value ?? "0"));
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  return `\u20B9 ${safeAmount.toLocaleString("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -614,7 +613,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         (vehicle.extraKms ?? 0) > 0
           ? [
               "TOTAL EXTRA KM",
-              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * Ã¢â€šÂ¹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(readVehicleExtraKmCharge(vehicle))}`,
+              `${Number(vehicle.extraKms ?? 0).toFixed(0)} * \u20B9${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(readVehicleExtraKmCharge(vehicle))}`,
             ]
           : null,
       ];
@@ -626,13 +625,13 @@ export const VehicleList: React.FC<VehicleListProps> = ({
         ...(vehicle.localExtraKms ?? 0) > 0
           ? [[
               "LOCAL EXTRA KM",
-              `${Number(vehicle.localExtraKms ?? 0).toFixed(0)} * Ã¢â€šÂ¹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.localExtraKmCharge)}`,
+              `${Number(vehicle.localExtraKms ?? 0).toFixed(0)} * \u20B9${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.localExtraKmCharge)}`,
             ] as string[]]
           : [],
         ...(vehicle.outstationExtraKms ?? 0) > 0
           ? [[
               "OUTSTATION EXTRA KM",
-              `${Number(vehicle.outstationExtraKms ?? 0).toFixed(0)} * Ã¢â€šÂ¹${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.outstationExtraKmCharge)}`,
+              `${Number(vehicle.outstationExtraKms ?? 0).toFixed(0)} * \u20B9${Number(vehicle.extraKmRate ?? 0).toFixed(2)} = ${formatCurrencyINR(vehicle.outstationExtraKmCharge)}`,
             ] as string[]]
           : [],
       ];

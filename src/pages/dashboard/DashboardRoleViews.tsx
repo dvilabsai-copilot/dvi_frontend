@@ -34,7 +34,7 @@ if (isAgent) {
   const formatAgentMoney = (value: number | string) => {
     const amount = Number(value || 0);
 
-    return `â‚¹ ${amount.toLocaleString("en-IN", {
+    return `\u20B9 ${amount.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
@@ -372,7 +372,7 @@ if (isAgent) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Payable</p>
-                <p className="text-2xl font-bold text-blue-600">â‚¹{accountsData.totalPayable.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-blue-600">{"\u20B9"}{accountsData.totalPayable.toLocaleString()}</p>
               </div>
             </div>
           </Card>
@@ -384,7 +384,7 @@ if (isAgent) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Paid</p>
-                <p className="text-2xl font-bold text-green-600">â‚¹{accountsData.totalPaid.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-green-600">{"\u20B9"}{accountsData.totalPaid.toLocaleString()}</p>
               </div>
             </div>
           </Card>
@@ -396,7 +396,7 @@ if (isAgent) {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Total Balance</p>
-                <p className="text-2xl font-bold text-orange-600">â‚¹{accountsData.totalBalance.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-orange-600">{"\u20B9"}{accountsData.totalBalance.toLocaleString()}</p>
               </div>
             </div>
           </Card>

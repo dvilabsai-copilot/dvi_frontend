@@ -205,7 +205,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
 {formatCurrencyINR(displayTotalAmount)}
-                      <span className="ml-2 text-xs text-gray-500">{isExpanded ? "â–¼" : "â–¶"}</span>
+                      <span className="ml-2 text-xs text-gray-500">{isExpanded ? "\u25BC" : "\u25B6"}</span>
                       
                       {/* Hover Tooltip - Price Breakdown */}
                        {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
@@ -523,7 +523,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <tr>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">LOCAL EXTRA KM</td>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                        {(v.localExtraKms ?? 0).toFixed(0)} * â‚¹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.localExtraKmCharge)}
+                                        {(v.localExtraKms ?? 0).toFixed(0)} * {"\u20B9"}{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.localExtraKmCharge)}
                                       </td>
                                     </tr>
                                   )}
@@ -531,7 +531,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                     <tr>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-gray-600 font-medium">OUTSTATION EXTRA KM</td>
                                       <td className="w-1/2 border border-gray-300 px-1 py-1 text-right text-gray-800 font-semibold">
-                                        {(v.outstationExtraKms ?? 0).toFixed(0)} * â‚¹{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.outstationExtraKmCharge)}
+                                        {(v.outstationExtraKms ?? 0).toFixed(0)} * {"\u20B9"}{(v.extraKmRate ?? 0).toFixed(2)} = {formatCurrencyINR(v.outstationExtraKmCharge)}
                                       </td>
                                     </tr>
                                   )}
