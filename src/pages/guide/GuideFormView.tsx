@@ -81,7 +81,7 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">
-          {isEdit ? `Edit Guide ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â» ${name}` : "Add Guide"}
+          {isEdit ? `Edit Guide \u00BB ${name}` : "Add Guide"}
         </h1>
         <div className="text-sm text-muted-foreground">
           Dashboard &gt; Guide &gt; {isEdit ? "Edit Guide" : "Add Guide"}

@@ -205,7 +205,13 @@ export const itineraryRouteActions = {
     routeId: number,
     startTime: string,
     endTime: string,
-    options?: { previousDayBillingDecisionProvided?: boolean; previousDayBillingConfirmed?: boolean },
+    options?: {
+      previousDayBillingDecisionProvided?: boolean;
+      previousDayBillingConfirmed?: boolean;
+      transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
+      transportEarlyArrivalHotelName?: string | null;
+      transportEarlyArrivalRestMinutes?: number | null;
+    },
   ) {
     return api(`itineraries/${planId}/route/${routeId}/times`, {
       method: "PATCH",
@@ -214,6 +220,9 @@ export const itineraryRouteActions = {
         endTime,
         previousDayBillingDecisionProvided: options?.previousDayBillingDecisionProvided,
         previousDayBillingConfirmed: options?.previousDayBillingConfirmed,
+        transportEarlyArrivalOption: options?.transportEarlyArrivalOption,
+        transportEarlyArrivalHotelName: options?.transportEarlyArrivalHotelName,
+        transportEarlyArrivalRestMinutes: options?.transportEarlyArrivalRestMinutes,
       },
     });
   },

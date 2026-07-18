@@ -71,7 +71,7 @@ test.describe('Transport Only early-arrival preference', () => {
       preferenceDialog.getByRole('button', { name: /Proceed directly to a hotel for freshening up and rest/i }),
     ).toBeVisible();
     await expect(
-      preferenceDialog.getByRole('button', { name: /Start the tour immediately with a refreshment\/break stop/i }),
+      preferenceDialog.getByRole('button', { name: /Take a refreshment or waiting break before sightseeing/i }),
     ).toBeVisible();
 
     await preferenceDialog.getByRole('button', { name: /Proceed directly to a hotel for freshening up and rest/i }).click();
@@ -85,7 +85,7 @@ test.describe('Transport Only early-arrival preference', () => {
       fullPage: true,
     });
 
-    await preferenceDialog.getByRole('button', { name: /Start the tour immediately with a refreshment\/break stop/i }).click();
+    await preferenceDialog.getByRole('button', { name: /Take a refreshment or waiting break before sightseeing/i }).click();
     await expect(preferenceDialog.getByRole('button', { name: 'Use this preference' })).toBeEnabled();
     await adminPage.screenshot({
       path: testInfo.outputPath('transport-early-arrival-preference-dialog.png'),

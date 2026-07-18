@@ -13,7 +13,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
     <Card>
       <CardHeader className="flex flex-col gap-1">
         <CardTitle className="text-pink-600 text-lg">
-          Vehicle Type â€“ Driver Cost
+          Vehicle Type - Driver Cost
         </CardTitle>
         {!vendorId && (
           <p className="text-xs text-red-500">
@@ -71,12 +71,12 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
                   "S.NO",
                   "ACTION",
                   "VEHICLE TYPE",
-                  "DRIVER BHATTA(â‚¹)",
-                  "FOOD COST(â‚¹)",
-                  "ACCOMODATION COST(â‚¹)",
-                  "EXTRA COST(â‚¹)",
-                  "MORNING CHARGES(â‚¹)",
-                  "EVENING CHARGES(â‚¹)",
+                  "DRIVER BHATTA(\u20B9)",
+                  "FOOD COST(\u20B9)",
+                  "ACCOMODATION COST(\u20B9)",
+                  "EXTRA COST(\u20B9)",
+                  "MORNING CHARGES(\u20B9)",
+                  "EVENING CHARGES(\u20B9)",
                 ])}
                 <tbody className="bg-white">
                   {filteredDriverCostRows.length === 0 && (
@@ -537,7 +537,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div className="space-y-1">
-  <Label>Driver Bhatta (â‚¹)</Label>
+  <Label>Driver Bhatta ({"\u20B9"})</Label>
   <Input
     placeholder="Driver Bhatta"
     value={driverFormFields.driverBhatta}
@@ -550,7 +550,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
   />
 </div>
             <div className="space-y-1">
-  <Label>Driver Food Cost (â‚¹)</Label>
+  <Label>Driver Food Cost ({"\u20B9"})</Label>
   <Input
     placeholder="Food Cost"
     value={driverFormFields.foodCost}
@@ -563,7 +563,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
   />
 </div>
             <div className="space-y-1">
-  <Label>Driver Accomodation Cost (â‚¹)</Label>
+  <Label>Driver Accomodation Cost ({"\u20B9"})</Label>
   <Input
     placeholder="Accomodation Cost"
     value={driverFormFields.accommodationCost}
@@ -576,7 +576,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
   />
 </div>
             <div className="space-y-1">
-  <Label>Extra Cost (â‚¹)</Label>
+  <Label>Extra Cost ({"\u20B9"})</Label>
   <Input
     placeholder="Extra Cost"
     value={driverFormFields.extraCost}
@@ -589,7 +589,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
   />
 </div>
               <div className="space-y-1">
-  <Label>Early Morning Charges Per Hour (Before 6 AM) (â‚¹)</Label>
+  <Label>Early Morning Charges Per Hour (Before 6 AM) ({"\u20B9"})</Label>
   <Input
     placeholder="Early Morning Charges"
     value={driverFormFields.morningCharges}
@@ -602,7 +602,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
   />
 </div>
               <div className="space-y-1">
-  <Label>Evening Charges Per Hour (After 8 PM) (â‚¹)</Label>
+  <Label>Evening Charges Per Hour (After 8 PM) ({"\u20B9"})</Label>
   <Input
     placeholder="Evening Charges"
     value={driverFormFields.eveningCharges}
@@ -911,4 +911,3 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
 </Card>
   );
 }
-

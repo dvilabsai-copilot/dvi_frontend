@@ -175,7 +175,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Breakfast Cost (â‚¹)
+              Breakfast Cost ({"\u20B9"})
             </label>
             <input
               type="number"
@@ -188,7 +188,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Lunch Cost (â‚¹)
+              Lunch Cost ({"\u20B9"})
             </label>
             <input
               type="number"
@@ -201,7 +201,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
           <div className="col-span-12 md:col-span-4">
             <label className="block text-xs font-medium mb-1">
-              Dinner Cost (â‚¹)
+              Dinner Cost ({"\u20B9"})
             </label>
             <input
               type="number"
@@ -371,7 +371,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                     />
                   </div>
                   <div className="col-span-12 md:col-span-3">
-                    <label className="block text-xs font-medium mb-1">Day Charge (â‚¹)</label>
+                    <label className="block text-xs font-medium mb-1">Day Charge ({"\u20B9"})</label>
                     <input
                       type="number"
                       className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -634,10 +634,10 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 No rate plans found for the selected room.
               </div>
             ) : (
-              OCCUPANCY_FIELDS.map((occupancyKey) => (
+              OCCUPANCY_FIELDS.map(({ occupancyKey }) => (
                 <div key={occupancyKey} className="col-span-12 md:col-span-3 lg:col-span-2">
                   <label className="block text-xs font-medium mb-1">
-                    {occupancyKey} (â‚¹)
+                    {occupancyKey} ({"\u20B9"})
                   </label>
                   <input
                     type="number"
@@ -839,7 +839,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
             <div className="col-span-12 md:col-span-5 flex items-end">
               <p className="text-xs text-gray-500">
                 {availStartDate && availEndDate
-                  ? <>Availability for <strong>{formatDateLabel(normalizedAvailStart)}</strong> â†’ <strong>{formatDateLabel(normalizedAvailEnd)}</strong>. Enter free rooms count and click <strong>Update</strong>.</>
+                  ? <>Availability for <strong>{formatDateLabel(normalizedAvailStart)}</strong> {"\u2192"} <strong>{formatDateLabel(normalizedAvailEnd)}</strong>. Enter free rooms count and click <strong>Update</strong>.</>
                   : "Select a date range above, then enter the number of free rooms available and click Update."}
               </p>
             </div>

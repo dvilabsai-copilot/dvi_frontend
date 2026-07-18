@@ -295,7 +295,7 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                                   return (
                                     <td key={d.label} className="p-2 border border-gray-200 text-center whitespace-nowrap">
                                       {price !== null
-                                        ? <span className="text-gray-800">Ã¢â€šÂ¹ {price.toFixed(2)}</span>
+                                        ? <span className="text-gray-800">{"\u20B9"} {price.toFixed(2)}</span>
                                         : <span className="text-gray-400">No Price</span>}
                                     </td>
                                   );
@@ -320,7 +320,7 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                   onClick={() => setCurrentStep(3)}
                   className="bg-gradient-to-r from-primary to-pink-500"
                 >
-                  Continue Ã¢â€ â€™
+                  Continue {"\u2192"}
                 </Button>
               </div>
 

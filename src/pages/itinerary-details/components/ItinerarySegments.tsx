@@ -346,10 +346,20 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                               <Clock className="h-5 w-5 text-[#856404]" />
                               <div className="flex-1">
                                 <p className="text-sm text-[#4a4260]">
-                                  <span className="font-medium">Expect a waiting time of approximately</span>{" "}
-                                  <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
-                                  <span className="font-medium">at this location</span>{" "}
-                                  <span className="text-[#d546ab] font-semibold">({segment.location})</span>
+                                  <span className="font-medium">
+                                    {String(segment.location || "").startsWith("Visit to ")
+                                      ? `${segment.location} for rest and refreshment`
+                                      : "Expect a waiting time of approximately"}
+                                  </span>{" "}
+                                  {String(segment.location || "").startsWith("Visit to ") ? (
+                                    <span className="text-[#d546ab] font-semibold">({segment.duration})</span>
+                                  ) : (
+                                    <>
+                                      <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
+                                      <span className="font-medium">at this location</span>{" "}
+                                      <span className="text-[#d546ab] font-semibold">({segment.location})</span>
+                                    </>
+                                  )}
                                 </p>
                                 <div className="flex flex-wrap gap-4 mt-2 text-xs text-[#6c6c6c]">
                                   <span>

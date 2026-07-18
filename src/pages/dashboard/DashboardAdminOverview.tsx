@@ -78,7 +78,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
         </p>
         <p className="mb-4 text-lg text-gray-400">October 2025</p>
         <p className="text-3xl font-bold text-slate-700">
-          â‚¹ {adminData.profit.lastMonth.toLocaleString("en-IN", {
+              {"\u20B9"} {adminData.profit.lastMonth.toLocaleString("en-IN", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
@@ -93,7 +93,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
 
         <div className="flex items-center gap-3">
           <p className="text-3xl font-bold text-slate-700">
-            â‚¹ {adminData.profit.currentMonth.toLocaleString("en-IN", {
+              {"\u20B9"} {adminData.profit.currentMonth.toLocaleString("en-IN", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })}
@@ -106,7 +106,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                 : "bg-red-50 text-red-500"
             }`}
           >
-            {adminData.profit.percentageChange >= 0 ? "â†" : "â–¼"}{" "}
+              {adminData.profit.percentageChange >= 0 ? "\u2191" : "\u25BC"}{" "}
             {Math.abs(adminData.profit.percentageChange).toFixed(2)}%
           </span>
         </div>
@@ -132,7 +132,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-2xl font-bold mb-1">â‚¹ {adminData.stats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="text-2xl font-bold mb-1">{"\u20B9"} {adminData.stats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>
             <div className="text-6xl">ðŸ’°</div>

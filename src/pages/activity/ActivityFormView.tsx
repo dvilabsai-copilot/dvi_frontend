@@ -116,7 +116,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-800">
-          {isEdit ? `Edit Activity Â» ${formData.title}` : "Add Activity"}
+          {isEdit ? `Edit Activity \u00BB ${formData.title}` : "Add Activity"}
         </h1>
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Link to="/" className="text-primary hover:underline">
@@ -225,7 +225,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                                 onSelect={() => {
                                   const idNum = opt.id;
                                   handleInputChange("hotspotId", idNum);
-                                  const separator = opt.label.includes("â€”") ? "â€”" : ",";
+    const separator = opt.label.includes("\u2014") ? "\u2014" : ",";
                                   const [name, ...placeParts] = opt.label.split(separator);
                                   handleInputChange("hotspot", name?.trim() || "");
                                   handleInputChange("hotspotPlace", placeParts.join(separator).trim() || "");
@@ -595,7 +595,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                       />
                     </PopoverContent>
                   </Popover>
-                  <span className="text-muted-foreground">â€”</span>
+              <span className="text-muted-foreground">{"\u2014"}</span>
                   {/* End Date Picker */}
                   <Popover open={isPriceEndOpen} onOpenChange={setIsPriceEndOpen}>
                     <PopoverTrigger asChild>
@@ -837,7 +837,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                                 key={`${row.nationality}-${row.priceType}-${date.toISOString()}`}
                                 className="text-center"
                               >
-                                â‚¹ {Number(row.amount || 0).toFixed(2)}
+                          {"\u20B9"} {Number(row.amount || 0).toFixed(2)}
                               </TableCell>
                             ))}
                           </TableRow>

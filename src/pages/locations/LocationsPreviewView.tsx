@@ -102,7 +102,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                           Place Location
                         </label>
                         <p className="text-sm text-gray-700">
-                          {item.via_route_location || "â€”"}
+                          {item.via_route_location || "\u2014"}
                         </p>
                       </div>
 
@@ -111,7 +111,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                           Place City
                         </label>
                         <p className="text-sm text-gray-700">
-                          {item.via_route_location_city || "â€”"}
+                          {item.via_route_location_city || "\u2014"}
                         </p>
                       </div>
 
@@ -120,7 +120,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                           Place State
                         </label>
                         <p className="text-sm text-gray-700">
-                          {item.via_route_location_state || "â€”"}
+                          {item.via_route_location_state || "\u2014"}
                         </p>
                       </div>
 
@@ -129,7 +129,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                           Place Latitude
                         </label>
                         <p className="text-sm text-gray-700">
-                          {item.via_route_location_lattitude || "â€”"}
+                          {item.via_route_location_lattitude || "\u2014"}
                         </p>
                       </div>
 
@@ -138,7 +138,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                           Place Longitude
                         </label>
                         <p className="text-sm text-gray-700">
-                          {item.via_route_location_longitude || "â€”"}
+                          {item.via_route_location_longitude || "\u2014"}
                         </p>
                       </div>
                     </div>
@@ -158,7 +158,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
             <div key={toll.vehicle_type_id} className="space-y-2">
               <label className="text-xs text-gray-600 font-medium capitalize block">{toll.vehicle_type_name}</label>
               <div className="flex items-center">
-                <span className="text-gray-600 mr-2">â‚¹</span>
+                <span className="text-gray-600 mr-2">{"\u20B9"}</span>
                 <Input
                   type="number"
                   className="flex-1"
@@ -273,11 +273,11 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                   .map((item, index) => (
                     <tr key={item.via_route_location_ID} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3">{(viaRouteCurrentPage - 1) * viaRoutePageSize + index + 1}</td>
-                      <td className="px-4 py-3">{item.via_route_location || "â€”"}</td>
-                      <td className="px-4 py-3">{item.via_route_location_city || "â€”"}</td>
-                      <td className="px-4 py-3">{item.via_route_location_state || "â€”"}</td>
-                      <td className="px-4 py-3">{item.via_route_location_lattitude || "â€”"}</td>
-                      <td className="px-4 py-3">{item.via_route_location_longitude || "â€”"}</td>
+                      <td className="px-4 py-3">{item.via_route_location || "\u2014"}</td>
+                      <td className="px-4 py-3">{item.via_route_location_city || "\u2014"}</td>
+                      <td className="px-4 py-3">{item.via_route_location_state || "\u2014"}</td>
+                      <td className="px-4 py-3">{item.via_route_location_lattitude || "\u2014"}</td>
+                      <td className="px-4 py-3">{item.via_route_location_longitude || "\u2014"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Button
@@ -471,9 +471,9 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
                   .map((route, index) => (
                     <tr key={route.modify} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3">{(suggestedRouteCurrentPage - 1) * suggestedRoutePageSize + index + 1}</td>
-                      <td className="px-4 py-3">{route.routes || "â€”"}</td>
-                      <td className="px-4 py-3">{route.no_of_nights || "â€”"}</td>
-                      <td className="px-4 py-3">{route.route_details || "â€”"}</td>
+                      <td className="px-4 py-3">{route.routes || "\u2014"}</td>
+                      <td className="px-4 py-3">{route.no_of_nights || "\u2014"}</td>
+                      <td className="px-4 py-3">{route.route_details || "\u2014"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Button

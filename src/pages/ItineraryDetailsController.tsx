@@ -458,6 +458,9 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
     applyRouteTimePatch,
     handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
     persistArrivalPolicyDecision,
+    transportEarlyArrivalDialog,
+    closeTransportEarlyArrivalDialog,
+    confirmTransportEarlyArrival,
   } = routeMutationWorkflow;
 
   const openDeleteHotspotModal = (
@@ -827,6 +830,14 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
         daysContext: { displayDays, getDisplayDistances, getGuestFoodPreferenceText, itinerary, guideAssignments, readOnly, guideAvailability, guideAvailabilityLoading, isGuidePriceAvailableForDay, getGuideAssignmentForDay, routeNeedsRebuild, summaryStickyHeight, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook, openSourcePreview, openAddHotspotModal, handleWholeItineraryGuideClick, handleAddGuideClick, openGuideModal, setDeleteGuideModal, destinationHotelDisplayName: hotspotPreviewViewModel.destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText },
         specialInstructionsText,
         earlyArrivalPreferenceMessage,
+        transportEarlyArrivalDialog: {
+          open: transportEarlyArrivalDialog.open,
+          option: transportEarlyArrivalDialog.option,
+          hotelName: transportEarlyArrivalDialog.hotelName,
+          restMinutes: transportEarlyArrivalDialog.restMinutes,
+          onOpenChange: closeTransportEarlyArrivalDialog,
+          onConfirm: confirmTransportEarlyArrival,
+        },
         hotelListRef,
         summaryStickyHeight,
         shouldShowHotels,

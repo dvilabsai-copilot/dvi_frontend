@@ -53,7 +53,7 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                       We are checking {loadingAnchorCount > 0 ? loadingAnchorCount : "all"} possible Fit Here position{loadingAnchorCount === 1 ? "" : "s"} one by one and sorting the cleanest outcome first.
                     </p>
                     <p className="mt-1 text-xs font-medium text-emerald-800">
-                      Elapsed: {elapsedSeconds}s â€¢ Completed {completedLoadingRows.length}/{loadingAnchorCount || results.length || 0}
+                Elapsed: {elapsedSeconds}s {"\u2022"} Completed {completedLoadingRows.length}/{loadingAnchorCount || results.length || 0}
                     </p>
                   </div>
                 </div>
@@ -89,7 +89,7 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                       isActive
                         ? row?.progressText
                         : isDone
-                          ? `${row?.elapsedMs ? `${(Number(row.elapsedMs) / 1000).toFixed(1)}s` : "Done"}${row?.removedCount ? ` â€¢ ${row.removedCount} removal${row.removedCount === 1 ? "" : "s"}` : ""}`
+                              ? `${row?.elapsedMs ? `${(Number(row.elapsedMs) / 1000).toFixed(1)}s` : "Done"}${row?.removedCount ? ` \u2022 ${row.removedCount} removal${row.removedCount === 1 ? "" : "s"}` : ""}`
                           : isFailed
                             ? (row?.error || "This position could not be previewed.")
                             : (row?.progressText || "Waiting to simulate this position.");
@@ -143,10 +143,10 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                       Ranked {results.length} position{results.length === 1 ? "" : "s"} in{" "}
                       {(Number(performanceSummary.totalElapsedMs) / 1000).toFixed(1)}s
                       {Number(performanceSummary.avgAnchorMs || 0) > 0
-                        ? ` â€¢ Avg ${(Number(performanceSummary.avgAnchorMs) / 1000).toFixed(1)}s per position`
+                              ? ` \u2022 Avg ${(Number(performanceSummary.avgAnchorMs) / 1000).toFixed(1)}s per position`
                         : ""}
                       {performanceSummary.slowestAnchorLabel && Number(performanceSummary.slowestAnchorMs || 0) > 0
-                        ? ` â€¢ Slowest: ${performanceSummary.slowestAnchorLabel} (${(Number(performanceSummary.slowestAnchorMs) / 1000).toFixed(1)}s)`
+                              ? ` \u2022 Slowest: ${performanceSummary.slowestAnchorLabel} (${(Number(performanceSummary.slowestAnchorMs) / 1000).toFixed(1)}s)`
                         : ""}
                     </p>
                   ) : null}
@@ -352,7 +352,7 @@ export function AutoFitHerePreviewDialogView({ context }: { context: Record<stri
                                 ) : null}
                                 <p className="mt-1 text-xs text-slate-600">
                                   {item.workPriority ? `Priority ${item.workPriority}` : "Priority not set"}
-                                  {item.reason ? ` â€¢ ${item.reason}` : ""}
+                                  {item.reason ? ` \u2022 ${item.reason}` : ""}
                                 </p>
                               </div>
                             </label>

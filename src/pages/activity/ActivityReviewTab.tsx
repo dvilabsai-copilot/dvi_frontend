@@ -139,11 +139,11 @@ export function ActivityReviewTab({
             <div className="overflow-hidden rounded-xl border border-[#eadcff]">
               <Table className="w-full text-[13px]">
                 <TableHeader className="bg-[#fbf7ff]"><TableRow>
-                  <TableHead className="w-[75px] px-3 py-2 font-semibold">S.NO â†•</TableHead>
-                  <TableHead className="w-[95px] px-3 py-2 font-semibold">RATING â†•</TableHead>
-                  <TableHead className="w-[135px] px-3 py-2 font-semibold">DESCRIPTION â†•</TableHead>
-                  <TableHead className="w-[166px] whitespace-nowrap px-3 py-2 font-semibold">CREATED ON â†•</TableHead>
-                  <TableHead className="w-[103px] whitespace-nowrap px-3 py-2 text-center font-semibold">ACTIONS â†•</TableHead>
+                    <TableHead className="w-[75px] px-3 py-2 font-semibold">S.NO {"\u2195"}</TableHead>
+                    <TableHead className="w-[95px] px-3 py-2 font-semibold">RATING {"\u2195"}</TableHead>
+                    <TableHead className="w-[135px] px-3 py-2 font-semibold">DESCRIPTION {"\u2195"}</TableHead>
+                    <TableHead className="w-[166px] whitespace-nowrap px-3 py-2 font-semibold">CREATED ON {"\u2195"}</TableHead>
+                    <TableHead className="w-[103px] whitespace-nowrap px-3 py-2 text-center font-semibold">ACTIONS {"\u2195"}</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {paginatedReviews.length === 0 ? (
