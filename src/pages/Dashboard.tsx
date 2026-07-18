@@ -364,12 +364,29 @@ const [openDailyMomentQuote, setOpenDailyMomentQuote] = useState<string | null>(
   const { openCheckout } = useRazorpayCheckout();
 
   const token = localStorage.getItem("accessToken");
-  const user = token ? parseJwt(token) : null;
-  const isAgent = user?.role === 4;
-  const isAccounts = user?.role === 6;
-  const isVendor = user?.role === 2;
-  const isTravelExpert = (user?.role === 3 || user?.role === 8 || (user?.staffId && user.staffId > 0)) && !isAgent && !isAccounts;
-  const isGuide = user?.role === 5 || (user?.guideId && user.guideId > 0);
+const user = token ? parseJwt(token) : null;
+
+const role = Number(user?.role || 0);
+const staffId = Number(user?.staffId || 0);
+const guideId = Number(user?.guideId || 0);
+
+const isAdmin = role === 1;
+const isStaff = role === 3;
+const isAgent = role === 4;
+const isGuide = role === 5 || guideId > 0;
+const isAccounts = role === 6;
+const isVendor = role === 2;
+
+// Staff role 3 must use the full Admin dashboard.
+// Role 8 and other non-admin staff-linked users retain the Travel Expert view.
+const isTravelExpert =
+  !isAdmin &&
+  !isStaff &&
+  !isAgent &&
+  !isAccounts &&
+  !isVendor &&
+  !isGuide &&
+  (role === 8 || staffId > 0);
 
   const handleTopUp = async () => {
     if (!topUpAmount || isNaN(Number(topUpAmount)) || Number(topUpAmount) < 1) {
@@ -1241,9 +1258,9 @@ return (
 <Card className="border-none bg-white p-8 shadow-md">
   <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
     <div>
-      <h3 className="mb-4 text-4xl font-bold text-slate-700">
-        Welcome back, Admin 👋🏻
-      </h3>
+<h3 className="mb-4 text-4xl font-bold text-slate-700">
+  Welcome back, {isStaff ? "Staff" : "Admin"} 👋🏻
+</h3>
 
       <p className="mb-8 max-w-[650px] text-xl leading-8 text-gray-400">
         Your progress this week is Awesome. Let's keep it up and get

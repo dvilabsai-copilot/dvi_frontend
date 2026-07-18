@@ -181,9 +181,28 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   };
 
   const token = localStorage.getItem("accessToken");
-  const user = token ? parseJwt(token) : null;
-  const role = user?.role;
+const user = token ? parseJwt(token) : null;
 
+const role = Number(user?.role || 0);
+const isStaff = role === 3;
+
+const profileName = String(
+  role === 4
+    ? "DVI Demo Agent"
+    : user?.name || (isStaff ? "Staff" : "AdminDvi"),
+);
+
+const profileRoleLabel =
+  role === 1
+    ? "Super Admin"
+    : isStaff
+      ? "Staff"
+      : role === 4
+        ? "Agent"
+        : "User";
+
+const profileInitial =
+  profileName.trim().charAt(0).toUpperCase() || "U";
   useEffect(() => {
     const loadSidebarWallet = async () => {
       try {
@@ -200,15 +219,47 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   }, []);
 
   const filteredMenuItems = menuItems.filter((item) => {
-    if (role === 4) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","book-activities","staff","wallet","subscription-history"].includes(item.id);
-    }
-    if (role === 1) {
-      return ["dashboard","create-itinerary","download-packages","latest-itinerary","confirmed-itinerary","book-activities","accounts","hotels","axisrooms-hotels","daily-moment","vendor-management","hotspot","activity","locations","guide","staff","agent","pricebook","settings"].includes(item.id);
-    }
-    return false;
-  });
+  if (role === 4) {
+    return [
+      "dashboard",
+      "create-itinerary",
+      "download-packages",
+      "latest-itinerary",
+      "confirmed-itinerary",
+      "book-activities",
+      "staff",
+      "wallet",
+      "subscription-history",
+    ].includes(item.id);
+  }
 
+  // Admin and Staff receive the same navigation.
+  if (role === 1 || isStaff) {
+    return [
+      "dashboard",
+      "create-itinerary",
+      "download-packages",
+      "latest-itinerary",
+      "confirmed-itinerary",
+      "book-activities",
+      "accounts",
+      "hotels",
+      "axisrooms-hotels",
+      "daily-moment",
+      "vendor-management",
+      "hotspot",
+      "activity",
+      "locations",
+      "guide",
+      "staff",
+      "agent",
+      "pricebook",
+      "settings",
+    ].includes(item.id);
+  }
+
+  return false;
+});
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* HEADER */}
@@ -291,22 +342,26 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
         </div>
       )}
 
-      {/* PROFILE */}
-      {!collapsed && (
-        <div className="border-t p-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">A</div>
-            <div>
-              <p className="text-sm font-semibold">
-                {role === 4 ? "DVI Demo Agent" : user?.name || "AdminDvi"}
-              </p>
-              <p className="text-xs text-pink-500">
-                {role === 1 ? "Super Admin" : "Agent"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+{/* PROFILE */}
+{!collapsed && (
+  <div className="border-t p-4">
+    <div className="flex items-center gap-3">
+      <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-500 flex items-center justify-center text-white font-semibold">
+        {profileInitial}
+      </div>
+
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold">
+          {profileName}
+        </p>
+
+        <p className="text-xs text-pink-500">
+          {profileRoleLabel}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 
