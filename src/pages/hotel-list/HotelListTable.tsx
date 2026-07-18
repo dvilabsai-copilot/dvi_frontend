@@ -72,12 +72,43 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     ArrowDown,
   } = context;
 
+  const formatHotelDate = (value?: string | null): string => {
+    const datePart = String(value || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return '-';
+    return new Date(`${datePart}T00:00:00.000Z`).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  };
+
+  const formatGuestArrival = (value?: string | null): string => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC',
+    });
+  };
+
+  const formatEarlyCheckInPaymentStatus = (value?: string | null): string => {
+    if (value === 'EXTRA_PAYMENT_APPLICABLE') return 'Extra payment applicable';
+    return String(value || '').replace(/_/g, ' ').trim() || '-';
+  };
+
   return (
     <>
         {/* Hotel Table */}
         <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
           <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[980px]">
+          <table className="w-full text-left border-collapse min-w-[1680px]">
             <thead>
               <tr>
                 <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
@@ -88,6 +119,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 </th>
                 <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[220px]">
                   HOTEL NAME - CATEGORY
+                </th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
+                  HOTEL CHECK-IN DATE
+                </th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[190px]">
+                  ACTUAL GUEST ARRIVAL / CHECK-IN TIME
+                </th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
+                  CHECK-OUT DATE
+                </th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 whitespace-nowrap">
+                  EARLY CHECK-IN
+                </th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70 min-w-[170px]">
+                  PAYMENT STATUS
                 </th>
                 <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.025em] text-[#797a81] border-b border-[#dbdade] bg-[#f4f3f8]/70">
                   HOTEL ROOM TYPE
@@ -195,6 +241,23 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           )}
                         </div>
                       </td>
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
+                        {formatHotelDate(hotel.hotelCheckInDate)}
+                      </td>
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
+                        {formatGuestArrival(hotel.actualGuestArrivalAt)}
+                      </td>
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
+                        {formatHotelDate(hotel.checkOutDate)}
+                      </td>
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65] whitespace-nowrap">
+                        {hotel.earlyCheckIn ? 'Yes' : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
+                        {hotel.earlyCheckInExtraPaymentApplicable
+                          ? formatEarlyCheckInPaymentStatus(hotel.earlyCheckInPaymentStatus)
+                          : '-'}
+                      </td>
                       <td className="px-6 py-4 text-[12px] text-[#5d5f65]">
                         {getRoomTypeDisplay(hotel)}
                         {!isExternalStay && effectiveRooms > 1 && !/\(\d+\s*Rooms?\)$/i.test(String(hotel.roomType || ''))
@@ -255,11 +318,23 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </td>
                     </tr>
 
+                    {hotel.earlyCheckIn && hotel.hotelierEarlyCheckInNote && (
+                      <tr className="border-t border-amber-200 bg-amber-50">
+                        <td
+                          colSpan={showRates ? 11 : 10}
+                          className="px-6 py-3 text-sm text-amber-900"
+                        >
+                          <span className="font-semibold">Note for hotelier:</span>{' '}
+                          {hotel.hotelierEarlyCheckInNote}
+                        </td>
+                      </tr>
+                    )}
+
                     {/* EXPANDED ROW WITH ROOM CARDS */}
                     {isExpanded && (
                       <tr className="bg-[#fdf6ff] border-t">
                         <td
-                          colSpan={showRates ? 6 : 5}
+                          colSpan={showRates ? 11 : 10}
                           className="px-4 py-3 text-sm text-[#4a4260]"
                         >
                           {loadingRowKey === rowKey ? (
@@ -931,7 +1006,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
               {/* Hotel Total row for active group */}
               <tr className="border-t bg-[#fdf6ff]">
                 <td
-                  colSpan={showRates ? 4 : 3}
+                  colSpan={showRates ? 9 : 8}
                   className="px-4 py-3 text-sm font-medium text-[#4a4260] text-right"
                 >
                   Hotel Total :
@@ -939,9 +1014,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
                   {formatCurrency(readOnly ? getOverallSelectedHotelTotal() : currentTabTotal)}
                 </td>
-                {!showRates && (
-                  <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
-                )}
+                <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
               </tr>
             </tbody>
           </table>

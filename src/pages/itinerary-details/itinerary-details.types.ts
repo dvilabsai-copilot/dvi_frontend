@@ -255,6 +255,13 @@ export type ItineraryHotelRow = {
   searchReference?: string;
   checkInDate?: string; // YYYY-MM-DD format
   checkOutDate?: string; // YYYY-MM-DD format
+  hotelCheckInDate?: string | null;
+  actualGuestArrivalAt?: string | null;
+  earlyCheckIn?: boolean;
+  earlyCheckInExtraPaymentApplicable?: boolean;
+  earlyCheckInPaymentStatus?: string | null;
+  hotelierEarlyCheckInNote?: string | null;
+  previousDayBillingSynthetic?: boolean;
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
