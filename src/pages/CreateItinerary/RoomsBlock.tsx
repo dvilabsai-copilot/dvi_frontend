@@ -55,7 +55,7 @@ const VALID_COMBINATIONS: Array<{ adult: number; child: number; infant: number }
 ];
 
 const MAX_ADULTS_PER_ROOM = 3;
-const MAX_ROOMS = 6;
+const MAX_ROOMS = 25;
 
 export const RoomsBlock = ({
   itineraryPreference,
