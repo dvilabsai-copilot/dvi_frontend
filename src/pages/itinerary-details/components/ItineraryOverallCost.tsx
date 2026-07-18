@@ -4,7 +4,12 @@ import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { EntryTicketCostTooltip } from "./EntryTicketCostTooltip";
 
 type FinancialTotals = {
+  hotelAmount: number;
+  totalAmount: number;
   netPayable: number;
+  totalRoundOff: number;
+  agentMargin: number;
+  additionalMargin: number;
 };
 
 type ItineraryOverallCostProps = {
@@ -32,7 +37,7 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   financialTotals,
 }) => {
   const cost = itinerary.costBreakdown;
-  const hotelCost = Number(cost?.totalHotelAmount ?? cost?.totalRoomCost ?? 0);
+  const hotelCost = financialTotals.hotelAmount;
   const vehicleCost = Number(cost?.totalVehicleCost ?? cost?.totalVehicleAmount ?? 0);
   const entryTicketCost = Number(cost?.totalHotspotCost ?? 0);
 
@@ -62,13 +67,13 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
             </div>
           )}
           {Number(cost?.totalActivityCost ?? 0) > 0 && <CostRow label="Total Activity Cost" value={Number(cost.totalActivityCost)} />}
-          {Number(cost?.additionalMargin ?? 0) > 0 && <CostRow label="Additional Margin" value={Number(cost.additionalMargin)} />}
+          {financialTotals.additionalMargin > 0 && <CostRow label="Additional Margin" value={financialTotals.additionalMargin} />}
 
           <div className="mt-1 space-y-2 border-t border-[#e5d9f2] pt-3">
-            <CostRow label="Total Amount" value={Number(cost?.totalAmount ?? 0)} emphasized />
+            <CostRow label="Total Amount" value={financialTotals.totalAmount} emphasized />
             {Number(cost?.couponDiscount ?? 0) > 0 && <CostRow label="Coupon Discount" value={Number(cost.couponDiscount)} />}
-            {Number(cost?.agentMargin ?? 0) > 0 && <CostRow label="Agent Margin" value={Number(cost.agentMargin)} />}
-            <CostRow label="Total Round Off" value={Number(cost?.totalRoundOff ?? 0)} />
+            {financialTotals.agentMargin > 0 && <CostRow label="Agent Margin" value={financialTotals.agentMargin} />}
+            <CostRow label="Total Round Off" value={financialTotals.totalRoundOff} />
             <div className="flex justify-between gap-4 border-t border-[#e5d9f2] pt-2 text-base font-bold text-[#4a4260]">
               <span>Net Payable</span>
               <span>₹ {formatMoney(financialTotals.netPayable)}</span>

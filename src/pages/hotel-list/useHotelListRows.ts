@@ -67,7 +67,13 @@ export function useHotelListRows<TVoucher>({
         const routeId = helpers.toNumber(hotel.itineraryRouteId);
         if (!routeId) return;
         const existing = hotelsByRoute.get(routeId);
-        if (!existing || (helpers.isExternalStayRow(existing) && !helpers.isExternalStayRow(hotel))) {
+        const existingIsSynthetic = Boolean((existing as any)?.previousDayBillingSynthetic);
+        const hotelIsSynthetic = Boolean((hotel as any)?.previousDayBillingSynthetic);
+        if (
+          !existing ||
+          (existingIsSynthetic && !hotelIsSynthetic) ||
+          (helpers.isExternalStayRow(existing) && !helpers.isExternalStayRow(hotel))
+        ) {
           hotelsByRoute.set(routeId, hotel);
         }
       });

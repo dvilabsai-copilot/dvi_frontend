@@ -73,6 +73,7 @@ export function useItineraryCostViewModel({
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
     overallCost: itinerary?.overallCost,
+    computedHotelCost,
   });
   const effectiveEntryTicketAmount = itinerary?.costBreakdown?.totalHotspotCost || 0;
   const hotelHydratedDays = useHotelHydratedDays({ itineraryDays: itinerary?.days, selectedHotelMetaByRoute });
