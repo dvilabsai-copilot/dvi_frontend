@@ -67,6 +67,11 @@ import { useCreateItinerarySave } from "./helpers/useCreateItinerarySave";
 import { useCreateItineraryRouteSave } from "./helpers/useCreateItineraryRouteSave";
 import { CreateItineraryView } from "./helpers/CreateItineraryView";
 import { useCreateItineraryEffects } from "./helpers/useCreateItineraryEffects";
+import {
+  requiresTransportEarlyArrivalPreference,
+  TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
+  type TransportEarlyArrivalOption,
+} from "./helpers/transportEarlyArrival";
 
 import {
   getUnresolvedChildExtraBedOccupancyRooms,
@@ -150,6 +155,26 @@ export const CreateItinerary = () => {
 // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Start/End time used to build trip_start_date and trip_end_date payload
 const [startTime, setStartTime] = useState<string>("12:00");
 const [endTime, setEndTime] = useState<string>("12:00");
+
+  const [transportEarlyArrivalOption, setTransportEarlyArrivalOption] =
+    useState<TransportEarlyArrivalOption | "">("");
+  const [transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName] =
+    useState("");
+  const [transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes] =
+    useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+
+  const needsTransportEarlyArrivalPreference = useMemo(
+    () => requiresTransportEarlyArrivalPreference(itineraryPreference, startTime),
+    [itineraryPreference, startTime],
+  );
+
+  useEffect(() => {
+    if (!needsTransportEarlyArrivalPreference) {
+      setTransportEarlyArrivalOption("");
+      setTransportEarlyArrivalHotelName("");
+      setTransportEarlyArrivalRestMinutes(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
+    }
+  }, [needsTransportEarlyArrivalPreference]);
 
   // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
@@ -323,6 +348,11 @@ const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
     defaultRouteWarningShownRef, setShowDefaultRouteSuggestions, vehicleTypeRequestRef,
     setVehicleTypes, setSelectedVehicleIds, setEligibleVehicleTypeIds,
     travellerCounts, totalTravellingPax, fetchStoredSourceLocations,
+    setTransportEarlyArrivalOption, setTransportEarlyArrivalHotelName,
+    setTransportEarlyArrivalRestMinutes,
+    requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
+    transportEarlyArrivalOption,
+    transportEarlyArrivalHotelName,
   });
 
   // Handler for route suggestion selection
@@ -538,6 +568,10 @@ const addDay = () => {
     setPendingPayload,
     lastArrivalPolicyDecisionKey,
     isSaving,
+    requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
+    transportEarlyArrivalOption,
+    transportEarlyArrivalHotelName,
+    transportEarlyArrivalRestMinutes,
   });
 
 const isDefaultItineraryTypeSelected = () => {
@@ -732,6 +766,10 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         startTime, setStartTime, endTime, setEndTime, hotelCategoryOptions, hotelFacilityOptions,
         specialInstructions, setSpecialInstructions, validationErrors, selectedHotelCategoryIds,
         setSelectedHotelCategoryIds, selectedHotelFacilityIds, setSelectedHotelFacilityIds,
+        transportEarlyArrivalOption, setTransportEarlyArrivalOption,
+        transportEarlyArrivalHotelName, setTransportEarlyArrivalHotelName,
+        transportEarlyArrivalRestMinutes, setTransportEarlyArrivalRestMinutes,
+        requiresTransportEarlyArrivalPreference: needsTransportEarlyArrivalPreference,
         noOfNights, noOfDays, isDefaultItineraryTypeSelected, activeDefaultRouteIndex,
         setSuggestedDefaultRoutes, setActiveDefaultRouteIndex, setRouteDetails, routeDetails,
         openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,

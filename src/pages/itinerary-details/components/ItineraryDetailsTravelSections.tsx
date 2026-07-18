@@ -16,6 +16,7 @@ type Props = {
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
+  earlyArrivalPreferenceMessage: string;
   hotelListRef: ComponentProps<typeof HotelListLoadingState>["hotelListRef"];
   summaryStickyHeight: number;
   shouldShowHotels: boolean;
@@ -38,6 +39,7 @@ export function ItineraryDetailsTravelSections({
   header,
   daysContext,
   specialInstructionsText,
+  earlyArrivalPreferenceMessage,
   hotelListRef,
   summaryStickyHeight,
   shouldShowHotels,
@@ -57,6 +59,12 @@ export function ItineraryDetailsTravelSections({
   return (
     <>
       <ItineraryHeader {...header} />
+      {earlyArrivalPreferenceMessage && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span className="font-semibold">Early-arrival preference: </span>
+          {earlyArrivalPreferenceMessage}
+        </div>
+      )}
       <ItineraryDaysSection context={daysContext} />
       <SpecialInstructionsSection text={specialInstructionsText} />
       {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
