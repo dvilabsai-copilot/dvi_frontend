@@ -64,7 +64,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     useHotelSearch({ debounceMs: 500 });
 
   const totalGuests = adultCount + childCount + infantCount;
-  const MAX_ROOMS = 6;
+  const MAX_ROOMS = 25;
   const MAX_ADULTS_PER_ROOM = 8;
   const MAX_CHILDREN_PER_ROOM = 4;
   const NATIONALITY_OPTIONS = [
