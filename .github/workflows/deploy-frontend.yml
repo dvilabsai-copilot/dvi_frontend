@@ -36,7 +36,7 @@ jobs:
           port: ${{ secrets.DO_PORT }}
           source: "dist/*"
           target: "/tmp/dvi-frontend-deploy"
-          timeout: 120s
+          timeout: 10m
           command_timeout: 15m
 
       - name: Move build to live folder
