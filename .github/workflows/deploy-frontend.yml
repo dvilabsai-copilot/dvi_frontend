@@ -36,6 +36,8 @@ jobs:
           port: ${{ secrets.DO_PORT }}
           source: "dist/*"
           target: "/tmp/dvi-frontend-deploy"
+          timeout: 120s
+          command_timeout: 15m
 
       - name: Move build to live folder
         uses: appleboy/ssh-action@v1.0.3
