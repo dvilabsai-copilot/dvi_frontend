@@ -41,16 +41,17 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          ssh-keyscan -p "$DO_PORT" -H "$DO_HOST" >> ~/.ssh/known_hosts
-          ssh -p "$DO_PORT" \
-            -o ConnectTimeout=30 \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=10 \
-            "$DO_USERNAME@$DO_HOST" \
-            "mkdir -p /tmp/dvi-frontend-deploy/dist"
-          rsync -az --delete --partial --timeout=600 --info=progress2 \
-            -e "ssh -p $DO_PORT -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=10" \
-            dist/ "$DO_USERNAME@$DO_HOST:/tmp/dvi-frontend-deploy/dist/"
+          ssh-keyscan -T 30 -t ed25519 -p "$DO_PORT" -H "$DO_HOST" >> ~/.ssh/known_hosts
+          for attempt in 1 2 3; do
+            if rsync -az --delete --partial --timeout=600 --info=progress2 \
+              -e "ssh -p $DO_PORT -o HostKeyAlgorithms=ssh-ed25519 -o ConnectTimeout=60 -o ServerAliveInterval=30 -o ServerAliveCountMax=10" \
+              dist/ "$DO_USERNAME@$DO_HOST:/tmp/dvi-frontend-deploy/"; then
+              exit 0
+            fi
+            echo "rsync attempt $attempt failed; retrying..."
+            sleep 15
+          done
+          exit 1
 
       - name: Move build to live folder
         env:
@@ -60,13 +61,14 @@ jobs:
         run: |
           set -euo pipefail
           ssh -p "$DO_PORT" \
+            -o HostKeyAlgorithms=ssh-ed25519 \
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=30 \
             -o ServerAliveCountMax=10 \
             "$DO_USERNAME@$DO_HOST" <<'REMOTE'
           set -e
           sudo mkdir -p /var/www/dvi-travel
-          sudo rsync -a --delete /tmp/dvi-frontend-deploy/dist/ /var/www/dvi-travel/
+          sudo rsync -a --delete /tmp/dvi-frontend-deploy/ /var/www/dvi-travel/
           sudo chown -R www-data:www-data /var/www/dvi-travel
           sudo nginx -t
           sudo systemctl reload nginx
