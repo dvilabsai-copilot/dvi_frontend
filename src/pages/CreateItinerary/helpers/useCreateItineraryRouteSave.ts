@@ -167,22 +167,22 @@ setSaveProgressPercent(100);
         ? Number(rawPlanId)
         : null;
 
-    const quoteId =
-      res?.quoteId && typeof res.quoteId === "string"
-        ? res.quoteId
-        : null;
+  const quoteId =
+  res?.quoteId && typeof res.quoteId === "string"
+    ? res.quoteId
+    : null;
 
-    toast({
-      title: isUpdate ? "Itinerary updated" : "Itinerary created",
-      description: `${
-        isUpdate
-          ? "The itinerary has been updated successfully."
-          : "The itinerary has been created successfully."
-      }`,
-    });
+// Show success toast only when updating an existing itinerary.
+// Do not show the "Itinerary created" popup after creating a new itinerary.
+if (isUpdate) {
+  toast({
+    title: "Itinerary updated",
+    description: "The itinerary has been updated successfully.",
+  });
+}
 
-    setSaveErrorMessage(null);
-    setShowRouteConfirm(false);
+setSaveErrorMessage(null);
+setShowRouteConfirm(false);
 
     // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
     if (quoteId) {
