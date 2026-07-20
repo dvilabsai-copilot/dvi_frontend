@@ -211,6 +211,7 @@ export const itineraryRouteActions = {
       transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
       transportEarlyArrivalHotelName?: string | null;
       transportEarlyArrivalRestMinutes?: number | null;
+      changeType?: "ROUTE_START" | "ROUTE_END" | "FINAL_DAY_DEPARTURE";
     },
   ) {
     return api(`itineraries/${planId}/route/${routeId}/times`, {
@@ -223,6 +224,7 @@ export const itineraryRouteActions = {
         transportEarlyArrivalOption: options?.transportEarlyArrivalOption,
         transportEarlyArrivalHotelName: options?.transportEarlyArrivalHotelName,
         transportEarlyArrivalRestMinutes: options?.transportEarlyArrivalRestMinutes,
+        changeType: options?.changeType,
       },
     });
   },
