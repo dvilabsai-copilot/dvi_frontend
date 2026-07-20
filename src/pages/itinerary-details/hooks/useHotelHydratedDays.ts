@@ -113,6 +113,58 @@ export const useHotelHydratedDays = ({
         const previousSegment = segments[previousRenderableIndex];
         const previousLabel = getSegmentAnchorLabel(previousSegment, targetHotelName);
 
+        if (previousSegment.type === 'travel' && currentHotelName) {
+          const segmentBeforeTravel = segments
+            .slice(0, previousRenderableIndex)
+            .reverse()
+            .find((candidate) => candidate.type !== 'hotspot');
+
+          const followsLeisureBreak =
+            segmentBeforeTravel?.type === 'break' &&
+            normalizeTimelineLabel(segmentBeforeTravel.location) ===
+              normalizeTimelineLabel('Leisure / Shopping Time');
+
+          const isTerminalCityTravel =
+            normalizeTimelineLabel(previousSegment.to) ===
+            normalizeTimelineLabel(day.arrival);
+
+          const alreadyTargetsSelectedHotel =
+            normalizeTimelineLabel(previousSegment.to) ===
+            normalizeTimelineLabel(targetHotelName);
+
+          if (isTerminalCityTravel || alreadyTargetsSelectedHotel) {
+            const leisureOriginBase = String(
+              day.arrival || previousSegment.to || previousSegment.from,
+            )
+              .replace(/\s*\(Leisure\)\s*$/i, '')
+              .trim();
+
+            const travelEndMinutes = parseDisplayMinutes(
+              previousSegment.timeRange,
+              'end',
+            );
+
+            segments[previousRenderableIndex] = {
+              ...previousSegment,
+              from:
+                followsLeisureBreak && leisureOriginBase
+                  ? `${leisureOriginBase} (Leisure)`
+                  : previousSegment.from,
+              to: targetHotelName,
+            };
+
+            segments[checkinIndex] = {
+              ...checkin,
+              hotelName: targetHotelName,
+              time:
+                travelEndMinutes !== null
+                  ? formatMinutesToDisplay(travelEndMinutes)
+                  : checkin.time,
+            };
+            return;
+          }
+        }
+
         const alreadyArrivesAtHotel =
           previousSegment.type === 'checkin' ||
           (

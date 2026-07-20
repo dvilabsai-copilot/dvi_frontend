@@ -96,6 +96,18 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
     isAttractionCoveredByGuide(segment, dayFlowGuideAssignment)
       ? dayFlowGuideAssignment
       : null;
+  const upcomingSegments = displaySegments.slice(idx + 1);
+  const leisureContextText = upcomingSegments.some(
+    (upcomingSegment: { type?: string; to?: string }) => upcomingSegment?.type === "checkin",
+  )
+    ? "before returning to the hotel"
+    : upcomingSegments.some((upcomingSegment: { type?: string; to?: string }) => {
+        if (upcomingSegment?.type !== "travel") return false;
+        const destination = String(upcomingSegment?.to || "").toLowerCase();
+        return /airport|railway|station|terminal|bus stand|bus station/.test(destination);
+      })
+      ? "before departure"
+      : "before the next scheduled movement";
 
   return (
   <div key={idx}>
@@ -433,7 +445,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                         Leisure / Shopping Time
                                       </span>{" "}
                                       <span className="font-medium">
-                                        — free time for shopping, refreshments, or leisure before departure
+                                        — free time for shopping, refreshments, or leisure {leisureContextText}
                                       </span>
                                     </>
                                   ) : (
