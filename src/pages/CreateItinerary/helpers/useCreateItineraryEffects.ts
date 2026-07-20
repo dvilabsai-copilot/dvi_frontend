@@ -27,7 +27,8 @@ import {
   resolveFirstNonEmptyStringList,
   resolveMealPlanCodeFromPlan,
   safeDateFromISO,
-  safeTimeFromISO,
+  DEFAULT_ITINERARY_START_TIME,
+  DEFAULT_ITINERARY_END_TIME,
   calculateDaysBetweenDates,
 } from "./createItinerary.utils";
 
@@ -220,8 +221,10 @@ useEffect(() => {
             );
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ also prefill times
-setStartTime(safeTimeFromISO(p.trip_start_date_and_time, "12:00"));
-setEndTime(safeTimeFromISO(p.trip_end_date_and_time, "12:00"));
+            // Keep the form defaults for times instead of loading the user's
+            // previously saved values from the database.
+            setStartTime(DEFAULT_ITINERARY_START_TIME);
+            setEndTime(DEFAULT_ITINERARY_END_TIME);
 
             // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ budget in DB is expecting_budget
             setBudget(p.expecting_budget ?? "");
