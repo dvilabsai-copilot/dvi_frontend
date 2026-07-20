@@ -162,6 +162,7 @@ export type ItineraryDay = {
   sightseeingDistance?: string; // only sightseeing/local movement distance
   startTime: string; // "12:00 PM"
   endTime: string; // "08:00 PM"
+  departureTime?: string | null; // actual departure time shown on final day
   viaRoutes?: ViaRouteItem[];
   segments: ItinerarySegment[];
   needsRebuild?: boolean;

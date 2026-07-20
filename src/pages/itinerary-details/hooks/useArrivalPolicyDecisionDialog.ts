@@ -82,6 +82,7 @@ export function useArrivalPolicyDecisionDialog({
       await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
         previousDayBillingDecisionProvided: true,
         previousDayBillingConfirmed: confirmed,
+        changeType: "ROUTE_START",
       });
       if (decisionKey) setLastArrivalPolicyDecisionKey(decisionKey);
       return;

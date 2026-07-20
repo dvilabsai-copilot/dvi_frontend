@@ -3,7 +3,7 @@ import { HotelArrivalPolicyRequest, ItineraryService } from "@/services/itinerar
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { isEarlyMorningTime, normalizeDateToYmd, parseDisplayTimeToHms } from "../utils/timeline.utils";
-import type { RouteTimePatchOptions } from "./useRouteTimePatchMutation";
+import type { RouteTimeChangeType, RouteTimePatchOptions } from "./useRouteTimePatchMutation";
 import {
   TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
   timeToMinutes,
@@ -86,6 +86,7 @@ export function useArrivalPolicyRouteTimeController({
         transportEarlyArrivalOption: value.option,
         transportEarlyArrivalHotelName: value.hotelName,
         transportEarlyArrivalRestMinutes: value.restMinutes,
+        changeType: "ROUTE_START",
       },
     );
     setTransportEarlyArrivalDialog({
@@ -103,6 +104,7 @@ export function useArrivalPolicyRouteTimeController({
     dayNumber: number,
     startTimeDisplay: string,
     endTimeDisplay: string,
+    changeType?: RouteTimeChangeType,
   ) => {
     const startTimeHms = parseDisplayTimeToHms(startTimeDisplay);
     const endTimeHms = parseDisplayTimeToHms(endTimeDisplay);
@@ -181,7 +183,9 @@ export function useArrivalPolicyRouteTimeController({
       }
     }
 
-    await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms);
+    await applyRouteTimePatch(planId, routeId, dayNumber, startTimeHms, endTimeHms, {
+      changeType: changeType || (dayNumber === 1 ? "ROUTE_START" : "ROUTE_END"),
+    });
   }, [
     applyRouteTimePatch,
     itinerary,
@@ -210,6 +214,7 @@ export function useArrivalPolicyRouteTimeController({
         {
           previousDayBillingDecisionProvided: true,
           previousDayBillingConfirmed: confirmed,
+          changeType: "ROUTE_START",
         },
       );
       return true;

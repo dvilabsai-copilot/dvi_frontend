@@ -7,9 +7,90 @@ export interface ItinerarySegmentsProps { context: Record<string, any>; }
 
 export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context }) => {
   const { day, dayFlowGuideAssignment, itinerary, destinationHotelDisplayName, selectedHotelMetaByRoute, hotelDetails, hotelReadOnly, openDeleteHotspotModal, openAddActivityModal, openGalleryModal, openVideoModal, openDeleteActivityModal, toImgSrc, isAttractionCoveredByGuide, openHotelSelectionModal, setRoomSelectionModal, toast, extractTravelFromToFromText, extractTravelToFromText } = context;
+
+  const parseDisplayTimeToMinutes = (value: string): number | null => {
+    const match = String(value || "")
+      .trim()
+      .match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+
+    if (!match) return null;
+
+    let hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const period = match[3].toUpperCase();
+
+    if (hours === 12) hours = 0;
+    if (period === "PM") hours += 12;
+
+    return hours * 60 + minutes;
+  };
+
+  const getTimeRangeBounds = (
+    value: string,
+  ): { start: number; end: number; startText: string; endText: string } | null => {
+    const parts = String(value || "").split(/\s*-\s*/);
+    if (parts.length !== 2) return null;
+
+    const start = parseDisplayTimeToMinutes(parts[0]);
+    let end = parseDisplayTimeToMinutes(parts[1]);
+
+    if (start === null || end === null) return null;
+    if (end < start) end += 24 * 60;
+
+    return {
+      start,
+      end,
+      startText: parts[0].trim(),
+      endText: parts[1].trim(),
+    };
+  };
+
+  const displaySegments = [...(Array.isArray(day.segments) ? day.segments : [])];
+
+  if (!displaySegments.some(
+    (segment: any) =>
+      segment.type === "break" &&
+      segment.location === "Leisure / Shopping Time",
+  )) {
+    for (let index = 1; index < displaySegments.length; index += 1) {
+      const previousSegment = displaySegments[index - 1] as any;
+      const currentSegment = displaySegments[index] as any;
+
+      if (currentSegment?.type !== "travel") continue;
+
+      const destination = String(currentSegment?.to || "").toLowerCase();
+      const isDepartureTransfer =
+        destination.includes("airport") ||
+        destination.includes("railway") ||
+        destination.includes("station");
+
+      if (!isDepartureTransfer) continue;
+
+      const previousRange = getTimeRangeBounds(previousSegment?.timeRange || "");
+      const travelRange = getTimeRangeBounds(currentSegment?.timeRange || "");
+
+      if (!previousRange || !travelRange) continue;
+
+      const gapMinutes = travelRange.start - previousRange.end;
+
+      if (gapMinutes >= 30) {
+        displaySegments.splice(index, 0, {
+          type: "break",
+          location: "Leisure / Shopping Time",
+          duration: `${Math.floor(gapMinutes / 60)} Hours ${gapMinutes % 60} Min`
+            .replace(/^0 Hours\s*/, "")
+            .replace(/\s*0 Min$/, ""),
+          timeRange: `${previousRange.endText} - ${travelRange.startText}`,
+        });
+      }
+
+      break;
+    }
+  }
+
   return (
                 <div className="space-y-0">
-                {day.segments.map((segment, idx) => {
+                {displaySegments.map((segment, idx) => {
   const guideAssignmentForSegment =
     segment.type === "attraction" &&
     isAttractionCoveredByGuide(segment, dayFlowGuideAssignment)
@@ -21,7 +102,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                       {/* Connector dots — only between real segments, never around hotspot CTAs */}
                       {idx > 0 &&
                         segment.type !== 'hotspot' &&
-                        day.segments[idx - 1]?.type !== 'hotspot' && (
+                        displaySegments[idx - 1]?.type !== 'hotspot' && (
                           <div className="flex justify-start ml-5 my-0.5">
                             <div className="flex flex-col items-center gap-[2px]">
                               <span className="block w-[3px] h-[3px] rounded-full bg-[#c0c0c0]"></span>
@@ -346,18 +427,31 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                               <Clock className="h-5 w-5 text-[#856404]" />
                               <div className="flex-1">
                                 <p className="text-sm text-[#4a4260]">
-                                  <span className="font-medium">
-                                    {String(segment.location || "").startsWith("Visit to ")
-                                      ? `${segment.location} for rest and refreshment`
-                                      : "Expect a waiting time of approximately"}
-                                  </span>{" "}
-                                  {String(segment.location || "").startsWith("Visit to ") ? (
-                                    <span className="text-[#d546ab] font-semibold">({segment.duration})</span>
+                                  {segment.location === "Leisure / Shopping Time" ? (
+                                    <>
+                                      <span className="font-semibold text-[#d546ab]">
+                                        Leisure / Shopping Time
+                                      </span>{" "}
+                                      <span className="font-medium">
+                                        — free time for shopping, refreshments, or leisure before departure
+                                      </span>
+                                    </>
                                   ) : (
                                     <>
-                                      <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
-                                      <span className="font-medium">at this location</span>{" "}
-                                      <span className="text-[#d546ab] font-semibold">({segment.location})</span>
+                                      <span className="font-medium">
+                                        {String(segment.location || "").startsWith("Visit to ")
+                                          ? `${segment.location} for rest and refreshment`
+                                          : "Expect a waiting time of approximately"}
+                                      </span>{" "}
+                                      {String(segment.location || "").startsWith("Visit to ") ? (
+                                        <span className="text-[#d546ab] font-semibold">({segment.duration})</span>
+                                      ) : (
+                                        <>
+                                          <span className="text-[#d546ab] font-semibold">{segment.duration}</span>{" "}
+                                          <span className="font-medium">at this location</span>{" "}
+                                          <span className="text-[#d546ab] font-semibold">({segment.location})</span>
+                                        </>
+                                      )}
                                     </>
                                   )}
                                 </p>
