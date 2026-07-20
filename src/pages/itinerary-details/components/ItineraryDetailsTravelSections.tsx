@@ -10,12 +10,18 @@ import { PackageIncludesCard } from "./PackageIncludesCard";
 import { SpecialInstructionsSection } from "./SpecialInstructionsSection";
 import { VehicleSection } from "./VehicleSection";
 import { VehicleUnavailableState } from "./VehicleUnavailableState";
+import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPreferenceDialog";
 
 type Props = {
   isConfirmedPresentation: boolean;
   header: ComponentProps<typeof ItineraryHeader>;
   daysContext: ComponentProps<typeof ItineraryDaysSection>["context"];
   specialInstructionsText: string;
+  earlyArrivalPreferenceMessage: string;
+  transportEarlyArrivalDialog: Omit<ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>, "onConfirm" | "onOpenChange"> & {
+    onOpenChange: ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>["onOpenChange"];
+    onConfirm: ComponentProps<typeof TransportEarlyArrivalPreferenceDialog>["onConfirm"];
+  };
   hotelListRef: ComponentProps<typeof HotelListLoadingState>["hotelListRef"];
   summaryStickyHeight: number;
   shouldShowHotels: boolean;
@@ -38,6 +44,8 @@ export function ItineraryDetailsTravelSections({
   header,
   daysContext,
   specialInstructionsText,
+  earlyArrivalPreferenceMessage,
+  transportEarlyArrivalDialog,
   hotelListRef,
   summaryStickyHeight,
   shouldShowHotels,
@@ -57,6 +65,13 @@ export function ItineraryDetailsTravelSections({
   return (
     <>
       <ItineraryHeader {...header} />
+      {earlyArrivalPreferenceMessage && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span className="font-semibold">Early-arrival preference: </span>
+          {earlyArrivalPreferenceMessage}
+        </div>
+      )}
+      <TransportEarlyArrivalPreferenceDialog {...transportEarlyArrivalDialog} />
       <ItineraryDaysSection context={daysContext} />
       <SpecialInstructionsSection text={specialInstructionsText} />
       {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}

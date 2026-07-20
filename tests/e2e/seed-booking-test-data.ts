@@ -79,6 +79,7 @@ type CreateScenarioInput = {
   tripEndHour?: number;
   day1DirectToNext?: number;
   guideForItinerary?: boolean;
+  itineraryPreference?: number;
 };
 
 type CreatedScenario = {
@@ -185,7 +186,9 @@ function classify(details: Details) {
   const inferredRestGapAfterHotel =
     firstCheckinMinutes !== null &&
     firstAttractionStart !== null &&
-    firstAttractionStart - firstCheckinMinutes >= 120;
+    // Keep this classifier aligned with booking-engine-validation.spec.ts:
+    // the contract requires at least a one-hour rest gap after check-in.
+    firstAttractionStart - firstCheckinMinutes >= 60;
 
   return {
     isBeforeNoonSameCity,
@@ -570,7 +573,7 @@ async function createScenarioQuote(
       location_id: 0,
       arrival_point: input.arrivalPoint,
       departure_point: input.departurePoint,
-      itinerary_preference: 3,
+      itinerary_preference: Number(input.itineraryPreference ?? 3),
       itinerary_type: 2,
       preferred_hotel_category: [13],
       hotel_facilities: ['24hr-checkin'],
@@ -709,7 +712,8 @@ async function forceScenario2Quote(token: string): Promise<string> {
     const restGapOk =
       metrics.firstCheckinMinutes !== null &&
       metrics.firstAttractionStartMinutes !== null &&
-      metrics.firstAttractionStartMinutes - metrics.firstCheckinMinutes >= 120;
+      // The corresponding E2E assertion requires a 60-minute rest gap.
+      metrics.firstAttractionStartMinutes - metrics.firstCheckinMinutes >= 60;
 
     console.log(
       `[seed][scenario2] attempt ${attempt} quote=${created.quoteId}: hotelFirst=${hotelFirst}, attractions=${metrics.attractions.length}, checkinAfter2=${checkinAfter2}, restGapOk=${restGapOk}, firstCheckin=${metrics.firstCheckinMinutes}, firstAttraction=${metrics.firstAttractionStartMinutes}`,
@@ -801,6 +805,7 @@ async function forceScenario8Quote(token: string): Promise<string> {
       startHour: 10,
       tripEndHour: 10,
       guideForItinerary: true,
+      itineraryPreference: 1,
     });
     if (!created) continue;
 

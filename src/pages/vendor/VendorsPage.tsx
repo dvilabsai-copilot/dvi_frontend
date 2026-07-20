@@ -6,11 +6,17 @@ import {
   Download,
   FileText,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { listVendors } from "@/services/vendors";
 import { api } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
+import {
+  copyToClipboard,
+  downloadCSV,
+  downloadExcel,
+  downloadPDF,
+  type ExportColumn,
+  todaySuffix,
+} from "./vendorExport";
 
 type VendorRow = {
   /** UI serial number (S.NO) */
@@ -41,97 +47,8 @@ const arrow = (active: boolean, dir: SortDir) =>
     <span className="hotel-sort-active">▼</span>
   );
 
-/** ================= Export Helpers (Copy/CSV/Excel/PDF) ================= */
-
-type ExportColumn<T> = {
-  key: keyof T | string;
-  header: string;
-  getValue?: (row: T) => string | number | null | undefined;
-};
-
-function normalizeCell(v: any) {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "boolean") return v ? "Active" : "Inactive";
-  return String(v);
-}
-
-function buildAOA<T>(cols: ExportColumn<T>[], rows: T[]) {
-  const headers = cols.map((c) => c.header);
-  const data = rows.map((row) =>
-    cols.map((c) =>
-      normalizeCell(c.getValue ? c.getValue(row) : (row as any)[c.key as any])
-    )
-  );
-  return { headers, data };
-}
-
-async function copyToClipboard<T>(cols: ExportColumn<T>[], rows: T[]) {
-  const { headers, data } = buildAOA(cols, rows);
-  const tsv = [headers, ...data].map((r) => r.join("\t")).join("\n");
-  await navigator.clipboard.writeText(tsv);
-}
-
-function downloadCSV<T>(cols: ExportColumn<T>[], rows: T[], filename: string) {
-  const { headers, data } = buildAOA(cols, rows);
-  const lines = [headers, ...data].map((r) =>
-    r
-      .map((cell) => {
-        const needsQuote = /[",\n]/.test(cell);
-        let out = cell.replace(/"/g, '""');
-        return needsQuote ? `"${out}"` : out;
-      })
-      .join(",")
-  );
-  const csv = "\uFEFF" + lines.join("\n"); // BOM for Excel compatibility
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function downloadExcel<T>(
-  cols: ExportColumn<T>[],
-  rows: T[],
-  filename: string,
-  sheetName = "Vendors"
-) {
-  try {
-    const XLSX = await import("xlsx");
-    const { headers, data } = buildAOA(cols, rows);
-    const aoa = [headers, ...data];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, filename);
-  } catch {
-    const safeName = filename.toLowerCase().endsWith(".xlsx")
-      ? filename.replace(/\.xlsx$/i, ".csv")
-      : filename + ".csv";
-    downloadCSV(cols, rows, safeName);
-  }
-}
-
-function downloadPDF<T>(cols: ExportColumn<T>[], rows: T[], filename: string) {
-  const { headers, data } = buildAOA(cols, rows);
-  const doc = new jsPDF("p", "pt", "a4");
-
-  autoTable(doc, {
-    head: [headers],
-    body: data,
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [110, 94, 254] },
-    margin: { top: 30, left: 30, right: 30 },
-  });
-
-  doc.save(filename);
-}
-
-function todaySuffix() {
-  return new Date().toISOString().slice(0, 10);
-}
+const errorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 /** ================= Page ================= */
 
@@ -181,11 +98,11 @@ const VendorsPage: React.FC = () => {
         }));
 
         setRows(mapped);
-        } catch (e: any) {
+        } catch (e: unknown) {
         console.error("Failed to load vendors", e);
         if (!aborted) {
             setError(
-            e?.message || "Unable to load vendors. Please try again later."
+            errorMessage(e, "Unable to load vendors. Please try again later.")
             );
         }
         } finally {
@@ -324,9 +241,9 @@ const VendorsPage: React.FC = () => {
 
       setRows((prev) => prev.filter((r) => r.backendId !== deleteTarget.backendId));
       setDeleteTarget(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to delete vendor", err);
-      setDeleteError(err?.message || "Failed to delete vendor. Please try again later.");
+      setDeleteError(errorMessage(err, "Failed to delete vendor. Please try again later."));
     } finally {
       setDeletingVendorId(null);
     }
@@ -347,9 +264,9 @@ const VendorsPage: React.FC = () => {
           r.backendId === row.backendId ? { ...r, isActive: nextActive } : r
         )
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to toggle vendor status", err);
-      alert(err?.message || "Failed to update vendor status.");
+      alert(errorMessage(err, "Failed to update vendor status."));
     } finally {
       setTogglingIds((prev) => {
         const copy = { ...prev };

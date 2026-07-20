@@ -9,6 +9,9 @@ import type {
 export interface RouteTimePatchOptions {
   previousDayBillingDecisionProvided?: boolean;
   previousDayBillingConfirmed?: boolean;
+  transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
+  transportEarlyArrivalHotelName?: string | null;
+  transportEarlyArrivalRestMinutes?: number | null;
 }
 
 export interface RouteTimePatchMutationProps {

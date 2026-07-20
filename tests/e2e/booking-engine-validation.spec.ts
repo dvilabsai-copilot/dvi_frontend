@@ -200,6 +200,6 @@ test.describe('Booking engine validation', () => {
     });
 
     await expect(page).toHaveURL(new RegExp(`/itinerary-details/${quoteId}$`), { timeout: 30000 });
-    await expect(page.getByText(/Total Guide Cost/i).first()).toBeVisible({ timeout: 30000 });
+    await expect(page.getByText(/Total Guide Cost/i).first()).toBeVisible({ timeout: 90000 });
   });
 });

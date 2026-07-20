@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState, Dispatch, SetStateAction } from "react";
-import { differenceInCalendarDays } from "date-fns";
-
+import { useEffect, useMemo, useRef, useState, Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +12,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Clock3 } from "lucide-react";
@@ -25,7 +31,6 @@ import {
 } from "@/components/itinerary/TimePickerPopover";
 import {
   AutoSuggestSelect,
-  AutoSuggestOption,
 } from "@/components/AutoSuggestSelect";
 import { RoomsBlock } from "./RoomsBlock";
 import { AgentOption } from "@/services/accountsManagerApi";
@@ -33,6 +38,21 @@ import { LocationOption, MealPlanOption, SimpleOption } from "@/services/itinera
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { RoomRow } from "./helpers/useRoomsAndTravellers";
 import type { RouteData } from "@/components/DefaultRoutesSuggestions";
+import {
+  buildVehicleOnlyTravellerRooms,
+  getMealPlanLabel,
+  getSafeTravellerCount,
+  mapMultiValuesToStringIds,
+} from "./helpers/itineraryPlanBlock.utils";
+import { useItineraryPlanDates } from "./helpers/useItineraryPlanDates";
+import { useItineraryPlanDefaults } from "./helpers/useItineraryPlanDefaults";
+import { useItineraryPlanOptions } from "./helpers/useItineraryPlanOptions";
+import {
+  TRANSPORT_EARLY_ARRIVAL_CUTOFF,
+  TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
+  TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE,
+  type TransportEarlyArrivalOption,
+} from "./helpers/transportEarlyArrival";
 // type RoomRow = {
 //   id: number;
 //   adults: number;
@@ -117,6 +137,14 @@ type ItineraryPlanBlockProps = {
   specialInstructions: string;
   setSpecialInstructions: (val: string) => void;
 
+  requiresTransportEarlyArrivalPreference: boolean;
+  transportEarlyArrivalOption: TransportEarlyArrivalOption | "";
+  setTransportEarlyArrivalOption: (value: TransportEarlyArrivalOption) => void;
+  transportEarlyArrivalHotelName: string;
+  setTransportEarlyArrivalHotelName: (value: string) => void;
+  transportEarlyArrivalRestMinutes: number;
+  setTransportEarlyArrivalRestMinutes: (value: number) => void;
+
   validationErrors?: { [key: string]: string };
   
   // ✅ Calculated from arrival/departure dates
@@ -128,101 +156,6 @@ type ItineraryPlanBlockProps = {
   onDefaultRouteSelect?: (route: RouteData, index: number) => void;
 };
 
-
-function mapMultiValuesToStringIds(vals: unknown, options: SimpleOption[]): string[] {
-  const arr = Array.isArray(vals) ? vals : [];
-
-  const byId = new Map(options.map((o) => [String(o.id), String(o.id)]));
-  const byLabel = new Map(
-    options.map((o) => [o.label.trim().toLowerCase(), String(o.id)])
-  );
-
-  const out: string[] = [];
-
-  for (const raw of arr) {
-    const s = String(raw ?? "").trim();
-    if (!s) continue;
-
-    // if AutoSuggestSelect emits id values
-    const direct = byId.get(s);
-    if (direct) {
-      out.push(direct);
-      continue;
-    }
-
-    // if AutoSuggestSelect emits labels
-    const fromLabel = byLabel.get(s.toLowerCase());
-    if (fromLabel) out.push(fromLabel);
-  }
-
-  // unique
-  return Array.from(new Set(out));
-}
-
-function parseDDMMYYYY(str: string): Date | undefined {
-  if (!str) return undefined;
-  const [d, m, y] = str.split("/").map(Number);
-  if (!d || !m || !y) return undefined;
-  return new Date(y, m - 1, d);
-}
-
-function formatDDMMYYYY(date: Date): string {
-  const dd = date.getDate().toString().padStart(2, "0");
-  const mm = (date.getMonth() + 1).toString().padStart(2, "0");
-  const yy = date.getFullYear();
-  return `${dd}/${mm}/${yy}`;
-}
-
-
-
-function findIdByLabel(
-  options: SimpleOption[],
-  matcher: (labelLower: string) => boolean
-): string | undefined {
-  const opt = options.find((o) => matcher(o.label.toLowerCase()));
-  return opt ? String(opt.id) : undefined;
-}
-
-function getSafeTravellerCount(value: unknown, minimum = 0): number {
-  const numeric = Math.floor(Number(value));
-
-  if (!Number.isFinite(numeric)) {
-    return minimum;
-  }
-
-  return Math.max(minimum, numeric);
-}
-
-function buildVehicleOnlyTravellerRooms({
-  adults,
-  children,
-  infants,
-}: {
-  adults: number;
-  children: number;
-  infants: number;
-}): RoomRow[] {
-  return [
-    {
-      id: 1,
-      roomCount: 1,
-      adults: getSafeTravellerCount(adults, 1),
-      children: getSafeTravellerCount(children, 0),
-      infants: getSafeTravellerCount(infants, 0),
-      childrenDetails: Array.from(
-        { length: getSafeTravellerCount(children, 0) },
-        () => ({
-          age: "",
-          bedType: "Without Bed" as const,
-          hotelApprovalAccepted: false,
-        })
-      ),
-    },
-  ];
-}
-
-
-  
 
 export const ItineraryPlanBlock = ({
   itineraryPreference,
@@ -282,6 +215,13 @@ export const ItineraryPlanBlock = ({
 
   specialInstructions,
   setSpecialInstructions,
+  requiresTransportEarlyArrivalPreference,
+  transportEarlyArrivalOption,
+  setTransportEarlyArrivalOption,
+  transportEarlyArrivalHotelName,
+  setTransportEarlyArrivalHotelName,
+  transportEarlyArrivalRestMinutes,
+  setTransportEarlyArrivalRestMinutes,
   validationErrors,
   noOfNights,
   noOfDays,
@@ -290,11 +230,104 @@ export const ItineraryPlanBlock = ({
   onDefaultRouteSelect,
 }: ItineraryPlanBlockProps) => {
 const isMobile = useIsMobile();
-const [isTripDatesOpen, setIsTripDatesOpen] = useState(false);
-const [hoveredToDate, setHoveredToDate] = useState<Date | undefined>(undefined);
-const [isSelectingDeparture, setIsSelectingDeparture] = useState(false);
+const today = new Date();
 const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
 const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+const [isTransportEarlyArrivalDialogOpen, setIsTransportEarlyArrivalDialogOpen] =
+  useState(false);
+const [draftTransportEarlyArrivalOption, setDraftTransportEarlyArrivalOption] =
+  useState<TransportEarlyArrivalOption | "">(transportEarlyArrivalOption);
+const [draftTransportEarlyArrivalHotelName, setDraftTransportEarlyArrivalHotelName] =
+  useState(transportEarlyArrivalHotelName);
+const [draftTransportEarlyArrivalRestMinutes, setDraftTransportEarlyArrivalRestMinutes] =
+  useState(transportEarlyArrivalRestMinutes);
+const [transportEarlyArrivalDialogError, setTransportEarlyArrivalDialogError] =
+  useState("");
+const previousTransportEarlyArrivalTriggerKey = useRef<string | null>(null);
+const hasTransportEarlyArrivalPrerequisites = Boolean(
+  arrivalLocation.trim() &&
+    departureLocation.trim() &&
+    tripStartDate &&
+    tripEndDate,
+);
+const transportEarlyArrivalTriggerKey = `${itineraryPreference}|${startTime}`;
+
+useEffect(() => {
+  if (!requiresTransportEarlyArrivalPreference || !hasTransportEarlyArrivalPrerequisites) {
+    setIsTransportEarlyArrivalDialogOpen(false);
+    previousTransportEarlyArrivalTriggerKey.current = null;
+    return;
+  }
+
+  if (
+    previousTransportEarlyArrivalTriggerKey.current !==
+    transportEarlyArrivalTriggerKey
+  ) {
+    previousTransportEarlyArrivalTriggerKey.current = transportEarlyArrivalTriggerKey;
+    setDraftTransportEarlyArrivalOption(transportEarlyArrivalOption);
+    setDraftTransportEarlyArrivalHotelName(transportEarlyArrivalHotelName);
+    setDraftTransportEarlyArrivalRestMinutes(transportEarlyArrivalRestMinutes);
+    setTransportEarlyArrivalDialogError("");
+    setIsTransportEarlyArrivalDialogOpen(true);
+  }
+}, [
+  requiresTransportEarlyArrivalPreference,
+  hasTransportEarlyArrivalPrerequisites,
+  transportEarlyArrivalTriggerKey,
+  transportEarlyArrivalOption,
+  transportEarlyArrivalHotelName,
+  transportEarlyArrivalRestMinutes,
+]);
+
+const openTransportEarlyArrivalDialog = () => {
+  setDraftTransportEarlyArrivalOption(transportEarlyArrivalOption);
+  setDraftTransportEarlyArrivalHotelName(transportEarlyArrivalHotelName);
+  setDraftTransportEarlyArrivalRestMinutes(transportEarlyArrivalRestMinutes);
+  setTransportEarlyArrivalDialogError("");
+  setIsTransportEarlyArrivalDialogOpen(true);
+};
+
+const handleConfirmTransportEarlyArrival = () => {
+  if (!draftTransportEarlyArrivalOption) {
+    setTransportEarlyArrivalDialogError("Select how Day 1 should begin.");
+    return;
+  }
+
+  setTransportEarlyArrivalOption(draftTransportEarlyArrivalOption);
+  setTransportEarlyArrivalHotelName(
+    draftTransportEarlyArrivalOption === "HOTEL_REST"
+      ? draftTransportEarlyArrivalHotelName.trim()
+      : "",
+  );
+  setTransportEarlyArrivalRestMinutes(
+    draftTransportEarlyArrivalOption === "HOTEL_REST"
+      ? draftTransportEarlyArrivalRestMinutes
+      : TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
+  );
+  setTransportEarlyArrivalDialogError("");
+  setIsTransportEarlyArrivalDialogOpen(false);
+};
+
+const {
+  isTripDatesOpen,
+  setHoveredToDate,
+  isSelectingDeparture,
+  tripStartDateObj,
+  tripEndDateObj,
+  previewRange,
+  previewNoOfDays,
+  previewNoOfNights,
+  previewArrivalDateLabel,
+  previewDepartureDateLabel,
+  handleTripDayClick,
+  handleTripDatesOpenChange,
+  disablePastAndToday,
+} = useItineraryPlanDates({
+  tripStartDate,
+  tripEndDate,
+  setTripStartDate,
+  setTripEndDate,
+});
 
 const vehicleOnlyTravellerTotals = useMemo(() => {
   const totals = (rooms || []).reduce(
@@ -335,100 +368,6 @@ const handleVehicleOnlyTravellerChange = (
   setRooms(() => buildVehicleOnlyTravellerRooms(nextCounts));
 };
 
-const tripStartDateObj = parseDDMMYYYY(tripStartDate);
-const tripEndDateObj = parseDDMMYYYY(tripEndDate);
-
-
-
-const previewRange = useMemo(() => {
-  if (!tripStartDateObj) {
-    return undefined;
-  }
-
-  // Final selected range
-  if (tripEndDateObj) {
-    return { from: tripStartDateObj, to: tripEndDateObj };
-  }
-
- // Live hover preview before departure click
-if (hoveredToDate) {
-  // Ignore hover before arrival (match click behavior)
-  if (hoveredToDate < tripStartDateObj) {
-    return { from: tripStartDateObj, to: tripStartDateObj };
-  }
-
-  return { from: tripStartDateObj, to: hoveredToDate };
-}
-
-  // Only arrival selected
-  return { from: tripStartDateObj, to: tripStartDateObj };
-}, [tripStartDateObj, tripEndDateObj, hoveredToDate]);
-
-const previewToDate = tripEndDateObj
-  ? tripEndDateObj
-  : hoveredToDate
-  ? hoveredToDate
-  : tripStartDateObj;
-
-const previewNoOfDays = useMemo(() => {
-  if (!tripStartDateObj || !previewToDate) return 1;
-
-  const from =
-    previewToDate >= tripStartDateObj ? tripStartDateObj : previewToDate;
-  const to =
-    previewToDate >= tripStartDateObj ? previewToDate : tripStartDateObj;
-
-  return Math.max(1, differenceInCalendarDays(to, from) + 1);
-}, [tripStartDateObj, previewToDate]);
-
-const previewNoOfNights = useMemo(
-  () => Math.max(0, previewNoOfDays - 1),
-  [previewNoOfDays]
-);
-
-const previewArrivalDateLabel = tripStartDateObj
-  ? formatDDMMYYYY(tripStartDateObj)
-  : "DD/MM/YYYY";
-
-const previewDepartureDateLabel =
-  tripEndDateObj
-    ? formatDDMMYYYY(tripEndDateObj)
-    : hoveredToDate && tripStartDateObj && hoveredToDate >= tripStartDateObj
-    ? formatDDMMYYYY(hoveredToDate)
-    : tripStartDateObj
-    ? "Select end date"
-    : "DD/MM/YYYY";
-
-const handleTripDayClick = (day: Date, disabled?: boolean) => {
-  if (disabled) return;
-
-  const clickedDate = formatDDMMYYYY(day);
-
-  // First click, or when full range already exists -> start fresh from clicked date
-  if (!tripStartDateObj || tripEndDateObj || !isSelectingDeparture) {
-    setTripStartDate(clickedDate);
-    setTripEndDate("");
-    setHoveredToDate(undefined);
-    setIsSelectingDeparture(true);
-    return;
-  }
-
-  // While selecting departure:
-  // If clicked date is before arrival, treat it as a new arrival date
-  if (day < tripStartDateObj) {
-    setTripStartDate(clickedDate);
-    setTripEndDate("");
-    setHoveredToDate(undefined);
-    setIsSelectingDeparture(true);
-    return;
-  }
-
-  // Valid departure selection
-  setTripEndDate(clickedDate);
-  setHoveredToDate(undefined);
-  setIsSelectingDeparture(false);
-  setIsTripDatesOpen(false);
-};
   const hotelCategory: string[] = selectedHotelCategoryIds.map((id) => String(id));
   const handleHotelCategoryChange = (vals: string[]) => {
     const ids = (vals || [])
@@ -445,99 +384,44 @@ const handleHotelFacilityChange = (vals: string[]) => {
 };
 
 
-  // Disable all dates before tomorrow (including today)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const disablePastAndToday = (date: Date) => {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    return d <= today;
-  };
+  const {
+    agentOptions,
+    locationOptions,
+    hotelCategoryAutoOptions,
+    hotelFacilityAutoOptions,
+    nationalityOptions,
+  } = useItineraryPlanOptions({
+    agents,
+    locations,
+    hotelCategoryOptions,
+    hotelFacilityOptions,
+    nationalities,
+  });
 
-  const agentOptions: AutoSuggestOption[] = agents.map((a) => ({
-    value: String(a.id),
-    label: a.name,
-  }));
-
-  const locationOptions: AutoSuggestOption[] = locations.map((loc) => ({
-    value: loc.name,
-    label: loc.name,
-  }));
-
-  const hotelCategoryAutoOptions: AutoSuggestOption[] = hotelCategoryOptions.map(
-    (item) => ({
-      value: String(item.id),
-      label: item.label,
-    })
-  );
-
-  const hotelFacilityAutoOptions: AutoSuggestOption[] = hotelFacilityOptions.map(
-    (item) => ({
-      value: String(item.id),
-      label: item.label,
-    })
-  );
-
-  const nationalityOptions: AutoSuggestOption[] = nationalities.map((item) => ({
-    value: String(item.id),
-    label: item.label,
-  }));
-
-
-  // Itinerary Type default → "Customize"
-  useEffect(() => {
-    if (!itineraryTypeSelect && itineraryTypes.length) {
-      const defId = findIdByLabel(itineraryTypes, (l) => l.includes("custom"));
-      if (defId) setItineraryTypeSelect(defId);
-    }
-  }, [itineraryTypeSelect, itineraryTypes, setItineraryTypeSelect]);
-
-  // Arrival / Departure Type default → "By Flight"
-  useEffect(() => {
-    if (!travelTypes.length) return;
-    const flightId = findIdByLabel(travelTypes, (l) => l.includes("flight"));
-    if (flightId) {
-      if (!arrivalType) setArrivalType(flightId);
-      if (!departureType) setDepartureType(flightId);
-    }
-  }, [arrivalType, departureType, travelTypes, setArrivalType, setDepartureType]);
-
-  // Entry Ticket default → "No"
-  useEffect(() => {
-    if (!entryTicketRequired && entryTicketOptions.length) {
-      const defId = findIdByLabel(entryTicketOptions, (l) => l === "no");
-      if (defId) setEntryTicketRequired(defId);
-    }
-  }, [entryTicketRequired, entryTicketOptions, setEntryTicketRequired]);
-
-  // Guide default → "No"
-  useEffect(() => {
-    if (!guideRequired && guideOptions.length) {
-      const defId = findIdByLabel(guideOptions, (l) => l === "no");
-      if (defId) setGuideRequired(defId);
-    }
-  }, [guideRequired, guideOptions, setGuideRequired]);
-
-  // Nationality default → "India"
-  useEffect(() => {
-    if (!nationality && nationalities.length) {
-      const defId = findIdByLabel(nationalities, (l) => l.includes("india"));
-      if (defId) setNationality(defId);
-    }
-  }, [nationality, nationalities, setNationality]);
-
-  // Food Preference default → "Vegetarian"
-  useEffect(() => {
-    if (!foodPreference && foodPreferences.length) {
-      const defId = findIdByLabel(foodPreferences, (l) => l.includes("veg"));
-      if (defId) setFoodPreference(defId);
-    }
-  }, [foodPreference, foodPreferences, setFoodPreference]);
-
-  // Budget default → 15000
-  useEffect(() => {
-    if (budget === "" || budget === 0) setBudget(15000);
-  }, [budget, setBudget]);
+  useItineraryPlanDefaults({
+    itineraryTypeSelect,
+    setItineraryTypeSelect,
+    itineraryTypes,
+    arrivalType,
+    departureType,
+    setArrivalType,
+    setDepartureType,
+    travelTypes,
+    entryTicketRequired,
+    setEntryTicketRequired,
+    entryTicketOptions,
+    guideRequired,
+    setGuideRequired,
+    guideOptions,
+    nationality,
+    setNationality,
+    nationalities,
+    foodPreference,
+    setFoodPreference,
+    foodPreferences,
+    budget,
+    setBudget,
+  });
 
 
 
@@ -719,27 +603,9 @@ const handleHotelFacilityChange = (vals: string[]) => {
       data-field="tripEndDate"
     >
       <Label className="text-sm block mb-1">Trip Dates *</Label>
-     <Popover
-  open={isTripDatesOpen}
-  onOpenChange={(open) => {
-    setIsTripDatesOpen(open);
-
-    if (!open) {
-      setHoveredToDate(undefined);
-      setIsSelectingDeparture(false);
-      return;
-    }
-
-    // When reopening:
-    // if a full range already exists, next click should start a fresh arrival selection
-    if (tripStartDateObj && tripEndDateObj) {
-      setIsSelectingDeparture(false);
-    } else if (tripStartDateObj && !tripEndDateObj) {
-      setIsSelectingDeparture(true);
-    } else {
-      setIsSelectingDeparture(false);
-    }
-  }}
+      <Popover
+   open={isTripDatesOpen}
+   onOpenChange={handleTripDatesOpenChange}
 >
   <PopoverTrigger asChild>
     <Button
@@ -1001,6 +867,144 @@ caption_label:
 </div>
 </div>
 
+  {requiresTransportEarlyArrivalPreference && hasTransportEarlyArrivalPrerequisites && (
+    <div data-field="transportEarlyArrivalOption" className="-mt-2 mb-2">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-auto w-full justify-between border-amber-300 bg-amber-50 px-3 py-2 text-left hover:bg-amber-100"
+        onClick={openTransportEarlyArrivalDialog}
+      >
+        <span>
+          <span className="block text-sm font-medium text-amber-950">
+            Early-morning arrival preference
+          </span>
+          <span className="block text-xs text-amber-900">
+            {transportEarlyArrivalOption === "HOTEL_REST"
+              ? "Proceed to a hotel first"
+              : transportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+                ? "Take a refreshment or waiting break"
+                : `Choose how Day 1 should begin before ${TRANSPORT_EARLY_ARRIVAL_CUTOFF} AM`}
+          </span>
+          {transportEarlyArrivalOption === "HOTEL_REST" && (
+            <span className="mt-1 block max-w-4xl text-xs text-amber-900">
+              {TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE}
+            </span>
+          )}
+        </span>
+        <span className="text-xs font-medium text-purple-700">Change</span>
+      </Button>
+      {validationErrors?.transportEarlyArrivalOption && (
+        <p className="mt-1 text-sm text-red-600">
+          {validationErrors.transportEarlyArrivalOption}
+        </p>
+      )}
+    </div>
+  )}
+
+  <Dialog
+    open={isTransportEarlyArrivalDialogOpen}
+    onOpenChange={setIsTransportEarlyArrivalDialogOpen}
+  >
+    <DialogContent data-field="transportEarlyArrivalOption" className="sm:max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Early-morning arrival preference</DialogTitle>
+        <DialogDescription>
+          Ask the guest: Would you like to choose how Day 1 should begin before {TRANSPORT_EARLY_ARRIVAL_CUTOFF} AM?
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => {
+            setDraftTransportEarlyArrivalOption("HOTEL_REST");
+            setTransportEarlyArrivalDialogError("");
+          }}
+          className={draftTransportEarlyArrivalOption === "HOTEL_REST"
+            ? "rounded-lg border-2 border-purple-600 bg-white p-4 text-left"
+            : "rounded-lg border bg-white p-4 text-left"}
+        >
+          <div className="font-medium">
+            Proceed directly to a hotel for freshening up and rest
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Hotel charges may apply.
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setDraftTransportEarlyArrivalOption("REFRESHMENT_BEFORE_SIGHTSEEING");
+            setTransportEarlyArrivalDialogError("");
+          }}
+          className={draftTransportEarlyArrivalOption === "REFRESHMENT_BEFORE_SIGHTSEEING"
+            ? "rounded-lg border-2 border-purple-600 bg-white p-4 text-left"
+            : "rounded-lg border bg-white p-4 text-left"}
+        >
+          <div className="font-medium">
+    Take a refreshment or waiting break before sightseeing
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">
+            Begin sightseeing at the earliest practical time after the refreshment or waiting break.
+          </div>
+        </button>
+      </div>
+
+      {draftTransportEarlyArrivalOption === "HOTEL_REST" && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label htmlFor="transport-early-arrival-hotel">Hotel name (optional)</Label>
+            <Input
+              id="transport-early-arrival-hotel"
+              value={draftTransportEarlyArrivalHotelName}
+              onChange={(event) => setDraftTransportEarlyArrivalHotelName(event.target.value)}
+              placeholder="Enter hotel name"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              If provided, this helps identify the intended hotel. Leave blank
+              if the guest will decide after reaching the arrival city.
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="transport-early-arrival-rest">Rest duration (minutes)</Label>
+            <Input
+              id="transport-early-arrival-rest"
+              type="number"
+              min={30}
+              max={720}
+              value={draftTransportEarlyArrivalRestMinutes}
+              onChange={(event) => setDraftTransportEarlyArrivalRestMinutes(Number(event.target.value || 0))}
+            />
+          </div>
+        </div>
+      )}
+
+      {draftTransportEarlyArrivalOption === "HOTEL_REST" && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          {TRANSPORT_EARLY_ARRIVAL_HOTEL_MESSAGE}
+        </p>
+      )}
+
+      {transportEarlyArrivalDialogError && (
+        <p className="text-sm text-red-600">
+          {transportEarlyArrivalDialogError}
+        </p>
+      )}
+
+      <DialogFooter>
+        <Button
+          type="button"
+          onClick={handleConfirmTransportEarlyArrival}
+          disabled={!draftTransportEarlyArrivalOption}
+        >
+          Use this preference
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
         
 
         {/* ROW 5 */}
@@ -1196,9 +1200,7 @@ caption_label:
         <SelectItem value="__ALL__">All Meal Plans</SelectItem>
         {mealPlanOptions.map((item) => (
           <SelectItem key={item.code} value={item.code}>
-            {item.description
-              ? `${item.label} (${item.description})`
-              : item.label}
+            {getMealPlanLabel(item)}
           </SelectItem>
         ))}
       </SelectContent>

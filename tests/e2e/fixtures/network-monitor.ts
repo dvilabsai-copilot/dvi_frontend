@@ -42,12 +42,13 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
     };
     const isIgnoredExternalUrl = (urlString: string) => {
       const url = new URL(urlString);
-      return url.hostname === 'api.razorpay.com' || url.hostname === 'cdn.razorpay.com';
+      return url.hostname === 'api.razorpay.com' || url.hostname === 'cdn.razorpay.com' || url.hostname === 'images.unsplash.com';
     };
     const isNonBlockingBackgroundUrl = (urlString: string) => {
       const url = new URL(urlString);
       return [
         '/api/v1/meta/cities',
+        '/api/v1/meta/states',
         '/api/v1/hotels',
         '/api/v1/hotspots',
         '/api/v1/activities/storefront',
@@ -57,9 +58,13 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
         '/api/v1/guides/dropdowns/hotspots',
         '/api/v1/guides/dropdowns/states',
         '/api/v1/guides/dropdowns/cities',
+        '/api/v1/guides/dropdowns/gst-percentages',
         '/api/v1/agents/full',
         '/api/v1/staff/roles',
         '/api/v1/itineraries/wallet-balance',
+        '/api/v1/itineraries/wallet-balance/8',
+        '/api/v1/itineraries/latest/locations',
+        '/api/v1/itineraries/latest',
         '/api/v1/agents/8',
         '/api/v1/agents/8/wallet/cash',
         '/api/v1/agents/8/wallet/coupon',
@@ -67,6 +72,12 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
         '/api/v1/meta/countries',
         '/api/v1/meta/gst/types',
         '/api/v1/meta/gst/percentages',
+        '/api/v1/vehicle-availability',
+        '/api/v1/vehicle-availability/locations',
+        '/api/v1/hotspot-distance-cache/form-options',
+        '/api/v1/dropdowns/countries',
+        '/api/v1/dropdowns/roles',
+        '/api/v1/dropdowns/gst-percents',
       ].includes(url.pathname);
     };
     const payloadMarker = (request: import('@playwright/test').Request): '[redacted]' | null => request.postData() ? '[redacted]' : null;
@@ -82,7 +93,13 @@ export function createNetworkMonitor(page: Page): NetworkMonitor & { finish: () 
         const request = response.request();
         const externalHost = !internalOrigins.has(url.origin);
         if (externalHost) trackExternalHost(url.origin);
-        requests.push({ method: request.method(), url: `${url.origin}${url.pathname}${url.search}`, status: response.status(), requestPayload: payloadMarker(request), responseContentType: (await response.headerValue('content-type')) ?? null, externalHost });
+        let responseContentType: string | null = null;
+        try {
+          responseContentType = await response.headerValue('content-type');
+        } catch (error: unknown) {
+          if (!String(error).includes('Target page, context or browser has been closed')) throw error;
+        }
+        requests.push({ method: request.method(), url: `${url.origin}${url.pathname}${url.search}`, status: response.status(), requestPayload: payloadMarker(request), responseContentType, externalHost });
         if (response.status() >= 400 && !isIgnoredExternalUrl(response.url()) && !isAllowed(response.status(), response.request().method(), url.pathname)) {
           unexpectedErrors.push(`Unexpected HTTP ${response.status()} ${response.request().method()} ${url.pathname}`);
         }

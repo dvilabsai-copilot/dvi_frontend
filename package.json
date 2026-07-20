@@ -21,6 +21,7 @@
     "e2e:test:admin": "node scripts/e2e/run.mjs readonly",
     "e2e:test:mutation": "node scripts/e2e/run.mjs mutation",
     "e2e:test:api": "node scripts/e2e/run.mjs api",
+    "e2e:group": "node scripts/e2e/run-groups.mjs",
     "e2e:test:agent": "node scripts/e2e/run.mjs agent",
     "e2e:group:itinerary": "node scripts/e2e/run.mjs group-itinerary",
     "e2e:group:confirmed-itinerary": "node scripts/e2e/run.mjs group-confirmed-itinerary",

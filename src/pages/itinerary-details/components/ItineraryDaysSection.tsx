@@ -89,7 +89,8 @@ export function ItineraryDaysSection({ context }: ItineraryDaysSectionProps) {
         return (
           <section key={String(day.id ?? "")} className="mb-4 rounded-lg bg-white pb-6 pt-1 shadow-sm">
             <ItineraryDayHeader context={{
-              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute, handleUpdateRouteTimesDirectFromHook,
+              day, itinerary, summaryStickyHeight, routeNeedsRebuild, dayHasManualOverride, isRebuilding, handleRebuildRoute,
+              handleUpdateRouteTimesDirect: handleUpdateRouteTimesDirectFromHook,
               canShowGuideActionButton, openSourcePreview, canShowAddHotspotButton, openAddHotspotModal, addHotspotCta, addHotspotLocationName,
               readOnly, isWholeItineraryGuideMode, handleWholeItineraryGuideClick, handleAddGuideClick, currentGuideAssignment, guestFoodPreferenceText,
               intercityDistance, openGuideModal, setDeleteGuideModal,
