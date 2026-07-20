@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { ItineraryService, type ItineraryClipboardMode } from "@/services/itinerary";
 import { toast } from "sonner";
+import { addHotspotDetailsParagraphSpacing } from "../utils/highlightsHotspotHtml.utils";
 
 interface HotelClipboardActionOptions {
   selectedHotels: Record<string, boolean>;
@@ -51,12 +52,26 @@ export const useHotelClipboardAction = ({
         return;
       }
 
-      const localClipboard = buildClipboardHtml(clipboardType);
-      let mergedHtml = mergeClipboardWithB2BRecommendedPackages(html, localClipboard.packageSectionsHtml || localClipboard.html || "");
-      if (clipboardType === "highlights") {
-        mergedHtml = replaceHighlightsHotspotDetailsHtml(mergedHtml, buildHighlightsHotspotDetailsHtml());
-      }
-      await copyHtmlToClipboard(mergedHtml, htmlToPlainText(mergedHtml));
+     const localClipboard = buildClipboardHtml(clipboardType);
+
+let mergedHtml = mergeClipboardWithB2BRecommendedPackages(
+  html,
+  localClipboard.packageSectionsHtml || localClipboard.html || "",
+);
+
+if (clipboardType === "highlights") {
+  mergedHtml = replaceHighlightsHotspotDetailsHtml(
+    mergedHtml,
+    buildHighlightsHotspotDetailsHtml(),
+  );
+}
+
+mergedHtml = addHotspotDetailsParagraphSpacing(mergedHtml);
+
+await copyHtmlToClipboard(
+  mergedHtml,
+  htmlToPlainText(mergedHtml),
+);
       toast.success("Formatted clipboard content copied!");
       setClipboardModal(false);
       setSelectedHotels({});
