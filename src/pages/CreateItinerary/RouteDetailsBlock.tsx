@@ -510,17 +510,17 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 overflow-visible pb-4">
-  <div className="w-full overflow-x-auto overflow-y-visible">
-<table className="w-[960px] caption-bottom text-sm overflow-visible table-fixed">
+<div className="w-full overflow-x-hidden focus-within:overflow-visible">
+  <table className="w-[960px] caption-bottom text-sm overflow-visible table-fixed">
   <colgroup>
     <col className="w-[70px]" />
     <col className="w-[140px]" />
     <col className="w-[210px]" />
     <col className="w-[285px]" />
-    <col className="w-[95px]" />
-    {!hideIntercityKm && <col className="w-[90px]" />}
-    <col className="w-[105px]" />
-    <col className="w-[35px]" />
+<col className="w-[55px]" />
+{!hideIntercityKm && <col className="w-[90px]" />}
+<col className="w-[65px]" />
+<col className="w-[115px]" />
   </colgroup>
 
   <TableHeader>
@@ -554,12 +554,12 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
         </TableHead>
       )}
 
-      <TableHead
-        className="px-2 text-xs text-[#4a4260] text-center leading-tight"
-title="Explore Destination means local sightseeing after arriving at the destination."
-      >
-        Explore Destination <span className="cursor-help">ⓘ</span>
-      </TableHead>
+<TableHead
+  className="px-0 text-xs text-[#4a4260] text-left leading-tight"
+  title="Explore Destination means local sightseeing after arriving at the destination."
+>
+  Explore Destination <span className="cursor-help">ⓘ</span>
+</TableHead>
 
       <TableHead className="px-1 text-xs text-[#4a4260] text-center">
         {" "}
@@ -681,7 +681,7 @@ const canDeleteThisRouteDay =
         }
       : null;
   }}
-className={`w-full max-w-[260px] ${
+className={`w-full ${
   isLastRowLocked ? "pointer-events-none opacity-60" : ""
 }`}
 >
@@ -756,7 +756,7 @@ className={`w-full max-w-[260px] ${
     )}
   </TableCell>
 
-  <TableCell className="pl-0 pr-2 text-left">
+ <TableCell className="pl-0 pr-1 text-left">
   <button
   type="button"
   onClick={() => onOpenViaRoutes?.(row)}
@@ -779,7 +779,7 @@ className={`w-full max-w-[260px] ${
 </TableCell>
 )}
 
-<TableCell className="px-1 text-center">
+<TableCell className="px-0 text-left">
   <span
   className={hasViaRoutes ? "inline-block cursor-not-allowed" : "inline-block"}
   title={hasViaRoutes ? "Explore Destination is unavailable when Enroute Visits are selected" : undefined}
@@ -810,7 +810,7 @@ className={`w-full max-w-[260px] ${
   </span>
 </TableCell>
 
-<TableCell className="pl-1 pr-0 text-center">
+<TableCell className="pl-0 pr-0 text-left">
   {canDeleteThisRouteDay && (
     <button
       type="button"
