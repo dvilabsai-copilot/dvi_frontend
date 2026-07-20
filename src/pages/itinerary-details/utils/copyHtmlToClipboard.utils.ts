@@ -1,4 +1,7 @@
-export const copyHtmlToClipboard = async (html: string, plainText: string): Promise<void> => {
+export const copyHtmlToClipboard = async (
+  html: string,
+  plainText: string,
+): Promise<void> => {
   try {
     const outlookSafeHtml = `
         <div style="display:block;width:100%;margin:0;padding:0;font-family:Calibri;font-size:11px;color:#302c6e;">
@@ -8,11 +11,17 @@ export const copyHtmlToClipboard = async (html: string, plainText: string): Prom
           </table>
         </div>
       `;
+
     if (window.ClipboardItem && navigator.clipboard?.write) {
       const item = new ClipboardItem({
-        'text/html': new Blob([outlookSafeHtml], { type: 'text/html' }),
-        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        'text/html': new Blob([outlookSafeHtml], {
+          type: 'text/html',
+        }),
+        'text/plain': new Blob([plainText], {
+          type: 'text/plain',
+        }),
       });
+
       await navigator.clipboard.write([item]);
     } else {
       await navigator.clipboard.writeText(plainText);
