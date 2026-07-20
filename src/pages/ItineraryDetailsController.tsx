@@ -461,6 +461,8 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
     transportEarlyArrivalDialog,
     closeTransportEarlyArrivalDialog,
     confirmTransportEarlyArrival,
+    routeRestrictionError,
+    setRouteRestrictionError,
   } = routeMutationWorkflow;
 
   const openDeleteHotspotModal = (
@@ -892,6 +894,8 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
       quotation={{ open: confirmQuotationModal, onOpenChange: setConfirmQuotationModal, ...quotationDialogProps }}
       fitHereDialogs={fitHereDialogProps}
       ancillaryModals={ancillaryModalProps}
+      routeRestrictionError={routeRestrictionError}
+      onCloseRouteRestrictionError={() => setRouteRestrictionError(null)}
     />;
 };
 

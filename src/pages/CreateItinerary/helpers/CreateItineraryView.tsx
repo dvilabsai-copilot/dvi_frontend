@@ -7,6 +7,14 @@ import { ItineraryPlanBlock } from "../ItineraryPlanBlock";
 import { RouteDetailsBlock } from "../RouteDetailsBlock";
 import { VehicleBlock } from "../VehicleBlock";
 import { ViaRouteDialog } from "../ViaRouteDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { calculateDaysBetweenDates } from "./createItinerary.utils";
 import { splitViaString } from "./itineraryUtils";
 
@@ -33,6 +41,8 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
     vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
     handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+    saveErrorMessage,
+    setSaveErrorMessage,
     pendingPayload, activeSaveType, TRANSPORT_LOADING_MESSAGES, transportLoadingMessageIndex,
     handleConfirmClose, handleSaveWithType, arrivalPolicyModal, setArrivalPolicyModal,
     isResolvingArrivalPolicy, getArrivalPolicyDecisionKey, runArrivalPolicyGate,
@@ -40,6 +50,16 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
     continueToRouteConfirmation, viaDialogOpen, handleViaDialogOpenChange, viaRoutes,
     viaRoutesLoading, activeViaRouteRow, activeViaRouteIds, handleViaDialogSubmit,
   } = context;
+
+  const allowedVehicleMatch = saveErrorMessage?.match(/Allowed vehicle types:\s*([\s\S]*)$/i);
+  const allowedVehicleTypes = allowedVehicleMatch?.[1]
+    ?.replace(/\.$/, '')
+    .split(/,\s*/)
+    .map((name: string) => name.trim())
+    .filter(Boolean) || [];
+  const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehicleMatch.index === 'number'
+    ? saveErrorMessage?.slice(0, allowedVehicleMatch.index).trim()
+    : saveErrorMessage;
 
   return (
     <div className="p-4 space-y-4">
@@ -190,7 +210,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
         )}
       </div>
 
-      <div className="flex justify-center pt-4">
+      <div className="flex justify-center pt-1">
         <Button
           onClick={handleSaveClick}
           disabled={isSaving}
@@ -199,6 +219,53 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
           {isSaving ? "Saving..." : "Save & Continue"}
         </Button>
       </div>
+
+      <Dialog
+        open={Boolean(saveErrorMessage)}
+        onOpenChange={(open) => {
+          if (!open) setSaveErrorMessage(null);
+        }}
+      >
+        <DialogContent className="max-w-xl border-red-200" onClose={() => setSaveErrorMessage(null)}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-700">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-lg">!</span>
+              Vehicle route restriction
+          </DialogTitle>
+          <DialogDescription>
+              {saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
+                ? "This itinerary cannot be saved because the selected vehicle is not permitted on this route."
+                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
+                  ? "This itinerary cannot be saved because every vehicle is restricted during this time window."
+                  : "The requested timeline cannot be saved with the selected vehicle and departure time."}
+            </DialogDescription>
+          </DialogHeader>
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-900">
+            {messageWithoutAllowedVehicles}
+          </div>
+          {allowedVehicleTypes.length > 0 && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-sm font-semibold text-emerald-900">Allowed vehicle types</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {allowedVehicleTypes.map((vehicleType: string) => (
+                  <span key={vehicleType} className="rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-800 shadow-sm">
+                    {vehicleType}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveErrorMessage(null)}>
+              {saveErrorMessage && /This is a vehicle-type restriction|Changing the departure time will not remove this restriction/i.test(saveErrorMessage)
+                ? "Choose another vehicle"
+                : saveErrorMessage && /This restriction applies to every vehicle/i.test(saveErrorMessage)
+                  ? "Change departure time or route"
+                  : "Change vehicle or departure time"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SaveRouteConfirmDialog
         open={showRouteConfirm}

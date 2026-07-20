@@ -34,7 +34,7 @@ type ApiOptions = {
   method?: string;
   auth?: boolean; // default true
   headers?: Record<string, string>;
-  body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined|Object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
+  body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
   cache?: RequestCache; // fetch cache option for cache-busting
 };
 
@@ -109,7 +109,18 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     try {
       const parsed = JSON.parse(text);
       const apiMessage = parsed?.message;
-      message = Array.isArray(apiMessage) ? apiMessage.join(', ') : apiMessage || text;
+      const conflictMessages = Array.isArray(parsed?.details?.conflicts)
+        ? parsed.details.conflicts
+            .map((conflict: unknown) => {
+              const message = conflict && typeof conflict === 'object' && 'message' in conflict
+                ? conflict.message
+                : '';
+              return String(message || '').trim();
+            })
+            .filter(Boolean)
+            .join('\n')
+        : '';
+      message = conflictMessages || (Array.isArray(apiMessage) ? apiMessage.join(', ') : apiMessage || text);
     } catch {
       // Keep the raw response when it is not JSON.
     }

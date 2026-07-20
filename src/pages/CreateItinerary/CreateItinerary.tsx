@@ -239,6 +239,7 @@ const [endTime, setEndTime] = useState<string>("12:00");
 
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
 
   const [showRouteConfirm, setShowRouteConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any | null>(null);
@@ -738,6 +739,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     extractRouteFamilyBaseQuoteId,
     setSaveProgressPercent,
     toast,
+    setSaveErrorMessage,
     setShowRouteConfirm,
     navigate,
     stopSaveProgress,
@@ -775,6 +777,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+        saveErrorMessage,
+        setSaveErrorMessage,
         pendingPayload, activeSaveType, TRANSPORT_LOADING_MESSAGES, transportLoadingMessageIndex,
         handleConfirmClose, handleSaveWithType, arrivalPolicyModal, setArrivalPolicyModal,
         isResolvingArrivalPolicy, getArrivalPolicyDecisionKey, runArrivalPolicyGate,

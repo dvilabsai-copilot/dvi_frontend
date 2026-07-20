@@ -29,6 +29,7 @@ export interface RouteTimePatchMutationProps {
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setRouteTimeProgressPercent: Dispatch<SetStateAction<number>>;
   setPendingScrollDayNumber: Dispatch<SetStateAction<number | null>>;
+  setRouteRestrictionError?: Dispatch<SetStateAction<string | null>>;
 }
 
 export function useRouteTimePatchMutation({
@@ -46,6 +47,7 @@ export function useRouteTimePatchMutation({
   setHotelDetails,
   setRouteTimeProgressPercent,
   setPendingScrollDayNumber,
+  setRouteRestrictionError,
 }: RouteTimePatchMutationProps) {
   return useCallback(async (
     planId: number,
@@ -96,7 +98,11 @@ export function useRouteTimePatchMutation({
     } catch (error) {
       console.error("Failed to update route times", error);
       const message = error instanceof Error ? error.message : String(error || "");
-      toast.error(message || "Failed to update route times");
+      if (message.includes("unavailable for the selected vehicle because")) {
+        setRouteRestrictionError?.(message);
+      } else {
+        toast.error(message || "Failed to update route times");
+      }
     } finally {
       stopRouteTimeProgress();
       setIsApplyingRouteTimeUpdate(false);
@@ -114,6 +120,7 @@ export function useRouteTimePatchMutation({
     setRouteProgressTitle,
     setRouteTimeEstimatedMs,
     setRouteTimeProgressPercent,
+    setRouteRestrictionError,
     startRouteTimeProgress,
     stopRouteTimeProgress,
   ]);
