@@ -10,6 +10,7 @@ import { ItineraryMediaDialogs } from "./ItineraryMediaDialogs";
 import { ItineraryRouteProgressOverlay } from "./ItineraryRouteProgressOverlay";
 import { QuotationConfirmationDialog } from "./QuotationConfirmationDialog";
 import { ConfirmedQuoteBanner } from "./ConfirmedQuoteBanner";
+import { VehicleRouteRestrictionDialog } from "@/components/itinerary/VehicleRouteRestrictionDialog";
 
 type RouteProgressProps = ComponentProps<typeof ItineraryRouteProgressOverlay>;
 type TravelSectionsProps = ComponentProps<typeof ItineraryDetailsTravelSections>;
@@ -28,6 +29,8 @@ export interface ItineraryDetailsPageViewProps {
   quotation: Omit<QuotationProps, "open" | "onOpenChange"> & Pick<QuotationProps, "open" | "onOpenChange">;
   fitHereDialogs: ComponentProps<typeof ItineraryFitHereDialogs>;
   ancillaryModals: ComponentProps<typeof ItineraryAncillaryModals> | null;
+  routeRestrictionError: string | null;
+  onCloseRouteRestrictionError: () => void;
 }
 
 /** Renders the loaded itinerary page from already-composed workflow/view props. */
@@ -43,12 +46,15 @@ export function ItineraryDetailsPageView({
   quotation,
   fitHereDialogs,
   ancillaryModals,
+  routeRestrictionError,
+  onCloseRouteRestrictionError,
 }: ItineraryDetailsPageViewProps) {
   const { open: quotationOpen, onOpenChange: onQuotationOpenChange, ...quotationDialogProps } = quotation;
   return (
     <div className="w-full max-w-full space-y-1 pb-8">
       {isConfirmedPresentation && <ConfirmedQuoteBanner />}
       <ItineraryRouteProgressOverlay {...routeProgress} />
+      <VehicleRouteRestrictionDialog message={routeRestrictionError} onClose={onCloseRouteRestrictionError} />
       <ItineraryDetailsTravelSections {...travelSections} />
       <ItineraryActivityGuideDialogs {...activityGuideDialogs} />
       <ItineraryAddHotspotDialog {...addHotspotDialog} />

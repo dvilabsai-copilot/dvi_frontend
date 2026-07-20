@@ -59,6 +59,7 @@ import LocationsPage from "./pages/locations/LocationsPage";
 import BetweenHotspotsPage from "./pages/locations/BetweenHotspotsPage";
 import TollChargePage from "./pages/locations/TollChargePage";
 import LocationsPreviewPage from "./pages/locations/LocationsPreviewPage";
+import VehicleRouteRestrictionsPage from "./pages/locations/VehicleRouteRestrictionsPage";
 import StaffListPage from "./pages/staff/StaffListPage";
 import StaffFormPage from "./pages/staff/StaffFormPage";
 import StaffPreviewPage from "./pages/staff/StaffPreviewPage";
@@ -752,14 +753,23 @@ const App = () => (
               }
             />
 
-            <Route
-              path="/locations/between-hotspots"
+    <Route
+      path="/locations/between-hotspots"
               element={
                 <MainLayout>
                   <BetweenHotspotsPage />
                 </MainLayout>
               }
-            />
+    />
+
+    <Route
+      path="/locations/vehicle-route-restrictions"
+      element={
+        <MainLayout>
+          <VehicleRouteRestrictionsPage />
+        </MainLayout>
+      }
+    />
 
             <Route
               path="/toll-charge"

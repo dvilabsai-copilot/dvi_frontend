@@ -18,6 +18,7 @@ export function useCreateItineraryRouteSave(context: Record<string, any>) {
     extractRouteFamilyBaseQuoteId,
     setSaveProgressPercent,
     toast,
+    setSaveErrorMessage,
     setShowRouteConfirm,
     navigate,
     stopSaveProgress,
@@ -34,6 +35,7 @@ const handleSaveWithType = async (
   isSavingRef.current = true;
   try {
     setIsSaving(true);
+    setSaveErrorMessage(null);
     setActiveSaveType(type);
 
   // Always rebuild from the latest form state.
@@ -179,6 +181,7 @@ setSaveProgressPercent(100);
       }`,
     });
 
+    setSaveErrorMessage(null);
     setShowRouteConfirm(false);
 
     // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
@@ -193,11 +196,11 @@ setSaveProgressPercent(100);
     }
   } catch (err) {
     console.error("Failed to save itinerary", err);
-    toast({
-      title: "Save failed",
-      description: "There was an error while saving the itinerary.",
-      variant: "destructive",
-    });
+    const errorMessage =
+      err instanceof Error && err.message.trim()
+        ? err.message
+        : "There was an error while saving the itinerary.";
+    setSaveErrorMessage(errorMessage);
   } finally {
     stopSaveProgress();
     isSavingRef.current = false;
