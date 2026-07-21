@@ -240,6 +240,7 @@ export type ItineraryHotelRow = {
   totalHotelTaxAmount: number;
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
+  providerDisplayName?: string;
   voucherCancelled?: boolean; // Whether voucher is cancelled
 
   // Original draft hotel details ID. Existing cancellation API uses this.

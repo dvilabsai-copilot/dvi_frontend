@@ -1,4 +1,8 @@
 import React from "react";
+import {
+  getHotelProviderDisplayName,
+  replaceHotelProviderBrandForDisplay,
+} from "@/utils/hotelProviderDisplay";
 
 type HotelRecord = Record<string, unknown>;
 
@@ -30,7 +34,7 @@ const renderPolicyList = (title: string, items: string[], key: string, emptyLabe
     <div className="mt-2">
       {items.length > 0 ? (
         <ul className="list-disc space-y-1 whitespace-pre-wrap pl-5 text-sm text-[#4a4260]">
-          {items.map((item, index) => <li key={`${key}-${index}`}>{item}</li>)}
+        {items.map((item, index) => <li key={`${key}-${index}`}>{replaceHotelProviderBrandForDisplay(item)}</li>)}
         </ul>
       ) : <p className="text-sm text-[#4a4260]">{emptyLabel}</p>}
     </div>
@@ -61,7 +65,10 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
       const checkIn = textValue(hotel, "displayCheckInDate");
       const checkOut = textValue(hotel, "displayCheckOutDate");
       const nights = numberValue(hotel, "displayNights");
-      const provider = textValue(hotel, "provider") || "Non-TBO";
+      const provider = getHotelProviderDisplayName(
+        textValue(hotel, "provider"),
+        textValue(hotel, "providerDisplayName"),
+      ) || "Non-VSR";
       const roomType = textValue(hotel, "roomType");
       const displayRouteIds = Array.isArray(hotel.displayRouteIds) ? hotel.displayRouteIds : [];
 

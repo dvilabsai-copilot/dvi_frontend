@@ -170,7 +170,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     // ✅ Check for unsaved changes and warn user
     if (unsavedSelections.size > 0) {
       const confirmed = window.confirm(
-        `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from TBO.\n\nDo you want to continue?`
+        `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from VSR.\n\nDo you want to continue?`
       );
       if (!confirmed) return;
       
@@ -249,7 +249,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           setExpandedRowKey(currentExpandedKey);
         }
         
-        toast.success(`Hotels refreshed from TBO (${uniqueRooms.length} options found)`);
+        toast.success(`Hotels refreshed from VSR (${uniqueRooms.length} options found)`);
       } else {
         toast.error('No hotels found for this route');
       }

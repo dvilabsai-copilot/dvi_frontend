@@ -264,7 +264,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
               ))}
             </select>
             <p className="text-[11px] text-[#6c6c6c]">
-              Required for TBO search and booking flow.
+              Required for VSR search and booking flow.
             </p>
           </div>
 

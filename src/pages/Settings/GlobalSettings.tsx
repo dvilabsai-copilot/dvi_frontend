@@ -142,7 +142,7 @@ export const GlobalSettingsPage = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Hotel API Configurations</CardTitle>
-            <CardDescription>TBO Hotel Eligible Countries</CardDescription>
+            <CardDescription>VSR Hotel Eligible Countries</CardDescription>
           </CardHeader>
           <CardContent>
             <div>
