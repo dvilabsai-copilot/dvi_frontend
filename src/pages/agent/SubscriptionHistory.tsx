@@ -86,15 +86,25 @@ export default function SubscriptionHistory() {
     }
 
     const rows = await AgentAPI.getSubscriptions(agentId);
-    const normalized: Subscription[] = rows.map((s) => ({
-      id: Number(s.id),
-      planName: s.subscriptionTitle || "Free",
-      amount: Number(s.amount || 0),
-      startDate: s.validityStart,
-      endDate: s.validityEnd,
-      transactionId: s.transactionId || "--",
-      paymentStatus: (s.paymentStatus as PaymentStatus) || "Free",
-    }));
+  const normalized: Subscription[] = rows.map((s) => {
+  const amount = Number(s.amount || 0);
+  const planName = s.subscriptionTitle || "Free";
+
+  return {
+    id: Number(s.id),
+    planName,
+    amount,
+    startDate: s.validityStart,
+    endDate: s.validityEnd,
+    transactionId: s.transactionId || "--",
+
+    // No money was paid for a zero-value subscription.
+    paymentStatus:
+      amount <= 0
+        ? "Free"
+        : ((s.paymentStatus as PaymentStatus) || "Pending"),
+  };
+});
 
     setSubscriptions(normalized);
 
@@ -165,49 +175,102 @@ export default function SubscriptionHistory() {
     setRenewalModalOpen(true);
   };
 
-  const onPlanSelected = async (plan: any, agentSubscribedPlanId?: number) => {
-    try {
-      setIsPaying(true);
-      const order = await withTimeout(
-        paymentService.createSubscriptionRenewalOrder(
-          plan.agent_subscription_plan_ID,
-          agentSubscribedPlanId
-        ),
-        20000,
-        "Create order request timed out. Please try again.",
+  const onPlanSelected = async (
+  plan: any,
+  agentSubscribedPlanId?: number,
+) => {
+  try {
+    setIsPaying(true);
+
+    const subscriptionPlanId = Number(
+      plan?.agent_subscription_plan_ID || 0,
+    );
+
+    if (!subscriptionPlanId) {
+      throw new Error("Invalid subscription plan selected");
+    }
+
+    const order = await withTimeout(
+      paymentService.createSubscriptionRenewalOrder(
+        subscriptionPlanId,
+        agentSubscribedPlanId,
+      ),
+      20000,
+      "Create order request timed out. Please try again.",
+    );
+
+    /*
+     * Free subscriptions do not require Razorpay.
+     * The backend has already completed the renewal.
+     */
+    if (order.freeRenewal) {
+      setRenewalModalOpen(false);
+
+      await loadSubscriptions();
+
+      toast.success(
+        order.message || "Free subscription renewed successfully",
       );
 
-      await openCheckout({
-        key: order.key,
-        amount: order.amount,
-        currency: order.currency,
-        orderId: order.orderId,
-        name: "DVI Holidays",
-        description: "Subscription Renewal",
-        onSuccess: async (response) => {
-          await withTimeout(
-            paymentService.confirmSubscriptionRenewal(response),
-            20000,
-            "Subscription confirmation timed out. Please refresh and check subscription history.",
-          );
-          await loadSubscriptions();
-          navigate(`/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(order.orderId)}`);
-        },
-        onFailure: (error) => {
-          console.error(error);
-          toast.error("Subscription confirmation failed");
-        },
-        onDismiss: () => {
-          toast.error("Payment cancelled");
-        },
-      });
-    } catch (error) {
-      console.error(error);
-      toast.error("Unable to start subscription renewal");
-    } finally {
-      setIsPaying(false);
+      return;
     }
-  };
+
+    if (
+      !order.orderId ||
+      !order.key ||
+      !order.amount ||
+      order.amount <= 0
+    ) {
+      throw new Error("Invalid payment order received");
+    }
+
+    await openCheckout({
+      key: order.key,
+      amount: order.amount,
+      currency: order.currency,
+      orderId: order.orderId,
+      name: "DVI Holidays",
+      description: "Subscription Renewal",
+
+      onSuccess: async (response) => {
+        await withTimeout(
+          paymentService.confirmSubscriptionRenewal(response),
+          20000,
+          "Subscription confirmation timed out. Please refresh and check subscription history.",
+        );
+
+        setRenewalModalOpen(false);
+
+        await loadSubscriptions();
+
+        navigate(
+          `/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(
+            order.orderId,
+          )}`,
+        );
+      },
+
+      onFailure: (error) => {
+        console.error(error);
+        toast.error("Subscription confirmation failed");
+      },
+
+      onDismiss: () => {
+        toast.error("Payment cancelled");
+      },
+    });
+  } catch (error) {
+    console.error(error);
+
+    toast.error(
+      error instanceof Error
+        ? error.message
+        : "Unable to start subscription renewal",
+    );
+  } finally {
+    setIsPaying(false);
+  }
+};
 
   return (
     <div className="w-full p-4 md:p-8">
