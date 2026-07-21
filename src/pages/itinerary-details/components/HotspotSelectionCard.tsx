@@ -69,9 +69,19 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
   const isActuallyInCurrentTimeline = currentRouteAttractionHotspotIds.has(hotspotId) || addedInModalHotspotIds.has(hotspotId);
   const isAddedOnOtherRoute = hotspot.alreadyAddedOnOtherRoute === true || backendStatus === "ACTIVE_OTHER_ROUTE";
   const isAdded = isActuallyInCurrentTimeline || (!isDeletedFromTimeline && ((hotspot.alreadyAdded === true && !isAddedOnOtherRoute) || backendStatus === "ACTIVE_THIS_ROUTE"));
-  const isActionDisabled = isAdded || (hotspot.actionDisabled === true && !isAddedOnOtherRoute && !isDeletedFromTimeline);
   const timingText = String(hotspot.timings || "").trim().toLowerCase();
-  const isClosedTiming = timingText.length === 0 || timingText === "no timings available";
+  const isClosedOnRouteDate = hotspot.isClosedOnRouteDate === true
+    || backendStatus === "CLOSED_ON_ROUTE_DATE"
+    || timingText === "closed";
+  const isClosedTiming = !isClosedOnRouteDate && (timingText.length === 0 || timingText === "no timings available");
+  const closedLabel = hotspot.closedDaysLabel
+    ? `Closed on ${hotspot.closedDaysLabel}`
+    : hotspot.routeDayLabel
+      ? `Closed on ${hotspot.routeDayLabel}`
+      : "Closed on this route date";
+  const isActionDisabled = isClosedOnRouteDate
+    || isAdded
+    || (hotspot.actionDisabled === true && !isAddedOnOtherRoute && !isDeletedFromTimeline);
   const hasConflict = getPreviewTimeline(hotspotId).some((segment) => segment.isConflict === true && Number(segment.locationId) === hotspotId);
   const isLoadingThis = isPreviewingHotspotId === hotspotId;
   const manualMeta = asManualMeta(manualMetaById.get(hotspotId));
@@ -99,11 +109,12 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
               {selected && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${hasConflict ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>{hasConflict ? "Conflict" : "Selected"}</span>}
               {isAdded && <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase text-green-700">Added</span>}
               {isAddedOnOtherRoute && <span className="inline-flex shrink-0 whitespace-nowrap rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-800">Also used on another day</span>}
+              {isClosedOnRouteDate && <span className="whitespace-nowrap rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">{closedLabel}</span>}
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {isManualAddedOnCurrentRoute ? <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" className="border-emerald-300 bg-emerald-50 text-emerald-700" disabled>Added</Button><Button type="button" variant="outline" size="sm" className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => { if (!(resolvedRouteHotspotId > 0)) { toast.error("Could not find the route hotspot row ID. Please refresh and try again."); return; } onDeleteManual(resolvedRouteHotspotId, hotspotId, hotspot.name); }}><Trash2 className="mr-1 h-4 w-4" />Delete</Button></div>
                 : isAdded ? <Button type="button" variant="outline" size="sm" className="border-slate-200 bg-slate-100 text-slate-500" disabled>Added</Button>
-                  : <div className="flex gap-2"><Button type="button" size="sm" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot} onClick={() => { if (isFitHereSelectionMode) { onSelectFitHotspot(hotspot); toast.info("Now choose the exact Fit Here position from the timeline on the right."); return; } onPreviewHotspot(hotspotId); }} className="bg-[#d546ab] text-white hover:bg-[#c03d9f]">{isLoadingThis ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Previewing</> : hotspot.buttonLabel || "Preview"}</Button>{isFitHereSelectionMode && <Button type="button" size="sm" variant="outline" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot || autoPreviewLoading} onClick={() => { void onAutoPreviewFitHere(hotspot); }} className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">Auto-Preview</Button>}</div>}
+                  : <div className="flex gap-2"><Button type="button" size="sm" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot} onClick={() => { if (isFitHereSelectionMode) { onSelectFitHotspot(hotspot); toast.info("Now choose the exact Fit Here position from the timeline on the right."); return; } onPreviewHotspot(hotspotId); }} className="bg-[#d546ab] text-white hover:bg-[#c03d9f]">{isLoadingThis ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Previewing</> : isClosedOnRouteDate ? "Closed" : hotspot.buttonLabel || "Preview"}</Button>{isFitHereSelectionMode && <Button type="button" size="sm" variant="outline" disabled={isActionDisabled || isClosedTiming || isLoadingThis || isBuildingMatrix || isApplyingPreviewHotspot || autoPreviewLoading} onClick={() => { void onAutoPreviewFitHere(hotspot); }} className="border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">{isClosedOnRouteDate ? "Closed" : "Auto-Preview"}</Button>}</div>}
             </div>
             <p className="mb-3 mt-2 line-clamp-2 text-sm text-[#6c6c6c]">{hotspot.description ?? ""}</p>
             <div className="flex flex-wrap gap-3 text-xs text-[#6c6c6c]">{hotspot.amount > 0 && <span className="flex items-center"><Ticket className="mr-1 h-3 w-3" />₹ {hotspot.amount.toFixed(2)}</span>}{hotspot.timeSpend > 0 && <span className="flex items-center"><Clock className="mr-1 h-3 w-3" />{hotspot.timeSpend} hrs</span>}{hotspot.timings && !isClosedTiming && <span className="flex items-center"><Timer className="mr-1 h-3 w-3" />{hotspot.timings}</span>}{isClosedTiming && <span className="flex items-center text-[#a35c1a]"><Timer className="mr-1 h-3 w-3" />No timings available</span>}</div>

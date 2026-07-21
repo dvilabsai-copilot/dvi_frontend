@@ -138,10 +138,15 @@ export type AvailableHotspot = {
   visitAgain?: boolean;
   alreadyAdded?: boolean;
   alreadyAddedOnOtherRoute?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE';
+  availabilityStatus?: 'AVAILABLE' | 'ACTIVE_THIS_ROUTE' | 'ACTIVE_OTHER_ROUTE' | 'EXCLUDED_BY_ROUTE' | 'MASTER_INACTIVE' | 'CLOSED_ON_ROUTE_DATE';
   availabilityReason?: string;
   actionDisabled?: boolean;
   buttonLabel?: string;
+  isClosedOnRouteDate?: boolean;
+  routeDayLabel?: string | null;
+  routeDate?: string | null;
+  closedDays?: string[];
+  closedDaysLabel?: string | null;
   priority?: number;
   hotspotPriority?: number;
   hotspot_priority?: number;
