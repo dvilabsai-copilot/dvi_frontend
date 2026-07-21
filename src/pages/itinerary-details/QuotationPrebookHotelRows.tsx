@@ -1,4 +1,5 @@
 import { SupplementDisplay, type NormalizedSupplement } from "@/components/hotels/SupplementDisplay";
+import { replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
 
 type PrebookHotelEntry = {
   routeId?: string | number;
@@ -68,7 +69,7 @@ export function QuotationPrebookHotelRows({
                       {hotelCancellation.length > 0 ? (
                         <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                           {hotelCancellation.map((item, idx) => (
-                            <li key={`hotel-cancel-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            <li key={`hotel-cancel-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                           ))}
                         </ul>
                       ) : (
@@ -83,7 +84,7 @@ export function QuotationPrebookHotelRows({
                       {hotelPromotions.length > 0 ? (
                         <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                           {hotelPromotions.map((item, idx) => (
-                            <li key={`hotel-promo-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            <li key={`hotel-promo-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                           ))}
                         </ul>
                       ) : (
@@ -98,7 +99,7 @@ export function QuotationPrebookHotelRows({
                       {hotelRateConditions.length > 0 ? (
                         <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                           {hotelRateConditions.map((item, idx) => (
-                            <li key={`hotel-rate-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            <li key={`hotel-rate-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                           ))}
                         </ul>
                       ) : (
@@ -113,7 +114,7 @@ export function QuotationPrebookHotelRows({
                       {hotelAmenities.length > 0 ? (
                         <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                           {hotelAmenities.map((item, idx) => (
-                            <li key={`hotel-amenity-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            <li key={`hotel-amenity-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                           ))}
                         </ul>
                       ) : (
@@ -128,7 +129,7 @@ export function QuotationPrebookHotelRows({
                       {hotelInclusions.length > 0 ? (
                         <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                           {hotelInclusions.map((item, idx) => (
-                            <li key={`hotel-inclusion-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                            <li key={`hotel-inclusion-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                           ))}
                         </ul>
                       ) : (
@@ -144,7 +145,7 @@ export function QuotationPrebookHotelRows({
                     ) : hotelMandatorySupplements.length > 0 ? (
                       <ul className="text-sm text-[#4a4260] list-disc pl-5 space-y-1 whitespace-pre-wrap">
                         {hotelMandatorySupplements.map((item, idx) => (
-                          <li key={`hotel-supplement-${hotel?.routeId ?? index}-${idx}`}>{item}</li>
+                          <li key={`hotel-supplement-${hotel?.routeId ?? index}-${idx}`}>{replaceHotelProviderBrandForDisplay(item)}</li>
                         ))}
                       </ul>
                     ) : (

@@ -51,10 +51,10 @@ export const useQuotationBookingGuards = ({
   if (requiresHotelBookingFlow && tboCount > 0 && nonTboRouteIds.length > 0) {
     const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
     const shouldContinue = window.confirm(
-      `Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
+      `Mixed providers detected. Non-VSR route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
     );
     if (!shouldContinue) {
-      toast.error(`Mixed providers detected. Non-TBO route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`);
+      toast.error(`Mixed providers detected. Non-VSR route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`);
       return null;
     }
     toast.warning('Proceeding with mixed-provider booking as confirmed.');
@@ -83,7 +83,7 @@ export const useQuotationBookingGuards = ({
   const effectivePrebookData = prebookDataRef.current || prebookData;
   const hasTboBookings = requiresHotelBookingFlow && hotelBookings.some((booking) => booking.provider === 'tbo');
   if (requiresHotelBookingFlow && hasTboBookings && !effectivePrebookData) {
-    toast.error('TBO prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
+    toast.error('VSR prebook data missing. Reopen Confirm Quotation to prebook before final booking.');
     return null;
   }
 

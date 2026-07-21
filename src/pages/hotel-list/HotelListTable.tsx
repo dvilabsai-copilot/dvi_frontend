@@ -83,27 +83,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     });
   };
 
-  const formatGuestArrival = (value?: string | null): string => {
-    if (!value) return '-';
+  const formatGuestArrivalTime = (value?: string | null): string => {
+    if (!value) return 'early morning';
     const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '-';
-    return parsed.toLocaleString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'UTC',
-    });
+    if (Number.isNaN(parsed.getTime())) return 'early morning';
+    return parsed
+      .toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: 'UTC',
+      })
+      .replace(':00', '');
   };
 
-  const formatEarlyCheckInPaymentStatus = (value?: string | null): string => {
-    if (value === 'EXTRA_PAYMENT_APPLICABLE') return 'Extra payment applicable';
-    return String(value || '').replace(/_/g, ' ').trim() || '-';
-  };
-
-  const tableColumnCount = showRates ? 9 : 8;
+  const tableColumnCount = showRates ? 6 : 5;
   const tableHeaderClass = 'border-b border-[#dbdade] bg-[#f4f3f8]/80 px-3 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.04em] text-[#797a81]';
   const tableCellClass = 'px-3 py-3 align-top text-[12px] text-[#4f5159]';
 
@@ -112,7 +106,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
         {/* Hotel Table */}
         <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px] border-collapse text-left">
+          <table className="w-full min-w-[980px] border-collapse text-left">
             <thead>
               <tr>
                 <th className={`${tableHeaderClass} w-[135px]`}>
@@ -123,15 +117,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 </th>
                 <th className={`${tableHeaderClass} min-w-[220px]`}>
                   HOTEL
-                </th>
-                <th className={`${tableHeaderClass} w-[145px]`}>
-                  HOTEL STAY
-                </th>
-                <th className={`${tableHeaderClass} min-w-[165px]`}>
-                  GUEST ARRIVAL
-                </th>
-                <th className={`${tableHeaderClass} min-w-[220px]`}>
-                  EARLY CHECK-IN &amp; BILLING
                 </th>
                 <th className={`${tableHeaderClass} min-w-[150px]`}>
                   ROOM TYPE
@@ -210,7 +195,19 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       }}
                     >
                       <td className={`${tableCellClass} font-medium`}>
-                        {hotel.day}
+                        <div>{hotel.day}</div>
+                        {hotel.earlyCheckIn && (
+                          <div className="mt-1 space-y-0.5 text-[11px] font-normal leading-4 text-[#686270]">
+                            <div>
+                              <span className="text-[#85818d]">Check-in:</span>{' '}
+                              <span className="font-medium">{formatHotelDate(hotel.hotelCheckInDate)}</span>
+                            </div>
+                            <div>
+                              <span className="text-[#85818d]">Check-out:</span>{' '}
+                              <span className="font-medium">{formatHotelDate(hotel.checkOutDate)}</span>
+                            </div>
+                          </div>
+                        )}
                       </td>
                       <td className={`${tableCellClass} font-medium`}>
                         {resolvedDestination}
@@ -238,34 +235,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </div>
                           )}
                         </div>
-                      </td>
-                      <td className={tableCellClass}>
-                        <div className="space-y-1 text-[11px] leading-4">
-                          <div><span className="text-[#85818d]">Check-in:</span> <span className="font-medium">{formatHotelDate(hotel.hotelCheckInDate)}</span></div>
-                          <div><span className="text-[#85818d]">Check-out:</span> <span className="font-medium">{formatHotelDate(hotel.checkOutDate)}</span></div>
-                        </div>
-                      </td>
-                      <td className={tableCellClass}>
-                        {hotel.actualGuestArrivalAt ? (
-                          <div className="rounded-md bg-[#f8f5fc] px-2.5 py-2 text-[11px] leading-4 text-[#4a4260]">
-                            <div className="font-semibold">{formatGuestArrival(hotel.actualGuestArrivalAt)}</div>
-                            {hotel.earlyCheckIn && <div className="mt-0.5 text-[#81768e]">Physical arrival / check-in</div>}
-                          </div>
-                        ) : '-'}
-                      </td>
-                      <td className={tableCellClass}>
-                        {hotel.earlyCheckIn ? (
-                          <div className="space-y-1.5">
-                            <span className="inline-flex rounded-full bg-[#fbe7f6] px-2.5 py-1 text-[11px] font-semibold text-[#ad2e8b]">
-                              Room blocked from previous night
-                            </span>
-                            <div className="text-[11px] leading-4 text-[#686270]">
-                              {hotel.earlyCheckInExtraPaymentApplicable
-                                ? formatEarlyCheckInPaymentStatus(hotel.earlyCheckInPaymentStatus)
-                                : 'No extra payment recorded'}
-                            </div>
-                          </div>
-                        ) : '-'}
                       </td>
                       <td className={tableCellClass}>
                         {getRoomTypeDisplay(hotel)}
@@ -329,14 +298,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </td>
                     </tr>
 
-                    {hotel.earlyCheckIn && hotel.hotelierEarlyCheckInNote && (
+                    {hotel.earlyCheckIn && (
                       <tr className="border-t border-amber-200 bg-amber-50">
                         <td
                           colSpan={tableColumnCount}
                           className="px-6 py-3 text-sm text-amber-900"
                         >
                           <span className="font-semibold">Note for hotelier:</span>{' '}
-                          {hotel.hotelierEarlyCheckInNote}
+                          Guest has opted for early morning check-in at {formatGuestArrivalTime(hotel.actualGuestArrivalAt)} with extra payment. Room to be blocked from the previous night, with actual guest arrival/check-in on the next day early morning.
                         </td>
                       </tr>
                     )}
@@ -1017,15 +986,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
               {/* Hotel Total row for active group */}
               <tr className="border-t bg-[#fdf6ff]">
                 <td
-                  colSpan={showRates ? 9 : 8}
+                  colSpan={4}
                   className="px-4 py-3 text-sm font-medium text-[#4a4260] text-right"
                 >
                   Hotel Total :
                 </td>
+                {showRates && <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />}
                 <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]">
                   {formatCurrency(readOnly ? getOverallSelectedHotelTotal() : currentTabTotal)}
                 </td>
-                <td className="px-4 py-3 text-sm font-semibold text-[#4a4260]" />
               </tr>
             </tbody>
           </table>

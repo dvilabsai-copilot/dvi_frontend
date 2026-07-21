@@ -3,6 +3,7 @@ import { ItineraryService } from '@/services/itinerary';
 
 export type HotelSearchResult = {
   provider: string; // Provider source: 'tbo' or 'ResAvenue'
+  providerDisplayName?: string;
   hotelCode: string;
   hotelName: string;
   address: string;

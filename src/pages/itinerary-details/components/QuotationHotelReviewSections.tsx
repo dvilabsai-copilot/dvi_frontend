@@ -71,9 +71,9 @@ export function QuotationHotelReviewSections({
 
       {requiresHotelBookingFlow && !prebookData && !isPrebooking && !isOpeningConfirmQuotation && nonTboSelectedHotelEntries.length > 0 && (
         <div className="space-y-3 rounded-lg border border-[#e5d9f2] bg-[#faf5ff] p-4">
-          <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-TBO)</h3>
-          <p className="text-xs text-[#6c6c6c]">No TBO hotels selected — TBO prebook not required for this booking.</p>
-          <QuotationNonTboSelectedHotels entries={nonTboSelectedHotelEntries} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions} resolvePrebookMealPlan={resolvePrebookMealPlan} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel} keyPrefix="ntbo-only" providerNote="Policies and rate conditions are managed by the provider. TBO prebook is not applicable." />
+          <h3 className="font-semibold text-[#4a4260]">Selected Hotels (Non-VSR)</h3>
+          <p className="text-xs text-[#6c6c6c]">No VSR hotels selected — VSR prebook not required for this booking.</p>
+          <QuotationNonTboSelectedHotels entries={nonTboSelectedHotelEntries} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions} resolvePrebookMealPlan={resolvePrebookMealPlan} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel} keyPrefix="ntbo-only" providerNote="Policies and rate conditions are managed by the provider. VSR prebook is not applicable." />
           <QuotationNonTboAcceptanceNotice accepted={hasAcceptedUpdatedPrice} setAccepted={setHasAcceptedUpdatedPrice} />
         </div>
       )}
@@ -86,7 +86,7 @@ export function QuotationHotelReviewSections({
             <div><p className="text-[#6c6c6c]">Hotels Prebooked</p><p className="font-semibold text-[#4a4260]">{prebookHotelEntries.length || 0}</p></div>
           </div>
           <QuotationPrebookHotelRows entries={prebookHotelEntries as never} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions as never} resolvePrebookMealPlan={resolvePrebookMealPlan as never} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel as (value: string) => string} />
-          {nonTboSelectedHotelEntries.length > 0 && <div className="space-y-2"><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#6c6c6c]">Non-TBO Selected Hotels</p><QuotationNonTboSelectedHotels entries={nonTboSelectedHotelEntries} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions} resolvePrebookMealPlan={resolvePrebookMealPlan} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel} keyPrefix="non-tbo-hotel" providerNote="This hotel is managed outside TBO. Details shown here come from the selected provider record." /></div>}
+          {nonTboSelectedHotelEntries.length > 0 && <div className="space-y-2"><p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#6c6c6c]">Non-VSR Selected Hotels</p><QuotationNonTboSelectedHotels entries={nonTboSelectedHotelEntries} normalizePrebookItems={normalizePrebookItems} resolvePrebookInclusions={resolvePrebookInclusions} resolvePrebookMealPlan={resolvePrebookMealPlan} normalizeCancellationPolicyItems={normalizeCancellationPolicyItems} normalizeMealPlanLabel={normalizeMealPlanLabel} keyPrefix="non-tbo-hotel" providerNote="This hotel is managed outside VSR. Details shown here come from the selected provider record." /></div>}
           <QuotationPrebookAcceptanceNotice priceChanged={hasPrebookPriceChanged} accepted={hasAcceptedUpdatedPrice} setAccepted={setHasAcceptedUpdatedPrice} />
         </div>
       )}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Building2, Star, MapPin, Loader2 } from 'lucide-react';
 import { HotelSearchResult } from '@/hooks/useHotelSearch';
 import { Button } from '@/components/ui/button';
+import { getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
@@ -49,6 +50,10 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   );
   const startingFrom = Number(hotel.totalFare ?? hotel.price ?? 0);
   const baseStartingFrom = getBaseAmount(hotel);
+  const providerLabel = getHotelProviderDisplayName(
+    hotel.provider,
+    hotel.providerDisplayName,
+  );
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
@@ -70,7 +75,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         {/* Provider Badge */}
         {hotel.provider && (
           <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-            {hotel.provider === 'tbo' ? 'VSR' : hotel.provider}
+            {providerLabel}
           </div>
         )}
 
