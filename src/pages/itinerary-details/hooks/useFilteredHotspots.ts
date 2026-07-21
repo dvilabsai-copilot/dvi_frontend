@@ -45,7 +45,11 @@ export const useFilteredHotspots = ({
     const isAddedOnOtherRoute = hotspot.alreadyAddedOnOtherRoute === true || backendStatus === "ACTIVE_OTHER_ROUTE";
     const disabled = added || (hotspot.actionDisabled === true && !isAddedOnOtherRoute && !deletedFromTimeline);
     const timingText = String(hotspot.timings || "").trim().toLowerCase();
-    const closed = timingText.length === 0 || timingText === "no timings available";
+    const closed = hotspot.isClosedOnRouteDate === true
+      || backendStatus === "CLOSED_ON_ROUTE_DATE"
+      || timingText === "closed"
+      || timingText.length === 0
+      || timingText === "no timings available";
     return !disabled && !closed;
   };
 
@@ -70,8 +74,8 @@ export const useFilteredHotspots = ({
     .sort((a, b) => {
       const aTimingText = String(a.timings || "").trim().toLowerCase();
       const bTimingText = String(b.timings || "").trim().toLowerCase();
-      const aClosed = aTimingText.length === 0 || aTimingText === "no timings available";
-      const bClosed = bTimingText.length === 0 || bTimingText === "no timings available";
+      const aClosed = a.isClosedOnRouteDate === true || String(a.availabilityStatus || "").toUpperCase() === "CLOSED_ON_ROUTE_DATE" || aTimingText === "closed" || aTimingText.length === 0 || aTimingText === "no timings available";
+      const bClosed = b.isClosedOnRouteDate === true || String(b.availabilityStatus || "").toUpperCase() === "CLOSED_ON_ROUTE_DATE" || bTimingText === "closed" || bTimingText.length === 0 || bTimingText === "no timings available";
       const rankA = getSortRank(a);
       const rankB = getSortRank(b);
 
