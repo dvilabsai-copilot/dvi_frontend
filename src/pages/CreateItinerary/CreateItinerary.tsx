@@ -60,7 +60,8 @@ import {
   resolveFirstNonEmptyNumberList,
   resolveFirstNonEmptyStringList,
   safeDateFromISO,
-  safeTimeFromISO,
+  DEFAULT_ITINERARY_START_TIME,
+  DEFAULT_ITINERARY_END_TIME,
 } from "./helpers/createItinerary.utils";
 import type { VehicleRow } from "./helpers/createItinerary.utils";
 import { useCreateItinerarySave } from "./helpers/useCreateItinerarySave";
@@ -153,8 +154,8 @@ export const CreateItinerary = () => {
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
 // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Start/End time used to build trip_start_date and trip_end_date payload
-const [startTime, setStartTime] = useState<string>("12:00");
-const [endTime, setEndTime] = useState<string>("12:00");
+const [startTime, setStartTime] = useState<string>(DEFAULT_ITINERARY_START_TIME);
+const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
 
   const [transportEarlyArrivalOption, setTransportEarlyArrivalOption] =
     useState<TransportEarlyArrivalOption | "">("");
@@ -239,6 +240,7 @@ const [endTime, setEndTime] = useState<string>("12:00");
 
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
 
   const [showRouteConfirm, setShowRouteConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<any | null>(null);
@@ -738,6 +740,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     extractRouteFamilyBaseQuoteId,
     setSaveProgressPercent,
     toast,
+    setSaveErrorMessage,
     setShowRouteConfirm,
     navigate,
     stopSaveProgress,
@@ -775,6 +778,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         openViaRoutes, deleteDay, refreshRouteDistance, deleteRouteDay, addDay,
         vehicleTypes, vehicles, setVehicles, selectedVehicleIds, addVehicle, removeVehicle,
         handleSaveClick, isSaving, showRouteConfirm, saveProgressPercent, estimatedSaveMs,
+        saveErrorMessage,
+        setSaveErrorMessage,
         pendingPayload, activeSaveType, TRANSPORT_LOADING_MESSAGES, transportLoadingMessageIndex,
         handleConfirmClose, handleSaveWithType, arrivalPolicyModal, setArrivalPolicyModal,
         isResolvingArrivalPolicy, getArrivalPolicyDecisionKey, runArrivalPolicyGate,

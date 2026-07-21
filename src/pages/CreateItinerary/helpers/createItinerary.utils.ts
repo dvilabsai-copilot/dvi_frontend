@@ -14,6 +14,9 @@ export type VehicleRow = {
   count: number;
 };
 
+export const DEFAULT_ITINERARY_START_TIME = "12:00";
+export const DEFAULT_ITINERARY_END_TIME = "12:00";
+
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }

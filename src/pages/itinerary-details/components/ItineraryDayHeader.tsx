@@ -47,6 +47,11 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
     itineraryPreference === 1 ||
     itineraryPreference === 3;
 
+  const lastDayNumber = Math.max(
+    ...(itinerary?.days ?? []).map((d: any) => Number(d.dayNumber || 0)),
+    0,
+  );
+
   return (
 <div
   id={`itinerary-day-${day.dayNumber}`}
@@ -115,7 +120,8 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
                     day.id,
                     day.dayNumber,
                     newTime,
-                    day.endTime
+                    day.endTime,
+                    "ROUTE_START"
                   );
                 }}
               />
@@ -136,7 +142,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
             <PopoverContent className="w-auto p-0" align="start">
               <TimePickerPopover
                 value={day.endTime}
-                label="End Time"
+                label={day.dayNumber === lastDayNumber ? "Day End Time" : "End Time"}
                 onSave={async (newTime) => {
                   document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
                   await handleUpdateRouteTimesDirect(
@@ -144,12 +150,15 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
                     day.id,
                     day.dayNumber,
                     day.startTime,
-                    newTime
+                    newTime,
+                    "ROUTE_END"
                   );
                 }}
               />
             </PopoverContent>
           </Popover>
+
+          {null}
         </div>
 
         <div className="order-5 flex flex-wrap items-center gap-3 lg:col-start-4 lg:row-start-2 lg:justify-self-end">

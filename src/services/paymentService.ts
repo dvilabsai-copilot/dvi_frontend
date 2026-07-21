@@ -6,6 +6,9 @@ export interface CreateOrderResponse {
   amount: number;
   currency: string;
   key: string;
+  freeRenewal?: boolean;
+  subscribedPlanId?: number;
+  message?: string;
 }
 
 export interface VerifyPaymentData {

@@ -6,12 +6,15 @@ import type {
   ItineraryHotelDetailsResponse,
 } from "../itinerary-details.types";
 
+export type RouteTimeChangeType = "ROUTE_START" | "ROUTE_END" | "FINAL_DAY_DEPARTURE";
+
 export interface RouteTimePatchOptions {
   previousDayBillingDecisionProvided?: boolean;
   previousDayBillingConfirmed?: boolean;
   transportEarlyArrivalOption?: "HOTEL_REST" | "REFRESHMENT_BEFORE_SIGHTSEEING" | null;
   transportEarlyArrivalHotelName?: string | null;
   transportEarlyArrivalRestMinutes?: number | null;
+  changeType?: RouteTimeChangeType;
 }
 
 export interface RouteTimePatchMutationProps {
@@ -29,6 +32,7 @@ export interface RouteTimePatchMutationProps {
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setRouteTimeProgressPercent: Dispatch<SetStateAction<number>>;
   setPendingScrollDayNumber: Dispatch<SetStateAction<number | null>>;
+  setRouteRestrictionError?: Dispatch<SetStateAction<string | null>>;
 }
 
 export function useRouteTimePatchMutation({
@@ -46,6 +50,7 @@ export function useRouteTimePatchMutation({
   setHotelDetails,
   setRouteTimeProgressPercent,
   setPendingScrollDayNumber,
+  setRouteRestrictionError,
 }: RouteTimePatchMutationProps) {
   return useCallback(async (
     planId: number,
@@ -68,7 +73,13 @@ export function useRouteTimePatchMutation({
 
     try {
       const previousHotelDetails = hotelDetails;
-      await ItineraryService.updateRouteTimes(planId, routeId, startTimeHms, endTimeHms, options);
+      const updateResult = await ItineraryService.updateRouteTimes(
+        planId,
+        routeId,
+        startTimeHms,
+        endTimeHms,
+        options,
+      );
       pushRouteProgressStage(
         `Reloading updated Day ${dayNumber} itinerary`,
         "Fetching the rebuilt day timeline after the new timing window was saved.",
@@ -92,11 +103,22 @@ export function useRouteTimePatchMutation({
 
       setRouteTimeProgressPercent(100);
       setPendingScrollDayNumber(dayNumber);
-      toast.success(`Day ${dayNumber} times updated`);
+
+      if (updateResult?.finalDayDeparture?.autoExpanded) {
+        toast.success(
+          "Final-day departure moved to 11:00 PM and the itinerary was rebuilt",
+        );
+      } else {
+        toast.success(`Day ${dayNumber} times updated`);
+      }
     } catch (error) {
       console.error("Failed to update route times", error);
       const message = error instanceof Error ? error.message : String(error || "");
-      toast.error(message || "Failed to update route times");
+      if (message.includes("unavailable for the selected vehicle because")) {
+        setRouteRestrictionError?.(message);
+      } else {
+        toast.error(message || "Failed to update route times");
+      }
     } finally {
       stopRouteTimeProgress();
       setIsApplyingRouteTimeUpdate(false);
@@ -114,6 +136,7 @@ export function useRouteTimePatchMutation({
     setRouteProgressTitle,
     setRouteTimeEstimatedMs,
     setRouteTimeProgressPercent,
+    setRouteRestrictionError,
     startRouteTimeProgress,
     stopRouteTimeProgress,
   ]);

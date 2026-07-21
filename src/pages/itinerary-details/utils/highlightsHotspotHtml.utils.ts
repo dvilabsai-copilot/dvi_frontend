@@ -5,14 +5,96 @@ type UnknownRecord = Record<string, unknown>;
 const asRecord = (value: unknown): UnknownRecord =>
   value !== null && typeof value === 'object' ? (value as UnknownRecord) : {};
 
+export const addHotspotDetailsParagraphSpacing = (html: string): string => {
+  if (!html) return html;
+
+  const hotspotHeadingMatch = html.match(/Hotspot Details/i);
+
+  if (!hotspotHeadingMatch || hotspotHeadingMatch.index === undefined) {
+    return html;
+  }
+
+  const hotspotContentStart =
+    hotspotHeadingMatch.index + hotspotHeadingMatch[0].length;
+
+  const afterHotspotHeading = html.slice(hotspotContentStart);
+
+  const nextSectionMatchers = [
+    /Terms\s*&?\s*Condition/i,
+    /Package Includes/i,
+    /Package Excludes/i,
+    /Inclusion/i,
+    /Exclusion/i,
+    /Important Instructions/i,
+    /Instructions/i,
+    /Cancellation/i,
+    /Payment Policy/i,
+  ];
+
+  const nextSectionIndex = nextSectionMatchers
+    .map((regex) => {
+      const match = afterHotspotHeading.match(regex);
+
+      return match?.index !== undefined
+        ? hotspotContentStart + match.index
+        : -1;
+    })
+    .filter((index) => index > hotspotContentStart)
+    .sort((a, b) => a - b)[0];
+
+  const nextSectionTableStart = nextSectionIndex
+    ? html.lastIndexOf('<table', nextSectionIndex)
+    : -1;
+
+  const hotspotContentEnd =
+    nextSectionTableStart > hotspotContentStart
+      ? nextSectionTableStart
+      : nextSectionIndex || html.length;
+
+  const hotspotContentHtml = html.slice(
+    hotspotContentStart,
+    hotspotContentEnd,
+  );
+
+  const paragraphBreakToken = '__DVI_HOTSPOT_PARAGRAPH_BREAK__';
+
+const spacedHotspotContentHtml = hotspotContentHtml
+  .replace(
+    /(?:<br\s*\/?>\s*(?:(?:&nbsp;|&#160;)\s*)?)+/gi,
+    paragraphBreakToken,
+  )
+  .split(paragraphBreakToken)
+  .map((segment) => segment.trim())
+  .filter((segment) => segment.length > 0)
+  .map(
+    (segment) =>
+      `<div style="margin:0 0 14px 0;line-height:1.45;">${segment}</div>`,
+  )
+  .join('');
+
+  return `${html.slice(
+    0,
+    hotspotContentStart,
+  )}${spacedHotspotContentHtml}${html.slice(hotspotContentEnd)}`;
+};
+
 export const buildHighlightsHotspotDetailsHtml = (daysValue: unknown): string => {
   const days = Array.isArray(daysValue) ? daysValue : [];
   if (!days.length) return '';
-  const tableStyle = 'border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.35;color:#000;';
-  const borderStyle = 'border:1px solid #b1b1b1;';
-  const cellStyle = `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
-  const dayCellStyle = `${cellStyle}background:#f2f2f2;font-weight:700;`;
-  const titleStyle = 'font-family:Calibri,Arial,sans-serif;font-size:18px;line-height:36px;font-weight:700;text-align:center;color:#000;';
+  const tableStyle =
+  'border-collapse:collapse;background:#fff;font-family:Calibri,Arial,sans-serif;font-size:16px;line-height:1.35;color:#000;';
+
+const borderStyle =
+  'border:1px solid #b1b1b1;';
+
+const cellStyle =
+  `${borderStyle}padding:6px;text-align:left;vertical-align:middle;`;
+
+const dayCellStyle =
+  `${cellStyle}background:#f2f2f2;font-weight:700;`;
+
+const titleStyle =
+  'font-family:Calibri,Arial,sans-serif;font-size:18px;line-height:36px;font-weight:700;text-align:center;color:#000;';
   const formatB2BDate = (iso: string) => {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;

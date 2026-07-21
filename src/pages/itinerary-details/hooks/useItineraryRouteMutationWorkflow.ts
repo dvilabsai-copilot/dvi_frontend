@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useHotspotDeleteMutation } from "./useHotspotDeleteMutation";
 import { useRouteRebuildMutation } from "./useRouteRebuildMutation";
 import { useRouteTimePatchMutation } from "./useRouteTimePatchMutation";
@@ -54,6 +55,7 @@ export function useItineraryRouteMutationWorkflow({
   const { deleteHotspotModal, setIsDeleting, setExcludedHotspotIds, setDeleteHotspotModal } = deletionState;
   const { setAddedInModalHotspotIds, setAvailableHotspots, setHotspotFilterMeta } = hotspotState;
   const { setIsApplyingRouteTimeUpdate, setRouteTimeEstimatedMs, setRouteProgressTitle, setRouteProgressHistory, setRouteTimeProgressPercent, setPendingScrollDayNumber, setIsResolvingArrivalPolicy, setPendingRouteTimeUpdate, setArrivalPolicyConfirmModal } = hotelWorkflowState;
+  const [routeRestrictionError, setRouteRestrictionError] = useState<string | null>(null);
   const handleDeleteHotspot = useHotspotDeleteMutation({
     deleteHotspotModal, itinerary, quoteId: quoteId || null, shouldShowHotels, addHotspotModalOpen,
     selectedHotspotAnchor, normalizeAvailableHotspots, setIsDeleting, setAddedInModalHotspotIds,
@@ -74,11 +76,12 @@ export function useItineraryRouteMutationWorkflow({
     quoteId: quoteId || null, hotelDetails, setIsApplyingRouteTimeUpdate, getRouteTimeUpdateEstimateMs,
     setRouteTimeEstimatedMs, setRouteProgressTitle, setRouteProgressHistory, startRouteTimeProgress,
     stopRouteTimeProgress, pushRouteProgressStage, setItinerary, setHotelDetails, setRouteTimeProgressPercent,
+    setRouteRestrictionError,
     setPendingScrollDayNumber,
   });
   const arrivalPolicy = useArrivalPolicyRouteTimeController({
     itinerary, requiresHotelBookingFlow, applyRouteTimePatch, setIsResolvingArrivalPolicy,
     setPendingRouteTimeUpdate, setArrivalPolicyConfirmModal,
   });
-  return { handleDeleteHotspot, handleRebuildRoute, dayHasManualInserts, applyRouteTimePatch, ...arrivalPolicy };
+  return { handleDeleteHotspot, handleRebuildRoute, dayHasManualInserts, applyRouteTimePatch, routeRestrictionError, setRouteRestrictionError, ...arrivalPolicy };
 }
