@@ -16,26 +16,22 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { getToken } from "@/lib/api";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import { walletService } from "@/api/walletService";
+import {
+  filterMenuItemsForStaff,
+  getAuthenticatedRoleId,
+  getAuthenticatedUser,
+} from "@/services/accessControl";
 
 // Helper functions
-function parseJwt(token: string) {
-  try {
-    const base64Url = token.split(".")[1];
-    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
-}
-
 function getAgentId() {
-  const token = getToken();
-  const user = token ? parseJwt(token) : null;
-  return user?.agentId || user?.id || user?.agent_ID;
+  const user = getAuthenticatedUser();
+
+  return Number(user?.agentId || 0) || 0;
 }
 
 function formatCurrency(amount: number) {
@@ -181,16 +177,16 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
     });
   };
 
-  const token = localStorage.getItem("accessToken");
-const user = token ? parseJwt(token) : null;
-
-const role = Number(user?.role || 0);
-const isStaff = role === 3;
+    const user = getAuthenticatedUser();
+  const role = getAuthenticatedRoleId(user);
+  const isStaff = role === 3;
 
 const profileName = String(
   role === 4
     ? "DVI Demo Agent"
-    : user?.name || (isStaff ? "Staff" : "AdminDvi"),
+    : user?.name ||
+      user?.fullName ||
+      (isStaff ? "Staff" : "AdminDvi"),
 );
 
 const profileRoleLabel =
@@ -204,22 +200,36 @@ const profileRoleLabel =
 
 const profileInitial =
   profileName.trim().charAt(0).toUpperCase() || "U";
+
   useEffect(() => {
     const loadSidebarWallet = async () => {
+      if (role !== 4) return;
+
       try {
         const agentId = getAgentId();
+
         if (!agentId) return;
 
-        const data = await walletService.getWallet(Number(agentId));
-        setSidebarWalletAmount(data.summary.cashWalletBalance || 0);
+        const data = await walletService.getWallet(
+          Number(agentId),
+        );
+
+        setSidebarWalletAmount(
+          data.summary.cashWalletBalance || 0,
+        );
       } catch (error) {
-        console.error("Failed to load sidebar wallet amount:", error);
+        console.error(
+          "Failed to load sidebar wallet amount:",
+          error,
+        );
       }
     };
-    loadSidebarWallet();
-  }, []);
 
-  const filteredMenuItems = menuItems.filter((item) => {
+    loadSidebarWallet();
+  }, [role]);
+
+  const roleFilteredMenuItems = menuItems.filter(
+    (item) => {
   if (role === 4) {
     return [
       "dashboard",
@@ -234,7 +244,8 @@ const profileInitial =
     ].includes(item.id);
   }
 
-  // Admin and Staff receive the same navigation.
+    // Staff starts from the internal menu set.
+  // Database permissions are applied below.
   if (role === 1 || isStaff) {
     return [
       "dashboard",
@@ -261,6 +272,13 @@ const profileInitial =
 
   return false;
 });
+
+  const filteredMenuItems =
+    filterMenuItemsForStaff(
+      roleFilteredMenuItems,
+      user,
+    );
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* HEADER */}
