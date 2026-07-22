@@ -47,7 +47,7 @@ if (isAgent) {
       <div className="flex w-full flex-col gap-4 rounded-2xl border border-purple-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-2">
           <h3 className="bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
-            Welcome back, Agent ðŸ‘‹
+            Welcome back, Agent
           </h3>
           <p className="text-sm text-muted-foreground sm:text-base">
             Here's what's happening with your account today.
@@ -240,7 +240,7 @@ if (isAgent) {
         {/* Welcome Section */}
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Travel Expert ðŸ‘‹
+            Welcome back, Travel Expert
           </h3>
           <p className="text-muted-foreground">
             Here's an overview of the agents and itineraries you're managing.
@@ -299,7 +299,7 @@ if (isAgent) {
         {/* Welcome Section */}
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Guide ðŸ‘‹
+            Welcome back, Guide
           </h3>
           <p className="text-muted-foreground">
             Here's an overview of your assignments.
@@ -357,7 +357,7 @@ if (isAgent) {
       <div className="p-8 space-y-6">
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Accounts ðŸ‘‹
+            Welcome back, Accounts
           </h3>
           <p className="text-muted-foreground">
             Here's a financial overview of the system.
@@ -423,7 +423,7 @@ if (isAgent) {
       <div className="p-8 space-y-6">
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-            Welcome back, Vendor ðŸ‘‹
+            Welcome back, Vendor
           </h3>
           <p className="text-muted-foreground">
             Here's an overview of your vehicle assignments.

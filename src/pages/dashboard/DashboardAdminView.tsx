@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Truck, ChevronRight, ChevronDown, MapPin, CheckCircle2 } from "lucide-react";
+import { Truck, ChevronRight, ChevronDown, MapPin, CheckCircle2, Hotel as HotelIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -855,7 +855,7 @@ return (
   className="grid grid-cols-[42px_minmax(0,1fr)_minmax(120px,180px)_42px] items-center gap-4"
 >
               <div className="flex h-10 w-10 items-center justify-center rounded-md text-3xl leading-none">
-                ðŸ¨
+                <HotelIcon className="h-7 w-7 text-slate-600" aria-hidden="true" />
               </div>
 
               <div className="min-w-0">
