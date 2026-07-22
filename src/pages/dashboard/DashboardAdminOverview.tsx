@@ -1,5 +1,17 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Users, UserSquare2, Car } from "lucide-react";
+import {
+  Users,
+  UserSquare2,
+  Car,
+  Briefcase,
+  Wallet,
+  Truck,
+  Store,
+  Hotel,
+  Calendar,
+  FileText,
+  Sparkles,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { type DashboardStats } from "@/services/dashboard";
@@ -20,7 +32,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
   <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px]">
     <div>
       <h3 className="mb-4 text-4xl font-bold text-slate-700">
-        Welcome back, Admin 👋🏻
+        Welcome back, Admin <Sparkles className="inline h-8 w-8 text-pink-500" aria-hidden="true" />
       </h3>
 
       <p className="mb-8 max-w-[650px] text-xl leading-8 text-gray-400">
@@ -124,7 +136,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
               <p className="text-4xl font-bold mb-1">{adminData.stats.totalItineraries}</p>
               <p className="text-sm text-muted-foreground">Total Itineraries</p>
             </div>
-            <div className="text-6xl">ðŸ§³</div>
+            <Briefcase className="h-16 w-16 text-slate-700" aria-hidden="true" />
           </div>
         </Card>
 
@@ -135,7 +147,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           <p className="text-2xl font-bold mb-1">{"\u20B9"} {adminData.stats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
             </div>
-            <div className="text-6xl">ðŸ’°</div>
+            <Wallet className="h-16 w-16 text-slate-700" aria-hidden="true" />
           </div>
         </Card>
 
@@ -197,7 +209,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                   </div>
                   
                   <div className="flex justify-end">
-                    <div className="text-8xl opacity-30">ðŸš—</div>
+                    <Truck className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
@@ -226,7 +238,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                   </div>
                   
                   <div className="flex justify-end">
-                    <div className="text-8xl opacity-30">ðŸª</div>
+                    <Store className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
@@ -259,7 +271,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                   </div>
                   
                   <div className="flex justify-end">
-                    <div className="text-8xl opacity-30">ðŸš˜</div>
+                    <Car className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
@@ -292,7 +304,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                   </div>
                   
                   <div className="flex justify-end">
-                    <div className="text-8xl opacity-30">ðŸ¨</div>
+                    <Hotel className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
@@ -307,7 +319,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
               <p className="text-4xl font-bold mb-1">{adminData.stats.confirmedBookings}</p>
               <p className="text-sm text-muted-foreground">Total Confirm Bookings</p>
             </div>
-            <div className="text-6xl">ðŸ“…</div>
+            <Calendar className="h-16 w-16 text-slate-700" aria-hidden="true" />
           </div>
         </Card>
 
@@ -318,7 +330,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
               <p className="text-4xl font-bold mb-1">{adminData.stats.cancelledBookings}</p>
               <p className="text-sm text-muted-foreground">Cancelled Booking</p>
             </div>
-            <div className="text-6xl">ðŸ“†</div>
+            <FileText className="h-16 w-16 text-slate-700" aria-hidden="true" />
           </div>
         </Card>
       </div>

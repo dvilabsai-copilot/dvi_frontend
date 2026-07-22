@@ -110,16 +110,34 @@ const normalizeLiveVehicleStatusRow = (row: any): LiveVehicleStatusRow => {
 
 const DASHBOARD_CONFIRMED_FETCH_LIMIT = 5000;
 
+const decodeHtmlEntities = (value: unknown): string => {
+  const text = String(value ?? "");
+  if (!text.includes("&") || typeof document === "undefined") return text;
+
+  const textarea = document.createElement("textarea");
+  let decoded = text;
+
+  // Decode twice so values such as &amp;#039; are also displayed correctly.
+  for (let pass = 0; pass < 2; pass += 1) {
+    textarea.innerHTML = decoded;
+    const next = textarea.value;
+    if (next === decoded) break;
+    decoded = next;
+  }
+
+  return decoded;
+};
+
 const normalizeMostVisitedHotel = (row: any): MostVisitedHotelRow => {
   return {
-    hotel_name: String(
+    hotel_name: decodeHtmlEntities(
       row.hotel_name ||
       row.hotelName ||
       row.name ||
       row.hotel ||
       "-"
     ),
-    hotel_location: String(
+    hotel_location: decodeHtmlEntities(
       row.hotel_location ||
       row.location ||
       row.place ||
@@ -735,7 +753,11 @@ useEffect(() => {
 
       const rows = await DashboardService.getMostVisitedHotels(mostVisitedHotelsYear);
 
-      setMostVisitedHotels(Array.isArray(rows) ? rows.slice(0, 5) : []);
+      setMostVisitedHotels(
+        Array.isArray(rows)
+          ? rows.map(normalizeMostVisitedHotel).slice(0, 5)
+          : []
+      );
     } catch (error) {
       console.error("Failed to fetch most visited hotels:", error);
       setMostVisitedHotels([]);
