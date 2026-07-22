@@ -10,11 +10,16 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
   useParams,
   Outlet,
 } from "react-router-dom";
+
 import DynamicMeta from "@/components/DynamicMeta";
 import { getToken } from "@/lib/api";
+import {
+  canCurrentUserAccessRoute,
+} from "@/services/accessControl";
 
 import { MainLayout } from "./layouts/MainLayout";
 import Dashboard from "./pages/Dashboard";
@@ -26,6 +31,7 @@ import { CancelledItineraries } from "./pages/CancelledItineraries";
 import { AccountsManager } from "./pages/accounts/AccountsManager";
 import "./App.css";
 import NotFound from "./pages/NotFound";
+import Restricted from "./pages/Restricted";
 import { AccountsLedger } from "./pages/accounts/AccountsLedger";
 import Hotels from "./pages/Hotels";
 import AxisroomsHotelsPage from "./pages/AxisroomsHotels";
@@ -114,7 +120,26 @@ const PreviewRedirect = () => {
  */
 const RequireAuth = () => {
   const token = getToken();
-  if (!token) return <Navigate to="/login" replace />;
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (
+    !canCurrentUserAccessRoute(location.pathname)
+  ) {
+    return (
+      <Navigate
+        to="/restricted"
+        replace
+        state={{
+          from: location.pathname,
+        }}
+      />
+    );
+  }
+
   return <Outlet />;
 };
 
@@ -218,14 +243,19 @@ const App = () => (
 
 {/* All routes below require auth */}
 <Route element={<RequireAuth />}>
-            <Route
-              path="/"
-              element={
-                <MainLayout>
-                  <Dashboard />
-                </MainLayout>
-              }
-            />
+  <Route
+    path="/restricted"
+    element={<Restricted />}
+  />
+
+  <Route
+    path="/"
+    element={
+      <MainLayout>
+        <Dashboard />
+      </MainLayout>
+    }
+  />
 
             <Route
               path="/create-itinerary"
@@ -875,7 +905,7 @@ const App = () => (
                 </MainLayout>
               }
             />
-            <Route
+                        <Route
               path="/role-permission/:id/edit"
               element={
                 <MainLayout>
@@ -883,9 +913,9 @@ const App = () => (
                 </MainLayout>
               }
             />
-          </Route>
-          { /* Agent Subscription Plan */}
-          <Route
+
+            { /* Agent Subscription Plan */}
+            <Route
               path="/settings/subscription-plan"
               element={
                 <MainLayout>
@@ -893,14 +923,16 @@ const App = () => (
                 </MainLayout>
               }
             />
+
             <Route
               path="/agent-subscription-plan/new"
               element={
-                <MainLayout>  
+                <MainLayout>
                   <AgentSubscriptionPlanFormPage />
                 </MainLayout>
-              } 
+              }
             />
+
             <Route
               path="/agent-subscription-plan/:id/edit"
               element={
@@ -909,6 +941,7 @@ const App = () => (
                 </MainLayout>
               }
             />
+
             <Route
               path="/agent-subscription-plan/:id/preview"
               element={
@@ -917,6 +950,7 @@ const App = () => (
                 </MainLayout>
               }
             />
+          </Route>
 
           {/* Catch-all */}
           <Route path="*" element={<NotFound />} />

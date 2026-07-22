@@ -24,15 +24,15 @@ import { toast } from "sonner";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { ChevronRight, ChevronDown, MapPin, CheckCircle2 } from "lucide-react";
 
-import { DashboardRoleViews } from "./dashboard/DashboardRoleViews";
-import { DashboardAdminView } from "./dashboard/DashboardAdminView";
-function parseJwt(token: string) {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
-}
+import {
+  DashboardRoleViews,
+} from "./dashboard/DashboardRoleViews";
+import {
+  DashboardAdminView,
+} from "./dashboard/DashboardAdminView";
+import {
+  getAuthenticatedUser,
+} from "@/services/accessControl";
 
 type ConfirmedDashboardTab = "overall" | "upcoming" | "ongoing" | "cancellation";
 
@@ -383,12 +383,19 @@ const [openDailyMomentQuote, setOpenDailyMomentQuote] = useState<string | null>(
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const { openCheckout } = useRazorpayCheckout();
 
-  const token = localStorage.getItem("accessToken");
-const user = token ? parseJwt(token) : null;
+  const user = getAuthenticatedUser();
 
-const role = Number(user?.role || 0);
-const staffId = Number(user?.staffId || 0);
-const guideId = Number(user?.guideId || 0);
+const role = Number(
+  user?.roleID ?? user?.role ?? 0,
+);
+
+const staffId = Number(
+  user?.staffId ?? user?.staff_id ?? 0,
+);
+
+const guideId = Number(
+  user?.guideId || 0,
+);
 
 const isAdmin = role === 1;
 const isStaff = role === 3;
