@@ -135,6 +135,14 @@ export interface StayExtensionPreviewResponse {
   totalAmountAfterTax: number;
 }
 
+export interface HotelSelectionCostPreviewResponse {
+  temporary: true;
+  pricingSource: "selected_hotel_rate";
+  projectedHotelAmount: number;
+  selectedHotelBreakdown?: NonNullable<ItineraryDetailsResponse["costBreakdown"]["hotelRateBreakdown"]>;
+  itinerary: ItineraryDetailsResponse;
+}
+
 export type HotspotAnchorPayload = {
   anchorType?: "after_travel" | "BETWEEN_ROWS";
   anchorIndex?: number;
@@ -442,6 +450,17 @@ export const ItineraryService = {
       method: "POST",
       body: payload,
     }) as Promise<StayExtensionPreviewResponse>;
+  },
+
+  async previewHotelSelectionCost(
+    planId: number,
+    selections: Record<number, Record<string, unknown> | null>,
+    groupType?: number,
+  ) {
+    return api(`itineraries/${planId}/hotels/selection-cost-preview`, {
+      method: "POST",
+      body: { selections, groupType },
+    }) as Promise<HotelSelectionCostPreviewResponse>;
   },
 
   async getClipboardContent(

@@ -11,7 +11,6 @@ interface HotelDataControllerOptions {
   activeHotelGroupType: number | null;
   isRebuildingHotels: boolean;
   setActiveHotelGroupType: Dispatch<SetStateAction<number | null>>;
-  setActiveHotelListTotal: Dispatch<SetStateAction<number>>;
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setIsRebuildingHotels: Dispatch<SetStateAction<boolean>>;
   setItinerary: Dispatch<SetStateAction<ItineraryDetailsResponse | null>>;
@@ -30,7 +29,6 @@ export const useHotelDataController = ({
   activeHotelGroupType,
   isRebuildingHotels,
   setActiveHotelGroupType,
-  setActiveHotelListTotal,
   setHotelDetails,
   setIsRebuildingHotels,
   setItinerary,
@@ -59,7 +57,6 @@ export const useHotelDataController = ({
         cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
       } else {
         setHotelDetails(null);
-        setActiveHotelListTotal(0);
       }
       console.log("✅ [ItineraryDetails] State updated with new hotel data");
     } catch (error) {
@@ -67,7 +64,7 @@ export const useHotelDataController = ({
     } finally {
       setLoadingHotels(false);
     }
-  }, [cacheRouteHotelDetails, loadHotelDetailsForItinerary, quoteId, setActiveHotelListTotal, setHotelDetails, setItinerary, setLoadingHotels]);
+  }, [cacheRouteHotelDetails, loadHotelDetailsForItinerary, quoteId, setHotelDetails, setItinerary, setLoadingHotels]);
 
   const refreshVehicleData = useCallback(async () => {
     if (!quoteId) return;
@@ -107,6 +104,7 @@ export const useHotelDataController = ({
       const detailsRes = await ItineraryService.getDetails(quoteId, groupType);
       setItinerary((previous) => {
         const next = detailsRes as ItineraryDetailsResponse;
+        const preserveTemporaryPricing = previous?.costBreakdown?.hotelPricingSource === "selected_hotel_rate";
         const preference = Number(next.itineraryPreference ?? 0);
         const shouldKeepVehicleState =
           (preference === 2 || preference === 3) &&
@@ -114,7 +112,14 @@ export const useHotelDataController = ({
           Array.isArray(previous?.vehicles) &&
           previous.vehicles.length > 0;
 
-        return shouldKeepVehicleState ? { ...next, vehicles: previous!.vehicles } : next;
+        const merged = shouldKeepVehicleState ? { ...next, vehicles: previous!.vehicles } : next;
+        return preserveTemporaryPricing
+          ? {
+              ...merged,
+              overallCost: previous!.overallCost,
+              costBreakdown: previous!.costBreakdown,
+            }
+          : merged;
       });
     } catch (error) {
       console.error("Failed to update data for group type change", error);

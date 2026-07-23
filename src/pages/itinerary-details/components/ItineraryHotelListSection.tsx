@@ -13,11 +13,12 @@ type RoutePagination = Record<string, { hasMore: boolean; page: number; pageSize
 type VoucherData = { routeId: number; hotelId: number; hotelName: string; hotelEmail: string; hotelStateCity: string; routeDates: string[]; dayNumbers: number[]; hotelDetailsIds: number[] };
 type ItineraryHotelListSectionProps = {
   hotelListRef: RefObject<HTMLDivElement | null>; summaryStickyHeight: number; hotels: ItineraryHotelRow[]; restrictedHotels: ItineraryHotelRow[];
-  hotelTabs: ItineraryHotelTab[]; hotelRatesVisible: boolean; showHotelMargins: boolean; roomCount: number; onTotalChange: (total: number) => void;
+  hotelTabs: ItineraryHotelTab[]; hotelRatesVisible: boolean; showHotelMargins: boolean; roomCount: number;
   onToggleHotelRates: (visible: boolean) => void; quoteId: string; planId: number; onRefresh: () => void; onGroupTypeChange: (groupType: number) => void;
   onGetSaveFunction: (saveFn: () => Promise<boolean>) => void; readOnly: boolean; onCreateVoucher: (data: VoucherData) => void;
   onCancelVoucher: (data: VoucherData) => void | Promise<void>; onBulkCancelVouchers: (data: VoucherData[]) => void | Promise<void>;
   onHotelSelectionsChange: (selections: Record<number, HotelSelectionUpdate | null>) => void; pagination?: Pagination; routePagination?: RoutePagination;
+  onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean>;
   onLoadMore: (groupType: number, routeId: number, nextPage: number) => void; isLoadingMore: boolean; mealPlanCode?: string; dayDestinationFallback: Record<number, string>;
 };
 

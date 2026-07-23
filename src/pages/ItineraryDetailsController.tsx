@@ -261,7 +261,8 @@ const location = useLocation();
   const hotelSelectionState = useHotelSelectionState();
   const {
     selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
-    activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal,
+    activeHotelGroupType, setActiveHotelGroupType,
+    activeHotelListTotal, setActiveHotelListTotal,
     selectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
     summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight,
     setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
@@ -292,7 +293,6 @@ const location = useLocation();
     itinerary,
     hotelDetails,
     hotelReadOnly,
-    activeHotelListTotal,
     selectedHotelBookings,
     activeHotelGroupType,
     shouldShowHotels,
@@ -399,7 +399,7 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
   const {
     handleHotelGroupTypeChange, handleRebuildHotels, refreshHotelData, refreshVehicleData,
     handleCancelVoucherItems, handleCancelVoucherSingle, handleCreateVoucher, handleGetSaveFunction,
-    setCancelModalOpen, handleHotelSelectionsChange,
+    setCancelModalOpen, handleHotelSelectionsChange, previewTemporarySelectionCost,
   } = hotelDataWorkflow;
 
   const preparedPageWorkflow = useItineraryPreparedPageWorkflow({
@@ -845,7 +845,7 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
         shouldShowHotels,
         loadingHotels,
         hotelDetailsPresent: Boolean(hotelDetails),
-        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onTotalChange: (total) => { if (!hotelReadOnly) setActiveHotelListTotal(Number(total || 0)); }, onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} },
+        hotelList: { hotelListRef, summaryStickyHeight, hotels: hotelsForDisplay, restrictedHotels: hotelDetails?.restrictedHotels || [], hotelTabs: hotelDetails?.hotelTabs || [], hotelRatesVisible: Boolean(hotelDetails?.hotelRatesVisible), showHotelMargins: Boolean(hotelDetails?.showHotelMargins), roomCount: Number(itinerary.roomCount || 1), onToggleHotelRates: setClipboardRatesVisible, quoteId: quoteId!, planId: itinerary.planId, onRefresh: refreshHotelData, onGroupTypeChange: handleHotelGroupTypeChange, onGetSaveFunction: handleGetSaveFunction, readOnly: hotelReadOnly, onCreateVoucher: handleCreateVoucher, onCancelVoucher: handleCancelVoucherSingle, onBulkCancelVouchers: handleCancelVoucherItems, onHotelSelectionsChange: handleHotelSelectionsChange, onTemporarySelectionCostPreview: previewTemporarySelectionCost, pagination: hotelDetails?.pagination, routePagination: hotelDetails?.routePagination, onLoadMore: handleHotelLoadMore, isLoadingMore: isLoadingMoreHotels, mealPlanCode: itinerary?.meal_plan_code, dayDestinationFallback: itinerary?.days?.reduce<Record<number, string>>((acc, day) => { const fallback = String(day.arrival || day.departure || '').trim(); if (fallback) acc[Number(day.dayNumber)] = fallback; return acc; }, {}) || {} },
         shouldShowVehicles,
         vehicleBuildStatus,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),

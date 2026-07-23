@@ -138,17 +138,52 @@ export const toNumber = (value: unknown, fallback = 0): number => {
 export const getStayKey = (hotel: Pick<ItineraryHotelRow, "itineraryRouteId" | "date" | "day">): string =>
   `${toNumber(hotel.itineraryRouteId, 0)}::${String(hotel.date || hotel.day || "").trim()}`;
 
-export const getHotelOptionKey = (hotel: HotelLike): string => [
-  String(hotel.provider || ""),
-  String(hotel.bookingCode || ""),
-  String(hotel.searchReference || ""),
-  String(hotel.hotelId || ""),
-  String(hotel.roomType || hotel.roomTypeName || ""),
-  String(hotel.mealPlan || ""),
-  String(hotel.availabilityStatus || ""),
-  String(Number(hotel.totalHotelCost ?? hotel.totalAmount ?? 0)),
-  String(Number(hotel.totalHotelTaxAmount ?? hotel.taxAmount ?? 0)),
-].join("|");
+const normalizeRateIdentityText = (value: unknown): string => String(value ?? "").trim().toLowerCase();
+
+const normalizeRateIdentityMoney = (value: unknown): number => {
+  const amount = Number(value ?? 0);
+  return Number.isFinite(amount) ? Number(amount.toFixed(2)) : 0;
+};
+
+const normalizeNightlyRatesForIdentity = (value: unknown): Array<Record<string, unknown>> => {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((night: any) => ({
+    date: normalizeRateIdentityText(night?.date),
+    amountAfterTax: normalizeRateIdentityMoney(night?.amountAfterTax ?? night?.totalAmountAfterTax),
+    baseAmount: normalizeRateIdentityMoney(night?.baseAmount),
+    extraAdultCount: normalizeRateIdentityMoney(night?.extraAdultCount),
+    extraChildCount: normalizeRateIdentityMoney(night?.extraChildCount),
+    extraAdultRate: normalizeRateIdentityMoney(night?.extraAdultRate),
+    extraChildRate: normalizeRateIdentityMoney(night?.extraChildRate),
+  }));
+};
+
+/** Complete room/rate identity used for pending-vs-confirmed comparisons. */
+export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify({
+  provider: normalizeRateIdentityText(hotel.provider),
+  hotelCode: normalizeRateIdentityText(hotel.hotelCode || hotel.hotelId),
+  hotelName: normalizeRateIdentityText(hotel.hotelName),
+  bookingCode: normalizeRateIdentityText(hotel.bookingCode),
+  searchReference: normalizeRateIdentityText(hotel.searchReference),
+  roomType: normalizeRateIdentityText(hotel.roomType || hotel.roomTypeName),
+  mealPlan: normalizeRateIdentityText(normalizeMealPlanLabel(String(hotel.mealPlan || ""))),
+  rateId: normalizeRateIdentityText(hotel.rateId),
+  roomId: normalizeRateIdentityText(hotel.roomId),
+  groupType: normalizeRateIdentityMoney(hotel.groupType),
+  amountAfterTax: normalizeRateIdentityMoney(
+    hotel.totalAmountAfterTax ??
+      hotel.totalAmount ??
+      hotel.netAmount ??
+      (Number(hotel.totalHotelCost ?? hotel.pricePerNight ?? 0) + Number(hotel.totalHotelTaxAmount ?? hotel.taxAmount ?? 0)),
+  ),
+  routeIds: Array.isArray(hotel.routeIds)
+    ? hotel.routeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+    : [],
+  nightlyRates: normalizeNightlyRatesForIdentity(hotel.nightlyRates),
+});
+
+export const getHotelOptionKey = (hotel: HotelLike): string => getHotelRateIdentity(hotel);
 
 export const normalizeHotelIdentity = (hotel: HotelLike): string => [
   String(hotel.provider || "").trim().toLowerCase(),

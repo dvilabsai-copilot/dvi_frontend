@@ -4,6 +4,8 @@ import { resolveActivePreviewTimeline } from '../pages/itinerary-details/utils/a
 import { getFitHereTriedState } from '../pages/itinerary-details/utils/fitHereAttemptStatus.utils';
 import { normalizeAvailableHotspots } from '../pages/itinerary-details/utils/hotspotAvailability.utils';
 import type { AvailableHotspot } from '../pages/itinerary-details/itinerary-details.types';
+import { getHotelOptionKey } from '../pages/hotel-list/hotelList.utils';
+import { mergeHotelSelections } from '../pages/itinerary-details/hooks/useHotelSelectionsChangeMutation';
 
 const hotspot = (id: number, name = `Hotspot ${id}`): AvailableHotspot => ({
   id,
@@ -77,5 +79,59 @@ describe('itinerary details pure utilities', () => {
       label: 'Tried: needs P3 confirmation',
     });
     expect(getFitHereTriedState('unknown')).toEqual({ status: 'CANNOT_FIT', label: 'Tried: does not fit' });
+  });
+
+  it('treats room, meal, booking, and supplier identity changes as rate changes even at the same price', () => {
+    const confirmed = {
+      provider: 'staah',
+      hotelCode: '629',
+      hotelName: 'Paloma Back Water Resort',
+      bookingCode: 'old-booking',
+      searchReference: 'old-search',
+      roomType: 'Deluxe Room',
+      mealPlan: 'CP',
+      roomId: 'room-1',
+      rateId: 'rate-1',
+      totalHotelCost: 8900,
+      totalHotelTaxAmount: 0,
+    };
+
+    expect(getHotelOptionKey({ ...confirmed })).toBe(getHotelOptionKey({ ...confirmed }));
+    expect(getHotelOptionKey({ ...confirmed, roomType: 'Suite Room' })).not.toBe(getHotelOptionKey(confirmed));
+    expect(getHotelOptionKey({ ...confirmed, mealPlan: 'MAP' })).not.toBe(getHotelOptionKey(confirmed));
+    expect(getHotelOptionKey({ ...confirmed, bookingCode: 'new-booking', totalHotelCost: 8900 })).not.toBe(getHotelOptionKey(confirmed));
+    expect(getHotelOptionKey({ ...confirmed, totalHotelCost: 9500 })).not.toBe(getHotelOptionKey(confirmed));
+    expect(getHotelOptionKey({ ...confirmed, nightlyRates: [{ date: '2026-07-28', amountAfterTax: 8900 }] })).not.toBe(getHotelOptionKey(confirmed));
+  });
+
+  it('replaces the complete affected selection instead of carrying old rate fields', () => {
+    const previous = {
+      provider: 'staah',
+      hotelCode: '629',
+      hotelName: 'Paloma Back Water Resort',
+      bookingCode: 'old-booking',
+      searchReference: 'old-search',
+      roomType: 'Deluxe Room',
+      mealPlan: 'CP',
+      netAmount: 8900,
+      checkInDate: '2026-07-28',
+      checkOutDate: '2026-07-29',
+      groupType: 1,
+      nightlyRates: [{ date: '2026-07-28', amountAfterTax: 8900 }],
+    };
+    const next = {
+      ...previous,
+      bookingCode: 'new-booking',
+      searchReference: 'new-search',
+      roomType: 'Suite Room',
+      mealPlan: 'MAP',
+      netAmount: 9500,
+      nightlyRates: [{ date: '2026-07-28', amountAfterTax: 9500 }],
+    };
+
+    const merged = mergeHotelSelections({ 42: previous }, { 42: next });
+    expect(merged[42]).toEqual({ ...next, routeId: 42 });
+    expect(merged[42].bookingCode).toBe('new-booking');
+    expect(merged[42].nightlyRates).toEqual([{ date: '2026-07-28', amountAfterTax: 9500 }]);
   });
 });

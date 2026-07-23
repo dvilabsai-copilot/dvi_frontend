@@ -44,14 +44,19 @@ export function useHotelSelectionState({
       const next = { ...previous };
       const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
 
-      hotels.forEach((hotel) => {
-        const groupType = Number(hotel.groupType || 0);
-        if (!groupType) return;
-        hotelsByGroupAndStay[groupType] ||= {};
-        const stayKey = helpers.getStayKey(hotel);
-        hotelsByGroupAndStay[groupType][stayKey] ||= [];
-        hotelsByGroupAndStay[groupType][stayKey].push(hotel);
-      });
+      // The previous-night early-arrival row is a billing explanation only.
+      // Selection identity starts at the actual guest-arrival route so Day 0
+      // cannot become a duplicate selectable stay.
+      hotels
+        .filter((hotel) => !hotel.previousDayBillingSynthetic)
+        .forEach((hotel) => {
+          const groupType = Number(hotel.groupType || 0);
+          if (!groupType) return;
+          hotelsByGroupAndStay[groupType] ||= {};
+          const stayKey = helpers.getStayKey(hotel);
+          hotelsByGroupAndStay[groupType][stayKey] ||= [];
+          hotelsByGroupAndStay[groupType][stayKey].push(hotel);
+        });
 
       const chooseDefaultForStay = (
         stayHotels: ItineraryHotelRow[],

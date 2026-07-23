@@ -18,10 +18,21 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     pendingHotelAction,
     isUpdatingHotel,
     handleConfirmHotelSelection,
+    handleCancelHotelAction,
     setRoomSelectionModal,
     roomSelectionModal,
     toast,
   } = context;
+
+  const getSelectionPrice = (selection: any, preview?: any): number => {
+    const amount = preview?.totalAmountAfterTax ??
+      selection?.totalAmountAfterTax ??
+      selection?.totalAmount ??
+      selection?.netAmount ??
+      (Number(selection?.totalHotelCost || 0) + Number(selection?.totalHotelTaxAmount || selection?.taxAmount || 0));
+    const parsed = Number(amount || 0);
+    return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+  };
 
   return (
     <>
@@ -35,13 +46,22 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {stayExtensionModalState?.preview.blocked ? "Cannot book continuous stay" : "Book continuous stay?"}
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-left">
-              {stayExtensionModalState && (
-                <div className="space-y-3 text-sm text-slate-700">
-                  <div>
+              <DialogTitle>
+                {stayExtensionModalState?.preview.blocked ||
+                !stayExtensionModalState?.preview.canBookMultiNight
+                  ? "Restrictions apply to some dates"
+                  : "Book continuous stay?"}
+              </DialogTitle>
+              <DialogDescription className="pt-2 text-left">
+                {stayExtensionModalState && (
+                  <div className="space-y-3 text-sm text-slate-700">
+                    {(stayExtensionModalState.preview.blocked ||
+                      !stayExtensionModalState.preview.canBookMultiNight) && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                        This hotel, room type, or meal plan cannot be extended across all of the continuous dates shown below. Review the affected dates and choose only this day if the single-night option is available.
+                      </div>
+                    )}
+                    <div>
                     <div className="font-semibold text-slate-900">
 
 
@@ -93,26 +113,26 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!stayExtensionModalState?.preview.canBookSingleNight}
-              onClick={() => {
-                const action = stayExtensionModalState?.action;
-                if (!action) return;
-                setStayExtensionModalState(null);
-                openConfirmDialogForAction(action);
-              }}
-            >
-              Book Only This Day
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setStayExtensionModalState(null)}
-            >
-              Cancel
-            </Button>
+            {stayExtensionModalState?.preview.canBookSingleNight && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const action = stayExtensionModalState.action;
+                  setStayExtensionModalState(null);
+                  openConfirmDialogForAction(action);
+                }}
+              >
+                Book Only This Day
+              </Button>
+            )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStayExtensionModalState(null)}
+              >
+                Close
+              </Button>
             {stayExtensionModalState?.preview.canBookMultiNight && !stayExtensionModalState.preview.blocked && (
               <Button
                 type="button"
@@ -136,7 +156,16 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
       </Dialog>
 
       {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <Dialog
+        open={showConfirmDialog}
+        onOpenChange={(open) => {
+          if (!open && !isUpdatingHotel) {
+            handleCancelHotelAction();
+          } else if (open) {
+            setShowConfirmDialog(true);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex justify-center mb-4">
@@ -145,14 +174,46 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               </div>
             </div>
             <DialogTitle className="text-center">
-              {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
+              {pendingHotelAction?.isRateUpdate
+                ? "Confirm Hotel Update"
+                : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1
                 ? `Confirm ${pendingHotelAction.multiNightPreview.nights}-Night Hotel Booking?`
                 : pendingHotelAction?.isReplacing
                 ? `Confirm Hotel Modification for ${pendingHotelAction?.routeDate}?`
                 : "Confirm Hotel Update"}
             </DialogTitle>
             <DialogDescription className="text-center pt-2">
-              {pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1 ? (
+              {pendingHotelAction?.isRateUpdate ? (
+                <div className="space-y-3 text-left text-sm text-slate-700">
+                  <div className="text-center">
+                    <strong>{pendingHotelAction.newHotelName}</strong>
+                  </div>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div className="mb-2 font-semibold text-slate-900">Current</div>
+                    <div>Room type: {String((pendingHotelAction.previousSelection as any)?.roomType || "-")}</div>
+                    <div>Meal plan: {String((pendingHotelAction.previousSelection as any)?.mealPlan || "-")}</div>
+                    <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.previousSelection))}</div>
+                  </div>
+                  <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
+                    <div className="mb-2 font-semibold text-violet-900">New</div>
+                    <div>Room type: {String((pendingHotelAction.room as any)?.roomTypeName || (pendingHotelAction.room as any)?.roomType || "-")}</div>
+                    <div>Meal plan: {String((pendingHotelAction.room as any)?.mealPlan || "-")}</div>
+                    <div>Price: {formatCurrency(getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview))}</div>
+                  </div>
+                  {(() => {
+                    const difference = Number((getSelectionPrice(pendingHotelAction.room, pendingHotelAction.multiNightPreview) - getSelectionPrice(pendingHotelAction.previousSelection)).toFixed(2));
+                    return (
+                      <div className="font-semibold text-slate-900">
+                        Difference: {difference > 0
+                          ? `Increase by ${formatCurrency(difference)}`
+                          : difference < 0
+                          ? `Decrease by ${formatCurrency(Math.abs(difference))}`
+                          : "No price difference"}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : pendingHotelAction?.multiNightPreview?.nights && pendingHotelAction.multiNightPreview.nights > 1 ? (
                 <>
                   Confirm booking <strong>{pendingHotelAction?.newHotelName}</strong> from{" "}
                   <strong>{formatDisplayDate(pendingHotelAction?.multiNightPreview?.checkInDate)}</strong> to{" "}
@@ -186,8 +247,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
               type="button"
               variant="outline"
               onClick={() => {
-                setShowConfirmDialog(false);
-                setPendingHotelAction(null);
+                handleCancelHotelAction();
               }}
               disabled={isUpdatingHotel}
             >
@@ -204,7 +264,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   Updating...
                 </>
               ) : (
-                "Confirm"
+                pendingHotelAction?.isRateUpdate ? "Confirm Update" : "Confirm"
               )}
             </Button>
           </DialogFooter>

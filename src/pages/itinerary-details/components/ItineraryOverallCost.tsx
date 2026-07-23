@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { ItineraryDetailsResponse } from "../itinerary-details.types";
 import { EntryTicketCostTooltip } from "./EntryTicketCostTooltip";
+import { HotelCostTooltip } from "./HotelCostTooltip";
 
 type FinancialTotals = {
   hotelAmount: number;
@@ -30,7 +31,7 @@ const CostRow: React.FC<{ label: string; value: number; emphasized?: boolean }> 
   </div>
 );
 
-/** Displays backend-provided component totals; only entry tickets have a hover breakdown. */
+/** Displays backend-provided component totals with explanations for composite hotel and entry-ticket amounts. */
 export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
   itinerary,
   canViewCostBreakdown,
@@ -46,7 +47,15 @@ export const ItineraryOverallCost: React.FC<ItineraryOverallCostProps> = ({
       <CardContent className="pt-2">
         <h2 className="mb-4 text-lg font-semibold text-[#4a4260]">OVERALL COST</h2>
         <div className="space-y-2 text-sm">
-          {hotelCost > 0 && <CostRow label="Total Hotel Cost" value={hotelCost} />}
+          {hotelCost > 0 && (
+            <HotelCostTooltip
+              costBreakdown={cost}
+              canViewCostBreakdown={canViewCostBreakdown}
+              hotelCost={hotelCost}
+            >
+              <CostRow label="Total Hotel Cost" value={hotelCost} />
+            </HotelCostTooltip>
+          )}
           {Number(cost?.totalAmenitiesCost ?? 0) > 0 && <CostRow label="Total Amenities Cost" value={Number(cost.totalAmenitiesCost)} />}
           {Number(cost?.extraBedCost ?? 0) > 0 && <CostRow label="Extra Bed Cost" value={Number(cost.extraBedCost)} />}
           {Number(cost?.childWithBedCost ?? 0) > 0 && <CostRow label="Child With Bed Cost" value={Number(cost.childWithBedCost)} />}
