@@ -27,9 +27,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
     mergeHotelOptions,
     toNumber,
     activeGroupType,
+    selectedByGroup,
+    userSelectedByStay,
     planId,
     roomCount,
     toast,
+    formatCurrency,
     quoteId,
     unsavedSelections,
     setUnsavedSelections,
@@ -48,11 +51,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
     resolveHotelRestriction,
     setStayExtensionModalState,
     getHotelOptionKey,
+    isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByStay,
     setIsUpdatingHotel,
+    isUpdatingHotel,
     onHotelSelectionsChange,
+    onTemporarySelectionCostPreview,
     pendingHotelAction,
   } = context;
 
@@ -277,11 +283,28 @@ export function useHotelListActions(context: HotelListActionsContext) {
     setShowConfirmDialog(true);
   };
 
+  const handleCancelHotelAction = () => {
+    if (pendingHotelAction?.isRateUpdate && pendingHotelAction.previousSelection) {
+      const previous = pendingHotelAction.previousSelection as any;
+      const identityKey = [
+        String(previous.hotelName || '').trim().toLowerCase(),
+        String(previous.provider || '').trim().toLowerCase(),
+      ].join('|');
+      setSelectedRoomTypeByHotel((current) => ({
+        ...current,
+        [identityKey]: getHotelOptionKey(previous),
+      }));
+    }
+    setShowConfirmDialog(false);
+    setPendingHotelAction(null);
+  };
+
   const buildSelectionUpdates = (
     normalizedRoom: HotelRoomDetail,
     groupType: number,
     resolvedHotelId: number,
     multiNightPreview?: StayExtensionPreviewResponse | null,
+    existingSelection?: Record<string, unknown> | null,
   ): Record<number, HotelSelectionUpdate | null> => {
     const provider = String((normalizedRoom as any).provider || 'tbo')
       .trim()
@@ -333,6 +356,35 @@ export function useHotelListActions(context: HotelListActionsContext) {
       String((normalizedRoom as any).checkOutDate || '').trim() ||
       getNextDateOnly(fallbackCheckInDate);
 
+    const previousStay = existingSelection as any;
+    const previousRouteIds = Array.isArray(previousStay?.routeIds)
+      ? previousStay.routeIds.map(Number).filter((id: number) => Number.isFinite(id) && id > 0)
+      : [];
+    const effectivePreviewRouteIds =
+      Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 1
+        ? multiNightPreview.routeIds.map(Number).filter((id) => Number.isFinite(id) && id > 0)
+        : previousRouteIds.length > 1
+        ? previousRouteIds
+        : [];
+    const effectiveCheckInDate = String(
+      multiNightPreview?.checkInDate ||
+      (previousRouteIds.length > 1 ? previousStay?.checkInDate : '') ||
+      fallbackCheckInDate,
+    ).trim();
+    const effectiveCheckOutDate = String(
+      multiNightPreview?.checkOutDate ||
+      (previousRouteIds.length > 1 ? previousStay?.checkOutDate : '') ||
+      fallbackCheckOutDate,
+    ).trim();
+    const effectiveNightlyRates = Array.isArray(multiNightPreview?.nightlyRates)
+      ? multiNightPreview.nightlyRates
+      : Array.isArray((normalizedRoom as any).nightlyRates)
+      ? (normalizedRoom as any).nightlyRates
+      : undefined;
+    const effectiveStayKey = effectivePreviewRouteIds.length > 1
+      ? [provider, hotelCode, String((normalizedRoom as any).roomId || '').trim(), String((normalizedRoom as any).rateId || '').trim(), effectiveCheckInDate, effectiveCheckOutDate].join(':')
+      : String((normalizedRoom as any).stayKey || '').trim() || undefined;
+
     const fallbackAmount = toMoneyNumber(
       (normalizedRoom as any).totalAmountAfterTax ??
         (normalizedRoom as any).totalAmount ??
@@ -349,29 +401,33 @@ export function useHotelListActions(context: HotelListActionsContext) {
       checkInDate: fallbackCheckInDate,
       checkOutDate: fallbackCheckOutDate,
       groupType,
+      routeId: fallbackRouteId || undefined,
       mealPlan: String((normalizedRoom as any).mealPlan || '').trim() || undefined,
       searchReference: String((normalizedRoom as any).searchReference || '').trim() || undefined,
       roomId: String((normalizedRoom as any).roomId || '').trim() || undefined,
       rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+      totalAmountAfterTax: fallbackAmount,
+      multiNightBooking: effectivePreviewRouteIds.length > 1 || Boolean((normalizedRoom as any).multiNightBooking),
+      stayKey: effectiveStayKey,
+      routeIds: effectivePreviewRouteIds.length > 1 ? effectivePreviewRouteIds : undefined,
+      nights: effectivePreviewRouteIds.length > 1
+        ? Number(multiNightPreview?.nights || previousStay?.nights || effectivePreviewRouteIds.length)
+        : Number((normalizedRoom as any).nights || 0) || undefined,
+      nightlyRates: effectiveNightlyRates,
     };
 
-    const previewRouteIds =
-      Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 1
-        ? multiNightPreview.routeIds
+    const previewRouteIds = effectivePreviewRouteIds;
 
-
-            .map((id) => Number(id))
-            .filter((id) => Number.isFinite(id) && id > 0)
-        : [];
-
-    if (multiNightPreview && previewRouteIds.length > 1) {
+    if (previewRouteIds.length > 1) {
       const parentRouteId = previewRouteIds[0];
-      const nightlyRates = Array.isArray(multiNightPreview.nightlyRates)
+      const nightlyRates = Array.isArray(multiNightPreview?.nightlyRates)
         ? multiNightPreview.nightlyRates
+        : Array.isArray((normalizedRoom as any).nightlyRates)
+        ? (normalizedRoom as any).nightlyRates
         : [];
 
       const totalAmountAfterTax = toMoneyNumber(
-        multiNightPreview.totalAmountAfterTax ??
+        multiNightPreview?.totalAmountAfterTax ??
           nightlyRates.reduce(
             (sum: number, night: any) =>
               sum + toMoneyNumber(night?.amountAfterTax ?? night?.baseAmount ?? 0),
@@ -383,15 +439,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
       const updates: Record<number, HotelSelectionUpdate | null> = {
         [parentRouteId]: {
           ...baseSelection,
-          checkInDate: String(multiNightPreview.checkInDate || fallbackCheckInDate).trim(),
-          checkOutDate: String(multiNightPreview.checkOutDate || fallbackCheckOutDate).trim(),
+          checkInDate: effectiveCheckInDate,
+          checkOutDate: effectiveCheckOutDate,
           netAmount: totalAmountAfterTax,
           totalAmountAfterTax,
           multiNightBooking: true,
-          stayKey: multiNightPreview.stayKey,
+          stayKey: effectiveStayKey,
           routeIds: previewRouteIds,
-          nights: Number(multiNightPreview.nights || previewRouteIds.length),
-          nightlyRates,
+          nights: Number(multiNightPreview?.nights || previousStay?.nights || previewRouteIds.length),
+          nightlyRates: nightlyRates.length > 0 ? nightlyRates : effectiveNightlyRates,
         },
       };
 
@@ -418,7 +474,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     console.log('🏨 Choose button clicked', room);
     
     // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
-    if (readOnly) {
+    if (readOnly || isUpdatingHotel) {
       console.log('⛔ [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
       return;
     }
@@ -456,8 +512,24 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     const roomHotelId = Number(normalizedRoom.hotelId);
     const roomRouteId = Number(normalizedRoom.itineraryRouteId);
+    const groupType = toNumber((normalizedRoom as any).groupType ?? activeGroupType, 1);
+    const confirmedSelection = Object.values(selectedByGroup?.[groupType] || {}).find((selection: any) => {
+      const selectionRouteId = toNumber(selection?.itineraryRouteId || selection?.routeId, 0);
+      const selectedRouteIds = Array.isArray(selection?.routeIds)
+        ? selection.routeIds.map(Number).filter((id: number) => Number.isFinite(id) && id > 0)
+        : [];
+      return selectionRouteId === roomRouteId || selectedRouteIds.includes(roomRouteId);
+    }) || userSelectedByStay?.[getStayKey({
+      itineraryRouteId: roomRouteId,
+      date: String((normalizedRoom as any).date || (normalizedRoom as any).checkInDate || '').trim(),
+    } as any)];
+    const isRateUpdate = Boolean(
+      confirmedSelection &&
+      isSameHotelIdentity(confirmedSelection, normalizedRoom) &&
+      getHotelOptionKey(confirmedSelection) !== getHotelOptionKey(normalizedRoom),
+    );
     const currentHotel = localHotels.find(h => h.itineraryRouteId === roomRouteId);
-    const isReplacing = Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
+    const isReplacing = !isRateUpdate && Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
     const routeDate = currentHotel?.day || "";
 
     const pendingActionBase = {
@@ -466,8 +538,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
       previousHotelName: currentHotel?.hotelName || "",
       newHotelName: normalizedRoom.hotelName || "",
       routeDate,
-      groupType: normalizedRoom.groupType ? Number(normalizedRoom.groupType) : undefined,
+      groupType,
+      isRateUpdate,
+      previousSelection: confirmedSelection ? ({ ...confirmedSelection } as Record<string, unknown>) : null,
     };
+
+    // Room/meal changes on an already selected hotel are pending-only. Do not
+    // run any supplier preview until the user confirms the update dialog.
+    if (isRateUpdate) {
+      openConfirmDialogForAction(pendingActionBase);
+      return;
+    }
 
     const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
     if (provider === "staah" || provider === "axisrooms") {
@@ -516,7 +597,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
   };
 
   const handleConfirmHotelSelection = async () => {
-    if (!pendingHotelAction) return;
+    if (!pendingHotelAction || isUpdatingHotel) return;
 
     const { room, isReplacing } = pendingHotelAction;
     const multiNightPreview = pendingHotelAction.multiNightPreview && !pendingHotelAction.multiNightPreview.blocked
@@ -582,11 +663,37 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // ✅ Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
-      const selectionRouteIds = Array.isArray(multiNightPreview?.routeIds) && multiNightPreview.routeIds.length > 0
-        ? multiNightPreview.routeIds
+      const selectionUpdates = buildSelectionUpdates(
+        normalizedRoom,
+        groupType,
+        resolvedHotelId,
+        multiNightPreview,
+        pendingHotelAction.isRateUpdate ? pendingHotelAction.previousSelection : null,
+      );
+      if (pendingHotelAction.manualRoomMealMismatchWarning?.enabled) {
+        Object.values(selectionUpdates).forEach((update) => {
+          if (update) {
+            update.manualRoomMealMismatchOverride = true;
+          }
+        });
+      }
+      const multiNightSelection = Object.values(selectionUpdates).find((update) =>
+        Boolean(update?.multiNightBooking && Array.isArray(update.routeIds) && update.routeIds.length > 1),
+      );
+      const selectionRouteIds = Array.isArray(multiNightSelection?.routeIds) && multiNightSelection.routeIds.length > 0
+        ? multiNightSelection.routeIds
             .map((id) => Number(id))
             .filter((id) => Number.isFinite(id) && id > 0)
         : [routeId];
+
+      // Price the proposed selection before changing any local hotel state.
+      // A failed backend preview therefore leaves the previous selection visible.
+      const costPreviewSucceeded = onTemporarySelectionCostPreview
+        ? await onTemporarySelectionCostPreview(selectionUpdates)
+        : true;
+      if (!costPreviewSucceeded) {
+        return;
+      }
 
       const getNextDate = (date: string) => {
         if (!date) return "";
@@ -607,7 +714,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
             toNumber((hotel as any).groupType, groupType) === Number(groupType),
         );
 
-        const nightlyRate = multiNightPreview?.nightlyRates?.[index];
+        const nightlyRate = (multiNightSelection?.nightlyRates || multiNightPreview?.nightlyRates)?.[index];
         const nightDate =
           nightlyRate?.date ||
           routeHotel?.date ||
@@ -616,7 +723,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
         const nightAmount =
           nightlyRate?.amountAfterTax !== undefined && nightlyRate?.amountAfterTax !== null
             ? Number(nightlyRate.amountAfterTax)
-            : Number((baseHotel as any).totalHotelCost || (baseHotel as any).totalAmount || 0);
+            : Number(
+              (multiNightSelection as any)?.totalAmountAfterTax && selectionRouteIds.length === 1
+                ? (multiNightSelection as any).totalAmountAfterTax
+                : (baseHotel as any).totalHotelCost || (baseHotel as any).totalAmount || (baseHotel as any).netAmount || 0,
+            );
 
         return {
           ...baseHotel,
@@ -629,12 +740,12 @@ export function useHotelListActions(context: HotelListActionsContext) {
           totalHotelCost: nightAmount,
           totalAmount: nightAmount,
           netAmount: nightAmount,
-          multiNightBooking: Boolean(multiNightPreview && multiNightPreview.nights > 1),
-          stayKey: multiNightPreview?.stayKey,
-          routeIds: multiNightPreview?.routeIds,
-          nights: multiNightPreview?.nights,
-          nightlyRates: multiNightPreview?.nightlyRates,
-          totalAmountAfterTax: multiNightPreview?.totalAmountAfterTax,
+          multiNightBooking: Boolean((baseHotel as any).multiNightBooking || (multiNightPreview && multiNightPreview.nights > 1)),
+          stayKey: (multiNightSelection as any)?.stayKey || multiNightPreview?.stayKey || (baseHotel as any).stayKey,
+          routeIds: (multiNightSelection as any)?.routeIds || multiNightPreview?.routeIds || (baseHotel as any).routeIds,
+          nights: (multiNightSelection as any)?.nights || multiNightPreview?.nights || (baseHotel as any).nights,
+          nightlyRates: (multiNightSelection as any)?.nightlyRates || multiNightPreview?.nightlyRates || (baseHotel as any).nightlyRates,
+          totalAmountAfterTax: (multiNightSelection as any)?.totalAmountAfterTax || multiNightPreview?.totalAmountAfterTax || (baseHotel as any).totalAmountAfterTax,
         } as any;
       };
       
@@ -656,7 +767,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
         ) &&
         String(h.roomType || '').trim() === String((room as any).roomTypeName || (room as any).roomType || '').trim() &&
         getHotelDisplayAmount(h) === getHotelDisplayAmount(normalizedRoom),
-      );
+      ) || (normalizedRoom as unknown as ItineraryHotelRow);
       
       if (!selectedHotel) {
         // Fallback: provider room may have different bookingCode/roomType than hotel_details row
@@ -735,40 +846,58 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
         setShowConfirmDialog(false);
         setPendingHotelAction(null);
-        if (onHotelSelectionsChange) {
-          const updates = buildSelectionUpdates(
-            normalizedRoom,
-            groupType,
-            resolvedHotelId,
-            multiNightPreview,
-          );
-
-          if (pendingHotelAction.manualRoomMealMismatchWarning?.enabled) {
-            Object.values(updates).forEach((update) => {
-              if (update) {
-                update.manualRoomMealMismatchOverride = true;
-              }
-            });
-          }
-
-          onHotelSelectionsChange(updates);
-        }
+        if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
         toast.success('Hotel selected');
         return;
       }
 
+      const selectedHotelForState: ItineraryHotelRow = {
+        ...selectedHotel,
+        ...normalizedRoom,
+        provider: String((normalizedRoom as any).provider || (selectedHotel as any).provider || 'tbo').toLowerCase(),
+        hotelCode: String((normalizedRoom as any).hotelCode || (normalizedRoom as any).hotelId || (selectedHotel as any).hotelCode || '').trim(),
+        bookingCode: String((normalizedRoom as any).bookingCode || (normalizedRoom as any).searchReference || '').trim(),
+        searchReference: String((normalizedRoom as any).searchReference || '').trim(),
+        roomType: String((normalizedRoom as any).roomTypeName || (normalizedRoom as any).roomType || (selectedHotel as any).roomType || 'Standard').trim(),
+        mealPlan: String((normalizedRoom as any).mealPlan || (selectedHotel as any).mealPlan || '').trim(),
+        totalHotelCost: Number(
+          (normalizedRoom as any).totalHotelCost ??
+          (normalizedRoom as any).totalAmount ??
+          (normalizedRoom as any).totalAmountAfterTax ??
+          (normalizedRoom as any).netAmount ??
+          (selectedHotel as any).totalHotelCost ?? 0,
+        ),
+        totalHotelTaxAmount: Number(
+          (normalizedRoom as any).totalHotelTaxAmount ??
+          (normalizedRoom as any).taxAmount ??
+          (selectedHotel as any).totalHotelTaxAmount ?? 0,
+        ),
+        totalAmount: Number(
+          (normalizedRoom as any).totalAmountAfterTax ??
+          (normalizedRoom as any).totalAmount ??
+          (normalizedRoom as any).netAmount ??
+          (selectedHotel as any).totalAmount ?? 0,
+        ),
+        netAmount: Number((normalizedRoom as any).netAmount ?? (normalizedRoom as any).totalAmountAfterTax ?? (normalizedRoom as any).totalAmount ?? 0),
+        totalAmountAfterTax: Number((normalizedRoom as any).totalAmountAfterTax ?? (normalizedRoom as any).totalAmount ?? (normalizedRoom as any).netAmount ?? 0),
+        roomId: String((normalizedRoom as any).roomId || '').trim() || undefined,
+        rateId: String((normalizedRoom as any).rateId || '').trim() || undefined,
+        routeIds: Array.isArray((normalizedRoom as any).routeIds) ? (normalizedRoom as any).routeIds : undefined,
+        nightlyRates: Array.isArray((normalizedRoom as any).nightlyRates) ? (normalizedRoom as any).nightlyRates : undefined,
+      } as any;
+
       const routeScopedSelections = selectionRouteIds.map((selectedRouteId, index) =>
-        buildRouteScopedHotel(selectedHotel, Number(selectedRouteId), index),
+        buildRouteScopedHotel(selectedHotelForState, Number(selectedRouteId), index),
       );
 
       const selectedIdentityKey = [
-        String((selectedHotel as any).hotelName || '').trim().toLowerCase(),
-        String((selectedHotel as any).provider || '').trim().toLowerCase(),
+        String((selectedHotelForState as any).hotelName || '').trim().toLowerCase(),
+        String((selectedHotelForState as any).provider || '').trim().toLowerCase(),
       ].join('|');
 
       setSelectedRoomTypeByHotel((prev) => ({
         ...prev,
-        [selectedIdentityKey]: getHotelOptionKey(selectedHotel),
+        [selectedIdentityKey]: getHotelOptionKey(normalizedRoom),
       }));
 
       setSelectedByGroup((prev) => {
@@ -812,30 +941,33 @@ export function useHotelListActions(context: HotelListActionsContext) {
       setPendingHotelAction(null);
 
       // Emit only this explicit route selection to parent to avoid bulk overwrite of other days.
-      if (onHotelSelectionsChange) {
-        const updates = buildSelectionUpdates(
-          normalizedRoom,
-          groupType,
-          resolvedHotelId,
-          multiNightPreview,
-        );
-
-        if (pendingHotelAction.manualRoomMealMismatchWarning?.enabled) {
-          Object.values(updates).forEach((update) => {
-            if (update) {
-              update.manualRoomMealMismatchOverride = true;
-            }
-          });
-        }
-
-        onHotelSelectionsChange(updates);
-      }
+      if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
       
       // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
       setExpandedRowKey(null);
 
       // Update selectedHotelId so selected state remains reflected in the list.
       setSelectedHotelId(Number(normalizedRoom.hotelId));
+
+      if (pendingHotelAction.isRateUpdate) {
+        const previousPrice = Number(
+          (pendingHotelAction.previousSelection as any)?.totalAmountAfterTax ??
+          (pendingHotelAction.previousSelection as any)?.totalAmount ??
+          (pendingHotelAction.previousSelection as any)?.netAmount ??
+          Number((pendingHotelAction.previousSelection as any)?.totalHotelCost || 0) +
+            Number((pendingHotelAction.previousSelection as any)?.totalHotelTaxAmount || 0),
+        );
+        const nextPrice = Number(selectionUpdates[routeId]?.totalAmountAfterTax ?? selectionUpdates[routeId]?.netAmount ?? 0);
+        const priceDifference = toMoneyNumber(nextPrice - previousPrice);
+        toast.success("Room updated successfully.", {
+          description: priceDifference > 0
+            ? `Hotel price increased by ${formatCurrency(priceDifference)}.`
+            : priceDifference < 0
+            ? `Hotel price decreased by ${formatCurrency(Math.abs(priceDifference))}.`
+            : "No price difference.",
+        });
+        return;
+      }
       
       toast.success("Hotel selected! 👍", {
         description: `${normalizedRoom.hotelName} - Changes will be saved when you confirm the quotation`,
@@ -914,6 +1046,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
     handleConfirmHotelSelection,
+    handleCancelHotelAction,
     saveAllHotelSelections,
   };
 }

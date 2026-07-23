@@ -233,11 +233,19 @@ export type ItineraryHotelRow = {
   destination: string;
   hotelId: number;
   hotelName: string;
+  hotelCode?: string;
   category: number | string;
   roomType: string;
   mealPlan: string;
   totalHotelCost: number;
   totalHotelTaxAmount: number;
+  baseHotelCost?: number;
+  hotelMarginPercentage?: number;
+  hotelMarginAmount?: number;
+  hotelMarginGstAmount?: number;
+  hotelRoomGstAmount?: number;
+  hotelMealPlanCost?: number;
+  hotelMealPlanGstAmount?: number;
   noOfRooms?: number;
   provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
@@ -389,6 +397,29 @@ export type CostBreakdown = {
   extraBedCost?: number | null;
   childWithBedCost?: number | null;
   childWithoutBedCost?: number | null;
+  hotelPricingSource?: "selected_hotel_rate" | "persisted_draft" | null;
+  selectedHotelRateTotal?: number | null;
+  hotelRateBreakdown?: Array<{
+    routeId: number;
+    date?: string | null;
+    provider: string;
+    hotelCode: string;
+    hotelName: string;
+    roomType?: string;
+    mealPlan?: string;
+    baseAmount: number;
+    roomGstAmount: number;
+    marginAmount: number;
+    marginGstAmount: number;
+    totalAmount: number;
+  }>;
+  hotelRoomBaseCost?: number | null;
+  hotelRoomGstCost?: number | null;
+  hotelMarginCost?: number | null;
+  hotelMarginGstCost?: number | null;
+  hotelMealPlanCost?: number | null;
+  hotelMealPlanGstCost?: number | null;
+  hotelMealPlanAllocatedCost?: number | null;
   totalHotelAmount?: number | null;
 
   // Vehicle costs

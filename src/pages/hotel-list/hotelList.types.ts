@@ -22,6 +22,7 @@ export type HotelSelectionUpdate = {
   nights?: number;
   nightlyRates?: StayExtensionPreviewResponse["nightlyRates"];
   totalAmountAfterTax?: number;
+  routeId?: number;
   manualRoomMealMismatchOverride?: boolean;
 };
 
@@ -77,9 +78,11 @@ export type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>) => void | Promise<void>;
+  /** Legacy display callback; authoritative totals come from the preview response. */
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
+  onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean>;
   dayDestinationFallback?: Record<number, string>;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
@@ -126,6 +129,8 @@ export type ManualRoomMealMismatchWarning = {
 export type PendingHotelAction = {
   room: HotelRoomDetail;
   isReplacing: boolean;
+  isRateUpdate?: boolean;
+  previousSelection?: Record<string, unknown> | null;
   previousHotelName: string;
   newHotelName: string;
   routeDate: string;

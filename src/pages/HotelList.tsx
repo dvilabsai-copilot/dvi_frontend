@@ -85,6 +85,7 @@ export const HotelList: React.FC<HotelListProps> = ({
   onCreateVoucher, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
+  onTemporarySelectionCostPreview,
   onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
   roomCount = 1,
   onHotelSelectionsChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for selections
@@ -677,9 +678,11 @@ const getExpandedRouteId = (): number => {
 
     if (Object.keys(selections).length > 0) {
       onHotelSelectionsChange(selections);
+      void onTemporarySelectionCostPreview?.(selections);
     }
   }, [
     onHotelSelectionsChange,
+    onTemporarySelectionCostPreview,
     activeGroupType,
     readOnly,
     selectedByGroup,
@@ -693,6 +696,7 @@ const getExpandedRouteId = (): number => {
     openConfirmDialogForAction,
     handleChooseOrUpdateHotel,
     handleConfirmHotelSelection,
+    handleCancelHotelAction,
     saveAllHotelSelections,
   } = useHotelListActions({
     readOnly,
@@ -709,9 +713,12 @@ const getExpandedRouteId = (): number => {
     mergeHotelOptions,
     toNumber,
     activeGroupType,
+    selectedByGroup,
+    userSelectedByStay,
     planId,
     roomCount,
     toast,
+    formatCurrency,
     quoteId,
     unsavedSelections,
     setUnsavedSelections,
@@ -730,11 +737,14 @@ const getExpandedRouteId = (): number => {
     resolveHotelRestriction,
     setStayExtensionModalState,
     getHotelOptionKey,
+    isSameHotelIdentity,
     setSelectedRoomTypeByHotel,
     setSelectedByGroup,
     setUserSelectedByStay,
     setIsUpdatingHotel,
+    isUpdatingHotel,
     onHotelSelectionsChange,
+    onTemporarySelectionCostPreview,
     pendingHotelAction,
   });
 
@@ -746,27 +756,6 @@ const getExpandedRouteId = (): number => {
   }, [onGetSaveFunction]);
 
   // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Notify parent when active group total changes (active groupType only)
-  React.useEffect(() => {
-    if (!onTotalChange) return;
-
-    if (readOnly) {
-      onTotalChange(toMoneyNumber(getOverallSelectedHotelTotal()));
-      return;
-    }
-
-    if (activeGroupType !== null) {
-      onTotalChange(toMoneyNumber(getActiveTabTotal()));
-    }
-  }, [
-    readOnly,
-    activeGroupType,
-    selectedByGroup,
-    userSelectedByStay,
-    localHotels,
-    onTotalChange,
-    roomCount,
-  ]);
-
   // Parent selections are now synced explicitly on user choose/update action above.
 
 
@@ -802,6 +791,7 @@ const getExpandedRouteId = (): number => {
     loadingRowKey,
     activeGroupType,
     selectedByGroup,
+    userSelectedByStay,
     getHotelOptionKey,
     getHotelDisplayAmount,
     normalizeMealPlanLabel,
@@ -822,6 +812,7 @@ const getExpandedRouteId = (): number => {
     isLoadingMore,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    isUpdatingHotel,
     selectedHotelId,
     getOverallSelectedHotelTotal,
     currentTabTotal,
@@ -974,6 +965,7 @@ const getExpandedRouteId = (): number => {
           pendingHotelAction,
           isUpdatingHotel,
           handleConfirmHotelSelection,
+          handleCancelHotelAction,
           setRoomSelectionModal,
           roomSelectionModal,
           toast,

@@ -1,5 +1,4 @@
 import { useSelectedHotelSummary } from "./useSelectedHotelSummary";
-import { useComputedHotelCost } from "./useComputedHotelCost";
 import { useRoomBreakdownNights } from "./useRoomBreakdownNights";
 import { useComputedVehicleTotals } from "./useComputedVehicleTotals";
 import { useHotelsForDisplay } from "./useHotelsForDisplay";
@@ -12,7 +11,6 @@ type ItineraryCostViewModelArgs = {
   itinerary: RouteStateSnapshot["itinerary"];
   hotelDetails: RouteStateSnapshot["hotelDetails"];
   hotelReadOnly: boolean;
-  activeHotelListTotal: HotelSelectionStateSnapshot["activeHotelListTotal"];
   selectedHotelBookings: HotelSelectionStateSnapshot["selectedHotelBookings"];
   activeHotelGroupType: HotelSelectionStateSnapshot["activeHotelGroupType"];
   shouldShowHotels: boolean;
@@ -25,7 +23,6 @@ export function useItineraryCostViewModel({
   itinerary,
   hotelDetails,
   hotelReadOnly,
-  activeHotelListTotal,
   selectedHotelBookings,
   activeHotelGroupType,
   shouldShowHotels,
@@ -38,15 +35,6 @@ export function useItineraryCostViewModel({
     hotelDetails,
     activeHotelGroupType,
     roomCount: itinerary?.roomCount,
-  });
-  const computedHotelCost = useComputedHotelCost({
-    hotelReadOnly,
-    activeHotelListTotal,
-    selectedHotelTotal,
-    hotelDetails,
-    activeHotelGroupType,
-    roomCount: itinerary?.roomCount,
-    costBreakdown: itinerary?.costBreakdown,
   });
   const roomBreakdownRoomNights = useRoomBreakdownNights({
     hotelDetails,
@@ -73,7 +61,6 @@ export function useItineraryCostViewModel({
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
     overallCost: itinerary?.overallCost,
-    computedHotelCost,
   });
   const effectiveEntryTicketAmount = itinerary?.costBreakdown?.totalHotspotCost || 0;
   const hotelHydratedDays = useHotelHydratedDays({ itineraryDays: itinerary?.days, selectedHotelMetaByRoute });
@@ -82,7 +69,6 @@ export function useItineraryCostViewModel({
   return {
     selectedHotelTotal,
     selectedHotelMetaByRoute,
-    computedHotelCost,
     roomBreakdownRoomNights,
     computedVehicleAmount,
     computedVehicleQty,

@@ -61,6 +61,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     isLoadingMore,
     onLoadMore,
     handleChooseOrUpdateHotel,
+    isUpdatingHotel,
+    pendingHotelAction,
     selectedHotelId,
     getOverallSelectedHotelTotal,
     currentTabTotal,
@@ -72,15 +74,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     ArrowDown,
   } = context;
 
-  const formatHotelDate = (value?: string | null): string => {
+  const formatDateOnly = (value?: string | null): string => {
     const datePart = String(value || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return '-';
-    return new Date(`${datePart}T00:00:00.000Z`).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      timeZone: 'UTC',
-    });
+    return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : '-';
   };
 
   const formatGuestArrivalTime = (value?: string | null): string => {
@@ -158,6 +154,10 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 const parsedDayNumber = Number(
                   String(hotel.day || '').match(/Day\s*(\d+)/i)?.[1] || 0,
                 );
+                const firstEarlyCheckInRowIndex = currentHotelRows.findIndex((row) => Boolean(row.earlyCheckIn));
+                const isFirstEarlyCheckInRow = Boolean(
+                  hotel.earlyCheckIn && idx === firstEarlyCheckInRowIndex,
+                );
 
                 const rowVoucherPayload = {
                   routeId: Number(hotel.itineraryRouteId || 0),
@@ -181,6 +181,54 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                 return (
                   <React.Fragment key={rowKey}>
+                    {isFirstEarlyCheckInRow && (
+                      <>
+                        <tr className="border-t border-amber-200 bg-amber-50/50">
+                          <td className={`${tableCellClass} font-medium`}>
+                            <div>Day 0 | {formatDateOnly(hotel.hotelCheckInDate)}</div>
+                          </td>
+                          <td className={`${tableCellClass} font-medium`}>
+                            {resolvedDestination}
+                          </td>
+                          <td className={tableCellClass}>
+                            <div className="font-medium leading-5 text-[#3f4149]">
+                              {hotel.hotelName
+                                ? (() => {
+                                    const starCategory = normalizeHotelStarCategory(hotel.category);
+                                    return starCategory
+                                      ? `${hotel.hotelName} -${starCategory}*`
+                                      : hotel.hotelName;
+                                  })()
+                                : '-'}
+                            </div>
+                            <span className="mt-1 inline-flex rounded-full bg-[#fbe7f6] px-2 py-1 text-[11px] font-semibold text-[#ad2e8b]">
+                              Early check-in room block
+                            </span>
+                          </td>
+                          <td className={tableCellClass}>
+                            {getRoomTypeDisplay(hotel)}
+                          </td>
+                          {showRates && (
+                            <td className={`${tableCellClass} whitespace-nowrap text-[#81768e]`}>
+                              —
+                            </td>
+                          )}
+                          <td className={tableCellClass}>
+                            {isExternalStay ? getMealPlanDisplay(hotel) : <MealPlanCell mealPlanText={hotel.mealPlan} selectedCode={mealPlanCode} />}
+                          </td>
+                        </tr>
+                        <tr className="border-t border-amber-200 bg-amber-50">
+                          <td
+                            colSpan={tableColumnCount}
+                            className="px-6 py-3 text-sm text-amber-900"
+                          >
+                            <span className="font-semibold">Note for hotelier:</span>{' '}
+                            Guest has opted for early morning check-in at {formatGuestArrivalTime(hotel.actualGuestArrivalAt)} with extra payment. Room to be blocked from the previous night, with actual guest arrival/check-in on the next day early morning.
+                          </td>
+                        </tr>
+                      </>
+                    )}
+
                     {/* MAIN ROW */}
                     {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
@@ -196,18 +244,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                     >
                       <td className={`${tableCellClass} font-medium`}>
                         <div>{hotel.day}</div>
-                        {hotel.earlyCheckIn && (
-                          <div className="mt-1 space-y-0.5 text-[11px] font-normal leading-4 text-[#686270]">
-                            <div>
-                              <span className="text-[#85818d]">Check-in:</span>{' '}
-                              <span className="font-medium">{formatHotelDate(hotel.hotelCheckInDate)}</span>
-                            </div>
-                            <div>
-                              <span className="text-[#85818d]">Check-out:</span>{' '}
-                              <span className="font-medium">{formatHotelDate(hotel.checkOutDate)}</span>
-                            </div>
-                          </div>
-                        )}
                       </td>
                       <td className={`${tableCellClass} font-medium`}>
                         {resolvedDestination}
@@ -297,18 +333,6 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                         </div>
                       </td>
                     </tr>
-
-                    {hotel.earlyCheckIn && (
-                      <tr className="border-t border-amber-200 bg-amber-50">
-                        <td
-                          colSpan={tableColumnCount}
-                          className="px-6 py-3 text-sm text-amber-900"
-                        >
-                          <span className="font-semibold">Note for hotelier:</span>{' '}
-                          Guest has opted for early morning check-in at {formatGuestArrivalTime(hotel.actualGuestArrivalAt)} with extra payment. Room to be blocked from the previous night, with actual guest arrival/check-in on the next day early morning.
-                        </td>
-                      </tr>
-                    )}
 
                     {/* EXPANDED ROW WITH ROOM CARDS */}
                     {isExpanded && (
@@ -527,8 +551,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     : undefined;
 
                                   const active =
-                                    selectedOption ||
                                     manualOption ||
+                                    selectedOption ||
                                     fairSelectableOption ||
                                     findBestOption(options) ||
                                     options[0];
@@ -538,6 +562,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
                                 const roomKey = `hotel-${identKey}`;
                                 const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                const isSameSelectedHotel = Boolean(
+                                  selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
+                                );
+                                const isPendingRateUpdate = Boolean(
+                                  selectedForStay && isSameSelectedHotel && !isSelected,
+                                );
+                                const isUpdatingThisCard = Boolean(
+                                  isUpdatingHotel &&
+                                  pendingHotelAction?.room &&
+                                  getHotelOptionKey(pendingHotelAction.room) === getHotelOptionKey(hotel),
+                                );
                                 const isSelectable = isSelectableHotel(hotel);
                                 const actionMessage = String((hotel as any)?.availabilityMessage || '').trim();
                                 const previousSelectedHotelForCard = getPreviousSelectedHotelForStay(hotel);
@@ -751,8 +786,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       </label>
                                       {roomTypeVariants.length > 1 ? (
                                         <select
-                                          className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
+                                        className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeRoomTypeValue}
+                                          disabled={isUpdatingHotel}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedOption = findBestOption(
@@ -791,6 +827,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         <select
                                           className="w-full max-w-full truncate rounded-md border border-[#e5d9f2] bg-white px-2 py-1 text-[11px] font-semibold text-[#4a4260] outline-none focus:border-[#7c3aed]"
                                           value={activeMealPlanValue}
+                                          disabled={isUpdatingHotel}
                                           onClick={(e) => e.stopPropagation()}
                                           onChange={(e) => {
                                             const selectedOption = findExactOption(
@@ -903,6 +940,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
                                           isSelected
                                             ? 'bg-[#22c55e] text-white cursor-default'
+                                            : isPendingRateUpdate
+                                            ? 'bg-amber-500 hover:bg-amber-600 text-white'
                                             : isSelectable
                                             ? 'bg-[#7c3aed] hover:bg-[#6d28d9] text-white'
                                             : 'bg-slate-200 text-slate-500 cursor-not-allowed'
@@ -911,9 +950,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                           if (!isSelectable) return;
                                           handleChooseOrUpdateHotel(hotel);
                                         }}
-                                        disabled={isSelected || !isSelectable}
+                                        disabled={isSelected || !isSelectable || isUpdatingHotel}
                                       >
-                                        {isSelected ? 'Selected' : isSelectable ? 'Choose' : 'Restricted'}
+                                        {isUpdatingThisCard
+                                          ? 'Updating...'
+                                          : isSelected
+                                          ? 'Selected'
+                                          : isPendingRateUpdate
+                                          ? 'Update'
+                                          : isSelectable
+                                          ? 'Choose'
+                                          : 'Restricted'}
                                       </button>
 
                                       <details className="mt-3 pt-3 border-t border-[#e9dcfb]">

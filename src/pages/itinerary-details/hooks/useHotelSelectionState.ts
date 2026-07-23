@@ -42,6 +42,11 @@ export function useHotelSelectionState() {
     const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
     const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
     const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
+    const [activeHotelListPriceBreakdown, setActiveHotelListPriceBreakdown] = useState({
+      totalAmount: 0,
+      baseAmount: 0,
+      marginAmount: 0,
+    });
     const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
       Record<number, { totalAmount: number; totalQty: number }>
     >({});
@@ -55,6 +60,7 @@ export function useHotelSelectionState() {
   return {
     selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
     activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal,
+    activeHotelListPriceBreakdown, setActiveHotelListPriceBreakdown,
     selectedVehicleTotalsByType, setSelectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
     summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight, setSummaryStickyHeight,
     hotelPageByGroupRoute, setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
