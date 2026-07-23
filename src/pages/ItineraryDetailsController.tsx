@@ -851,10 +851,20 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
         vehicleSection: { vehicleListRef, summaryStickyHeight, vehicles: itinerary.vehicles, vehicleRateAvailability: itinerary.vehicleRateAvailability, planId: itinerary.planId, dateRange: itinerary.dateRange, days: itinerary.days || [], canViewCostBreakdown, showVendorDetails: !isAgentLogin, onRefresh: refreshVehicleData, onSelectedTotalChange: handleVehicleSelectedTotalChange },
         vehicleUnavailable: { vehicleListRef, summaryStickyHeight },
-        incidentalHistory: isConfirmedPresentation && itinerary.planId ? { planId: itinerary.planId, refreshToken: incidentalHistoryRefreshToken } : null,
+        incidentalHistory:
+  isConfirmedPresentation && !isAgentLogin && itinerary.planId
+    ? {
+        planId: itinerary.planId,
+        refreshToken: incidentalHistoryRefreshToken,
+      }
+    : null,
         packageIncludes: itinerary.packageIncludes,
         cost: { itinerary, canViewCostBreakdown, financialTotals },
-        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true), onOpenIncidentalExpenses: () => setIncidentalModal(true), modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
+        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true),onOpenIncidentalExpenses: () => {
+  if (!isAgentLogin) {
+    setIncidentalModal(true);
+  }
+}, modifyItineraryHref, onDownloadInvoice: handleDownloadInvoice, readOnly, isConfirmedItinerary, onExtendTrip: () => setCancelModalOpen(true), onConfirmQuotation: openConfirmQuotationModal, isOpeningConfirmQuotation, canConfirmQuotation, onCopyLink: handleCopyLink, onShareWhatsApp: handleShareWhatsApp, onShareEmail: handleShareEmail, onBackToTop: () => window.scrollTo({ top: 0, behavior: "smooth" }) },
       }}
       activityGuideDialogs={{
         hotspotDelete: {

@@ -172,14 +172,16 @@ shouldShowRebuildHotelsButton,
                       <FileText className="mr-2 h-4 w-4" />
                       Voucher Details
                     </Button>
-                    <Button
-                      variant="outline"
-                      className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
-                      onClick={() => setIncidentalModal(true)}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Incidental Expenses
-                    </Button>
+                    {!isAgentLogin && (
+  <Button
+    variant="outline"
+    className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fd7e14] hover:text-white"
+    onClick={() => setIncidentalModal(true)}
+  >
+    <Plus className="mr-2 h-4 w-4" />
+    Add Incidental Expenses
+  </Button>
+)}
                     <Link to={modifyItineraryHref}>
                       <Button
                         variant="outline"
