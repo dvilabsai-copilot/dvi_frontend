@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { LocationRow, locationsApi } from "@/services/locations";
-import { LocationAutosuggestInput } from "./LocationAutosuggestInput";
+import { LocationRow } from "@/services/locations";
 
 interface EditLocationDialogProps {
   open: boolean;
@@ -87,34 +86,39 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
           <DialogTitle className="text-center text-xl">Update Location</DialogTitle>
         </DialogHeader>
 
+        <p className="text-sm text-muted-foreground">
+          Source and destination details are fixed for this route. Only route data such as distance,
+          duration, coordinates, and description can be updated.
+        </p>
+
         <div className="space-y-6">
           {/* Row 1: Source Location, City, State (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
-                       <div className="space-y-2">
+            <div className="space-y-2">
               <label className="text-sm font-medium">Source Location *</label>
-              <LocationAutosuggestInput
-                placeholder="Type Source Location"
+              <Input
                 value={form.source_location || ""}
-                onValueChange={(value) => handleChange("source_location", value)}
-                search={locationsApi.searchSources}
+                readOnly
+                aria-label="Source Location"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location City *</label>
-              <LocationAutosuggestInput
-                placeholder="Enter Source City"
+              <Input
                 value={form.source_city || ""}
-                onValueChange={(value) => handleChange("source_city", value)}
-                search={locationsApi.searchCities}
+                readOnly
+                aria-label="Source Location City"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location State *</label>
-              <LocationAutosuggestInput
-                placeholder="Enter Source State"
+              <Input
                 value={form.source_state || ""}
-                onValueChange={(value) => handleChange("source_state", value)}
-                search={locationsApi.searchStates}
+                readOnly
+                aria-label="Source Location State"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
           </div>
@@ -143,18 +147,13 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
                 onPaste={handleCoordinatePaste("source_latitude", "source_longitude")}
               />
             </div>
-                        <div className="space-y-2">
+            <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location *</label>
-              <LocationAutosuggestInput
-                placeholder="Type Destination Location"
+              <Input
                 value={form.destination_location || ""}
-                onValueChange={(value) => handleChange("destination_location", value)}
-                search={(phrase) =>
-                  locationsApi.searchDestinations(
-                    phrase,
-                    String(form.source_location || "")
-                  )
-                }
+                readOnly
+                aria-label="Destination Location"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
           </div>
@@ -166,7 +165,9 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
               <Input
                 placeholder="Enter Destination City"
                 value={form.destination_city || ""}
-                onChange={(e) => handleChange("destination_city", e.target.value)}
+                readOnly
+                aria-label="Destination Location City"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
@@ -174,7 +175,9 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
               <Input
                 placeholder="Enter Destination State"
                 value={form.destination_state || ""}
-                onChange={(e) => handleChange("destination_state", e.target.value)}
+                readOnly
+                aria-label="Destination Location State"
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
             <div className="space-y-2">
