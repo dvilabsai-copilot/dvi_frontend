@@ -67,8 +67,8 @@ export function useHotelListRows<TVoucher>({
         const routeId = helpers.toNumber(hotel.itineraryRouteId);
         if (!routeId) return;
         const existing = hotelsByRoute.get(routeId);
-        const existingIsSynthetic = Boolean((existing as any)?.previousDayBillingSynthetic);
-        const hotelIsSynthetic = Boolean((hotel as any)?.previousDayBillingSynthetic);
+        const existingIsSynthetic = Boolean(existing?.previousDayBillingSynthetic);
+        const hotelIsSynthetic = Boolean(hotel.previousDayBillingSynthetic);
         if (
           !existing ||
           (existingIsSynthetic && !hotelIsSynthetic) ||
@@ -92,9 +92,9 @@ export function useHotelListRows<TVoucher>({
     // The API exposes the previous-night billing marker so the UI can explain
     // the early-arrival date. It is not a second selectable hotel stay. Keep
     // the real hotel row as the source of selection and pricing; the table
-    // renders the marker as the display-only Day 0 row.
+    // renders the marker as the Day 0 entry point for that real stay.
     const nonSyntheticHotels = activeGroupHotels.filter(
-      (hotel) => !Boolean((hotel as any).previousDayBillingSynthetic),
+      (hotel) => !hotel.previousDayBillingSynthetic,
     );
     const hotelsForActiveGroup = nonSyntheticHotels.length > 0
       ? nonSyntheticHotels

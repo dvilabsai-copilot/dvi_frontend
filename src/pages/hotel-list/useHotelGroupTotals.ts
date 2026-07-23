@@ -30,7 +30,14 @@ export function useHotelGroupTotals({
   helpers,
 }: UseHotelGroupTotalsArgs) {
   const getSelectedHotelsForGroup = (groupType: number): ItineraryHotelRow[] => {
-    const hotelsForGroup = localHotels.filter((hotel) => Number(hotel.groupType || 0) === Number(groupType));
+    const groupHotels = localHotels.filter((hotel) => Number(hotel.groupType || 0) === Number(groupType));
+    // A previous-night early-arrival marker is explanatory metadata, not a
+    // second hotel stay. Keep it out of totals while retaining a fallback for
+    // malformed/legacy payloads that contain only the marker row.
+    const nonSyntheticHotels = groupHotels.filter(
+      (hotel) => !hotel.previousDayBillingSynthetic,
+    );
+    const hotelsForGroup = nonSyntheticHotels.length > 0 ? nonSyntheticHotels : groupHotels;
     if (!hotelsForGroup.length) return [];
 
     const groupedByStay = new Map<string, ItineraryHotelRow[]>();

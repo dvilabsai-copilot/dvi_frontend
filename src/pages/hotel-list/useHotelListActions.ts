@@ -528,7 +528,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
       isSameHotelIdentity(confirmedSelection, normalizedRoom) &&
       getHotelOptionKey(confirmedSelection) !== getHotelOptionKey(normalizedRoom),
     );
-    const currentHotel = localHotels.find(h => h.itineraryRouteId === roomRouteId);
+    const currentHotel = localHotels.find(
+      (hotel) =>
+        hotel.itineraryRouteId === roomRouteId &&
+        !hotel.previousDayBillingSynthetic,
+    ) || localHotels.find(h => h.itineraryRouteId === roomRouteId);
     const isReplacing = !isRateUpdate && Boolean(currentHotel?.hotelId) && Number(currentHotel.hotelId) !== roomHotelId;
     const routeDate = currentHotel?.day || "";
 
@@ -566,13 +570,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
 
         if (preview?.nights > 1) {
-          if (!preview.canBookMultiNight && !preview.canBookSingleNight) {
-            const message =
-              preview.restrictionConflicts?.map((conflict: any) => conflict.message).join(" | ")
-              || "Hotel cannot be booked on the selected day.";
-            toast.error(message);
-            return;
-          }
+          // Always surface cross-date restrictions in the modal. A toast is
+          // easy to miss and does not explain whether the selected night or
+          // one of the continuous follow-on nights is blocked.
           setStayExtensionModalState({
             preview,
             action: pendingActionBase,

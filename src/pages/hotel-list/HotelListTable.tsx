@@ -183,7 +183,39 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                   <React.Fragment key={rowKey}>
                     {isFirstEarlyCheckInRow && (
                       <>
-                        <tr className="border-t border-amber-200 bg-amber-50/50">
+                        <tr
+                          className={`border-t border-amber-200 bg-amber-50/50 ${
+                            !readOnly && loadingRowKey === null
+                              ? "cursor-pointer hover:bg-amber-100/70"
+                              : readOnly
+                                ? "cursor-default"
+                                : "cursor-not-allowed opacity-50"
+                          }`}
+                          onClick={() => {
+                            // Day 0 is the billing/blocking date, but the supplier
+                            // room inventory is keyed to the real guest-arrival
+                            // route. Delegate to the real early-arrival row so the
+                            // existing room selection, continuity preview, and
+                            // restriction workflow are reused without creating a
+                            // duplicate stay or price line.
+                            if (!readOnly && loadingRowKey === null) {
+                              handleRowClick(hotel);
+                            }
+                          }}
+                          aria-label="Open early-arrival hotel options"
+                          role={!readOnly ? "button" : undefined}
+                          tabIndex={!readOnly ? 0 : undefined}
+                          onKeyDown={(event) => {
+                            if (
+                              !readOnly &&
+                              loadingRowKey === null &&
+                              (event.key === "Enter" || event.key === " ")
+                            ) {
+                              event.preventDefault();
+                              handleRowClick(hotel);
+                            }
+                          }}
+                        >
                           <td className={`${tableCellClass} font-medium`}>
                             <div>Day 0 | {formatDateOnly(hotel.hotelCheckInDate)}</div>
                           </td>

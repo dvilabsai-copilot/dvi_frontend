@@ -46,13 +46,22 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {stayExtensionModalState?.preview.blocked ? "Cannot book continuous stay" : "Book continuous stay?"}
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-left">
-              {stayExtensionModalState && (
-                <div className="space-y-3 text-sm text-slate-700">
-                  <div>
+              <DialogTitle>
+                {stayExtensionModalState?.preview.blocked ||
+                !stayExtensionModalState?.preview.canBookMultiNight
+                  ? "Restrictions apply to some dates"
+                  : "Book continuous stay?"}
+              </DialogTitle>
+              <DialogDescription className="pt-2 text-left">
+                {stayExtensionModalState && (
+                  <div className="space-y-3 text-sm text-slate-700">
+                    {(stayExtensionModalState.preview.blocked ||
+                      !stayExtensionModalState.preview.canBookMultiNight) && (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                        This hotel, room type, or meal plan cannot be extended across all of the continuous dates shown below. Review the affected dates and choose only this day if the single-night option is available.
+                      </div>
+                    )}
+                    <div>
                     <div className="font-semibold text-slate-900">
 
 
@@ -104,26 +113,26 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={!stayExtensionModalState?.preview.canBookSingleNight}
-              onClick={() => {
-                const action = stayExtensionModalState?.action;
-                if (!action) return;
-                setStayExtensionModalState(null);
-                openConfirmDialogForAction(action);
-              }}
-            >
-              Book Only This Day
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setStayExtensionModalState(null)}
-            >
-              Cancel
-            </Button>
+            {stayExtensionModalState?.preview.canBookSingleNight && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const action = stayExtensionModalState.action;
+                  setStayExtensionModalState(null);
+                  openConfirmDialogForAction(action);
+                }}
+              >
+                Book Only This Day
+              </Button>
+            )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStayExtensionModalState(null)}
+              >
+                Close
+              </Button>
             {stayExtensionModalState?.preview.canBookMultiNight && !stayExtensionModalState.preview.blocked && (
               <Button
                 type="button"
