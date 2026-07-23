@@ -471,6 +471,10 @@ focusLocationRecords(
 );
 
 await loadDropdowns();
+// Refresh the table as well. The update response changes the route on the
+// server, but the current page can otherwise continue rendering its stale row
+// data when the active filters did not change.
+await loadList();
   }
 
   async function handleRename(new_name: string) {
