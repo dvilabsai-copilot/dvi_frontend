@@ -448,6 +448,9 @@ function toggleAllDeletePopupRecords(checked: boolean) {
     const nextSource = String(payload.source_location ?? editRow.source_location ?? "").trim();
     const nextDestination = String(payload.destination_location ?? editRow.destination_location ?? "").trim();
     const nextDistance = Number(payload.distance_km ?? editRow.distance_km ?? 0);
+    const nextDuration = String(payload.duration_text ?? editRow.duration_text ?? "").trim();
+    const distanceProvided = payload.distance_km !== undefined;
+    const durationProvided = payload.duration_text !== undefined;
 
     if (
       nextSource &&
@@ -459,22 +462,49 @@ function toggleAllDeletePopupRecords(checked: boolean) {
       return;
     }
 
-    const updated = await locationsApi.update(editRow.location_ID, payload);
+    const previousRows = rows;
+    const optimisticRows = rows.map((row) => {
+      const isEditedRow = row.location_ID === editRow.location_ID;
+      const isReverseRow =
+        lo(row.source_location).trim() === lo(nextDestination).toLowerCase() &&
+        lo(row.destination_location).trim() === lo(nextSource).toLowerCase();
 
-toast.success("Location updated");
-setEditRow(null);
+      if (!isEditedRow && !(isReverseRow && (distanceProvided || durationProvided))) {
+        return row;
+      }
 
-focusLocationRecords(
-  updated.source_location || nextSource,
-  updated.destination_location || nextDestination,
-  ""
-);
+      return {
+        ...row,
+        ...(isEditedRow ? payload : {}),
+        ...(distanceProvided ? { distance_km: nextDistance } : {}),
+        ...(durationProvided ? { duration_text: nextDuration } : {}),
+      };
+    });
 
-await loadDropdowns();
-// Refresh the table as well. The update response changes the route on the
-// server, but the current page can otherwise continue rendering its stale row
-// data when the active filters did not change.
-await loadList();
+    // Show the requested value immediately so the table does not appear stale
+    // while the server confirms the update and synchronizes its reverse route.
+    setRows(optimisticRows);
+    setEditRow(null);
+    toast("Updating location...");
+
+    try {
+      const updated = await locationsApi.update(editRow.location_ID, payload);
+
+      toast.success("Location updated");
+      focusLocationRecords(
+        updated.source_location || nextSource,
+        updated.destination_location || nextDestination,
+        ""
+      );
+
+      await loadDropdowns();
+      // Reconcile the optimistic row with the authoritative server response.
+      await loadList();
+    } catch (error) {
+      console.error("Error updating location:", error);
+      setRows(previousRows);
+      toast.error("Failed to update location");
+    }
   }
 
   async function handleRename(new_name: string) {
