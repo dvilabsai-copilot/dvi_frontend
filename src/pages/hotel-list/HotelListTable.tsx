@@ -242,7 +242,21 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           </td>
                           {showRates && (
                             <td className={`${tableCellClass} whitespace-nowrap text-[#81768e]`}>
-                              —
+                              {hotel.earlyCheckIn ? (
+                                <>
+                                  <div className="font-bold text-[#303238]">
+                                    {formatCurrency(rowTotal)}
+                                    {showHotelMargins && getHotelBaseAmount(hotel) > 0 && (
+                                      <span className="ml-1 text-[11px] font-normal text-gray-500">
+                                        ({formatCurrency(getHotelBaseAmount(hotel))})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="mt-1 inline-block text-[10px] leading-4 text-[#81768e]">
+                                    Included in Day 1 total
+                                  </span>
+                                </>
+                              ) : "—"}
                             </td>
                           )}
                           <td className={tableCellClass}>

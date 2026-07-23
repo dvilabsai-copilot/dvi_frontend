@@ -1,9 +1,8 @@
 import { escapeHtml } from './clipboardFormatting.utils';
-
-type UnknownRecord = Record<string, unknown>;
-
-const asRecord = (value: unknown): UnknownRecord =>
-  value !== null && typeof value === 'object' ? (value as UnknownRecord) : {};
+import {
+  expandHotelRowsForClipboard,
+  getClipboardHotelDayLabel,
+} from './clipboardHotelRows.utils';
 
 export const buildClipboardHotelPackageSectionHtml = ({
   hotels,
@@ -27,19 +26,24 @@ export const buildClipboardHotelPackageSectionHtml = ({
     centerTitleStyle: string;
   };
 }): string => {
-  const rowsHtml = hotels.length > 0
-    ? hotels.map((hotelValue, index) => {
-      const hotel = asRecord(hotelValue);
+  const clipboardHotels = expandHotelRowsForClipboard(hotels);
+  const rowsHtml = clipboardHotels.length > 0
+    ? clipboardHotels.map((hotel, index) => {
+      const isDayZero =
+        hotel.__clipboardDayZero === true || hotel.previousDayBillingSynthetic === true;
+      const hotelName = isDayZero
+        ? `${String(hotel.hotelName || '--')} (Early check-in room block)`
+        : String(hotel.hotelName || '--');
       return `
                   <tr>
                     <td style="${styles.cellStyle}white-space:nowrap;">
-                      Day- ${index + 1} | ${escapeHtml(hotel.date || hotel.day)}
+                      ${escapeHtml(getClipboardHotelDayLabel(hotel, index + 1))}
                     </td>
                     <td style="${styles.cellStyle}">
                       ${escapeHtml(hotel.destination)}
                     </td>
                     <td style="${styles.cellStyle}">
-                      ${escapeHtml(hotel.hotelName)} - ${escapeHtml(hotel.category)}
+                      ${escapeHtml(hotelName)} - ${escapeHtml(hotel.category)}
                     </td>
                     <td style="${styles.cellStyle}">
                       ${escapeHtml(hotel.roomType)} - ${escapeHtml(roomCount)}
