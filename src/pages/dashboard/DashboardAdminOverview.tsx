@@ -4,7 +4,7 @@ import {
   UserSquare2,
   Car,
   Briefcase,
-  Wallet,
+  IndianRupee,
   Truck,
   Store,
   Hotel,
@@ -89,12 +89,12 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           Last Month Profit
         </p>
         <p className="mb-4 text-lg text-gray-400">October 2025</p>
-        <p className="text-3xl font-bold text-slate-700">
-              {"\u20B9"} {adminData.profit.lastMonth.toLocaleString("en-IN", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-        </p>
+       <p className="text-3xl font-bold text-slate-700">
+  INR {adminData.profit.lastMonth.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}
+</p>
       </div>
 
       <div>
@@ -104,12 +104,12 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
         <p className="mb-4 text-lg text-gray-400">November 2025</p>
 
         <div className="flex items-center gap-3">
-          <p className="text-3xl font-bold text-slate-700">
-              {"\u20B9"} {adminData.profit.currentMonth.toLocaleString("en-IN", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </p>
+        <p className="text-3xl font-bold text-slate-700">
+  INR {adminData.profit.currentMonth.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}
+</p>
 
           <span
             className={`rounded px-3 py-1 text-sm font-semibold ${
@@ -140,16 +140,25 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </div>
         </Card>
 
-        {/* Total Revenue */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-          <p className="text-2xl font-bold mb-1">{"\u20B9"} {adminData.stats.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              <p className="text-sm text-muted-foreground">Total Revenue</p>
-            </div>
-            <Wallet className="h-16 w-16 text-slate-700" aria-hidden="true" />
-          </div>
-        </Card>
+       {/* Total Revenue */}
+<Card className="p-6">
+  <div className="flex items-center justify-between gap-4">
+    <div className="min-w-0">
+      <p className="mb-1 whitespace-nowrap text-xl font-bold">
+        INR {adminData.stats.totalRevenue.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
+      </p>
+      <p className="text-sm text-muted-foreground">Total Revenue</p>
+    </div>
+
+   <IndianRupee
+  className="h-16 w-16 shrink-0 text-slate-700"
+  aria-hidden="true"
+/>
+  </div>
+</Card>
 
         {/* Overview Carousel */}
         <Card className="p-6 bg-gradient-to-br from-purple-500 to-pink-500 text-white border-none row-span-2 relative overflow-hidden">
