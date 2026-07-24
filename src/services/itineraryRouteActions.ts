@@ -240,8 +240,15 @@ export const itineraryRouteActions = {
     roomTypeId: number,
     mealPlan?: { all?: boolean; breakfast?: boolean; lunch?: boolean; dinner?: boolean },
     groupType?: number,
+    selection?: {
+      canonicalHotelId?: number | null;
+      rateOptionId?: string;
+      provider?: string;
+      roomId?: string | number;
+      roomCount?: number;
+    },
   ) {
-    return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType } });
+    return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });
   },
 
   async selectVehicleVendor(planId: number, vehicleTypeId: number, vendorEligibleId: number) {

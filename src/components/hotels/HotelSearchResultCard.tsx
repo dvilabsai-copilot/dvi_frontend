@@ -6,7 +6,7 @@ import { getHotelProviderDisplayName } from '@/utils/hotelProviderDisplay';
 
 interface HotelSearchResultCardProps {
   hotel: HotelSearchResult;
-  onSelect: (hotelCode: string, hotelName: string, bookingCode?: string) => void;
+  onSelect: (hotel: HotelSearchResult) => void;
   isLoading?: boolean;
   checkInDate: string;
   checkOutDate: string;
@@ -22,7 +22,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   showHotelMargins = false,
 }) => {
   const handleSelect = () => {
-    onSelect(hotel.hotelCode, hotel.hotelName, hotel.bookingCode);
+    onSelect(hotel);
   };
   const displayInclusions = (hotel.inclusions || []).slice(0, 3);
   const displayAmenities = (hotel.amenities || []).slice(0, 3);
@@ -48,12 +48,15 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
   const nights = Math.ceil(
     (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
   );
-  const startingFrom = Number(hotel.totalFare ?? hotel.price ?? 0);
+  const perNightPrice = Number(hotel.pricePerNight ?? hotel.totalFare ?? hotel.price ?? 0);
+  const totalStayPrice = Number(hotel.totalStayPrice ?? hotel.totalFare ?? hotel.price ?? 0);
+  const startingFrom = perNightPrice;
   const baseStartingFrom = getBaseAmount(hotel);
   const providerLabel = getHotelProviderDisplayName(
     hotel.provider,
     hotel.providerDisplayName,
   );
+  const isOfflineOption = String(hotel.provider || '').trim().toLowerCase() === 'offline';
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
@@ -74,7 +77,11 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
 
         {/* Provider Badge */}
         {hotel.provider && (
-          <div className="absolute top-2 left-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+          <div className={`absolute top-2 left-2 px-3 py-1 rounded-full text-xs font-bold shadow-lg text-white ${
+            isOfflineOption
+              ? 'bg-gradient-to-r from-slate-700 to-slate-500'
+              : 'bg-gradient-to-r from-purple-600 to-blue-600'
+          }`}>
             {providerLabel}
           </div>
         )}
@@ -143,13 +150,44 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
                   ({`₹ ${baseStartingFrom.toLocaleString("en-IN")}`})
                 </span>
               )}
-              <span className="text-xs font-semibold text-gray-500">/d</span>
+              <span className="text-xs font-semibold text-gray-500">/ night</span>
             </span>
           </div>
           <div className="mt-1 text-[11px] text-gray-500">
             {nights} night{nights !== 1 ? 's' : ''}
           </div>
+          {isOfflineOption && (
+            <>
+              <div className="mt-1 text-xs font-semibold text-slate-700">{hotel.priceLabel || 'Price subject to hotel approval'}</div>
+              <div className="mt-1 text-xs text-slate-600">INR {totalStayPrice.toLocaleString("en-IN")} total for {nights} night{nights !== 1 ? 's' : ''}</div>
+            </>
+          )}
         </div>
+
+        {hotel.rateOptions && hotel.rateOptions.length > 1 && (
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-semibold text-slate-700">Rate options</p>
+            <div className="space-y-1">
+              {hotel.rateOptions.map((option, index) => {
+                const optionProvider = String(option.provider || '').trim().toLowerCase();
+                const optionPrice = Number(option.pricePerNight || 0);
+                const optionRateId = String(option.rateOptionId || index);
+                const isSelected = optionRateId === String(hotel.rateOptionId || '');
+                return (
+                  <button
+                    key={optionRateId}
+                    type="button"
+                    className={`flex w-full items-center justify-between rounded border px-2 py-1 text-left text-xs ${isSelected ? 'border-cyan-500 bg-white' : 'border-transparent bg-white/70'}`}
+                    onClick={() => onSelect({ ...hotel, ...option, provider: optionProvider || hotel.provider, rateOptionId: optionRateId } as HotelSearchResult)}
+                  >
+                    <span>{getHotelProviderDisplayName(optionProvider, option.providerDisplayName)} / {String(option.roomType || 'Room')} / {String(option.mealPlan || 'EP')}</span>
+                    <span className="font-semibold">INR {optionPrice.toLocaleString('en-IN')} / night</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Room Types */}
         {hotel.roomTypes && hotel.roomTypes.length > 0 && (

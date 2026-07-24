@@ -11,6 +11,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
   const {
     styles,
     showRates,
+    showOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -431,20 +432,67 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
-                                const filtered = roomDetails.filter((h) =>
+                                const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
+
+                                const visibleRoomDetails = roomDetails.filter((h) => {
+                                  const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
+                                  const isSelectedOffline = selectedOptionKey !== '' && getHotelOptionKey(h) === selectedOptionKey;
+                                  return showOfflineHotels || !isOffline || isSelectedOffline;
+                                });
+
+                                const filtered = visibleRoomDetails.filter((h) =>
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
                                 );
 
-                                const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
-
                                 const sorted = [...filtered].sort((a, b) => {
+                                  const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
+                                  const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
+
+                                  // Keep live supplier options together and place manual-approval
+                                  // options after them, then sort both sections by total rate.
+                                  if (aIsOffline !== bIsOffline) return aIsOffline ? 1 : -1;
+
                                   const aSelected = selectedOptionKey !== '' && getHotelOptionKey(a) === selectedOptionKey;
                                   const bSelected = selectedOptionKey !== '' && getHotelOptionKey(b) === selectedOptionKey;
 
                                   if (aSelected && !bSelected) return -1;
                                   if (!aSelected && bSelected) return 1;
 
-                                  return Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
+                                  const amountDifference = getHotelDisplayAmount(a) - getHotelDisplayAmount(b);
+                                  if (amountDifference !== 0) return amountDifference;
+
+                                  return getHotelOptionKey(a).localeCompare(getHotelOptionKey(b));
+                                });
+
+                                // Hide offline duplicates when the same property has a live result.
+                                // Keep a selected offline option visible so an existing choice is never lost.
+                                const getHotelPropertyIdentityKey = (h: any) => {
+                                  const hotelName = String(h.hotelName || '')
+                                    .trim()
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9]+/g, '');
+                                  if (hotelName) return `name:${hotelName}`;
+
+                                  const canonicalId = String(
+                                    h.canonicalHotelId || h.hotelId || h.hotelCode || '',
+                                  ).trim().toLowerCase();
+                                  return canonicalId ? `id:${canonicalId}` : '';
+                                };
+
+                                const livePropertyKeys = new Set(
+                                  sorted
+                                    .filter((hotel) => String(hotel.provider || '').trim().toLowerCase() !== 'offline')
+                                    .map(getHotelPropertyIdentityKey)
+                                    .filter(Boolean),
+                                );
+
+                                const filteredDuplicateOfflineHotels = sorted.filter((hotel) => {
+                                  const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline';
+                                  if (!isOffline) return true;
+
+                                  const propertyKey = getHotelPropertyIdentityKey(hotel);
+                                  const isSelectedOffline = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                  return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
                                 });
 
                                 // Group by hotel identity so one card can expose multiple rate variants.
@@ -455,7 +503,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 };
 
                                 const hotelGroups = new Map<string, HotelRoomDetail[]>();
-                                sorted.forEach((h) => {
+                                filteredDuplicateOfflineHotels.forEach((h) => {
                                   const identKey = getHotelIdentityKey(h);
                                   if (!hotelGroups.has(identKey)) hotelGroups.set(identKey, []);
                                   hotelGroups.get(identKey)!.push(h);

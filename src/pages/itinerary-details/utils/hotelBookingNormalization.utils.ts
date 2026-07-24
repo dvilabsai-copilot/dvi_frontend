@@ -21,7 +21,7 @@ export const normalizeHotelProvider = (entry: unknown): string => String(asRecor
 
 export const getHotelCodeForBooking = (entry: unknown): string => {
   const row = asRecord(entry);
-  return String(row.hotelCode || row.hotelId || '').trim();
+  return String(row.hotelCode || row.canonicalHotelId || row.hotelId || '').trim();
 };
 
 export const getBookingCodeForBooking = (entry: unknown): string => {
@@ -60,6 +60,7 @@ export const isNoHotelAvailableEntry = (entry: unknown): boolean => {
   const availabilityStatus = String(row.availabilityStatus || '').trim().toUpperCase();
   return row.externalStay === true || row.isBookable === false ||
     availabilityStatus === 'NO_SUPPLIER_AVAILABILITY' || availabilityStatus === 'NOT_BOOKABLE' ||
+    availabilityStatus === 'NO_AVAILABILITY' ||
     provider === 'external' || provider === 'none' || provider === 'self-arranged' ||
     hotelName === 'no hotels available' || !hotelCode || hotelCode === '0';
 };

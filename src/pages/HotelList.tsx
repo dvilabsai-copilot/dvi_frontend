@@ -1,7 +1,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // FILE: src/pages/itineraries/HotelList.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,38 @@ const getExpandedRouteId = (): number => {
     return fairCandidates.length > 0 ? fairCandidates : selectableHotels;
   };
 
+  const validateAutoHotelSelection = useCallback(async (hotel: ItineraryHotelRow) => {
+    const providerValue = String(hotel.provider || "").trim().toLowerCase();
+    if (providerValue !== "staah" && providerValue !== "axisrooms") {
+      return { blocked: false };
+    }
+    const provider = providerValue as "staah" | "axisrooms";
+
+    const preview = await ItineraryService.previewHotelStayExtension(planId, {
+      routeId: toNumber(hotel.itineraryRouteId, 0),
+      provider,
+      hotelCode: String(hotel.hotelCode || hotel.hotelId || "").trim(),
+      hotelName: String(hotel.hotelName || "").trim() || undefined,
+      roomId: String((hotel as any).roomId || "").trim() || undefined,
+      rateId: String((hotel as any).rateId || "").trim() || undefined,
+      roomType: String(hotel.roomType || "").trim() || undefined,
+      mealPlan: String(hotel.mealPlan || "").trim() || undefined,
+      checkInDate: String(hotel.checkInDate || hotel.date || "").trim(),
+    });
+
+    return {
+      // Automatic choices are merged into continuous supplier stays later. A
+      // hotel is therefore eligible only when both the selected night and the
+      // full continuous stay can be booked.
+      blocked: Boolean(
+        preview.blocked ||
+        !preview.canBookSingleNight ||
+        (preview.nights > 1 && !preview.canBookMultiNight),
+      ),
+      message: preview.restrictionConflicts?.map((conflict) => conflict.message).join(" | "),
+    };
+  }, [planId]);
+
   const {
     selectedByGroup,
     setSelectedByGroup,
@@ -141,6 +173,7 @@ const getExpandedRouteId = (): number => {
     hotels,
     restrictedHotels,
     planId,
+    validateAutoHotelSelection,
     helpers: {
       getStayKey,
       getHotelOptionKey,
@@ -305,6 +338,9 @@ const getExpandedRouteId = (): number => {
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
   // Local "Display Rates" state driven by backend flag
   const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
+  // Offline options are already fetched with the other providers; this only
+  // controls whether their room cards are visible in the expanded stay.
+  const [showOfflineHotels, setShowOfflineHotels] = useState(false);
 
   // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
@@ -763,6 +799,7 @@ const getExpandedRouteId = (): number => {
   const tableContext = {
     styles,
     showRates,
+    showOfflineHotels,
     currentHotelRows,
     getStayKey,
     expandedRowKey,
@@ -872,6 +909,19 @@ const getExpandedRouteId = (): number => {
                   }
                 }}
                 className={styles["switch-input"]}
+              />
+              <span className={styles["switch-toggle-slider"]}>
+                <span className={styles["switch-on"]}></span>
+              </span>
+            </label>
+            <span className="text-xs font-medium text-[#5d5f65]">Show Offline Hotels</span>
+            <label className={styles["switch-label"]} title="Show or hide already fetched offline hotel options">
+              <input
+                type="checkbox"
+                checked={showOfflineHotels}
+                onChange={() => setShowOfflineHotels((visible) => !visible)}
+                className={styles["switch-input"]}
+                aria-label="Show Offline Hotels"
               />
               <span className={styles["switch-toggle-slider"]}>
                 <span className={styles["switch-on"]}></span>

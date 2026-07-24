@@ -1,8 +1,5 @@
 import React from "react";
-import {
-  getHotelProviderDisplayName,
-  replaceHotelProviderBrandForDisplay,
-} from "@/utils/hotelProviderDisplay";
+import { replaceHotelProviderBrandForDisplay } from "@/utils/hotelProviderDisplay";
 
 type HotelRecord = Record<string, unknown>;
 
@@ -65,10 +62,6 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
       const checkIn = textValue(hotel, "displayCheckInDate");
       const checkOut = textValue(hotel, "displayCheckOutDate");
       const nights = numberValue(hotel, "displayNights");
-      const provider = getHotelProviderDisplayName(
-        textValue(hotel, "provider"),
-        textValue(hotel, "providerDisplayName"),
-      ) || "Non-VSR";
       const roomType = textValue(hotel, "roomType");
       const displayRouteIds = Array.isArray(hotel.displayRouteIds) ? hotel.displayRouteIds : [];
 
@@ -81,7 +74,7 @@ export const QuotationNonTboSelectedHotels: React.FC<QuotationNonTboSelectedHote
                 <p className="text-xs text-[#6c6c6c]">
                   {checkIn && checkOut ? <>Stay: <span className="font-medium text-[#4a4260]">{checkIn} to {checkOut}</span>{nights ? ` · ${nights} night(s)` : ""}</> : null}
                 </p>
-                <p className="text-xs text-[#6c6c6c]">Provider: <span className="font-medium uppercase">{provider}</span>{roomType ? ` · ${roomType}` : ""}</p>
+                {roomType ? <p className="text-xs text-[#6c6c6c]">Room: <span className="font-medium text-[#4a4260]">{roomType}</span></p> : null}
                 {hotel.multiNightBooking === true && displayRouteIds.length > 1 && <p className="text-xs font-medium text-green-700">Continuous stay selected for {displayRouteIds.length} route(s)</p>}
                 <p className="text-xs text-[#6c6c6c]">Tap to view details</p>
               </div>

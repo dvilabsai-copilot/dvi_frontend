@@ -547,13 +547,6 @@ export function useHotelListActions(context: HotelListActionsContext) {
       previousSelection: confirmedSelection ? ({ ...confirmedSelection } as Record<string, unknown>) : null,
     };
 
-    // Room/meal changes on an already selected hotel are pending-only. Do not
-    // run any supplier preview until the user confirms the update dialog.
-    if (isRateUpdate) {
-      openConfirmDialogForAction(pendingActionBase);
-      return;
-    }
-
     const provider = String((normalizedRoom as any).provider || "").trim().toLowerCase();
     if (provider === "staah" || provider === "axisrooms") {
       try {
@@ -588,9 +581,15 @@ export function useHotelListActions(context: HotelListActionsContext) {
           return;
         }
       } catch (previewError) {
-        console.warn("[HotelList] stay-extension-preview failed, falling back to single-day selection", previewError);
-        toast.warning("Could not verify continuous stay. Continuing with single-day booking.");
+        console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
+        toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
+        return;
       }
+    }
+
+    if (isRateUpdate) {
+      openConfirmDialogForAction(pendingActionBase);
+      return;
     }
 
     openConfirmDialogForAction(pendingActionBase);

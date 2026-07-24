@@ -232,6 +232,7 @@ export type ItineraryHotelRow = {
   sortOrder?: number;
   destination: string;
   hotelId: number;
+  canonicalHotelId?: number | null;
   hotelName: string;
   hotelCode?: string;
   category: number | string;
@@ -281,9 +282,27 @@ export type ItineraryHotelRow = {
   hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
   cancellationPolicy?: string[];
+  providerDisplayName?: string;
+  bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
+  priceSource?: 'LIVE_API' | 'DATABASE' | 'LEGACY_UNKNOWN';
+  priceLabel?: string;
+  pricePerNight?: number;
+  totalStayPrice?: number;
+  numberOfNights?: number;
+  nightlyRates?: Array<{
+    date: string;
+    baseAmount: number;
+    sellAmount: number;
+  }>;
+  requiresHotelApproval?: boolean;
+  isLiveRate?: boolean;
+  isLiveBookable?: boolean;
+  isSelectable?: boolean;
+  approvalStatus?: 'NOT_REQUESTED' | 'NOT_REQUIRED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  manualConfirmationStatus?: 'NOT_STARTED' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
   isBookable?: boolean;
   externalStay?: boolean;
-  availabilityStatus?: 'AVAILABLE' | 'NO_SUPPLIER_AVAILABILITY' | 'NOT_BOOKABLE';
+  availabilityStatus?: 'AVAILABLE' | 'LIVE_AVAILABLE' | 'OFFLINE_APPROVAL_REQUIRED' | 'NO_SUPPLIER_AVAILABILITY' | 'NO_AVAILABILITY' | 'NOT_BOOKABLE';
   availabilityMessage?: string | null;
   availableAgainFrom?: string | null;
   displayRoomType?: string;

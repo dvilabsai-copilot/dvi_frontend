@@ -80,3 +80,17 @@ export const isSupplierBookableHotel = (entry: any): boolean => {
   if (!Number.isFinite(amount) || amount <= 0) return false;
   return provider !== 'tbo' || bookingCode.includes('!TB!');
 };
+
+/** Offline catalog rates are selectable, but require hotel-side confirmation. */
+export const isManualApprovalHotel = (entry: any): boolean => {
+  if (!entry) return false;
+
+  const provider = String(entry?.provider || '').trim().toLowerCase();
+  const bookingMode = String(entry?.bookingMode || '').trim().toUpperCase();
+  const availabilityStatus = String(entry?.availabilityStatus || '').trim().toUpperCase();
+
+  return provider === 'offline' ||
+    entry?.requiresHotelApproval === true ||
+    bookingMode === 'MANUAL_APPROVAL' ||
+    availabilityStatus === 'OFFLINE_APPROVAL_REQUIRED';
+};
