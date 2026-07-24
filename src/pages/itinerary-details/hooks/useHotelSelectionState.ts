@@ -38,7 +38,7 @@ export function useHotelSelectionState() {
         mealPlan?: string;
       }
     }>({});
-  
+
     const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
     const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
     const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);

@@ -57,7 +57,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
     if (isOpen && itineraryPlanId) {
       void fetchInitialData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, itineraryPlanId]);
 
   const fetchInitialData = async () => {
@@ -66,7 +66,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
       const components = await ItineraryService.getIncidentalAvailableComponents(itineraryPlanId);
       setAvailableData(components);
     } catch (error) {
-      console.error("Error fetching incidental data:", error);
+ console.error("Error fetching incidental data:", error);
       toast.error("Failed to load incidental expenses data");
     } finally {
       setLoading(false);
@@ -151,7 +151,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
           setAvailableMargin(res);
         }
       } catch (error: any) {
-        console.error("Error fetching margin:", error);
+ console.error("Error fetching margin:", error);
         setAvailableMargin(null);
         toast.error(error?.message || "Failed to fetch available balance");
       }
@@ -194,7 +194,7 @@ export const IncidentalExpensesModal: React.FC<IncidentalExpensesModalProps> = (
       resetForm();
       onSuccess?.();
     } catch (error: any) {
-      console.error("Error adding incidental expense:", error);
+ console.error("Error adding incidental expense:", error);
       toast.error(error?.message || "Failed to add incidental expense");
     } finally {
       setSubmitting(false);

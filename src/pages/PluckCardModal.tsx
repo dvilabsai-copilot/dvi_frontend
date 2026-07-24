@@ -49,7 +49,7 @@ export const PluckCardModal: React.FC<PluckCardModalProps> = ({
       const res = await ItineraryService.getPluckCardData(itineraryPlanId);
       setData(res);
     } catch (error) {
-      console.error("Error fetching pluck card data:", error);
+ console.error("Error fetching pluck card data:", error);
       setData(null);
     } finally {
       setLoading(false);
@@ -63,7 +63,7 @@ export const PluckCardModal: React.FC<PluckCardModalProps> = ({
   const companyLogoUrl = useMemo(() => {
     const raw = String(data?.companyLogoUrl || '').trim();
     if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
+ if (/^https?:\/\//i.test(raw)) return raw;
     const base = API_BASE_URL.replace(/\/api\/v1$/i, '');
     return `${base}${raw.startsWith('/') ? raw : `/${raw}`}`;
   }, [data]);

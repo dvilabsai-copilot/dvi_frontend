@@ -96,18 +96,18 @@ export default function ActivityListPage() {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [busyIds, setBusyIds] = useState<Set<number>>(new Set()); // while toggling status
-  const [deletingId, setDeletingId] = useState<number | null>(null); // while deleting
+ const [busyIds, setBusyIds] = useState<Set<number>>(new Set()); // while toggling status
+ const [deletingId, setDeletingId] = useState<number | null>(null); // while deleting
 
-  /* ---------- define `load` BEFORE any effect that uses it ---------- */
+ /* ---------- define `load` BEFORE any effect that uses it ---------- */
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      console.log("[ActivityListPage] loading activities...");
+ console.log("[ActivityListPage] loading activities...");
       const res = await ActivitiesAPI.list(undefined, undefined);
-      console.log("[ActivityListPage] received response:", res);
+ console.log("[ActivityListPage] received response:", res);
 
-      // Safely extract array regardless of shape
+ // Safely extract array regardless of shape
       let arr: ActivityListRow[] = [];
       if (Array.isArray(res)) {
         arr = res;
@@ -115,23 +115,23 @@ export default function ActivityListPage() {
         arr = (res as any).data;
       }
 
-      console.log("[ActivityListPage] final rows array:", arr);
+ console.log("[ActivityListPage] final rows array:", arr);
       setRows(arr);
       setFiltered(arr);
     } catch (err) {
-      console.error("[ActivityListPage] load error:", err);
+ console.error("[ActivityListPage] load error:", err);
       toast.error("Failed to load activities");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /* ---------- initial fetch ---------- */
+ /* ---------- initial fetch ---------- */
   useEffect(() => {
     void load();
   }, [load]);
 
-  /* ---------- client-side search ---------- */
+ /* ---------- client-side search ---------- */
   useEffect(() => {
     const q = search.toLowerCase().trim();
     setFiltered(
@@ -145,12 +145,12 @@ export default function ActivityListPage() {
     setCurrentPage(1);
   }, [search, rows]);
 
-  /* ---------- status toggle (optimistic) ---------- */
+ /* ---------- status toggle (optimistic) ---------- */
   async function toggleStatus(row: ActivityListRow, nextOn: boolean) {
     const id = row.activity_id;
     const nextVal: 0 | 1 = nextOn ? 1 : 0;
 
-    // optimistic UI
+ // optimistic UI
     setRows((prev) => prev.map((r) => (r.activity_id === id ? { ...r, status: nextVal } : r)));
     setFiltered((prev) => prev.map((r) => (r.activity_id === id ? { ...r, status: nextVal } : r)));
     setBusyIds((s) => new Set(s).add(id));
@@ -159,7 +159,7 @@ export default function ActivityListPage() {
       await ActivitiesAPI.toggleStatus(id, nextVal);
       toast.success(`Status ${nextOn ? "enabled" : "disabled"}`);
     } catch {
-      // rollback
+ // rollback
       setRows((prev) => prev.map((r) => (r.activity_id === id ? { ...r, status: nextOn ? 0 : 1 } : r)));
       setFiltered((prev) => prev.map((r) => (r.activity_id === id ? { ...r, status: nextOn ? 0 : 1 } : r)));
       toast.error("Failed to update status");
@@ -172,35 +172,35 @@ export default function ActivityListPage() {
     }
   }
 
-  /* ---------- delete (optimistic remove + rollback) ---------- */
+ /* ---------- delete (optimistic remove + rollback) ---------- */
   const handleDelete = useCallback(
     async (id: number) => {
-      if (deletingId) return; // prevent double clicks
+ if (deletingId) return; // prevent double clicks
       const ok = window.confirm("Delete this activity? This action cannot be undone.");
       if (!ok) return;
 
       setDeletingId(id);
 
-      // keep snapshot for rollback
+ // keep snapshot for rollback
       const prevRows = rows;
       const prevFiltered = filtered;
 
-      // optimistic remove
+ // optimistic remove
       setRows((r) => r.filter((x) => x.activity_id !== id));
       setFiltered((r) => r.filter((x) => x.activity_id !== id));
 
       try {
-        console.log("[ActivityListPage] deleting activity:", id);
+ console.log("[ActivityListPage] deleting activity:", id);
         await ActivitiesAPI.delete(id);
-        console.log("[ActivityListPage] delete success:", id);
+ console.log("[ActivityListPage] delete success:", id);
         toast.success("Activity deleted");
-        // fix current page if it became empty
+ // fix current page if it became empty
         const totalAfter = prevFiltered.filter((x) => x.activity_id !== id).length;
         const lastPage = Math.max(1, Math.ceil(totalAfter / pageSize));
         if (currentPage > lastPage) setCurrentPage(lastPage);
       } catch (e) {
-        console.error("[ActivityListPage] delete error:", e);
-        // rollback
+ console.error("[ActivityListPage] delete error:", e);
+ // rollback
         setRows(prevRows);
         setFiltered(prevFiltered);
         toast.error("Failed to delete activity");
@@ -211,7 +211,7 @@ export default function ActivityListPage() {
     [rows, filtered, pageSize, currentPage, deletingId],
   );
 
-  /* ---------- paging & export ---------- */
+ /* ---------- paging & export ---------- */
   const paginated = useMemo(
     () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     [filtered, currentPage, pageSize],
@@ -241,7 +241,7 @@ export default function ActivityListPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of Activity</h1>
 
@@ -259,7 +259,7 @@ export default function ActivityListPage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -332,7 +332,7 @@ export default function ActivityListPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -412,7 +412,7 @@ export default function ActivityListPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             {filtered.length > 0 ? (

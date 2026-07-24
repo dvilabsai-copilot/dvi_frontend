@@ -132,7 +132,7 @@ export default function GuideFormPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [topSuccessMessage, setTopSuccessMessage] = useState("");
 
-  // Basic Info state
+ // Basic Info state
   const [name, setName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
@@ -142,15 +142,15 @@ export default function GuideFormPage() {
   const [email, setEmail] = useState("");
   const [emergencyMobile, setEmergencyMobile] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState(""); // value = role_id (string) from dvi_rolemenu
+ const [role, setRole] = useState(""); // value = role_id (string) from dvi_rolemenu
   const [experience, setExperience] = useState<number>(0);
   const [aadharCardNo, setAadharCardNo] = useState("");
-  const [languageProficiency, setLanguageProficiency] = useState(""); // value = language_id (string)
-  const [country, setCountry] = useState(""); // value = country_id (string)
-  const [state, setState] = useState(""); // value = state_id (string)
-  const [city, setCity] = useState(""); // value = city_id (string)
-  const [gstType, setGstType] = useState(""); // "1" | "2"
-  const [gstPercentage, setGstPercentage] = useState(""); // value = gst_title (string)
+ const [languageProficiency, setLanguageProficiency] = useState(""); // value = language_id (string)
+ const [country, setCountry] = useState(""); // value = country_id (string)
+ const [state, setState] = useState(""); // value = state_id (string)
+ const [city, setCity] = useState(""); // value = city_id (string)
+ const [gstType, setGstType] = useState(""); // "1" | "2"
+ const [gstPercentage, setGstPercentage] = useState(""); // value = gst_title (string)
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [bankDetails, setBankDetails] = useState<GuideBankDetails>(defaultBankDetails);
   const [preferredFor, setPreferredFor] = useState<GuidePreferredFor>(defaultPreferredFor);
@@ -161,20 +161,20 @@ export default function GuideFormPage() {
   const [activeHotspotToken, setActiveHotspotToken] = useState<string | null>(null);
   const [activeActivityToken, setActiveActivityToken] = useState<string | null>(null);
 
-  // Pricebook state
+ // Pricebook state
   const [pricebook, setPricebook] = useState<GuidePricebook>(makeDefaultPricebook);
 
-  // Pricebook price inputs â€” always empty (no pre-fill from DB, matching PHP)
+ // Pricebook price inputs always empty (no pre-fill from DB, matching PHP)
   const [priceInputs, setPriceInputs] = useState({
     pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
     pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
     pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
   });
 
-  // Pricebook display rows (fetched from backend for the per-day table)
+ // Pricebook display rows (fetched from backend for the per-day table)
   const [pricebookDisplayRows, setPricebookDisplayRows] = useState<any[]>([]);
 
-  // Reviews state
+ // Reviews state
   const [reviews, setReviews] = useState<GuideReview[]>([]);
   const [newRating, setNewRating] = useState<number>(0);
   const [newFeedback, setNewFeedback] = useState("");
@@ -182,10 +182,10 @@ export default function GuideFormPage() {
 const [searchReview, setSearchReview] = useState("");
   const [emailDuplicateError, setEmailDuplicateError] = useState(false);
 
-  // Field-level validation errors
+ // Field-level validation errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
-  // Refs for focusing errored fields
+ // Refs for focusing errored fields
   const nameRef = useRef<HTMLInputElement>(null);
   const primaryMobileRef = useRef<HTMLInputElement>(null);
   const alternativeMobileRef = useRef<HTMLInputElement>(null);
@@ -194,9 +194,9 @@ const [searchReview, setSearchReview] = useState("");
   const passwordRef = useRef<HTMLInputElement>(null);
   const aadharRef = useRef<HTMLInputElement>(null);
 
-  /* ------------------------------------------------------------------
+ /* ------------------------------------------------------------------
      Dynamic dropdown option state
-  -------------------------------------------------------------------*/
+ -------------------------------------------------------------------*/
   const [roleOptions, setRoleOptions] = useState<Opt[]>([]);
   const [languageOptions, setLanguageOptions] = useState<Opt[]>([]);
   const [countryOptions, setCountryOptions] = useState<CountryOpt[]>([]);
@@ -241,7 +241,7 @@ const [searchReview, setSearchReview] = useState("");
     setActiveActivityToken((prev) => (prev === id ? null : prev));
   };
 
-  // Fetch pricebook display rows whenever guide id + dates are set
+ // Fetch pricebook display rows whenever guide id + dates are set
   const fetchPricebookDisplay = useCallback(async () => {
     if (!id || !pricebook.startDate || !pricebook.endDate) {
       setPricebookDisplayRows([]);
@@ -251,7 +251,7 @@ const [searchReview, setSearchReview] = useState("");
       const rows = await GuideAPI.getPricebook(Number(id), pricebook.startDate, pricebook.endDate);
       setPricebookDisplayRows(rows);
     } catch {
-      // silently ignore â€” display table stays empty
+ // silently ignore display table stays empty
     }
   }, [id, pricebook.startDate, pricebook.endDate]);
 
@@ -281,13 +281,13 @@ const [searchReview, setSearchReview] = useState("");
     }
   };
 
-  /* ------------------------------------------------------------------
+ /* ------------------------------------------------------------------
      Bootstrap dropdowns on page load
-  -------------------------------------------------------------------*/
+ -------------------------------------------------------------------*/
   useEffect(() => {
     (async () => {
       try {
-        // roles: dvi_rolemenu.role_name
+ // roles: dvi_rolemenu.role_name
         const roles = await api("/guides/dropdowns/roles", { method: "GET" }).catch(() => []);
         setRoleOptions(
           (Array.isArray(roles) ? roles : [])
@@ -299,7 +299,7 @@ const [searchReview, setSearchReview] = useState("");
             .filter((o: Opt) => o.id !== "" && o.name !== "")
         );
 
-        // languages: dvi_language.language
+ // languages: dvi_language.language
         const languages = await api("/guides/dropdowns/languages", { method: "GET" }).catch(() => []);
         setLanguageOptions(
           (Array.isArray(languages) ? languages : [])
@@ -311,7 +311,7 @@ const [searchReview, setSearchReview] = useState("");
             .filter((o: Opt) => o.id !== "" && o.name !== "")
         );
 
-        // countries
+ // countries
         const countries = await api("/guides/dropdowns/countries", { method: "GET" }).catch(() => []);
         setCountryOptions(
           (Array.isArray(countries) ? countries : [])
@@ -324,14 +324,14 @@ const [searchReview, setSearchReview] = useState("");
             .filter((o: CountryOpt) => !!o.id && o.name !== "")
         );
 
-        // GST %: dvi_gst_setting.gst_title
+ // GST %: dvi_gst_setting.gst_title
         const gst = await api("/guides/dropdowns/gst-percentages", { method: "GET" }).catch(() => []);
         setGstPercentOptions(
           (Array.isArray(gst) ? gst : [])
             .map((g: any) => {
-              // Keep value as gst_title (string) for payload, but ensure it's not empty
+ // Keep value as gst_title (string) for payload, but ensure it's not empty
               const title = String(g?.gst_title ?? g?.title ?? g?.name ?? "").trim();
-              const id = title; // use title as value consistently
+ const id = title; // use title as value consistently
               return { id, name: title };
             })
             .filter((o: Opt) => o.id !== "" && o.name !== "")
@@ -359,12 +359,12 @@ const [searchReview, setSearchReview] = useState("");
             .filter((o: Opt) => o.id !== "" && o.name !== "")
         );
       } catch {
-        // never block the page for options; user can still type/save
+ // never block the page for options; user can still type/save
       }
     })();
   }, []);
 
-  // Default country for new guide = India
+ // Default country for new guide = India
   useEffect(() => {
     if (isEdit || country || countryOptions.length === 0) return;
     const india =
@@ -373,9 +373,9 @@ const [searchReview, setSearchReview] = useState("");
     if (india) setCountry(String(india.id));
   }, [isEdit, country, countryOptions]);
 
-  /* ------------------------------------------------------------------
-     When country changes â†’ fetch states
-  -------------------------------------------------------------------*/
+ /* ------------------------------------------------------------------
+     When country changes -> fetch states
+ -------------------------------------------------------------------*/
   useEffect(() => {
     if (!country) {
       setStateOptions([]);
@@ -424,9 +424,9 @@ const [searchReview, setSearchReview] = useState("");
     })();
   }, [country]);
 
-  /* ------------------------------------------------------------------
-     When state changes â†’ fetch cities
-  -------------------------------------------------------------------*/
+ /* ------------------------------------------------------------------
+     When state changes -> fetch cities
+ -------------------------------------------------------------------*/
   useEffect(() => {
     if (!state) {
       setCityOptions([]);
@@ -469,9 +469,9 @@ const [searchReview, setSearchReview] = useState("");
     })();
   }, [state]);
 
-  /* ------------------------------------------------------------------
+ /* ------------------------------------------------------------------
      Load guide for edit
-  -------------------------------------------------------------------*/
+ -------------------------------------------------------------------*/
   useEffect(() => {
     if (isEdit && id) {
       (async () => {
@@ -503,7 +503,7 @@ const [searchReview, setSearchReview] = useState("");
             originalEmailRef.current = guide.email || "";
             setEmergencyMobile(guide.emergencyMobile);
             setPassword(guide.password);
-            setRole(String(guide.role ?? "")); // keep as string id
+ setRole(String(guide.role "")); // keep as string id
             setExperience(guide.experience);
             setAadharCardNo(guide.aadharCardNo);
             setLanguageProficiency(String(guide.languageProficiency ?? ""));
@@ -512,7 +512,7 @@ const [searchReview, setSearchReview] = useState("");
             setCountry(String(guide.country ?? ""));
             setState("");
             setCity("");
-            setGstType(String(guide.gstType ?? "")); // "1"/"2"
+ setGstType(String(guide.gstType "")); // "1"/"2"
             setGstPercentage(String(guide.gstPercentage ?? ""));
             setAvailableSlots(guide.availableSlots || []);
             setBankDetails(guide.bankDetails || defaultBankDetails);
@@ -531,7 +531,7 @@ const [searchReview, setSearchReview] = useState("");
     }
   }, [id, isEdit]);
 
-  // Normalize GST selection value to the dropdown option text (e.g., "5%") when API returns a raw number.
+ // Normalize GST selection value to the dropdown option text (e.g., "5%") when API returns a raw number.
   useEffect(() => {
     if (!gstPercentage || gstPercentOptions.length === 0) return;
 
@@ -568,7 +568,7 @@ const [searchReview, setSearchReview] = useState("");
         setFieldErrors((prev) => { const next = { ...prev }; delete next.email; return next; });
       }
     } catch {
-      // ignore network errors during blur check
+ // ignore network errors during blur check
     }
   };
 
@@ -582,7 +582,7 @@ const [searchReview, setSearchReview] = useState("");
     setFieldErrors((prev) => { const next = { ...prev }; delete next[field]; return next; });
 
   const handleSaveBasicInfo = async () => {
-    // Run all validations, collect first error to focus
+ // Run all validations, collect first error to focus
     const errors: Record<string, string> = {};
     let firstRef: React.RefObject<HTMLInputElement | null> | null = null;
 
@@ -673,15 +673,15 @@ const [searchReview, setSearchReview] = useState("");
         email,
         emergencyMobile,
         password,
-        role, // role_id string
+ role, // role_id string
         experience,
         aadharCardNo,
-        languageProficiency, // language_id string
-        country, // country_id string
-        state, // state_id string
-        city, // city_id string
-        gstType, // "1" | "2" as required
-        gstPercentage, // gst_title string
+ languageProficiency, // language_id string
+ country, // country_id string
+ state, // state_id string
+ city, // city_id string
+ gstType, // "1" | "2" as required
+ gstPercentage, // gst_title string
         availableSlots,
         bankDetails,
         preferredFor,
@@ -728,13 +728,13 @@ const [searchReview, setSearchReview] = useState("");
         endDate: pricebook.endDate,
         priceInputs,
       });
-      // Clear inputs (PHP behavior: clears all .amount fields after submit)
+ // Clear inputs (PHP behavior: clears all .amount fields after submit)
       setPriceInputs({
         pax1_slot1: "", pax1_slot2: "", pax1_slot3: "", pax1_slot4: "",
         pax2_slot1: "", pax2_slot2: "", pax2_slot3: "", pax2_slot4: "",
         pax3_slot1: "", pax3_slot2: "", pax3_slot3: "", pax3_slot4: "",
       });
-      // Refresh the per-day display table
+ // Refresh the per-day display table
       await fetchPricebookDisplay();
       toast.success("Guide Price Book Details Updated Successfully");
     } catch {
@@ -886,7 +886,7 @@ const handleDownloadExcel = () => {
     ));
   };
 
-  // derive labels for preview
+ // derive labels for preview
   const gstTypeLabel = useMemo(
     () => GST_TYPE_OPTIONS.find((g) => String(g.id) === String(gstType))?.name ?? "",
     [gstType]

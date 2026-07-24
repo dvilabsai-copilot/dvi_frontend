@@ -96,7 +96,7 @@ export const normalizeTextList = (value: unknown): string[] => {
       try {
         return normalizeTextList(JSON.parse(text));
       } catch {
-        // Fall through to plain text parsing.
+ // Fall through to plain text parsing.
       }
     }
     return text.split(/\r?\n|\||;/).map(stripHtml).map((part) => part.trim()).filter(Boolean);

@@ -49,10 +49,10 @@ export function InbuiltAmenitiesModal(props: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* overlay */}
+ {/* overlay */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
 
-      {/* modal */}
+ {/* modal */}
       <div className="relative w-[720px] max-w-[92vw] rounded-lg bg-white shadow-2xl">
         <div className="px-10 py-10">
           <h2 className="text-center text-3xl font-semibold text-slate-600">

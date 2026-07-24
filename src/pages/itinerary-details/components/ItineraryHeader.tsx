@@ -101,7 +101,7 @@ shouldShowRebuildHotelsButton,
 >
   Transportation
 </button>
-                    <span className="text-[#6c6c6c]">Only</span>                   
+                    <span className="text-[#6c6c6c]">Only</span>
                   </>
                 )}
                 {itineraryPreference === 1 && (
@@ -217,7 +217,7 @@ shouldShowRebuildHotelsButton,
               </div>
             </div>
 
-            {/* Responsive two-row trip summary */}
+ {/* Responsive two-row trip summary */}
             <div
               className="-mx-6 -mt-2 rounded-lg bg-[#fff0fc]"
               aria-label="Trip summary"

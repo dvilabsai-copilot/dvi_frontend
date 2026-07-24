@@ -58,7 +58,7 @@ export const paymentService = {
     return api('/payments/razorpay/agent-registration/confirm', { method: 'POST', body: data });
   },
 
-  // Legacy compatibility wrappers
+ // Legacy compatibility wrappers
   createOrder: async (amount: number): Promise<CreateOrderResponse> => {
     return paymentService.createWalletTopupOrder(amount);
   },

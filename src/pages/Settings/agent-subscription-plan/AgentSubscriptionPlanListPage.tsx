@@ -98,7 +98,7 @@ function toCSV(rows: AgentSubscriptionPlanListItem[]) {
       [
         idx + 1,
         `"${String(r.planTitle ?? "").replace(/"/g, '""')}"`,
-        "", // type not in list payload
+ "", // type not in list payload
         r.itineraryCount,
         r.cost,
         r.joiningBonus,
@@ -224,7 +224,7 @@ export default function AgentSubscriptionPlanListPage() {
 
   function onExcel() {
     if (!canExport) return;
-    // Simple CSV download that opens in Excel
+ // Simple CSV download that opens in Excel
     downloadText("agent-subscription-plans.xls", toCSV(filtered));
   }
 
@@ -253,7 +253,7 @@ export default function AgentSubscriptionPlanListPage() {
             List of Agent Subscription Plan
           </h2>
 
-          {/* Match Add Language button style */}
+ {/* Match Add Language button style */}
           <button
             type="button"
             className="inline-flex items-center rounded-md px-4 py-2 text-sm font-semibold
@@ -266,7 +266,7 @@ export default function AgentSubscriptionPlanListPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
-          {/* Show entries (match Language.tsx using Select) */}
+ {/* Show entries (match Language.tsx using Select) */}
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span>Show</span>
             <Select
@@ -286,7 +286,7 @@ export default function AgentSubscriptionPlanListPage() {
             <span>entries</span>
           </div>
 
-          {/* Toolbar buttons styled like Language.tsx */}
+ {/* Toolbar buttons styled like Language.tsx */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600">Search:</span>

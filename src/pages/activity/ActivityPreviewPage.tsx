@@ -6,7 +6,7 @@ import type { PreviewPayload } from "@/services/activities"; // <-- if you need 
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import BasicPreview from "./PreviewPieces"; // default export only — no named PreviewPayload
+import BasicPreview from "./PreviewPieces"; // default export only no named PreviewPayload
 
 export default function ActivityPreviewPage() {
   const { id } = useParams();
@@ -31,7 +31,7 @@ export default function ActivityPreviewPage() {
       <h1 className="text-xl font-semibold text-[#6b7280] mb-4">Activity Preview</h1>
       <Card>
         <CardContent className="p-6">
-          {/* Pass the payload exactly as the component expects */}
+ {/* Pass the payload exactly as the component expects */}
           <BasicPreview data={data} />
           <div className="mt-6 flex justify-end">
             <Button variant="outline" onClick={() => navigate("/activities")}>

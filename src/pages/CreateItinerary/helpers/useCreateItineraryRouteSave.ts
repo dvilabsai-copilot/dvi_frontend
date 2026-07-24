@@ -31,14 +31,14 @@ const isSavingRef = useRef(false);
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
-  if (isSavingRef.current) return; // sync guard ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â prevents double-fire before setState re-render
+ if (isSavingRef.current) return; // sync guard - prevents double-fire before setState re-render
   isSavingRef.current = true;
   try {
     setIsSaving(true);
     setSaveErrorMessage(null);
     setActiveSaveType(type);
 
-  // Always rebuild from the latest form state.
+ // Always rebuild from the latest form state.
 // Do not save using an older cached pendingPayload.
 const basePayload = buildPayload();
 const decision = arrivalPolicyDecisionRef.current;
@@ -57,7 +57,7 @@ const finalPayload = {
 
     const isUpdate = !!itineraryPlanId;
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Single POST endpoint for both create & update
+ // Single POST endpoint for both create & update
     const isDefaultItinerary = isDefaultItineraryTypeSelected();
 
 const shouldCreateAllRouteOptions =
@@ -71,8 +71,8 @@ let sharedRouteFamilyBaseQuoteId = "";
 
 if (shouldCreateAllRouteOptions) {
   const createSuggestedRouteOption = async (route: any, index: number) => {
-    // Route 1 (index 0): use the user-edited finalPayload directly.
-    // Route 2+ (index > 0): build payload from the raw suggested route data.
+ // Route 1 (index 0): use the user-edited finalPayload directly.
+ // Route 2+ (index > 0): build payload from the raw suggested route data.
     const baseRoutePayload =
       index === 0
         ? finalPayload
@@ -100,7 +100,7 @@ if (shouldCreateAllRouteOptions) {
     }
 
     if (!createdQuoteId) {
-      console.warn("ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â Suggested route created but quote ID was not found", {
+ console.warn(" Suggested route created but quote ID was not found", {
         index,
         routeRes,
       });
@@ -118,12 +118,12 @@ if (shouldCreateAllRouteOptions) {
   };
 
 // Save sibling routes one-by-one with a small delay between each call.
-  // Do NOT use Promise.all: backend quote ID generation is not concurrency-safe.
-  // The delay prevents rapid sequential POSTs from causing 500 errors on the backend.
+ // Do NOT use Promise.all: backend quote ID generation is not concurrency-safe.
+ // The delay prevents rapid sequential POSTs from causing 500 errors on the backend.
   const DELAY_BETWEEN_ROUTE_SAVES_MS = 300;
 
   for (let index = 0; index < suggestedDefaultRoutes.length; index++) {
-    // Small pause between saves (skip delay for the first one)
+ // Small pause between saves (skip delay for the first one)
     if (index > 0) {
       await new Promise((resolve) => setTimeout(resolve, DELAY_BETWEEN_ROUTE_SAVES_MS));
     }
@@ -156,7 +156,7 @@ if (shouldCreateAllRouteOptions) {
 }
 setSaveProgressPercent(100);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ planId for internal editing, quoteId for redirect to details
+ // planId for internal editing, quoteId for redirect to details
     const rawPlanId =
       res?.planId != null
         ? res.planId
@@ -184,18 +184,18 @@ if (isUpdate) {
 setSaveErrorMessage(null);
 setShowRouteConfirm(false);
 
-    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: redirect to itinerary-details using quoteId
+ // NEW: redirect to itinerary-details using quoteId
     if (quoteId) {
       navigate(`/itinerary-details/${quoteId}`, { replace: true });
       return;
     }
 
-    // ÃƒÂ¢Ã‚Â¬Ã¢â‚¬Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Fallback: if quoteId is missing, keep old behavior (stay on edit page)
+ // Fallback: if quoteId is missing, keep old behavior (stay on edit page)
     if (nextId) {
       navigate(`/create-itinerary?id=${nextId}`, { replace: true });
     }
   } catch (err) {
-    console.error("Failed to save itinerary", err);
+ console.error("Failed to save itinerary", err);
     const errorMessage =
       err instanceof Error && err.message.trim()
         ? err.message

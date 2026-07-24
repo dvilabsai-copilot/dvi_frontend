@@ -82,7 +82,7 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Row 1: Source Location, City, State (3 columns) */}
+ {/* Row 1: Source Location, City, State (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
                        <div className="space-y-2">
               <label className="text-sm font-medium">Source Location *</label>
@@ -113,7 +113,7 @@ export function AddLocationDialog({ open, onClose, onSubmit }: AddLocationDialog
             </div>
           </div>
 
-          {/* Row 2: Latitude, Longitude (2 columns) */}
+ {/* Row 2: Latitude, Longitude (2 columns) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Latitude *</label>

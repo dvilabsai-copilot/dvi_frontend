@@ -283,7 +283,7 @@ export default function BetweenHotspotsPage() {
         });
       } catch (loadError) {
         if (cancelled) return;
-        console.error("Failed to load between hotspots filter options:", loadError);
+ console.error("Failed to load between hotspots filter options:", loadError);
         setLocationOptions([]);
         setSourceHotspotOptions([]);
         setDestinationHotspotOptions([]);
@@ -340,7 +340,7 @@ export default function BetweenHotspotsPage() {
         });
       } catch (loadError) {
         if (cancelled) return;
-        console.error("Failed to load hotspot route options:", loadError);
+ console.error("Failed to load hotspot route options:", loadError);
         setSourceHotspotOptions([]);
         setDestinationHotspotOptions([]);
       } finally {
@@ -385,7 +385,7 @@ export default function BetweenHotspotsPage() {
       setLocationContext(response.locationContext || null);
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "Failed to load between hotspots data";
-      console.error(loadError);
+ console.error(loadError);
       setRows([]);
       setTotal(0);
       setSourceHotspot(null);
@@ -421,7 +421,7 @@ export default function BetweenHotspotsPage() {
   useEffect(() => {
     if (!appliedFilters) return;
     void fetchData(appliedFilters, page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedFilters, page]);
 
   const handleReset = () => {

@@ -59,11 +59,11 @@ export default function PreviewStep({
   hotelData: any;
   onPrev: () => void;
 }) {
-  // Normalize all fields your screenshot shows
+ // Normalize all fields your screenshot shows
   const info = useMemo(() => {
     const h = hotelData || {};
 
-    // status: 1/true -> Active, else In-Active
+ // status: 1/true -> Active, else In-Active
     const statusRaw =
       h.status ?? h.hotel_status ?? h.isActive ?? h.active ?? h.hotelStatus ?? 1;
     const isActive =
@@ -84,12 +84,12 @@ export default function PreviewStep({
 
       hotelPlace: S(h.hotel_place ?? h.place),
 
-      // NOTE: API gives numeric/category id under hotel_category
+ // NOTE: API gives numeric/category id under hotel_category
       hotelCategory: S(
         h.hotel_category ?? h.category ?? h.starCategory ?? h.categoryStar ?? h.stars ?? h.star
       ),
 
-      // >>> Important: read the hotel_* keys coming from your API
+ // >>> Important: read the hotel_* keys coming from your API
       country: S(
         h.hotel_country ?? h.country_name ?? h.country ?? h.countryName
       ),
@@ -102,11 +102,11 @@ export default function PreviewStep({
 
       pincode: S(h.hotel_pincode ?? h.pincode ?? h.pin_code ?? h.zip ?? h.zipcode),
 
-      // Lat/Long also arrive as hotel_latitude / hotel_longitude
+ // Lat/Long also arrive as hotel_latitude / hotel_longitude
       latitude: S(h.hotel_latitude ?? h.latitude ?? h.lat),
       longitude: S(h.hotel_longitude ?? h.longitude ?? h.lng ?? h.long),
 
-      // Prefer the exact API key 'hotel_address'
+ // Prefer the exact API key 'hotel_address'
       address: S(
         h.hotel_address ??
           h.address ??
@@ -281,15 +281,15 @@ export default function PreviewStep({
 
   return (
     <>
-      {/* Step header to match the “Preview” tab look */}
+ {/* Step header to match the Preview tab look */}
       <div className="pv-step-title">Preview</div>
 
       <div className="pv-card">
         <div className="pv-section-title">Basic Info</div>
 
-        {/* 3-column details grid, exactly like the screenshot */}
+ {/* 3-column details grid, exactly like the screenshot */}
         <div className="pv-grid">
-          {/* Row 1 */}
+ {/* Row 1 */}
           <div className="pv-field">
             <div className="pv-label">Hotel Name</div>
             <div className="pv-value">{info.hotelName}</div>
@@ -324,7 +324,7 @@ export default function PreviewStep({
           </div>
           <div className="pv-field pv-empty" />
 
-          {/* Row 2 */}
+ {/* Row 2 */}
           <div className="pv-field">
             <div className="pv-label">Hotel Email</div>
             <div className="pv-value pv-dim">{info.hotelEmail}</div>
@@ -338,7 +338,7 @@ export default function PreviewStep({
             <div className="pv-value">{categoryLabel}</div>
           </div>
 
-          {/* Row 3 */}
+ {/* Row 3 */}
           <div className="pv-field">
             <div className="pv-label">Country</div>
             <div className="pv-value">{countryLabel}</div>
@@ -352,7 +352,7 @@ export default function PreviewStep({
             <div className="pv-value">{cityLabel}</div>
           </div>
 
-          {/* Row 4 */}
+ {/* Row 4 */}
           <div className="pv-field">
             <div className="pv-label">Pincode</div>
             <div className="pv-value pv-dim">{info.pincode}</div>
@@ -366,7 +366,7 @@ export default function PreviewStep({
             <div className="pv-value pv-dim">{info.longitude}</div>
           </div>
 
-          {/* Row 5 (Address + Status) */}
+ {/* Row 5 (Address + Status) */}
           <div className="pv-field pv-address">
             <div className="pv-label">Address</div>
             <div className="pv-value pv-dim">{info.address}</div>
@@ -377,7 +377,7 @@ export default function PreviewStep({
               {info.isActive ? "Active" : "In-Active"}
             </div>
           </div>
-          {/* The last third column stays empty to keep the grid aligned like screenshot */}
+ {/* The last third column stays empty to keep the grid aligned like screenshot */}
           <div className="pv-field pv-empty" />
         </div>
 
@@ -465,7 +465,7 @@ export default function PreviewStep({
         </button>
       </div>
 
-      {/* Styles tuned to match your screenshot */}
+ {/* Styles tuned to match your screenshot */}
       <style>{`
         :root{
           --pv-bg:#fdf5ff;
@@ -578,7 +578,7 @@ export default function PreviewStep({
         .pv-btn-back:hover{ background:#6b7280; }
         .pv-value,
         .pv-dim {
-          color: #111827 !important; /* near-black */
+ color: #111827 !important; /* near-black */
         }
       `}</style>
     </>

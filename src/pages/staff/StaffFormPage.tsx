@@ -26,31 +26,31 @@ export default function StaffFormPage() {
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // dynamic roles
+ // dynamic roles
   const [roles, setRoles] = useState<RoleOption[]>([]);
 
-  // form state
+ // form state
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     mobileNumber: "",
     password: "",
-    roleId: undefined as number | undefined, // ← dynamic numeric role
+ roleId: undefined as number | undefined, // dynamic numeric role
   });
 
-  // load roles once
+ // load roles once
   useEffect(() => {
     (async () => {
       try {
         const r = await fetchStaffRoles();
         setRoles(r || []);
       } catch {
-        // optional toast/log
+ // optional toast/log
       }
     })();
   }, []);
 
-  // load staff if editing
+ // load staff if editing
   useEffect(() => {
     if (isEditMode && id) {
       setLoading(true);
@@ -62,7 +62,7 @@ export default function StaffFormPage() {
               email: staff.email,
               mobileNumber: staff.mobileNumber,
               password: "",
-              roleId: staff.roleId ?? undefined, // backend already returns roleId
+ roleId: staff.roleId undefined, // backend already returns roleId
             });
           }
         })
@@ -71,7 +71,7 @@ export default function StaffFormPage() {
     }
   }, [id, isEditMode]);
 
-  // helper for selected role label (for any custom UI needs)
+ // helper for selected role label (for any custom UI needs)
   const selectedRoleLabel =
     roles.find((r) => r.id === formData.roleId)?.label ?? "Select Role";
 
@@ -91,12 +91,12 @@ export default function StaffFormPage() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           mobileNumber: formData.mobileNumber.trim(),
-          roleId: formData.roleId, // ← pass numeric roleId
+ roleId: formData.roleId, // pass numeric roleId
           password: formData.password || undefined,
         });
         toast.success("Staff updated successfully");
       } else {
-        // Create requires password (backend creates login)
+ // Create requires password (backend creates login)
         if (!formData.password || formData.password.trim().length < 6) {
           toast.error("Password must be at least 6 characters");
           setSaving(false);
@@ -106,7 +106,7 @@ export default function StaffFormPage() {
           name: formData.name.trim(),
           email: formData.email.trim(),
           mobileNumber: formData.mobileNumber.trim(),
-          roleId: formData.roleId, // ← pass numeric roleId
+ roleId: formData.roleId, // pass numeric roleId
           agentName: "--",
           status: 1,
           password: formData.password,
@@ -131,7 +131,7 @@ export default function StaffFormPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">
           {isEditMode ? "Edit Staff" : "Add Staff"}
@@ -141,13 +141,13 @@ export default function StaffFormPage() {
         </div>
       </div>
 
-      {/* Form Card */}
+ {/* Form Card */}
       <div className="bg-white rounded-lg border shadow-sm p-6">
         <h2 className="text-lg font-semibold text-pink-600 mb-6">Staff Details</h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Staff Name */}
+ {/* Staff Name */}
             <div className="space-y-2">
               <Label htmlFor="name">
                 Staff Name <span className="text-red-500">*</span>
@@ -160,7 +160,7 @@ export default function StaffFormPage() {
               />
             </div>
 
-            {/* Email ID */}
+ {/* Email ID */}
             <div className="space-y-2">
               <Label htmlFor="email">
                 Email ID <span className="text-red-500">*</span>
@@ -174,7 +174,7 @@ export default function StaffFormPage() {
               />
             </div>
 
-            {/* Mobile Number */}
+ {/* Mobile Number */}
             <div className="space-y-2">
               <Label htmlFor="mobile">
                 Mobile Number <span className="text-red-500">*</span>
@@ -195,7 +195,7 @@ export default function StaffFormPage() {
               />
             </div>
 
-            {/* Password */}
+ {/* Password */}
             <div className="space-y-2">
               <Label htmlFor="password">
                 Password{" "}
@@ -227,7 +227,7 @@ export default function StaffFormPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {/* Role (dynamic) */}
+ {/* Role (dynamic) */}
             <div className="space-y-2">
               <Label htmlFor="role">
                 Role <span className="text-red-500">*</span>
@@ -249,12 +249,12 @@ export default function StaffFormPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {/* Optional helper text */}
+ {/* Optional helper text */}
               <p className="text-xs text-muted-foreground">{selectedRoleLabel}</p>
             </div>
           </div>
 
-          {/* Buttons */}
+ {/* Buttons */}
           <div className="flex justify-between pt-4">
             <Button
               type="button"

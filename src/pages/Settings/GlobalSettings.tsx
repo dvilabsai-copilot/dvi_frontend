@@ -51,7 +51,7 @@ export const GlobalSettingsPage = () => {
       const data = await getStates();
       setStates(data);
     } catch (error) {
-      console.error("Failed to load states", error);
+ console.error("Failed to load states", error);
     }
   }, []);
 
@@ -95,7 +95,7 @@ export const GlobalSettingsPage = () => {
       </div>
 
       <div className="space-y-6">
-        {/* State Configuration */}
+ {/* State Configuration */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">State Configuration</CardTitle>
@@ -138,7 +138,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Hotel API Configurations */}
+ {/* Hotel API Configurations */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Hotel API Configurations</CardTitle>
@@ -157,7 +157,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Extra Occupancy */}
+ {/* Extra Occupancy */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Extra Occupancy</CardTitle>
@@ -191,7 +191,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Hotel Default Margin */}
+ {/* Hotel Default Margin */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Hotel Default Margin</CardTitle>
@@ -242,7 +242,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Itinerary Distance */}
+ {/* Itinerary Distance */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Itinerary Distance</CardTitle>
@@ -275,7 +275,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Site Seeing KM Limit Restriction */}
+ {/* Site Seeing KM Limit Restriction */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Site Seeing KM Limit Restriction</CardTitle>
@@ -292,7 +292,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Itinerary Travel Buffer Time */}
+ {/* Itinerary Travel Buffer Time */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Itinerary Travel Buffer Time</CardTitle>
@@ -325,7 +325,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Itinerary Customize Text */}
+ {/* Itinerary Customize Text */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Itinerary Customize Text</CardTitle>
@@ -406,7 +406,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Itinerary Travel Speed */}
+ {/* Itinerary Travel Speed */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Itinerary Travel Speed</CardTitle>
@@ -431,7 +431,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Itinerary Additional Margin Settings */}
+ {/* Itinerary Additional Margin Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Itinerary Additional Margin Settings</CardTitle>
@@ -457,7 +457,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Agent Settings */}
+ {/* Agent Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Agent Settings</CardTitle>
@@ -474,7 +474,7 @@ export const GlobalSettingsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Site Settings */}
+ {/* Site Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="text-pink-600">Site Settings</CardTitle>
@@ -610,12 +610,12 @@ export const GlobalSettingsPage = () => {
                 <Label>Logo</Label>
                 <Input
                   type="file"
-                  accept="image/*"
+ accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      // Handle file upload
-                      console.log("File selected:", file);
+ // Handle file upload
+ console.log("File selected:", file);
                     }
                   }}
                 />

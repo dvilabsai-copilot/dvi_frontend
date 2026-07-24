@@ -30,7 +30,7 @@ export function useEnsureHotelDetailsLoaded({
       setHotelDetails(hotelRes);
       return hotelRes;
     } catch (error) {
-      console.error("Failed to load hotel details", error);
+ console.error("Failed to load hotel details", error);
       toast.error("Failed to load hotel details");
       return null;
     } finally {

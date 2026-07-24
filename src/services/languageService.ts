@@ -7,7 +7,7 @@ export type LanguageId = string | number;
 export type LanguageRow = {
   id: LanguageId;
   language: string;
-  status: boolean; // UI-friendly boolean
+ status: boolean; // UI-friendly boolean
 };
 
 export type LanguageUpsertInput = {
@@ -78,12 +78,12 @@ const toLanguageRow = (r: LanguageDTO): LanguageRow => {
 const LANGUAGES_BASE_PATH = "/languages";
 
 export const languageService = {
-  /**
+ /**
    * GET /languages
    * Accepts either:
    *  - [ { ... } ] OR
    *  - { data: [ { ... } ], meta: {...} }
-   */
+ */
   async list(): Promise<LanguageRow[]> {
     const res = (await api(
       `${LANGUAGES_BASE_PATH}`,
@@ -94,17 +94,17 @@ export const languageService = {
     return rows.map(toLanguageRow);
   },
 
-  /**
+ /**
    * POST /languages
    * Body: { language: string, status?: boolean }
    * Response: row OR { data: row }
-   */
+ */
   async create(payload: LanguageUpsertInput): Promise<LanguageRow> {
     const res = (await api(LANGUAGES_BASE_PATH, {
       method: "POST",
       body: {
         language: payload.language,
-        // if status is undefined, backend will use default (1/active)
+ // if status is undefined, backend will use default (1/active)
         status:
           typeof payload.status === "boolean"
             ? payload.status
@@ -115,11 +115,11 @@ export const languageService = {
     return toLanguageRow(unwrapOne(res));
   },
 
-  /**
+ /**
    * PUT /languages/:id
    * Body: { language?: string, status?: boolean }
    * Response: row OR { data: row }
-   */
+ */
   async update(
     id: LanguageId,
     payload: Partial<LanguageUpsertInput>
@@ -138,10 +138,10 @@ export const languageService = {
     return toLanguageRow(unwrapOne(res));
   },
 
-  /**
+ /**
    * DELETE /languages/:id
    * Soft delete on backend.
-   */
+ */
   async remove(id: LanguageId): Promise<void> {
     await api(`${LANGUAGES_BASE_PATH}/${id}`, { method: "DELETE" });
   },

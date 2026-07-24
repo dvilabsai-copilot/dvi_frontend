@@ -14,11 +14,11 @@ export type AccountsComponentType =
 
 export interface AccountsFilters {
   quoteId?: string;
-  agent?: string; // backend expects agent name substring
+ agent?: string; // backend expects agent name substring
   status?: AccountsStatus;
   componentType?: AccountsComponentType;
-  fromDate?: string; // "DD/MM/YYYY"
-  toDate?: string; // "DD/MM/YYYY"
+ fromDate?: string; // "DD/MM/YYYY"
+ toDate?: string; // "DD/MM/YYYY"
   search?: string;
 }
 
@@ -33,8 +33,8 @@ export interface AccountsRow {
   status: "paid" | "due";
   componentType: AccountsComponentType;
   agent: string;
-  startDate: string; // "DD/MM/YYYY"
-  endDate: string; // "DD/MM/YYYY"
+ startDate: string; // "DD/MM/YYYY"
+ endDate: string; // "DD/MM/YYYY"
   routeDate?: string;
   vehicleId?: number;
   vendorId?: number;

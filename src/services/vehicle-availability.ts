@@ -10,7 +10,7 @@ export type VehicleAvailabilityRouteSegment = {
 };
 
 export type VehicleAvailabilityCell = {
-  date: string; // YYYY-MM-DD
+ date: string; // YYYY-MM-DD
   itineraryPlanId: number | null;
   itineraryQuoteId: string | null;
 
@@ -42,7 +42,7 @@ export type VehicleAvailabilityRow = {
   vendorId: number;
   vendorName: string;
 
-  // NOTE: this is vendor_vehicle_type_ID on backend
+ // NOTE: this is vendor_vehicle_type_ID on backend
   vehicleTypeId: number;
   vehicleTypeTitle: string;
 
@@ -58,19 +58,19 @@ export type VehicleAvailabilityResponse = {
 };
 
 export type VehicleAvailabilityQuery = {
-  dateFrom?: string; // YYYY-MM-DD
-  dateTo?: string; // YYYY-MM-DD
+ dateFrom?: string; // YYYY-MM-DD
+ dateTo?: string; // YYYY-MM-DD
   vendorId?: number;
   vendorIds?: number[];
   vehicleTypeId?: number;
   vehicleTypeIds?: number[];
 
-  // UI filters (backend must support if you want server-side filtering)
+ // UI filters (backend must support if you want server-side filtering)
   agentId?: number;
   agentIds?: number[];
   locationLabel?: string;
   locationLabels?: string[];
-  locationId?: string; // backward compatibility alias
+ locationId?: string; // backward compatibility alias
 };
 
 function buildQueryString(params: Record<string, string | number | Array<string | number> | undefined | null>) {
@@ -170,7 +170,7 @@ export async function checkVehicleDuplication(params: {
 }
 
 // ==============================
-// LOCATION META (EasyAutocomplete → getSTATE_CITY_COUNTRY)
+// LOCATION META (EasyAutocomplete getSTATE_CITY_COUNTRY)
 // ==============================
 export type LocationMeta = {
   label: string;
@@ -192,16 +192,16 @@ export async function fetchLocationMeta(label: string): Promise<LocationMeta> {
 // ==============================
 export type CreateVehiclePayload = {
   vendorId: number;
-  vehicleTypeId: number;            // == vendor_vehicle_type_ID
+ vehicleTypeId: number; // == vendor_vehicle_type_ID
   registrationNumber: string;
 
   vendor_branch_id?: number;
-  vehicle_origin?: string;          // free-text label (optional if you pass vehicle_location_id)
-  vehicle_location_id?: number;     // resolved FK (preferred if available)
+ vehicle_origin?: string; // free-text label (optional if you pass vehicle_location_id)
+ vehicle_location_id?: number; // resolved FK (preferred if available)
 
-  vehicle_fc_expiry_date?: string;  // YYYY-MM-DD
-  insurance_start_date?: string;    // YYYY-MM-DD
-  insurance_end_date?: string;      // YYYY-MM-DD
+ vehicle_fc_expiry_date?: string; // YYYY-MM-DD
+ insurance_start_date?: string; // YYYY-MM-DD
+ insurance_end_date?: string; // YYYY-MM-DD
 };
 
 /**
@@ -209,17 +209,17 @@ export type CreateVehiclePayload = {
  */
 export async function createVehicle(payload: CreateVehiclePayload) {
   const body: Record<string, any> = {
-    // snake_case expected by PHP parity service
+ // snake_case expected by PHP parity service
     vendor_id: payload.vendorId,
     vehicle_type_id: payload.vehicleTypeId,
     registration_number: payload.registrationNumber,
     vendor_branch_id: payload.vendor_branch_id,
-    vehicle_orign: payload.vehicle_origin, // spelling matches legacy PHP
+ vehicle_orign: payload.vehicle_origin, // spelling matches legacy PHP
     vehicle_location_id: payload.vehicle_location_id,
     vehicle_fc_expiry_date: payload.vehicle_fc_expiry_date,
     insurance_start_date: payload.insurance_start_date,
     insurance_end_date: payload.insurance_end_date,
-    // camelCase duplicates (service strips/normalizes safely)
+ // camelCase duplicates (service strips/normalizes safely)
     vendorId: payload.vendorId,
     vehicleTypeId: payload.vehicleTypeId,
     registrationNumber: payload.registrationNumber,
@@ -258,19 +258,19 @@ export async function createVehicleWithOriginMeta(
 
 export type CreateDriverPayload = {
   vendorId: number;
-  vehicleTypeId: number; // vendor_vehicle_type_ID
+ vehicleTypeId: number; // vendor_vehicle_type_ID
   driverName: string;
   mobile: string;
 };
 
 export async function createDriver(payload: CreateDriverPayload) {
   const body = {
-    // snake_case expected by backend
+ // snake_case expected by backend
     vendor_id: payload.vendorId,
     vehicle_type_id: payload.vehicleTypeId,
     driver_name: payload.driverName,
     driver_primary_mobile_number: payload.mobile,
-    // camelCase duplicates
+ // camelCase duplicates
     vendorId: payload.vendorId,
     vehicleTypeId: payload.vehicleTypeId,
     driverName: payload.driverName,
@@ -289,7 +289,7 @@ export async function createDriver(payload: CreateDriverPayload) {
 export type AssignVehiclePayload = {
   itineraryPlanId: number;
   vendor_id: number;
-  vehicle_type_id: number; // vendor_vehicle_type_ID
+ vehicle_type_id: number; // vendor_vehicle_type_ID
   vehicle_id: number;
   driver_id?: number | null;
   createdby?: number | null;
@@ -324,8 +324,8 @@ export async function reassignDriver(body: ReassignDriverPayload) {
 // ==============================
 export type BlockVehicleAvailabilityPayload = {
   vehicleId: number;
-  dateFrom: string; // YYYY-MM-DD
-  dateTo: string; // YYYY-MM-DD
+ dateFrom: string; // YYYY-MM-DD
+ dateTo: string; // YYYY-MM-DD
   reason?: string;
 };
 

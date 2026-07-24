@@ -179,7 +179,7 @@ export default function HotspotList() {
       setRows(data);
       setFiltered(data);
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Failed to load hotspots");
     }
   }
@@ -193,7 +193,7 @@ export default function HotspotList() {
       setDeleteId(null);
       load();
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Failed to delete hotspot");
     }
   };
@@ -203,7 +203,7 @@ export default function HotspotList() {
       await hotspotService.updatePriority(id, priority);
       await load();
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Failed to update priority");
     }
   };
@@ -226,7 +226,7 @@ export default function HotspotList() {
       await navigator.clipboard.writeText(csv);
       toast.success("Copied table (filtered) to clipboard as CSV");
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Copy failed");
     }
   };

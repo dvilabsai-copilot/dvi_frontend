@@ -76,7 +76,7 @@ export function HotelRoomSelectionModal({
       setRooms(response.rooms || []);
       setPreferredRoomCount(response.preferred_room_count || 1);
     } catch (error) {
-      console.error('Failed to fetch room categories:', error);
+ console.error('Failed to fetch room categories:', error);
       toast.error('Failed to load room categories');
     } finally {
       setLoading(false);
@@ -87,7 +87,7 @@ export function HotelRoomSelectionModal({
     try {
       setUpdating(true);
       const room = rooms[roomIndex];
-      
+
       const payload = {
         itinerary_plan_hotel_room_details_ID: room.itinerary_plan_hotel_room_details_ID || 0,
         itinerary_plan_hotel_details_ID,
@@ -108,7 +108,7 @@ export function HotelRoomSelectionModal({
         body: JSON.stringify(payload),
       });
 
-      // Update local state
+ // Update local state
       const updatedRooms = [...rooms];
       const selectedRoomType = room.available_room_types.find(
         (rt) => rt.room_type_id === Number(newRoomTypeId)
@@ -122,7 +122,7 @@ export function HotelRoomSelectionModal({
 
       toast.success(`Room #${room.room_number} category updated`);
     } catch (error) {
-      console.error('Failed to update room category:', error);
+ console.error('Failed to update room category:', error);
       toast.error('Failed to update room category');
     } finally {
       setUpdating(false);
@@ -172,7 +172,7 @@ export function HotelRoomSelectionModal({
                 key={room.room_number}
                 className="flex items-center gap-4 p-4 rounded-lg border border-[#e5d9f2] hover:border-[#d546ab] transition-colors bg-gradient-to-r from-[#faf5ff] to-[#f3e8ff]"
               >
-                {/* Room Icon and Number */}
+ {/* Room Icon and Number */}
                 <div className="flex items-center gap-2 min-w-[120px]">
                   <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#d546ab]/10">
                     <Bed className="h-5 w-5 text-[#d546ab]" />
@@ -182,14 +182,14 @@ export function HotelRoomSelectionModal({
                   </span>
                 </div>
 
-                {/* Room Quantity */}
+ {/* Room Quantity */}
                 <div className="flex items-center min-w-[60px]">
                   <span className="text-sm font-semibold text-[#6c6c6c]">
                     {room.room_qty} ×
                   </span>
                 </div>
 
-                {/* Room Type Selector */}
+ {/* Room Type Selector */}
                 <div className="flex-1">
                   <Select
                     value={room.room_type_id?.toString() || ''}

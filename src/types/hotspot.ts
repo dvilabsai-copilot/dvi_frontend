@@ -6,27 +6,27 @@ export interface Hotspot {
   description: string;
   landmark: string;
   address: string;
-  
-  // Entry costs
+
+ // Entry costs
   adultCost: number;
   childCost: number;
   infantCost: number;
   foreignAdultCost: number;
   foreignChildCost: number;
   foreignInfantCost: number;
-  
-  // Location
+
+ // Location
   rating: number;
   duration: string;
   latitude: string;
   longitude: string;
   videoUrl: string;
   locations: string[];
-  
-  // Media
+
+ // Media
   galleryImages: string[];
-  
-  // Parking charges
+
+ // Parking charges
   parkingCharges: {
     sedan: number;
     innova: number;
@@ -41,8 +41,8 @@ export interface Hotspot {
     benzLarge45: number;
     volvo43: number;
   };
-  
-  // Opening hours
+
+ // Opening hours
   openingHours: {
     [key: string]: {
       is24Hours: boolean;

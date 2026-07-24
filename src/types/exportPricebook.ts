@@ -76,8 +76,8 @@ export type VehiclePricebookQuery = {
 export type HotelRoomExportQuery = {
   stateId: number;
   cityId: number;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+ startDate: string; // YYYY-MM-DD
+ endDate: string; // YYYY-MM-DD
 };
 
 export type HotelAmenityExportQuery = {

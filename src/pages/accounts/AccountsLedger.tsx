@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Calendar as CalendarIcon } from "lucide-react";
 
-// ✅ shadcn components (same as AccountsManager / LatestItinerary)
+// shadcn components (same as AccountsManager / LatestItinerary)
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 
-// 🔌 Ledger service + types
+// Ledger service + types
 import {
   fetchLedgerFromApi,
   fetchLedgerFilterOptions,
@@ -33,9 +33,9 @@ const formatINR = (v: number) =>
     minimumFractionDigits: 2,
   }).format(v);
 
-// ──────────────────────────────────────────────
+//
 // small utils
-// ─────────────────────────────────────────────-
+// -
 function formatToDDMMYYYY(date: Date | undefined) {
   if (!date) return "";
   const d = date.getDate().toString().padStart(2, "0");
@@ -45,23 +45,23 @@ function formatToDDMMYYYY(date: Date | undefined) {
 }
 
 function ddmmyyyyToIso(d: string): string {
-  // "03/10/2025" -> "2025-10-03"
+ // "03/10/2025" -> "2025-10-03"
   if (!d) return "";
   const [day, month, year] = d.split("/");
   if (!day || !month || !year) return "";
   return `${year}-${month}-${day}`;
 }
 
-// ──────────────────────────────────────────────
+//
 // COMPONENT
-// ─────────────────────────────────────────────-
+// -
 export const AccountsLedger: React.FC = () => {
-  // 👇 now all typed
+ // now all typed
   const [quoteId, setQuoteId] = useState<string>("");
 
   const [componentType, setComponentType] = useState<ComponentType>("vehicle");
 
-  // we store both: real Date (for calendar) + string (DD/MM/YYYY) for button
+ // we store both: real Date (for calendar) + string (DD/MM/YYYY) for button
   const [fromDateObj, setFromDateObj] = useState<Date | undefined>(
     new Date("2025-10-03")
   );
@@ -71,21 +71,21 @@ export const AccountsLedger: React.FC = () => {
   const [fromDate, setFromDate] = useState<string>("03/10/2025");
   const [toDate, setToDate] = useState<string>("02/11/2025");
 
-  // conditional fields (selected values)
+ // conditional fields (selected values)
   const [guideName, setGuideName] = useState<string>("All");
   const [hotspotName, setHotspotName] = useState<string>("All");
   const [activityName, setActivityName] = useState<string>("All");
   const [hotelName, setHotelName] = useState<string>("All");
 
-  // vehicle layout
+ // vehicle layout
   const [branch, setBranch] = useState<string>("All");
   const [vehicle, setVehicle] = useState<string>("All");
   const [vehicleVendor, setVehicleVendor] = useState<string>("All");
 
-  // agent filter
+ // agent filter
   const [agentName, setAgentName] = useState<string>("All");
 
-  // DROPDOWN OPTIONS (dynamic, from backend)
+ // DROPDOWN OPTIONS (dynamic, from backend)
   const [guideOptions, setGuideOptions] = useState<string[]>(["All"]);
   const [hotspotOptions, setHotspotOptions] = useState<string[]>(["All"]);
   const [activityOptions, setActivityOptions] = useState<string[]>(["All"]);
@@ -95,15 +95,15 @@ export const AccountsLedger: React.FC = () => {
   const [vendorOptions, setVendorOptions] = useState<string[]>(["All"]);
   const [agentOptions, setAgentOptions] = useState<string[]>(["All"]);
 
-  // fetched rows
+ // fetched rows
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // infinite scroll
+ // infinite scroll
   const [visibleCount, setVisibleCount] = useState<number>(25);
   const listRef = useRef<HTMLDivElement | null>(null);
 
-  // fetch ledger rows when filters change
+ // fetch ledger rows when filters change
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -128,7 +128,7 @@ export const AccountsLedger: React.FC = () => {
           setVisibleCount(25);
         }
       } catch (err) {
-        console.error("Error fetching ledger:", err);
+ console.error("Error fetching ledger:", err);
         if (!cancelled) {
           setRows([]);
         }
@@ -156,7 +156,7 @@ export const AccountsLedger: React.FC = () => {
     agentName,
   ]);
 
-  // fetch dynamic dropdown options (like PHP: based on current filters)
+ // fetch dynamic dropdown options (like PHP: based on current filters)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -178,7 +178,7 @@ export const AccountsLedger: React.FC = () => {
         setVendorOptions(opts.vendors);
         setAgentOptions(opts.agents);
 
-        // Ensure selected values always exist
+ // Ensure selected values always exist
         if (!opts.agents.includes(agentName)) setAgentName("All");
         if (!opts.guides.includes(guideName)) setGuideName("All");
         if (!opts.hotspots.includes(hotspotName)) setHotspotName("All");
@@ -188,8 +188,8 @@ export const AccountsLedger: React.FC = () => {
         if (!opts.vehicles.includes(vehicle)) setVehicle("All");
         if (!opts.vendors.includes(vehicleVendor)) setVehicleVendor("All");
       } catch (err) {
-        console.error("Error fetching ledger filter options:", err);
-        // keep existing options if request fails
+ console.error("Error fetching ledger filter options:", err);
+ // keep existing options if request fails
       }
     })();
     return () => {
@@ -206,7 +206,7 @@ export const AccountsLedger: React.FC = () => {
     return { billed, received, receivable, paid, balance };
   }, [rows]);
 
-  // infinite scroll
+ // infinite scroll
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
@@ -240,7 +240,7 @@ export const AccountsLedger: React.FC = () => {
     try {
       await exportLedgerExcel(componentType, quoteId, fromDate, toDate);
     } catch (err) {
-      console.error("Excel export failed:", err);
+ console.error("Excel export failed:", err);
       alert("Failed to export Excel");
     }
   };
@@ -365,14 +365,14 @@ export const AccountsLedger: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#fbeef8] p-4 md:p-6">
-      {/* FILTER CARD */}
+ {/* FILTER CARD */}
       <div className="bg-[#fefefe]/40 rounded-xl border border-[#f6dfff] mb-5">
         <div className="px-6 py-5">
           <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
 
-          {/* ROW 1 */}
+ {/* ROW 1 */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            {/* Quote ID */}
+ {/* Quote ID */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">Quote ID</Label>
               <Input
@@ -383,7 +383,7 @@ export const AccountsLedger: React.FC = () => {
               />
             </div>
 
-            {/* Component Type */}
+ {/* Component Type */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">Component Type</Label>
               <Select
@@ -405,7 +405,7 @@ export const AccountsLedger: React.FC = () => {
               </Select>
             </div>
 
-            {/* From Date */}
+ {/* From Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">From Date</Label>
               <Popover>
@@ -435,7 +435,7 @@ export const AccountsLedger: React.FC = () => {
               </Popover>
             </div>
 
-            {/* To Date */}
+ {/* To Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">To Date</Label>
               <Popover>
@@ -465,14 +465,14 @@ export const AccountsLedger: React.FC = () => {
               </Popover>
             </div>
 
-            {/* right dynamic field */}
+ {/* right dynamic field */}
             {renderRightFieldRow1()}
           </div>
 
-          {/* ROW 2 — VEHICLE */}
+ {/* ROW 2 VEHICLE */}
           {componentType === "vehicle" && (
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mt-4">
-              {/* Branch */}
+ {/* Branch */}
               <div className="space-y-2">
                 <Label className="text-sm text-[#4a4260]">Branch</Label>
                 <Select value={branch} onValueChange={(v) => setBranch(v)}>
@@ -489,7 +489,7 @@ export const AccountsLedger: React.FC = () => {
                 </Select>
               </div>
 
-              {/* Vehicle */}
+ {/* Vehicle */}
               <div className="space-y-2">
                 <Label className="text-sm text-[#4a4260]">Vehicle</Label>
                 <Select value={vehicle} onValueChange={(v) => setVehicle(v)}>
@@ -506,10 +506,10 @@ export const AccountsLedger: React.FC = () => {
                 </Select>
               </div>
 
-              {/* spacer */}
+ {/* spacer */}
               <div className="hidden md:block md:col-span-2" />
 
-              {/* Clear */}
+ {/* Clear */}
               <div className="flex md:justify-end">
                 <Button
                   onClick={handleClear}
@@ -521,7 +521,7 @@ export const AccountsLedger: React.FC = () => {
             </div>
           )}
 
-          {/* NON vehicle clear */}
+ {/* NON vehicle clear */}
           {componentType !== "vehicle" && (
             <div className="flex justify-end mt-4">
               <Button
@@ -535,7 +535,7 @@ export const AccountsLedger: React.FC = () => {
         </div>
       </div>
 
-      {/* SUMMARY CARDS */}
+ {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
         <div className="bg-white rounded-md shadow-sm py-4 px-5">
           <p className="text-sm text-[#8a7da5] mb-1">Total Billed</p>
@@ -569,7 +569,7 @@ export const AccountsLedger: React.FC = () => {
         </div>
       </div>
 
-      {/* LIST */}
+ {/* LIST */}
       <div className="bg-white/70 rounded-xl border border-[#f6dfff]">
         <div className="flex items-center justify-between px-6 pt-5 pb-3">
           <p className="text-sm font-semibold text-[#4a4260]">

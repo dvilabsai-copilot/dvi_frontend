@@ -22,16 +22,16 @@ function fmtINR(n: number) {
   }
 }
 
-// 🔧 decode &lt;ul&gt;...&lt;/ul&gt; into real HTML markup
+// decode &lt;ul&gt;...&lt;/ul&gt; into real HTML markup
 function decodeNotesHtml(html: string | undefined | null): string {
   if (!html) return "";
   try {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    // body.innerHTML converts entities (&lt;li&gt;) → <li>
+ // body.innerHTML converts entities (&lt;li&gt;) <li>
     return doc.body.innerHTML || "";
   } catch {
-    // fallback using <textarea> trick
+ // fallback using <textarea> trick
     const textarea = document.createElement("textarea");
     textarea.innerHTML = html;
     return textarea.value || "";
@@ -47,7 +47,7 @@ export default function AgentSubscriptionPlanPreviewPage() {
 
   useEffect(() => {
     boot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function boot() {
@@ -138,7 +138,7 @@ export default function AgentSubscriptionPlanPreviewPage() {
                   <div className="mt-1">{data.staffCount}</div>
                 </div>
 
-                {/* ✅ Subscription Notes with real bullets */}
+ {/* Subscription Notes with real bullets */}
                 <div>
                   <div className="text-sm text-slate-500">Subscription Notes</div>
                   <div className="mt-2 border rounded-md px-5 py-4 min-h-[140px] text-sm text-slate-700 leading-relaxed">

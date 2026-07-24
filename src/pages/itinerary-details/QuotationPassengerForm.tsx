@@ -190,7 +190,7 @@ export function QuotationPassengerForm({
 
   {requiresDetailedPassengerFlow && (
     <>
-  {/* Additional Adults */}
+ {/* Additional Adults */}
   <div className="space-y-3 pt-2">
     <div className="flex items-center justify-between">
       <h4 className="text-sm font-semibold text-[#4a4260]">Additional Adults</h4>
@@ -314,7 +314,7 @@ export function QuotationPassengerForm({
     ))}
   </div>
 
-  {/* Additional Children */}
+ {/* Additional Children */}
   <div className="space-y-3 pt-2">
     <div className="flex items-center justify-between">
       <h4 className="text-sm font-semibold text-[#4a4260]">Children (5-12 years)</h4>
@@ -392,7 +392,7 @@ export function QuotationPassengerForm({
     ))}
   </div>
 
-  {/* Additional Infants */}
+ {/* Additional Infants */}
   <div className="space-y-3 pt-2">
     <div className="flex items-center justify-between">
       <h4 className="text-sm font-semibold text-[#4a4260]">Infants (Below 5 years)</h4>

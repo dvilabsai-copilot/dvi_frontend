@@ -195,7 +195,7 @@ export function LanguagePage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of Language</h1>
 
@@ -211,7 +211,7 @@ export function LanguagePage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -271,7 +271,7 @@ export function LanguagePage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -316,7 +316,7 @@ export function LanguagePage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
@@ -342,7 +342,7 @@ export function LanguagePage() {
         </div>
       </div>
 
-      {/* Modals */}
+ {/* Modals */}
       <LanguageModal
         open={modalOpen}
         mode={modalMode}

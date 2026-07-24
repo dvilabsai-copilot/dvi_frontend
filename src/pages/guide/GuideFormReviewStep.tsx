@@ -20,7 +20,7 @@ export const GuideFormReviewStep = ({ context }: { context: Record<string, any> 
     </h2>
 
     <div className="grid grid-cols-[224px_1fr] gap-6 items-start">
-      {/* Left: Rating */}
+ {/* Left: Rating */}
       <div className="h-[413px] w-[224px] rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
         <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
           Rating
@@ -81,7 +81,7 @@ export const GuideFormReviewStep = ({ context }: { context: Record<string, any> 
 
       </div>
 
-      {/* Right: Reviews List */}
+ {/* Right: Reviews List */}
       <div className="h-[413px] min-w-0 rounded-2xl border border-[#eadcff] bg-white p-4 shadow-none">
         <h3 className="mb-4 text-[18px] font-semibold text-[#1f2937]">
           List of Reviews

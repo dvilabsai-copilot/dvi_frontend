@@ -72,7 +72,7 @@ export const RoomsBlock = ({
 
   const shouldShowRoomsBlock =
     itineraryPreference === "hotel" || itineraryPreference === "both";
-    //const initialRoomsFixedRef = useRef(false);
+ //const initialRoomsFixedRef = useRef(false);
 
   const validateCombination = (
     adult: number,
@@ -155,7 +155,7 @@ export const RoomsBlock = ({
     }
   };
 
-   // sync childrenDetails with children count
+ // sync childrenDetails with children count
   useEffect(() => {
     setRooms((prev) => {
       let changed = false;
@@ -193,7 +193,7 @@ export const RoomsBlock = ({
     });
   }, [rooms, setRooms]);
 
-  
+
 useEffect(() => {
   setRooms((prev) => {
     if (!Array.isArray(prev) || prev.length !== 1) {
@@ -615,7 +615,7 @@ return (
             key={room.id}
             className={idx > 0 ? "mt-3 pt-3 border-t border-[#ead1f2]" : ""}
           >
-            {/* header */}
+ {/* header */}
             <div className="flex items-center justify-between mb-2">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-medium text-[#4a4260] mb-0">
@@ -660,9 +660,9 @@ return (
 )}
             </div>
 
-           {/* counters row */}
+ {/* counters row */}
 <div className="flex flex-wrap items-center gap-4 mb-2">
-  {/* Adults */}
+ {/* Adults */}
   <div className="flex flex-col items-start gap-1">
     <div className="flex items-center border rounded-md bg-white">
       <Button
@@ -701,7 +701,7 @@ return (
     </div>
   </div>
 
-  {/* Children */}
+ {/* Children */}
 <div className="flex flex-col items-start shrink-0">
   {room.children === 0 ? (
     <Button
@@ -759,7 +759,7 @@ return (
     </div>
   )}
 </div>
-  {/* Infant */}
+ {/* Infant */}
   <div className="flex flex-col items-start gap-1">
     {room.infants === 0 ? (
       <Button
@@ -812,7 +812,7 @@ return (
     )}
   </div>
 
-  {/* Child age + bed type */}
+ {/* Child age + bed type */}
   {childDetails.length > 0 && childDetails.map((child, cIdx) => (
     <div
       key={`${room.id}-${cIdx}`}
@@ -903,7 +903,7 @@ return (
       </div>
     </div>
   )}
-        {/* Total Rooms */}
+ {/* Total Rooms */}
 <div className="flex items-center gap-2">
   <span className="text-xs text-muted-foreground">Total</span>
 

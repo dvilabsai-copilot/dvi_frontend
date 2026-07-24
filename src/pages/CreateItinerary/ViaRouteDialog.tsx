@@ -14,10 +14,10 @@ import { Label } from "@/components/ui/label";
 
 type ActiveRouteInfo = {
   day: number;
-  date: string; // DD/MM/YYYY
+ date: string; // DD/MM/YYYY
   source: string;
   next: string;
-  initialSelected: string[]; // saved via route NAMES for this segment
+ initialSelected: string[]; // saved via route NAMES for this segment
 };
 
 type ViaRouteDialogProps = {
@@ -28,21 +28,21 @@ type ViaRouteDialogProps = {
   loading: boolean;
 
   activeRoute: ActiveRouteInfo | null;
-  maxRoutes?: number; // default 2
+ maxRoutes?: number; // default 2
 
-  /**
+ /**
    * Exact via_route_location IDs (as strings) returned by backend
    * for this leg – we prefer these to preselect options.
-   */
+ */
   initialIds?: string[];
 
-  // called with final selected options when user clicks Submit
+ // called with final selected options when user clicks Submit
   onSubmit: (selectedOptions: SimpleOption[]) => void | Promise<void>;
 };
 
 type ViaRow = {
   id: number;
-  selectedId: string; // SimpleOption.id
+ selectedId: string; // SimpleOption.id
 };
 
 export const ViaRouteDialog = ({
@@ -55,12 +55,12 @@ export const ViaRouteDialog = ({
   onSubmit,
   initialIds = [],
 }: ViaRouteDialogProps) => {
-  // Build initial rows from existing selection + current options
+ // Build initial rows from existing selection + current options
 // REPLACE this whole function in ViaRouteDialog.tsx
 const buildInitialRows = (): ViaRow[] => {
-  // 1) Prefer IDs from backend – they exactly match option values
+ // 1) Prefer IDs from backend they exactly match option values
   if (initialIds && initialIds.length) {
-    // Deduplicate IDs so that the same via location does not appear multiple times
+ // Deduplicate IDs so that the same via location does not appear multiple times
     const uniqueIds = Array.from(
       new Set(
         initialIds
@@ -77,10 +77,10 @@ const buildInitialRows = (): ViaRow[] => {
     return mappedById.length ? mappedById : [{ id: 1, selectedId: "" }];
   }
 
-  // 2) Fallback: map by labels (for safety / older data)
+ // 2) Fallback: map by labels (for safety / older data)
   const labels = activeRoute?.initialSelected ?? [];
   if (!labels.length) {
-    // No existing selection at all → start with a single empty row
+ // No existing selection at all start with a single empty row
     return [{ id: 1, selectedId: "" }];
   }
 
@@ -100,12 +100,12 @@ const buildInitialRows = (): ViaRow[] => {
 
   const [rows, setRows] = useState<ViaRow[]>(buildInitialRows);
 
-  // Reset rows whenever dialog opens for a leg, routes arrive, or IDs change
+ // Reset rows whenever dialog opens for a leg, routes arrive, or IDs change
   useEffect(() => {
     if (open) {
       setRows(buildInitialRows());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     activeRoute?.day,
@@ -138,7 +138,7 @@ const buildInitialRows = (): ViaRow[] => {
   };
 
   const handleSubmit = () => {
-    // Map selected IDs back to SimpleOption[] and remove duplicates
+ // Map selected IDs back to SimpleOption[] and remove duplicates
     const seen = new Set<string>();
     const selectedOptions: SimpleOption[] = [];
 
@@ -171,7 +171,7 @@ const buildInitialRows = (): ViaRow[] => {
           </DialogTitle>
         </DialogHeader>
 
-        {/* Source / Next visiting like PHP screen */}
+ {/* Source / Next visiting like PHP screen */}
         {activeRoute && (
           <div className="mt-2 mb-4 grid grid-cols-1 md:grid-cols-2 gap-6 border-b pb-4 border-[#ece2fb]">
             <div>
@@ -193,7 +193,7 @@ const buildInitialRows = (): ViaRow[] => {
           </div>
         )}
 
-        {/* Via Route rows – behaves like PHP Choose Routes + + / delete */}
+ {/* Via Route rows behaves like PHP Choose Routes + + / delete */}
         <div className="space-y-3">
           <Label className="text-sm text-[#4a4260]">Via Routes</Label>
 
@@ -224,7 +224,7 @@ const buildInitialRows = (): ViaRow[] => {
                   ))}
                 </select>
 
-                {/* + button – only on last row and only if below maxRoutes */}
+ {/* + button only on last row and only if below maxRoutes */}
                 {index === rows.length - 1 && rows.length < maxRoutes && (
                   <Button
                     type="button"
@@ -237,7 +237,7 @@ const buildInitialRows = (): ViaRow[] => {
                   </Button>
                 )}
 
-                {/* Delete button – for rows after the first, like PHP bin icon */}
+ {/* Delete button for rows after the first, like PHP bin icon */}
                 {rows.length > 1 && index > 0 && (
                   <Button
                     type="button"

@@ -95,9 +95,9 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                 </div>
               </div>
 
-              {/* Price Input Grid Ã¢â‚¬â€ always empty, no pre-fill (PHP parity) */}
+ {/* Price Input Grid always empty, no pre-fill (PHP parity) */}
               <div className="space-y-4">
-                {/* 1-5 Pax */}
+ {/* 1-5 Pax */}
                 <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
@@ -142,7 +142,7 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                 </div>
                 <hr className="my-1" />
 
-                {/* 6-14 Pax */}
+ {/* 6-14 Pax */}
                 <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
@@ -187,7 +187,7 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                 </div>
                 <hr className="my-1" />
 
-                {/* 15-40 Pax */}
+ {/* 15-40 Pax */}
                 <div className="grid grid-cols-5 gap-4 items-end">
                   <div>
                     <p className="text-sm text-gray-500">Pax Count</p>
@@ -232,9 +232,9 @@ export const GuideFormPricebookStep = ({ context }: { context: Record<string, an
                 </div>
               </div>
 
-              {/* Per-day pricebook display table (auto-loaded when dates are selected) */}
+ {/* Per-day pricebook display table (auto-loaded when dates are selected) */}
               {pricebook.startDate && pricebook.endDate && (() => {
-                // Build list of dates in range
+ // Build list of dates in range
                 const dayList: { label: string; year: string; month: string; dayNum: number }[] = [];
                 const sd = new Date(pricebook.startDate + "T00:00:00Z");
                 const ed = new Date(pricebook.endDate + "T00:00:00Z");

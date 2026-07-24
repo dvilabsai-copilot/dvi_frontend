@@ -88,7 +88,7 @@ export const useQuotationConfirmationCompletion = ({
     });
     setHotelDetails(refreshedHotelDetails);
   } else {
-    console.warn('[CONFIRM_QUOTATION_NO_CONFIRMED_PLAN_ID]', confirmResponse);
+ console.warn('[CONFIRM_QUOTATION_NO_CONFIRMED_PLAN_ID]', confirmResponse);
   }
 
   setLoadingHotels(false);

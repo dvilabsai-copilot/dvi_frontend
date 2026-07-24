@@ -2,7 +2,7 @@
 import React, { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-// 1️⃣ central place for all route → meta
+// 1 central place for all route meta
 const META_BY_PATH: Record<
   string,
   {
@@ -96,7 +96,7 @@ const META_BY_PATH: Record<
   },
 };
 
-// 2️⃣ helper to create / update <meta>
+// 2 helper to create / update <meta>
 function upsertMeta(name: string, content: string, attr: "name" | "property" = "name") {
   if (!content) return;
   let el = document.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
@@ -119,10 +119,10 @@ const DynamicMeta: React.FC = () => {
   useEffect(() => {
     const path = location.pathname.toLowerCase();
 
-    // try exact match first
+ // try exact match first
     let meta = META_BY_PATH[path];
 
-    // small fallback: if route is nested like /hotels/123 or /accounts-ledger/vehicle
+ // small fallback: if route is nested like /hotels/123 or /accounts-ledger/vehicle
     if (!meta) {
       const firstSeg = "/" + path.split("/")[1];
       meta = META_BY_PATH[firstSeg];
@@ -132,22 +132,22 @@ const DynamicMeta: React.FC = () => {
     const desc = meta?.description ?? DEFAULT_DESCRIPTION;
     const keywords = meta?.keywords;
 
-    // ----- actual DOM updates -----
+ // ----- actual DOM updates -----
     document.title = title;
 
-    // normal SEO
+ // normal SEO
     upsertMeta("description", desc);
     if (keywords) {
       upsertMeta("keywords", keywords);
     }
 
-    // OpenGraph
+ // OpenGraph
     upsertMeta("og:title", title, "property");
     upsertMeta("og:description", desc, "property");
     upsertMeta("og:type", "website", "property");
     upsertMeta("og:image", DEFAULT_IMAGE, "property");
 
-    // Twitter cards
+ // Twitter cards
     upsertMeta("twitter:card", "summary_large_image");
     upsertMeta("twitter:title", title);
     upsertMeta("twitter:description", desc);

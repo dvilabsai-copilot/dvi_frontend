@@ -40,9 +40,9 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
         a lot of points reward!
       </p>
 
-      {/* Stats Cards */}
+ {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        {/* Total Agents */}
+ {/* Total Agents */}
         <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -55,7 +55,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </div>
         </Card>
 
-        {/* Total Driver */}
+ {/* Total Driver */}
         <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-none">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -68,7 +68,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </div>
         </Card>
 
-        {/* Total Guide */}
+ {/* Total Guide */}
         <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-none">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -129,7 +129,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
 
 {/* Stats Grid */}
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Total Itineraries */}
+ {/* Total Itineraries */}
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -140,7 +140,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </div>
         </Card>
 
-       {/* Total Revenue */}
+ {/* Total Revenue */}
 <Card className="p-6">
   <div className="flex items-center justify-between gap-4">
     <div className="min-w-0">
@@ -160,9 +160,9 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
   </div>
 </Card>
 
-        {/* Overview Carousel */}
+ {/* Overview Carousel */}
         <Card className="p-6 bg-gradient-to-br from-purple-500 to-pink-500 text-white border-none row-span-2 relative overflow-hidden">
-          {/* Dot indicators */}
+ {/* Dot indicators */}
           <div className="absolute top-4 right-4 flex gap-2 z-10">
             {[0, 1, 2, 3].map((index) => (
               <button
@@ -190,14 +190,14 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
             className="w-full"
           >
             <CarouselContent>
-              {/* Slide 1: Vehicle Overview */}
+ {/* Slide 1: Vehicle Overview */}
               <CarouselItem>
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-xl font-bold mb-1">Vehicle Overview</h3>
                     <p className="text-sm text-white/90">Insights into Fleet Performance</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
                       <p className="text-2xl font-bold">{adminData.vehicles.total}</p>
@@ -216,21 +216,21 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                       <p className="text-xs text-white/90">Upcoming Vehicles</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end">
                     <Truck className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
 
-              {/* Slide 2: Vendor Overview */}
+ {/* Slide 2: Vendor Overview */}
               <CarouselItem>
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-xl font-bold mb-1">Vendor Overview</h3>
                     <p className="text-sm text-white/90">Vendor into Hotel Performance</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
                       <p className="text-2xl font-bold">{adminData.vendors.total}</p>
@@ -245,21 +245,21 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                       <p className="text-xs text-white/90">In Active Vendors</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end">
                     <Store className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
 
-              {/* Slide 3: Driver Overview */}
+ {/* Slide 3: Driver Overview */}
               <CarouselItem>
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-xl font-bold mb-1">Driver Overview</h3>
                     <p className="text-sm text-white/90">Driver Performance Overview</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
                       <p className="text-2xl font-bold">{adminData.drivers.active}</p>
@@ -278,21 +278,21 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                       <p className="text-xs text-white/90">Available Drivers</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end">
                     <Car className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
                 </div>
               </CarouselItem>
 
-              {/* Slide 4: Hotel Overview */}
+ {/* Slide 4: Hotel Overview */}
               <CarouselItem>
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-xl font-bold mb-1">Hotel Overview</h3>
                     <p className="text-sm text-white/90">Insights into Hotel Performance</p>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3">
                       <p className="text-2xl font-bold">{adminData.hotels.total}</p>
@@ -311,7 +311,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
                       <p className="text-xs text-white/90">Total Bookings</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-end">
                     <Hotel className="h-32 w-32 text-white opacity-30" aria-hidden="true" />
                   </div>
@@ -321,7 +321,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </Carousel>
         </Card>
 
-        {/* Total Confirm Bookings */}
+ {/* Total Confirm Bookings */}
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -332,7 +332,7 @@ export function DashboardAdminOverview({ adminData, api, setApi, current }: Dash
           </div>
         </Card>
 
-        {/* Cancelled Booking */}
+ {/* Cancelled Booking */}
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>

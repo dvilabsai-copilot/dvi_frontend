@@ -43,7 +43,7 @@ if (isAgent) {
   return (
   <div className="min-h-[calc(100vh-88px)] w-full max-w-full overflow-x-hidden bg-gray-50/40 px-4 py-6 sm:px-6 lg:px-8">
     <div className="mx-auto w-full max-w-[1280px] space-y-6">
-      {/* Welcome Section */}
+ {/* Welcome Section */}
       <div className="flex w-full flex-col gap-4 rounded-2xl border border-purple-100 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-2">
           <h3 className="bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-2xl font-bold text-transparent sm:text-3xl">
@@ -64,9 +64,9 @@ if (isAgent) {
         </Button>
       </div>
 
-      {/* Stats Cards */}
+ {/* Stats Cards */}
       <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
-        {/* Total Customers */}
+ {/* Total Customers */}
         <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-purple-50 to-pink-50 p-5 shadow-sm">
           <div className="flex min-w-0 items-start gap-4">
             <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
@@ -84,7 +84,7 @@ if (isAgent) {
           </div>
         </Card>
 
-        {/* Validity Ends */}
+ {/* Validity Ends */}
         <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-blue-50 to-cyan-50 p-5 shadow-sm">
           <div className="flex min-w-0 items-start gap-4">
             <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
@@ -122,7 +122,7 @@ if (isAgent) {
           </div>
         </Card>
 
-        {/* Paid Invoice */}
+ {/* Paid Invoice */}
         <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-sm">
           <div className="flex min-w-0 items-start gap-4">
             <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
@@ -140,7 +140,7 @@ if (isAgent) {
           </div>
         </Card>
 
-        {/* Last Month Profit */}
+ {/* Last Month Profit */}
         <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-green-50 to-emerald-50 p-5 shadow-sm">
           <div className="flex min-w-0 items-start gap-4">
             <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
@@ -158,7 +158,7 @@ if (isAgent) {
           </div>
         </Card>
 
-        {/* Wallet Balance */}
+ {/* Wallet Balance */}
         <Card className="min-w-0 overflow-hidden border-none bg-gradient-to-br from-pink-50 to-rose-50 p-5 shadow-sm">
           <div className="flex min-w-0 items-start gap-4">
             <div className="shrink-0 rounded-xl bg-white p-3 shadow-sm">
@@ -185,7 +185,7 @@ if (isAgent) {
         </Card>
       </div>
 
-      {/* Top Up Modal */}
+ {/* Top Up Modal */}
       <Dialog open={isTopUpModalOpen} onOpenChange={setIsTopUpModalOpen}>
         <DialogContent>
           <DialogHeader>
@@ -237,7 +237,7 @@ if (isAgent) {
     const teData = dashboardData as any;
     return (
       <div className="p-8 space-y-6">
-        {/* Welcome Section */}
+ {/* Welcome Section */}
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
             Welcome back, Travel Expert
@@ -247,9 +247,9 @@ if (isAgent) {
           </p>
         </div>
 
-        {/* Stats Cards */}
+ {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Total Managed Agents */}
+ {/* Total Managed Agents */}
           <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -262,7 +262,7 @@ if (isAgent) {
             </div>
           </Card>
 
-          {/* Total Itineraries */}
+ {/* Total Itineraries */}
           <Card className="p-6 bg-gradient-to-br from-blue-50 to-cyan-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -275,7 +275,7 @@ if (isAgent) {
             </div>
           </Card>
 
-          {/* Confirmed Bookings */}
+ {/* Confirmed Bookings */}
           <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -296,7 +296,7 @@ if (isAgent) {
     const guideData = dashboardData as any;
     return (
       <div className="p-8 space-y-6">
-        {/* Welcome Section */}
+ {/* Welcome Section */}
         <div className="space-y-2">
           <h3 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
             Welcome back, Guide
@@ -306,9 +306,9 @@ if (isAgent) {
           </p>
         </div>
 
-        {/* Stats Cards */}
+ {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Total Assignments */}
+ {/* Total Assignments */}
           <Card className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -321,7 +321,7 @@ if (isAgent) {
             </div>
           </Card>
 
-          {/* Completed Assignments */}
+ {/* Completed Assignments */}
           <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">
@@ -334,7 +334,7 @@ if (isAgent) {
             </div>
           </Card>
 
-          {/* Pending Assignments */}
+ {/* Pending Assignments */}
           <Card className="p-6 bg-gradient-to-br from-orange-50 to-amber-50 border-none">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-white rounded-xl shadow-sm">

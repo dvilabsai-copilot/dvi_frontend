@@ -29,7 +29,7 @@ const Profile = () => {
         const data = await api('/agents/profile');
         setProfile(data);
       } catch (error) {
-        console.error('Error fetching profile:', error);
+ console.error('Error fetching profile:', error);
       } finally {
         setLoading(false);
       }
@@ -56,7 +56,7 @@ const Profile = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Column: Avatar & Basic Info */}
+ {/* Left Column: Avatar & Basic Info */}
         <Card className="p-6 text-center space-y-4">
           <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto flex items-center justify-center">
             <User className="h-12 w-12 text-primary" />
@@ -73,7 +73,7 @@ const Profile = () => {
           </div>
         </Card>
 
-        {/* Right Column: Detailed Info */}
+ {/* Right Column: Detailed Info */}
         <Card className="md:col-span-2 p-6 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-1">

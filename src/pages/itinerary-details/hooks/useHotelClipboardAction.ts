@@ -76,7 +76,7 @@ await copyHtmlToClipboard(
       setClipboardModal(false);
       setSelectedHotels({});
     } catch (error) {
-      console.error("Failed to fetch clipboard content", error);
+ console.error("Failed to fetch clipboard content", error);
       toast.error("Failed to prepare clipboard content");
     }
   }, [buildClipboardHtml, buildHighlightsHotspotDetailsHtml, clipboardType, copyHtmlToClipboard, getSelectedClipboardGroups, htmlToPlainText, hotelDetails, itinerary, mergeClipboardWithB2BRecommendedPackages, replaceHighlightsHotspotDetailsHtml, selectedHotels, setClipboardModal, setSelectedHotels]);

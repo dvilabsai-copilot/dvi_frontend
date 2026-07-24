@@ -23,7 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 type VehicleRow = {
   id: number;
-  type: string; // vehicle_type_id from DB as string
+ type: string; // vehicle_type_id from DB as string
   count: number;
 };
 
@@ -32,17 +32,17 @@ type ValidationErrors = {
 };
 
 type VehicleBlockProps = {
-  vehicleTypes: SimpleOption[]; // fetched via fetchVehicleTypes()
-  selectedVehicleIds: string[]; // accepts pre-selected IDs from API
+ vehicleTypes: SimpleOption[]; // fetched via fetchVehicleTypes()
+ selectedVehicleIds: string[]; // accepts pre-selected IDs from API
   vehicles: VehicleRow[];
   setVehicles: React.Dispatch<React.SetStateAction<VehicleRow[]>>;
 
-  // now optional so CreateItinerary can pass only what it has
+ // now optional so CreateItinerary can pass only what it has
   itineraryPreference?: "vehicle" | "hotel" | "both";
   addVehicle?: () => void;
   removeVehicle?: (id: number) => void;
 
-  // optional validation
+ // optional validation
   validationErrors?: ValidationErrors;
 };
 
@@ -77,7 +77,7 @@ export const VehicleBlock = ({
     }
   }, [selectedVehicleIds, vehicles.length, setVehicles]);
 
-  // Keep hook order stable across renders; conditionally render only after hooks.
+ // Keep hook order stable across renders; conditionally render only after hooks.
   if (!showVehicleBlock) {
     return null;
   }
@@ -132,7 +132,7 @@ export const VehicleBlock = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Vehicle Type */}
+ {/* Vehicle Type */}
               <div
                 className={
                   vehicleTypeError
@@ -196,7 +196,7 @@ export const VehicleBlock = ({
                 )}
               </div>
 
-              {/* Vehicle Count */}
+ {/* Vehicle Count */}
               <div>
                 <Label className="text-sm block mb-1">
                   Vehicle Count <span className="text-red-500">*</span>

@@ -146,7 +146,7 @@ export function useItineraryAddHotspotDialogProps({
     setTriedFitHereAnchors,
     setFitHereModal,
     previewRequestIdRef,
-    
+
     loadingHotspots,
     visibleHotspotsForActiveTab,
     hotspotListRef,

@@ -9,7 +9,7 @@ interface MainLayoutProps {
 
 export const MainLayout = ({ children }: MainLayoutProps) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  // kept for future use, currently driven by Sidebar internally via callback
+ // kept for future use, currently driven by Sidebar internally via callback
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -23,7 +23,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
 
   return (
     <div className="flex min-h-screen w-full bg-background" style={{ overflowX: "clip" }}>
-      {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
+ {/* Reserve sidebar space only on desktop; mobile uses overlay sheet. */}
       <div
         className="hidden md:block transition-all duration-300 shrink-0"
         style={{ width: sidebarCollapsed ? "5rem" : "16rem" }}

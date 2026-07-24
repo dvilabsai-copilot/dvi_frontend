@@ -102,7 +102,7 @@ export const useWalletTopUpController = ({
     resetConfirmWalletTopUpPanel();
     await handleConfirmQuotation({ skipWalletCheck: true });
   } catch (error) {
-    console.error("Failed to add cash wallet amount", error);
+ console.error("Failed to add cash wallet amount", error);
     toast.error(error?.message || "Failed to add cash wallet amount.");
   } finally {
     setIsWalletTopUpSubmitting(false);

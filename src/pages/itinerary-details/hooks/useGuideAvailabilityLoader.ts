@@ -20,10 +20,10 @@ export function useGuideAvailabilityLoader({
     setGuideAvailabilityLoading(true);
     try {
       const response = await api(`/itineraries/${planId}/guides/availability`) as GuideAvailabilityResponse;
-      console.log("[GuideAvailability]", { planId, response });
+ console.log("[GuideAvailability]", { planId, response });
       setGuideAvailability(response || null);
     } catch (error) {
-      console.error("Failed to load guide availability", error);
+ console.error("Failed to load guide availability", error);
       setGuideAvailability(null);
     } finally {
       setGuideAvailabilityLoading(false);

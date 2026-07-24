@@ -93,7 +93,7 @@ import { AgentSubscriptionPlanFormPage } from "./pages/Settings/agent-subscripti
 import { AgentSubscriptionPlanListPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanListPage";
 import { AgentSubscriptionPlanPreviewPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanPreviewPage";
 
-// ── Deep-link helpers: /hotels/:id/<tab> → /hotels/:id/edit?tab=<tab> ──
+// Deep-link helpers: /hotels/:id/<tab> /hotels/:id/edit?tab=<tab>
 const RoomsRedirect = () => {
   const { id } = useParams();
   return <Navigate to={`/hotels/${id}/edit?tab=rooms`} replace />;
@@ -225,7 +225,7 @@ const App = () => (
         <DynamicMeta />
 
         <Routes>
-       {/* Public */}
+ {/* Public */}
 <Route path="/login" element={<Login />} />
 <Route path="/email-login" element={<EmailLogin />} />
 <Route path="/partner-registration" element={<PartnerRegistration />} />
@@ -342,7 +342,7 @@ const App = () => (
               }
             />
 
-            {/* Daily Moment */}
+ {/* Daily Moment */}
             <Route
               path="/daily-moment-tracker"
               element={
@@ -368,7 +368,7 @@ const App = () => (
               }
             />
 
-            {/* Hotels */}
+ {/* Hotels */}
             <Route
               path="/hotels"
               element={
@@ -415,7 +415,7 @@ const App = () => (
             <Route path="/hotels/:id/reviews" element={<ReviewsRedirect />} />
             <Route path="/hotels/:id/preview" element={<PreviewRedirect />} />
 
-            {/* Vendor */}
+ {/* Vendor */}
             <Route
               path="/vendor"
               element={
@@ -449,7 +449,7 @@ const App = () => (
               }
             />
 
-            {/* Drivers */}
+ {/* Drivers */}
             <Route
               path="/drivers"
               element={
@@ -531,7 +531,7 @@ const App = () => (
               }
             />
 
-            {/* Vehicle Availability */}
+ {/* Vehicle Availability */}
             <Route
               path="/vehicle-availability"
               element={
@@ -541,7 +541,7 @@ const App = () => (
               }
             />
 
-            {/* Hotspots */}
+ {/* Hotspots */}
             <Route
               path="/hotspots"
               element={
@@ -575,7 +575,7 @@ const App = () => (
               }
             />
 
-            {/* Hotspot Distance Cache */}
+ {/* Hotspot Distance Cache */}
             <Route
               path="/hotspot-distance-cache"
               element={
@@ -601,7 +601,7 @@ const App = () => (
               }
             />
 
-            {/* Activities */}
+ {/* Activities */}
             <Route
               path="/activities"
               element={
@@ -637,7 +637,7 @@ const App = () => (
 
             <Route path="/wallet" element={<MainLayout><WalletHistory /></MainLayout>} />
             <Route path="/wallet-history" element={<MainLayout><WalletHistory /></MainLayout>} />
-            {/* Staff */}
+ {/* Staff */}
             <Route
               path="/staff"
               element={
@@ -671,7 +671,7 @@ const App = () => (
               }
             />
 
-            {/* Agent */}
+ {/* Agent */}
             <Route
               path="/agent"
               element={
@@ -729,7 +729,7 @@ const App = () => (
               }
             />
 
-            {/* Guide */}
+ {/* Guide */}
             <Route
               path="/guide"
               element={
@@ -763,7 +763,7 @@ const App = () => (
               }
             />
 
-            {/* Parking Charge Bulk Import */}
+ {/* Parking Charge Bulk Import */}
             <Route
               path="/parking-charge-bulk-import"
               element={
@@ -773,7 +773,7 @@ const App = () => (
               }
             />
 
-            {/* Locations */}
+ {/* Locations */}
             <Route
               path="/locations"
               element={
@@ -810,7 +810,7 @@ const App = () => (
               }
             />
 
-            {/* Locations Preview */}
+ {/* Locations Preview */}
             <Route
               path="/locations/:id/preview"
               element={
@@ -820,7 +820,7 @@ const App = () => (
               }
             />
 
-            {/* Pricebook Export */}
+ {/* Pricebook Export */}
             <Route
               path="/pricebook-export"
               element={
@@ -830,7 +830,7 @@ const App = () => (
               }
             />
 
-            {/* Settings */}
+ {/* Settings */}
             <Route
               path="/settings/global"
               element={
@@ -888,7 +888,7 @@ const App = () => (
               }
             />
 
-            {/* Role Permission */}
+ {/* Role Permission */}
             <Route
               path="/settings/role-permission"
               element={
@@ -914,7 +914,7 @@ const App = () => (
               }
             />
 
-            { /* Agent Subscription Plan */}
+ { /* Agent Subscription Plan */}
             <Route
               path="/settings/subscription-plan"
               element={
@@ -952,7 +952,7 @@ const App = () => (
             />
           </Route>
 
-          {/* Catch-all */}
+ {/* Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

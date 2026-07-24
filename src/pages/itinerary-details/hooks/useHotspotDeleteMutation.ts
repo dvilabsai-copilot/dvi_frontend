@@ -117,12 +117,12 @@ export const useHotspotDeleteMutation = ({
           setExcludedHotspotIds(refreshedExcludedIds);
           setAvailableHotspots(normalizeAvailableHotspots(routePairFilteredHotspots, { routeId: confirmedRouteId, excludedIds: refreshedExcludedIds, activeIds: refreshedActiveIds }));
         } catch (refreshError) {
-          console.warn("[FitHereConfirm] Modal hotspot refresh failed after confirm", refreshError);
+ console.warn("[FitHereConfirm] Modal hotspot refresh failed after confirm", refreshError);
         }
       }
     }
   } catch (error) {
-    console.error("Failed to delete hotspot", error);
+ console.error("Failed to delete hotspot", error);
     toast.error(error?.message || "Failed to delete hotspot");
   } finally {
     setIsDeleting(false);

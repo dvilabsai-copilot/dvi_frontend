@@ -80,7 +80,7 @@ export const useActivityMutationController = ({
       const detailsRes = await ItineraryService.getDetails(quoteId);
       setItinerary(detailsRes as ItineraryDetailsResponse);
     } catch (reloadError) {
-      console.error("Failed to reload itinerary after activity mutation", reloadError);
+ console.error("Failed to reload itinerary after activity mutation", reloadError);
     }
     try {
       if (shouldShowHotels) {
@@ -91,7 +91,7 @@ export const useActivityMutationController = ({
         setActiveHotelListTotal(0);
       }
     } catch {
-      // Hotel hydration is best-effort and must not block the itinerary refresh.
+ // Hotel hydration is best-effort and must not block the itinerary refresh.
     }
   }, [quoteId, setActiveHotelListTotal, setHotelDetails, setItinerary, shouldShowHotels]);
 
@@ -121,7 +121,7 @@ export const useActivityMutationController = ({
       setPreviewingActivityId(null);
       await refreshAfterMutation();
     } catch (error) {
-      console.error("Failed to add activity", error);
+ console.error("Failed to add activity", error);
       toast.error(errorMessage(error, "Failed to add activity"));
     } finally {
       setIsAddingActivity(false);
@@ -137,7 +137,7 @@ export const useActivityMutationController = ({
       setDeleteActivityModal(closedDeleteModal);
       await refreshAfterMutation();
     } catch (error) {
-      console.error("Failed to delete activity", error);
+ console.error("Failed to delete activity", error);
       toast.error(errorMessage(error, "Failed to delete activity"));
     } finally {
       setIsDeletingActivity(false);

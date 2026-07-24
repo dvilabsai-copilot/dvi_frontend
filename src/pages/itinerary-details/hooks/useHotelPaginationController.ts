@@ -37,7 +37,7 @@ export const useHotelPaginationController = ({
       });
       setHotelPageByGroupRoute((previous) => ({ ...previous, [`${groupType}-${routeId}`]: nextPage }));
     } catch (error) {
-      console.error("Load More hotels failed", error);
+ console.error("Load More hotels failed", error);
     } finally {
       setIsLoadingMoreHotels(false);
     }

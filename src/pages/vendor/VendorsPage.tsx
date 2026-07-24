@@ -19,19 +19,19 @@ import {
 } from "./vendorExport";
 
 type VendorRow = {
-  /** UI serial number (S.NO) */
+ /** UI serial number (S.NO) */
   id: number;
-  /** Backend primary key */
+ /** Backend primary key */
   backendId: string;
-  /** Vendor name */
+ /** Vendor name */
   name: string;
-  /** Vendor code */
+ /** Vendor code */
   code: string;
-  /** Primary mobile */
+ /** Primary mobile */
   mobile: string;
-  /** Total branches count */
+ /** Total branches count */
   totalBranch: number;
-  /** Active / Inactive */
+ /** Active / Inactive */
   isActive: boolean;
 };
 
@@ -55,16 +55,16 @@ const errorMessage = (error: unknown, fallback: string): string =>
 const VendorsPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // toolbar / paging
+ // toolbar / paging
   const [entries, setEntries] = useState(10);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // sorting
+ // sorting
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // data
+ // data
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ const VendorsPage: React.FC = () => {
   const [deletingVendorId, setDeletingVendorId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // ===== Fetch vendor list once =====
+ // ===== Fetch vendor list once =====
     useEffect(() => {
     let aborted = false;
 
@@ -82,14 +82,14 @@ const VendorsPage: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // use normalized service
+ // use normalized service
         const { items } = await listVendors();
 
         if (aborted) return;
 
         const mapped: VendorRow[] = items.map((v, ix) => ({
-            id: ix + 1,            // UI S.NO
-            backendId: v.id,       // already string in service
+ id: ix + 1, // UI S.NO
+ backendId: v.id, // already string in service
             name: v.name || "—",
             code: v.code || "—",
             mobile: v.mobile || "—",
@@ -99,7 +99,7 @@ const VendorsPage: React.FC = () => {
 
         setRows(mapped);
         } catch (e: unknown) {
-        console.error("Failed to load vendors", e);
+ console.error("Failed to load vendors", e);
         if (!aborted) {
             setError(
             errorMessage(e, "Unable to load vendors. Please try again later.")
@@ -115,7 +115,7 @@ const VendorsPage: React.FC = () => {
     };
     }, []);
 
-  /** ===== Filtering, sorting, paging (client-side like DataTables) ===== */
+ /** ===== Filtering, sorting, paging (client-side like DataTables) ===== */
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -179,7 +179,7 @@ const VendorsPage: React.FC = () => {
   );
   const endPage = Math.min(totalPages, startPage + windowSize - 1);
 
-  // sorting handler
+ // sorting handler
   const handleSort = (key: SortKey) => {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
@@ -189,7 +189,7 @@ const VendorsPage: React.FC = () => {
     setPage(1);
   };
 
-  /** ===== Export columns ===== */
+ /** ===== Export columns ===== */
   const exportCols: ExportColumn<VendorRow>[] = [
     { key: "id", header: "S.NO" },
     { key: "name", header: "Vendor Name" },
@@ -203,12 +203,12 @@ const VendorsPage: React.FC = () => {
     },
   ];
 
-  // EXPORT handlers — always use the filtered+sorted data (like DataTables)
+ // EXPORT handlers always use the filtered+sorted data (like DataTables)
   const handleCopy = async () => {
     try {
       await copyToClipboard(exportCols, sorted);
     } catch {
-      // ignore
+ // ignore
     }
   };
 
@@ -224,7 +224,7 @@ const VendorsPage: React.FC = () => {
     downloadPDF(exportCols, sorted, `vendors_${todaySuffix()}.pdf`);
   };
 
-  // Delete a vendor with confirmation, then update UI
+ // Delete a vendor with confirmation, then update UI
   const handleDeleteVendor = async (row: VendorRow) => {
     setDeleteTarget(row);
     setDeleteError(null);
@@ -242,7 +242,7 @@ const VendorsPage: React.FC = () => {
       setRows((prev) => prev.filter((r) => r.backendId !== deleteTarget.backendId));
       setDeleteTarget(null);
     } catch (err: unknown) {
-      console.error("Failed to delete vendor", err);
+ console.error("Failed to delete vendor", err);
       setDeleteError(errorMessage(err, "Failed to delete vendor. Please try again later."));
     } finally {
       setDeletingVendorId(null);
@@ -265,7 +265,7 @@ const VendorsPage: React.FC = () => {
         )
       );
     } catch (err: unknown) {
-      console.error("Failed to toggle vendor status", err);
+ console.error("Failed to toggle vendor status", err);
       alert(errorMessage(err, "Failed to update vendor status."));
     } finally {
       setTogglingIds((prev) => {
@@ -276,12 +276,12 @@ const VendorsPage: React.FC = () => {
     }
   };
 
-  /** ================= RENDER (1:1 with Hotel layout) ================= */
+ /** ================= RENDER (1:1 with Hotel layout) ================= */
 
   return (
     <div className="hotel-page-wrapper" style={{ padding: 0 }}>
       <div className="hotel-card">
-        {/* Header: title + Add Vendor button, like PHP page */}
+ {/* Header: title + Add Vendor button, like PHP page */}
         <div className="hotel-card-head">
           <h2 className="hotel-card-title">List of Vendor</h2>
           <div className="hotel-head-actions">
@@ -297,7 +297,7 @@ const VendorsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Toolbar: Show entries + Copy / Excel / CSV / PDF + Search */}
+ {/* Toolbar: Show entries + Copy / Excel / CSV / PDF + Search */}
         <div className="hotel-toolbar">
           <div className="hotel-show-entries">
             <span>Show</span>
@@ -370,7 +370,7 @@ const VendorsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <div className="hotel-table-wrap">
           <table className="hotel-table">
             <thead>
@@ -489,7 +489,7 @@ const VendorsPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Footer: "Showing 1 to 10 of 18 entries" + pagination */}
+ {/* Footer: "Showing 1 to 10 of 18 entries" + pagination */}
         <div className="hotel-footer">
           <p>
             Showing <strong>{total === 0 ? 0 : startItem}</strong> to{" "}
@@ -527,11 +527,11 @@ const VendorsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Small footer note (optional, like Hotels) */}
+ {/* Small footer note (optional, like Hotels) */}
         <div className="hotel-footer-note">DVI Holidays @ 2025</div>
       </div>
 
-      {/* Reuse the same Hotel styles so Vendor page looks 1:1 */}
+ {/* Reuse the same Hotel styles so Vendor page looks 1:1 */}
       <style>{`
         .hotel-page-wrapper { position: relative; z-index: 10; }
 

@@ -126,7 +126,7 @@ export const useAddHotspotModalController = ({
       if (existingManualHotspotIds.length > 0) setSelectedHotspotIds([]);
     }
   } catch (error) {
-    console.error("Failed to fetch available hotspots", error);
+ console.error("Failed to fetch available hotspots", error);
     toast.error(error?.message || "Failed to load available hotspots");
   } finally {
     setLoadingHotspots(false);

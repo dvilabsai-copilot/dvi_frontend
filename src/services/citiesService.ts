@@ -82,13 +82,13 @@ export const CitiesAPI = {
     return unwrapList(res).rows.map(toState);
   },
 
-  // ✅ one-state fetch
+ // one-state fetch
   async getCitiesByState(stateId: number): Promise<City[]> {
     const res = (await api(`/cities/by-state/${stateId}`)) as ListResponseDTO<CityDTO>;
     return unwrapList(res).rows.map(toCity);
   },
 
-  // ✅ paginated by-country fetch (new endpoint)
+ // paginated by-country fetch (new endpoint)
   async getCitiesByCountry(countryId = 101, page = 1, pageSize = 500, search = ""): Promise<{ rows: City[]; meta?: any }> {
     const qs =
       `countryId=${countryId}` +
@@ -101,7 +101,7 @@ export const CitiesAPI = {
     return { rows: rows.map(toCity), meta };
   },
 
-  // ✅ helper: fetch ALL pages (used when UI selects "All States")
+ // helper: fetch ALL pages (used when UI selects "All States")
   async getAllCitiesByCountry(countryId = 101, search = ""): Promise<City[]> {
     const all: City[] = [];
     let page = 1;
@@ -114,7 +114,7 @@ export const CitiesAPI = {
       if (all.length >= total) break;
 
       page += 1;
-      if (page > 50) break; // safety
+ if (page > 50) break; // safety
     }
 
     return all;

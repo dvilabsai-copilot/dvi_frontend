@@ -36,7 +36,7 @@ export function useMediaModalController({
     let embedUrl = videoUrl;
     const youtubeMatch = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
     if (youtubeMatch) {
-      embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
+ embedUrl = `https://www.youtube.com/embed/${youtubeMatch[1]}`;
     }
     setVideoModal({
       open: true,

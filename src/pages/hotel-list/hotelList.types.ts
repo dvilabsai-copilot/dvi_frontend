@@ -78,7 +78,7 @@ export type HotelListProps = {
     dayNumbers: number[];
     hotelDetailsIds: number[];
   }>) => void | Promise<void>;
-  /** Legacy display callback; authoritative totals come from the preview response. */
+ /** Legacy display callback; authoritative totals come from the preview response. */
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;

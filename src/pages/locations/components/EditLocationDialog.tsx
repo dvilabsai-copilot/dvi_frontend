@@ -92,7 +92,7 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
         </p>
 
         <div className="space-y-6">
-          {/* Row 1: Source Location, City, State (3 columns) */}
+ {/* Row 1: Source Location, City, State (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location *</label>
@@ -123,7 +123,7 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
             </div>
           </div>
 
-          {/* Row 2: Source Latitude, Longitude, Destination Location (3 columns) */}
+ {/* Row 2: Source Latitude, Longitude, Destination Location (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Source Location Latitude *</label>
@@ -158,7 +158,7 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
             </div>
           </div>
 
-          {/* Row 3: Destination City, State, Latitude (3 columns) */}
+ {/* Row 3: Destination City, State, Latitude (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location City *</label>
@@ -193,7 +193,7 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
             </div>
           </div>
 
-          {/* Row 4: Destination Longitude, Distance, Duration (3 columns) */}
+ {/* Row 4: Destination Longitude, Distance, Duration (3 columns) */}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Destination Location Longitude *</label>
@@ -225,7 +225,7 @@ export function EditLocationDialog({ open, initial, onClose, onSubmit }: EditLoc
             </div>
           </div>
 
-          {/* Row 5: Description Textarea */}
+ {/* Row 5: Description Textarea */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Description</label>
             <textarea

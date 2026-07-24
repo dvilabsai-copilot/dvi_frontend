@@ -52,7 +52,7 @@ export default function TollChargePage() {
       const data = await locationsApi.dropdowns();
       setSources(data.sources || []);
     } catch (error) {
-      console.error("Error loading source locations:", error);
+ console.error("Error loading source locations:", error);
       toast.error("Failed to load source locations");
     } finally {
       setLoadingOptions(false);
@@ -69,7 +69,7 @@ export default function TollChargePage() {
       const data = await locationsApi.dropdowns({ source: selectedSource });
       setDestinations(data.destinations || []);
     } catch (error) {
-      console.error("Error loading destination locations:", error);
+ console.error("Error loading destination locations:", error);
       toast.error("Failed to load destination locations");
       setDestinations([]);
     }
@@ -114,7 +114,7 @@ export default function TollChargePage() {
       const tollRows = await locationsApi.tolls(found.location_ID);
       setTolls(tollRows);
     } catch (error) {
-      console.error("Error loading toll info:", error);
+ console.error("Error loading toll info:", error);
       toast.error("Failed to load toll charges");
     } finally {
       setLoadingRoute(false);
@@ -140,7 +140,7 @@ export default function TollChargePage() {
 
       toast.success("Toll charges updated");
     } catch (error) {
-      console.error("Error saving toll charges:", error);
+ console.error("Error saving toll charges:", error);
       toast.error("Failed to save toll charges");
     } finally {
       setSaving(false);

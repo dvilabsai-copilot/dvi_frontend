@@ -155,7 +155,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
 
       await loadCancellationPolicies();
     } catch (error) {
-      console.error('Failed to load vehicle voucher data', error);
+ console.error('Failed to load vehicle voucher data', error);
       toast.error('Failed to load vehicle voucher data');
     } finally {
       setIsLoading(false);
@@ -171,7 +171,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
       );
       setCancellationPolicies(policies);
     } catch (error) {
-      console.error('Failed to load vehicle cancellation policies', error);
+ console.error('Failed to load vehicle cancellation policies', error);
     }
   };
 
@@ -185,7 +185,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
       toast.success('Vehicle cancellation policy deleted successfully');
       await loadCancellationPolicies();
     } catch (error: any) {
-      console.error('Failed to delete vehicle policy', error);
+ console.error('Failed to delete vehicle policy', error);
       toast.error(error.message || 'Failed to delete vehicle cancellation policy');
     }
   };
@@ -232,7 +232,7 @@ export const VehicleVoucherModal: React.FC<VehicleVoucherModalProps> = ({
         onSuccess?.();
       }
     } catch (error: any) {
-      console.error('Failed to create vehicle voucher', error);
+ console.error('Failed to create vehicle voucher', error);
       toast.error(error.message || 'Failed to create vehicle voucher');
     } finally {
       setIsSubmitting(false);

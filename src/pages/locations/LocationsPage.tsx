@@ -61,7 +61,7 @@ export default function LocationsPage() {
 
   const destinationOptions: AutoSuggestOption[] = locationOptions;
 
-  // dialogs
+ // dialogs
   const [addOpen, setAddOpen] = useState(false);
   const [locationAddProgress, setLocationAddProgress] = useState<{
     stage: string;
@@ -96,13 +96,13 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
     void loadDropdowns();
   }, []);
 
-  // fetch on page/pageSize/source/destination change
+ // fetch on page/pageSize/source/destination change
   useEffect(() => {
     void loadList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, source, destination, debouncedSearch]);
 
-  // debounced fetch on search change
+ // debounced fetch on search change
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearch(search);
@@ -118,7 +118,7 @@ const [tollInfo, setTollInfo] = useState<{ open: boolean; row: LocationRow | nul
       setSources(d?.sources || []);
       setDestinations(d?.destinations || []);
     } catch (error) {
-      console.error("Error loading location dropdowns:", error);
+ console.error("Error loading location dropdowns:", error);
       toast.error("Failed to load location filters");
       setSources([]);
       setDestinations([]);
@@ -224,7 +224,7 @@ function focusLocationRecords(sourceValue?: string, destinationValue?: string, s
 }
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // client-side filter fallback (resilient if backend search is absent)
+ // client-side filter fallback (resilient if backend search is absent)
   const filtered = useMemo(() => {
     if (!search) return rows;
     const s = lo(search);
@@ -290,7 +290,7 @@ useEffect(() => {
       setDeletePopupTotal(Number(result.total ?? result.rows?.length ?? 0));
     } catch (error) {
       if (cancelled) return;
-      console.error("Error loading records for delete popup:", error);
+ console.error("Error loading records for delete popup:", error);
       setDeletePopupRows([]);
       setDeletePopupTotal(0);
       toast.error("Failed to load matching records");
@@ -330,7 +330,7 @@ useEffect(() => {
   return () => window.cancelAnimationFrame(frameId);
 }, [renameLocationOpen, locationOptions]);
 
-  // ---------- handlers ----------
+ // ---------- handlers ----------
              function openModifyLocation() {
     const rowToEdit = selectedRow ?? rows[0] ?? null;
 
@@ -398,8 +398,8 @@ function toggleAllDeletePopupRecords(checked: boolean) {
   async function handleCreate(payload: CreateLocationPayload) {
     const startingTotal = total;
 
-    // Close the form immediately and use the same loader as itinerary details while
-    // the API creates the replicated location rows.
+ // Close the form immediately and use the same loader as itinerary details while
+ // the API creates the replicated location rows.
     setAddOpen(false);
     setLocationAddProgress({
       stage: "Adding locations",
@@ -420,8 +420,8 @@ function toggleAllDeletePopupRecords(checked: boolean) {
 
       const totalToAdd = createdRows.length;
 
-      // The POST response already contains every replicated row. Do not animate
-      // through hundreds of rows after the response has completed.
+ // The POST response already contains every replicated row. Do not animate
+ // through hundreds of rows after the response has completed.
       const firstCreatedRow = createdRows[0];
       setRows((previous) => [
         firstCreatedRow,
@@ -433,10 +433,10 @@ function toggleAllDeletePopupRecords(checked: boolean) {
         `${totalToAdd} location${totalToAdd === 1 ? "" : "s"} added`
       );
 
-      // Refresh the table and dropdowns without keeping the loader open.
+ // Refresh the table and dropdowns without keeping the loader open.
       void Promise.all([loadDropdowns(), loadList()]);
     } catch (error) {
-      console.error("Error adding locations:", error);
+ console.error("Error adding locations:", error);
       setLocationAddProgress(null);
       toast.error("Failed to add locations");
     }
@@ -481,8 +481,8 @@ function toggleAllDeletePopupRecords(checked: boolean) {
       };
     });
 
-    // Show the requested value immediately so the table does not appear stale
-    // while the server confirms the update and synchronizes its reverse route.
+ // Show the requested value immediately so the table does not appear stale
+ // while the server confirms the update and synchronizes its reverse route.
     setRows(optimisticRows);
     setEditRow(null);
     toast("Updating location...");
@@ -498,10 +498,10 @@ function toggleAllDeletePopupRecords(checked: boolean) {
       );
 
       await loadDropdowns();
-      // Reconcile the optimistic row with the authoritative server response.
+ // Reconcile the optimistic row with the authoritative server response.
       await loadList();
     } catch (error) {
-      console.error("Error updating location:", error);
+ console.error("Error updating location:", error);
       setRows(previousRows);
       toast.error("Failed to update location");
     }
@@ -559,7 +559,7 @@ focusLocationRecords("", "", result.newName || newName);
 
 await loadDropdowns();
   } catch (error) {
-    console.error("Error updating location name:", error);
+ console.error("Error updating location name:", error);
     toast.error("Failed to update location name", { id: updatingToastId });
   }
 }
@@ -588,7 +588,7 @@ await loadDropdowns();
 
     void Promise.all([loadDropdowns(), loadList()]);
   } catch (error) {
-    console.error("Error deleting location name:", error);
+ console.error("Error deleting location name:", error);
     toast.error("Failed to delete location", { id: deletingToastId });
   }
 }
@@ -637,7 +637,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
               );
               void Promise.all([loadDropdowns(), loadList()]);
             } catch (error) {
-              console.error("Error restoring selected records:", error);
+ console.error("Error restoring selected records:", error);
               toast.error("Failed to restore selected records", { id: restoreToastId });
             }
           },
@@ -647,7 +647,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
 
     void Promise.all([loadDropdowns(), loadList()]);
   } catch (error) {
-    console.error("Error deleting selected records:", error);
+ console.error("Error deleting selected records:", error);
     toast.error("Failed to delete selected records", { id: deletingToastId });
   }
 }
@@ -703,10 +703,10 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         </div>
       </div>
 
-      {/* Filters */}
+ {/* Filters */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   
+
             <div>
   <div className="text-xs mb-1">Source Location *</div>
     {dropdownsLoading ? (
@@ -766,7 +766,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         </div>
       </div>
 
-      {/* Table */}
+ {/* Table */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -858,14 +858,14 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         </div>
       </div>
 
-      {/* Add Modal */}
+ {/* Add Modal */}
       <AddLocationDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSubmit={handleCreate}
       />
 
-      {/* Edit Modal */}
+ {/* Edit Modal */}
       <EditLocationDialog
         open={!!editRow}
         initial={editRow}
@@ -873,7 +873,7 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         onSubmit={(payload) => handleUpdate(payload)}
       />
 
-      {/* Update Location Name */}
+ {/* Update Location Name */}
 <UpdateLocationNameDialog
   open={renameLocationOpen}
   oldName={renameOldName}
@@ -889,9 +889,9 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
   onConfirm={handleUpdateLocationName}
 />
 
- 
 
-      {/* Delete confirm */}
+
+ {/* Delete confirm */}
       <DeleteLocationNameDialog
         open={deleteLocationOpen}
         value={deleteLocationName}
@@ -948,9 +948,9 @@ async function handleDeleteSelectedRecords(ids?: number[]) {
         />
       )}
 
-    
 
-      {/* Toll charges */}
+
+ {/* Toll charges */}
       {tollInfo.open && tollInfo.row && (
         <TollDialog
           open

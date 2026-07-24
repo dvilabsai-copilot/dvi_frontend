@@ -19,7 +19,7 @@ import { getCompactPaginationItems, type PaginationItem } from "./locationsPrevi
 export default function LocationsPreviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  // State
+ // State
   const [sources, setSources] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
   const [selectedSource, setSelectedSource] = useState<string>("");
@@ -38,7 +38,7 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
   const [routeSuggestions, setRouteSuggestions] = useState<string[]>([]);
   const [routeSuggestionSearch, setRouteSuggestionSearch] = useState("");
   const [suggestedRoutes, setSuggestedRoutes] = useState<SuggestedRouteRow[]>([]);
-  //const [selectedSuggestions, setSelectedSuggestions] = useState<SuggestedRouteRow[]>([]);
+ //const [selectedSuggestions, setSelectedSuggestions] = useState<SuggestedRouteRow[]>([]);
     const [editingSuggestionId, setEditingSuggestionId] = useState<string | null>(null);
   const [editingSuggestionForm, setEditingSuggestionForm] = useState({
     routes: "",
@@ -58,7 +58,7 @@ const [viaRouteDeleting, setViaRouteDeleting] = useState(false);
     const [deleteViaRouteId, setDeleteViaRouteId] = useState<number | null>(null);
   const [addRouteModalOpen, setAddRouteModalOpen] = useState(false);
   const [deleteSuggestedRouteId, setDeleteSuggestedRouteId] = useState<string | null>(null);
-  //const [lastViaRouteLookupValue, setLastViaRouteLookupValue] = useState("");
+ //const [lastViaRouteLookupValue, setLastViaRouteLookupValue] = useState("");
   const [viaRoutePageSize, setViaRoutePageSize] = useState(10);
   const [viaRouteCurrentPage, setViaRouteCurrentPage] = useState(1);
   const [suggestedRoutePageSize, setSuggestedRoutePageSize] = useState(10);
@@ -155,7 +155,7 @@ const renderHighlightedRouteSuggestion = (route: string) => {
     </>
   );
 };
-  // Load dropdowns and initial data
+ // Load dropdowns and initial data
   useEffect(() => {
     async function init() {
       try {
@@ -175,7 +175,7 @@ const renderHighlightedRouteSuggestion = (route: string) => {
          await loadPreviewCollections(locationId);
         }
       } catch (error) {
-        console.error("Error loading data:", error);
+ console.error("Error loading data:", error);
         toast.error("Failed to load location data");
       } finally {
         setPageLoading(false);
@@ -196,7 +196,7 @@ const renderHighlightedRouteSuggestion = (route: string) => {
         );
         setRouteSuggestions(suggestions);
       } catch (error) {
-        console.error("Error loading route suggestions:", error);
+ console.error("Error loading route suggestions:", error);
         setRouteSuggestions([]);
       }
     }
@@ -227,7 +227,7 @@ useEffect(() => {
       setSources(dropdowns.sources || []);
       setDestinations(dropdowns.destinations || []);
     } catch (error) {
-      console.error("Error loading filter dropdowns:", error);
+ console.error("Error loading filter dropdowns:", error);
     }
   }
   reloadDestinationDropdown();
@@ -250,7 +250,7 @@ useEffect(() => {
     setViaRouteCurrentPage(1);
     setSuggestedRouteCurrentPage(1);
   } catch (err) {
-    console.error("Error loading preview collections:", err);
+ console.error("Error loading preview collections:", err);
     toast.error("Failed to load via routes");
   } finally {
     setViaRoutesLoading(false);
@@ -344,7 +344,7 @@ useEffect(() => {
       }
       return true;
     } catch (error) {
-      console.error("Error validating route locations:", error);
+ console.error("Error validating route locations:", error);
       toast.error("Could not validate locations with backend");
       return false;
     }
@@ -396,12 +396,12 @@ useEffect(() => {
       };
     });
   } catch (error) {
-    console.error("Error fetching via route place details:", error);
+ console.error("Error fetching via route place details:", error);
   } finally {
     setViaRouteLookupLoading(false);
   }
 };
-   // Get Info button handler
+ // Get Info button handler
    const openAddViaRouteDialog = () => {
   if (!location) {
     toast.warning("Please load a location first");
@@ -469,7 +469,7 @@ setEditingViaRouteId(null);
 resetViaRouteForm();
     toast.success(editingViaRouteId ? "Via route updated" : "Via route added");
   } catch (error) {
-    console.error("Error saving via route:", error);
+ console.error("Error saving via route:", error);
     toast.error("Failed to save via route");
   } finally {
     setViaRouteSaving(false);
@@ -621,7 +621,7 @@ const handleDeleteViaRoute = async () => {
     setDeleteViaRouteId(null);
     toast.success("Via route deleted");
   } catch (error) {
-    console.error("Error deleting via route:", error);
+ console.error("Error deleting via route:", error);
     toast.error("Failed to delete via route");
   } finally {
     setViaRouteDeleting(false);
@@ -716,7 +716,7 @@ const handleSaveNewSuggestedRoute = async () => {
     setAddRouteModalOpen(false);
     toast.success("Route added");
   } catch (error) {
-    console.error("Error adding suggested route:", error);
+ console.error("Error adding suggested route:", error);
     toast.error("Failed to add suggested route");
   }
 };
@@ -737,7 +737,7 @@ const confirmDeleteSelectedSuggestion = async () => {
     setDeleteSuggestedRouteId(null);
     toast.success("Route removed");
   } catch (error) {
-    console.error("Error deleting suggested route:", error);
+ console.error("Error deleting suggested route:", error);
     toast.error("Failed to delete suggested route");
   }
 };
@@ -802,7 +802,7 @@ const confirmDeleteSelectedSuggestion = async () => {
     setEditingSuggestionDays([]);
     toast.success("Route updated");
   } catch (error) {
-    console.error("Error updating suggested route:", error);
+ console.error("Error updating suggested route:", error);
     toast.error("Failed to update suggested route");
   }
 };
@@ -835,7 +835,7 @@ const confirmDeleteSelectedSuggestion = async () => {
     setViaRoutes(result.data);
     toast.success("Route added to via routes");
   };
-  // Get Info button handler
+ // Get Info button handler
           const handleGetInfo = async () => {
     if (!selectedSource || !selectedDestination) {
       toast.warning("Please select both source and destination");
@@ -869,13 +869,13 @@ const confirmDeleteSelectedSuggestion = async () => {
         }
       }
     } catch (error) {
-      console.error("Error getting info:", error);
+ console.error("Error getting info:", error);
       toast.error("Failed to load location data");
     } finally {
       setPageLoading(false);
     }
   };
-  // Update toll charges
+ // Update toll charges
   const handleUpdateTolls = async () => {
     if (!location) {
       toast.warning("Please select a location first");
@@ -891,7 +891,7 @@ const confirmDeleteSelectedSuggestion = async () => {
       );
       toast.success("Toll charges updated");
     } catch (error) {
-      console.error("Error saving tolls:", error);
+ console.error("Error saving tolls:", error);
       toast.error("Failed to save toll charges");
     }
   };

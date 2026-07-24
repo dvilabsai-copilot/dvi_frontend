@@ -20,13 +20,13 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
     <div className="p-6 space-y-6">
       <LocationsPreviewHeader context={context} />
 
-      {/* Location Details Section */}
+ {/* Location Details Section */}
       {location && (
         <div className="bg-white rounded-lg border p-6">
           <h3 className="text-lg font-semibold mb-6 text-pink-600">Location Details</h3>
 
           <div className="grid grid-cols-4 gap-6">
-            {/* Row 1: Source info */}
+ {/* Row 1: Source info */}
             <div>
               <label className="text-xs text-gray-500 font-medium block mb-2">Source</label>
               <p className="text-sm text-gray-700">{location.source_location}</p>
@@ -44,7 +44,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
               <p className="text-sm text-gray-700">{location.source_city}</p>
             </div>
 
-            {/* Row 2: Destination info */}
+ {/* Row 2: Destination info */}
             <div>
               <label className="text-xs text-gray-500 font-medium block mb-2">Destination</label>
               <p className="text-sm text-gray-700">{location.destination_location}</p>
@@ -62,7 +62,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
               <p className="text-sm text-gray-700">{location.destination_city}</p>
             </div>
 
-            {/* Row 3: Distance & Duration */}
+ {/* Row 3: Distance & Duration */}
             <div>
               <label className="text-xs text-gray-500 font-medium block mb-2">Distance</label>
               <p className="text-sm text-gray-700">{location.distance_km}</p>
@@ -75,7 +75,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
             <div></div>
           </div>
 
-          {/* Description if present */}
+ {/* Description if present */}
           {location.location_description && (
             <div className="mt-6 pt-6 border-t">
               <label className="text-xs text-gray-500 font-medium block mb-2">Description</label>
@@ -83,7 +83,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
             </div>
           )}
 
-          {/* Via Route Details */}
+ {/* Via Route Details */}
           {viaRoutes.length > 0 && (
             <div className="mt-6 pt-6 border-t">
               <label className="text-xs text-gray-500 font-medium block mb-4">
@@ -150,7 +150,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
         </div>
       )}
 
-      {/* Vehicle Toll Details Section */}
+ {/* Vehicle Toll Details Section */}
       <div className="bg-white rounded-lg border p-6">
         <h3 className="text-lg font-semibold mb-6 text-pink-600">Vehicle Toll Details</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
@@ -181,7 +181,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
         </div>
       </div>
 
-      {/* Via Route List Section */}
+ {/* Via Route List Section */}
       <div className="bg-white rounded-lg border p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-pink-600">List Of Via Routes</h3>
@@ -372,7 +372,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
         </div>
       </div>
 
-      {/* Route Suggestions Section */}
+ {/* Route Suggestions Section */}
       <div className="bg-white rounded-lg border p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-pink-600">List Of Routes Suggestions</h3>
@@ -587,7 +587,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
     setViaRouteForm((prev) => {
       const normalizedPrev = prev.via_route_location.trim().toLowerCase();
 
-      // Keep existing autofilled values when the selected place is unchanged.
+ // Keep existing autofilled values when the selected place is unchanged.
       if (normalizedPrev === normalizedNext) {
         return {
           ...prev,
@@ -607,7 +607,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
       };
     });
 
-    // Ensure a new lookup runs when user picks/enters a different place.
+ // Ensure a new lookup runs when user picks/enters a different place.
     setLastViaRouteLookupValue("");
   }}
   search={(phrase) => locationsApi.searchDestinations(phrase)}
@@ -706,7 +706,7 @@ export function LocationsPreviewView({ context }: { context: Record<string, any>
               </div>
             </div>
 
-            
+
 
             <div className="mt-6 flex justify-end gap-2">
               <Button

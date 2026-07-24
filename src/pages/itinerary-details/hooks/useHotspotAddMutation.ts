@@ -121,7 +121,7 @@ export const useHotspotAddMutation = ({
       setAvailableHotspots(normalizeAvailableHotspots(filtered));
     }
   } catch (error) {
-    console.error("Failed to add hotspot", error);
+ console.error("Failed to add hotspot", error);
     toast.error(errorMessage(error) || "Failed to add hotspot");
   } finally {
     setIsAddingHotspot(false);

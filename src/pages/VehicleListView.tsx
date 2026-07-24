@@ -39,7 +39,7 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
         )}
       </div>
 
-   {/* Vehicle Table View */}
+ {/* Vehicle Table View */}
 <div className="w-full min-w-0 overflow-x-hidden">
   <table className="w-full table-fixed text-sm">
     <colgroup>
@@ -199,15 +199,15 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       )}
                     </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
-                    <td 
+                    <td
                       className={`py-3 px-3 text-right font-semibold text-gray-900 ${canViewCostBreakdown ? "" : "[&>span]:hidden"}`}
                       onMouseEnter={() => setHoveredTotalAmountIndex(index)}
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
 {formatCurrencyINR(displayTotalAmount)}
                       <span className="ml-2 text-xs text-gray-500">{isExpanded ? "\u25BC" : "\u25B6"}</span>
-                      
-                      {/* Hover Tooltip - Price Breakdown */}
+
+ {/* Hover Tooltip - Price Breakdown */}
                        {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
                         <FloatingHoverTooltip left={0} top={80} style={{ right: "20px", left: "auto" }}>
                           <div className="mb-2 border-b border-gray-200 pb-2">
@@ -248,8 +248,8 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       )}
                     </td>
                   </tr>
-                  
-                  {/* Expanded Row - PHP-style full pricing breakdown */}
+
+ {/* Expanded Row - PHP-style full pricing breakdown */}
                   {canViewCostBreakdown && isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
                    <tr className="border-b border-gray-100 bg-gray-50">
   <td
@@ -262,7 +262,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
     >
       <div className="w-full min-w-0 space-y-3">
 
-                          {/* â”€â”€ Day-wise per-route table â”€â”€ */}
+ {/* Day-wise per-route table */}
                           <div>
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <h6 className="text-sm font-semibold text-gray-900">Day-wise Pricing Breakdown</h6>
@@ -279,7 +279,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                                       toast.success("Copied with Outlook formatting");
                                       setTimeout(() => setCopiedVendorIndex((prev) => (prev === index ? null : prev)), 1600);
                                     } catch (error) {
-                                      console.error("Failed to copy vehicle breakdown", error);
+ console.error("Failed to copy vehicle breakdown", error);
                                       toast.error("Failed to copy. Please try again.");
                                     }
                                   }}
@@ -411,7 +411,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             </div>
                           </div>
 
-    {/* â”€â”€ Full-width stacked summary tables â”€â”€ */}
+ {/* Full-width stacked summary tables */}
 <div className="w-full min-w-0 space-y-3">
   <div className="w-full min-w-0 overflow-hidden">
     <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
@@ -620,7 +620,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
         </table>
       </div>
 
-      {/* Confirmation Dialog */}
+ {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

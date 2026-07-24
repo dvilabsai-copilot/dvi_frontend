@@ -9,7 +9,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
   const { addActivityModal, setAddActivityModal, loadingActivities, availableActivities, activityPreview, isAddingActivity, previewingActivityId, handlePreviewActivity, handleOpenPreviewAllHotspots, formatActivityDuration, formatActivityMoney, formatPreviewTime, getActivityTotalAmount, getSelectedPreviewActivity, handleAddActivity } = context;
   return (
     <>
-      {/* Add Activity Modal */}
+ {/* Add Activity Modal */}
       <Dialog
         open={addActivityModal.open}
         onOpenChange={(open) =>
@@ -175,7 +175,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
   );
 })()}
 
-{/* ① Placement */}
+{/* Placement */}
                     <div className="rounded-lg border border-[#e5d9f2] bg-[#faf7fc] p-3 space-y-2">
                       <div className="text-xs font-semibold text-[#4a4260] uppercase tracking-wide">① Placement</div>
                       <div className="flex items-center justify-between text-xs">
@@ -200,7 +200,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                       )}
                     </div>
 
-                    {/* ② Hotspot Impact */}
+ {/* Hotspot Impact */}
                     <div className={`rounded-lg border-2 p-3 ${activityPreview.hasConflicts
                         ? 'border-red-300 bg-red-50'
                         : activityPreview.proposedTiming?.willExtendHotspot
@@ -238,7 +238,7 @@ export const AddActivityDialog: React.FC<AddActivityDialogProps> = ({ context })
                       )}
                     </div>
 
-                    {/* ③ Day Cascade */}
+ {/* Day Cascade */}
                     {activityPreview.cascade?.shiftMinutes > 0 && activityPreview.cascade?.affectedSegments?.length > 0 && (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                         <div className="text-xs font-semibold text-amber-800 uppercase tracking-wide">

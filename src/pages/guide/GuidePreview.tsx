@@ -69,7 +69,7 @@ export default function GuidePreview() {
     return () => { alive = false; };
   }, [guideId]);
 
-  // Prefer server-provided labels; fallback to old client logic if absent
+ // Prefer server-provided labels; fallback to old client logic if absent
   const stateName =
     (data as any)?.view?.state_name ??
     options?.states.find((s) => s.id === Number(data?.basic.guide_state))?.name ??
@@ -159,7 +159,7 @@ export default function GuidePreview() {
 
         {!loading && data && (
           <>
-            {/* Basic Info */}
+ {/* Basic Info */}
             <Section title="Basic Info">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Row label="Guide Name" value={data.basic.guide_name} />
@@ -191,7 +191,7 @@ export default function GuidePreview() {
               </div>
             </Section>
 
-            {/* Bank Details */}
+ {/* Bank Details */}
             <Section title="Bank Details">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Row label="Bank Name" value={(data.basic as any).guide_bank_name ?? ""} />
@@ -202,7 +202,7 @@ export default function GuidePreview() {
               </div>
             </Section>
 
-            {/* Guide Preferred For */}
+ {/* Guide Preferred For */}
             <Section title="Guide Prefered For">
               <div className="flex items-start gap-4">
                 <label className="flex items-center gap-2">
@@ -223,7 +223,7 @@ export default function GuidePreview() {
               ) : null}
             </Section>
 
-            {/* Feedback & Review */}
+ {/* Feedback & Review */}
             <Section title="Feedback & Review">
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">

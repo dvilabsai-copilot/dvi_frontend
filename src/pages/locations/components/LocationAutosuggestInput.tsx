@@ -140,7 +140,7 @@ export function LocationAutosuggestInput({
     const el = optionRefs.current[highlightIndex];
     if (!el) return;
 
-    // Keep keyboard-highlighted option visible while moving through long lists.
+ // Keep keyboard-highlighted option visible while moving through long lists.
     el.scrollIntoView({
       block: "nearest",
       behavior: "smooth",

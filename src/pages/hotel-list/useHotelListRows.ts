@@ -89,10 +89,10 @@ export function useHotelListRows<TVoucher>({
       (hotel) => helpers.toNumber(hotel.groupType) === helpers.toNumber(activeGroupType),
     );
 
-    // The API exposes the previous-night billing marker so the UI can explain
-    // the early-arrival date. It is not a second selectable hotel stay. Keep
-    // the real hotel row as the source of selection and pricing; the table
-    // renders the marker as the Day 0 entry point for that real stay.
+ // The API exposes the previous-night billing marker so the UI can explain
+ // the early-arrival date. It is not a second selectable hotel stay. Keep
+ // the real hotel row as the source of selection and pricing; the table
+ // renders the marker as the Day 0 entry point for that real stay.
     const nonSyntheticHotels = activeGroupHotels.filter(
       (hotel) => !hotel.previousDayBillingSynthetic,
     );

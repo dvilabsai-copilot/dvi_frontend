@@ -40,7 +40,7 @@ export const VendorStepPermitCost: React.FC<Props> = ({
   onBack,
   onNext,
 }) => {
-  /** ---------- TABLE + FILTER STATE ---------- */
+ /** ---------- TABLE + FILTER STATE ---------- */
   const [rows, setRows] = useState<PermitRow[]>([]);
   const [entriesPerPage] = useState(10);
   const [searchText, setSearchText] = useState("");
@@ -56,7 +56,7 @@ const [driverCostVehicleTypeIds, setDriverCostVehicleTypeIds] = useState<
 >([]);
 const [stateOptions, setStateOptions] = useState<Option[]>([]);
 
-  /** ---------- ADD FORM STATE ---------- */
+ /** ---------- ADD FORM STATE ---------- */
   const [permitForm, setPermitForm] = useState({
     vehicleType: "",
     state: "",
@@ -118,7 +118,7 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
         setDestinationCosts(costs);
       } catch (e) {
         if (!cancelled) {
-          console.error("Failed to fetch permit costs for selected vehicle and state", e);
+ console.error("Failed to fetch permit costs for selected vehicle and state", e);
           setDestinationCosts({});
         }
       }
@@ -135,7 +135,7 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
     setLoading(true);
     try {
       const data = (await api(`/vendors/${vendorId}/permit-costs`)) as any[];
-      // Group by vehicle type and source state for the list view
+ // Group by vehicle type and source state for the list view
       const grouped: { [key: string]: PermitRow } = {};
       data.forEach((pc: any) => {
         const key = `${pc.vehicle_type_id}-${pc.source_state_id}`;
@@ -152,7 +152,7 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
       });
       setRows(Object.values(grouped));
     } catch (e) {
-      console.error("Failed to fetch permit costs", e);
+ console.error("Failed to fetch permit costs", e);
     } finally {
       setLoading(false);
     }
@@ -204,7 +204,7 @@ const permitStateListRef = useRef<HTMLDivElement | null>(null);
         .filter((s: Option) => s.id && s.label)
     );
   } catch (e) {
-    console.error("Failed to fetch dropdowns", e);
+ console.error("Failed to fetch dropdowns", e);
   }
 };
 
@@ -447,7 +447,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       setIsAddMode(false);
       toast.success("Permit cost saved successfully");
     } catch (e) {
-      console.error("Failed to save permit costs", e);
+ console.error("Failed to save permit costs", e);
       toast.error(e instanceof Error ? e.message : "Failed to save permit costs");
     } finally {
       setSaving(false);
@@ -474,14 +474,14 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
       setDeletingRow(null);
       await fetchPermitCosts();
     } catch (e: any) {
-      console.error("Failed to delete permit cost group", e);
+ console.error("Failed to delete permit cost group", e);
       toast.error(e?.message || "Failed to delete permit cost.");
     } finally {
       setSaving(false);
     }
   };
 
-  /** ---------- LIST VIEW (matches PHP “Permit Details” screen) ---------- */
+ /** ---------- LIST VIEW (matches PHP Permit Details screen) ---------- */
   const renderListView = () => (
     <>
       <h2 className="mb-4 text-lg font-semibold text-pink-600">
@@ -631,7 +631,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         </div>
       </div>
 
-      {/* Bottom navigation (Back + Submit) */}
+ {/* Bottom navigation (Back + Submit) */}
       <div className="mt-8 flex justify-between">
         <Button
           variant="outline"
@@ -653,7 +653,7 @@ const handlePermitStateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     </>
   );
 
-  /** ---------- ADD FORM VIEW (matches PHP “Add Permit Cost”) ---------- */
+ /** ---------- ADD FORM VIEW (matches PHP Add Permit Cost) ---------- */
   const renderAddView = () => (
     <>
       <div className="mb-6 flex items-center justify-between">
@@ -842,7 +842,7 @@ filteredPermitStateOptions.map((state, index) => {
         </div>
       </div>
 
-      {/* Destination States Grid */}
+ {/* Destination States Grid */}
       {permitForm.state && (
         <div className="mt-6">
           <h3 className="mb-4 text-md font-semibold text-gray-700">Destination State Permit Costs</h3>
@@ -850,11 +850,11 @@ filteredPermitStateOptions.map((state, index) => {
             {destinationStateOptions.map((state) => (
               <div key={state.id} className="flex items-center gap-2">
                 <Label className="w-32 text-xs truncate">{state.label}</Label>
-                <Input 
+                <Input
                   type="number"
                   min="0"
                   step="0.01"
-                  placeholder="Cost" 
+                  placeholder="Cost"
                   className="h-8 text-xs"
                   value={destinationCosts[state.id] ?? ""}
                   onChange={(e) => {

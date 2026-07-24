@@ -11,9 +11,9 @@ export function DashboardAdminView({ context }: { context: Record<string, any> }
 return (
     <div className="p-8 space-y-6">
       <DashboardAdminOverview adminData={adminData} api={api} setApi={setApi} current={current} />
-      {/* Daily Moment and Star Performers */}
+ {/* Daily Moment and Star Performers */}
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  {/* Daily Moment */}
+ {/* Daily Moment */}
   <Card className="p-6">
     <div className="flex items-center justify-between mb-4">
       <h3 className="text-lg font-bold">Daily Moment</h3>
@@ -162,7 +162,7 @@ return (
 </Card>
 </div>
 
-            {/* Confirmed Itinerary List */}
+ {/* Confirmed Itinerary List */}
      <div id="confirmed-itinerary-list" className="space-y-4">
   <h2 className="text-2xl font-semibold text-slate-700">
     Confirmed Itinerary List
@@ -272,7 +272,7 @@ return (
                   ) : confirmedItineraries.length > 0 ? (
                     confirmedItineraries.map((itinerary, index) => (
                       <tr
-                    
+
   key={`${itinerary.itinerary_plan_ID}-${itinerary.booking_quote_id}`}
   className="border-b border-gray-100 hover:bg-slate-50"
 >
@@ -380,7 +380,7 @@ return (
                 </Card>
       </div>
 
-      {/* Agents wise Confirmed Itinerary */}
+ {/* Agents wise Confirmed Itinerary */}
       <div className="space-y-4">
         <h2 className="text-2xl font-semibold text-slate-700">
           Agents wise Confirmed Itinerary
@@ -811,7 +811,7 @@ return (
                 </Card>
       </div>
 
-      {/* Most Visited Hotels */}
+ {/* Most Visited Hotels */}
 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
   <Card className="border-none bg-white p-7 shadow-md">
     <div className="mb-11 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

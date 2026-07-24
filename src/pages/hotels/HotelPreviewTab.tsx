@@ -8,7 +8,7 @@ export const HotelPreviewTab = ({ hotelId, onFinish }: HotelPreviewTabProps) => 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Preview</h2>
-      
+
       <div className="text-sm text-muted-foreground">
         {hotelId ? `Previewing hotel #${hotelId}` : "No hotel selected"}
       </div>

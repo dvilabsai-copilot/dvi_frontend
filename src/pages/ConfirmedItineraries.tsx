@@ -56,21 +56,21 @@ export const ConfirmedItineraries: React.FC = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [filteredRecords, setFilteredRecords] = useState(0);
 
-  // Filter dropdown data
+ // Filter dropdown data
   const [agents, setAgents] = useState<Agent[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
 
-  // Date objects for calendar
+ // Date objects for calendar
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(undefined);
   const [endDateObj, setEndDateObj] = useState<Date | undefined>(undefined);
 
-  // Pagination state
+ // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  // Filter state
+ // Filter state
   const [filters, setFilters] = useState({
     startDate: '',
     endDate: '',
@@ -80,7 +80,7 @@ export const ConfirmedItineraries: React.FC = () => {
     staffId: '',
   });
 
-  // Cancellation state
+ // Cancellation state
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [selectedItinerary, setSelectedItinerary] = useState<ConfirmedItinerary | null>(null);
 
@@ -88,7 +88,7 @@ export const ConfirmedItineraries: React.FC = () => {
     setLoading(true);
     try {
       const start = (currentPage - 1) * pageSize;
-      
+
       const response = await ItineraryService.getConfirmedItineraries({
         draw: currentPage,
         start,
@@ -106,7 +106,7 @@ export const ConfirmedItineraries: React.FC = () => {
       setTotalRecords(response.recordsTotal);
       setFilteredRecords(response.recordsFiltered);
     } catch (error: unknown) {
-      console.error('Failed to fetch confirmed itineraries', error);
+ console.error('Failed to fetch confirmed itineraries', error);
       toast.error(error instanceof Error ? error.message : 'Failed to load confirmed itineraries');
     } finally {
       setLoading(false);
@@ -123,7 +123,7 @@ export const ConfirmedItineraries: React.FC = () => {
       setAgents(agentsData);
       setLocations(locationsData);
     } catch (error: unknown) {
-      console.error('Failed to fetch filter data', error);
+ console.error('Failed to fetch filter data', error);
       toast.error('Failed to load filter options');
     }
   };
@@ -153,7 +153,7 @@ export const ConfirmedItineraries: React.FC = () => {
   };
 
   const handleSearch = () => {
-    setCurrentPage(1); // Reset to first page
+ setCurrentPage(1); // Reset to first page
   };
 
   const handleClear = () => {
@@ -197,16 +197,16 @@ export const ConfirmedItineraries: React.FC = () => {
 
   return (
     <div className="w-full max-w-full space-y-6 pb-8">
-      {/* Header */}
+ {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-[#4a4260]">Confirmed Itineraries</h1>
       </div>
 
-      {/* Filter Card */}
+ {/* Filter Card */}
       <Card className="border-none shadow-sm">
         <CardContent className="pt-6">
           <h2 className="text-lg font-semibold text-[#4a4260] mb-4">FILTER</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div>
               <Label className="text-sm font-medium text-[#6c6c6c] mb-1 block">Start Date</Label>
@@ -371,7 +371,7 @@ export const ConfirmedItineraries: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Data Table Card */}
+ {/* Data Table Card */}
       <Card className="border-none shadow-sm">
         <CardContent className="pt-6">
           <h2 className="text-lg font-semibold text-[#4a4260] mb-4">List of Confirmed Itineraries</h2>
@@ -502,7 +502,7 @@ export const ConfirmedItineraries: React.FC = () => {
                 </Table>
               </div>
 
-              {/* Pagination */}
+ {/* Pagination */}
               <div className="flex justify-between items-center mt-4">
                 <div className="text-sm text-[#6c6c6c]">
                   Showing {(currentPage - 1) * pageSize + 1} to{' '}
@@ -565,7 +565,7 @@ export const ConfirmedItineraries: React.FC = () => {
           )}
         </CardContent>
       </Card>
-      {/* Cancellation Dialog */}
+ {/* Cancellation Dialog */}
       <CancelItineraryModal
         open={cancelModalOpen}
         onOpenChange={setCancelModalOpen}

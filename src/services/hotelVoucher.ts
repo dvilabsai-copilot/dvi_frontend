@@ -62,18 +62,18 @@ export interface CancelHotelVouchersPayload {
 }
 
 export const HotelVoucherService = {
-  /**
+ /**
    * Get all cancellation policies for an itinerary
-   */
+ */
   getCancellationPolicies: async (itineraryPlanId: number): Promise<HotelCancellationPolicy[]> => {
     return api(`/itineraries/${itineraryPlanId}/hotel-vouchers/cancellation-policies`, {
       method: 'GET',
     });
   },
 
-  /**
+ /**
    * Get cancellation policies for a specific hotel
-   */
+ */
   getHotelCancellationPolicies: async (
     itineraryPlanId: number,
     hotelId: number
@@ -83,9 +83,9 @@ export const HotelVoucherService = {
     });
   },
 
-  /**
+ /**
    * Add a new cancellation policy
-   */
+ */
   addCancellationPolicy: async (
     payload: AddCancellationPolicyPayload
   ): Promise<{ success: boolean; data: HotelCancellationPolicy }> => {
@@ -100,9 +100,9 @@ export const HotelVoucherService = {
     });
   },
 
-  /**
+ /**
    * Delete a cancellation policy
-   */
+ */
   deleteCancellationPolicy: async (
     itineraryPlanId: number,
     policyId: number,
@@ -112,9 +112,9 @@ export const HotelVoucherService = {
     });
   },
 
-  /**
+ /**
    * Get existing voucher data for a hotel
-   */
+ */
   getHotelVoucher: async (
     itineraryPlanId: number,
     hotelId: number
@@ -124,9 +124,9 @@ export const HotelVoucherService = {
     });
   },
 
-  /**
+ /**
    * Create or update hotel vouchers
-   */
+ */
   createHotelVouchers: async (
     payload: CreateVoucherPayload
   ): Promise<{ success: boolean; message: string }> => {
@@ -141,9 +141,9 @@ export const HotelVoucherService = {
     };
   },
 
-  /**
+ /**
    * Get default voucher terms and conditions
-   */
+ */
   getDefaultVoucherTerms: async (itineraryPlanId: number): Promise<string> => {
     const response = await api(`/itineraries/${itineraryPlanId}/hotel-vouchers/default-terms`, {
       method: 'GET',
@@ -151,9 +151,9 @@ export const HotelVoucherService = {
     return String(response?.terms || '').trim();
   },
 
-  /**
+ /**
    * Cancel hotels for selected routes/hotel detail IDs (bulk or individual)
-   */
+ */
   cancelHotelVouchers: async (payload: CancelHotelVouchersPayload) => {
     return api(`/itineraries/${payload.itineraryPlanId}/hotel-cancellations`, {
       method: 'POST',

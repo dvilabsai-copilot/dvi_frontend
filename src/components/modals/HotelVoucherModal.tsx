@@ -16,10 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  HotelVoucherService, 
+import {
+  HotelVoucherService,
   HotelCancellationPolicy,
-  HotelVoucherData 
+  HotelVoucherData
 } from '@/services/hotelVoucher';
 import { AddHotelCancellationPolicyModal } from './AddHotelCancellationPolicyModal';
 import { toast } from 'sonner';
@@ -109,7 +109,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
     setVoucherTerms(editorRef.current.innerHTML);
   };
 
-  // Format dates for display
+ // Format dates for display
   const formatDateString = (dates: string[]) => {
     return dates.map(d => new Date(d).toLocaleDateString('en-US', {
       month: 'short',
@@ -118,11 +118,11 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
     })).join(', ');
   };
 
-  const dayLabel = dayNumbers.length > 1 
-    ? `Days ${dayNumbers.join(', ')}` 
+  const dayLabel = dayNumbers.length > 1
+    ? `Days ${dayNumbers.join(', ')}`
     : `Day ${dayNumbers[0]}`;
 
-  // Load existing voucher data and cancellation policies
+ // Load existing voucher data and cancellation policies
   useEffect(() => {
     if (open) {
       loadVoucherData();
@@ -138,7 +138,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
   const loadVoucherData = async () => {
     setIsLoading(true);
     try {
-      // Load existing voucher if any
+ // Load existing voucher if any
       const existingVoucher = await HotelVoucherService.getHotelVoucher(
         itineraryPlanId,
         hotelId
@@ -153,15 +153,15 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
         setVoucherTerms(existingVoucher.voucherTermsCondition);
       } else {
         setStatus(initialStatus || 'cancelled');
-        // Load default terms
+ // Load default terms
         const defaultTerms = await HotelVoucherService.getDefaultVoucherTerms(itineraryPlanId);
         setVoucherTerms(defaultTerms);
       }
 
-      // Load cancellation policies
+ // Load cancellation policies
       await loadCancellationPolicies();
     } catch (error) {
-      console.error('Failed to load voucher data', error);
+ console.error('Failed to load voucher data', error);
       toast.error('Failed to load voucher data');
     } finally {
       setIsLoading(false);
@@ -176,7 +176,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
       );
       setCancellationPolicies(policies);
     } catch (error) {
-      console.error('Failed to load cancellation policies', error);
+ console.error('Failed to load cancellation policies', error);
     }
   };
 
@@ -190,7 +190,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
       toast.success('Cancellation policy deleted successfully');
       await loadCancellationPolicies();
     } catch (error: any) {
-      console.error('Failed to delete policy', error);
+ console.error('Failed to delete policy', error);
       toast.error(error.message || 'Failed to delete cancellation policy');
     }
   };
@@ -198,7 +198,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Safety guard: Check if routeId is valid
+ // Safety guard: Check if routeId is valid
     if (!routeId || isNaN(routeId) || routeId <= 0) {
       toast.error('Route ID is missing or invalid. Cannot create voucher.');
       return;
@@ -241,7 +241,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
         toast.error(response.message);
       }
     } catch (error: any) {
-      console.error('Failed to create voucher', error);
+ console.error('Failed to create voucher', error);
       toast.error(error.message || 'Failed to create hotel voucher');
     } finally {
       setIsSubmitting(false);
@@ -266,7 +266,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
             <form onSubmit={handleSubmit}>
               <div className="border-b border-gray-200 mb-4"></div>
 
-              {/* Hotel Info Header */}
+ {/* Hotel Info Header */}
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg mb-4 flex justify-between items-center">
                 <h6 className="text-sm font-semibold text-[#4a4260]">
                   {dayLabel} | [{hotelName} - {hotelStateCity}] | {formatDateString(routeDates)}
@@ -284,9 +284,9 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
               </div>
 
               <div className="space-y-4">
-                {/* Voucher Details Form */}
+ {/* Voucher Details Form */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  {/* Confirmed By */}
+ {/* Confirmed By */}
                   <div>
                     <Label htmlFor="confirmedBy" className="text-sm font-medium text-[#4a4260]">
                       Confirmed By <span className="text-red-500">*</span>
@@ -302,7 +302,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
                     />
                   </div>
 
-                  {/* Email ID */}
+ {/* Email ID */}
                   <div>
                     <Label htmlFor="emailId" className="text-sm font-medium text-[#4a4260]">
                       Email ID <span className="text-red-500">*</span>
@@ -318,7 +318,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
                     />
                   </div>
 
-                  {/* Mobile Number */}
+ {/* Mobile Number */}
                   <div>
                     <Label htmlFor="mobileNumber" className="text-sm font-medium text-[#4a4260]">
                       Mobile Number <span className="text-red-500">*</span>
@@ -334,7 +334,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
                     />
                   </div>
 
-                  {/* Status */}
+ {/* Status */}
                   <div>
                     <Label htmlFor="status" className="text-sm font-medium text-[#4a4260]">
                       Status <span className="text-red-500">*</span>
@@ -352,7 +352,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
                   </div>
                 </div>
 
-                {/* Invoice To */}
+ {/* Invoice To */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label htmlFor="invoiceTo" className="text-sm font-medium text-[#4a4260]">
@@ -370,7 +370,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
                     </Select>
                   </div>
 
-                  {/* Hotel Voucher Terms */}
+ {/* Hotel Voucher Terms */}
                   <div className="md:col-span-2">
                     <Label className="text-sm font-medium text-[#4a4260]">
                       Hotel Voucher Terms and Condition <span className="text-red-500">*</span>
@@ -419,7 +419,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
 
                 <div className="border-b border-dashed border-gray-300 my-4"></div>
 
-                {/* Cancellation Policy Section */}
+ {/* Cancellation Policy Section */}
                 <div>
                   <h5 className="text-base font-semibold text-[#4a4260] mb-3">
                     Cancellation Policy
@@ -508,7 +508,7 @@ export const HotelVoucherModal: React.FC<HotelVoucherModalProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Add Cancellation Policy Modal */}
+ {/* Add Cancellation Policy Modal */}
       <AddHotelCancellationPolicyModal
         open={showAddPolicyModal}
         onOpenChange={setShowAddPolicyModal}

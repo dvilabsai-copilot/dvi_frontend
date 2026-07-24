@@ -117,7 +117,7 @@ const decodeHtmlEntities = (value: unknown): string => {
   const textarea = document.createElement("textarea");
   let decoded = text;
 
-  // Decode twice so values such as &amp;#039; are also displayed correctly.
+ // Decode twice so values such as &amp;#039; are also displayed correctly.
   for (let pass = 0; pass < 2; pass += 1) {
     textarea.innerHTML = decoded;
     const next = textarea.value;
@@ -375,9 +375,9 @@ const [starPerformerTab, setStarPerformerTab] = useState<
 >("Agents");
 
 const [openDailyMomentQuote, setOpenDailyMomentQuote] = useState<string | null>(null);
-  
-  
-  // Payment states
+
+
+ // Payment states
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState("");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -445,7 +445,7 @@ const isTravelExpert =
           navigate(`/payments/success?flow=wallet_topup&orderId=${encodeURIComponent(order.orderId)}`);
         },
         onFailure: (error) => {
-          console.error("Payment confirmation failed:", error);
+ console.error("Payment confirmation failed:", error);
           toast.error("Payment verification failed. Please contact support.");
         },
         onDismiss: () => {
@@ -453,7 +453,7 @@ const isTravelExpert =
         },
       });
     } catch (error) {
-      console.error("Failed to initiate payment:", error);
+ console.error("Failed to initiate payment:", error);
       toast.error("Failed to initiate payment. Please try again.");
     } finally {
       setIsProcessingPayment(false);
@@ -483,7 +483,7 @@ const isTravelExpert =
           navigate(`/payments/success?flow=subscription_renewal&orderId=${encodeURIComponent(order.orderId)}`);
         },
         onFailure: (error) => {
-          console.error("Payment verification failed:", error);
+ console.error("Payment verification failed:", error);
           toast.error("Payment verification failed. Please contact support.");
         },
         onDismiss: () => {
@@ -491,7 +491,7 @@ const isTravelExpert =
         },
       });
     } catch (error) {
-      console.error("Failed to initiate renewal:", error);
+ console.error("Failed to initiate renewal:", error);
       toast.error("Failed to initiate renewal. Please try again.");
     } finally {
       setIsProcessingPayment(false);
@@ -515,7 +515,7 @@ const isTravelExpert =
       const data = await DashboardService.getStats();
       setDashboardData(data);
     } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+ console.error("Failed to fetch dashboard data:", error);
     } finally {
       setLoading(false);
     }
@@ -584,7 +584,7 @@ useEffect(() => {
       setConfirmedItineraries(pageRows);
       setConfirmedTotal(filteredRows.length);
     } catch (error: any) {
-      console.error("Failed to fetch confirmed itinerary list:", error);
+ console.error("Failed to fetch confirmed itinerary list:", error);
       setConfirmedItineraries([]);
       setConfirmedTotal(0);
     } finally {
@@ -627,7 +627,7 @@ useEffect(() => {
       setAgentWiseItineraries(rows);
       setAgentWiseTotal(Number(response?.recordsFiltered || response?.recordsTotal || rows.length));
     } catch (error: any) {
-      console.error("Failed to fetch agents wise confirmed itinerary list:", error);
+ console.error("Failed to fetch agents wise confirmed itinerary list:", error);
       setAgentWiseItineraries([]);
       setAgentWiseTotal(0);
     } finally {
@@ -747,7 +747,7 @@ useEffect(() => {
       setLiveVehicleRows(pageRows);
       setLiveVehicleTotal(filteredRows.length);
     } catch (error: any) {
-      console.error("Failed to fetch live vehicle status:", error);
+ console.error("Failed to fetch live vehicle status:", error);
       setLiveVehicleRows([]);
       setLiveVehicleTotal(0);
     } finally {
@@ -783,7 +783,7 @@ useEffect(() => {
           : []
       );
     } catch (error) {
-      console.error("Failed to fetch most visited hotels:", error);
+ console.error("Failed to fetch most visited hotels:", error);
       setMostVisitedHotels([]);
     } finally {
       setMostVisitedHotelsLoading(false);

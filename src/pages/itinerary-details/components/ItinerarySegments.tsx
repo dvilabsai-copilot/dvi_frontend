@@ -28,7 +28,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
   const getTimeRangeBounds = (
     value: string,
   ): { start: number; end: number; startText: string; endText: string } | null => {
-    const parts = String(value || "").split(/\s*-\s*/);
+ const parts = String(value || "").split(/\s*-\s*/);
     if (parts.length !== 2) return null;
 
     const start = parseDisplayTimeToMinutes(parts[0]);
@@ -78,7 +78,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
           type: "break",
           location: "Leisure / Shopping Time",
           duration: `${Math.floor(gapMinutes / 60)} Hours ${gapMinutes % 60} Min`
-            .replace(/^0 Hours\s*/, "")
+ .replace(/^0 Hours\s*/, "")
             .replace(/\s*0 Min$/, ""),
           timeRange: `${previousRange.endText} - ${travelRange.startText}`,
         });
@@ -111,7 +111,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
 
   return (
   <div key={idx}>
-                      {/* Connector dots — only between real segments, never around hotspot CTAs */}
+ {/* Connector dots only between real segments, never around hotspot CTAs */}
                       {idx > 0 &&
                         segment.type !== 'hotspot' &&
                         displaySegments[idx - 1]?.type !== 'hotspot' && (
@@ -283,17 +283,17 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     )}
                                   </div>
                                 </div>
-                                {/* Thumbnail with overlaid gallery/video icons — matches PHP layout */}
+ {/* Thumbnail with overlaid gallery/video icons matches PHP layout */}
                                 <div className="relative flex-shrink-0 flex justify-end">
                                   <img
                                     src={
                                       toImgSrc(segment.image) ||
-                                      "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
+ "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"
                                     }
                                     alt={segment.name}
                                     className="rounded-lg object-cover shadow-sm w-[140px] h-[100px] sm:w-[185px] sm:h-[115px]"
                                   />
-                                  {/* Icons overlaid top-right of thumbnail */}
+ {/* Icons overlaid top-right of thumbnail */}
                                   <div className="absolute top-1 right-1 flex flex-col gap-1">
                                     <button
                                       title="Click to View the Images"
@@ -325,7 +325,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                               </div>
                             </div>
 
-                            {/* Plan Own Way Alert */}
+ {/* Plan Own Way Alert */}
                             {segment.planOwnWay && (
                               <div className="flex items-center gap-3 mb-3">
                                 <div className="bg-red-500 rounded-full p-2">
@@ -339,7 +339,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                               </div>
                             )}
 
-                            {/* Activities List */}
+ {/* Activities List */}
                             {segment.activities && segment.activities.length > 0 && (
                               <div className="ml-0 sm:ml-8 mt-2 border-t border-[#e5d9f2] pt-4">
                                 <h5 className="font-semibold text-[#4a4260] mb-3">Activity</h5>
@@ -396,12 +396,12 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                               )}
                                             </div>
                                           </div>
-                                          {/* Activity thumbnail with overlaid gallery icon */}
+ {/* Activity thumbnail with overlaid gallery icon */}
                                           <div className="relative flex-shrink-0">
                                             <img
                                               src={
                                                 toImgSrc(activity.image) ||
-                                                "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
+ "https://placehold.co/140x100/e9d5f7/4a4260?text=Activity"
                                               }
                                               alt={activity.title}
                                               className="rounded-lg object-cover w-[120px] h-[86px] sm:w-[140px] sm:h-[100px]"
@@ -480,7 +480,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                         )}
 
                         {segment.type === "checkin" && (() => {
-                          // Get actual hotel name from API data instead of backend generic "Hotel"
+ // Get actual hotel name from API data instead of backend generic "Hotel"
                           const hotelMeta = selectedHotelMetaByRoute.get(day.id);
                           const actualHotelName = hotelMeta?.hotelName || segment.hotelName || "Hotel";
                           const hotelForDay = hotelDetails?.hotels?.find(h =>
@@ -496,10 +496,10 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                   className={`flex-1 rounded-lg p-2 -m-2 transition-colors ${hotelReadOnly ? '' : 'cursor-pointer hover:bg-white/50'}`}
                                   onClick={() => {
                                     if (hotelReadOnly) return;
-                                    // Get city code from hotel details if available, otherwise use default
-                                    let cityCode = "1"; // Default city code
+ // Get city code from hotel details if available, otherwise use default
+ let cityCode = "1"; // Default city code
                                     if (hotelForDay?.destination) {
-                                      // Try to map destination to code or use as-is
+ // Try to map destination to code or use as-is
                                       const cityMap: { [key: string]: string } = {
                                         'Delhi': '1',
                                         'Agra': '2',
@@ -541,7 +541,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                   )}
                                 </div>
 
-                                {/* Room Category Selection Button */}
+ {/* Room Category Selection Button */}
                                 {!hotelReadOnly && (
                                   <Button
                                     variant="ghost"
@@ -549,7 +549,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                                     className="h-8 w-8 rounded-full bg-[#d546ab]/10 hover:bg-[#d546ab]/20 text-[#d546ab] shrink-0"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
+ // For confirmed itineraries, only show hotels that are actually confirmed (itineraryPlanHotelDetailsId > 0)
                                       const confirmedHotels = hotelDetails?.hotels?.filter(h =>
                                         itinerary?.isConfirmed ? h.itineraryPlanHotelDetailsId > 0 : true
                                       );
@@ -598,7 +598,7 @@ export const ItinerarySegments: React.FC<ItinerarySegmentsProps> = ({ context })
                             </div>
                           </div>
                         )}
-                      </div>{/* end timeline row wrapper */}
+ </div>{/* end timeline row wrapper */}
                                      </div>
                   );
                 })}

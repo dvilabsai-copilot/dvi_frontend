@@ -40,12 +40,12 @@ export default function AgentListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // export/copy button states
+ // export/copy button states
   const [copying, setCopying] = useState(false);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
   const [downloadingXLS, setDownloadingXLS] = useState(false);
 
-  // account-login state (id -> boolean) and updating flag
+ // account-login state (id -> boolean) and updating flag
   const [loginEnabled, setLoginEnabled] = useState<Record<number, boolean>>({});
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
@@ -53,13 +53,13 @@ export default function AgentListPage() {
     try {
       setLoading(true);
 
-      // 1) Get table rows (uses AgentAPI.list which prefers /agents/full)
+ // 1) Get table rows (uses AgentAPI.list which prefers /agents/full)
       const data = await AgentAPI.list();
       setRows(data);
       setFiltered(data);
 
-      // 2) Build login map without per-id calls:
-      //    Query /agents/full once and read login_enabled for each agent.
+ // 2) Build login map without per-id calls:
+ // Query /agents/full once and read login_enabled for each agent.
       try {
         const fullPayload = await api("/agents/full?limit=1000");
         const items = extractFullItems(fullPayload);
@@ -72,7 +72,7 @@ export default function AgentListPage() {
         }
         setLoginEnabled(map);
       } catch {
-        // If /agents/full fails for some reason, keep previous loginEnabled state.
+ // If /agents/full fails for some reason, keep previous loginEnabled state.
       }
     } catch (err: any) {
       toast.error(err?.message || "Failed to load agents");
@@ -85,7 +85,7 @@ export default function AgentListPage() {
     void load();
   }, [load]);
 
-  // in-memory search
+ // in-memory search
   useEffect(() => {
     const q = search.toLowerCase().trim();
     if (!q) {
@@ -120,7 +120,7 @@ export default function AgentListPage() {
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
-  // export & copy helpers
+ // export & copy helpers
   const columns = [
     "S.NO",
     "ACTION",
@@ -138,7 +138,7 @@ export default function AgentListPage() {
   const buildFlatRows = (src: AgentListRow[]) =>
     src.map((r, idx) => [
       String(idx + 1),
-      "", // action column is UI-only
+ "", // action column is UI-only
       show(r.name),
       show(r.email),
       show(r.mobileNumber),
@@ -199,7 +199,7 @@ export default function AgentListPage() {
     }
   };
 
-  // Simple .xls (HTML table)
+ // Simple .xls (HTML table)
   const handleDownloadExcel = async () => {
     try {
       setDownloadingXLS(true);
@@ -218,15 +218,15 @@ export default function AgentListPage() {
     }
   };
 
-  // toggle login handler (unchanged)
+ // toggle login handler (unchanged)
   const toggleLogin = async (agentId: number) => {
     const current = !!loginEnabled[agentId];
     const next = !current;
     try {
       setUpdatingId(agentId);
-      setLoginEnabled((m) => ({ ...m, [agentId]: next })); // optimistic
+ setLoginEnabled((m) => ({ ...m, [agentId]: next })); // optimistic
 
-      // Adjust path/payload if your backend differs
+ // Adjust path/payload if your backend differs
       await api(`/agents/${agentId}/login`, {
         method: "PUT",
         body: { enable: next },
@@ -234,7 +234,7 @@ export default function AgentListPage() {
 
       toast.success(`Account login ${next ? "enabled" : "disabled"}`);
     } catch (e: any) {
-      setLoginEnabled((m) => ({ ...m, [agentId]: current })); // revert
+ setLoginEnabled((m) => ({ ...m, [agentId]: current })); // revert
       const msg = typeof e?.message === "string" ? e.message : "Toggle failed";
       toast.error(msg.includes("404") ? "Login toggle API not implemented on server" : msg);
     } finally {
@@ -242,7 +242,7 @@ export default function AgentListPage() {
     }
   };
 
-  // render
+ // render
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -372,7 +372,7 @@ export default function AgentListPage() {
                       <TableCell>{show(r.nationality)}</TableCell>
                       <TableCell>{show(r.subscriptionType)}</TableCell>
 
-                      {/* Toggle */}
+ {/* Toggle */}
                       <TableCell>
                         <button
                           type="button"

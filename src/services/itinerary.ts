@@ -172,13 +172,13 @@ export type ManualFitHereAutoPreviewPayload = {
 };
 
 type LatestItineraryParams = {
-  page: number;            // 1-based
-  pageSize: number;        // length
+ page: number; // 1-based
+ pageSize: number; // length
   search?: string;
-  startDate?: string;      // "DD/MM/YYYY" (from filter)
-  endDate?: string;        // "DD/MM/YYYY"
-  sourceLocation?: string; // arrival_location
-  destinationLocation?: string; // departure_location
+ startDate?: string; // "DD/MM/YYYY" (from filter)
+ endDate?: string; // "DD/MM/YYYY"
+ sourceLocation?: string; // arrival_location
+ destinationLocation?: string; // departure_location
   agentId?: number | null;
   staffId?: number | null;
 };
@@ -248,10 +248,10 @@ export const ItineraryService = {
     });
   },
 
-  // ---------------------------------------------------------------------------
-  // Latest itineraries listing (SP-free Prisma API)
-  // Maps React pagination -> DataTables-style query params
-  // ---------------------------------------------------------------------------
+ // ---------------------------------------------------------------------------
+ // Latest itineraries listing (SP-free Prisma API)
+ // Maps React pagination -> DataTables-style query params
+ // ---------------------------------------------------------------------------
   async getLatest(params: LatestItineraryParams) {
     const { page, pageSize } = params;
     const start = (page - 1) * pageSize;
@@ -259,7 +259,7 @@ export const ItineraryService = {
 
     const qs = new URLSearchParams();
 
-    // DataTables-style params
+ // DataTables-style params
     qs.set("draw", "1");
     qs.set("start", String(start));
     qs.set("length", String(length));
@@ -293,7 +293,7 @@ export const ItineraryService = {
   },
 
   async getDetails(quoteId: string, groupType?: number) {
-    const url = groupType !== undefined 
+    const url = groupType !== undefined
       ? `itineraries/details/${encodeURIComponent(quoteId)}?groupType=${groupType}`
       : `itineraries/details/${encodeURIComponent(quoteId)}`;
     return api(url, {
@@ -533,19 +533,19 @@ export const ItineraryService = {
 
 // inside ItineraryService
   async getHotelRoomDetails(quoteId: string, itineraryRouteId?: number, clearCache: boolean = false) {
-    // âœ… Add timestamp to URL to bust browser cache
+ // Add timestamp to URL to bust browser cache
     const timestamp = Date.now();
-    
-    // âœ… Build URL with clearCache parameter to force backend to bypass its memory cache
+
+ // Build URL with clearCache parameter to force backend to bypass its memory cache
     let url = `/itineraries/hotel_room_details/${quoteId}?_ts=${timestamp}`;
     if (itineraryRouteId) {
       url += `&itineraryRouteId=${itineraryRouteId}`;
     }
     if (clearCache) {
-      url += `&clearCache=true`; // âœ… Tell backend to clear its memory cache
+ url += `&clearCache=true`; // Tell backend to clear its memory cache
     }
-    
-    // âœ… Force bypass browser cache with cache-busting headers and no-store cache policy
+
+ // Force bypass browser cache with cache-busting headers and no-store cache policy
     const res = await api(url, {
       method: "GET",
       cache: "no-store",
@@ -555,7 +555,7 @@ export const ItineraryService = {
         "Expires": "0"
       }
     });
-    return res; // api() already returns the JSON response directly
+ return res; // api() already returns the JSON response directly
   },
 
   ...itineraryRouteActions,
@@ -624,10 +624,10 @@ export const ItineraryService = {
         phoneNo?: string;
       }>;
     }>;
-    // âœ… NEW: Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
+ // NEW: Multi-provider hotel bookings (TBO, ResAvenue, HOBSE, etc.)
     hotel_bookings?: Array<{
       routeId: number;
-      provider: string; // "TBO" | "ResAvenue" | "HOBSE"
+ provider: string; // "TBO" | "ResAvenue" | "HOBSE"
       hotelCode: string;
       hotelName?: string;
       bookingCode: string;
@@ -673,7 +673,7 @@ export const ItineraryService = {
       }>;
       prebookContext?: any;
     }>;
-    // âœ… NEW: Primary guest fallback (used by backend if lead passenger missing)
+ // NEW: Primary guest fallback (used by backend if lead passenger missing)
     primaryGuest?: {
       salutation: string;
       name: string;
@@ -848,7 +848,7 @@ export const ItineraryService = {
     return downloadInvoicePdf(id, type);
   },
 
-  // Incidental Expenses
+ // Incidental Expenses
   async getIncidentalAvailableComponents(itineraryPlanId: number) {
     return getIncidentalAvailableComponents(itineraryPlanId);
   },
@@ -876,17 +876,17 @@ export const ItineraryService = {
     return deleteIncidentalHistory(id);
   },
 
-  // Real-time hotel search
+ // Real-time hotel search
   async searchHotels(searchParams: HotelSearchParams) {
     return searchHotels(searchParams);
   },
 
-  // Get detailed information for a specific hotel (TBO API)
+ // Get detailed information for a specific hotel (TBO API)
   async getHotelInfo(hotelCode: string) {
     return getHotelInfo(hotelCode);
   },
 
-  // Get room availability for specific hotel
+ // Get room availability for specific hotel
   async getRoomAvailability(
     hotelCode: string,
     checkInDate: string,

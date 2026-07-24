@@ -39,7 +39,7 @@ export function SupplementDisplay({
     return null;
   }
 
-  // Separate by payment location for clearer display
+ // Separate by payment location for clearer display
   const atPropertyCharges = supplements.filter((s) => s.payableAtHotel);
   const unknownCharges = supplements.filter((s) => s.paymentLocation === 'UNKNOWN');
 
@@ -52,7 +52,7 @@ export function SupplementDisplay({
         </div>
       )}
 
-      {/* AtProperty / Pay at Hotel Charges */}
+ {/* AtProperty / Pay at Hotel Charges */}
       {atPropertyCharges.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -68,7 +68,7 @@ export function SupplementDisplay({
         </div>
       )}
 
-      {/* Unknown Type Charges */}
+ {/* Unknown Type Charges */}
       {unknownCharges.length > 0 && (
         <div className="space-y-2 pt-2 border-t mt-2">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
@@ -84,7 +84,7 @@ export function SupplementDisplay({
         </div>
       )}
 
-      {/* Summary */}
+ {/* Summary */}
       {!compact && (
         <div className="bg-blue-50 border border-blue-200 rounded p-3 mt-3">
           <p className="text-xs text-blue-900">
@@ -108,7 +108,7 @@ interface SupplementItemProps {
  */
 function SupplementItem({ supplement, isUnknown = false, compact = false }: SupplementItemProps) {
   const formatAmount = (amount: number, currency: string) => {
-    // Try to format with currency
+ // Try to format with currency
     try {
       return new Intl.NumberFormat('en-IN', {
         style: 'currency',
@@ -116,7 +116,7 @@ function SupplementItem({ supplement, isUnknown = false, compact = false }: Supp
         minimumFractionDigits: 2,
       }).format(amount);
     } catch {
-      // Fallback if currency code is not recognized
+ // Fallback if currency code is not recognized
       return `${currency} ${amount.toFixed(2)}`;
     }
   };

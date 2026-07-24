@@ -109,11 +109,11 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
     );
   }
 
-  /* ----------------------------------- UI ----------------------------------- */
+ /* ----------------------------------- UI ----------------------------------- */
 
   return (
     <div className="p-6 bg-pink-50/30 min-h-screen">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-gray-800">
           {isEdit ? `Edit Activity \u00BB ${formData.title}` : "Add Activity"}
@@ -133,9 +133,9 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
         </div>
       </div>
 
-      {/* Card with Tabs */}
+ {/* Card with Tabs */}
       <Card className="shadow-sm">
-        {/* Tab Header */}
+ {/* Tab Header */}
         <div className="border-b px-6 pt-4">
           <div className="flex items-center gap-2 flex-wrap">
             {TABS.map((tab, index) => (
@@ -171,7 +171,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
         </div>
 
         <CardContent className="p-6">
-          {/* Tab 1: Basic Details */}
+ {/* Tab 1: Basic Details */}
           {activeTab === 1 && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -349,15 +349,15 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                   <Input
                     type="file"
                     multiple
-                    accept="image/*"
+ accept="image/*"
                     onChange={handleImageUpload}
                     disabled={isReadonly}
                   />
                 </div>
               </div>
 
-              {/* Image Previews */}
-              {/* Server images (already uploaded) */}
+ {/* Image Previews */}
+ {/* Server images (already uploaded) */}
               {serverImages.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {serverImages.map((img, index) => (
@@ -367,7 +367,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                           alt={`Image ${index + 1}`}
                           className="w-20 h-20 object-cover rounded"
                           onError={() => {
-                            console.log("Broken activity image URL:", img.url);
+ console.log("Broken activity image URL:", img.url);
                           }}
                         />
                       {!isReadonly && (
@@ -382,7 +382,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                   ))}
                 </div>
               )}
-              {/* Pending local previews (create-mode only) */}
+ {/* Pending local previews (create-mode only) */}
               {imagePreviews.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {imagePreviews.map((preview, index) => (
@@ -419,7 +419,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 />
               </div>
 
-              {/* Default Available Time */}
+ {/* Default Available Time */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium text-primary mb-4">
                   Default Available Time
@@ -471,7 +471,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 )}
               </div>
 
-              {/* Special Available Time */}
+ {/* Special Available Time */}
               <div className="border-t pt-6">
                 <h3 className="text-lg font-medium text-primary mb-4">
                   Special Available Time
@@ -545,7 +545,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 )}
               </div>
 
-              {/* Buttons */}
+ {/* Buttons */}
               <div className="flex items-center justify-between pt-6 border-t">
                 <Button
                   variant="secondary"
@@ -560,13 +560,13 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
             </div>
           )}
 
-          {/* Tab 2: Price Book */}
+ {/* Tab 2: Price Book */}
           {activeTab === 2 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-medium">Activity Cost Details</h3>
                 <div className="flex items-center gap-2">
-                  {/* Start Date Picker */}
+ {/* Start Date Picker */}
                   <Popover open={isPriceStartOpen} onOpenChange={setIsPriceStartOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -596,7 +596,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                     </PopoverContent>
                   </Popover>
               <span className="text-muted-foreground">{"\u2014"}</span>
-                  {/* End Date Picker */}
+ {/* End Date Picker */}
                   <Popover open={isPriceEndOpen} onOpenChange={setIsPriceEndOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -633,7 +633,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 </div>
               </div>
 
-                           {/* Pricing Type */}
+ {/* Pricing Type */}
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-end">
                 <div>
                   <Label className="text-primary">Pricing Type</Label>
@@ -699,7 +699,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 </div>
               ) : (
                 <>
-                  {/* Indian Pricing */}
+ {/* Indian Pricing */}
                   <div className="grid grid-cols-4 gap-6 items-end">
                     <div>
                       <Label className="text-gray-500">Nationality</Label>
@@ -743,7 +743,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                     </div>
                   </div>
 
-                  {/* Non-Indian Pricing */}
+ {/* Non-Indian Pricing */}
                   <div className="grid grid-cols-4 gap-6 items-end">
                     <div>
                       <Label className="text-gray-500">Nationality</Label>
@@ -848,7 +848,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
                 </div>
               )}
 
-              {/* Buttons */}
+ {/* Buttons */}
               <div className="flex items-center justify-between pt-6 border-t">
                 <Button variant="secondary" onClick={goToPrevTab}>
                   Back
@@ -860,7 +860,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
             </div>
           )}
 
-          {/* Tab 3: Feedback & Review */}
+ {/* Tab 3: Feedback & Review */}
           {activeTab === 3 && (
             <ActivityReviewTab
               isReadonly={isReadonly}
@@ -890,7 +890,7 @@ export function ActivityFormView({ context }: ActivityFormViewProps) {
               goToNextTab={goToNextTab}
             />
           )}
-          {/* Tab 4: Preview */}
+ {/* Tab 4: Preview */}
           {activeTab === 4 && (
             <ActivityPreviewTab
               formData={formData}

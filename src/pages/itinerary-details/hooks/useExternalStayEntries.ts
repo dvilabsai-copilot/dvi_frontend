@@ -58,8 +58,8 @@ export const useExternalStayEntries = ({
         availabilityMessage: row?.availabilityMessage || DEFAULT_EXTERNAL_STAY_MESSAGE,
       };
 
-      // Package fallbacks can repeat the same unavailable route several times.
-      // The confirmation dialog should show one actionable warning per stay.
+ // Package fallbacks can repeat the same unavailable route several times.
+ // The confirmation dialog should show one actionable warning per stay.
       const stayKey = entry.routeId > 0
         ? `route:${entry.routeId}`
         : `stay:${entry.destination.toLowerCase()}|${entry.day.toLowerCase()}`;

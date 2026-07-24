@@ -54,11 +54,11 @@ import {
   type TransportEarlyArrivalOption,
 } from "./helpers/transportEarlyArrival";
 // type RoomRow = {
-//   id: number;
-//   adults: number;
-//   children: number;
-//   infants: number;
-//   roomCount: number;
+// id: number;
+// adults: number;
+// children: number;
+// infants: number;
+// roomCount: number;
 // };
 
 type ItineraryPlanBlockProps = {
@@ -84,7 +84,7 @@ type ItineraryPlanBlockProps = {
   setTripStartDate: (val: string) => void;
   setTripEndDate: (val: string) => void;
 
-  // ✅ lifted time fields so parent can build DateTime payload
+ // lifted time fields so parent can build DateTime payload
   startTime: string;
   setStartTime: (val: string) => void;
   endTime: string;
@@ -121,7 +121,7 @@ type ItineraryPlanBlockProps = {
   setNationality: (val: string) => void;
 
   foodPreferences: SimpleOption[];
-  foodPreference: string; // ✅ stores option id (e.g. "1","2","3")
+ foodPreference: string; // stores option id (e.g. "1","2","3")
   setFoodPreference: (val: string) => void;
 
   mealPlanOptions: MealPlanOption[];
@@ -133,7 +133,7 @@ type ItineraryPlanBlockProps = {
 
   selectedHotelFacilityIds: string[];
   setSelectedHotelFacilityIds: Dispatch<SetStateAction<string[]>>;
-  // ✅ lifted special instructions so it goes in payload
+ // lifted special instructions so it goes in payload
   specialInstructions: string;
   setSpecialInstructions: (val: string) => void;
 
@@ -146,8 +146,8 @@ type ItineraryPlanBlockProps = {
   setTransportEarlyArrivalRestMinutes: (value: number) => void;
 
   validationErrors?: { [key: string]: string };
-  
-  // ✅ Calculated from arrival/departure dates
+
+ // Calculated from arrival/departure dates
   noOfNights: number;
   noOfDays: number;
 
@@ -376,7 +376,7 @@ const handleVehicleOnlyTravellerChange = (
     setSelectedHotelCategoryIds(ids);
   };
 
-  // hotel facilities still local (no backend field yet)
+ // hotel facilities still local (no backend field yet)
   const hotelFacility: string[] = selectedHotelFacilityIds;
 
 const handleHotelFacilityChange = (vals: string[]) => {
@@ -454,7 +454,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
     </div>
   )}
 
-  {/* ROW 1: Itinerary Preference | Agent */}
+ {/* ROW 1: Itinerary Preference | Agent */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
             <Label className="mb-2 block text-sm text-[#4a4260]">
@@ -502,10 +502,10 @@ const handleHotelFacilityChange = (vals: string[]) => {
               )}
             </div>
           )}
-        
+
         </div>
 
-        {/* ROW 2: Arrival | Departure */}
+ {/* ROW 2: Arrival | Departure */}
         <div className="flex flex-col md:flex-row gap-4">
           <div
             className={`flex-1 ${
@@ -554,7 +554,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
           </div>
         </div>
 
-        {/* ROW 3 */}
+ {/* ROW 3 */}
         {itineraryPreference !== "vehicle" && (
         <div className="flex flex-col md:flex-row gap-4">
           <div
@@ -668,7 +668,7 @@ const handleHotelFacilityChange = (vals: string[]) => {
   numberOfMonths={isMobile ? 1 : 2}
   showOutsideDays={false}
 
-  // Month and year can now be changed from dropdowns.
+ // Month and year can now be changed from dropdowns.
   captionLayout="dropdown-buttons"
   fromYear={today.getFullYear()}
   toYear={today.getFullYear() + 10}
@@ -1005,9 +1005,9 @@ caption_label:
     </DialogContent>
   </Dialog>
 
-        
 
-        {/* ROW 5 */}
+
+ {/* ROW 5 */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div
             className={validationErrors?.arrivalType ? "border border-red-500 rounded-md p-2" : ""}
@@ -1094,7 +1094,7 @@ caption_label:
           </div>
         </div>
 
-      {/* ROOMS */}
+ {/* ROOMS */}
 <RoomsBlock
   itineraryPreference={itineraryPreference}
   rooms={rooms}
@@ -1209,7 +1209,7 @@ caption_label:
 )}
         </div>
 
-        {/* ROW 7 */}
+ {/* ROW 7 */}
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <Label className="text-sm block mb-1">Special Instructions</Label>

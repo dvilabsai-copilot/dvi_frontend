@@ -42,7 +42,7 @@ export const useHotelDataController = ({
 
     try {
       setLoadingHotels(true);
-      console.log("🔄 [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
+ console.log(" [ItineraryDetails] Starting hotel data refresh for quoteId:", quoteId);
       const detailsRes = await ItineraryService.getDetails(quoteId);
       const details = detailsRes as ItineraryDetailsResponse;
       setItinerary(details);
@@ -52,15 +52,15 @@ export const useHotelDataController = ({
 
       if (useHotels) {
         const hotelRes = await loadHotelDetailsForItinerary(quoteId, details);
-        console.log("✅ [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
+ console.log(" [ItineraryDetails] Hotel data received:", { detailsRes, hotelRes });
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse | null);
         cacheRouteHotelDetails(quoteId, hotelRes as ItineraryHotelDetailsResponse | null);
       } else {
         setHotelDetails(null);
       }
-      console.log("✅ [ItineraryDetails] State updated with new hotel data");
+ console.log(" [ItineraryDetails] State updated with new hotel data");
     } catch (error) {
-      console.error("❌ [ItineraryDetails] Failed to refresh hotel data", error);
+ console.error(" [ItineraryDetails] Failed to refresh hotel data", error);
     } finally {
       setLoadingHotels(false);
     }
@@ -79,7 +79,7 @@ export const useHotelDataController = ({
           totalAmount?: number;
         }>;
       };
-      console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
+ console.log("[REFRESH_VEHICLE_DATA_RESULT]", {
         vehicleCount: Array.isArray(vehiclePayload.vehicles) ? vehiclePayload.vehicles.length : 0,
         vehicles: (vehiclePayload.vehicles || []).map((vehicle) => ({
           vehicleTypeName: vehicle.vehicleTypeName,
@@ -90,14 +90,14 @@ export const useHotelDataController = ({
       });
       setItinerary(detailsRes as ItineraryDetailsResponse);
     } catch (error) {
-      console.error("Failed to refresh vehicle data", error);
+ console.error("Failed to refresh vehicle data", error);
     }
   }, [quoteId, setItinerary]);
 
   const handleHotelGroupTypeChange = useCallback(async (groupType: number) => {
     if (!quoteId) return;
 
-    console.log("Hotel group type changed to:", groupType);
+ console.log("Hotel group type changed to:", groupType);
     setActiveHotelGroupType(groupType);
 
     try {
@@ -122,7 +122,7 @@ export const useHotelDataController = ({
           : merged;
       });
     } catch (error) {
-      console.error("Failed to update data for group type change", error);
+ console.error("Failed to update data for group type change", error);
     }
   }, [quoteId, setActiveHotelGroupType, setItinerary]);
 

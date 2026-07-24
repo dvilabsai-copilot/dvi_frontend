@@ -204,7 +204,7 @@ export function useQuotationConfirmationSubmission({
       await completeQuotationConfirmation(confirmResponse as ConfirmationResponse);
     } catch (error) {
       setLoadingHotels(false);
-      console.error("Failed to confirm quotation", error);
+ console.error("Failed to confirm quotation", error);
       toast.error(getSafeErrorMessage(error, "Failed to confirm quotation"));
     } finally {
       setIsConfirmingQuotation(false);

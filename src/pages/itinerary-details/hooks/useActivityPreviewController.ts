@@ -46,7 +46,7 @@ export const useActivityPreviewController = ({
       });
       setActivityPreview(preview);
     } catch (error) {
-      console.error("Failed to preview activity", error);
+ console.error("Failed to preview activity", error);
       toast.error(error?.message || "Failed to preview activity");
       setActivityPreview(null);
     } finally {
@@ -74,7 +74,7 @@ export const useActivityPreviewController = ({
       });
       setAllHotspotsPreviewModal((previous) => ({ ...previous, loading: false, data: preview }));
     } catch (error) {
-      console.error("Failed to preview activity for all hotspots", error);
+ console.error("Failed to preview activity for all hotspots", error);
       toast.error(error?.message || "Failed to preview activity");
       setAllHotspotsPreviewModal((previous) => ({ ...previous, loading: false, open: false }));
     }

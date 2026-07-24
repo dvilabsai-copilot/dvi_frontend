@@ -55,8 +55,8 @@ export function mergeHotelSelections(
           return;
         }
 
-        // A room/rate update is a complete replacement for the affected stay.
-        // Do not carry booking/search/nightly fields from the previous rate.
+ // A room/rate update is a complete replacement for the affected stay.
+ // Do not carry booking/search/nightly fields from the previous rate.
         next[routeIdNum] = {
           ...value,
           routeId: Number(value.routeId || routeIdNum),
@@ -100,7 +100,7 @@ export function useHotelSelectionsChangeMutation({
 }: HotelSelectionsChangeMutationOptions) {
   return useCallback((selections: HotelSelectionChangeMap) => {
     setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
-    console.log("Hotel selections updated from HotelList:", selections);
+ console.log("Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 }
 

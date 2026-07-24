@@ -195,7 +195,7 @@ useEffect(() => {
     city: selectedBranch.cityId
       ? String(selectedBranch.cityId)
       : prev.city,
-    // Vehicle Origin is independent from Branch Location
+ // Vehicle Origin is independent from Branch Location
     vehicleOrigin: prev.vehicleOrigin,
     vehicleLocationId: prev.vehicleLocationId,
   }));
@@ -797,7 +797,7 @@ if (continueToNextStep) {
   onNext();
 }
 } catch (e: any) {
-  console.error("Failed to save vehicle", e);
+ console.error("Failed to save vehicle", e);
   alert(
     e?.message ||
     "Failed to save vehicle. Please check the entered details and try again."

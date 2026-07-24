@@ -141,17 +141,17 @@ export const GstSettingsAPI = {
     return toRow(unwrapOne(res));
   },
 
-  /** Soft delete */
+ /** Soft delete */
   async delete(id: number): Promise<void> {
     await api(`/gst-settings/${id}`, { method: "DELETE" });
   },
 
-  /** Backward-compatible name (your old UI calls .remove()) */
+ /** Backward-compatible name (your old UI calls .remove()) */
   async remove(id: number): Promise<void> {
     await GstSettingsAPI.delete(id);
   },
 
-  /** Optional */
+ /** Optional */
   async toggleStatus(id: number, status: 0 | 1): Promise<void> {
     await api(`/gst-settings/${id}`, { method: "PUT", body: { status } });
   },

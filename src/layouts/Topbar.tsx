@@ -119,7 +119,7 @@ export const Topbar = ({ onMobileMenuToggle }: TopbarProps) => {
             onClick={() => navigate("/")}
             className="font-medium text-primary hover:underline"
           >
-            Dashboard 
+            Dashboard
           </button>
         </li>
       </ol>

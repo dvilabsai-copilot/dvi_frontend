@@ -60,7 +60,7 @@ export const ItineraryDayHeader: React.FC<ItineraryDayHeaderProps> = ({
   style={{ top: `${Math.max(summaryStickyHeight + 4, 4)}px` }}
 >
   <div className="grid grid-cols-1 gap-2 lg:grid-cols-[auto_auto_minmax(0,1fr)_auto] lg:grid-rows-2 lg:gap-x-4">
-    {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
+ {/* Row 1: day/date and centered route; row 2 actions are placed below via grid */}
     <div className="contents">
       <div className="order-1 flex flex-wrap items-center gap-x-4 gap-y-2 text-[#242133] lg:col-start-1 lg:row-start-1">
         <div className="flex items-center gap-3">

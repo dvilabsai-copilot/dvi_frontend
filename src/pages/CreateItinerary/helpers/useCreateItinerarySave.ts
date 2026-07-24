@@ -180,31 +180,31 @@ if (!firstRoute?.next) errors.firstRouteNext = "Please fill first day To destina
     return false;
   };
 
-  // ----------------- SAVE -----------------
+ // ----------------- SAVE -----------------
 
-// Ã¢Å“â€¦ COPY-PASTE: buildPayload() (replace your existing one)
+// COPY-PASTE: buildPayload() (replace your existing one)
 
 // ----------------- SAVE -----------------
 
-// Ã¢Å“â€¦ REPLACE existing buildPayload with this one
+// REPLACE existing buildPayload with this one
 const buildPayload = () => {
   const { totalAdults, totalChildren, totalInfants, travellerRows } =
     buildTravellers();
 
-  // ---- helper: always produce a valid numeric id (prevents NaN->null) ----
+ // ---- helper: always produce a valid numeric id (prevents NaN->null) ----
 const resolveOptionId = (raw: any, options: SimpleOption[]): number => {
   const value = String(raw ?? "").trim();
 
   if (!value) return 0;
 
-  // Dropdown may already provide a numeric ID.
+ // Dropdown may already provide a numeric ID.
   const directId = Number(value);
 
   if (Number.isInteger(directId) && directId > 0) {
     return directId;
   }
 
-  // Treat spaces, hyphens and underscores as equivalent.
+ // Treat spaces, hyphens and underscores as equivalent.
   const normalizeLabel = (input: unknown) =>
     String(input ?? "")
       .trim()
@@ -235,7 +235,7 @@ const resolveOptionId = (raw: any, options: SimpleOption[]): number => {
     return matchedId;
   }
 
-  // Final fallback for APIs where the dropdown value itself is the label.
+ // Final fallback for APIs where the dropdown value itself is the label.
 const foodTypeByLabel: Record<string, number> = {
   vegetarian: 1,
   veg: 1,
@@ -280,7 +280,7 @@ const foodTypeByLabel: Record<string, number> = {
     next_visiting_location: r.next || "",
     itinerary_route_date: r.date
       ? toISOFromDDMMYYYY(r.date)
-      : undefined, // +05:30 from utils
+ : undefined, // +05:30 from utils
     no_of_days: r.day,
      no_of_km:
     r.no_of_km !== undefined &&
@@ -290,7 +290,7 @@ const foodTypeByLabel: Record<string, number> = {
       : 0,
     direct_to_next_visiting_place: r.directVisit === "Yes" ? 1 : 0,
     via_route: r.via || "",
-    via_routes: r.via_routes || [], // include via routes array for backend
+ via_routes: r.via_routes || [], // include via routes array for backend
   }));
 
   const preferred_hotel_category =
@@ -351,7 +351,7 @@ const meal_plan_code = shouldUseMealPlan
       ? toISOFromDDMMYYYYAndTime(tripStartDate, startTime)
       : undefined;
 
-  // Ã¢Å“â€¦ base plan without id
+ // base plan without id
   const planBase: any = {
     agent_id: resolvedAgentId,
     staff_id: 0,
@@ -410,7 +410,7 @@ const meal_plan_code = shouldUseMealPlan
           : null,
   };
 
-  // Ã¢Å“â€¦ inject itinerary_plan_id ONLY when editing
+ // inject itinerary_plan_id ONLY when editing
   const plan = itineraryPlanId
     ? {
         itinerary_plan_id: itineraryPlanId,
@@ -537,7 +537,7 @@ const runArrivalPolicyGate = async (
     }
     return true;
   } catch (e: any) {
-    console.error("Failed to resolve arrival policy in create itinerary", e);
+ console.error("Failed to resolve arrival policy in create itinerary", e);
     toast({
       title: "Arrival policy failed",
       description: e?.message || "Unable to evaluate arrival policy before saving.",
@@ -581,8 +581,8 @@ const continueToRouteConfirmation = () => {
     const payload = buildPayload();
     setPendingPayload(payload);
 
-    // Transport Only early-arrival handling is an inline preference. It must
-    // not open the hotel previous-day billing modal or create hotel rows/costs.
+ // Transport Only early-arrival handling is an inline preference. It must
+ // not open the hotel previous-day billing modal or create hotel rows/costs.
     if (itineraryPreference === "vehicle" && requiresTransportEarlyArrivalPreference) {
       continueToRouteConfirmation();
       return;

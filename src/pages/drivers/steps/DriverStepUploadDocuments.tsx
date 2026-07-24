@@ -69,7 +69,7 @@ export function DriverStepUploadDocuments({
 
   useEffect(() => {
     loadDocs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverId]);
 
   function validateModal() {
@@ -193,7 +193,7 @@ export function DriverStepUploadDocuments({
           </Button>
         </div>
 
-        {/* Modal (matches screenshot) */}
+ {/* Modal (matches screenshot) */}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>

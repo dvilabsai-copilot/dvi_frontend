@@ -44,7 +44,7 @@ const months = [
 export default function PricebookExportPage() {
   const [activeTab, setActiveTab] = useState(0);
 
-  // masters
+ // masters
   const [stateOptions, setStateOptions] = useState<MasterOption[]>([]);
   const [cityOptions, setCityOptions] = useState<MasterOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<MasterOption[]>([]);
@@ -59,7 +59,7 @@ export default function PricebookExportPage() {
   const [loadingHotspots, setLoadingHotspots] = useState(false);
   const [loadingVehicleTypes, setLoadingVehicleTypes] = useState(false);
 
-  // form values (store ids/values)
+ // form values (store ids/values)
   const [stateId, setStateId] = useState("");
   const [cityId, setCityId] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -71,20 +71,20 @@ export default function PricebookExportPage() {
   const [hotspotLocation, setHotspotLocation] = useState("");
   const [vehicleTypeId, setVehicleTypeId] = useState("");
 
-  // toll list
+ // toll list
   const [tollSearch, setTollSearch] = useState("");
   const [tollLoading, setTollLoading] = useState(false);
   const [tollRows, setTollRows] = useState<
     { id: number; sourceLocation: string; destinationLocation: string; vehicleTypeTitle: string; tollCharge: number }[]
   >([]);
 
-  // parking list
+ // parking list
   const [parkingLoading, setParkingLoading] = useState(false);
   const [parkingRows, setParkingRows] = useState<
     { id: string; hotspotName: string; vehicleTypeName: string; parkingCharge: number }[]
   >([]);
 
-  // initial masters load
+ // initial masters load
   useEffect(() => {
     (async () => {
       setLoadingStates(true);
@@ -139,7 +139,7 @@ export default function PricebookExportPage() {
     })();
   }, []);
 
-  // cities on state change
+ // cities on state change
   useEffect(() => {
     if (!stateId) {
       setCityId("");
@@ -162,7 +162,7 @@ export default function PricebookExportPage() {
     })();
   }, [stateId]);
 
-  // branches on vendor change
+ // branches on vendor change
   useEffect(() => {
     if (!vendorId) {
       setBranchId("");
@@ -185,7 +185,7 @@ export default function PricebookExportPage() {
     })();
   }, [vendorId]);
 
-  // toll list real API (tab 6)
+ // toll list real API (tab 6)
   useEffect(() => {
     if (activeTab !== 6) return;
 
@@ -223,7 +223,7 @@ export default function PricebookExportPage() {
     });
   }, [tollRows, tollSearch]);
 
-  // parking list real API (tab 7)
+ // parking list real API (tab 7)
   useEffect(() => {
     if (activeTab !== 7) return;
 

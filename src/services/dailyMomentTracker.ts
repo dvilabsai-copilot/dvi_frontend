@@ -6,15 +6,15 @@ export type TripType = "Arrival" | "Departure" | "Ongoing";
 export type DailyMomentApiRow = {
   count: number;
 
-  // Guest details
+ // Guest details
   guest_name: string;
-  guest_mobile: string | null; // NEW
-  guest_email: string | null; // NEW
+ guest_mobile: string | null; // NEW
+ guest_email: string | null; // NEW
 
   quote_id: string | null;
   itinerary_plan_ID: number;
   itinerary_route_ID: number;
-  route_date: string; // "dd-mm-yyyy"
+ route_date: string; // "dd-mm-yyyy"
   trip_type: TripType;
   location_name: string | null;
   next_visiting_location: string | null;
@@ -29,10 +29,10 @@ export type DailyMomentApiRow = {
   driver_mobile: string | null;
   special_remarks: string | null;
 
-  // Travel expert details
+ // Travel expert details
   travel_expert_name: string | null;
-  travel_expert_mobile: string | null; // NEW
-  travel_expert_email: string | null; // NEW
+ travel_expert_mobile: string | null; // NEW
+ travel_expert_email: string | null; // NEW
 
   agent_name: string | null;
 };
@@ -45,12 +45,12 @@ export type DailyMomentListRow = {
   itineraryPlanId?: number;
   itineraryRouteId?: number;
 
-  // Guest
+ // Guest
   guestName: string;
   guestMobile?: string | null;
   guestEmail?: string | null;
 
-  // Travel expert
+ // Travel expert
   travelExpert: string;
   travelExpertMobile?: string | null;
   travelExpertEmail?: string | null;
@@ -98,7 +98,7 @@ function parseRouteDate(routeDate: string | null | undefined): Date {
     }
   }
 
-  // Fallback: let JS try to parse whatever came
+ // Fallback: let JS try to parse whatever came
   const fallback = new Date(routeDate);
   if (!Number.isNaN(fallback.getTime())) return fallback;
 
@@ -149,8 +149,8 @@ export function mapDailyMomentApiRowsToListRows(
 
 // Optional convenience: fetch + map in one call (non-breaking addition)
 export async function fetchDailyMomentList(params: {
-  fromDate: string; // DD-MM-YYYY
-  toDate: string; // DD-MM-YYYY
+ fromDate: string; // DD-MM-YYYY
+ toDate: string; // DD-MM-YYYY
   itineraryPlanId?: number;
   agentId?: number;
 }): Promise<DailyMomentListRow[]> {
@@ -169,12 +169,12 @@ export type DailyMomentCharge = {
 
 // Vite-style base URL with localhost fallback for local parity testing
 const API_BASE_URL = (
-  (import.meta as any).env?.VITE_API_DVI_BASE_URL || "http://localhost:4006"
+ (import.meta as any).env?.VITE_API_DVI_BASE_URL || "http://localhost:4006"
 )
   .toString()
   .replace(/\/+$/, "");
 
-// 🔐 Helper: attach JWT from localStorage (same idea as other secured APIs)
+// Helper: attach JWT from localStorage (same idea as other secured APIs)
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
   const token =
@@ -192,8 +192,8 @@ function getAuthHeaders(): Record<string, string> {
  * (Existing behaviour preserved – still returns raw DailyMomentApiRow[])
  */
 export async function fetchDailyMoments(params: {
-  fromDate: string; // DD-MM-YYYY
-  toDate: string; // DD-MM-YYYY
+ fromDate: string; // DD-MM-YYYY
+ toDate: string; // DD-MM-YYYY
   itineraryPlanId?: number;
   agentId?: number;
 }): Promise<DailyMomentApiRow[]> {
@@ -212,7 +212,7 @@ export async function fetchDailyMoments(params: {
     search.set("agentId", String(params.agentId));
   }
 
-  // include global prefix /api/v1 from main.ts
+ // include global prefix /api/v1 from main.ts
   const url = `${API_BASE_URL}/api/v1/daily-moment-tracker?${search.toString()}`;
 
   const res = await fetch(url, {
@@ -224,7 +224,7 @@ export async function fetchDailyMoments(params: {
   });
 
   if (!res.ok) {
-    console.error(
+ console.error(
       "Failed to fetch daily moments",
       res.status,
       await safeReadText(res)
@@ -259,7 +259,7 @@ export async function fetchDailyMomentCharges(
   });
 
   if (!res.ok) {
-    console.error(
+ console.error(
       "Failed to fetch daily moment charges",
       res.status,
       await safeReadText(res)
@@ -302,7 +302,7 @@ export async function upsertDailyMomentCharge(payload: {
   });
 
   if (!res.ok) {
-    console.error(
+ console.error(
       "Failed to save daily moment charge",
       res.status,
       await safeReadText(res)
@@ -323,7 +323,7 @@ async function safeReadText(res: Response): Promise<string> {
   }
 }
 
-// ─── Day-View types ───────────────────────────────────────────────────────────
+// Day-View types
 
 export type DayViewHotspot = {
   serial_no: number;
@@ -332,14 +332,14 @@ export type DayViewHotspot = {
   itinerary_plan_ID: number;
   itinerary_route_ID: number;
   hotspot_ID: number;
-  item_type: number; // 4=hotspot,6=hotel,7=travel
+ item_type: number; // 4=hotspot,6=hotel,7=travel
   hotspot_name: string;
   hotspot_location: string;
   start_time: string;
   end_time: string;
   duration_minutes: number;
   duration_label: string;
-  driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
+ driver_hotspot_status: number; // 0=pending,1=visited,2=not-visited
   driver_not_visited_description: string | null;
   guide_hotspot_status: number;
   guide_not_visited_description: string | null;
@@ -372,7 +372,7 @@ export type DayViewDay = {
   day_number: number;
   itinerary_route_ID: number;
   confirmed_itinerary_route_ID?: number;
-  route_date: string; // DD-MM-YYYY
+ route_date: string; // DD-MM-YYYY
   from_location: string;
   to_location: string;
   km: {
@@ -418,7 +418,7 @@ export type DayViewPlan = {
   days: DayViewDay[];
 };
 
-// ─── Day-View fetch ───────────────────────────────────────────────────────────
+// Day-View fetch
 
 export type DriverAssignmentShareDetails = {
   driverAssignmentId: number;
@@ -468,7 +468,7 @@ export async function fetchDayView(planId: number): Promise<DayViewPlan> {
   return res.json();
 }
 
-// ─── Hotspot status update ────────────────────────────────────────────────────
+// Hotspot status update
 
 export async function updateHotspotStatus(payload: {
   confirmedRouteHotspotId: number;
@@ -510,7 +510,7 @@ export async function updateActivityStatus(payload: {
   if (!res.ok) throw new Error(`Failed to update activity status: ${res.status}`);
 }
 
-// ─── Guide status update ──────────────────────────────────────────────────────
+// Guide status update
 
 export async function updateGuideStatus(payload: {
   confirmedRouteGuideId: number;
@@ -540,7 +540,7 @@ export async function updateWholedayGuideStatus(payload: {
   if (!res.ok) throw new Error(`Failed to update wholeday guide status: ${res.status}`);
 }
 
-// ─── Delete charge ────────────────────────────────────────────────────────────
+// Delete charge
 
 export async function deleteDailyMomentCharge(driverChargeId: number): Promise<void> {
   const url = `${API_BASE_URL}/api/v1/daily-moment-tracker/charges/${driverChargeId}`;
@@ -548,7 +548,7 @@ export async function deleteDailyMomentCharge(driverChargeId: number): Promise<v
   if (!res.ok) throw new Error(`Failed to delete charge: ${res.status}`);
 }
 
-// ─── Driver rating CRUD ───────────────────────────────────────────────────────
+// Driver rating CRUD
 
 export async function upsertDriverRating(payload: {
   driverFeedbackId?: number;
@@ -587,7 +587,7 @@ export async function fetchGuideRatings(itineraryPlanId: number): Promise<any[]>
   return res.json();
 }
 
-// ─── Guide rating ─────────────────────────────────────────────────────────────
+// Guide rating
 
 export async function upsertGuideRating(payload: {
   guideReviewId?: number;
@@ -613,7 +613,7 @@ export async function deleteGuideRating(guideReviewId: number): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete guide rating: ${res.status}`);
 }
 
-// ─── Kilometer ────────────────────────────────────────────────────────────────
+// Kilometer
 
 export async function saveOpeningKm(payload: {
   itineraryPlanId: number;
@@ -663,7 +663,7 @@ export async function uploadDayImages(payload: {
   payload.files.forEach((f) => fd.append('images', f));
   const res = await fetch(url, {
     method: 'POST',
-    headers: { ...getAuthHeaders() }, // no Content-Type — browser sets multipart boundary
+ headers: { ...getAuthHeaders() }, // no Content-Type browser sets multipart boundary
     body: fd,
   });
   if (!res.ok) {

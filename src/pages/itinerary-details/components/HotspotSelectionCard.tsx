@@ -95,7 +95,7 @@ export const HotspotSelectionCard: React.FC<HotspotSelectionCardProps> = ({
       <div className="p-4">
         <div className="mb-3 flex gap-3">
           <div className="relative shrink-0">
-            <img src={toImgSrc(hotspot.image || null) || "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"} alt={hotspot.name} className="h-[86px] w-[120px] rounded-lg object-cover shadow-sm sm:h-[102px] sm:w-[148px]" />
+ <img src={toImgSrc(hotspot.image || null) || "https://placehold.co/185x115/e9d5f7/4a4260?text=Spot"} alt={hotspot.name} className="h-[86px] w-[120px] rounded-lg object-cover shadow-sm sm:h-[102px] sm:w-[148px]" />
             <div className="absolute right-1 top-1 flex flex-col gap-1">
               <button type="button" title="Click to View the Images" className="rounded-full bg-white/90 p-1 shadow hover:bg-white" onClick={(event) => { event.stopPropagation(); openGalleryModal(Array.isArray(hotspot.galleryImages) && hotspot.galleryImages.length > 0 ? hotspot.galleryImages : hotspot.image ? [hotspot.image] : [], hotspot.name); }}>🖼️</button>
               {hotspot.videoUrl && <button type="button" title="Click to View the Video" className="rounded-full bg-white/90 p-1 shadow hover:bg-white" onClick={(event) => { event.stopPropagation(); openVideoModal(hotspot.videoUrl || "", hotspot.name); }}>▶️</button>}

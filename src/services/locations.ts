@@ -190,7 +190,7 @@ function normalizeDurationText(raw: any) {
 }
 /** Normalize one raw row from backend (PHP/Nest) into LocationRow expected by UI */
 function toLocationRow(raw: any): LocationRow {
-  // Handle alternate keys + common typos ("lattitude")
+ // Handle alternate keys + common typos ("lattitude")
   const srcCity = raw.source_city ?? raw.source_location_city;
   const srcState = raw.source_state ?? raw.source_location_state;
   const srcLat =
@@ -717,7 +717,7 @@ async deleteSuggestedRoute(id: number, suggestedRouteId: number) {
     };
   },
 
- 
+
 
   async restore(id: number) {
     const data = (await api(`/locations/${id}/restore`, {

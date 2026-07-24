@@ -49,7 +49,7 @@ export const useHotelSelectionMutation = ({
 }: HotelSelectionMutationOptions) => {
   return useCallback(async (hotelId: number, roomTypeId: number = 1) => {
     if (readOnly) {
-      console.log("Cannot select hotel in read-only mode");
+ console.log("Cannot select hotel in read-only mode");
       return;
     }
     if (!hotelSelectionModal.planId || !hotelSelectionModal.routeId) return;
@@ -77,7 +77,7 @@ export const useHotelSelectionMutation = ({
         setHotelDetails(hotelRes as ItineraryHotelDetailsResponse);
       }
     } catch (error) {
-      console.error("Failed to select hotel", error);
+ console.error("Failed to select hotel", error);
       toast.error(getSafeErrorMessage(error, "Failed to select hotel"));
     } finally {
       setIsSelectingHotel(false);

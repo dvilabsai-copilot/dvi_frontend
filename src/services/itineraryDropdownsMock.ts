@@ -261,7 +261,7 @@ export async function fetchEligibleVehicleTypes(args: {
 
     return { vehicleTypes, selectedVehicleIds };
   } catch (error) {
-    console.error("Error fetching eligible vehicle types:", error);
+ console.error("Error fetching eligible vehicle types:", error);
     return { vehicleTypes: [], selectedVehicleIds: [] };
   }
 }
@@ -301,7 +301,7 @@ export async function fetchHotelFacilities(): Promise<SimpleOption[]> {
 export type ViaRouteFormResult = {
   options: SimpleOption[];
   existingLabels: string[];
-  existingIds: string[]; // NEW – exact via_route_location IDs
+ existingIds: string[]; // NEW exact via_route_location IDs
 };
 
 /**
@@ -336,7 +336,7 @@ export async function fetchViaRouteForm(args: {
     params.set("itinerary_route_date", args.date);
   }
 
-  // Only send itinerary_plan_ID when editing an existing itinerary
+ // Only send itinerary_plan_ID when editing an existing itinerary
   if (args.itineraryPlanId != null) {
     params.set("itinerary_plan_ID", String(args.itineraryPlanId));
   }
@@ -349,9 +349,9 @@ export async function fetchViaRouteForm(args: {
     }
   );
 
-  // api() usually returns the JSON body; handle both shapes:
-  //  1) { success, data: { existing, options } }
-  //  2) { existing, options }
+ // api() usually returns the JSON body; handle both shapes:
+ // 1) { success, data: { existing, options } }
+ // 2) { existing, options }
   const raw = (res as any)?.data ?? (res as any) ?? {};
 
   const optionsRaw =

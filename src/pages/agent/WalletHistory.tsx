@@ -135,8 +135,8 @@ function WalletTable({
 
   const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => { 
-    setPage(1); 
+  useEffect(() => {
+    setPage(1);
   }, [search, rows]);
 
   return (
@@ -260,7 +260,7 @@ const WalletHistory = () => {
       try {
         await fetchHistory();
       } catch (error) {
-        console.error("Wallet error:", error);
+ console.error("Wallet error:", error);
         toast.error("Failed to load wallet");
       } finally {
         setLoading(false);
@@ -303,7 +303,7 @@ const WalletHistory = () => {
           navigate(`/payments/success?flow=wallet_topup&orderId=${encodeURIComponent(order.orderId)}`);
         },
         onFailure: (error) => {
-          console.error(error);
+ console.error(error);
           toast.error("Payment verification failed");
         },
         onDismiss: () => {
@@ -311,7 +311,7 @@ const WalletHistory = () => {
         },
       });
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Unable to start wallet top-up");
     } finally {
       setSubmitting(false);

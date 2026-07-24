@@ -61,16 +61,16 @@ export default function RolePermissionFormPage() {
 
   useEffect(() => {
     boot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function boot() {
     setLoading(true);
     try {
-      // 1) Load pages list (so table renders)
+ // 1) Load pages list (so table renders)
       const pages = await rolePermissionService.listPages();
 
-      // 2) If edit, load existing role permission and merge
+ // 2) If edit, load existing role permission and merge
       if (isEdit && id) {
         const existing = await rolePermissionService.getOne(id);
 
@@ -106,7 +106,7 @@ export default function RolePermissionFormPage() {
     const next: RolePermissionPageRow = {
       ...r,
       full: checked,
-      // FULL controls all three directly
+ // FULL controls all three directly
       read: checked,
       write: checked,
       modify: checked,
@@ -161,7 +161,7 @@ export default function RolePermissionFormPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Top header like screenshot */}
+ {/* Top header like screenshot */}
       <div className="flex items-start justify-between gap-4">
         <h1 className="text-2xl font-semibold text-slate-800">{title}</h1>
         {breadcrumb}
@@ -176,7 +176,7 @@ export default function RolePermissionFormPage() {
               {title}
             </h2>
 
-            {/* Role Name */}
+ {/* Role Name */}
             <div className="max-w-2xl">
               <label className="block text-sm font-medium text-slate-700 mb-2">
                 Role Name <span className="text-red-500">*</span>
@@ -189,7 +189,7 @@ export default function RolePermissionFormPage() {
               />
             </div>
 
-            {/* Permissions Table */}
+ {/* Permissions Table */}
             <div className="mt-8">
               <h3 className="text-xl font-semibold text-slate-700 mb-4">Role Permissions</h3>
 
@@ -255,7 +255,7 @@ export default function RolePermissionFormPage() {
               </div>
             </div>
 
-            {/* Footer buttons */}
+ {/* Footer buttons */}
             <div className="mt-10 flex items-center justify-between">
               <Button
                 type="button"

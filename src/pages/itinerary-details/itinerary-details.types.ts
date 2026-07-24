@@ -4,16 +4,16 @@
 export type StartSegment = {
   type: "start";
   title: string;
-  timeRange: string; // "12:00 AM - 12:00 AM"
+ timeRange: string; // "12:00 AM - 12:00 AM"
 };
 
 export type TravelSegment = {
   type: "travel";
   from: string;
   to: string;
-  timeRange: string; // "06:30 AM - 06:45 AM"
+ timeRange: string; // "06:30 AM - 06:45 AM"
   distance: string;
-  duration: string; // "15 Min"
+ duration: string; // "15 Min"
   note?: string | null;
   isConflict?: boolean;
   conflictReason?: string | null;
@@ -22,8 +22,8 @@ export type TravelSegment = {
 export type BreakSegment = {
   type: "break";
   location: string;
-  duration: string; // "1 Hour 30 Min"
-  timeRange: string; // "12:00 PM - 01:30 PM"
+ duration: string; // "1 Hour 30 Min"
+ timeRange: string; // "12:00 PM - 01:30 PM"
 };
 
 export type Activity = {
@@ -43,10 +43,10 @@ export type AttractionSegment = {
   type: "attraction";
   name: string;
   description: string;
-  visitTime: string; // "06:45 AM - 08:45 AM"
-  duration: string; // "2 Hours"
+ visitTime: string; // "06:45 AM - 08:45 AM"
+ duration: string; // "2 Hours"
   priority?: number;
-  amount: number | null; // Entry cost
+ amount: number | null; // Entry cost
   timings?: string;
   image: string | null;
   galleryImages?: string[];
@@ -97,12 +97,12 @@ export type CheckinSegment = {
   type: "checkin";
   hotelName: string;
   hotelAddress: string;
-  time: string | null; // "06:00 PM"
+ time: string | null; // "06:00 PM"
 };
 
 export type ReturnSegment = {
   type: "return";
-  time: string; // "08:00 PM"
+ time: string; // "08:00 PM"
   note?: string | null;
 };
 
@@ -159,15 +159,15 @@ export type AvailableHotspot = {
 export type ItineraryDay = {
   id: number;
   dayNumber: number;
-  date: string; // ISO
+ date: string; // ISO
   departure: string | null;
   arrival: string | null;
-  distance: string; // total distance
-  intercityDistance?: string; // only main destination-to-destination distance
-  sightseeingDistance?: string; // only sightseeing/local movement distance
-  startTime: string; // "12:00 PM"
-  endTime: string; // "08:00 PM"
-  departureTime?: string | null; // actual departure time shown on final day
+ distance: string; // total distance
+ intercityDistance?: string; // only main destination-to-destination distance
+ sightseeingDistance?: string; // only sightseeing/local movement distance
+ startTime: string; // "12:00 PM"
+ endTime: string; // "08:00 PM"
+ departureTime?: string | null; // actual departure time shown on final day
   viaRoutes?: ViaRouteItem[];
   segments: ItinerarySegment[];
   needsRebuild?: boolean;
@@ -248,29 +248,29 @@ export type ItineraryHotelRow = {
   hotelMealPlanCost?: number;
   hotelMealPlanGstAmount?: number;
   noOfRooms?: number;
-  provider?: string; // Provider source (tbo, resavenue, hobse)
+ provider?: string; // Provider source (tbo, resavenue, hobse)
   providerDisplayName?: string;
-  voucherCancelled?: boolean; // Whether voucher is cancelled
+ voucherCancelled?: boolean; // Whether voucher is cancelled
 
-  // Original draft hotel details ID. Existing cancellation API uses this.
+ // Original draft hotel details ID. Existing cancellation API uses this.
   itineraryPlanHotelDetailsId?: number;
 
-  // Confirmed hotel details table ID, useful for display/debug/future use.
+ // Confirmed hotel details table ID, useful for display/debug/future use.
   confirmedItineraryPlanHotelDetailsId?: number;
 
-  // Normalized IDs passed into existing cancel flow.
+ // Normalized IDs passed into existing cancel flow.
   hotelDetailsIds?: number[];
 
-  // Optional explicit flag from backend.
+ // Optional explicit flag from backend.
   canCancelVoucher?: boolean;
 
   date?: string;
-  // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
-  hotelCode?: string; // HOBSE hotel code
-  bookingCode?: string; // HOBSE booking code
+ // HOBSE-specific fields (optional, used if provider === "HOBSE")
+ hotelCode?: string; // HOBSE hotel code
+ bookingCode?: string; // HOBSE booking code
   searchReference?: string;
-  checkInDate?: string; // YYYY-MM-DD format
-  checkOutDate?: string; // YYYY-MM-DD format
+ checkInDate?: string; // YYYY-MM-DD format
+ checkOutDate?: string; // YYYY-MM-DD format
   hotelCheckInDate?: string | null;
   actualGuestArrivalAt?: string | null;
   earlyCheckIn?: boolean;
@@ -278,8 +278,8 @@ export type ItineraryHotelRow = {
   earlyCheckInPaymentStatus?: string | null;
   hotelierEarlyCheckInNote?: string | null;
   previousDayBillingSynthetic?: boolean;
-  // ✅ Hotel distance from route location (calculated via Haversine on backend)
-  hotelDistance?: string | null; // Distance in "XX.XX KM" format
+ // Hotel distance from route location (calculated via Haversine on backend)
+ hotelDistance?: string | null; // Distance in "XX.XX KM" format
   hotelAddress?: string | null;
   cancellationPolicy?: string[];
   providerDisplayName?: string;
@@ -345,7 +345,7 @@ export type ItineraryVehicleRow = {
   vehicleRegistrationStateCode?: string | null;
   vehicleRegistrationStateName?: string | null;
 
-  // vehicle type information
+ // vehicle type information
   vendorEligibleId?: number;
   vehicleTypeId?: number;
   vehicleTypeName?: string;
@@ -354,7 +354,7 @@ export type ItineraryVehicleRow = {
   missingRateTypes?: Array<'Local' | 'Outstation'>;
   rateAvailabilityMessage?: string | null;
 
-  // per-vehicle charges (optional; fill from API)
+ // per-vehicle charges (optional; fill from API)
   rentalCharges?: number | string;
   tollCharges?: number | string;
   parkingCharges?: number | string;
@@ -366,18 +366,18 @@ export type ItineraryVehicleRow = {
   after8pmVendor?: number | string;
   breakdown?: VehicleCostBreakdownItem[];
 
-  // UI fields for the image + distance row
-  dayLabel?: string; // "Day-1 | 28 Nov 2025 | Outstation"
-  fromLabel?: string; // "CHENNAI INTERNATIONAL AIRPORT"
-  toLabel?: string; // "CHENNAI"
-  packageLabel?: string; // "Outstation - 250KM"
-  col1Distance?: string; // "30.22 KM"
-  col1Duration?: string; // "0 Min"
-  col2Distance?: string; // "0.00 KM"
-  col2Duration?: string; // "0 Min"
-  col3Distance?: string; // "30.22 KM"
-  col3Duration?: string; // "0 Min"
-  imageUrl?: string | null; // vehicle image if you ever have it
+ // UI fields for the image + distance row
+ dayLabel?: string; // "Day-1 | 28 Nov 2025 | Outstation"
+ fromLabel?: string; // "CHENNAI INTERNATIONAL AIRPORT"
+ toLabel?: string; // "CHENNAI"
+ packageLabel?: string; // "Outstation - 250KM"
+ col1Distance?: string; // "30.22 KM"
+ col1Duration?: string; // "0 Min"
+ col2Distance?: string; // "0.00 KM"
+ col2Duration?: string; // "0 Min"
+ col3Distance?: string; // "30.22 KM"
+ col3Duration?: string; // "0 Min"
+ imageUrl?: string | null; // vehicle image if you ever have it
 };
 
 export type PackageIncludes = {
@@ -408,7 +408,7 @@ export type EntryTicketBreakdown = {
 };
 
 export type CostBreakdown = {
-  // Hotel costs
+ // Hotel costs
   totalRoomCost?: number | null;
   roomCostPerPerson?: number | null;
   hotelPaxCount?: number | null;
@@ -441,18 +441,18 @@ export type CostBreakdown = {
   hotelMealPlanAllocatedCost?: number | null;
   totalHotelAmount?: number | null;
 
-  // Vehicle costs
+ // Vehicle costs
   totalVehicleCost: number | null;
   totalVehicleAmount: number | null;
   totalVehicleQty?: number | null;
 
-  // Activity/Guide costs
+ // Activity/Guide costs
   totalGuideCost?: number | null;
   totalHotspotCost?: number | null;
   entryTicketBreakdown?: EntryTicketBreakdown[];
   totalActivityCost?: number | null;
 
-  // Final calculations
+ // Final calculations
   additionalMargin: number | null;
   totalAmount: number | null;
   couponDiscount: number | null;
@@ -479,7 +479,7 @@ export type ItineraryPlanRouteOption = {
 };
 
 export type ItineraryDetailsResponse = {
-  // planId for routing back to create-itinerary
+ // planId for routing back to create-itinerary
   planId?: number;
   itineraryPreference?: number;
   routeOptions?: ItineraryPlanRouteOption[];
@@ -507,7 +507,7 @@ export type ItineraryDetailsResponse = {
   adults: number;
   children: number;
   infants: number;
-  overallCost: string | number; // API is giving "15000.00"
+ overallCost: string | number; // API is giving "15000.00"
 meal_plan_code?: string | null;
 
 // Guest food preference from backend
@@ -522,7 +522,7 @@ guestFoodPreferenceName?: string | null;
 
 days: ItineraryDay[];
 
-  // VEHICLES
+ // VEHICLES
   vehicles: ItineraryVehicleRow[];
   vehicleRateAvailability?: Array<{
     vehicleTypeId: number;

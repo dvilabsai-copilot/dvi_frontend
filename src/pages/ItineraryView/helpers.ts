@@ -7,7 +7,7 @@ import { ViaRouteItem } from './types';
  */
 export function formatViaRoutesWithArrows(viaRoutes: ViaRouteItem[]): string {
   if (!viaRoutes || viaRoutes.length === 0) return '';
-  
+
   return viaRoutes
     .map((via) => `<i class="ti ti-arrow-right"></i> ${via.itinerary_via_location_name}`)
     .join(' ');
@@ -18,7 +18,7 @@ export function formatViaRoutesWithArrows(viaRoutes: ViaRouteItem[]): string {
  */
 export function formatViaRoutesPlain(viaRoutes: ViaRouteItem[]): string {
   if (!viaRoutes || viaRoutes.length === 0) return '';
-  
+
   return viaRoutes
     .map((via) => via.itinerary_via_location_name)
     .join(', ');
@@ -29,11 +29,11 @@ export function formatViaRoutesPlain(viaRoutes: ViaRouteItem[]): string {
  */
 export function formatItineraryDate(dateString: string): string {
   const date = new Date(dateString);
-  const options: Intl.DateTimeFormatOptions = { 
-    weekday: 'short', 
-    month: 'short', 
-    day: '2-digit', 
-    year: 'numeric' 
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
   };
   return date.toLocaleDateString('en-US', options);
 }
@@ -43,10 +43,10 @@ export function formatItineraryDate(dateString: string): string {
  */
 export function formatTime(timeString: string): string {
   const date = new Date(timeString);
-  return date.toLocaleTimeString('en-US', { 
-    hour: '2-digit', 
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
     minute: '2-digit',
-    hour12: true 
+    hour12: true
   });
 }
 
@@ -90,7 +90,7 @@ export function calculateDateRange(startDate: string, endDate: string): { nights
   const end = new Date(endDate);
   const diffTime = Math.abs(end.getTime() - start.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   return {
     nights: diffDays,
     days: diffDays + 1

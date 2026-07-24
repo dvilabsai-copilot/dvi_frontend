@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { ItineraryService } from '@/services/itinerary';
 
 export type HotelSearchResult = {
-  provider: string; // Provider source: 'tbo' or 'ResAvenue'
+ provider: string; // Provider source: 'tbo' or 'ResAvenue'
   providerDisplayName?: string;
   canonicalHotelId?: number | null;
   providerHotelCode?: string;
@@ -30,7 +30,7 @@ export type HotelSearchResult = {
   mealPlan?: string;
   images?: string[];
   availableRooms?: number;
-  // API-specific fields
+ // API-specific fields
   bookingCode?: string;
   searchReference?: string;
   bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
@@ -208,12 +208,12 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
       },
       guestNationality?: string
     ) => {
-      // Clear previous timer
+ // Clear previous timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
 
-      // If query is empty, clear results
+ // If query is empty, clear results
       if (!searchQuery.trim()) {
         setSearchResults([]);
         setError(null);
@@ -274,7 +274,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
         return;
       }
 
-      // Set debounced search
+ // Set debounced search
       debounceTimerRef.current = setTimeout(async () => {
         setIsSearching(true);
         setError(null);
@@ -294,7 +294,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             hotelName: searchQuery,
           });
 
-          // Map searchReference from backend to bookingCode for API compatibility
+ // Map searchReference from backend to bookingCode for API compatibility
           const mapBookingCode = (hotel: RawHotelSearchResult): HotelSearchResult => ({
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
@@ -324,7 +324,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
               hotel?.rooms?.[0]?.MealType ||
               hotel?.Rooms?.[0]?.MealType ||
               hotel?.Rooms?.[0]?.mealType,
-            // Provider field comes from backend (tbo, ResAvenue, etc.)
+ // Provider field comes from backend (tbo, ResAvenue, etc.)
           });
 
           if (response?.data?.hotels) {
@@ -337,7 +337,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
             setSearchResults([]);
           }
         } catch (err: unknown) {
-          console.error('Hotel search error:', err);
+ console.error('Hotel search error:', err);
           setError(
             err instanceof Error ? err.message :
             'Failed to search hotels. Please try again.'

@@ -163,7 +163,7 @@ export const useEffectivePreviewTimeline = ({
         ? rows
         : rows.filter((_, index: number) => !dropSet.has(index));
 
-      // When we keep computed C->B leg, align hotel/check-in to the travel end in preview.
+ // When we keep computed C->B leg, align hotel/check-in to the travel end in preview.
       const retainedTravel = filteredRows.find((row, index: number) => (
         isTravel(row)
         && normalizeLabel(row?.toName || row?.to || row?.text || row?.name) === hotelLabel
@@ -188,7 +188,7 @@ export const useEffectivePreviewTimeline = ({
     const applyBestSlotOrdering = (rows: any[]): any[] => {
       if (!Array.isArray(rows) || rows.length === 0 || !selectedHotspotId) return rows;
 
-      // Backend-provided matrix split travel rows already represent the correct route shape.
+ // Backend-provided matrix split travel rows already represent the correct route shape.
       if (rows.some((row) => row?.isMatrixSplitTravel === true)) {
         return rows;
       }
@@ -310,14 +310,14 @@ export const useEffectivePreviewTimeline = ({
         ?? 0,
       ) === Number(selectedHotspotId || 0));
 
-      console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row, index: number) => ({
+ console.log('[ManualHotspotModal] rendering_order', orderedTimeline.map((row, index: number) => ({
         index,
         type: String(row?.type || '').toLowerCase(),
         text: String(row?.text || row?.name || ''),
         hotspotId: Number(row?.locationId || row?.hotspotId || row?.hotspot_ID || row?.hotspot_id || 0) || null,
         previewOrder: Number(row?.matrixPreviewOrder ?? row?.previewOrder ?? -1),
       })));
-      console.log('[ManualHotspotModal] inserted_hotspot_position', {
+ console.log('[ManualHotspotModal] inserted_hotspot_position', {
         selectedHotspotId: Number(selectedHotspotId || 0),
         index: insertedIndex,
       });
@@ -338,8 +338,8 @@ export const useEffectivePreviewTimeline = ({
       && isMinimalPreview,
     );
 
-    // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
-    // In that case, show the default route timeline plus selected segments so users can review full context.
+ // Some priority-confirmation previews return a minimal timeline (selected hotspot only).
+ // In that case, show the default route timeline plus selected segments so users can review full context.
     const useMergedBaselineDuringPriorityConfirm = Boolean(
       pendingPriorityReplacementHotspotId
       && activePreviewTimeline.length > 0

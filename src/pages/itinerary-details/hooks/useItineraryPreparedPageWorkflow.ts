@@ -91,16 +91,16 @@ export function useItineraryPreparedPageWorkflow({
       return;
     }
     if (pathname.startsWith("/confirmed-itinerary/")) {
-      console.warn("⚠️ ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.", { quoteId, pathname });
+ console.warn(" ItineraryDetails mounted on confirmed itinerary route. Skipping getDetails() call.", { quoteId, pathname });
       setLoading(false);
       return;
     }
     if (currentFetchRef.current === quoteId) {
-      console.log("🔄 [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
+ console.log(" [ItineraryDetails] Already fetching quoteId:", quoteId, "- skipping duplicate");
       return;
     }
     if (switchedRouteRef.current === quoteId) {
-      console.log("⚡ [ItineraryDetails] Route already loading from tab switch, skipping duplicate re-fetch:", quoteId);
+ console.log(" [ItineraryDetails] Route already loading from tab switch, skipping duplicate re-fetch:", quoteId);
       isMountedRef.current = true;
       switchedRouteRef.current = null;
       return;

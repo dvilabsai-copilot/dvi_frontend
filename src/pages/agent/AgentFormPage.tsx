@@ -28,7 +28,7 @@ export default function AgentFormPage() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  // Parse id once; prevent NaN calls
+ // Parse id once; prevent NaN calls
   const agentId = Number(id);
   const validAgentId = Number.isFinite(agentId) && agentId > 0 ? agentId : null;
 
@@ -72,7 +72,7 @@ const [staffForm, setStaffForm] = useState<AgentStaffForm>({
 });
 
   useEffect(() => {
-    // Guard: don’t call APIs with NaN
+ // Guard: dont call APIs with NaN
     if (!validAgentId) {
       setLoading(false);
       return;
@@ -165,7 +165,7 @@ const handleConfigSubmit = async () => {
     toast.success("Agent configuration updated successfully");
     setPassword("");
   } catch (error) {
-    console.error(error);
+ console.error(error);
     toast.error("Failed to update configuration");
   }
 };
@@ -369,7 +369,7 @@ const handleStaffSubmit = async () => {
       try {
         updated = await (AgentAPI as any).updateStaff(validAgentId, selectedStaff.id, payload);
       } catch (error) {
-        console.warn("Staff update API failed, updating UI locally", error);
+ console.warn("Staff update API failed, updating UI locally", error);
       }
 
       const updatedRow = normalizeStaffRow({
@@ -391,7 +391,7 @@ const handleStaffSubmit = async () => {
       try {
         created = await (AgentAPI as any).addStaff(payload);
       } catch (error) {
-        console.warn("Staff add API failed, adding UI locally", error);
+ console.warn("Staff add API failed, adding UI locally", error);
       }
 
       const createdRow = normalizeStaffRow({
@@ -415,7 +415,7 @@ const handleStaffSubmit = async () => {
       status: "1",
     });
   } catch (error) {
-    console.error(error);
+ console.error(error);
     toast.error(staffMode === "edit" ? "Failed to update staff" : "Failed to add staff");
   } finally {
     setSavingStaff(false);
@@ -430,14 +430,14 @@ const handleDeleteStaff = async (staffRow: AgentStaff) => {
 
   try {
     await (AgentAPI as any).deleteStaff(validAgentId, staffRow.id).catch((error: any) => {
-      console.warn("Staff delete API failed, deleting UI locally", error);
+ console.warn("Staff delete API failed, deleting UI locally", error);
     });
 
     markStaffDeleted(Number(staffRow.id));
     setStaff((prev) => prev.filter((item) => Number(item.id) !== Number(staffRow.id)));
     toast.success("Staff deleted successfully");
   } catch (error) {
-    console.error(error);
+ console.error(error);
     toast.error("Failed to delete staff");
   }
 };
@@ -457,7 +457,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
     await (AgentAPI as any).updateStaffStatus(validAgentId, staffRow.id, newStatus);
     toast.success("Staff status updated");
   } catch (error) {
-    console.warn("Staff status API failed, saved UI status locally", error);
+ console.warn("Staff status API failed, saved UI status locally", error);
   }
 };
 
@@ -474,7 +474,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
       setWalletAmount("");
       setWalletRemark("");
 
-      // Refresh histories
+ // Refresh histories
       const [ch, cph] = await Promise.all([
         AgentAPI.getCashWalletHistory?.(validAgentId).catch?.(() => [] as WalletTransaction[]) ?? Promise.resolve([]),
         AgentAPI.getCouponWalletHistory?.(validAgentId).catch?.(() => [] as WalletTransaction[]) ?? Promise.resolve([]),
@@ -515,7 +515,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
         <div className="text-sm text-[#8e88a1]">Dashboard &gt; Agent &gt; Edit Agent</div>
       </div>
 
-      {/* Tabs */}
+ {/* Tabs */}
       <div className="rounded-xl border border-[#eadff6] bg-white p-4 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
         <div className="flex items-center gap-2 flex-wrap">
           {TABS.map((tab, i) => (
@@ -543,7 +543,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
         </div>
       </div>
 
-      {/* Tab Content */}
+ {/* Tab Content */}
       <div className="rounded-xl border border-[#eadff6] bg-white p-6 shadow-[0_10px_30px_rgba(137,88,166,0.06)]">
         {activeTab === 0 && (
           <>
@@ -652,7 +652,7 @@ const handleStaffStatusChange = async (staffRow: AgentStaff, checked: boolean) =
                     <TableCell>{s.validityEnd}</TableCell>
                     <TableCell>{s.transactionId}</TableCell>
                     <TableCell>
-                      {/* Keep your orange/green look as before (you can conditionally color here) */}
+ {/* Keep your orange/green look as before (you can conditionally color here) */}
                       <span
                         className={`px-2 py-1 rounded text-xs ${
                           String(s.paymentStatus).toLowerCase() === "paid"

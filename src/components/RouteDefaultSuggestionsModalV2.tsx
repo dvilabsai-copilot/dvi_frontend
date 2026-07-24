@@ -119,7 +119,7 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-        {/* Header */}
+ {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 text-white flex justify-between items-center">
           <div>
             <h2 className="text-xl font-bold">Suggested Default Routes</h2>
@@ -135,7 +135,7 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
           </button>
         </div>
 
-        {/* Content */}
+ {/* Content */}
         <div className="p-6">
           {loading && (
             <div className="flex justify-center items-center py-12">
@@ -173,7 +173,7 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
                 />
               </div>
 
-              {/* Tabs List */}
+ {/* Tabs List */}
               <TabsList className="grid w-full gap-2 mb-6 bg-gray-100 p-2 rounded-lg overflow-x-auto flex-wrap">
                 {routes.map((route, idx) => (
                   <TabsTrigger
@@ -186,14 +186,14 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
                 ))}
               </TabsList>
 
-              {/* Tab Contents */}
+ {/* Tab Contents */}
               {routes.map((route, idx) => (
                 <TabsContent
                   key={`content-${idx}`}
                   value={`route-${idx}`}
                   className="mt-4"
                 >
-                  {/* Route Header */}
+ {/* Route Header */}
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex justify-between items-start">
                       <div>
@@ -216,7 +216,7 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
                     </div>
                   </div>
 
-                  {/* Day-by-Day Table */}
+ {/* Day-by-Day Table */}
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader className="bg-gray-100">
@@ -275,14 +275,14 @@ export const RouteDefaultSuggestionsModalV2: React.FC<
                     </Table>
                   </div>
 
-                  {/* Route Summary */}
+ {/* Route Summary */}
                   <div className="mt-4 p-3 bg-gray-50 rounded border border-gray-200 text-sm text-gray-700">
                     <p>
                       <strong>Journey:</strong> {route.days[0]?.sourceLocation} →{' '}
                       {route.days[route.days.length - 1]?.nextLocation}
                     </p>
                     <p className="mt-2">
-                      <strong>Total Days:</strong> {route.days.length} | 
+                      <strong>Total Days:</strong> {route.days.length} |
                       <strong className="ml-3">Locations Visited:</strong> {route.days.length + 1}
                     </p>
                   </div>

@@ -22,12 +22,12 @@ export type Hotel = {
   website?: string | null;
   isActive?: boolean;
 
-  // === Extra fields for PHP parity ===
+ // === Extra fields for PHP parity ===
   place?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   margin?: number | null;
-  gstType?: number | null; // 0-none, 1-CGST/SGST, 2-IGST
+ gstType?: number | null; // 0-none, 1-CGST/SGST, 2-IGST
   gstPercent?: number | null;
   powerBackup?: boolean;
   hotSpot?: boolean;
@@ -57,7 +57,7 @@ function numOrNull(v: any): number | null {
 
 /** Strip /api/v1 if someone passes it by mistake. */
 function stripApiPrefix(path: string) {
-  if (/^https?:\/\//i.test(path)) return path;
+ if (/^https?:\/\//i.test(path)) return path;
   return path.replace(/^\/api\/v1/, "");
 }
 
@@ -74,7 +74,7 @@ function fromBackend(h: any): Hotel {
     resavenueCode: h.resavenue_hotel_code ?? h.resavenueCode ?? null,
     axisrooms_property_id: h.axisrooms_property_id ?? null,
 
-    // numbers / misc
+ // numbers / misc
     starRating: h.hotel_rating ?? h.starRating ?? null,
     latitude: h.hotel_latitude ?? h.latitude ?? null,
     longitude: h.hotel_longitude ?? h.longitude ?? null,
@@ -82,14 +82,14 @@ function fromBackend(h: any): Hotel {
     gstType: h.hotel_margin_gst_type ?? h.gstType ?? null,
     gstPercent: h.hotel_margin_gst_percentage ?? h.gstPercent ?? null,
 
-    // toggles
+ // toggles
     powerBackup: toBool(h.hotel_power_backup ?? h.hotel_powerbackup ?? h.powerBackup ?? false),
     hotSpot: toBool(h.hotel_hotspot_status ?? h.hotSpot ?? false),
 
-    // description
+ // description
     description: h.description ?? null,
 
-    // address / contact
+ // address / contact
     addressLine1: h.hotel_address ?? h.addressLine1 ?? null,
     addressLine2: h.addressLine2 ?? null,
     place: h.hotel_place ?? h.place ?? null,
@@ -103,7 +103,7 @@ function fromBackend(h: any): Hotel {
     email: h.hotel_email ?? h.email ?? null,
     website: h.website ?? null,
 
-    // status
+ // status
     isActive:
       typeof h.status === "number"
         ? h.status === 1
@@ -116,12 +116,12 @@ function fromBackend(h: any): Hotel {
 function toBackend(body: Partial<Hotel>): any {
   const out: any = {};
 
-  // Basic identity & codes
+ // Basic identity & codes
   if (body.name !== undefined) out.hotel_name = body.name;
   if (body.code !== undefined) out.hotel_code = body.code ?? null;
   if (body.resavenueCode !== undefined) out.resavenue_hotel_code = body.resavenueCode ?? null;
 
-  // Address & location
+ // Address & location
   if (body.addressLine1 !== undefined) out.hotel_address = body.addressLine1 ?? null;
   if (body.place !== undefined) out.hotel_place = body.place ?? null;
   if (body.city !== undefined) out.hotel_city = body.city ?? null;
@@ -130,32 +130,32 @@ function toBackend(body: Partial<Hotel>): any {
   if (body.country !== undefined) out.hotel_country = body.country ?? null;
   if (body.addressLine2 !== undefined) out.addressLine2 = body.addressLine2 ?? null;
 
-  // Contact
+ // Contact
   if (body.phone !== undefined) out.hotel_mobile = body.phone ?? null;
   if (body.email !== undefined) out.hotel_email = body.email ?? null;
   if (body.website !== undefined) out.website = body.website ?? null;
 
-  // Description / star rating
+ // Description / star rating
   if (body.description !== undefined) out.description = body.description ?? null;
   if (body.starRating !== undefined) out.hotel_rating = numOrNull(body.starRating);
 
-  // Lat/Lng
+ // Lat/Lng
   if (body.latitude !== undefined) out.hotel_latitude = numOrNull(body.latitude);
   if (body.longitude !== undefined) out.hotel_longitude = numOrNull(body.longitude);
 
-  // Margin + GST
+ // Margin + GST
   if (body.margin !== undefined) out.hotel_margin = numOrNull(body.margin);
   if (body.gstType !== undefined) out.hotel_margin_gst_type = numOrNull(body.gstType);
   if (body.gstPercent !== undefined) out.hotel_margin_gst_percentage = numOrNull(body.gstPercent);
 
-  // Toggles (backend expects 0|1)
+ // Toggles (backend expects 0|1)
   if (body.powerBackup !== undefined) {
     out.hotel_powerbackup = body.powerBackup ? 1 : 0;
     out.hotel_power_backup = body.powerBackup ? 1 : 0;
   }
   if (body.hotSpot !== undefined) out.hotel_hotspot_status = body.hotSpot ? 1 : 0;
 
-  // Status (backend expects 0|1)
+ // Status (backend expects 0|1)
   if (body.isActive !== undefined) out.status = body.isActive ? 1 : 0;
 
   return out;
@@ -245,7 +245,7 @@ export async function getHotel(id: string) {
 }
 
 export async function getHotelBackendRow(id: string) {
-  // Raw row for Preview step (PHP-like shape if needed)
+ // Raw row for Preview step (PHP-like shape if needed)
   return api(`/hotels/${id}`);
 }
 
@@ -384,7 +384,7 @@ const API_BASE_URL = (import.meta as any)?.env?.VITE_API_DVI_BASE_URL ?? "";
 
 export const hotelFormApi = {
   API_BASE_URL:RAW_API_BASE,
-  // must be a function returning string to satisfy ApiCtx
+ // must be a function returning string to satisfy ApiCtx
     token: () =>
       localStorage.getItem("accessToken") ??
       localStorage.getItem("token") ??

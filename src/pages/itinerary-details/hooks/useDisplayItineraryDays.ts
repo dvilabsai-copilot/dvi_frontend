@@ -25,7 +25,7 @@ export const useDisplayItineraryDays = ({ hotelHydratedDays, itineraryDays }: Di
     })();
 
     if (index === 0 && rawSegments.length === 0) {
-      console.warn("[ItineraryDetails] DisplayDays: No segments found for day 0!", {
+ console.warn("[ItineraryDetails] DisplayDays: No segments found for day 0!", {
         dayFromHydrated: day,
         dayFromOriginal: itineraryDays?.[0],
         hotelHydratedDaysLength: hotelHydratedDays.length,
@@ -34,7 +34,7 @@ export const useDisplayItineraryDays = ({ hotelHydratedDays, itineraryDays }: Di
     }
 
     if (index === 0) {
-      console.log("[ItineraryDetails] DisplayDays day 0:", {
+ console.log("[ItineraryDetails] DisplayDays day 0:", {
         segmentCount: rawSegments.length,
         hasSegments: rawSegments.length > 0,
         types: rawSegments.map((segment) => segment?.type),

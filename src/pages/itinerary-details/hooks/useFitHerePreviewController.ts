@@ -53,7 +53,7 @@ export const useFitHerePreviewController = ({
   }
 
   const anchorKey = buildFitHereAnchorKey(anchor);
-  console.log("[FitHere] selected_anchor", { hotspotId: selectedFitHotspot.id, anchor });
+ console.log("[FitHere] selected_anchor", { hotspotId: selectedFitHotspot.id, anchor });
   setFitHereModal({
     open: true,
     loading: true,
@@ -81,7 +81,7 @@ export const useFitHerePreviewController = ({
       beforeHotspotId: anchor.beforeHotspotId,
       beforeRouteHotspotId: anchor.beforeRouteHotspotId,
     });
-    console.log("[FitHere] clicked anchor", previewPayload);
+ console.log("[FitHere] clicked anchor", previewPayload);
     const response = await ItineraryService.previewManualHotspotFitHere(planId, previewPayload);
     stopFitHereProgressTimer();
     setFitHereModal({

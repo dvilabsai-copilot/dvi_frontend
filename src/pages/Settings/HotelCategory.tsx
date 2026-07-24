@@ -343,7 +343,7 @@ export function HotelCategoryPage() {
     row: HotelCategoryRow,
     nextStatus: boolean,
   ) => {
-    // optimistic update
+ // optimistic update
     setRows((prev) =>
       prev.map((r) => (r.id === row.id ? { ...r, status: nextStatus } : r)),
     );
@@ -356,7 +356,7 @@ export function HotelCategoryPage() {
       toast.success("Status updated");
       await load();
     } catch (e: any) {
-      // revert on error
+ // revert on error
       setRows((prev) =>
         prev.map((r) => (r.id === row.id ? { ...r, status: row.status } : r)),
       );
@@ -390,7 +390,7 @@ export function HotelCategoryPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of Hotel Category</h1>
 
@@ -406,7 +406,7 @@ export function HotelCategoryPage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -484,7 +484,7 @@ export function HotelCategoryPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -550,7 +550,7 @@ export function HotelCategoryPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing{" "}
@@ -587,7 +587,7 @@ export function HotelCategoryPage() {
         </div>
       </div>
 
-      {/* Modals */}
+ {/* Modals */}
       <HotelCategoryModal
         open={modalOpen}
         mode={modalMode}

@@ -114,7 +114,7 @@ export function useArrivalPolicyRouteTimeController({
     const currentEndTimeHms = parseDisplayTimeToHms(routeDay?.endTime || "");
     const hasTimeChanged = startTimeHms !== currentStartTimeHms || endTimeHms !== currentEndTimeHms;
 
-    console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
+ console.log(`Updating route times: planId=${planId}, routeId=${routeId}, day=${dayNumber}, start=${startTimeHms}, end=${endTimeHms}`);
     if (!hasTimeChanged) return;
 
     const isTransportOnly = Number(itinerary?.itineraryPreference) === 2;
@@ -157,7 +157,7 @@ export function useArrivalPolicyRouteTimeController({
       try {
         const policy = await ItineraryService.resolveHotelArrivalPolicy(request);
         if (policy.requiresPreviousDayBillingConfirmation) {
-          console.log("[ArrivalPolicy][confirm_required]", { planId, routeId, dayNumber, startTimeHms, endTimeHms });
+ console.log("[ArrivalPolicy][confirm_required]", { planId, routeId, dayNumber, startTimeHms, endTimeHms });
           setPendingRouteTimeUpdate({ planId, routeId, dayNumber, startTimeHms, endTimeHms });
           const safeRouteDate = normalizeDateToYmd(request.routeDate) || new Date().toISOString().split("T")[0];
           const routeDate = new Date(`${safeRouteDate}T00:00:00`);
@@ -219,7 +219,7 @@ export function useArrivalPolicyRouteTimeController({
       );
       return true;
     } catch (error) {
-      console.error("Failed to persist arrival policy decision", error);
+ console.error("Failed to persist arrival policy decision", error);
       return false;
     }
   }, [applyRouteTimePatch, itinerary]);

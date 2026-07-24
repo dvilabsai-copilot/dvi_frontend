@@ -118,7 +118,7 @@ type GlobalSettingsDTO = Partial<{
   bank_name: string | null;
   branch_name: string | null;
 
-  // bookkeeping
+ // bookkeeping
   createdby: number | null;
   createdon: string | null;
   updatedon: string | null;
@@ -147,38 +147,38 @@ type StateConfigDTO = Partial<{
 export type GlobalSettings = {
   global_settings_ID?: string;
 
-  // State configuration – UI only, stored in dvi_states via separate calls
+ // State configuration UI only, stored in dvi_states via separate calls
   state_name?: string;
   onground_support_number?: string;
   escalation_call_number?: string;
 
-  // Hotel API Config
+ // Hotel API Config
   tbo_eligible_country: string;
 
-  // Extra Occupancy
+ // Extra Occupancy
   extrabed_rate_percentage: number;
   childwithbed_rate_percentage: number;
   child_nobed_rate_percentage: number;
 
-  // Hotel Default Margin
+ // Hotel Default Margin
   hotel_margin_in_percentage: number;
   hotel_margin_gst_type: boolean;
   hotel_margin_gst_percentage: number;
 
-  // Itinerary Distance
+ // Itinerary Distance
   itinerary_distance_limit: number;
   allowed_km_per_day: number;
-  common_buffer_time: string; // "HH:MM" or "HH:MM:SS"
+ common_buffer_time: string; // "HH:MM" or "HH:MM:SS"
 
-  // Site Seeing KM Limit Restriction
+ // Site Seeing KM Limit Restriction
   site_seeing_km_limit: number;
 
-  // Itinerary Travel Buffer Time
+ // Itinerary Travel Buffer Time
   flight_buffer_time: string;
   train_buffer_time: string;
   road_buffer_time: string;
 
-  // Itinerary Customize Text
+ // Itinerary Customize Text
   journey_start_text: string;
   between_day_start_text: string;
   between_day_end_text: string;
@@ -187,16 +187,16 @@ export type GlobalSettings = {
   hotel_voucher_terms: string;
   vehicle_voucher_terms: string;
 
-  // Itinerary Travel Speed
+ // Itinerary Travel Speed
   local_travel_speed_limit: number;
   outstation_travel_speed_limit: number;
 
-  // Itinerary Additional Margin Settings
+ // Itinerary Additional Margin Settings
   additional_margin_percentage: number;
   additional_margin_day_limit: number;
   referral_bonus_credit: number;
 
-  // Site Settings
+ // Site Settings
   site_title: string;
   company_name: string;
   address: string;
@@ -260,7 +260,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
   return {
     global_settings_ID: String(id),
 
-    // UI-only state fields (not coming from dvi_global_settings)
+ // UI-only state fields (not coming from dvi_global_settings)
     state_name: "",
     onground_support_number: "",
     escalation_call_number: "",
@@ -434,20 +434,20 @@ const GLOBAL_BASE = "/global-settings";
 // ---------- Main service (rolePermissionService-style) ----------
 
 export const globalSettingsService = {
-  /**
+ /**
    * GET /global-settings
    * Returns the single global settings row.
-   */
+ */
   async get(): Promise<GlobalSettings> {
     const res = (await api(GLOBAL_BASE)) as OneResponseDTO<GlobalSettingsDTO>;
     const dto = unwrapOne(res);
     return toGlobalSettings(dto);
   },
 
-  /**
+ /**
    * PUT /global-settings
    * Body: mapped GlobalSettings → dvi_global_settings columns.
-   */
+ */
   async update(payload: GlobalSettings): Promise<GlobalSettings> {
     const body = fromGlobalSettings(payload);
     const res = (await api(GLOBAL_BASE, {
@@ -459,10 +459,10 @@ export const globalSettingsService = {
     return toGlobalSettings(dto);
   },
 
-  /**
+ /**
    * GET /global-settings/states
    * Optional ?countryId=
-   */
+ */
   async listStates(countryId?: number): Promise<State[]> {
     const query =
       typeof countryId === "number" && !Number.isNaN(countryId)
@@ -473,10 +473,10 @@ export const globalSettingsService = {
     return rows.map(toState);
   },
 
-  /**
+ /**
    * GET /global-settings/state-config?stateId=XX
    * Fetch current on-ground / escalation numbers for a state.
-   */
+ */
   async getStateConfig(stateId: string | number): Promise<StateConfig> {
     const res = (await api(
       `${GLOBAL_BASE}/state-config?stateId=${encodeURIComponent(String(stateId))}`,
@@ -485,10 +485,10 @@ export const globalSettingsService = {
     return toStateConfig(dto);
   },
 
-  /**
+ /**
    * PUT /global-settings/state-config
    * Body: { stateId, vehicleOngroundSupportNumber?, vehicleEscalationCallNumber? }
-   */
+ */
   async updateStateConfig(payload: StateConfigUpdatePayload): Promise<StateConfig> {
     const res = (await api(`${GLOBAL_BASE}/state-config`, {
       method: "PUT",

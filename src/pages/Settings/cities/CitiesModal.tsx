@@ -23,7 +23,7 @@ import type { State } from "@/services/citiesService";
 
 export type CityFormValues = {
   city_name: string;
-  state_id: string; // keep string for Select; convert to Number on submit
+ state_id: string; // keep string for Select; convert to Number on submit
 };
 
 export function CitiesModal(props: {
@@ -69,7 +69,7 @@ export function CitiesModal(props: {
         </DialogHeader>
 
         <div className="space-y-5 py-4">
-          {/* Country */}
+ {/* Country */}
           <div className="space-y-2">
             <Label>
               County Name <span className="text-red-500">*</span>
@@ -84,7 +84,7 @@ export function CitiesModal(props: {
             </Select>
           </div>
 
-          {/* State */}
+ {/* State */}
           <div className="space-y-2">
             <Label>
               State Name <span className="text-red-500">*</span>
@@ -106,7 +106,7 @@ export function CitiesModal(props: {
             </Select>
           </div>
 
-          {/* City */}
+ {/* City */}
           <div className="space-y-2">
             <Label>
               City Name <span className="text-red-500">*</span>

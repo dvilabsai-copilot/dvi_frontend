@@ -31,7 +31,7 @@ describe('Login Page', () => {
         <Login />
       </BrowserRouter>
     );
-    
+
     expect(screen.getByText('Sign in')).toBeInTheDocument();
     expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
     expect(screen.getByLabelText('Password', { exact: true })).toBeInTheDocument();
@@ -69,8 +69,8 @@ describe('Login Page', () => {
 
     await waitFor(() => {
       expect(authService.login).toHaveBeenCalled();
-      // Toast notification is harder to test without mocking the toast hook, 
-      // but we can check if the button is re-enabled
+ // Toast notification is harder to test without mocking the toast hook,
+ // but we can check if the button is re-enabled
       expect(screen.getByRole('button', { name: /Sign in/i })).not.toBeDisabled();
     });
   });

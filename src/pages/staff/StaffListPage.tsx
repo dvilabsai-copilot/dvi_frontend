@@ -195,7 +195,7 @@ export default function StaffListPage() {
     downloadBlob("staff.xls", "application/vnd.ms-excel", toHTMLTable(dataset));
   };
 
-  // --- PDF export (working) ---
+ // --- PDF export (working) ---
   const onPDF = async () => {
     if (!canExport) return;
     try {
@@ -203,7 +203,7 @@ export default function StaffListPage() {
       const autoTable = (await import("jspdf-autotable")).default;
 
       const doc = new jsPDF();
-      // Title + timestamp
+ // Title + timestamp
       doc.setFontSize(14);
       doc.text("Staff List", 14, 12);
       doc.setFontSize(10);
@@ -221,13 +221,13 @@ export default function StaffListPage() {
       doc.save("staff-list.pdf");
       toast.success("PDF exported");
     } catch (e) {
-      console.error("PDF export failed:", e);
+ console.error("PDF export failed:", e);
       toast.error("PDF export failed — opening print dialog");
-      window.print(); // fallback so the user can "Save as PDF"
+ window.print(); // fallback so the user can "Save as PDF"
     }
   };
 
-  // Pagination helper
+ // Pagination helper
   const getVisiblePages = () => {
     const pages: (number | string)[] = [];
     if (totalPages <= 7) {
@@ -244,7 +244,7 @@ export default function StaffListPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">Staff</h1>
         <div className="text-sm text-muted-foreground">
@@ -252,9 +252,9 @@ export default function StaffListPage() {
         </div>
       </div>
 
-      {/* Card */}
+ {/* Card */}
       <div className="bg-white rounded-lg border shadow-sm p-6 space-y-4">
-        {/* Title + Add Button */}
+ {/* Title + Add Button */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">List of Staff</h2>
           <Button
@@ -267,7 +267,7 @@ export default function StaffListPage() {
           </Button>
         </div>
 
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -352,7 +352,7 @@ export default function StaffListPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -431,7 +431,7 @@ export default function StaffListPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             {filtered.length > 0 ? (
@@ -479,7 +479,7 @@ export default function StaffListPage() {
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+ {/* Delete Confirmation Modal */}
       <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>

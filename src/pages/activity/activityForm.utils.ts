@@ -38,9 +38,9 @@ export type ActivityFormState = {
   hotspot: string;
   hotspotPlace: string;
   maxAllowedPersonCount: number;
-  duration: string; // HH:MM:SS
+ duration: string; // HH:MM:SS
   description: string;
-  images: string[]; // currently unused; we use imagePreviews
+ images: string[]; // currently unused; we use imagePreviews
   defaultAvailableTimes: FormTimeSlot[];
   isSpecialDay: boolean;
   specialDays: FormSpecialDay[];
@@ -117,7 +117,7 @@ export function toReviewRowsCSV(rows: FormReview[]) {
     String(idx + 1),
     String(r.rating ?? ""),
     r.description ?? "",
-    // r.createdOn ?? "",
+ // r.createdOn "",
       formatReviewDateTime(r.createdOn),
   ]);
 
@@ -211,7 +211,7 @@ export function buildActivityImageUrl(value?: string) {
   const raw = String(value || "").trim();
   if (!raw) return "";
 
-  if (/^https?:\/\//i.test(raw) || raw.startsWith("data:")) {
+ if (/^https?:\/\//i.test(raw) || raw.startsWith("data:")) {
     return raw;
   }
 

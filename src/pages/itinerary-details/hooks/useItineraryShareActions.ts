@@ -9,7 +9,7 @@ export function useItineraryShareActions(setShareModal: Dispatch<SetStateAction<
 
   const handleShareWhatsApp = useCallback(() => {
     const message = `Check out this itinerary: ${window.location.href}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+ window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
   }, []);
 
   const handleShareEmail = useCallback(() => setShareModal(true), [setShareModal]);

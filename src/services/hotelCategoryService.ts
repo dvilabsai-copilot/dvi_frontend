@@ -8,7 +8,7 @@ export type HotelCategoryRow = {
   id: HotelCategoryId;
   title: string;
   code: string;
-  status: boolean; // UI-friendly boolean
+ status: boolean; // UI-friendly boolean
 };
 
 export type HotelCategoryUpsertInput = {
@@ -89,12 +89,12 @@ const toHotelCategoryRow = (r: HotelCategoryDTO): HotelCategoryRow => {
 const HOTEL_CATEGORIES_BASE_PATH = "/hotel-categories";
 
 export const hotelCategoryService = {
-  /**
+ /**
    * GET /hotel-categories
    * Accepts either:
    *  - [ { ... } ] OR
    *  - { data: [ { ... } ], meta: {...} }
-   */
+ */
   async list(): Promise<HotelCategoryRow[]> {
     const res = (await api(HOTEL_CATEGORIES_BASE_PATH, {
       method: "GET",
@@ -104,18 +104,18 @@ export const hotelCategoryService = {
     return rows.map(toHotelCategoryRow);
   },
 
-  /**
+ /**
    * POST /hotel-categories
    * Body: { title: string, code: string, status?: boolean }
    * Response: row OR { data: row }
-   */
+ */
   async create(payload: HotelCategoryUpsertInput): Promise<HotelCategoryRow> {
     const res = (await api(HOTEL_CATEGORIES_BASE_PATH, {
       method: "POST",
       body: {
         title: payload.title,
         code: payload.code,
-        // if status is undefined, backend will use default (1/active)
+ // if status is undefined, backend will use default (1/active)
         status:
           typeof payload.status === "boolean"
             ? payload.status
@@ -126,11 +126,11 @@ export const hotelCategoryService = {
     return toHotelCategoryRow(unwrapOne(res));
   },
 
-  /**
+ /**
    * PUT /hotel-categories/:id
    * Body: { title?: string, code?: string, status?: boolean }
    * Response: row OR { data: row }
-   */
+ */
   async update(
     id: HotelCategoryId,
     payload: Partial<HotelCategoryUpsertInput>
@@ -150,10 +150,10 @@ export const hotelCategoryService = {
     return toHotelCategoryRow(unwrapOne(res));
   },
 
-  /**
+ /**
    * PATCH /hotel-categories/:id/status
    * Toggles active/inactive status.
-   */
+ */
   async toggleStatus(id: HotelCategoryId): Promise<HotelCategoryRow> {
     const res = (await api(
       `${HOTEL_CATEGORIES_BASE_PATH}/${id}/status`,
@@ -163,21 +163,21 @@ export const hotelCategoryService = {
     return toHotelCategoryRow(unwrapOne(res));
   },
 
-  /**
+ /**
    * DELETE /hotel-categories/:id
    * Soft delete on backend.
-   */
+ */
   async remove(id: HotelCategoryId): Promise<void> {
     await api(`${HOTEL_CATEGORIES_BASE_PATH}/${id}`, {
       method: "DELETE",
     });
   },
 
-  /**
+ /**
    * POST /hotel-categories/check-code
    * Body: { code: string, excludeId?: number }
    * Returns: { unique: boolean } OR { data: { unique: boolean } }
-   */
+ */
   async checkCodeUnique(
     code: string,
     excludeId?: HotelCategoryId
@@ -197,11 +197,11 @@ export const hotelCategoryService = {
     return unique;
   },
 
-  /**
+ /**
    * POST /hotel-categories/check-title
    * Body: { title: string, excludeId?: number }
    * Returns: { unique: boolean } OR { data: { unique: boolean } }
-   */
+ */
   async checkTitleUnique(
     title: string,
     excludeId?: HotelCategoryId

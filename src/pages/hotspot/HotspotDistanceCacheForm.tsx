@@ -37,7 +37,7 @@ export default function HotspotDistanceCacheForm() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Load form options and existing data (if editing)
+ // Load form options and existing data (if editing)
   useEffect(() => {
     loadFormOptions();
     if (id) {
@@ -50,7 +50,7 @@ export default function HotspotDistanceCacheForm() {
       const options = await hotspotDistanceCacheService.getFormOptions();
       setFormOptions(options);
     } catch (error) {
-      console.error("Failed to load form options:", error);
+ console.error("Failed to load form options:", error);
       toast.error("Failed to load form options");
     }
   }
@@ -61,7 +61,7 @@ export default function HotspotDistanceCacheForm() {
       const data = await hotspotDistanceCacheService.getById(Number(id));
       setFormData(data);
     } catch (error) {
-      console.error("Failed to load record:", error);
+ console.error("Failed to load record:", error);
       toast.error("Failed to load record");
       navigate("/hotspot-distance-cache");
     } finally {
@@ -69,7 +69,7 @@ export default function HotspotDistanceCacheForm() {
     }
   }
 
-  // Validation
+ // Validation
   function validateForm(): boolean {
     const newErrors: Record<string, string> = {};
 
@@ -96,7 +96,7 @@ export default function HotspotDistanceCacheForm() {
     return Object.keys(newErrors).length === 0;
   }
 
-  // Handle submit
+ // Handle submit
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -109,18 +109,18 @@ export default function HotspotDistanceCacheForm() {
       setSubmitting(true);
 
       if (id) {
-        // Update
+ // Update
         await hotspotDistanceCacheService.update(Number(id), formData);
         toast.success("Record updated successfully");
       } else {
-        // Create
+ // Create
         await hotspotDistanceCacheService.create(formData);
         toast.success("Record created successfully");
       }
 
       navigate("/hotspot-distance-cache");
     } catch (error) {
-      console.error("Failed to submit form:", error);
+ console.error("Failed to submit form:", error);
       toast.error(id ? "Failed to update record" : "Failed to create record");
     } finally {
       setSubmitting(false);
@@ -139,7 +139,7 @@ export default function HotspotDistanceCacheForm() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -154,11 +154,11 @@ export default function HotspotDistanceCacheForm() {
         </h1>
       </div>
 
-      {/* Form */}
+ {/* Form */}
       <div className="bg-white rounded-lg border p-6 max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* From Hotspot */}
+ {/* From Hotspot */}
             <div className="space-y-2">
               <Label htmlFor="fromHotspotId" className="text-sm font-semibold">
                 From Hotspot <span className="text-red-500">*</span>
@@ -191,7 +191,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* To Hotspot */}
+ {/* To Hotspot */}
             <div className="space-y-2">
               <Label htmlFor="toHotspotId" className="text-sm font-semibold">
                 To Hotspot <span className="text-red-500">*</span>
@@ -224,7 +224,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* Travel Type */}
+ {/* Travel Type */}
             <div className="space-y-2">
               <Label htmlFor="travelLocationType" className="text-sm font-semibold">
                 Travel Type <span className="text-red-500">*</span>
@@ -257,7 +257,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* Distance KM */}
+ {/* Distance KM */}
             <div className="space-y-2">
               <Label htmlFor="distanceKm" className="text-sm font-semibold">
                 Distance (KM) <span className="text-red-500">*</span>
@@ -282,7 +282,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* Haversine KM */}
+ {/* Haversine KM */}
             <div className="space-y-2">
               <Label htmlFor="haversineKm" className="text-sm font-semibold">
                 Haversine Distance (KM) <span className="text-red-500">*</span>
@@ -303,7 +303,7 @@ export default function HotspotDistanceCacheForm() {
               />
             </div>
 
-            {/* Speed KMPH */}
+ {/* Speed KMPH */}
             <div className="space-y-2">
               <Label htmlFor="speedKmph" className="text-sm font-semibold">
                 Speed (KM/H) <span className="text-red-500">*</span>
@@ -328,7 +328,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* Travel Time */}
+ {/* Travel Time */}
             <div className="space-y-2">
               <Label htmlFor="travelTime" className="text-sm font-semibold">
                 Travel Time (HH:MM:SS) <span className="text-red-500">*</span>
@@ -351,7 +351,7 @@ export default function HotspotDistanceCacheForm() {
               )}
             </div>
 
-            {/* Correction Factor */}
+ {/* Correction Factor */}
             <div className="space-y-2">
               <Label htmlFor="correctionFactor" className="text-sm font-semibold">
                 Correction Factor <span className="text-gray-400 text-xs">(Default: 1.5)</span>
@@ -372,7 +372,7 @@ export default function HotspotDistanceCacheForm() {
               />
             </div>
 
-            {/* Method */}
+ {/* Method */}
             <div className="space-y-2">
               <Label htmlFor="method" className="text-sm font-semibold">
                 Method <span className="text-gray-400 text-xs">(Default: HAVERSINE)</span>
@@ -392,7 +392,7 @@ export default function HotspotDistanceCacheForm() {
             </div>
           </div>
 
-          {/* Submit Buttons */}
+ {/* Submit Buttons */}
           <div className="flex gap-3 pt-6 border-t">
             <Button
               type="submit"

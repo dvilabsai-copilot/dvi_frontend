@@ -91,7 +91,7 @@ export function useGuideAssignmentSaveMutation({
         ) as GuideModalOptions;
         refreshedGuideAssignment = refreshedOptions?.assignment ?? null;
       } catch (costRefreshError) {
-        console.warn("Failed to refresh guide cost after save", costRefreshError);
+ console.warn("Failed to refresh guide cost after save", costRefreshError);
       }
 
       const selectedLanguageLabel =
@@ -178,7 +178,7 @@ export function useGuideAssignmentSaveMutation({
       setGuideModal((previous) => ({ ...previous, open: false, saving: false }));
       toast.success(guideModal.routeGuideId ? "Guide updated successfully" : "Guide added successfully");
     } catch (error) {
-      console.error("Failed to save guide assignment", error);
+ console.error("Failed to save guide assignment", error);
       setGuideModal((previous) => ({ ...previous, saving: false }));
       const rawMessage = error instanceof Error ? error.message : String(error || "");
       if (rawMessage.includes("guide_not_available")) {

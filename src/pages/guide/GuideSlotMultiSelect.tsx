@@ -22,7 +22,7 @@ export function SlotMultiSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  // Close on outside click / focus-out
+ // Close on outside click / focus-out
   useEffect(() => {
     function handlePointerDown(e: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -34,19 +34,19 @@ export function SlotMultiSelect({
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, []);
 
-  // Scroll focused item into view
+ // Scroll focused item into view
   useEffect(() => {
     if (!open || focusedIndex < 0 || !listRef.current) return;
     const item = listRef.current.querySelectorAll<HTMLLIElement>("li")[focusedIndex];
     item?.scrollIntoView({ block: "nearest" });
   }, [focusedIndex, open]);
 
-  // Reset focus highlight when dropdown opens
+ // Reset focus highlight when dropdown opens
   useEffect(() => {
     if (open) setFocusedIndex(-1);
   }, [open]);
 
-  // When a selection changes while open, clamp focusedIndex to remaining list size
+ // When a selection changes while open, clamp focusedIndex to remaining list size
   useEffect(() => {
     if (!open) return;
     const unselectedCount = options.filter((o) => !selected.includes(o.id)).length;
@@ -63,7 +63,7 @@ export function SlotMultiSelect({
 
   function removeChip(id: string) {
     onChange(selected.filter((s) => s !== id));
-    setOpen(true);   // reopen dropdown immediately so removed option reappears
+ setOpen(true); // reopen dropdown immediately so removed option reappears
     setFocusedIndex(-1);
   }
 
@@ -102,7 +102,7 @@ export function SlotMultiSelect({
       case "Delete":
         if (selected.length > 0) {
           onChange(selected.slice(0, -1));
-          setOpen(true);   // show dropdown with the now-removed option
+ setOpen(true); // show dropdown with the now-removed option
           setFocusedIndex(-1);
         }
         break;
@@ -117,7 +117,7 @@ export function SlotMultiSelect({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger box */}
+ {/* Trigger box */}
       <div
         role="combobox"
         aria-expanded={open}
@@ -169,7 +169,7 @@ export function SlotMultiSelect({
         />
       </div>
 
-      {/* Dropdown — only shows unselected options */}
+ {/* Dropdown only shows unselected options */}
       {open && (() => {
         const unselected = options.filter((o) => !selected.includes(o.id));
         if (unselected.length === 0) return null;
@@ -189,11 +189,11 @@ export function SlotMultiSelect({
                   role="option"
                   aria-selected={false}
                   onPointerDown={(e) => {
-                    e.preventDefault(); // prevent blur on trigger
-                    e.stopPropagation(); // prevent click bubbling to trigger's onClick
+ e.preventDefault(); // prevent blur on trigger
+ e.stopPropagation(); // prevent click bubbling to trigger's onClick
                     setFocusedIndex(idx);
                     toggleOption(opt.id);
-                    setOpen(true); // keep dropdown open — remaining options stay visible
+ setOpen(true); // keep dropdown open remaining options stay visible
                   }}
                   onPointerEnter={() => setFocusedIndex(idx)}
                   className={cn(

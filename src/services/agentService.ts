@@ -25,9 +25,9 @@ export interface Agent {
   firstName: string;
   lastName?: string | null;
   email: string;
-  nationality: string; // pretty label from backend, read-only on UI
-  state: string; // pretty label from backend, read-only on UI
-  city: string; // pretty label from backend, read-only on UI
+ nationality: string; // pretty label from backend, read-only on UI
+ state: string; // pretty label from backend, read-only on UI
+ city: string; // pretty label from backend, read-only on UI
   mobileNumber: string;
   alternativeMobile?: string | null;
   gstin?: string | null;
@@ -61,7 +61,7 @@ type AgentListRowDTO = {
   nationality: string | null;
   subscription_title: string;
   status: "0" | "1";
-  modify: string; // agent_ID
+ modify: string; // agent_ID
 };
 type AgentListResponseDTO =
   | { data: AgentListRowDTO[]; draw?: string; recordsTotal?: number; recordsFiltered?: number }
@@ -89,7 +89,7 @@ type AgentFullItem = {
   total_cash_wallet?: number | null;
   total_coupon_wallet?: number | null;
 
-  // Labels already computed by backend full endpoint
+ // Labels already computed by backend full endpoint
   country_label?: string | null;
   state_label?: string | null;
   city_label?: string | null;
@@ -102,7 +102,7 @@ type AgentFullEnvelope =
 
 /** Preview/Edit payload (GET /agents/:id) */
 type AgentViewDTO = AgentFullItem & {
-  // same fields as AgentFullItem
+ // same fields as AgentFullItem
 };
 
 /** Subscriptions endpoint (GET /agents/:id/subscriptions) */
@@ -110,11 +110,11 @@ type AgentSubscriptionsDTO = {
   data: Array<{
     id: number;
     subscription_title: string;
-    amount: string; // e.g. "₹1200.00"
+ amount: string; // e.g. "1200.00"
     validity_start: string;
     validity_end: string;
     transaction_id: string;
-    payment_status: string; // "Paid" | "Pending" | "Failed" | "Free"
+ payment_status: string; // "Paid" | "Pending" | "Failed" | "Free"
   }>;
   total?: number;
   page?: number;
@@ -152,7 +152,7 @@ const toAgentFromView = (v: AgentViewDTO): Agent => ({
   totalCouponWallet: Number(v.total_coupon_wallet ?? 0),
 });
 
-/** Map an item from FULL list → table row */
+/** Map an item from FULL list table row */
 const toListRowFromFullItem = (v: AgentFullItem): AgentListRow => ({
   id: Number(v.agent_ID),
   name: [v.agent_name, v.agent_lastname].filter(Boolean).join(" ").trim(),
@@ -199,7 +199,7 @@ async function resolveSubscriptionTitle(agentId: number): Promise<string> {
   }
 }
 
-/** Safe number extractor from strings like "₹1,200.00" */
+/** Safe number extractor from strings like "1,200.00" */
 function parseAmountToNumber(v: string | number | null | undefined): number {
   if (typeof v === "number") return v;
   if (!v) return 0;
@@ -434,15 +434,15 @@ async function tryStaffRequest<T>(request: () => Promise<T>): Promise<T | null> 
 
 /** ========= Public API consumed by your pages ========= */
 export const AgentAPI = {
-  /**
+ /**
    * Fetch list of agents.
    * Prefer the FULL endpoint so your table gets all labels in one go.
    * Fallbacks:
    *  - legacy {data:[…]} (DataTables-like)
    *  - minimal [{id,name}] → enrich via /agents/:id
-   */
+ */
   async list(): Promise<AgentListRow[]> {
-    // 1) Try FULL endpoint first
+ // 1) Try FULL endpoint first
     try {
       const full = (await api("/agents/full?limit=1000")) as AgentFullEnvelope | AgentFullItem[];
       const arr: AgentFullItem[] = Array.isArray(full)
@@ -454,7 +454,7 @@ export const AgentAPI = {
       if (arr.length && typeof arr[0] === "object" && "agent_ID" in arr[0]) {
         const mapped = arr.map(toListRowFromFullItem);
 
-        // Fill subscriptionType if some are empty
+ // Fill subscriptionType if some are empty
         const fixed = await withConcurrency(mapped, 8, async (r) => {
           if (r.subscriptionType && r.subscriptionType.trim() && r.subscriptionType !== "—") return r;
           return { ...r, subscriptionType: await resolveSubscriptionTitle(r.id) };
@@ -465,10 +465,10 @@ export const AgentAPI = {
         return Array.from(byId.values());
       }
     } catch {
-      // ignore and try other shapes
+ // ignore and try other shapes
     }
 
-    // 2) Legacy list (DataTables-like) shape
+ // 2) Legacy list (DataTables-like) shape
     try {
       const res = (await api("/agents?limit=1000")) as AgentListResponseDTO | AgentMinimalDTO[];
 
@@ -477,7 +477,7 @@ export const AgentAPI = {
         return rows.map(toListRowFromLegacyDTO);
       }
 
-      // 3) Minimal list → enrich to table rows
+ // 3) Minimal list enrich to table rows
       if (Array.isArray(res) && res.length && typeof res[0] === "object" && "id" in (res[0] as any)) {
         const minimal = res as AgentMinimalDTO[];
         const enriched = await withConcurrency(minimal, 6, async (m) => {
@@ -508,23 +508,23 @@ export const AgentAPI = {
         return Array.from(byId.values());
       }
     } catch {
-      // swallow and fall through
+ // swallow and fall through
     }
 
     return [];
   },
 
-  /** Fetch a single agent (used by preview/edit prefill) */
+ /** Fetch a single agent (used by preview/edit prefill) */
   async get(id: number): Promise<Agent> {
     const res = (await api(`/agents/${id}`)) as AgentViewDTO;
     return toAgentFromView(res);
   },
 
-  /** --------- NEW: Staff list for an agent ---------- */
+ /** --------- NEW: Staff list for an agent ---------- */
   async getStaff(opts: { agentId: number }): Promise<AgentStaffResult[]> {
     const { agentId } = opts;
 
-    // Prefer RESTful nested route if present
+ // Prefer RESTful nested route if present
     try {
       const resp = (await api(`/agents/${agentId}/staff`)) as any;
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
@@ -532,10 +532,10 @@ export const AgentAPI = {
 return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
       }
     } catch {
-      // fall through
+ // fall through
     }
 
-    // Fallback to query form if your server exposes it that way
+ // Fallback to query form if your server exposes it that way
     try {
       const resp = (await api(`/staff?agentId=${agentId}`)) as any;
       const rows: any[] = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
@@ -572,7 +572,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     };
   },
 
-  /** --------- NEW: Update staff for an agent ---------- */
+ /** --------- NEW: Update staff for an agent ---------- */
   async updateStaff(
     agentId: number,
     staffId: number,
@@ -602,7 +602,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     };
   },
 
-  /** --------- NEW: Delete staff for an agent ---------- */
+ /** --------- NEW: Delete staff for an agent ---------- */
   async deleteStaff(agentId: number, staffId: number): Promise<{ ok: true }> {
     await tryStaffRequest(() =>
       api(`/agents/${agentId}/staff/${staffId}`, { method: "DELETE" }),
@@ -615,7 +615,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     return { ok: true };
   },
 
-  /** --------- NEW: Update staff status ---------- */
+ /** --------- NEW: Update staff status ---------- */
   async updateStaffStatus(
     agentId: number,
     staffId: number,
@@ -649,7 +649,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     return { ok: true };
   },
 
-  /** --------- NEW: Wallet (cash) history ---------- */
+ /** --------- NEW: Wallet (cash) history ---------- */
   async getCashWalletHistory(agentId: number): Promise<WalletTransaction[]> {
     try {
       const resp = (await api(`/agents/${agentId}/wallet/cash`)) as any;
@@ -660,7 +660,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     }
   },
 
-  /** --------- NEW: Wallet (coupon) history ---------- */
+ /** --------- NEW: Wallet (coupon) history ---------- */
   async getCouponWalletHistory(agentId: number): Promise<WalletTransaction[]> {
     try {
       const resp = (await api(`/agents/${agentId}/wallet/coupon`)) as any;
@@ -671,7 +671,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     }
   },
 
-  /** --------- NEW: Add cash wallet entry ---------- */
+ /** --------- NEW: Add cash wallet entry ---------- */
   async addCashWallet(agentId: number, amount: number, remark: string): Promise<{ ok: true }> {
     await api(`/agents/${agentId}/wallet/cash`, {
       method: "POST",
@@ -680,7 +680,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     return { ok: true };
   },
 
-  /** --------- NEW: Add coupon wallet entry ---------- */
+ /** --------- NEW: Add coupon wallet entry ---------- */
   async addCouponWallet(agentId: number, amount: number, remark: string): Promise<{ ok: true }> {
     await api(`/agents/${agentId}/wallet/coupon`, {
       method: "POST",
@@ -689,7 +689,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     return { ok: true };
   },
 
-  /** --------- NEW: Subscriptions (maps to your DTO) ---------- */
+ /** --------- NEW: Subscriptions (maps to your DTO) ---------- */
   async getSubscriptions(agentId: number): Promise<AgentSubscription[]> {
     try {
       const resp = (await api(`/agents/${agentId}/subscriptions`)) as AgentSubscriptionsDTO;
@@ -710,7 +710,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     }
   },
 
-  /** --------- NEW: Agent configuration ---------- */
+ /** --------- NEW: Agent configuration ---------- */
   async getConfig(agentId: number): Promise<AgentConfig | null> {
     try {
       const resp = (await api(`/agents/${agentId}/config`)) as any;
@@ -730,7 +730,7 @@ return rows.map((r: any, i: number) => mapStaffRow(r, i + 1));
     }
   },
 
-  // --- Placeholders: wire later when you expose create/update endpoints ---
+ // --- Placeholders: wire later when you expose create/update endpoints ---
   async create(_input: {
     firstName: string;
     lastName?: string | null;

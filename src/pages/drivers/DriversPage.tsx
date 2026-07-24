@@ -35,7 +35,7 @@ export const DriversPage: React.FC = () => {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [error, setError] = useState<string | null>(null);
 
-  // Load drivers
+ // Load drivers
   useEffect(() => {
     const load = async () => {
       try {
@@ -44,7 +44,7 @@ export const DriversPage: React.FC = () => {
         const data = await listDrivers();
         setDrivers(data);
       } catch (err: any) {
-        console.error("Failed to load drivers", err);
+ console.error("Failed to load drivers", err);
         setError("Failed to load drivers");
       } finally {
         setLoading(false);
@@ -53,12 +53,12 @@ export const DriversPage: React.FC = () => {
     load();
   }, []);
 
-  // ✅ Dynamic Add Driver navigation:
-  // - Remembers current list URL (and list UI state) so your wizard can go "Back" properly later.
+ // Dynamic Add Driver navigation:
+ // - Remembers current list URL (and list UI state) so your wizard can go "Back" properly later.
   const handleAddDriver = (e?: React.MouseEvent) => {
     const from = `${location.pathname}${location.search}`;
 
-    // Ctrl/Cmd click should open wizard in new tab (nice UX + matches browser behavior)
+ // Ctrl/Cmd click should open wizard in new tab (nice UX + matches browser behavior)
     const openInNewTab = Boolean(e && (e.ctrlKey || e.metaKey || e.button === 1));
     const url = `/driver/create?from=${encodeURIComponent(from)}`;
 
@@ -75,7 +75,7 @@ export const DriversPage: React.FC = () => {
     });
   };
 
-  // Filter + sort
+ // Filter + sort
   const processedDrivers = useMemo(() => {
     let rows = drivers.map((d, index) => ({
       ...d,
@@ -131,7 +131,7 @@ export const DriversPage: React.FC = () => {
     }
   };
 
-  // ---------- Export helpers ----------
+ // ---------- Export helpers ----------
 
   const getExportRows = () => {
     return processedDrivers.map((d) => ({
@@ -197,19 +197,19 @@ export const DriversPage: React.FC = () => {
     doc.save("drivers.pdf");
   };
 
-  // ---------- Actions ----------
+ // ---------- Actions ----------
 
   const handleToggleStatus = async (driver: Driver) => {
     const newStatus = !driver.status;
-    // optimistic update
+ // optimistic update
     setDrivers((prev) =>
       prev.map((d) => (d.id === driver.id ? { ...d, status: newStatus } : d))
     );
     try {
       await updateDriverStatus(driver.id, newStatus);
     } catch (err) {
-      console.error("Failed to update status", err);
-      // revert on error
+ console.error("Failed to update status", err);
+ // revert on error
       setDrivers((prev) =>
         prev.map((d) =>
           d.id === driver.id ? { ...d, status: driver.status } : d
@@ -229,12 +229,12 @@ export const DriversPage: React.FC = () => {
       await deleteDriver(driver.id);
       setDrivers((prev) => prev.filter((d) => d.id !== driver.id));
     } catch (err) {
-      console.error("Failed to delete driver", err);
+ console.error("Failed to delete driver", err);
       alert("Failed to delete driver");
     }
   };
 
-  // ---------- Render ----------
+ // ---------- Render ----------
 
   return (
     <div className="p-6">
@@ -282,7 +282,7 @@ export const DriversPage: React.FC = () => {
               />
             </div>
 
-            {/* Export buttons */}
+ {/* Export buttons */}
             <Button
               variant="outline"
               className="h-8 px-3 border-purple-500 text-purple-600 text-xs flex items-center gap-1 rounded-md"
@@ -465,7 +465,7 @@ export const DriversPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Footer: showing entries + pagination */}
+ {/* Footer: showing entries + pagination */}
         <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <p className="text-xs text-slate-500">
             Showing{" "}
@@ -487,7 +487,7 @@ export const DriversPage: React.FC = () => {
             </Button>
             {Array.from({ length: totalPages }).map((_, i) => {
               const page = i + 1;
-              // compress view if many pages
+ // compress view if many pages
               if (
                 totalPages > 7 &&
                 page !== 1 &&

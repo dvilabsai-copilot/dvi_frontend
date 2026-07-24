@@ -33,7 +33,7 @@ function isoToDate(iso?: string) {
 
 function dateToISO(d?: Date) {
   if (!d) return "";
-  // keep noon to avoid timezone shifting in UI
+ // keep noon to avoid timezone shifting in UI
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0).toISOString();
 }
 
@@ -480,7 +480,7 @@ setErrors(e);
     <Card className="border-0 shadow-sm">
       <CardContent className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6">
-          {/* Row 1 */}
+ {/* Row 1 */}
           <div>
             <Label className="text-sm text-gray-700">
               Choose Vendor<RequiredStar />
@@ -544,7 +544,7 @@ setErrors(e);
             <FieldError msg={errors.driverName} />
           </div>
 
-          {/* Row 2 */}
+ {/* Row 2 */}
           <div>
             <Label className="text-sm text-gray-700" htmlFor="primaryMobile">
               Primary Mobile Number<RequiredStar />
@@ -593,7 +593,7 @@ setErrors(e);
             <FieldError msg={errors.whatsappMobile} />
           </div>
 
-          {/* Row 3 */}
+ {/* Row 3 */}
           <div>
             <Label className="text-sm text-gray-700" htmlFor="email">
               Email ID
@@ -638,7 +638,7 @@ setErrors(e);
   toYear={new Date().getFullYear() + 20}
   defaultMonth={new Date()}
 />
-          {/* Row 4 */}
+ {/* Row 4 */}
          <DatePicker
   label="License Expire Date"
   inputId="licenseExpireDate"
@@ -683,7 +683,7 @@ setErrors(e);
             </div>
           </div>
 
-          {/* Row 5 */}
+ {/* Row 5 */}
           <div>
             <Label className="text-sm text-gray-700">Gender</Label>
             <div className="mt-2">
@@ -748,7 +748,7 @@ setErrors(e);
 </p>
           </div>
 
-          {/* Row 6 */}
+ {/* Row 6 */}
           <div>
             <Label className="text-sm text-gray-700" htmlFor="voterId">
               Voter ID Number
@@ -805,7 +805,7 @@ setErrors(e);
           </div>
         </div>
 
-        {/* Footer buttons (same placement as screenshot) */}
+ {/* Footer buttons (same placement as screenshot) */}
         <div className="mt-8 flex items-center justify-between">
           <Button
             type="button"

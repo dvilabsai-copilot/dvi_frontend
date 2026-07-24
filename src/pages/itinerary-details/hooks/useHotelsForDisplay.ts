@@ -35,9 +35,9 @@ export const useHotelsForDisplay = ({
       rows?.[0]?.groupType ??
       1;
 
-    // Draft mode must keep the original supplier hotel rows.
-    // Otherwise the hotel selection screen collapses to one row per day
-    // and users cannot choose from all supplier options.
+ // Draft mode must keep the original supplier hotel rows.
+ // Otherwise the hotel selection screen collapses to one row per day
+ // and users cannot choose from all supplier options.
     if (!hotelReadOnly) {
       return rows as ItineraryHotelRow[];
     }

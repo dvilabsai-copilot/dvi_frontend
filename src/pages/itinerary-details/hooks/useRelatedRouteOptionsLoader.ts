@@ -81,7 +81,7 @@ export function useRelatedRouteOptionsLoader({
               return;
             }
           } catch (storageError) {
-            console.error("Failed to parse saved route options", storageError);
+ console.error("Failed to parse saved route options", storageError);
           }
         }
 
@@ -128,7 +128,7 @@ export function useRelatedRouteOptionsLoader({
             : [{ quoteId: String(quoteId), label: "Route 1" }],
         );
       } catch (error) {
-        console.error("Failed to load related route options", error);
+ console.error("Failed to load related route options", error);
         setLatestRouteOptions([
           {
             quoteId: String(quoteId),

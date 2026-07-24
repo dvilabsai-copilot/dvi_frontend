@@ -78,7 +78,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
         [index]: { ...(prev[index] || { cities: [] }), states: options },
       }));
     } catch (e) {
-      console.error("Failed to load branch states", e);
+ console.error("Failed to load branch states", e);
     }
   };
 
@@ -96,7 +96,7 @@ const [liveErrors, setLiveErrors] = useState<Record<number, Partial<Record<keyof
         [index]: { ...(prev[index] || { states: [] }), cities: options },
       }));
     } catch (e) {
-      console.error("Failed to load branch cities", e);
+ console.error("Failed to load branch cities", e);
     }
   };
 

@@ -85,7 +85,7 @@ export function GstSettingsPage() {
   const [rows, setRows] = useState<GstSetting[]>([]);
   const [filtered, setFiltered] = useState<GstSetting[]>([]);
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(10); // screenshot shows 10 default
+ const [pageSize, setPageSize] = useState(10); // screenshot shows 10 default
   const [currentPage, setCurrentPage] = useState(1);
 
   const [deleteId, setDeleteId] = useState<string | number | null>(null);
@@ -174,7 +174,7 @@ export function GstSettingsPage() {
   };
 
   const handleToggleStatus = async (row: GstSetting, nextStatus: boolean) => {
-    // optimistic UI
+ // optimistic UI
     setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: nextStatus } : r)));
 
     try {
@@ -182,7 +182,7 @@ export function GstSettingsPage() {
       toast.success("Status updated");
       await load();
     } catch (e: any) {
-      // rollback
+ // rollback
       setRows(prev => prev.map(r => (r.id === row.id ? { ...r, status: row.status } : r)));
       toast.error(e?.message || "Failed to update status");
     }
@@ -217,7 +217,7 @@ export function GstSettingsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of GST Settings</h1>
 
@@ -233,7 +233,7 @@ export function GstSettingsPage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Top toolbar */}
+ {/* Top toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -293,7 +293,7 @@ export function GstSettingsPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -340,7 +340,7 @@ export function GstSettingsPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
@@ -373,7 +373,7 @@ export function GstSettingsPage() {
         </div>
       </div>
 
-      {/* Modals */}
+ {/* Modals */}
       <GstSettingsModal
         open={modalOpen}
         mode={modalMode}

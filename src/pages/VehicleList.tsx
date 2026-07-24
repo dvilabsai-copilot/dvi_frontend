@@ -17,9 +17,9 @@ import { VehicleListView } from "./VehicleListView";
 
 
 export interface DayWisePricingItem {
-  date: string; // "2025-12-26"
-  dayLabel: string; // "Day 1 | 26 Dec 2025"
-  route: string; // "Chennai Ã¢â€ â€™ Mahabalipuram"
+ date: string; // "2025-12-26"
+ dayLabel: string; // "Day 1 | 26 Dec 2025"
+ route: string; // "Chennai -> Mahabalipuram"
   travelType?: string;
   timeLimitId?: number;
   chargeableTimeLimitId?: number;
@@ -33,12 +33,12 @@ export interface DayWisePricingItem {
   pickupDurationMinutes?: number;
   dropKms: number;
   dropDurationMinutes?: number;
-  travelKms: number; // Travel KM per day
+ travelKms: number; // Travel KM per day
   travelDurationMinutes?: number;
-  sightseeingKms: number; // Sightseeing KM per day
+ sightseeingKms: number; // Sightseeing KM per day
   sightseeingDurationMinutes?: number;
   totalDurationMinutes?: number;
-  totalKms: number; // Total KM per day
+ totalKms: number; // Total KM per day
   rentalCharges: number;
   tollCharges: number;
   tollBreakupText?: string[];
@@ -104,7 +104,7 @@ export interface ItineraryVehicleRow {
   }>;
   localTrip?: boolean;
   dayWisePricing?: DayWisePricingItem[];
-  // PHP summary panel fields
+ // PHP summary panel fields
   totalDays?: number;
   totalCostOfVehicle?: number;
   totalPickupKm?: number;
@@ -342,7 +342,7 @@ const getSlabDisplayText = (day: DayWisePricingItem): string => {
     return "-";
   }
 
-  const cleanSlabTitle = slabTitle.replace(/^SLAB:\s*/i, "");
+ const cleanSlabTitle = slabTitle.replace(/^SLAB:\s*/i, "");
 
   return isOutstationDay(day)
     ? cleanSlabTitle
@@ -360,15 +360,15 @@ const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; date
 const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
   if (!vehicles.length) return null;
 
-  // Always auto-select the lowest displayed amount for each vehicle type.
-  // Do not trust a stale DB assignment for first paint selection.
+ // Always auto-select the lowest displayed amount for each vehicle type.
+ // Do not trust a stale DB assignment for first paint selection.
   const cheapest = vehicles.reduce((prev, curr) => {
     const prevAmount = resolveVehicleDisplayAmount(prev);
     const currAmount = resolveVehicleDisplayAmount(curr);
 
     if (currAmount < prevAmount) return curr;
 
-    // Stable tie-breaker to avoid visual jumping on equal amounts.
+ // Stable tie-breaker to avoid visual jumping on equal amounts.
     if (currAmount === prevAmount) {
       return Number(curr.vendorEligibleId || 0) < Number(prev.vendorEligibleId || 0)
         ? curr
@@ -394,8 +394,8 @@ export type VehicleListProps = {
     totalAmount: number;
     totalQty: number;
   }) => void;
-  dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
-  routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
+ dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
+ routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
   canViewCostBreakdown?: boolean;
   showVendorDetails?: boolean;
 };
@@ -762,13 +762,13 @@ const totalRows = [
     }
   };
 
-  // Sync selected vendor when assigned vendor changes (from API refresh)
-  // Always auto-select cheapest if no assignment exists
+ // Sync selected vendor when assigned vendor changes (from API refresh)
+ // Always auto-select cheapest if no assignment exists
  useEffect(() => {
   const preferredId = getPreferredVendorEligibleId(vehicles);
 
   if (preferredId !== null && Number(preferredId) !== Number(selectedVendorEligibleId || 0)) {
-    console.log(
+ console.log(
       `[${vehicleTypeLabel}] Auto-selecting lowest amount vendor:`,
       preferredId,
       vehicles.map((v) => ({
@@ -786,9 +786,9 @@ const totalRows = [
 
 
   const handleRadioChange = (vendor: ItineraryVehicleRow, index: number) => {
-    
-    console.log(`[${vehicleTypeLabel}] Radio clicked:`, { 
-      index, 
+
+ console.log(`[${vehicleTypeLabel}] Radio clicked:`, {
+      index,
       vendorName: vendor?.vendorName,
       vendorEligibleId: vendor?.vendorEligibleId,
       vehicleTypeId: vendor?.vehicleTypeId,
@@ -796,7 +796,7 @@ const totalRows = [
     });
 
     if (!vendor || !itineraryPlanId || !vendor.vendorEligibleId || !vendor.vehicleTypeId) {
-      console.error(`[${vehicleTypeLabel}] Missing required vendor data`, { vendor, itineraryPlanId });
+ console.error(`[${vehicleTypeLabel}] Missing required vendor data`, { vendor, itineraryPlanId });
       toast.error("Missing required vendor data");
       return;
     }
@@ -813,7 +813,7 @@ const totalRows = [
   const handleConfirmSelection = async () => {
     if (!pendingVendorSelection || !itineraryPlanId) return;
 
-    console.log(`[${vehicleTypeLabel}] Confirming vendor selection:`, pendingVendorSelection);
+ console.log(`[${vehicleTypeLabel}] Confirming vendor selection:`, pendingVendorSelection);
     setIsUpdatingVehicle(true);
     try {
       await ItineraryService.selectVehicleVendor(
@@ -822,18 +822,18 @@ const totalRows = [
         pendingVendorSelection.vendorEligibleId
       );
 
-      console.log(`[${vehicleTypeLabel}] Selection confirmed, setting selectedVendorEligibleId to:`, pendingVendorSelection.vendorEligibleId);
+ console.log(`[${vehicleTypeLabel}] Selection confirmed, setting selectedVendorEligibleId to:`, pendingVendorSelection.vendorEligibleId);
       toast.success("Vehicle vendor changed successfully. Please update the amount.");
       setSelectedVendorEligibleId(pendingVendorSelection.vendorEligibleId);
       setShowConfirmDialog(false);
       setPendingVendorSelection(null);
 
       if (onRefresh) {
-        console.log(`[${vehicleTypeLabel}] Calling onRefresh`);
+ console.log(`[${vehicleTypeLabel}] Calling onRefresh`);
         onRefresh();
       }
     } catch (error) {
-      console.error(`[${vehicleTypeLabel}] Failed to select vehicle vendor:`, error);
+ console.error(`[${vehicleTypeLabel}] Failed to select vehicle vendor:`, error);
       toast.error("Failed to update vehicle vendor");
     } finally {
       setIsUpdatingVehicle(false);

@@ -11,7 +11,7 @@ import { api } from "@/lib/api";
 import type { DriverReview, Id } from "@/services/drivers";
 import { createDriverReview, listDriverReviews } from "@/services/drivers";
 
-// ✅ Local StarsRating component (so we can remove ../components/StarsRating.tsx)
+// Local StarsRating component (so we can remove ../components/StarsRating.tsx)
 type StarsRatingProps = {
   value: number;
   onChange: (v: number) => void;
@@ -136,7 +136,7 @@ const [editingReviewId, setEditingReviewId] = useState<number | string | null>(n
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverId]);
 
   const filtered = useMemo(() => {
@@ -217,7 +217,7 @@ async function handleDeleteReview(row: DriverReview) {
 
     await load();
   } catch (error: any) {
-    console.error("Failed to delete review", error);
+ console.error("Failed to delete review", error);
     alert(error?.message || "Review delete failed");
   }
 }
@@ -239,7 +239,7 @@ async function handleCopy() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left card (Rating + Feedback) */}
+ {/* Left card (Rating + Feedback) */}
       <Card className="border-0 shadow-sm lg:col-span-1">
         <CardContent className="p-6">
           <div className="text-lg font-semibold text-violet-600 mb-4">
@@ -278,7 +278,7 @@ async function handleCopy() {
         </CardContent>
       </Card>
 
-      {/* Right card (List of reviews table UI like screenshot) */}
+ {/* Right card (List of reviews table UI like screenshot) */}
       <Card className="border-0 shadow-sm lg:col-span-2">
         <CardContent className="p-6">
           <div className="text-2xl font-semibold text-gray-800 mb-4">

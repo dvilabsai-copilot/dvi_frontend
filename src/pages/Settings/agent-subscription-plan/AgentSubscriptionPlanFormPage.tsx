@@ -38,7 +38,7 @@ export default function AgentSubscriptionPlanFormPage() {
   const [adminCount, setAdminCount] = useState("1");
   const [staffCount, setStaffCount] = useState("");
   const [additionalChargePerStaff, setAdditionalChargePerStaff] = useState("");
-  const [notes, setNotes] = useState(""); // ✅ HTML string
+ const [notes, setNotes] = useState(""); // HTML string
 
   const title = isEdit ? "Edit Subscription Plan" : "Add Subscription Plan";
 
@@ -63,7 +63,7 @@ export default function AgentSubscriptionPlanFormPage() {
 
   useEffect(() => {
     boot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function boot() {
@@ -102,7 +102,7 @@ export default function AgentSubscriptionPlanFormPage() {
     if (!additionalChargePerStaff.trim())
       return "Additional Charge for Per Staff is required";
 
-    // Notes required (as in screenshot)
+ // Notes required (as in screenshot)
     const plain = notes.replace(/<[^>]+>/g, "").trim();
     if (!plain) return "Notes is required";
 
@@ -127,7 +127,7 @@ export default function AgentSubscriptionPlanFormPage() {
       adminCount: toNum(adminCount || "1") || 1,
       staffCount: toNum(staffCount),
       additionalChargePerStaff: toNum(additionalChargePerStaff),
-      notes: notes ?? "", // ✅ HTML
+ notes: notes "", // HTML
     };
 
     setSaving(true);
@@ -277,7 +277,7 @@ export default function AgentSubscriptionPlanFormPage() {
                   />
                 </div>
 
-                {/* ✅ NOTES (CKEditor-like toolbar as per screenshot) */}
+ {/* NOTES (CKEditor-like toolbar as per screenshot) */}
                 <div className="md:col-span-3">
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     Notes <span className="text-red-500">*</span>
@@ -292,11 +292,11 @@ export default function AgentSubscriptionPlanFormPage() {
                       }}
                       config={{
                         height: 200,
-                        // Toolbar close to your screenshot (Paragraph dropdown, bold/italic, lists, link, undo/redo, Source, etc.)
+ // Toolbar close to your screenshot (Paragraph dropdown, bold/italic, lists, link, undo/redo, Source, etc.)
                         toolbar: [
                           { name: "document", items: ["Source"] },
                           { name: "clipboard", items: ["Cut", "Copy", "Paste", "PasteText", "PasteFromWord", "-", "Undo", "Redo"] },
-                          { name: "styles", items: ["Format"] }, // shows "Paragraph"
+ { name: "styles", items: ["Format"] }, // shows "Paragraph"
                           { name: "basicstyles", items: ["Bold", "Italic", "Underline", "Strike", "-", "RemoveFormat"] },
                           { name: "paragraph", items: ["NumberedList", "BulletedList", "-", "Outdent", "Indent", "-", "Blockquote"] },
                           { name: "links", items: ["Link", "Unlink"] },

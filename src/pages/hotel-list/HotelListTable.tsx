@@ -100,7 +100,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
   return (
     <>
-        {/* Hotel Table */}
+ {/* Hotel Table */}
         <div className="overflow-hidden border border-[#8e59cf]/30 rounded-lg bg-white shadow-sm">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] border-collapse text-left">
@@ -193,12 +193,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 : "cursor-not-allowed opacity-50"
                           }`}
                           onClick={() => {
-                            // Day 0 is the billing/blocking date, but the supplier
-                            // room inventory is keyed to the real guest-arrival
-                            // route. Delegate to the real early-arrival row so the
-                            // existing room selection, continuity preview, and
-                            // restriction workflow are reused without creating a
-                            // duplicate stay or price line.
+ // Day 0 is the billing/blocking date, but the supplier
+ // room inventory is keyed to the real guest-arrival
+ // route. Delegate to the real early-arrival row so the
+ // existing room selection, continuity preview, and
+ // restriction workflow are reused without creating a
+ // duplicate stay or price line.
                             if (!readOnly && loadingRowKey === null) {
                               handleRowClick(hotel);
                             }
@@ -276,14 +276,14 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </>
                     )}
 
-                    {/* MAIN ROW */}
-                    {/* ✅ IN READ-ONLY MODE: Make row non-clickable */}
+ {/* MAIN ROW */}
+ {/* IN READ-ONLY MODE: Make row non-clickable */}
                     <tr
                       className={`border-t ${
                         !readOnly && loadingRowKey === null ? "cursor-pointer hover:bg-[#f8f5fc]" : readOnly ? "cursor-default" : "cursor-not-allowed opacity-50"
                       }`}
                       onClick={() => {
-                        // Only allow clicking if not in read-only mode and not loading
+ // Only allow clicking if not in read-only mode and not loading
                         if (!readOnly && loadingRowKey === null) {
                           handleRowClick(hotel);
                         }
@@ -381,7 +381,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                       </td>
                     </tr>
 
-                    {/* EXPANDED ROW WITH ROOM CARDS */}
+ {/* EXPANDED ROW WITH ROOM CARDS */}
                     {isExpanded && (
                       <tr className="bg-[#fdf6ff] border-t">
                         <td
@@ -398,7 +398,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                             </div>
                           ) : (
                             <>
-                              {/* Search Box + Sync Button */}
+ {/* Search Box + Sync Button */}
                               <div className="flex justify-between items-center mb-4 gap-3">
                                 <input
                                   type="text"
@@ -424,7 +424,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   )}
                                 </Button>
                               </div>
-                              
+
                               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
                               {(() => {
                                 const groupType = activeGroupType || 1;
@@ -448,8 +448,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
                                   const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
 
-                                  // Keep live supplier options together and place manual-approval
-                                  // options after them, then sort both sections by total rate.
+ // Keep live supplier options together and place manual-approval
+ // options after them, then sort both sections by total rate.
                                   if (aIsOffline !== bIsOffline) return aIsOffline ? 1 : -1;
 
                                   const aSelected = selectedOptionKey !== '' && getHotelOptionKey(a) === selectedOptionKey;
@@ -464,8 +464,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   return getHotelOptionKey(a).localeCompare(getHotelOptionKey(b));
                                 });
 
-                                // Hide offline duplicates when the same property has a live result.
-                                // Keep a selected offline option visible so an existing choice is never lost.
+ // Hide offline duplicates when the same property has a live result.
+ // Keep a selected offline option visible so an existing choice is never lost.
                                 const getHotelPropertyIdentityKey = (h: any) => {
                                   const hotelName = String(h.hotelName || '')
                                     .trim()
@@ -495,7 +495,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
                                 });
 
-                                // Group by hotel identity so one card can expose multiple rate variants.
+ // Group by hotel identity so one card can expose multiple rate variants.
                                 const getHotelIdentityKey = (h: any) => {
                                   const provider = String(h.provider || '').trim().toLowerCase();
                                   const hotelName = String(h.hotelName || '').trim().toLowerCase();
@@ -621,7 +621,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     .sort((a: any, b: any) => getStaySortValue(b).localeCompare(getStaySortValue(a)))[0] || null;
                                 };
 
-                                // One card per hotel; selected stay must win over old dropdown/manual state.
+ // One card per hotel; selected stay must win over old dropdown/manual state.
                                 const deduped = Array.from(hotelGroups.entries()).map(([identKey, options]) => {
                                   const manualKey = selectedRoomTypeByHotel[identKey];
 
@@ -773,9 +773,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     isSelected ? 'border-[#22c55e] ring-1 ring-[#22c55e]/40' : 'border-[#e5d9f2]'
                                   }`}
                                 >
-                                  {/* Hotel Image/Header */}
+ {/* Hotel Image/Header */}
                                   <div className="relative h-40 bg-gradient-to-r from-[#7c3aed] to-[#a855f7]">
-                                    {/* Provider Badge */}
+ {/* Provider Badge */}
                                     {hotel.provider && (
                                       <div className="absolute top-2 right-2 z-10">
                                         {(() => {
@@ -798,7 +798,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                                     : 'bg-gray-500 text-white';
 
                                           return (
-                                        <span 
+                                        <span
                                           className={`px-2 py-1 rounded-full text-xs font-semibold ${providerBadgeClass}`}
                                         >
                                           {providerBadgeText}
@@ -1028,7 +1028,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                       </div>
                                     )}
 
-                                    {/* Choose/Update Button - Conditional based on selection status */}
+ {/* Choose/Update Button - Conditional based on selection status */}
                                     <div className="mt-auto pt-2">
                                       <button
                                         className={`w-full py-2 px-4 font-medium rounded-md transition-colors text-sm ${
@@ -1124,7 +1124,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                 );
               })}
 
-              {/* Hotel Total row for active group */}
+ {/* Hotel Total row for active group */}
               <tr className="border-t bg-[#fdf6ff]">
                 <td
                   colSpan={4}

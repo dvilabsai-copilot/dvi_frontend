@@ -21,17 +21,17 @@ import { useNavigate } from "react-router-dom";
 
 /** ================= UI Types ================= */
 type HotelRow = {
-  id: number; // UI running serial number only (not backend id)
-  backendId: string; // backend PK
+ id: number; // UI running serial number only (not backend id)
+ backendId: string; // backend PK
   name: string;
   code: string;
   axisCode: string;
 
-  // Raw IDs from DB (may be string/number)
+ // Raw IDs from DB (may be string/number)
   stateId?: string | number | null;
   cityId?: string | number | null;
 
-  // Derived names via maps
+ // Derived names via maps
   stateName: string;
   cityName: string;
 
@@ -102,7 +102,7 @@ function downloadCSV<T>(cols: ExportColumn<T>[], rows: T[], filename: string) {
       })
       .join(",")
   );
-  const csv = "\uFEFF" + lines.join("\n"); // BOM for Excel compatibility
+ const csv = "\uFEFF" + lines.join("\n"); // BOM for Excel compatibility
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -143,34 +143,34 @@ function todaySuffix() {
 const HotelPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // toolbar / filters / paging
+ // toolbar / filters / paging
   const [showFilter, setShowFilter] = useState(false);
   const [entries, setEntries] = useState(10);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const [filterState, setFilterState] = useState(""); // state id
-  const [filterCity, setFilterCity] = useState(""); // city id
+ const [filterState, setFilterState] = useState(""); // state id
+ const [filterCity, setFilterCity] = useState(""); // city id
 
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // data
+ // data
   const [rows, setRows] = useState<HotelRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  // in-flight flags
+ // in-flight flags
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // ===== Meta lookups =====
+ // ===== Meta lookups =====
   const [stateMap, setStateMap] = useState<Record<string, string>>({});
   const [cityMap, setCityMap] = useState<Record<string, string>>({});
   const [stateOptions, setStateOptions] = useState<MetaOption[]>([]);
   const [cityOptions, setCityOptions] = useState<MetaOption[]>([]);
 
-  // ===== Price Book dropdown =====
+ // ===== Price Book dropdown =====
   const [pbOpen, setPbOpen] = useState(false);
   const pbRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -189,7 +189,7 @@ const HotelPage: React.FC = () => {
     };
   }, []);
 
-  // Fetch state options once
+ // Fetch state options once
   useEffect(() => {
     let aborted = false;
     (async () => {
@@ -211,7 +211,7 @@ const HotelPage: React.FC = () => {
         setStateMap(sMap);
         setStateOptions(normStates.map((s) => ({ id: s.id, name: s.name })));
       } catch {
-        // keep maps empty
+ // keep maps empty
       }
     })();
     return () => {
@@ -219,7 +219,7 @@ const HotelPage: React.FC = () => {
     };
   }, []);
 
-  // Fetch all cities once for display fallback labels.
+ // Fetch all cities once for display fallback labels.
   useEffect(() => {
     let aborted = false;
     (async () => {
@@ -236,7 +236,7 @@ const HotelPage: React.FC = () => {
 
         setCityMap((prev) => ({ ...prev, ...cMap }));
       } catch {
-        // backend names are primary; keep silent fallback
+ // backend names are primary; keep silent fallback
       }
     })();
     return () => {
@@ -244,7 +244,7 @@ const HotelPage: React.FC = () => {
     };
   }, []);
 
-  // Fetch cities when state changes (PHP-like dependent dropdown)
+ // Fetch cities when state changes (PHP-like dependent dropdown)
   useEffect(() => {
     let aborted = false;
     (async () => {
@@ -283,7 +283,7 @@ const HotelPage: React.FC = () => {
     };
   }, [filterState]);
 
-  // Adapter: API Hotel → UI row (without names yet)
+ // Adapter: API Hotel UI row (without names yet)
   const toRowBase = (h: Hotel, ix: number): HotelRowBase => ({
     id: (page - 1) * entries + ix + 1,
     backendId: String((h as any).id ?? (h as any).hotel_id ?? ""),
@@ -313,7 +313,7 @@ const HotelPage: React.FC = () => {
         : ((h as any).status ?? (h as any).hotel_status ?? 1) == 1,
   });
 
-  // Helper: attach names using current maps
+ // Helper: attach names using current maps
   const withNames = (r: HotelRowBase): HotelRow => {
     const stateKey = r.stateId != null ? String(r.stateId) : "";
     const cityKey = r.cityId != null ? String(r.cityId) : "";
@@ -327,7 +327,7 @@ const HotelPage: React.FC = () => {
     };
   };
 
-  // Fetch hotel list whenever deps change
+ // Fetch hotel list whenever deps change
   useEffect(() => {
     let aborted = false;
     (async () => {
@@ -341,7 +341,7 @@ const HotelPage: React.FC = () => {
           hotel_city: filterCity || undefined,
         });
 
-        // `listHotels` already normalizes backend shapes to { page, total, items }
+ // `listHotels` already normalizes backend shapes to { page, total, items }
         const source: Hotel[] = resp.items ?? [];
         const mapped: HotelRow[] = source.map((h: Hotel, ix: number) =>
           withNames(toRowBase(h, ix))
@@ -384,7 +384,7 @@ const HotelPage: React.FC = () => {
     cityMap,
   ]);
 
-  // sorting
+ // sorting
   const handleSort = (key: SortKey) => {
     if (key === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
@@ -394,7 +394,7 @@ const HotelPage: React.FC = () => {
     setPage(1);
   };
 
-  /** ===== Export columns (clean headers & values) ===== */
+ /** ===== Export columns (clean headers & values) ===== */
   const exportCols: ExportColumn<HotelRow>[] = [
     { key: "id", header: "S.NO" },
     { key: "name", header: "Hotel Name" },
@@ -409,7 +409,7 @@ const HotelPage: React.FC = () => {
     },
   ];
 
-  // EXPORT handlers
+ // EXPORT handlers
   const handleCopy = async () => {
     try {
       await copyToClipboard(exportCols, rows);
@@ -422,7 +422,7 @@ const HotelPage: React.FC = () => {
     downloadExcel(exportCols, rows, `hotels_${todaySuffix()}.xlsx`, "Hotels");
   };
 
-  // actions
+ // actions
   const toggleStatus = async (row: HotelRow) => {
     const next = !row.isActive;
     try {
@@ -469,7 +469,7 @@ const HotelPage: React.FC = () => {
     }
   };
 
-  // pagination calc
+ // pagination calc
   const totalPages = Math.ceil(total / entries) || 1;
   const safePage = Math.min(page, totalPages);
   const startItem = total === 0 ? 0 : (safePage - 1) * entries + 1;
@@ -484,7 +484,7 @@ const HotelPage: React.FC = () => {
   );
   const endPage = Math.min(totalPages, startPage + windowSize - 1);
 
-  // fast filter options (from current list only)
+ // fast filter options (from current list only)
   const sortedStateOptions = useMemo(
     () => [...stateOptions].sort((a, b) => a.name.localeCompare(b.name)),
     [stateOptions]
@@ -495,7 +495,7 @@ const HotelPage: React.FC = () => {
     [cityOptions]
   );
 
-  // PRICE BOOK item handlers
+ // PRICE BOOK item handlers
   const goRoomsPriceBook = () => {
     navigate("/pricebook/hotels/rooms/import");
     setPbOpen(false);
@@ -508,7 +508,7 @@ const HotelPage: React.FC = () => {
   return (
     <div className="hotel-page-wrapper" style={{ padding: 0 }}>
       <div className="hotel-card">
-        {/* header */}
+ {/* header */}
         <div className="hotel-card-head">
           <h2 className="hotel-card-title">List of Hotel</h2>
           <div className="hotel-head-actions">
@@ -534,7 +534,7 @@ const HotelPage: React.FC = () => {
               + Add Hotel
             </button>
 
-            {/* PRICE BOOK split button + dropdown */}
+ {/* PRICE BOOK split button + dropdown */}
             <div className="hotel-pricebook" ref={pbRef}>
               <button
                 type="button"
@@ -569,7 +569,7 @@ const HotelPage: React.FC = () => {
           </div>
         </div>
 
-        {/* filter */}
+ {/* filter */}
         {showFilter && (
           <div className="hotel-filter-box">
             <div className="hotel-filter-item">
@@ -626,7 +626,7 @@ const HotelPage: React.FC = () => {
           </div>
         )}
 
-        {/* toolbar */}
+ {/* toolbar */}
         <div className="hotel-toolbar">
           <div className="hotel-show-entries">
             <span>Show</span>
@@ -685,7 +685,7 @@ const HotelPage: React.FC = () => {
           </div>
         </div>
 
-        {/* table */}
+ {/* table */}
         <div className="hotel-table-wrap">
           <table className="hotel-table">
             <thead>
@@ -828,7 +828,7 @@ const HotelPage: React.FC = () => {
           </table>
         </div>
 
-        {/* footer */}
+ {/* footer */}
         <div className="hotel-footer">
           <p>
             Showing <strong>{total === 0 ? 0 : startItem}</strong> to{" "}
@@ -866,7 +866,7 @@ const HotelPage: React.FC = () => {
         <div className="hotel-footer-note">DVI Holidays @ 2025</div>
       </div>
 
-      {/* Styles: toggle + layout + pricebook menu */}
+ {/* Styles: toggle + layout + pricebook menu */}
       <style>{`
         .hotel-toggle {
           position: relative; width: 40px; height: 22px; border-radius: 9999px;
@@ -916,7 +916,7 @@ const HotelPage: React.FC = () => {
         }
         .hotel-pricebook-item:hover { background:#f3f4f6; }
 
-        .hotel-action-circle.del { 
+        .hotel-action-circle.del {
           color: #ef4444;
           border-color: #fecaca;
           background: #ffffff;

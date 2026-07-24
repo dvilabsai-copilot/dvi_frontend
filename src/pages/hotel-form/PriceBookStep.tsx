@@ -47,9 +47,9 @@ export default function PriceBookStep({
     const dt = new Date(s);
     return Number.isNaN(dt.getTime()) ? "" : dt.toISOString().slice(0, 10);
   };
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  STATE: (kept) Margin & Meal section state (unchanged)
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const [hotelMargin, setHotelMargin] = useState<string>("");
   const [hotelMarginGstType, setHotelMarginGstType] = useState<string>("");
   const [hotelMarginGstPercentage, setHotelMarginGstPercentage] =
@@ -61,17 +61,17 @@ export default function PriceBookStep({
   const [mealEndDate, setMealEndDate] = useState<string>("");
   const mealStartRef = useRef<HTMLInputElement | null>(null);
   const mealEndRef = useRef<HTMLInputElement | null>(null);
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  NEW: Amenities Details section state
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const [amenitiesStartDate, setAmenitiesStartDate] = useState<string>("");
   const [amenitiesEndDate, setAmenitiesEndDate] = useState<string>("");
   const amenitiesStartRef = useRef<HTMLInputElement | null>(null);
   const amenitiesEndRef = useRef<HTMLInputElement | null>(null);
   const [amenityCharges, setAmenityCharges] = useState<Record<number, { hours?: string; day?: string }>>({});
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  NEW: AxisRooms-compatible Room Details state
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [selectedRatePlanId, setSelectedRatePlanId] = useState<string>("");
   const [occupancyDrafts, setOccupancyDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -79,9 +79,9 @@ export default function PriceBookStep({
   const [roomEndDate, setRoomEndDate] = useState<string>("");
   const roomStartRef = useRef<HTMLInputElement | null>(null);
   const roomEndRef = useRef<HTMLInputElement | null>(null);
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  Room Availability â€” own state (self-contained card)
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const [availRoomId, setAvailRoomId] = useState<number | null>(null);
   const [availStartDate, setAvailStartDate] = useState<string>("");
   const [availEndDate, setAvailEndDate] = useState<string>("");
@@ -90,7 +90,7 @@ export default function PriceBookStep({
   const [availFreeRooms, setAvailFreeRooms] = useState<string>("");
   const [availError, setAvailError] = useState<string>("");
   const [availSuccess, setAvailSuccess] = useState<string>("");
-  /* ================= Static dropdowns ================= */
+ /* ================= Static dropdowns ================= */
   const gstTypes = [
     { id: "Included", name: "Included" },
     { id: "Excluded", name: "Excluded" },
@@ -102,7 +102,7 @@ export default function PriceBookStep({
     { id: "18", name: "18% GST - %18" },
     { id: "28", name: "28% GST - %28" },
   ];
-  /* ================= Load: Basic Info to prefill margin ================= */
+ /* ================= Load: Basic Info to prefill margin ================= */
   const { data: basicInfoRaw } = useQuery({
     queryKey: ["hotel-basic-info-for-pricebook", hotelId],
     enabled: !!hotelId,
@@ -169,7 +169,7 @@ export default function PriceBookStep({
       hotel_email_id: email || "noreply@dvi.co.in",
     };
   }, [basicInfoRaw, hotelId]);
-  /* ================= Load: Amenities list ================= */
+ /* ================= Load: Amenities list ================= */
   const { data: amenityOptions = [] as AmenityOption[] } = useQuery({
     queryKey: ["hotel-amenities", hotelId],
     enabled: !!hotelId,
@@ -204,7 +204,7 @@ export default function PriceBookStep({
       return next;
     });
   }, [amenityOptions]);
-  /* ================= Load: Rooms list ================= */
+ /* ================= Load: Rooms list ================= */
   const { data: rooms = [] as RoomRow[] } = useQuery({
     queryKey: ["hotel-rooms-for-pricebook", hotelId],
     enabled: !!hotelId,
@@ -373,9 +373,9 @@ export default function PriceBookStep({
     () => (canLoadAmenitiesRangeView && Array.isArray(amenitiesRangeRaw?.rows) ? amenitiesRangeRaw.rows : []),
     [canLoadAmenitiesRangeView, amenitiesRangeRaw]
   );
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  MUTATIONS
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const hotelDetailsMut = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -583,10 +583,10 @@ export default function PriceBookStep({
     },
   });
   const renderedRangeDates = useMemo(() => rangeViewDates, [rangeViewDates]);
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  Room Availability â€” self-contained mutation + range-view query
    *  Uses own availRoomId / availStartDate / availEndDate state
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const availSelectedRoom = useMemo(
     () => rooms.find((r) => Number(r.room_ID) === availRoomId) ?? null,
     [rooms, availRoomId]
@@ -748,9 +748,9 @@ export default function PriceBookStep({
     whiteSpace: "nowrap" as const,
     textAlign: "left" as const,
   };
-  /* -----------------------------------------------------------
+ /* -----------------------------------------------------------
    *  Derived state & helpers
-   * --------------------------------------------------------- */
+ * --------------------------------------------------------- */
   const validateMealSection = () => {
     const startVal = mealStartDate || mealStartRef.current?.value || "";
     const endVal = mealEndDate || mealEndRef.current?.value || "";

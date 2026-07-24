@@ -21,7 +21,7 @@ function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
 
-// âœ… Use UTC so "2025-12-10T11:00:00.000Z" shows as 11:00 instead of 16:30 in IST
+// Use UTC so "2025-12-10T11:00:00.000Z" shows as 11:00 instead of 16:30 in IST
 export function safeTimeFromISO(iso?: string | null, fallback = ""): string {
   if (!iso) return fallback;
   const d = new Date(iso);
@@ -103,25 +103,25 @@ function simplifyVehicleLocationName(value: string): string {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
 
-  // Example: "Kanchipuram, Tamil Nadu, India" -> "Kanchipuram"
+ // Example: "Kanchipuram, Tamil Nadu, India" -> "Kanchipuram"
   const beforeComma = raw.split(",")[0]?.trim();
   if (beforeComma && beforeComma !== raw) {
     return beforeComma;
   }
 
-  // Example: "Chennai International Airport" -> "Chennai"
+ // Example: "Chennai International Airport" -> "Chennai"
   const airportMatch = raw.match(/^(.+?)\s+(?:International\s+)?Airport$/i);
   if (airportMatch?.[1]) {
     return airportMatch[1].trim();
   }
 
-  // Example: "Madurai Airport" -> "Madurai"
+ // Example: "Madurai Airport" -> "Madurai"
   const simpleAirportMatch = raw.match(/^(.+?)\s+Airport$/i);
   if (simpleAirportMatch?.[1]) {
     return simpleAirportMatch[1].trim();
   }
 
-  // Example: "Kanchipuram Railway Station" -> "Kanchipuram"
+ // Example: "Kanchipuram Railway Station" -> "Kanchipuram"
   const railwayMatch = raw.match(/^(.+?)\s+(?:Railway Station|Central)$/i);
   if (railwayMatch?.[1]) {
     return railwayMatch[1].trim();
@@ -163,10 +163,10 @@ export function buildVehicleRouteLocationPayload({
     pairs.push({ source, next });
   };
 
-  // âœ… Customize safety:
-  // Sometimes routeDetails has not been fully synced yet,
-  // but arrival/departure are already selected.
-  // So do not keep vehicle dropdown permanently disabled.
+ // Customize safety:
+ // Sometimes routeDetails has not been fully synced yet,
+ // but arrival/departure are already selected.
+ // So do not keep vehicle dropdown permanently disabled.
   if (safeRows.length === 0) {
     pushPair(arrivalLocation, departureLocation);
 
@@ -520,7 +520,7 @@ const totalAdults = Math.max(
 export function calculateDaysBetweenDates(startDate: string, endDate: string): number {
   if (!startDate || !endDate) return 1;
   try {
-    // Parse DD/MM/YYYY format
+ // Parse DD/MM/YYYY format
     const [startDay, startMonth, startYear] = startDate.split("/").map(Number);
     const [endDay, endMonth, endYear] = endDate.split("/").map(Number);
 

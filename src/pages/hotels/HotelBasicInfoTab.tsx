@@ -84,7 +84,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <h2 className="text-xl font-semibold text-primary mb-6">Basic Details</h2>
 
-      {/* Row 1: Hotel Name, Place, Status */}
+ {/* Row 1: Hotel Name, Place, Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="name">Hotel Name <span className="text-red-500">*</span></Label>
@@ -120,7 +120,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 2: Mobile, Email, Category */}
+ {/* Row 2: Mobile, Email, Category */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="mobile">Mobile <span className="text-red-500">*</span></Label>
@@ -185,7 +185,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 3: Power Backup, Country, State */}
+ {/* Row 3: Power Backup, Country, State */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="powerBackup">Power Backup? <span className="text-red-500">*</span></Label>
@@ -228,7 +228,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 4: City, Pincode, Hotel Code */}
+ {/* Row 4: City, Pincode, Hotel Code */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
@@ -266,7 +266,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 5: Hotel Margin, GST Type, GST Percentage */}
+ {/* Row 5: Hotel Margin, GST Type, GST Percentage */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="hotelMarginPercent">Hotel Margin (In Percentage) <span className="text-red-500">*</span></Label>
@@ -307,7 +307,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 6: Latitude, Longitude, Hotspot Status */}
+ {/* Row 6: Latitude, Longitude, Hotspot Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <Label htmlFor="latitude">Latitude</Label>
@@ -341,7 +341,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         </div>
       </div>
 
-      {/* Row 7: Address */}
+ {/* Row 7: Address */}
       <div>
         <Label htmlFor="address">Address <span className="text-red-500">*</span></Label>
         <Textarea
@@ -354,7 +354,7 @@ const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
         />
       </div>
 
-      {/* Action Buttons */}
+ {/* Action Buttons */}
       <div className="flex justify-between pt-4">
         <button
           type="button"

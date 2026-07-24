@@ -15,7 +15,7 @@ export interface InbuiltAmenity extends InbuiltAmenityListRow {}
 
 export type InbuiltAmenityUpsertInput = {
   title: string;
-  status?: 0 | 1; // UI uses 0/1 like other modules
+ status?: 0 | 1; // UI uses 0/1 like other modules
 };
 
 /** ========= Backend DTO shapes (Nest responses) ========= */
@@ -122,17 +122,17 @@ export const InbuiltAmenitiesAPI = {
     return toRow(unwrapOne(res));
   },
 
-  /** Soft delete / delete */
+ /** Soft delete / delete */
   async delete(id: number): Promise<void> {
     await api(`/inbuilt-amenities/${id}`, { method: "DELETE" });
   },
 
-  /** Backward-compatible name (some pages call .remove()) */
+ /** Backward-compatible name (some pages call .remove()) */
   async remove(id: number): Promise<void> {
     await InbuiltAmenitiesAPI.delete(id);
   },
 
-  /** Toggle active/inactive (same style as Staff) */
+ /** Toggle active/inactive (same style as Staff) */
   async toggleStatus(id: number, status: 0 | 1): Promise<void> {
     await api(`/inbuilt-amenities/${id}`, {
       method: "PUT",

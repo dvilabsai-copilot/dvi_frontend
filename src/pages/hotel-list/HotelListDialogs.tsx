@@ -164,7 +164,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
+ {/* Confirmation Dialog */}
       <Dialog
         open={showConfirmDialog}
         onOpenChange={(open) => {
@@ -291,7 +291,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
         </DialogContent>
       </Dialog>
 
-      {/* Hotel Room Selection Modal */}
+ {/* Hotel Room Selection Modal */}
       {roomSelectionModal && (
         <HotelRoomSelectionModal
           open={roomSelectionModal.open}
@@ -308,7 +308,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
           hotel_name={roomSelectionModal.hotel_name}
           onSuccess={() => {
             toast.success('Room categories updated successfully');
-            // Note: Room selection doesn't affect hotel list, no refresh needed
+ // Note: Room selection doesn't affect hotel list, no refresh needed
           }}
         />
       )}

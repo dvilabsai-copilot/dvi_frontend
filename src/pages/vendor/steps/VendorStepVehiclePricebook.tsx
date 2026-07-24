@@ -93,20 +93,20 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Dropdowns
+ // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
   const [gstPercentOptions, setGstPercentOptions] = useState<Option[]>([]);
-  // ----- Vendor margin state -----
+ // ----- Vendor margin state -----
   const [vendorMarginPercent, setVendorMarginPercent] = useState<string>("0");
   const [vendorMarginGstType, setVendorMarginGstType] =
     useState<string>("included");
   const [vendorMarginGstPercent, setVendorMarginGstPercent] =
     useState<string>("0");
-  // ----- Driver/extra cost state -----
+ // ----- Driver/extra cost state -----
   const [driverCosts, setDriverCosts] = useState<any[]>([]);
   const [editableDriverRows, setEditableDriverRows] = useState<any[]>([]);
   const [vehicleExtraRows, setVehicleExtraRows] = useState<any[]>([]);
-  // ----- PHP parity pricebook rows -----
+ // ----- PHP parity pricebook rows -----
   const [localFormRows, setLocalFormRows] = useState<any[]>([]);
   const [outstationFormRows, setOutstationFormRows] = useState<any[]>([]);
   const [localRentalByRow, setLocalRentalByRow] = useState<Record<string, string>>({});
@@ -119,7 +119,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
   const [outstationVehicleFilter, setOutstationVehicleFilter] = useState("all");
   const [localPreview, setLocalPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_id?: number; vehicle_type_title: string; time_limit_id?: number; time_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
   const [outstationPreview, setOutstationPreview] = useState<{ days: Array<{ key: string; label: string }>; rows: Array<{ vehicle_type_id?: number; vehicle_type_title: string; kms_limit_id?: number; kms_limit_title: string; prices: Array<number | null> }> }>({ days: [], rows: [] });
-  // ----- Local KM Limit modal -----
+ // ----- Local KM Limit modal -----
   const [localKmOpen, setLocalKmOpen] = useState(false);
   const [localKmSaveLocked, setLocalKmSaveLocked] = useState(false);
   const [localKmForm, setLocalKmForm] = useState({
@@ -128,7 +128,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
     hours: "",
     kmLimit: "",
   });
-  // ----- Outstation KM Limit modal -----
+ // ----- Outstation KM Limit modal -----
   const [outKmOpen, setOutKmOpen] = useState(false);
   const [outKmSaveLocked, setOutKmSaveLocked] = useState(false);
   const [outKmForm, setOutKmForm] = useState({
@@ -136,7 +136,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
     title: "",
     kmLimit: "",
   });
-  // ----- Delete confirm -----
+ // ----- Delete confirm -----
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
     type: "local" | "outstation" | null;
@@ -163,7 +163,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         )) as any;
         setLocalPreview(preview ?? { days: [], rows: [] });
       } catch (e) {
-        console.error("Failed to load local pricebook preview", e);
+ console.error("Failed to load local pricebook preview", e);
       }
     };
     loadPreview();
@@ -182,7 +182,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         )) as any;
         setOutstationPreview(preview ?? { days: [], rows: [] });
       } catch (e) {
-        console.error("Failed to load outstation pricebook preview", e);
+ console.error("Failed to load outstation pricebook preview", e);
       }
     };
     loadPreview();
@@ -275,7 +275,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         setLocalPreview(preview ?? { days: [], rows: [] });
       }
     } catch (e) {
-      console.error("Failed to fetch pricebook data", e);
+ console.error("Failed to fetch pricebook data", e);
     } finally {
       setLoading(false);
     }
@@ -291,7 +291,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
         }))
       );
     } catch (e) {
-      console.error("Failed to fetch dropdowns", e);
+ console.error("Failed to fetch dropdowns", e);
     }
   };
   const handleUpdateMargin = async () => {
@@ -306,10 +306,10 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
           vendor_margin_gst_percentage: Number(vendorMarginGstPercent),
         }),
       });
-      // Refresh
+ // Refresh
       await fetchData();
     } catch (e) {
-      console.error("Failed to update margin", e);
+ console.error("Failed to update margin", e);
     } finally {
       setSaving(false);
     }
@@ -350,7 +350,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       }
       await fetchData();
     } catch (e) {
-      console.error("Failed to update driver/extra costs", e);
+ console.error("Failed to update driver/extra costs", e);
     } finally {
       setSaving(false);
     }
@@ -381,7 +381,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
 }
       await fetchData();
     } catch (e) {
-      console.error("Failed to update vehicle extra costs", e);
+ console.error("Failed to update vehicle extra costs", e);
     } finally {
       setSaving(false);
     }
@@ -460,7 +460,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       toast.success("Local KM limit saved successfully");
       await fetchData();
     } catch (e) {
-      console.error("Failed to save local KM limit", e);
+ console.error("Failed to save local KM limit", e);
       const vehicleTypeLabel = vehicleTypeOptions.find((opt) => opt.id === localKmForm.vehicleType)?.label;
       const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save local KM limit", vehicleTypeLabel);
       if (isDuplicate) {
@@ -497,7 +497,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       toast.success("Outstation KM limit saved successfully");
       await fetchData();
     } catch (e) {
-      console.error("Failed to save outstation KM limit", e);
+ console.error("Failed to save outstation KM limit", e);
       const vehicleTypeLabel = vehicleTypeOptions.find((opt) => opt.id === outKmForm.vehicleType)?.label;
       const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save outstation KM limit", vehicleTypeLabel);
       if (isDuplicate) {
@@ -531,7 +531,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       toast.success("KM limit deleted successfully");
       await fetchData();
     } catch (e) {
-      console.error("Failed to delete KM limit", e);
+ console.error("Failed to delete KM limit", e);
       toast.error("Failed to delete KM limit. Please try again.");
     } finally {
       setSaving(false);
@@ -642,7 +642,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       }
       await fetchData();
     } catch (e) {
-      console.error("Failed to update local pricebook", e);
+ console.error("Failed to update local pricebook", e);
     } finally {
       setSaving(false);
     }
@@ -680,7 +680,7 @@ export const VendorStepVehiclePricebook: React.FC<Props> = ({
       }
       await fetchData();
     } catch (e) {
-      console.error("Failed to update outstation pricebook", e);
+ console.error("Failed to update outstation pricebook", e);
     } finally {
       setSaving(false);
     }

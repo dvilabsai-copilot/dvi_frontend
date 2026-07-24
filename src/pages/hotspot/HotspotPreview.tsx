@@ -13,7 +13,7 @@ type DayOH = { open24hrs?: boolean; closed24hrs?: boolean; slots?: Slot[] };
 function hasAmPm(s: string) {
   return /am|pm/i.test(s);
 }
-/** Accepts "09:00", "9:00", "09:00 AM", "9:00 pm" → returns "9:00 AM" */
+/** Accepts "09:00", "9:00", "09:00 AM", "9:00 pm" returns "9:00 AM" */
 function to12h(t?: string): string {
   if (!t) return "";
   const raw = t.trim();
@@ -52,21 +52,21 @@ function hasLatLng(lat?: any, lng?: any) {
 function mapEmbedSrc(lat?: any, lng?: any, address?: string | null) {
   if (hasLatLng(lat, lng)) {
     const qs = encodeURIComponent(`${lat},${lng}`);
-    return `https://www.google.com/maps?q=${qs}&hl=en&z=14&output=embed`;
+ return `https://www.google.com/maps?q=${qs}&hl=en&z=14&output=embed`;
     }
   if (address && address.trim()) {
     const qs = encodeURIComponent(address.trim());
-    return `https://www.google.com/maps?q=${qs}&hl=en&z=14&output=embed`;
+ return `https://www.google.com/maps?q=${qs}&hl=en&z=14&output=embed`;
   }
   return "";
 }
 function mapViewHref(lat?: any, lng?: any, address?: string | null) {
   if (hasLatLng(lat, lng)) {
     const q = encodeURIComponent(`${lat},${lng}`);
-    return `https://www.google.com/maps?q=${q}`;
+ return `https://www.google.com/maps?q=${q}`;
   }
   if (address && address.trim()) {
-    return `https://www.google.com/maps?q=${encodeURIComponent(address.trim())}`;
+ return `https://www.google.com/maps?q=${encodeURIComponent(address.trim())}`;
   }
   return "";
 }
@@ -103,7 +103,7 @@ export default function HotspotPreview() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Hotspot Details */}
+ {/* Hotspot Details */}
       <div className="bg-white rounded-lg border p-6 space-y-6">
         <h2 className="text-lg font-semibold text-primary">Hotspot Details</h2>
 
@@ -191,7 +191,7 @@ export default function HotspotPreview() {
         </div>
       </div>
 
-      {/* Vehicle Parking Charge Details (restored) */}
+ {/* Vehicle Parking Charge Details (restored) */}
       <div className="bg-white rounded-lg border p-6 space-y-4">
         <h2 className="text-lg font-semibold text-primary">Vehicle Parking Charge Details</h2>
         {!(p.parkingCharges && p.parkingCharges.length) ? (
@@ -210,9 +210,9 @@ export default function HotspotPreview() {
         )}
       </div>
 
-      {/* Location + Opening Hours side-by-side */}
+ {/* Location + Opening Hours side-by-side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Location */}
+ {/* Location */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-primary">Location</h2>
           {embedSrc ? (
@@ -240,11 +240,11 @@ export default function HotspotPreview() {
           )}
         </div>
 
-        {/* Opening Hours */}
+ {/* Opening Hours */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-primary">Opening Hours</h2>
 
-          {/* header */}
+ {/* header */}
           <div className="grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 rounded-md px-4 py-2">
             <div className="col-span-4">DAY</div>
             <div className="col-span-8 text-center">OPERATING HOURS</div>

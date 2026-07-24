@@ -95,30 +95,30 @@ export default function HotspotDistanceCacheList() {
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // Search and filter state
+ // Search and filter state
   const [search, setSearch] = useState("");
   const [filterFromHotspot, setFilterFromHotspot] = useState("");
   const [filterToHotspot, setFilterToHotspot] = useState("");
   const [filterTravelType, setFilterTravelType] = useState("");
 
-  // Pagination state
+ // Pagination state
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Form options
+ // Form options
   const [formOptions, setFormOptions] = useState<FormOptionsResponse | null>(null);
 
-  // Load data
+ // Load data
   useEffect(() => {
     load();
     loadFormOptions();
   }, []);
 
-  // Apply filters
+ // Apply filters
   useEffect(() => {
     let result = rows;
 
-    // Search by hotspot names
+ // Search by hotspot names
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -128,17 +128,17 @@ export default function HotspotDistanceCacheList() {
       );
     }
 
-    // Filter by from hotspot
+ // Filter by from hotspot
     if (filterFromHotspot && filterFromHotspot !== "__all") {
       result = result.filter((r) => String(r.fromHotspotId) === filterFromHotspot);
     }
 
-    // Filter by to hotspot
+ // Filter by to hotspot
     if (filterToHotspot && filterToHotspot !== "__all") {
       result = result.filter((r) => String(r.toHotspotId) === filterToHotspot);
     }
 
-    // Filter by travel type (travelLocationType is now a number, so compare as number)
+ // Filter by travel type (travelLocationType is now a number, so compare as number)
     if (filterTravelType && filterTravelType !== "__all") {
       result = result.filter((r) => String(r.travelLocationType) === filterTravelType);
     }
@@ -151,13 +151,13 @@ export default function HotspotDistanceCacheList() {
     try {
       setLoading(true);
       const response = await hotspotDistanceCacheService.list({
-        size: 10000, // Load all for client-side filtering
+ size: 10000, // Load all for client-side filtering
       });
-      // Backend returns { total, page, size, pages, rows }
+ // Backend returns { total, page, size, pages, rows }
       setRows(response.rows || []);
       setFiltered(response.rows || []);
     } catch (error) {
-      console.error("Failed to load hotspot distance cache:", error);
+ console.error("Failed to load hotspot distance cache:", error);
       toast.error("Failed to load data");
       setRows([]);
       setFiltered([]);
@@ -171,7 +171,7 @@ export default function HotspotDistanceCacheList() {
       const options = await hotspotDistanceCacheService.getFormOptions();
       setFormOptions(options);
     } catch (error) {
-      console.error("Failed to load form options:", error);
+ console.error("Failed to load form options:", error);
     }
   }
 
@@ -183,19 +183,19 @@ export default function HotspotDistanceCacheList() {
       setDeleteId(null);
       load();
     } catch (error) {
-      console.error("Failed to delete:", error);
+ console.error("Failed to delete:", error);
       toast.error("Failed to delete record");
     }
   };
 
-  // Pagination
+ // Pagination
   const paginated = useMemo(
     () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     [filtered, currentPage, pageSize]
   );
   const totalPages = Math.ceil(filtered.length / pageSize);
 
-  // Export helpers
+ // Export helpers
   const canExport = filtered.length > 0;
   const dataset = useMemo(() => to2D(filtered), [filtered]);
 
@@ -234,7 +234,7 @@ export default function HotspotDistanceCacheList() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">
           Hotspot Distance Cache
@@ -252,11 +252,11 @@ export default function HotspotDistanceCacheList() {
         </button>
       </div>
 
-      {/* Main Card */}
+ {/* Main Card */}
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Search and Filters */}
+ {/* Search and Filters */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pb-4 border-b">
-          {/* Search by names */}
+ {/* Search by names */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-600">
               Search (From/To Name)
@@ -269,7 +269,7 @@ export default function HotspotDistanceCacheList() {
             />
           </div>
 
-          {/* From Hotspot Filter */}
+ {/* From Hotspot Filter */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-600">
               From Hotspot
@@ -289,7 +289,7 @@ export default function HotspotDistanceCacheList() {
             </Select>
           </div>
 
-          {/* To Hotspot Filter */}
+ {/* To Hotspot Filter */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-600">
               To Hotspot
@@ -309,7 +309,7 @@ export default function HotspotDistanceCacheList() {
             </Select>
           </div>
 
-          {/* Travel Type Filter */}
+ {/* Travel Type Filter */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-gray-600">
               Travel Type
@@ -329,7 +329,7 @@ export default function HotspotDistanceCacheList() {
             </Select>
           </div>
 
-          {/* Export Buttons */}
+ {/* Export Buttons */}
           <div className="flex items-end gap-2">
             <button
               type="button"
@@ -363,7 +363,7 @@ export default function HotspotDistanceCacheList() {
           </div>
         </div>
 
-        {/* Top Toolbar */}
+ {/* Top Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -386,7 +386,7 @@ export default function HotspotDistanceCacheList() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -447,7 +447,7 @@ export default function HotspotDistanceCacheList() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}

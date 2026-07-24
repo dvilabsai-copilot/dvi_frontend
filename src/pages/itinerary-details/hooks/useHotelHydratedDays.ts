@@ -29,18 +29,18 @@ export const useHotelHydratedDays = ({
     if (!itineraryDays?.length) return [];
 
     return itineraryDays.map((day, dayIndex) => {
-      // ALWAYS ensure we have a segments array to process
+ // ALWAYS ensure we have a segments array to process
       let segments = Array.isArray(day.segments) ? [...day.segments] : [];
-      
-      // If no segments,  just return the day with empty segments
-      // (don't try to process hotel logic if there's nothing to process)
+
+ // If no segments, just return the day with empty segments
+ // (don't try to process hotel logic if there's nothing to process)
       if (!segments || segments.length === 0) {
         return {
           ...day,
           segments: [],
         };
       }
-      
+
       const currentHotelName = selectedHotelMetaByRoute.get(day.id)?.hotelName?.trim() || null;
       const currentHotelDistance = selectedHotelMetaByRoute.get(day.id)?.hotelDistance?.trim() || null;
       const previousDay = dayIndex > 0 ? itineraryDays[dayIndex - 1] : null;

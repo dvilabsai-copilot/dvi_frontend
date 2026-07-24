@@ -208,7 +208,7 @@ export function VehicleTypePage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">List of Vehicle Type</h1>
 
@@ -224,7 +224,7 @@ export function VehicleTypePage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -284,7 +284,7 @@ export function VehicleTypePage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -331,7 +331,7 @@ export function VehicleTypePage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
@@ -343,7 +343,7 @@ export function VehicleTypePage() {
               Previous
             </Button>
 
-            {/* matches screenshot: show current + next page if exists */}
+ {/* matches screenshot: show current + next page if exists */}
             <Button size="sm" variant="default">{currentPage}</Button>
             {currentPage + 1 <= totalPages && (
               <Button size="sm" variant="outline" onClick={() => setCurrentPage(currentPage + 1)}>
@@ -358,7 +358,7 @@ export function VehicleTypePage() {
         </div>
       </div>
 
-      {/* Modals */}
+ {/* Modals */}
       <VehicleTypeModal
         open={modalOpen}
         mode={modalMode}

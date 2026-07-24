@@ -59,9 +59,9 @@ export function useHotelSelectionState({
       const next = { ...previous };
       const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
 
-      // The previous-night early-arrival row is a billing explanation only.
-      // Selection identity starts at the actual guest-arrival route so Day 0
-      // cannot become a duplicate selectable stay.
+ // The previous-night early-arrival row is a billing explanation only.
+ // Selection identity starts at the actual guest-arrival route so Day 0
+ // cannot become a duplicate selectable stay.
       hotels
         .filter((hotel) => !hotel.previousDayBillingSynthetic)
         .forEach((hotel) => {
@@ -134,13 +134,13 @@ export function useHotelSelectionState({
 
       return next;
     });
-    // The helper functions are pure and intentionally do not trigger a reselection pass.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // The helper functions are pure and intentionally do not trigger a reselection pass.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotels, planId]);
 
-  // The default hotel is chosen before live supplier inventory is checked. Validate
-  // that default asynchronously and move to the next candidate when the supplier
-  // reports a restriction. User selections are intentionally never auto-replaced.
+ // The default hotel is chosen before live supplier inventory is checked. Validate
+ // that default asynchronously and move to the next candidate when the supplier
+ // reports a restriction. User selections are intentionally never auto-replaced.
   useEffect(() => {
     if (!validateAutoHotelSelection || hotels.length === 0 || Object.keys(selectedByGroup).length === 0) {
       return;
@@ -158,7 +158,7 @@ export function useHotelSelectionState({
 
       const request = validateAutoHotelSelection(hotel)
         .catch((error) => {
-          console.error("[HotelList] automatic hotel availability check failed", error);
+ console.error("[HotelList] automatic hotel availability check failed", error);
           return {
             blocked: false,
             unknown: true,
@@ -249,8 +249,8 @@ export function useHotelSelectionState({
             });
             previousSelectedHotel = replacement;
           } else {
-            // Keep the current value if every fallback could not be verified. The
-            // final API validation remains the last safety net for that edge case.
+ // Keep the current value if every fallback could not be verified. The
+ // final API validation remains the last safety net for that edge case.
             previousSelectedHotel = selected;
           }
         }
@@ -261,9 +261,9 @@ export function useHotelSelectionState({
     return () => {
       cancelled = true;
     };
-    // Helpers are pure functions supplied by HotelList; the explicit dependencies
-    // below are the state changes that should trigger another validation pass.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // Helpers are pure functions supplied by HotelList; the explicit dependencies
+ // below are the state changes that should trigger another validation pass.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotels, planId, selectedByGroup, userSelectedByStay, validateAutoHotelSelection]);
 
   useEffect(() => {
@@ -279,8 +279,8 @@ export function useHotelSelectionState({
       });
       return next;
     });
-    // The stay-key helper is pure; hotel data is the only source that invalidates overrides.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // The stay-key helper is pure; hotel data is the only source that invalidates overrides.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotels]);
 
   return {

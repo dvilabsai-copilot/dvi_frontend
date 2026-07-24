@@ -18,7 +18,7 @@ type ApiCtx = {
 /* ===== helpers for value normalization ===== */
 const S = (v: any) => (v === null || v === undefined ? "" : String(v)); // to string or ""
 const N = (v: any) =>
-  v === "" || v === undefined || v === null ? null : Number(v); // to number or null
+ v === "" || v === undefined || v === null ? null : Number(v); // to number or null
 
 const findOptionValue = (options: any[], current: string) => {
   const normalized = S(current).trim();
@@ -104,7 +104,7 @@ export default function BasicStep({
     formState: { errors, isSubmitting },
   } = useForm<HotelForm & { hotel_mobile_arr: string[]; hotel_email_arr: string[] }>({
     defaultValues: {
-      hotel_status: 1 as any, // will be string in UI, coerced on submit
+ hotel_status: 1 as any, // will be string in UI, coerced on submit
       hotel_powerbackup: 0 as any,
       hotel_hotspot_status: 0 as any,
       hotel_mobile_arr: [],
@@ -117,7 +117,7 @@ export default function BasicStep({
     { id: 0, name: "In-Active" },
   ];
 
-  // helpers for parsing strings from edit payloads
+ // helpers for parsing strings from edit payloads
   const splitPhones = (s?: any): string[] =>
     (typeof s === "string" ? s : String(s ?? ""))
       .split(/[,\s/|;]+/)
@@ -129,7 +129,7 @@ export default function BasicStep({
       .map((x) => x.trim())
       .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
 
-  // categories
+ // categories
   const { data: categories = [] } = useQuery({
     queryKey: ["hotel-categories"],
     queryFn: () =>
@@ -143,7 +143,7 @@ export default function BasicStep({
         .catch(() => []),
   });
 
-  // countries
+ // countries
   const { data: countries = [] } = useQuery({
     queryKey: ["countries"],
     queryFn: () =>
@@ -239,7 +239,7 @@ export default function BasicStep({
     return addMissingOption(base, editCityOption);
   }, [cities, cityByIdFallback, editCityOption]);
 
-  /* ====== FIX: re-apply saved state/city once options load (supports id or label payloads) ====== */
+ /* ====== FIX: re-apply saved state/city once options load (supports id or label payloads) ====== */
   useEffect(() => {
     const current = watchedState.trim();
     if (!current || !stateOptions.length) return;
@@ -258,7 +258,7 @@ export default function BasicStep({
     setValue("hotel_city", resolved, { shouldValidate: true, shouldDirty: false });
   }, [cityOptions, watchedCity, setValue]);
 
-  // GST types & percentages
+ // GST types & percentages
   const { data: gstTypes = [] } = useQuery({
     queryKey: ["gstTypes"],
     queryFn: () =>
@@ -303,12 +303,12 @@ export default function BasicStep({
     const extras = raw.filter((v) => !preferred.includes(v));
     const final = Array.from(new Set([...preferred, ...extras]));
     return final.map((v) => ({
-      value: String(v), // STRING to match form value
+ value: String(v), // STRING to match form value
       label: `${v} % GST - %${v}`,
     }));
   }, [gstPercents]);
 
-  /* EDIT defaults */
+ /* EDIT defaults */
   useEffect(() => {
     if (!isEdit || !hotelId) return;
     let alive = true;
@@ -342,7 +342,7 @@ export default function BasicStep({
           hotel_name: row.hotel_name ?? row.name ?? "",
           hotel_place: row.hotel_place ?? row.place ?? "",
           axisrooms_property_id: row.axisrooms_property_id ?? "",
-          // force strings for selects
+ // force strings for selects
           hotel_status:
             row.status !== undefined
               ? (S(Number(row.status)) as any)
@@ -350,7 +350,7 @@ export default function BasicStep({
               ? (S(Number(row.hotel_status)) as any)
               : ("1" as any),
 
-          // keep original string fields too, but chip UI reads arrays:
+ // keep original string fields too, but chip UI reads arrays:
           hotel_mobile_no: row.hotel_mobile ?? row.hotel_mobile_no ?? row.phone ?? "",
           hotel_email_id: row.hotel_email ?? row.hotel_email_id ?? row.email ?? "",
           hotel_mobile_arr: phones,
@@ -400,17 +400,17 @@ export default function BasicStep({
     };
   }, [isEdit, hotelId, api, reset]);
 
-    /* Auto-generate hotel code when city changes (only for new hotels) */
+ /* Auto-generate hotel code when city changes (only for new hotels) */
   const cityWatch = watch("hotel_city");
   useEffect(() => {
-    // Only auto-generate for create mode, and when a city is selected
+ // Only auto-generate for create mode, and when a city is selected
     if (!cityWatch || isEdit) return;
 
     let cancelled = false;
 
     (async () => {
-      // IMPORTANT: api.apiGet already prefixes /api/v1 via your global API_BASE_URL,
-      // so do NOT put /api/v1 here.
+ // IMPORTANT: api.apiGet already prefixes /api/v1 via your global API_BASE_URL,
+ // so do NOT put /api/v1 here.
       const tryPaths = [
         `/hotels/code?cityId=${cityWatch}`,
         `/hotels/generate-code?cityId=${cityWatch}`,
@@ -422,7 +422,7 @@ export default function BasicStep({
           const res = await api.apiGet(p);
           if (cancelled || !res) continue;
 
-          // Support different backend shapes: {code}, {data:{code}}, {hotel_code}, etc.
+ // Support different backend shapes: {code}, {data:{code}}, {hotel_code}, etc.
           const code =
             res?.code ??
             res?.data?.code ??
@@ -438,7 +438,7 @@ export default function BasicStep({
             break;
           }
         } catch {
-          // ignore and try next path
+ // ignore and try next path
         }
       }
     })();
@@ -448,7 +448,7 @@ export default function BasicStep({
     };
   }, [cityWatch, api, setValue, isEdit]);
 
-  // Join chip arrays to strings for backend compatibility
+ // Join chip arrays to strings for backend compatibility
   const normalizePayload = (
     data: HotelForm & { hotel_mobile_arr?: string[]; hotel_email_arr?: string[] }
   ) => {
@@ -570,7 +570,7 @@ export default function BasicStep({
 
       <form onSubmit={handleSubmit(onSubmit)}>
         <div className="grid grid-cols-12 gap-4">
-          {/* Name */}
+ {/* Name */}
           <div className="col-span-12 md:col-span-6">
             <label className="block text-sm font-medium">Hotel Name *</label>
             <input
@@ -581,7 +581,7 @@ export default function BasicStep({
             {errors.hotel_name && <p className="text-red-600 text-xs mt-1">Required</p>}
           </div>
 
-          {/* Place */}
+ {/* Place */}
           <div className="col-span-12 md:col-span-3">
             <label className="block text-sm font-medium">Place *</label>
             <input
@@ -591,7 +591,7 @@ export default function BasicStep({
             />
           </div>
 
-          {/* Status */}
+ {/* Status */}
           <div className="col-span-12 md:col-span-3">
             <label className="block text-sm font-medium">Status *</label>
             <select
@@ -609,7 +609,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* Mobile (chips) */}
+ {/* Mobile (chips) */}
           <div className="col-span-12 md:col-span-6">
             <label className="block text-sm font-medium">Mobile *</label>
             <Controller
@@ -633,7 +633,7 @@ export default function BasicStep({
             )}
           </div>
 
-          {/* Email (chips) */}
+ {/* Email (chips) */}
           <div className="col-span-12 md:col-span-6">
             <label className="block text-sm font-medium">Email *</label>
             <Controller
@@ -657,7 +657,7 @@ export default function BasicStep({
             )}
           </div>
 
-          {/* Category */}
+ {/* Category */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Category *</label>
             <select
@@ -673,7 +673,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* Power Backup */}
+ {/* Power Backup */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Power Backup? *</label>
             <select
@@ -691,7 +691,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* Country / State / City */}
+ {/* Country / State / City */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Country *</label>
 
@@ -781,7 +781,7 @@ export default function BasicStep({
             />
           </div>
 
-          {/* Pincode */}
+ {/* Pincode */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Pincode *</label>
             <input
@@ -792,7 +792,7 @@ export default function BasicStep({
             />
           </div>
 
-          {/* Margin */}
+ {/* Margin */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Hotel Margin (In Percentage) *</label>
             <input
@@ -802,7 +802,7 @@ export default function BasicStep({
             />
           </div>
 
-          {/* GST Type */}
+ {/* GST Type */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Hotel Margin GST Type *</label>
             <select
@@ -817,7 +817,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* GST % */}
+ {/* GST % */}
           <div className="col-span-12 md:col-span-4">
             <label className="block text-sm font-medium">Hotel Margin GST Percentage *</label>
             <select
@@ -832,7 +832,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* Lat/Lng */}
+ {/* Lat/Lng */}
           <div className="col-span-12 md:col-span-2">
             <label className="block text-sm font-medium">Latitude</label>
             <input
@@ -869,7 +869,7 @@ export default function BasicStep({
             />
           </div>
 
-          {/* Hotspot */}
+ {/* Hotspot */}
           <div className="col-span-12 md:col-span-3">
             <label className="block text-sm font-medium">Hotspot Status *</label>
             <select
@@ -887,7 +887,7 @@ export default function BasicStep({
             </select>
           </div>
 
-          {/* Address */}
+ {/* Address */}
           <div className="col-span-12">
             <label className="block text-sm font-medium">Address *</label>
             <textarea

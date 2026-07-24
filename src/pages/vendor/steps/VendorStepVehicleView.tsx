@@ -412,8 +412,8 @@ className="w-[270px] rounded-lg border border-slate-300 px-4 py-3 text-[16px] ou
     onChange={(e) => {
       handleFieldChange("vehicleOrigin", e.target.value);
 
-      // The old stored-location ID belongs to the previous origin.
-      // Clear it so backend resolves the newly entered origin.
+ // The old stored-location ID belongs to the previous origin.
+ // Clear it so backend resolves the newly entered origin.
       setVehicleForm((prev) => ({
         ...prev,
         vehicleOrigin: e.target.value,

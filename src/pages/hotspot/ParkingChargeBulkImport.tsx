@@ -149,7 +149,7 @@ const Page: React.FC = () => {
 
   useEffect(() => {
     if (sessionId) refreshTemplist(sessionId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   useEffect(() => {

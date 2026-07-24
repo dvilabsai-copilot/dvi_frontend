@@ -86,7 +86,7 @@ export const useHotelVoucherController = ({
       );
       await refreshHotelData();
     } catch (error) {
-      console.error("Failed to cancel hotel vouchers", error);
+ console.error("Failed to cancel hotel vouchers", error);
       toast.error(error?.message || "Failed to cancel hotel voucher(s)");
     }
   }, [itineraryPlanId, refreshHotelData]);

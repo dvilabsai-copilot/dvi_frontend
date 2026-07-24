@@ -88,7 +88,7 @@ export const AccountsManager: React.FC = () => {
   const [payNowOpen, setPayNowOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<AccountsRow | null>(null);
 
-  // LOOKUPS
+ // LOOKUPS
   useEffect(() => {
     let cancelled = false;
 
@@ -102,7 +102,7 @@ export const AccountsManager: React.FC = () => {
         setAgents(agentsData);
         setPaymentModes(paymentModesData);
       } catch (err) {
-        console.error("Failed to load agents / payment modes:", err);
+ console.error("Failed to load agents / payment modes:", err);
       }
     }
 
@@ -112,7 +112,7 @@ export const AccountsManager: React.FC = () => {
     };
   }, []);
 
-  // QUOTE AUTOCOMPLETE
+ // QUOTE AUTOCOMPLETE
   useEffect(() => {
     if (!quoteSearchTerm.trim()) {
       setQuoteSuggestions([]);
@@ -124,14 +124,14 @@ export const AccountsManager: React.FC = () => {
         const result = await searchQuotes(quoteSearchTerm.trim());
         setQuoteSuggestions(result.map((q) => q.quoteId));
       } catch (err) {
-        console.error("Quote search failed:", err);
+ console.error("Quote search failed:", err);
       }
     }, 300);
 
     return () => clearTimeout(handle);
   }, [quoteSearchTerm]);
 
-  // MAIN DATA FETCH
+ // MAIN DATA FETCH
   useEffect(() => {
     let isCancelled = false;
 
@@ -158,7 +158,7 @@ export const AccountsManager: React.FC = () => {
         setSummary(summaryData);
         setVisibleCount(20);
       } catch (err) {
-        console.error("Failed to fetch accounts manager data:", err);
+ console.error("Failed to fetch accounts manager data:", err);
         if (!isCancelled) {
           setRows([]);
           setSummary(null);
@@ -176,7 +176,7 @@ export const AccountsManager: React.FC = () => {
 
   const filteredRows = useMemo(() => rows, [rows]);
 
-  // TOTALS (using helper toNumber to keep TS + runtime happy even if API sends strings)
+ // TOTALS (using helper toNumber to keep TS + runtime happy even if API sends strings)
   const rowTotalBilled = filteredRows.reduce(
     (s, r) => s + toNumber(r.amount),
     0,
@@ -205,7 +205,7 @@ export const AccountsManager: React.FC = () => {
   const totalReceivable = rowTotalReceivable;
   const totalProfit = rowTotalProfit;
 
-  // VISIBLE (INFINITE SCROLL)
+ // VISIBLE (INFINITE SCROLL)
   const visibleRows = filteredRows.slice(0, visibleCount);
   const visibleAmount = visibleRows.reduce(
     (s, r) => s + toNumber(r.amount),
@@ -223,7 +223,7 @@ export const AccountsManager: React.FC = () => {
   const isAllLoaded = visibleCount >= filteredRows.length;
 
   const groupedVisibleRows = useMemo(() => {
-    // one array per section type, including "flight"
+ // one array per section type, including "flight"
     const base: Record<SectionKey, AccountsRow[]> = {
       guide: [],
       hotspot: [],
@@ -241,9 +241,9 @@ export const AccountsManager: React.FC = () => {
     return base;
   }, [visibleRows]);
 
-  // SECTION RENDERER – HOTEL HAS FULL 15 HEADERS LIKE PHP
+ // SECTION RENDERER HOTEL HAS FULL 15 HEADERS LIKE PHP
 
-  // INFINITE SCROLL
+ // INFINITE SCROLL
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -303,30 +303,30 @@ export const AccountsManager: React.FC = () => {
       setSummary(summaryData);
       setVisibleCount(20);
     } catch (err) {
-      console.error("Failed to reload after payment:", err);
+ console.error("Failed to reload after payment:", err);
     } finally {
       setLoading(false);
     }
   };
 
-    // EXPORT CURRENT FILTERED ROWS TO CSV (EXCEL-COMPATIBLE)
+ // EXPORT CURRENT FILTERED ROWS TO CSV (EXCEL-COMPATIBLE)
   const handleExport = () => {
     if (!filteredRows || filteredRows.length === 0) {
-      // nothing to export
+ // nothing to export
       return;
     }
 
-    // Helper to safely escape CSV fields
+ // Helper to safely escape CSV fields
     const escapeCsv = (value: unknown): string => {
       if (value === null || value === undefined) return "";
-      const str = String(value).replace(/\r\n|\n|\r/g, " "); // remove newlines
+ const str = String(value).replace(/\r\n|\n|\r/g, " "); // remove newlines
       if (/[",]/.test(str)) {
         return `"${str.replace(/"/g, '""')}"`;
       }
       return str;
     };
 
-    // Header row – includes hotel-style columns + generic fields
+ // Header row includes hotel-style columns + generic fields
     const headers = [
       "Component Type",
       "Quote ID",
@@ -386,7 +386,7 @@ export const AccountsManager: React.FC = () => {
         row.componentType ?? "",
         row.quoteId ?? "",
         row.status ?? "",
-        row.hotelName ?? "", // for non-hotel components this will still be filled if backend sends name here
+ row.hotelName "", // for non-hotel components this will still be filled if backend sends name here
         row.agent ?? "",
         row.amount ?? 0,
         row.payout ?? 0,
@@ -412,7 +412,7 @@ export const AccountsManager: React.FC = () => {
       lines.push(rowValues.map(escapeCsv).join(","));
     });
 
-    const csvContent = "\uFEFF" + lines.join("\r\n"); // BOM for Excel
+ const csvContent = "\uFEFF" + lines.join("\r\n"); // BOM for Excel
 
     const blob = new Blob([csvContent], {
       type: "text/csv;charset=utf-8;",
@@ -452,7 +452,7 @@ export const AccountsManager: React.FC = () => {
       };
       await exportAccountsManagerExcel(filters);
     } catch (err) {
-      console.error("Excel export failed:", err);
+ console.error("Excel export failed:", err);
       alert("Failed to export Excel");
     }
   };
@@ -463,7 +463,7 @@ export const AccountsManager: React.FC = () => {
         Payout List
       </h1>
 
-      {/* TABS */}
+ {/* TABS */}
       <div className="flex gap-3 mb-4">
         <button
           onClick={() => setActiveTab("all")}
@@ -498,7 +498,7 @@ export const AccountsManager: React.FC = () => {
       </div>
 
 
-   {/* FILTER BAR */}
+ {/* FILTER BAR */}
 <Card className="shadow-none border-none mb-4 bg-white/70">
   <CardContent className="pt-6 pb-5">
     <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
@@ -639,7 +639,7 @@ export const AccountsManager: React.FC = () => {
   </CardContent>
 </Card>
 
-      {/* SUMMARY CARDS */}
+ {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-5">
         <div className="bg-white rounded-md shadow-sm py-4 px-5">
           <p className="text-sm text-[#8a7da5] mb-1">Total Billed</p>
@@ -679,7 +679,7 @@ export const AccountsManager: React.FC = () => {
         </div>
       </div>
 
-      {/* LIST CARD */}
+ {/* LIST CARD */}
       <Card className="shadow-none border-none bg-white">
         <CardContent className="pt-6 pb-0">
           <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
@@ -706,16 +706,16 @@ export const AccountsManager: React.FC = () => {
           </div>
         </CardContent>
 
-        {/* SCROLL TABLE */}
+ {/* SCROLL TABLE */}
         <div
           ref={scrollRef}
           className="max-h-[460px] overflow-y-auto overflow-x-auto border-t border-[#f3e0ff]"
         >
           <Table
             id="all_accountsmanager_list"
-            className="min-w-[2000px]" // wide enough for 15 hotel columns
+ className="min-w-[2000px]" // wide enough for 15 hotel columns
           >
-            {/* Initial loading state */}
+ {/* Initial loading state */}
             {loading && visibleRows.length === 0 && (
               <TableBody>
                 <TableRow>
@@ -729,7 +729,7 @@ export const AccountsManager: React.FC = () => {
               </TableBody>
             )}
 
-            {/* No records */}
+ {/* No records */}
             {!loading && visibleRows.length === 0 && (
               <TableBody>
                 <TableRow>
@@ -743,7 +743,7 @@ export const AccountsManager: React.FC = () => {
               </TableBody>
             )}
 
-            {/* Sections by component type */}
+ {/* Sections by component type */}
             {!loading && visibleRows.length > 0 && (
               <>
                 {(componentType === "all"
@@ -761,7 +761,7 @@ export const AccountsManager: React.FC = () => {
                   />
                 ))}
 
-                {/* Bottom loader / completion row */}
+ {/* Bottom loader / completion row */}
                 <TableBody>
                   {visibleCount < filteredRows.length ? (
                     <TableRow>
@@ -788,7 +788,7 @@ export const AccountsManager: React.FC = () => {
           </Table>
         </div>
 
-        {/* BOTTOM RUNNING TOTAL BAR */}
+ {/* BOTTOM RUNNING TOTAL BAR */}
         <div className="w-full overflow-x-auto border-t border-[#f3e0ff] bg-white">
           <div className="min-w-max flex gap-6 px-6 py-3 items-center text-sm">
             <div className="text-[#4a4260] whitespace-nowrap">
@@ -821,7 +821,7 @@ export const AccountsManager: React.FC = () => {
         </div>
       </Card>
 
-      {/* PAY NOW MODAL */}
+ {/* PAY NOW MODAL */}
       {payNowOpen && selectedRow && (
         <PayNowModal
           row={selectedRow}

@@ -98,7 +98,7 @@ export default function SubscriptionHistory() {
     endDate: s.validityEnd,
     transactionId: s.transactionId || "--",
 
-    // No money was paid for a zero-value subscription.
+ // No money was paid for a zero-value subscription.
     paymentStatus:
       amount <= 0
         ? "Free"
@@ -122,7 +122,7 @@ export default function SubscriptionHistory() {
 
   useEffect(() => {
     loadSubscriptions().catch((error) => {
-      console.error(error);
+ console.error(error);
       toast.error("Unable to load subscription history");
     });
   }, []);
@@ -199,10 +199,10 @@ export default function SubscriptionHistory() {
       "Create order request timed out. Please try again.",
     );
 
-    /*
+ /*
      * Free subscriptions do not require Razorpay.
      * The backend has already completed the renewal.
-     */
+ */
     if (order.freeRenewal) {
       setRenewalModalOpen(false);
 
@@ -251,7 +251,7 @@ export default function SubscriptionHistory() {
       },
 
       onFailure: (error) => {
-        console.error(error);
+ console.error(error);
         toast.error("Subscription confirmation failed");
       },
 
@@ -260,7 +260,7 @@ export default function SubscriptionHistory() {
       },
     });
   } catch (error) {
-    console.error(error);
+ console.error(error);
 
     toast.error(
       error instanceof Error

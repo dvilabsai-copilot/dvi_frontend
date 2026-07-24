@@ -44,20 +44,20 @@ type RouteDetailsBlockProps = {
   setRouteDetails: React.Dispatch<React.SetStateAction<RouteDetailRow[]>>;
   locations: LocationOption[];
 
-  // optional hooks from parent
+ // optional hooks from parent
   onOpenViaRoutes?: (row: RouteDetailRow) => void;
   onRefreshRouteDistance?: (row: RouteDetailRow) => Promise<number | string>;
   onDeleteDay?: () => void;
   onDeleteRouteDay?: (deleteIdx: number) => void;
   addDay?: () => void;
 
-  // optional validation from parent
+ // optional validation from parent
   validationErrors?: ValidationErrors;
 
-  // Departure location to lock last row's Next Destination
+ // Departure location to lock last row's Next Destination
   departureLocation?: string;
 
-  // Hide Intercity KM only where needed
+ // Hide Intercity KM only where needed
   hideIntercityKm?: boolean;
 };
 
@@ -143,7 +143,7 @@ export const RouteDetailsBlock = ({
     return normalizedMatch?.value || "";
   };
 
-  // Global fallback options (like PHP selectize list)
+ // Global fallback options (like PHP selectize list)
   const globalLocationOptions: AutoSuggestOption[] = sanitizeOptions(
     locations.map((loc) => ({
       value: loc.name,
@@ -151,12 +151,12 @@ export const RouteDetailsBlock = ({
     }))
   );
 
-  // Find the departure location object from locations array
+ // Find the departure location object from locations array
   const departureLocationObj = departureLocation
     ? locations.find((loc) => loc.name === departureLocation)
     : null;
 
-  // Row-specific NEXT DESTINATION options (per source)
+ // Row-specific NEXT DESTINATION options (per source)
   const [destinationOptionsMap, setDestinationOptionsMap] = useState<
     Record<number, AutoSuggestOption[]>
   >({});
@@ -164,10 +164,10 @@ export const RouteDetailsBlock = ({
     {}
   );
 
-  // After adding a day: focus previous last day's "Next Destination"
+ // After adding a day: focus previous last day's "Next Destination"
   const [focusNextIdx, setFocusNextIdx] = useState<number | null>(null);
 
-  // Refs for Next Destination Select trigger buttons
+ // Refs for Next Destination Select trigger buttons
   const nextDestinationRefs = useRef<Array<{ focus: () => void } | null>>([]);
   const addDayButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -182,7 +182,7 @@ export const RouteDetailsBlock = ({
     return () => window.clearTimeout(t);
   }, [focusNextIdx]);
 
-    // For each row that has a source, load destination list if we haven't yet
+ // For each row that has a source, load destination list if we haven't yet
   useEffect(() => {
     routeDetails.forEach((row, idx) => {
       if (!row.source) return;
@@ -231,7 +231,7 @@ const destLocations = data.rows
             [idx]: requestKey,
           }));
         } catch (err) {
-          console.error(
+ console.error(
             "Failed to load destination locations for",
             row.source,
             err
@@ -328,18 +328,18 @@ const destLocations = data.rows
   const handleAddDay = () => {
     if (addDay) {
       addDay();
-      // Scroll to new row after a tick
+ // Scroll to new row after a tick
       setTimeout(() => {
         addDayButtonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       }, 50);
       return;
     }
 
-    // PHP-like behaviour:
-    // 1) New day date = last date + 1
-    // 2) Move final destination (last.next) down to NEW day "next"
-    // 3) Copy last.source into NEW day "source"
-    // 4) Clear last.next and focus it (user will pick new destination for last day)
+ // PHP-like behaviour:
+ // 1) New day date = last date + 1
+ // 2) Move final destination (last.next) down to NEW day "next"
+ // 3) Copy last.source into NEW day "source"
+ // 4) Clear last.next and focus it (user will pick new destination for last day)
     setRouteDetails((prev) => {
       if (!prev.length) {
        return [
@@ -360,18 +360,18 @@ const destLocations = data.rows
       const lastIdx = prev.length - 1;
       const last = prev[lastIdx];
 
-      const movedFinalDestination = last.next; // goes to new day next
-      const copiedSource = last.source; // goes to new day source
+ const movedFinalDestination = last.next; // goes to new day next
+ const copiedSource = last.source; // goes to new day source
 
       const updated = [...prev];
 
-      // Clear last day destination (so user selects new Day-Last "Next Destination")
+ // Clear last day destination (so user selects new Day-Last "Next Destination")
       updated[lastIdx] = {
         ...last,
         next: "",
       };
 
-      // Add new day row
+ // Add new day row
   updated.push({
   id: (last.id ?? last.day) + 1,
   day: last.day + 1,
@@ -387,10 +387,10 @@ const destLocations = data.rows
       return updated;
     });
 
-    // Focus previous last row's "Next Destination" (e.g., Day 8 destination)
+ // Focus previous last row's "Next Destination" (e.g., Day 8 destination)
     setFocusNextIdx(Math.max(0, routeDetails.length - 1));
 
-    // Scroll to the cleared row so user sees what to fill
+ // Scroll to the cleared row so user sees what to fill
     setTimeout(() => {
       const prevLastIdx = Math.max(0, routeDetails.length - 1);
       document.getElementById(`next-destination-${prevLastIdx}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -405,10 +405,10 @@ const destLocations = data.rows
       return;
     }
   } catch (err) {
-    console.error("Delete day callback failed. Falling back to local delete.", err);
+ console.error("Delete day callback failed. Falling back to local delete.", err);
   }
 
-  // Fallback: delete last day locally for contexts that don't wire onDeleteDay.
+ // Fallback: delete last day locally for contexts that don't wire onDeleteDay.
   setRouteDetails((prev) => {
     if (prev.length <= 1) return prev;
 
@@ -488,7 +488,7 @@ const handleDeleteRouteDay = (deleteIdx: number) => {
     return;
   }
 
-  // Fallback only: used when parent does not provide date/calendar sync.
+ // Fallback only: used when parent does not provide date/calendar sync.
   setRouteDetails((prev) =>
     prev
       .filter((_, index) => index !== deleteIdx)
@@ -578,13 +578,13 @@ const hasViaRoutes = (row.via_routes?.length ?? 0) > 0 || Boolean(row.via?.trim(
 const canDeleteThisRouteDay =
   routeDetails.length > 3 && !isFirstRow && !isSecondRow && !isLastRow;
 
-              // For last row, if departure location exists, lock to it
+ // For last row, if departure location exists, lock to it
               let rowSpecificOptions: AutoSuggestOption[];
               let isLastRowLocked = false;
               let nextDestinationValue = row.next;
 
             if (shouldLockAsDepartureRow && departureLocationObj) {
-  // Lock only the actual last day when total days > 1
+ // Lock only the actual last day when total days > 1
   rowSpecificOptions = [
     {
       value: departureLocationObj.name,
@@ -594,7 +594,7 @@ const canDeleteThisRouteDay =
   isLastRowLocked = true;
   nextDestinationValue = departureLocationObj.name;
 } else {
-                // Normal row: use provided options or global fallback
+ // Normal row: use provided options or global fallback
                 rowSpecificOptions =
                   destinationOptionsMap[idx] &&
                   destinationOptionsMap[idx]!.length > 0

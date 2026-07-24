@@ -105,7 +105,7 @@ const toListItem = (r: RolePermissionListDTO): RolePermissionListItem => {
 };
 
 const toPageRow = (p: RolePermissionPageDTO): RolePermissionPageRow => {
-  // key
+ // key
   const rawKey =
     p.pageKey ??
     p.page_key ??
@@ -114,7 +114,7 @@ const toPageRow = (p: RolePermissionPageDTO): RolePermissionPageRow => {
 
   const pageKey = String(rawKey).trim();
 
-  // name (with safe fallback, no ?? + || mixing)
+ // name (with safe fallback, no + || mixing)
   const rawName =
     p.pageName ??
     p.page_title ??
@@ -144,31 +144,31 @@ const toDetails = (r: RolePermissionDetailsDTO): RolePermissionDetails => {
 };
 
 export const rolePermissionService = {
-  /**
+ /**
    * GET /role-permissions
    * Returns: RolePermissionListItem[]
-   */
+ */
   async list(): Promise<RolePermissionListItem[]> {
     const res = (await api(BASE)) as ListResponseDTO<RolePermissionListDTO>;
     const { rows } = unwrapList(res);
     return rows.map(toListItem);
   },
 
-  /**
+ /**
    * GET /role-permissions/:id
    * Returns: RolePermissionDetails
-   */
+ */
   async getOne(id: string | number): Promise<RolePermissionDetails> {
     const res = (await api(`${BASE}/${id}`)) as OneResponseDTO<RolePermissionDetailsDTO>;
     const dto = unwrapOne(res);
     return toDetails(dto);
   },
 
-  /**
+ /**
    * POST /role-permissions
    * Body: RolePermissionPayload
    * Returns: { id: string }
-   */
+ */
   async create(payload: RolePermissionPayload): Promise<{ id: string }> {
     const res = (await api(BASE, {
       method: "POST",
@@ -182,11 +182,11 @@ export const rolePermissionService = {
     return { id: String(dto.id) };
   },
 
-  /**
+ /**
    * PUT /role-permissions/:id
    * Body: RolePermissionPayload
    * Returns: { ok: true }
-   */
+ */
   async update(id: string | number, payload: RolePermissionPayload): Promise<{ ok: true }> {
     const res = (await api(`${BASE}/${id}`, {
       method: "PUT",
@@ -200,17 +200,17 @@ export const rolePermissionService = {
     return { ok: dto.ok ?? dto.success ?? true };
   },
 
-  /**
+ /**
    * DELETE /role-permissions/:id
-   */
+ */
   async remove(id: string | number): Promise<void> {
     await api(`${BASE}/${id}`, { method: "DELETE" });
   },
 
-  /**
+ /**
    * PATCH /role-permissions/:id/status
    * Body: { status: boolean }
-   */
+ */
   async updateStatus(id: string | number, status: boolean): Promise<{ ok: true }> {
     const res = (await api(`${BASE}/${id}/status`, {
       method: "PATCH",
@@ -223,10 +223,10 @@ export const rolePermissionService = {
     return { ok: dto.ok ?? dto.success ?? true };
   },
 
-  /**
+ /**
    * GET /role-permissions/pages
    * Returns: RolePermissionPageRow[]
-   */
+ */
   async listPages(): Promise<RolePermissionPageRow[]> {
     const res = (await api(`${BASE}/pages`)) as ListResponseDTO<RolePermissionPageDTO>;
     const { rows } = unwrapList(res);

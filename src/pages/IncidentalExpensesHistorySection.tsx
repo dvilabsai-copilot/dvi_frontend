@@ -66,7 +66,7 @@ export const IncidentalExpensesHistorySection: React.FC<IncidentalExpensesHistor
       const historyData = await ItineraryService.getIncidentalHistory(itineraryPlanId);
       setHistory(Array.isArray(historyData) ? historyData : []);
     } catch (error) {
-      console.error('Error fetching incidental history:', error);
+ console.error('Error fetching incidental history:', error);
       toast.error('Failed to load incidental expenses history');
     } finally {
       setLoading(false);
@@ -128,7 +128,7 @@ export const IncidentalExpensesHistorySection: React.FC<IncidentalExpensesHistor
       toast.success('Record deleted successfully');
       await fetchHistory();
     } catch (error: any) {
-      console.error('Error deleting record:', error);
+ console.error('Error deleting record:', error);
       toast.error(error?.message || 'Failed to delete record');
     }
   };

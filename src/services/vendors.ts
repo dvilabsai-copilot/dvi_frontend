@@ -3,13 +3,13 @@ import { api } from "@/lib/api";
 
 /** Normalized Vendor type used by React pages */
 export type Vendor = {
-  id: string;          // backend primary key as string
-  name: string;        // vendorName
-  code: string;        // vendorCode
-  mobile: string;      // vendorMobile
-  email: string | null; // vendorEmail
-  totalBranch: number; // totalBranch
-  isActive: boolean;   // status === 1 / true
+ id: string; // backend primary key as string
+ name: string; // vendorName
+ code: string; // vendorCode
+ mobile: string; // vendorMobile
+ email: string | null; // vendorEmail
+ totalBranch: number; // totalBranch
+ isActive: boolean; // status === 1 / true
 };
 
 export type ListVendorsParams = {
@@ -49,7 +49,7 @@ type VendorsApiResponse =
       };
     };
 
-/** Map backend row → frontend Vendor */
+/** Map backend row frontend Vendor */
 function mapRow(row: VendorsApiRow): Vendor {
   return {
     id: String(row.id),

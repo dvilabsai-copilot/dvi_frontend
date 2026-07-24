@@ -116,7 +116,7 @@ export const CreateItinerary = () => {
   const isAgentLogin = loggedInUser.role === 4;
   const loggedInAgentId = loggedInUser.agentId;
 
-  // agents / dropdown data
+ // agents / dropdown data
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [itineraryTypes, setItineraryTypes] = useState<SimpleOption[]>([]);
@@ -132,7 +132,7 @@ export const CreateItinerary = () => {
   const [hotelCategoryOptions, setHotelCategoryOptions] = useState<SimpleOption[]>([]);
   const [hotelFacilityOptions, setHotelFacilityOptions] = useState<SimpleOption[]>([]);
 
-  // header selections
+ // header selections
   const [itineraryPreference, setItineraryPreference] = useState<"vehicle" | "hotel" | "both">(
     "both"
   );
@@ -147,13 +147,13 @@ export const CreateItinerary = () => {
   const [entryTicketRequired, setEntryTicketRequired] = useState("");
   const [guideRequired, setGuideRequired] = useState("");
   const [nationality, setNationality] = useState("");
-  const [foodPreference, setFoodPreference] = useState(""); // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ store option id string
+ const [foodPreference, setFoodPreference] = useState(""); // store option id string
   const [mealPlanCode, setMealPlanCode] = useState<string>("__ALL__");
 
   const [tripStartDate, setTripStartDate] = useState<string>("");
   const [tripEndDate, setTripEndDate] = useState<string>("");
 
-// ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Start/End time used to build trip_start_date and trip_end_date payload
+// Start/End time used to build trip_start_date and trip_end_date payload
 const [startTime, setStartTime] = useState<string>(DEFAULT_ITINERARY_START_TIME);
 const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
 
@@ -177,14 +177,14 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     }
   }, [needsTransportEarlyArrivalPreference]);
 
-  // Special instructions (goes in payload)
+ // Special instructions (goes in payload)
   const [specialInstructions, setSpecialInstructions] = useState<string>("");
 
-  // hotel categories (required for hotel/both)
+ // hotel categories (required for hotel/both)
   const [selectedHotelCategoryIds, setSelectedHotelCategoryIds] = useState<number[]>([]);
   const [selectedHotelFacilityIds, setSelectedHotelFacilityIds] = useState<string[]>([]);
 
-  // rooms + travellers hook
+ // rooms + travellers hook
   const { rooms, setRooms, addRoom, removeRoom, buildTravellers } = useRoomsAndTravellers();
 
   const travellerCounts = useMemo(
@@ -197,7 +197,7 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     [travellerCounts]
   );
 
-  // vehicles
+ // vehicles
   const [vehicles, setVehicles] = useState<VehicleRow[]>([
     { id: 1, type: "", count: 1 },
   ]);
@@ -216,7 +216,7 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
   const [budget, setBudget] = useState<number | "">("");
   const [templateAppliedKey, setTemplateAppliedKey] = useState<string>("");
 
-  // routes + via routes hook
+ // routes + via routes hook
     const {
     routeDetails,
     setRouteDetails,
@@ -278,12 +278,12 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     request: null,
   });
 
-  // Route suggestions modal
+ // Route suggestions modal
   const [showDefaultRouteSuggestions, setShowDefaultRouteSuggestions] =
   useState(false);
 const defaultRouteWarningShownRef = useRef(false);
 
-// ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Prevent old vehicle-type API responses from clearing latest Customize route result
+// Prevent old vehicle-type API responses from clearing latest Customize route result
 const vehicleTypeRequestRef = useRef(0);
 
 const saveProgressTimerRef = useRef<number | null>(null);
@@ -357,7 +357,7 @@ const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
     transportEarlyArrivalHotelName,
   });
 
-  // Handler for route suggestion selection
+ // Handler for route suggestion selection
   const handleRouteSelection = (
     routeDetails: any[],
     tabIndex: number
@@ -385,7 +385,7 @@ const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
     setShowDefaultRouteSuggestions(false);
   };
 
-   
+
   const addVehicle = () => {
     setVehicles((prev) => {
       const last = prev[prev.length - 1];
@@ -509,7 +509,7 @@ const addDay = () => {
     return updated;
   });
 };
-  // ----------------- VALIDATION -----------------
+ // ----------------- VALIDATION -----------------
 
   const noOfNights = calculateNights(tripStartDate, tripEndDate);
   const noOfDays = tripStartDate && tripEndDate ? Math.max(1, noOfNights + 1) : 1;
@@ -748,7 +748,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
     getEstimatedSaveMs,
   });
 
-  // ----------------- UI -----------------
+ // ----------------- UI -----------------
 
   if (loading) {
     return <div className="p-4">Loading...</div>;

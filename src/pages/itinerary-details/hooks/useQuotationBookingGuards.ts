@@ -98,7 +98,7 @@ export const useQuotationBookingGuards = ({
   }
 
   const clientIp = requiresHotelBookingFlow
-    ? await fetch('https://api.ipify.org?format=json')
+ ? await fetch('https://api.ipify.org?format=json')
         .then((response) => response.json())
         .then((data) => data.ip)
         .catch(() => '192.168.1.1')

@@ -75,20 +75,20 @@ export const HotelList: React.FC<HotelListProps> = ({
   hotelRatesVisible,
   showHotelMargins = false,
   hotelAvailability,
-  quoteId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive quoteId from parent
-  planId, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Receive planId from parent
+ quoteId, // Receive quoteId from parent
+ planId, // Receive planId from parent
   onToggleHotelRates,
   onRefresh,
   onGroupTypeChange,
   onGetSaveFunction,
-  readOnly = false, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Default to edit mode
-  onCreateVoucher, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for voucher creation
+ readOnly = false, // NEW: Default to edit mode
+ onCreateVoucher, // NEW: Callback for voucher creation
   onCancelVoucher,
   onBulkCancelVouchers,
   onTemporarySelectionCostPreview,
-  onTotalChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for total amount changes
+ onTotalChange, // NEW: Callback for total amount changes
   roomCount = 1,
-  onHotelSelectionsChange, // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Callback for selections
+ onHotelSelectionsChange, // NEW: Callback for selections
   dayDestinationFallback = {},
   pagination,
   routePagination,
@@ -148,9 +148,9 @@ const getExpandedRouteId = (): number => {
     });
 
     return {
-      // Automatic choices are merged into continuous supplier stays later. A
-      // hotel is therefore eligible only when both the selected night and the
-      // full continuous stay can be booked.
+ // Automatic choices are merged into continuous supplier stays later. A
+ // hotel is therefore eligible only when both the selected night and the
+ // full continuous stay can be booked.
       blocked: Boolean(
         preview.blocked ||
         !preview.canBookSingleNight ||
@@ -331,36 +331,36 @@ const getExpandedRouteId = (): number => {
     };
   };
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track unsaved hotel selections (for batch save on confirm)
+ // Track unsaved hotel selections (for batch save on confirm)
   const [unsavedSelections, setUnsavedSelections] = useState<Map<string, HotelRoomDetail>>(new Map());
 
-  // Active tab = current group_type from backend
+ // Active tab = current group_type from backend
   const [activeGroupType, setActiveGroupType] = useState<number | null>(null);
-  // Local "Display Rates" state driven by backend flag
+ // Local "Display Rates" state driven by backend flag
   const [showRates, setShowRates] = useState<boolean>(hotelRatesVisible);
-  // Offline options are already fetched with the other providers; this only
-  // controls whether their room cards are visible in the expanded stay.
+ // Offline options are already fetched with the other providers; this only
+ // controls whether their room cards are visible in the expanded stay.
   const [showOfflineHotels, setShowOfflineHotels] = useState(false);
 
-  // Expanded hotel row key & loaded rooms
+ // Expanded hotel row key & loaded rooms
   const [expandedRowKey, setExpandedRowKey] = useState<string | null>(null);
   const [loadingRowKey, setLoadingRowKey] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState<number>(0);
   const [roomDetails, setRoomDetails] = useState<HotelRoomDetail[]>([]);
   const [selectedHotelId, setSelectedHotelId] = useState<number | null>(null);
   const [isUpdatingHotel, setIsUpdatingHotel] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false); // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track sync operation
+ const [isSyncing, setIsSyncing] = useState(false); // Track sync operation
 
-  // Cache for hotel room details by quoteId
+ // Cache for hotel room details by quoteId
   const [roomDetailsCache, setRoomDetailsCache] = useState<Record<string, HotelRoomDetail[]>>({});
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track selected room-type option key per hotel inside expanded panel
-  // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
+ // Track selected room-type option key per hotel inside expanded panel
+ // Key: hotel identity key (hotelName|provider), Value: getHotelOptionKey of selected rate
   const [selectedRoomTypeByHotel, setSelectedRoomTypeByHotel] = useState<Record<string, string>>({});
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Track which hotel's room type dropdown is open
+ // Track which hotel's room type dropdown is open
   const [, setRoomTypeDropdownOpen] = useState<string | null>(null);
 
-  // Confirmation dialog state
+ // Confirmation dialog state
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingHotelAction, setPendingHotelAction] = useState<PendingHotelAction | null>(null);
   const [stayExtensionModalState, setStayExtensionModalState] = useState<{
@@ -368,7 +368,7 @@ const getExpandedRouteId = (): number => {
     action: Omit<PendingHotelAction, "multiNightPreview">;
   } | null>(null);
 
-  // Room selection modal state
+ // Room selection modal state
   const [roomSelectionModal, setRoomSelectionModal] = useState<{
     open: boolean;
     itinerary_plan_hotel_details_ID: number;
@@ -379,7 +379,7 @@ const getExpandedRouteId = (): number => {
     hotel_name: string;
   } | null>(null);
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ NEW: Hotel search query for expanded row
+ // NEW: Hotel search query for expanded row
   const [hotelSearchQuery, setHotelSearchQuery] = useState<string>("");
   const [selectedVoucherRows, setSelectedVoucherRows] = useState<Record<string, {
     routeId: number;
@@ -392,24 +392,24 @@ const getExpandedRouteId = (): number => {
     hotelDetailsIds: number[];
   }>>({});
 
-  // Initialise active tab from backend groups
+ // Initialise active tab from backend groups
   useEffect(() => {
     if (!activeGroupType && hotelTabs && hotelTabs.length > 0) {
       const initialGroupType = toNumber(hotelTabs[0].groupType, 1);
       setActiveGroupType(initialGroupType);
-      // Notify parent of initial group type
+ // Notify parent of initial group type
       if (onGroupTypeChange) {
         onGroupTypeChange(initialGroupType);
       }
     }
   }, [activeGroupType, hotelTabs, onGroupTypeChange]);
 
-  // Keep local switch in sync if backend changes
+ // Keep local switch in sync if backend changes
   useEffect(() => {
     setShowRates(hotelRatesVisible);
   }, [hotelRatesVisible]);
 
-  // Keep expanded panel in sync when hotel rows change (e.g. load more)
+ // Keep expanded panel in sync when hotel rows change (e.g. load more)
   useEffect(() => {
     setLoadingRowKey(null);
     if (!expandedRowKey) {
@@ -455,13 +455,13 @@ const getExpandedRouteId = (): number => {
     setRoomDetails(updatedHotels);
   }, [hotels, localRestrictedHotels]);
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get active tab total
+ // Get active tab total
   const getActiveTabTotal = (): number => {
     if (activeGroupType === null) return 0;
     return getGroupTotal(activeGroupType);
   };
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Get overall total (sum of active groupType only, as per requirements)
+ // Get overall total (sum of active groupType only, as per requirements)
   const getOverallSelectedHotelTotal = (): number => {
     if (readOnly) {
       return localHotels.reduce(
@@ -473,7 +473,7 @@ const getExpandedRouteId = (): number => {
     return getActiveTabTotal();
   };
 
-  // Current group's total for display
+ // Current group's total for display
   const currentTabTotal = useMemo(() => {
     return getActiveTabTotal();
   }, [activeGroupType, selectedByGroup, userSelectedByStay, localHotels]);
@@ -701,9 +701,9 @@ const getExpandedRouteId = (): number => {
     return next;
   };
 
-  // Keep parent selection state in sync with the currently selected hotels per stay.
-  // Consecutive STAAH/AxisRooms rows with same hotel + room + rate are merged into
-  // one multiNightBooking payload so supplier receives one continuous stay.
+ // Keep parent selection state in sync with the currently selected hotels per stay.
+ // Consecutive STAAH/AxisRooms rows with same hotel + room + rate are merged into
+ // one multiNightBooking payload so supplier receives one continuous stay.
   useEffect(() => {
     if (!onHotelSelectionsChange || activeGroupType === null || readOnly) return;
 
@@ -784,18 +784,18 @@ const getExpandedRouteId = (): number => {
     pendingHotelAction,
   });
 
-  // Expose save function to parent via callback
+ // Expose save function to parent via callback
   React.useEffect(() => {
     if (onGetSaveFunction) {
       onGetSaveFunction(saveAllHotelSelections);
     }
   }, [onGetSaveFunction]);
 
-  // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Notify parent when active group total changes (active groupType only)
-  // Parent selections are now synced explicitly on user choose/update action above.
+ // Notify parent when active group total changes (active groupType only)
+ // Parent selections are now synced explicitly on user choose/update action above.
 
 
-  // ---------- RENDER ----------
+ // ---------- RENDER ----------
   const tableContext = {
     styles,
     showRates,
@@ -863,7 +863,7 @@ const getExpandedRouteId = (): number => {
 
   return (
     <Card className="border-none shadow-none bg-white relative">
-      {/* Loading Overlay with Spinner */}
+ {/* Loading Overlay with Spinner */}
       {loadingRowKey !== null && (
         <div className="fixed inset-0 bg-black/20 flex items-center justify-center z-50 rounded-lg">
           <div className="bg-white rounded-lg p-8 shadow-lg flex flex-col items-center gap-4">
@@ -873,9 +873,9 @@ const getExpandedRouteId = (): number => {
         </div>
       )}
       <CardContent className="pt-2">
-        {/* Header + Display Rates toggle */}
+ {/* Header + Display Rates toggle */}
         <div className="flex justify-between items-center py-2 mb-1">
-          {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Read-only mode: Show simple "Hotel Details (ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹ total)" like PHP */}
+ {/* Read-only mode: Show simple "Hotel Details ( total)" like PHP */}
           {readOnly ? (
             <h2 className="text-lg font-semibold text-[#4a4260]">
               Hotel Details ({formatCurrency(getOverallSelectedHotelTotal())})
@@ -884,7 +884,7 @@ const getExpandedRouteId = (): number => {
             <h2 className="text-sm font-bold tracking-wider text-[#5d5f65]">HOTEL LIST</h2>
           )}
 
-          {/* PHP-style toggle switch */}
+ {/* PHP-style toggle switch */}
           <div className="flex items-center gap-3">
             {readOnly && onBulkCancelVouchers && Object.keys(selectedVoucherRows).length > 0 && (
               <Button
@@ -930,7 +930,7 @@ const getExpandedRouteId = (): number => {
           </div>
         </div>
 
-        {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Unsaved Changes Indicator */}
+ {/* Unsaved Changes Indicator */}
         {unsavedSelections.size > 0 && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
             <span className="text-amber-600 font-medium">Warning: {unsavedSelections.size} unsaved hotel selection(s)</span>
@@ -953,8 +953,8 @@ const getExpandedRouteId = (): number => {
           </div>
         )}
 
-        {/* Recommended Hotel Groups ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ based on real backend groups */}
-        {/* ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ IN READ-ONLY MODE: Hide tabs completely, no group type display */}
+ {/* Recommended Hotel Groups based on real backend groups */}
+ {/* IN READ-ONLY MODE: Hide tabs completely, no group type display */}
         {!readOnly && (
           <div className={styles["hotel-list-nav"]}>
             {hotelTabs && hotelTabs.length > 0 ? (
@@ -964,7 +964,7 @@ const getExpandedRouteId = (): number => {
                 const tabTotal = getGroupTotal(tabGroupType);
                 const recommendationLabels = [
                   "Recommended #1",
-                  "Recommended #2", 
+                  "Recommended #2",
                   "Recommended #3",
                   "Recommended #4"
                 ];
@@ -977,10 +977,10 @@ const getExpandedRouteId = (): number => {
                       setLoadingRowKey("tab-switch");
                       setExpandedRowKey(null);
                       setRoomDetails([]);
-                      // Small delay to show loader and simulate tab switch
+ // Small delay to show loader and simulate tab switch
                       setTimeout(() => {
                         setLoadingRowKey(null);
-                        // Notify parent that group type changed
+ // Notify parent that group type changed
                         if (onGroupTypeChange) {
                           onGroupTypeChange(tabGroupType);
                         }

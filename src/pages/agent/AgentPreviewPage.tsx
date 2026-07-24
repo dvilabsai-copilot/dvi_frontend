@@ -22,14 +22,14 @@ import { api } from "@/lib/api";
 type SubscriptionRow = {
   id?: number;
   title: string;
-  amount: string; // formatted currency or raw
-  start: string; // human date
-  end: string; // human date
+ amount: string; // formatted currency or raw
+ start: string; // human date
+ end: string; // human date
   txnId: string;
-  paymentStatus: string; // e.g. "Free", "Paid", "Pending"
+ paymentStatus: string; // e.g. "Free", "Paid", "Pending"
 };
 
-/** Small util: show “--” for empty */
+/** Small util: show -- for empty */
 const show = (v?: string | null) => {
   const s = (v ?? "").toString().trim();
   return s ? s : "--";
@@ -44,7 +44,7 @@ function statusBadgeClasses(status: string) {
   if (s === "free") {
     return "bg-orange-50 text-orange-700 border border-orange-200";
   }
-  // fallback (pending/others)
+ // fallback (pending/others)
   return "bg-gray-50 text-gray-700 border border-gray-200";
 }
 
@@ -56,13 +56,13 @@ export default function AgentPreviewPage() {
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // subscription history
+ // subscription history
   const [subs, setSubs] = useState<SubscriptionRow[]>([]);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [q, setQ] = useState("");
 
-  // ---- load agent details ----
+ // ---- load agent details ----
   useEffect(() => {
     let active = true;
     (async () => {
@@ -81,7 +81,7 @@ export default function AgentPreviewPage() {
     };
   }, [agentId]);
 
-  // ---- load subscription history ----
+ // ---- load subscription history ----
   useEffect(() => {
     let active = true;
     (async () => {
@@ -110,7 +110,7 @@ export default function AgentPreviewPage() {
     };
   }, [agentId]);
 
-  // ---- search + pagination for subscription table ----
+ // ---- search + pagination for subscription table ----
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
     if (!term) return subs;
@@ -131,7 +131,7 @@ export default function AgentPreviewPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header / Breadcrumb-ish */}
+ {/* Header / Breadcrumb-ish */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
@@ -145,7 +145,7 @@ export default function AgentPreviewPage() {
         <div className="text-sm text-muted-foreground">Dashboard &gt; Agent</div>
       </div>
 
-      {/* Card: Agent Details */}
+ {/* Card: Agent Details */}
       <div className="bg-white rounded-lg border shadow-sm p-6">
         <h2 className="text-lg font-semibold mb-6">Agent Details</h2>
 
@@ -165,7 +165,7 @@ export default function AgentPreviewPage() {
             <Detail label="Mobile No" value={show(agent.mobileNumber)} />
             <Detail label="Alternative Mobile No" value={show(agent.alternativeMobile)} />
 
-            <Detail label="Travel Expert" value={show(/* reserved */ "")} />
+ <Detail label="Travel Expert" value={show(/* reserved */ "")} />
             <Detail label="GSTIN Number" value={show(agent.gstin)} />
             <Detail
               label="GST Attachment"
@@ -188,7 +188,7 @@ export default function AgentPreviewPage() {
         )}
       </div>
 
-      {/* Card: Subscription History */}
+ {/* Card: Subscription History */}
       <div className="bg-white rounded-lg border shadow-sm p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">List of Subscription History</h2>

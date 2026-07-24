@@ -99,7 +99,7 @@ export function BookActivitiesPageView({ context }: { context: Record<string, an
 
             <div className="ba-hero-visual" aria-hidden="true">
               <img
-                src="https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=1600&q=85"
+ src="https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=1600&q=85"
                 alt="Paragliding over mountain valley"
               />
             </div>

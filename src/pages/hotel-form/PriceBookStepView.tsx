@@ -5,7 +5,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
     <>
       <h3 className="text-pink-600 font-semibold mb-4">Hotel Price Book</h3>
 
-      {/* ====== Hotel Margin ====== */}
+ {/* ====== Hotel Margin ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">
@@ -85,7 +85,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
 
       </div>
 
-      {/* ====== Meal Details ====== */}
+ {/* ====== Meal Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
           <h5 className="font-semibold text-gray-800 text-sm md:text/base">
@@ -256,7 +256,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         )}
       </div>
 
-      {/* ====== Amenities Details ====== */}
+ {/* ====== Amenities Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">
@@ -436,7 +436,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         )}
       </div>
 
-      {/* ====== Room Details ====== */}
+ {/* ====== Room Details ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">
@@ -446,7 +446,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-2">
-                
+
            <div
   className="relative"
   onMouseDown={(e) => {
@@ -634,7 +634,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
                 No rate plans found for the selected room.
               </div>
             ) : (
-              OCCUPANCY_FIELDS.map(({ occupancyKey }) => (
+              OCCUPANCY_FIELDS.map((occupancyKey: string) => (
                 <div key={occupancyKey} className="col-span-12 md:col-span-3 lg:col-span-2">
                   <label className="block text-xs font-medium mb-1">
                     {occupancyKey} ({"\u20B9"})
@@ -653,7 +653,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         )}
       </div>
 
-      {/* ====== Range-based Occupancy Grid ====== */}
+ {/* ====== Range-based Occupancy Grid ====== */}
       {canLoadRangeView && (
         <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -706,10 +706,10 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         </div>
       )}
 
-      {/* ====== Room Availability ====== */}
+ {/* ====== Room Availability ====== */}
       <div className="border rounded-xl bg-white shadow-sm mb-4 p-4">
 
-        {/* Header â€” mirrors Room Details header style */}
+ {/* Header mirrors Room Details header style */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b pb-3 mb-3">
           <h5 className="font-semibold text-gray-800 text-sm md:text-base">Room Availability</h5>
 
@@ -798,12 +798,12 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
         {availError && <div className="mb-3 text-sm text-red-600">{availError}</div>}
         {availSuccess && <div className="mb-3 text-sm text-green-600">{availSuccess}</div>}
 
-        {/* Body â€” room dropdown + free rooms input, mirrors occupancy body grid */}
+ {/* Body room dropdown + free rooms input, mirrors occupancy body grid */}
         {rooms.length === 0 ? (
           <div className="text-sm text-gray-500">No rooms found.</div>
         ) : (
           <div className="grid grid-cols-12 gap-4 mb-4">
-            {/* Room selector */}
+ {/* Room selector */}
             <div className="col-span-12 md:col-span-4">
               <label className="block text-xs font-medium mb-1">Choose Room</label>
               <select
@@ -822,7 +822,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               </select>
             </div>
 
-            {/* Free Rooms input */}
+ {/* Free Rooms input */}
             <div className="col-span-12 md:col-span-3">
               <label className="block text-xs font-medium mb-1">Free Rooms</label>
               <input
@@ -835,7 +835,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
               />
             </div>
 
-            {/* Hint */}
+ {/* Hint */}
             <div className="col-span-12 md:col-span-5 flex items-end">
               <p className="text-xs text-gray-500">
                 {availStartDate && availEndDate
@@ -846,7 +846,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
           </div>
         )}
 
-        {/* Read-back table â€” auto-loads when room + dates selected */}
+ {/* Read-back table auto-loads when room + dates selected */}
         {canLoadAvailView && (
           <div style={{ width: "100%", overflowX: "auto", scrollbarWidth: "thin", scrollbarColor: "#4b0082 #e0e0e0" }}>
             <table style={{ borderCollapse: "collapse", boxShadow: "0 0 10px rgba(0,0,0,0.1)", minWidth: `${200 + availViewDates.length * 150}px` }}>
@@ -908,7 +908,7 @@ export function PriceBookStepView({ context }: { context: Record<string, any> })
       </div>
 
 
-      {/* ====== Footer ====== */}
+ {/* ====== Footer ====== */}
       <div className="flex items-center justify-between mt-6">
         <button
           type="button"

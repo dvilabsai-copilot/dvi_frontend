@@ -17,13 +17,13 @@ export function AccountsSectionTable({
 
     if (!rowsForType || rowsForType.length === 0) return null;
 
-    // SPECIAL: HOTEL COMPONENT – MATCH PHP HEADERS
+ // SPECIAL: HOTEL COMPONENT MATCH PHP HEADERS
     if (type === "hotel") {
       return (
         <>
           <TableHeader>
             <TableRow className="bg-[#fbf2ff]">
-              {/* 1–4 */}
+ {/* 14 */}
               <TableHead className="text-xs text-[#4a4260]">
                 QUOTE ID
               </TableHead>
@@ -37,7 +37,7 @@ export function AccountsSectionTable({
                 AMOUNT
               </TableHead>
 
-              {/* 5–11 */}
+ {/* 511 */}
               <TableHead className="text-xs text-[#4a4260] text-right">
                 PAYOUT
               </TableHead>
@@ -60,7 +60,7 @@ export function AccountsSectionTable({
                 DATE
               </TableHead>
 
-              {/* 12–15 */}
+ {/* 1215 */}
               <TableHead className="text-xs text-[#4a4260]">
                 GUEST
               </TableHead>
@@ -114,12 +114,12 @@ export function AccountsSectionTable({
                   key={`hotel-${index}`}
                   className="hover:bg-[#fff7ff]"
                 >
-                  {/* 1. QUOTE ID */}
+ {/* 1. QUOTE ID */}
                   <TableCell className="text-sm text-[#7b6b99]">
                     {r.quoteId}
                   </TableCell>
 
-                  {/* 2. ACTION */}
+ {/* 2. ACTION */}
                   <TableCell>
                     <Button
                       className="h-7 bg-[#f6ecff] hover:bg-[#f6ecff] text-[#7c2f9a] px-4 rounded-md text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -130,27 +130,27 @@ export function AccountsSectionTable({
                     </Button>
                   </TableCell>
 
-                  {/* 3. HOTEL NAME */}
+ {/* 3. HOTEL NAME */}
                   <TableCell className="text-sm text-[#4a4260]">
                     {r.hotelName}
                   </TableCell>
 
-                  {/* 4. AMOUNT */}
+ {/* 4. AMOUNT */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(amount)}
                   </TableCell>
 
-                  {/* 5. PAYOUT */}
+ {/* 5. PAYOUT */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(payout)}
                   </TableCell>
 
-                  {/* 6. PAYABLE */}
+ {/* 6. PAYABLE */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(payable)}
                   </TableCell>
 
-                  {/* 7. RECEIVABLE FROM AGENT (amount + name stacked like PHP) */}
+ {/* 7. RECEIVABLE FROM AGENT (amount + name stacked like PHP) */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     <div>{formatINR(receivableFromAgentAmount)}</div>
                     <div className="text-xs text-[#7b6b99]">
@@ -158,42 +158,42 @@ export function AccountsSectionTable({
                     </div>
                   </TableCell>
 
-                  {/* 8. INHAND AMOUNT */}
+ {/* 8. INHAND AMOUNT */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(inhandAmount)}
                   </TableCell>
 
-                  {/* 9. MARGIN AMOUNT */}
+ {/* 9. MARGIN AMOUNT */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(marginAmount)}
                   </TableCell>
 
-                  {/* 10. TAX */}
+ {/* 10. TAX */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {formatINR(taxAmount)}
                   </TableCell>
 
-                  {/* 11. DATE */}
+ {/* 11. DATE */}
                   <TableCell className="text-sm text-[#4a4260]">
                     {date || "-"}
                   </TableCell>
 
-                  {/* 12. GUEST */}
+ {/* 12. GUEST */}
                   <TableCell className="text-sm text-[#4a4260]">
                     {guest || "-"}
                   </TableCell>
 
-                  {/* 13. ROOM COUNT */}
+ {/* 13. ROOM COUNT */}
                   <TableCell className="text-sm text-right text-[#4a4260]">
                     {roomCount || "-"}
                   </TableCell>
 
-                  {/* 14. ARRIVAL START DATE */}
+ {/* 14. ARRIVAL START DATE */}
                   <TableCell className="text-sm text-[#4a4260]">
                     {arrivalStart || "-"}
                   </TableCell>
 
-                  {/* 15. DESTINATION END DATE */}
+ {/* 15. DESTINATION END DATE */}
                   <TableCell className="text-sm text-[#4a4260]">
                     {destinationEnd || "-"}
                   </TableCell>
@@ -205,7 +205,7 @@ export function AccountsSectionTable({
       );
     }
 
-    // GENERIC LAYOUT FOR OTHER COMPONENTS (guide / hotspot / activity / vehicle / flight)
+ // GENERIC LAYOUT FOR OTHER COMPONENTS (guide / hotspot / activity / vehicle / flight)
     return (
       <>
         <TableHeader>

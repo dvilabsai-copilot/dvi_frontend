@@ -33,7 +33,7 @@ export function parseDDMMYYYY(dateStr: string): Date | null {
 function parseTimeParts(timeStr: string) {
   const t = (timeStr || "").trim();
 
-  // Accept both "HH:mm" and "hh:mm AM/PM"
+ // Accept both "HH:mm" and "hh:mm AM/PM"
   const hasMeridian = /\b(am|pm)\b/i.test(t);
 
   if (hasMeridian) {
@@ -51,7 +51,7 @@ function parseTimeParts(timeStr: string) {
     return { hh, mm };
   }
 
-  // "HH:mm"
+ // "HH:mm"
   const [hhStr, mmStr] = t.split(":");
   const hh = Number(hhStr || 0);
   const mm = Number(mmStr || 0);
@@ -88,18 +88,18 @@ export function toISOFromDDMMYYYYAndTime(dateStr: string, timeStr: string) {
 export function calculateNights(arrivalDateStr: string, departureDateStr: string): number {
   const arrivalParts = parseDDMMYYYYParts(arrivalDateStr);
   const departureParts = parseDDMMYYYYParts(departureDateStr);
-  
+
   if (!arrivalParts || !departureParts) return 0;
-  
-  // Create dates at midnight (start of day, local time)
+
+ // Create dates at midnight (start of day, local time)
   const arrivalDate = new Date(arrivalParts.y, arrivalParts.m - 1, arrivalParts.d, 0, 0, 0, 0);
   const departureDate = new Date(departureParts.y, departureParts.m - 1, departureParts.d, 0, 0, 0, 0);
-  
-  // Calculate difference in milliseconds and convert to days
+
+ // Calculate difference in milliseconds and convert to days
   const diffMs = departureDate.getTime() - arrivalDate.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  
-  // Return 0 if departure is before arrival or same day
+
+ // Return 0 if departure is before arrival or same day
   return diffDays > 0 ? diffDays : 0;
 }
 // ----------------- text / via helpers -----------------

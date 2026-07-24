@@ -29,10 +29,10 @@ export const buildClipboardVehicleSectionHtml = ({
   const firstDay = asRecord(days[0]);
   const lastDay = asRecord(days[days.length - 1]);
   const startDate = firstDay.date
-    ? formatHeaderDate(String(firstDay.date)).replace(/^\w+,\s*/, '')
+ ? formatHeaderDate(String(firstDay.date)).replace(/^\w+,\s*/, '')
     : '';
   const endDate = lastDay.date
-    ? formatHeaderDate(String(lastDay.date)).replace(/^\w+,\s*/, '')
+ ? formatHeaderDate(String(lastDay.date)).replace(/^\w+,\s*/, '')
     : '';
   const vehicleRowsHtml = vehicles.length > 0
     ? vehicles.map((vehicleValue) => {

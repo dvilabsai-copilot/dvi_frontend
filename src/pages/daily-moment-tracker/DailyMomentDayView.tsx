@@ -271,7 +271,7 @@ const DayAccordionItem: React.FC<{
               <Button size="sm" variant="outline" className="h-8 px-3 rounded-full text-[11px] border-[#ffe4b5] text-[#b45309] bg-white" onClick={() => onAddGuideReview(day)}>★ Guide Review</Button>
               <Button size="sm" variant="outline" className="h-8 px-3 rounded-full text-[11px] border-[#d9c3ff] text-[#7c3aed] bg-white" onClick={() => onAddCharge(day)}>+ Charge</Button>
               <Button size="sm" variant="outline" className="h-8 px-3 rounded-full text-[11px] border-[#b3e5fc] text-[#0277bd] bg-white" onClick={() => fileInputRef.current?.click()}><Camera className="h-3 w-3 mr-1" /> Upload Image</Button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { if (e.target.files?.length) { onUploadImage(day, e.target.files); e.target.value = ''; } }} />
+ <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { if (e.target.files?.length) { onUploadImage(day, e.target.files); e.target.value = ''; } }} />
               <button className="h-7 w-7 rounded-full flex items-center justify-center text-[#7b6f9a] hover:bg-[#f3e8ff]" onClick={() => setExpanded(v => !v)}>{expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
             </>
           ) : (
@@ -290,13 +290,13 @@ const DayAccordionItem: React.FC<{
             <span><span className="font-semibold">Running KM:</span> {runningKm}</span>
             {!pdfRendering && <button type="button" onClick={() => openingImageRef.current?.click()} className="text-[11px] underline text-[#0f766e]">Upload Opening KM Image</button>}
             {!pdfRendering && <button type="button" onClick={() => closingImageRef.current?.click()} className="text-[11px] underline text-[#0f766e]">Upload Closing KM Image</button>}
-            <input ref={openingImageRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+ <input ref={openingImageRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
               if (e.target.files?.[0]) {
                 onUploadOpeningSpeedometer(day, e.target.files[0]);
                 e.target.value = "";
               }
             }} />
-            <input ref={closingImageRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+ <input ref={closingImageRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
               if (e.target.files?.[0]) {
                 onUploadClosingSpeedometer(day, e.target.files[0]);
                 e.target.value = "";
@@ -356,7 +356,7 @@ export const DailyMomentDayView: React.FC = () => {
   const [ratingSearch, setRatingSearch] = useState("");
   const [guideRatingSearch, setGuideRatingSearch] = useState("");
 
-  // Charge modal
+ // Charge modal
   const [chargeModalOpen, setChargeModalOpen] = useState(false);
   const [chargeDay, setChargeDay] = useState<DayViewDay | null>(null);
   const [chargeType, setChargeType] = useState("");
@@ -364,7 +364,7 @@ export const DailyMomentDayView: React.FC = () => {
   const [chargeSaving, setChargeSaving] = useState(false);
   const [chargeErr, setChargeErr] = useState<string | null>(null);
 
-  // Rating modal
+ // Rating modal
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [ratingDay, setRatingDay] = useState<DayViewDay | null>(null);
   const [ratingValue, setRatingValue] = useState(0);
@@ -372,7 +372,7 @@ export const DailyMomentDayView: React.FC = () => {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [ratingErr, setRatingErr] = useState<string | null>(null);
 
-  // Guide rating modal
+ // Guide rating modal
   const [guideRatingModalOpen, setGuideRatingModalOpen] = useState(false);
   const [guideRatingDay, setGuideRatingDay] = useState<DayViewDay | null>(null);
   const [guideRatingValue, setGuideRatingValue] = useState(0);
@@ -380,15 +380,15 @@ export const DailyMomentDayView: React.FC = () => {
   const [guideRatingSaving, setGuideRatingSaving] = useState(false);
   const [guideRatingErr, setGuideRatingErr] = useState<string | null>(null);
 
-  // KM modal
+ // KM modal
   const [kmModalOpen, setKmModalOpen] = useState(false);
   const [kmDay, setKmDay] = useState<DayViewDay | null>(null);
 
-  // PDF download
+ // PDF download
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfRendering, setPdfRendering] = useState(false);
 
-  /* ------ load ----- */
+ /* ------ load ----- */
   useEffect(() => {
     if (!planId) { setError("Invalid plan ID."); setLoading(false); return; }
     let cancelled = false;
@@ -431,7 +431,7 @@ export const DailyMomentDayView: React.FC = () => {
       const container = document.getElementById("pdf-container");
       if (!container) throw new Error("PDF container not found");
 
-      // Remove gradient highlight before capture
+ // Remove gradient highlight before capture
       const textEls = container.querySelectorAll<HTMLElement>(".text-primary");
       textEls.forEach(el => { el.style.background = "none"; });
 
@@ -439,7 +439,7 @@ export const DailyMomentDayView: React.FC = () => {
       const jsPDF = (await import("jspdf")).jsPDF;
       const canvas = await html2canvas(container, { scale: 2, useCORS: true });
 
-      // Restore gradient
+ // Restore gradient
       textEls.forEach(el => { el.style.background = ""; });
 
       const pdf = new jsPDF("p", "mm", "a4");
@@ -488,7 +488,7 @@ export const DailyMomentDayView: React.FC = () => {
 
       pdf.save(filename);
     } catch (err) {
-      console.error("PDF generation error:", err);
+ console.error("PDF generation error:", err);
     } finally {
       setPdfRendering(false);
       setPdfLoading(false);
@@ -504,7 +504,7 @@ export const DailyMomentDayView: React.FC = () => {
     setCharges(data);
   }, [planId, activeChargeRouteId]);
 
-  /* ------ hotspot status ------ */
+ /* ------ hotspot status ------ */
   const handleHotspotStatusChange = useCallback(async (
     spot: DayViewHotspot, status: 1 | 2, reason: string | undefined, dayIdx: number, hIdx: number
   ) => {
@@ -545,7 +545,7 @@ export const DailyMomentDayView: React.FC = () => {
     });
   }, []);
 
-  /* ------ guide status ------ */
+ /* ------ guide status ------ */
   const handleGuideStatusChange = useCallback(async (
     guide: DayViewGuide, status: 1 | 2, reason: string | undefined, dayIdx: number, isWholeday: boolean
   ) => {
@@ -568,7 +568,7 @@ export const DailyMomentDayView: React.FC = () => {
     });
   }, [plan]);
 
-  /* ------ charge handlers ------ */
+ /* ------ charge handlers ------ */
   const openAddCharge = (day: DayViewDay) => { setActiveChargeRouteId(day.itinerary_route_ID); setChargeDay(day); setChargeType(""); setChargeAmount(""); setChargeErr(null); setChargeModalOpen(true); };
   const handleSaveCharge = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -587,7 +587,7 @@ export const DailyMomentDayView: React.FC = () => {
     await deleteDailyMomentCharge(id); await refreshCharges();
   };
 
-  /* ------ rating handlers ------ */
+ /* ------ rating handlers ------ */
   const openAddRating = (day: DayViewDay) => { setRatingDay(day); setRatingValue(0); setRatingFeedback(""); setRatingErr(null); setRatingModalOpen(true); };
   const handleSaveRating = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -643,7 +643,7 @@ export const DailyMomentDayView: React.FC = () => {
     setGuideRatings(refreshed);
   };
 
-  /* ------ KM ------ */
+ /* ------ KM ------ */
   const openKmModal = (day: DayViewDay) => { setKmDay(day); setKmModalOpen(true); };
   const handleKmSaved = useCallback(async () => {
     const updated = await fetchDayView(planId).catch(() => null);
@@ -660,7 +660,7 @@ export const DailyMomentDayView: React.FC = () => {
     await handleKmSaved();
   }, [planId, handleKmSaved]);
 
-  /* ------ computed ------ */
+ /* ------ computed ------ */
   const totalRunningKm = useMemo(() => plan?.days.reduce((s, d) => s + (d.km.completed ? d.km.running_km : 0), 0) ?? 0, [plan]);
   const filteredCharges = useMemo(() => !chargeSearch.trim() ? charges : charges.filter(c => [c.charge_type, String(c.charge_amount)].join(" ").toLowerCase().includes(chargeSearch.toLowerCase())), [charges, chargeSearch]);
   const filteredRatings = useMemo(() => !ratingSearch.trim() ? ratings : ratings.filter((r: any) => [r.driver_description, String(r.driver_rating), r.route_date].join(" ").toLowerCase().includes(ratingSearch.toLowerCase())), [ratings, ratingSearch]);
@@ -680,7 +680,7 @@ export const DailyMomentDayView: React.FC = () => {
   return (
     <>
       <div id="pdf-container" className="w-full min-h-screen bg-[#ffe9f4] p-4 md:p-6 space-y-4">
-      {/* Header strip */}
+ {/* Header strip */}
       <div className="bg-[#fdddf7] border border-[#f6c5f0] rounded-xl px-4 md:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3 sticky top-0 z-10">
         <div className="text-xs md:text-sm text-[#4a4260]">
           <p className="font-semibold text-sm">{plan.quote_id || `Plan #${plan.itinerary_plan_ID}`}</p>
@@ -699,7 +699,7 @@ export const DailyMomentDayView: React.FC = () => {
         )}
       </div>
 
-      {/* TE + Guest */}
+ {/* TE + Guest */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {[
           { icon: "🌍", label: "Travel Expert", name: plan.travel_expert_name, mobile: plan.travel_expert_mobile, email: plan.travel_expert_email },
@@ -716,7 +716,7 @@ export const DailyMomentDayView: React.FC = () => {
         ))}
       </div>
 
-      {/* Per-day accordion */}
+ {/* Per-day accordion */}
       <div className="space-y-3">
         {plan.days.map((day, idx) => (
           <DayAccordionItem key={day.itinerary_route_ID} day={day} dayIndex={idx} itineraryPlanId={planId} pdfRendering={pdfRendering}
@@ -742,7 +742,7 @@ export const DailyMomentDayView: React.FC = () => {
         ))}
       </div>
 
-      {/* Overall KM */}
+ {/* Overall KM */}
       <Card className="shadow-none border border-[#f6dfff] bg-white">
         <CardContent className="px-4 md:px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <p className="text-sm font-semibold text-[#4a4260]">OVERALL KILOMETER SUMMARY</p>
@@ -750,7 +750,7 @@ export const DailyMomentDayView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Charge table */}
+ {/* Charge table */}
       <Card className="shadow-none border border-[#f6dfff] bg-white">
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -778,7 +778,7 @@ export const DailyMomentDayView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Guide Rating table */}
+ {/* Guide Rating table */}
       <Card className="shadow-none border border-[#f6dfff] bg-white">
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -813,7 +813,7 @@ export const DailyMomentDayView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Rating table */}
+ {/* Rating table */}
       <Card className="shadow-none border border-[#f6dfff] bg-white">
         <CardContent className="px-4 md:px-6 py-4 space-y-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -847,9 +847,9 @@ export const DailyMomentDayView: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* ══ MODALS ══ */}
+ {/* MODALS */}
 
-      {/* Charge modal */}
+ {/* Charge modal */}
       <Dialog open={chargeModalOpen} onOpenChange={setChargeModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -870,7 +870,7 @@ export const DailyMomentDayView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Rating modal */}
+ {/* Rating modal */}
       <Dialog open={ratingModalOpen} onOpenChange={setRatingModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -900,7 +900,7 @@ export const DailyMomentDayView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Guide rating modal */}
+ {/* Guide rating modal */}
       <Dialog open={guideRatingModalOpen} onOpenChange={setGuideRatingModalOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -930,7 +930,7 @@ export const DailyMomentDayView: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* KM modal */}
+ {/* KM modal */}
         {kmDay && (
           <KmModal
             open={kmModalOpen}

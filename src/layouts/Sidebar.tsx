@@ -149,8 +149,8 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
     const sidebarShell = trigger.closest("[data-sidebar-shell]");
     if (!sidebarShell) return;
 
-    // SidebarContent remounts when its parent state changes, so query the live
-    // menu after React has rendered the expanded submenu.
+ // SidebarContent remounts when its parent state changes, so query the live
+ // menu after React has rendered the expanded submenu.
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         const menu = sidebarShell.querySelector<HTMLElement>("[data-sidebar-nav]");
@@ -218,7 +218,7 @@ const profileInitial =
           data.summary.cashWalletBalance || 0,
         );
       } catch (error) {
-        console.error(
+ console.error(
           "Failed to load sidebar wallet amount:",
           error,
         );
@@ -244,8 +244,8 @@ const profileInitial =
     ].includes(item.id);
   }
 
-    // Staff starts from the internal menu set.
-  // Database permissions are applied below.
+ // Staff starts from the internal menu set.
+ // Database permissions are applied below.
   if (role === 1 || isStaff) {
     return [
       "dashboard",
@@ -281,7 +281,7 @@ const profileInitial =
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* HEADER */}
+ {/* HEADER */}
       <div className="flex items-center justify-between px-4 py-4 border-b">
         <div className="flex items-center gap-3">
           <img src="/assets/img/DVi-Logo1-2048x1860.png" alt="DoView Holidays" className="h-8 object-contain" />
@@ -290,7 +290,7 @@ const profileInitial =
         <button onClick={() => setCollapsed(!collapsed)} className="w-6 h-6 rounded-full border flex items-center justify-center text-xs hover:bg-gray-100">●</button>
       </div>
 
-      {/* MENU */}
+ {/* MENU */}
       <nav data-sidebar-nav className="flex-1 overflow-y-auto py-4">
         <ul className="space-y-1 px-2">
           {filteredMenuItems.map((item) => {
@@ -344,7 +344,7 @@ const profileInitial =
         </ul>
       </nav>
 
-      {/* AGENT WALLET */}
+ {/* AGENT WALLET */}
       {role === 4 && !collapsed && (
         <div className="px-4 py-3 border-t">
           <div className="bg-gray-100 rounded-lg p-3 flex items-center gap-3">

@@ -1,7 +1,7 @@
 // FILE: src/services/accountsLedgerApi.ts
 import { API_BASE_URL } from "@/lib/api";
 
-// Component type – matches backend DTO / PHP split
+// Component type matches backend DTO / PHP split
 export type ComponentType =
   | "all"
   | "guide"
@@ -31,8 +31,8 @@ export type LedgerRow = {
   totalBalance: number;
   guest: string;
   arrival: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
+ startDate: string; // YYYY-MM-DD
+ endDate: string; // YYYY-MM-DD
 };
 
 // Dynamic dropdown options type
@@ -48,7 +48,7 @@ export type LedgerFilterOptions = {
 };
 
 
-// 🔐 Helper: attach JWT from localStorage (same idea as other secured APIs)
+// Helper: attach JWT from localStorage (same idea as other secured APIs)
 function getAuthHeaders(): Record<string, string> {
   if (typeof window === "undefined") return {};
   const token =
@@ -79,35 +79,35 @@ type HeaderRow = {
 
 // Generic component row returned by backend for non-agent types
 type ComponentBackendRow = {
-  componentType?: ComponentType; // present for "all" API
+ componentType?: ComponentType; // present for "all" API
   header: HeaderRow;
-  details: any; // specific *_details table (hotel/vehicle/guide/...)
-  transactions: any[]; // *_transaction_history rows
+ details: any; // specific *_details table (hotel/vehicle/guide/...)
+ transactions: any[]; // *_transaction_history rows
 };
 
-// Helper: format Date / DateTime → "YYYY-MM-DD"
+// Helper: format Date / DateTime "YYYY-MM-DD"
 function toYyyyMmDd(dt: string | Date | null | undefined): string {
   if (!dt) return "";
 
-  // If backend sent a JS Date
+ // If backend sent a JS Date
   if (dt instanceof Date) {
-    // toISOString: "2025-10-03T00:00:00.000Z"
+ // toISOString: "2025-10-03T00:00:00.000Z"
     return dt.toISOString().slice(0, 10);
   }
 
-  // If it’s a string (e.g. "2025-10-03T00:00:00.000Z" or "2025-10-03")
+ // If its a string (e.g. "2025-10-03T00:00:00.000Z" or "2025-10-03")
   if (typeof dt === "string") {
     if (dt.length >= 10) {
       return dt.slice(0, 10);
     }
-    return dt; // already short, just return
+ return dt; // already short, just return
   }
 
   return "";
 }
 
 
-// Flatten backend (PHP-style data) → UI LedgerRow[]
+// Flatten backend (PHP-style data) UI LedgerRow[]
 function mapBackendToLedgerRows(
   data: any[],
   requestedComponentType: ComponentType
@@ -115,8 +115,8 @@ function mapBackendToLedgerRows(
   const rows: LedgerRow[] = [];
 
   for (const raw of data) {
-    // 1) AGENT LEDGER (componentType=agent in query)
-    // Backend returns plain header rows (no "header"/"details" wrapper)
+ // 1) AGENT LEDGER (componentType=agent in query)
+ // Backend returns plain header rows (no "header"/"details" wrapper)
     if (requestedComponentType === "agent" && !("header" in raw)) {
       const h = raw as HeaderRow;
 
@@ -124,7 +124,7 @@ function mapBackendToLedgerRows(
         id: h.accounts_itinerary_details_ID,
         bookingId: h.itinerary_quote_ID ?? "",
         componentType: "agent",
-        agentName: `Agent #${h.agent_id}`, // TODO: later join dvi_agent for real names
+ agentName: `Agent #${h.agent_id}`, // TODO: later join dvi_agent for real names
         branch: undefined,
         vehicle: undefined,
         vehicleVendor: undefined,
@@ -146,21 +146,21 @@ function mapBackendToLedgerRows(
       continue;
     }
 
-    // 2) OTHER COMPONENTS & "all" – backend returns { header, details, transactions }
+ // 2) OTHER COMPONENTS & "all" backend returns { header, details, transactions }
     const row = raw as ComponentBackendRow;
     const h = row.header;
     const d = row.details || {};
     const effectiveType: ComponentType =
       (row.componentType as ComponentType) || requestedComponentType;
 
-    // Base totals (header-level)
+ // Base totals (header-level)
     let totalBilled = h.total_billed_amount ?? 0;
     let totalReceived = h.total_received_amount ?? 0;
     let totalReceivable = h.total_receivable_amount ?? 0;
     let totalPaid = 0;
     let totalBalance = 0;
 
-    // Component-specific override using *_details totals
+ // Component-specific override using *_details totals
     if (
       effectiveType === "vehicle" ||
       effectiveType === "hotel" ||
@@ -180,12 +180,12 @@ function mapBackendToLedgerRows(
       totalBalance =
         typeof d.total_balance === "number" ? d.total_balance : 0;
     } else if (effectiveType === "agent") {
-      // agent row wrapped inside "all" result
+ // agent row wrapped inside "all" result
       totalPaid = h.total_payout_amount ?? 0;
       totalBalance = h.total_receivable_amount ?? 0;
     }
 
-    // Component-specific label fields – currently showing IDs.
+ // Component-specific label fields currently showing IDs.
     const agentName = `Agent #${h.agent_id}`;
     let branch: string | undefined;
     let vehicle: string | undefined;
@@ -282,8 +282,8 @@ export async function exportLedgerExcel(
 export async function fetchLedgerFromApi(params: {
   quoteId: string;
   componentType: ComponentType;
-  fromDate: string; // DD/MM/YYYY
-  toDate: string; // DD/MM/YYYY
+ fromDate: string; // DD/MM/YYYY
+ toDate: string; // DD/MM/YYYY
   guideName: string;
   hotspotName: string;
   activityName: string;
@@ -306,7 +306,7 @@ export async function fetchLedgerFromApi(params: {
     search.set("toDate", params.toDate.trim());
   }
 
-  // include global prefix /api/v1 from main.ts
+ // include global prefix /api/v1 from main.ts
   const url = `${API_BASE_URL}/accounts-ledger?${search.toString()}`;
 
   const res = await fetch(url, {
@@ -318,7 +318,7 @@ export async function fetchLedgerFromApi(params: {
   });
 
   if (!res.ok) {
-    console.error("Failed to fetch ledger", res.status, await res.text());
+ console.error("Failed to fetch ledger", res.status, await res.text());
     throw new Error("Failed to fetch ledger");
   }
 
@@ -330,8 +330,8 @@ export async function fetchLedgerFromApi(params: {
 export async function fetchLedgerFilterOptions(params: {
   quoteId: string;
   componentType: ComponentType;
-  fromDate: string; // DD/MM/YYYY
-  toDate: string; // DD/MM/YYYY
+ fromDate: string; // DD/MM/YYYY
+ toDate: string; // DD/MM/YYYY
 }): Promise<LedgerFilterOptions> {
   const search = new URLSearchParams();
 
@@ -346,7 +346,7 @@ export async function fetchLedgerFilterOptions(params: {
     search.set("toDate", params.toDate.trim());
   }
 
-  // include global prefix /api/v1 from main.ts
+ // include global prefix /api/v1 from main.ts
   const url = `${API_BASE_URL}/accounts-ledger/options?${search.toString()}`;
 
   const res = await fetch(url, {
@@ -358,12 +358,12 @@ export async function fetchLedgerFilterOptions(params: {
   });
 
   if (!res.ok) {
-    console.error(
+ console.error(
       "Failed to fetch ledger filter options",
       res.status,
       await res.text()
     );
-    // safe fallback
+ // safe fallback
     return {
       agents: ["All"],
       vehicleBranches: ["All"],

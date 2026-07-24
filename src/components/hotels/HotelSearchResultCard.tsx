@@ -42,7 +42,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
     return Number.isFinite(raw) && raw > 0 ? raw : 0;
   };
 
-  // Calculate number of nights
+ // Calculate number of nights
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
   const nights = Math.ceil(
@@ -60,7 +60,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow bg-white">
-      {/* Image Section */}
+ {/* Image Section */}
       <div className="aspect-video bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center relative overflow-hidden">
         {hotel.images && hotel.images.length > 0 ? (
           <img
@@ -75,7 +75,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
-        {/* Provider Badge */}
+ {/* Provider Badge */}
         {hotel.provider && (
           <div className={`absolute top-2 left-2 px-3 py-1 rounded-full text-xs font-bold shadow-lg text-white ${
             isOfflineOption
@@ -86,7 +86,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
-        {/* Availability Badge */}
+ {/* Availability Badge */}
         {hotel.availableRooms !== undefined && (
           <div className="absolute top-2 right-2 bg-white px-3 py-1 rounded-full text-xs font-semibold text-[#4ba3c3]">
             {hotel.availableRooms > 0 ? (
@@ -101,9 +101,9 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
         )}
       </div>
 
-      {/* Content Section */}
+ {/* Content Section */}
       <div className="p-4">
-        {/* Header with rating */}
+ {/* Header with rating */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex-1">
             <h4 className="font-semibold text-base text-[#4a4260] mb-1">
@@ -134,7 +134,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         </div>
 
-        {/* Address */}
+ {/* Address */}
         <div className="flex items-start gap-1 mb-3">
           <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-[#6c6c6c] line-clamp-2">{hotel.address}</p>
@@ -189,7 +189,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
-        {/* Room Types */}
+ {/* Room Types */}
         {hotel.roomTypes && hotel.roomTypes.length > 0 && (
           <div className="mb-3">
             <p className="text-xs font-medium text-[#4a4260] mb-2">Room Types:</p>
@@ -273,7 +273,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
-        {/* Facilities */}
+ {/* Facilities */}
         {hotel.facilities && hotel.facilities.length > 0 && (
           <div className="mb-3">
             <p className="text-xs font-medium text-[#4a4260] mb-2">Facilities:</p>
@@ -295,7 +295,7 @@ export const HotelSearchResultCard: React.FC<HotelSearchResultCardProps> = ({
           </div>
         )}
 
-        {/* Select Button */}
+ {/* Select Button */}
         <Button
           onClick={handleSelect}
           disabled={isLoading}

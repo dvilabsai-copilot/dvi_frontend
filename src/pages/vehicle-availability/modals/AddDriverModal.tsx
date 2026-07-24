@@ -15,7 +15,7 @@ type Props = {
   onCreated?: () => void;
 
   vendors: SimpleOption[];
-  vehicleTypes?: SimpleOption[]; // optional fallback (we fetch per vendor)
+ vehicleTypes?: SimpleOption[]; // optional fallback (we fetch per vendor)
   defaultVendorId?: number | "";
   defaultVehicleTypeId?: number | "";
 };
@@ -89,7 +89,7 @@ export function AddDriverModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // init on open
+ // init on open
   useEffect(() => {
     if (!open) return;
     setError("");
@@ -100,7 +100,7 @@ export function AddDriverModal({
     setDriverName("");
     setMobile("");
 
-    // preload types for default vendor if provided
+ // preload types for default vendor if provided
     const v = Number(defaultVendorId);
     if (defaultVendorId !== "" && Number.isFinite(v) && v > 0) {
       setLoadingTypes(true);
@@ -113,7 +113,7 @@ export function AddDriverModal({
     }
   }, [open, defaultVendorId, defaultVehicleTypeId]);
 
-  // fetch vendor-specific types when vendor changes
+ // fetch vendor-specific types when vendor changes
   useEffect(() => {
     if (!open) return;
     if (vendorId === "") {
@@ -145,17 +145,17 @@ export function AddDriverModal({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
-  // ---- derived values (no hooks after conditional return) ----
+ // ---- derived values (no hooks after conditional return) ----
   const effectiveVehicleTypes =
     vendorVehicleTypes.length > 0 ? vendorVehicleTypes : legacyVehicleTypes;
 
   const vendorInvalid = vendorId === "";
   const vehicleTypeInvalid = vehicleTypeId === "";
 
-  // simple derived boolean (no useMemo so hooks order is safe)
+ // simple derived boolean (no useMemo so hooks order is safe)
   const mobileValid = (() => {
     const s = mobile.trim();
     if (!s.length) return false;
@@ -177,7 +177,7 @@ export function AddDriverModal({
       setSaving(true);
       await createDriver({
         vendorId: Number(vendorId),
-        vehicleTypeId: Number(vehicleTypeId), // vendor_vehicle_type_ID
+ vehicleTypeId: Number(vehicleTypeId), // vendor_vehicle_type_ID
         driverName: driverName.trim(),
         mobile: mobile.trim(),
       });
@@ -213,7 +213,7 @@ export function AddDriverModal({
           ) : null}
 
           <div className="space-y-6">
-            {/* Vendor */}
+ {/* Vendor */}
             <div>
               <div className={labelBase}>
                 Vendor <span className="text-red-500">*</span>
@@ -229,7 +229,7 @@ export function AddDriverModal({
               </div>
             </div>
 
-            {/* Vehicle Type (vendor-scoped) */}
+ {/* Vehicle Type (vendor-scoped) */}
             <div>
               <div className={labelBase}>
                 Vehicle Type <span className="text-red-500">*</span>
@@ -253,7 +253,7 @@ export function AddDriverModal({
               </div>
             </div>
 
-            {/* Driver Name */}
+ {/* Driver Name */}
             <div>
               <div className={labelBase}>
                 Driver Name <span className="text-red-500">*</span>
@@ -268,7 +268,7 @@ export function AddDriverModal({
               </div>
             </div>
 
-            {/* Primary Mobile */}
+ {/* Primary Mobile */}
             <div>
               <div className={labelBase}>
                 Primary Mobile Number <span className="text-red-500">*</span>
@@ -292,7 +292,7 @@ export function AddDriverModal({
             </div>
           </div>
 
-          {/* Footer */}
+ {/* Footer */}
           <div className="mt-12 flex items-center justify-between">
             <button
               type="button"

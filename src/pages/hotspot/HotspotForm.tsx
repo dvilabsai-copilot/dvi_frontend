@@ -19,7 +19,7 @@ import { hotspotService, HotspotFormData } from "@/services/hotspotService";
 import { toast } from "sonner";
 
 /* -------------------------------------------------------------------------- */
-/*                             Time-picker helpers                             */
+/* Time-picker helpers */
 /* -------------------------------------------------------------------------- */
 
 
@@ -232,7 +232,7 @@ useEffect(() => {
         ...prev,
         galleryImages: [
           ...(prev.galleryImages || []),
-          // support both { url } and { name } shapes
+ // support both { url } and { name } shapes
           ...uploads.map((u: any) =>
             u?.url
               ? u.url

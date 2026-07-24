@@ -1,4 +1,4 @@
-// src/pages/Settings/RolePermissionListPage.tsx    
+// src/pages/Settings/RolePermissionListPage.tsx
 
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -97,7 +97,7 @@ export default function RolePermissionListPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Top title line (like screenshot) */}
+ {/* Top title line (like screenshot) */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-800">Role Permission</h1>
@@ -118,7 +118,7 @@ export default function RolePermissionListPage() {
       <div className="bg-white rounded-lg border p-4 space-y-4">
         <h2 className="text-lg font-semibold text-slate-700">List of Role Permission</h2>
 
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-slate-600">Show</span>
@@ -147,7 +147,7 @@ export default function RolePermissionListPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow className="bg-violet-50/40">
@@ -208,7 +208,7 @@ export default function RolePermissionListPage() {
           </TableBody>
         </Table>
 
-        {/* Footer / Pagination */}
+ {/* Footer / Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-slate-500">
             Showing{" "}
@@ -226,7 +226,7 @@ export default function RolePermissionListPage() {
               Previous
             </Button>
 
-            {/* show up to 5 pages like your HotspotList */}
+ {/* show up to 5 pages like your HotspotList */}
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => i + 1).map((p) => (
               <Button
                 key={p}

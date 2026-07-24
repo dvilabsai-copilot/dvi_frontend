@@ -81,7 +81,7 @@ export const AddVehicleCancellationPolicyModal: React.FC<AddVehicleCancellationP
         onSuccess?.();
       }
     } catch (error: any) {
-      console.error('Failed to add vehicle cancellation policy', error);
+ console.error('Failed to add vehicle cancellation policy', error);
       toast.error(error.message || 'Failed to add vehicle cancellation policy');
     } finally {
       setIsSubmitting(false);

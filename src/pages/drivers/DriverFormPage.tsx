@@ -141,7 +141,7 @@ export default function DriverFormPage() {
   const editingIdParam = params.id ?? null;
   const isEdit = !!editingIdParam;
 
-  const [step, setStep] = useState<number>(0); // 0..4
+ const [step, setStep] = useState<number>(0); // 0..4
 
   const [driverId, setDriverId] = useState<Id | null>(
     isEdit ? (editingIdParam as unknown as Id) : null
@@ -168,16 +168,16 @@ export default function DriverFormPage() {
     [isEdit]
   );
 
-  // In edit mode, once driverId is known, all steps should be clickable.
-  // In add mode, user can only go forward step-by-step.
+ // In edit mode, once driverId is known, all steps should be clickable.
+ // In add mode, user can only go forward step-by-step.
   const canVisit = (idx: number) => {
-    if (idx === 0) return true; // Basic Info always enabled
+ if (idx === 0) return true; // Basic Info always enabled
 
-    if (!driverId) return false; // cannot go beyond basic without a driver
+ if (!driverId) return false; // cannot go beyond basic without a driver
 
-    if (isEdit) return true; // edit: free navigation across all steps
+ if (isEdit) return true; // edit: free navigation across all steps
 
-    // add mode: cannot jump ahead beyond current step
+ // add mode: cannot jump ahead beyond current step
     return idx <= step;
   };
 
@@ -191,17 +191,17 @@ export default function DriverFormPage() {
       setDocs(d || []);
       setReviews(r || []);
     } catch {
-      // ignore
+ // ignore
     }
   }
 
   const goToStep = async (nextIdx: number) => {
     const idx = clampStepIndex(nextIdx);
 
-    // ADD mode: allow only sequential progression (current or next), block larger jumps.
+ // ADD mode: allow only sequential progression (current or next), block larger jumps.
     if (!isEdit && idx > step + 1) return;
 
-    // Safety: steps > 0 require driverId
+ // Safety: steps > 0 require driverId
     if (idx > 0 && !driverId) {
       toast({
         variant: "destructive",
@@ -211,7 +211,7 @@ export default function DriverFormPage() {
       return;
     }
 
-    // If going to Preview, refresh docs/reviews so it shows latest
+ // If going to Preview, refresh docs/reviews so it shows latest
     if (idx === 4) {
       await refreshDocsAndReviews();
     }
@@ -236,10 +236,10 @@ export default function DriverFormPage() {
         setCost((prev) => ({ ...prev, ...(d.costDetails || {}) }));
         setDocs(d.documents || []);
         setReviews(d.reviews || []);
-        setStep(0); // start on Basic in edit mode (like vendor)
+ setStep(0); // start on Basic in edit mode (like vendor)
       }
     } catch (e: any) {
-      console.error("Failed to load driver form", e);
+ console.error("Failed to load driver form", e);
       toast({
         variant: "destructive",
         title: "Failed to load driver form",
@@ -252,7 +252,7 @@ export default function DriverFormPage() {
 
   useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function saveBasicAndNext() {
@@ -264,10 +264,10 @@ export default function DriverFormPage() {
         title: "Saved",
         description: "Basic info saved successfully.",
       });
-      // In add mode, setDriverId is async; move step directly to avoid stale-state blocking.
-      setStep(1); // Cost Details
+ // In add mode, setDriverId is async; move step directly to avoid stale-state blocking.
+ setStep(1); // Cost Details
     } catch (e: any) {
-      console.error("Failed to save basic info", e);
+ console.error("Failed to save basic info", e);
       toast({
         variant: "destructive",
         title: "Save failed",
@@ -294,9 +294,9 @@ export default function DriverFormPage() {
         title: "Updated",
         description: "Cost details updated.",
       });
-      await goToStep(2); // Upload Document
+ await goToStep(2); // Upload Document
     } catch (e: any) {
-      console.error("Failed to save cost details", e);
+ console.error("Failed to save cost details", e);
       toast({
         variant: "destructive",
         title: "Update failed",
@@ -335,9 +335,9 @@ export default function DriverFormPage() {
   return (
     <div className="p-6 bg-violet-50 min-h-screen">
       <div className="max-w-6xl mx-auto space-y-5">
-        {/* Stepper – behaves like Vendor module tabs.
+ {/* Stepper behaves like Vendor module tabs.
             - Edit mode: can click any tab (once data loaded)
-            - Add mode: can only go forward step-by-step */}
+ - Add mode: can only go forward step-by-step */}
         <DriverFormStepper
           activeIndex={step}
           canVisit={canVisit}

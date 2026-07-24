@@ -35,7 +35,7 @@ export const CancelledItineraries: React.FC = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [filteredRecords, setFilteredRecords] = useState(0);
 
-  // Pagination state
+ // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -43,7 +43,7 @@ export const CancelledItineraries: React.FC = () => {
     setLoading(true);
     try {
       const start = (currentPage - 1) * pageSize;
-      
+
       const response = await ItineraryService.getCancelledItineraries({
         draw: currentPage,
         start,
@@ -54,7 +54,7 @@ export const CancelledItineraries: React.FC = () => {
       setTotalRecords(response.recordsTotal);
       setFilteredRecords(response.recordsFiltered);
     } catch (error: any) {
-      console.error('Failed to fetch cancelled itineraries', error);
+ console.error('Failed to fetch cancelled itineraries', error);
       toast.error('Failed to load cancelled itineraries');
     } finally {
       setLoading(false);
@@ -116,8 +116,8 @@ export const CancelledItineraries: React.FC = () => {
                           <TableCell>₹{itinerary.refund_amount.toLocaleString()}</TableCell>
                           <TableCell>
                             <span className={`px-2 py-1 rounded-full text-xs ${
-                              itinerary.refund_status === 1 
-                                ? 'bg-green-100 text-green-700' 
+                              itinerary.refund_status === 1
+                                ? 'bg-green-100 text-green-700'
                                 : 'bg-yellow-100 text-yellow-700'
                             }`}>
                               {itinerary.refund_status === 1 ? 'Refunded' : 'Pending'}
@@ -130,7 +130,7 @@ export const CancelledItineraries: React.FC = () => {
                 </Table>
               </div>
 
-              {/* Pagination */}
+ {/* Pagination */}
               <div className="flex justify-between items-center mt-4">
                 <div className="text-sm text-[#6c6c6c]">
                   Showing {(currentPage - 1) * pageSize + 1} to{' '}

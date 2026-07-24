@@ -39,7 +39,7 @@ export function useRazorpayCheckout() {
     if (!document.getElementById(scriptId)) {
       const script = document.createElement('script');
       script.id = scriptId;
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+ script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       script.async = true;
       document.body.appendChild(script);
     }

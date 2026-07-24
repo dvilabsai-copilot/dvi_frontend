@@ -57,9 +57,9 @@ export function useCreateItineraryEffects(context: Record<string, any>) {
     transportEarlyArrivalHotelName,
   } = context;
 
-  // ----------------- effects -----------------
+ // ----------------- effects -----------------
 
-  // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Auto-clear validation highlight as soon as the field becomes valid
+ // Auto-clear validation highlight as soon as the field becomes valid
 useEffect(() => {
   setValidationErrors((prev) => {
     if (!prev || Object.keys(prev).length === 0) return prev;
@@ -86,7 +86,7 @@ useEffect(() => {
     clearIfOk("nationality", !!nationality);
     clearIfOk("foodPreference", !!foodPreference);
 
-    // Hotel category required only for hotel/both
+ // Hotel category required only for hotel/both
     const hotelCategoryOk =
       !(itineraryPreference === "hotel" || itineraryPreference === "both") ||
       selectedHotelCategoryIds.length > 0;
@@ -104,18 +104,18 @@ useEffect(() => {
 
 
 
-    // First route fields
+ // First route fields
     const firstRoute = routeDetails?.[0];
     clearIfOk("firstRouteSource", !!firstRoute?.source);
     clearIfOk("firstRouteNext", !!firstRoute?.next);
 
-    // Vehicle type required only for vehicle/both
+ // Vehicle type required only for vehicle/both
     const vehicleTypeOk =
       !(itineraryPreference === "vehicle" || itineraryPreference === "both") ||
       (vehicles.every((v) => !!v.type) && !vehiclePaxValidationError);
     clearIfOk("vehicleType", vehicleTypeOk);
 
-    // If nothing changed, keep same reference to avoid rerender loops
+ // If nothing changed, keep same reference to avoid rerender loops
     return Object.keys(next).length === Object.keys(prev).length ? prev : next;
   });
 }, [
@@ -197,16 +197,16 @@ useEffect(() => {
         if (itineraryPlanId) {
           const existing = await itineraryService.getOne(itineraryPlanId);
           if (existing?.plan) {
-            // NOTE: backend returns DB plan (dvi_itinerary_plan_details)
+ // NOTE: backend returns DB plan (dvi_itinerary_plan_details)
             const p = existing.plan;
 
             setAgentId(p.agent_id ?? null);
 
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are arrival_location / departure_location (NOT arrival_point / departure_point)
+ // DB fields are arrival_location / departure_location (not arrival_point / departure_point)
             setArrivalLocation(p.arrival_location ?? "");
             setDepartureLocation(p.departure_location ?? "");
 
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ DB fields are trip_start_date_and_time / trip_end_date_and_time
+ // DB fields are trip_start_date_and_time / trip_end_date_and_time
             setTripStartDate(
               p.trip_start_date_and_time
                 ? safeDateFromISO(p.trip_start_date_and_time)
@@ -220,13 +220,13 @@ useEffect(() => {
 
             );
 
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ also prefill times
-            // Keep the form defaults for times instead of loading the user's
-            // previously saved values from the database.
+ // also prefill times
+ // Keep the form defaults for times instead of loading the user's
+ // previously saved values from the database.
             setStartTime(DEFAULT_ITINERARY_START_TIME);
             setEndTime(DEFAULT_ITINERARY_END_TIME);
 
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ budget in DB is expecting_budget
+ // budget in DB is expecting_budget
             setBudget(p.expecting_budget ?? "");
 
             setArrivalType(p.arrival_type != null ? String(p.arrival_type) : "");
@@ -252,7 +252,7 @@ useEffect(() => {
 
             setNationality(p.nationality != null ? String(p.nationality) : "");
 
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ foodPreference state holds option id
+ // foodPreference state holds option id
 const savedFoodType = Number(p.food_type ?? 0);
 
 const matchedFoodOption = foodRes.find(
@@ -284,7 +284,7 @@ setFoodPreference(
             setTransportEarlyArrivalRestMinutes(
               Number(p.transport_early_arrival_rest_minutes || 180),
             );
-            // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ PREFILL: keep hotel category/facility selections stable across edit reloads.
+ // PREFILL: keep hotel category/facility selections stable across edit reloads.
             setSelectedHotelCategoryIds(
               resolveFirstNonEmptyNumberList(
                 p.preferred_hotel_category,
@@ -330,7 +330,7 @@ setFoodPreference(
     directVisit: r.direct_to_next_visiting_place === 1 ? "Yes" : "No",
   }))
 );
-              
+
             }
 
             if (Array.isArray(existing.vehicles) && existing.vehicles.length) {
@@ -348,13 +348,13 @@ setFoodPreference(
             if (Array.isArray(existing.travellers) && existing.travellers.length) {
               setRooms(buildRoomsFromTravellers(existing.travellers));
             } else {
-              // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
+ // Some edit payloads omit travellers; hydrate rooms from persisted plan totals.
               setRooms(buildRoomsFromPlanSummary(p));
             }
           }
         }
       } catch (err) {
-        console.error("Failed to load data", err);
+ console.error("Failed to load data", err);
       } finally {
         setLoading(false);
       }
@@ -374,9 +374,9 @@ useEffect(() => {
     selectedTypeLabel === "default" ||
     selectedTypeLabel === "suggested routes";
 
-  // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Important:
-  // Do not auto-apply reusable/default route template for Customize.
-  // Customize route details must stay fully manual.
+ // Important:
+ // Do not auto-apply reusable/default route template for Customize.
+ // Customize route details must stay fully manual.
   if (!isSuggestedRouteType) return;
 
   if (!arrivalLocation || !departureLocation || !tripStartDate || !tripEndDate) return;
@@ -458,7 +458,7 @@ useEffect(() => {
             "Applied saved route details only. Your itinerary preference and vehicle selections were kept unchanged.",
         });
       } catch (error) {
-        console.error("Failed to load matching itinerary route template", error);
+ console.error("Failed to load matching itinerary route template", error);
         if (!cancelled) setTemplateAppliedKey(key);
       }
     })();
@@ -478,7 +478,7 @@ useEffect(() => {
   toast,
   setRouteDetails,
 ]);
-  // Auto-open route suggestions modal when itinerary type is "Default"
+ // Auto-open route suggestions modal when itinerary type is "Default"
   useEffect(() => {
     if (itineraryTypeSelect && itineraryTypes.length > 0) {
       const selectedType = itineraryTypes.find(
@@ -491,7 +491,7 @@ useEffect(() => {
         return;
       }
 
-      // Check if the selected type is "Default"
+ // Check if the selected type is "Default"
       if (isDefaultType) {
         const hasRequiredBasicDetails =
           Boolean(arrivalLocation) &&
@@ -505,7 +505,7 @@ useEffect(() => {
         } else {
           setShowDefaultRouteSuggestions(false);
 
-          // PHP parity: warn once until user changes type or completes required fields.
+ // PHP parity: warn once until user changes type or completes required fields.
           if (!defaultRouteWarningShownRef.current) {
             toast({
               title: "Warning !!!",
@@ -582,7 +582,7 @@ useEffect(() => {
       const fallbackIsDifferent =
         JSON.stringify(fallbackPayload) !== JSON.stringify(exactPayload);
 
-      // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Existing exact vehicle matching stays first priority.
+ // Existing exact vehicle matching stays first priority.
       if (
         !hasVehicleTypes &&
         fallbackIsDifferent &&
@@ -604,9 +604,9 @@ useEffect(() => {
           : [];
       }
 
-      // ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Customize-only fallback:
-      // If eligible vehicle API returns empty, load normal vehicle type list.
-      // This keeps Suggested Routes untouched.
+ // Customize-only fallback:
+ // If eligible vehicle API returns empty, load normal vehicle type list.
+ // This keeps Suggested Routes untouched.
       if (!hasVehicleTypes && isCustomizeItineraryType) {
         const allVehicleTypes = await fetchVehicleTypes();
 
@@ -631,7 +631,7 @@ useEffect(() => {
           : []
       );
     } catch (error) {
-      console.error("Failed to load eligible vehicle types", error);
+ console.error("Failed to load eligible vehicle types", error);
 
       if (isMounted && vehicleTypeRequestRef.current === requestId) {
         setVehicleTypes([]);

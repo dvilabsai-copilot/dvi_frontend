@@ -81,7 +81,7 @@ interface ConfirmedItineraryDetail {
   totalCost: number;
   createdDate: string;
   status: 'confirmed' | 'cancelled';
-  routes_with_hotels?: any[]; // Debug field from backend
+ routes_with_hotels?: any[]; // Debug field from backend
   plan?: {
     itinerary_plan_ID: number;
     confirmed_itinerary_plan_ID: number;
@@ -98,25 +98,25 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Use prop if provided (from router - this is the confirmed_itinerary_plan_ID)
-  // Otherwise use URL param directly if it's a number
-  // ⚠️ IMPORTANT: When coming from router, propConfirmedPlanId is the confirmed_itinerary_plan_ID (numeric)
-  //              NOT the quote ID like "DVI2026011"
+ // Use prop if provided (from router - this is the confirmed_itinerary_plan_ID)
+ // Otherwise use URL param directly if it's a number
+ // IMPORTANT: When coming from router, propConfirmedPlanId is the confirmed_itinerary_plan_ID (numeric)
+ // NOT the quote ID like "DVI2026011"
   const confirmedPlanId = propConfirmedPlanId;
-  
-  console.log('🟢 ConfirmedItineraryDetails MOUNTED');
-  console.log('   propConfirmedPlanId (from router):', propConfirmedPlanId);
-  console.log('   id from URL:', id);
-  console.log('   confirmedPlanId (used for API call):', confirmedPlanId);
-  console.log('   API endpoint: GET /itineraries/confirmed/', confirmedPlanId);
+
+ console.log(' ConfirmedItineraryDetails MOUNTED');
+ console.log(' propConfirmedPlanId (from router):', propConfirmedPlanId);
+ console.log(' id from URL:', id);
+ console.log(' confirmedPlanId (used for API call):', confirmedPlanId);
+ console.log(' API endpoint: GET /itineraries/confirmed/', confirmedPlanId);
 
   const [itinerary, setItinerary] = useState<ConfirmedItineraryDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCancellationDialog, setShowCancellationDialog] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
-  
-  // Cancellation options
+
+ // Cancellation options
   const [cancellationOptions, setCancellationOptions] = useState({
     selectAll: false,
     modifyHotspot: false,
@@ -125,8 +125,8 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
     modifyGuide: false,
     modifyActivity: false,
   });
-  
-  // Cancellation result
+
+ // Cancellation result
   const [cancellationResult, setCancellationResult] = useState<any | null>(null);
   const [selectedGuideAssignment, setSelectedGuideAssignment] = useState<ConfirmedGuideAssignmentDetail | null>(null);
   const [selectedGuideSlot, setSelectedGuideSlot] = useState<ConfirmedGuideSlotDetail | null>(null);
@@ -143,19 +143,19 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
 
   const fetchItineraryDetails = async () => {
     if (!confirmedPlanId) {
-      console.warn('No confirmedPlanId provided');
+ console.warn('No confirmedPlanId provided');
       return;
     }
     setLoading(true);
     try {
-      console.log('🔍 Fetching confirmed itinerary details for planId:', confirmedPlanId);
+ console.log(' Fetching confirmed itinerary details for planId:', confirmedPlanId);
       const response = await ItineraryService.getConfirmedItineraryDetails(confirmedPlanId.toString());
-      console.log('✅ Response received:', response);
-      console.log('   Hotels array:', response?.hotels);
-      console.log('   Routes with hotels:', response?.routes_with_hotels);
+ console.log(' Response received:', response);
+ console.log(' Hotels array:', response?.hotels);
+ console.log(' Routes with hotels:', response?.routes_with_hotels);
       setItinerary(response);
     } catch (error: any) {
-      console.error('Failed to fetch itinerary details', error);
+ console.error('Failed to fetch itinerary details', error);
       toast({
         title: 'Error',
         description: error?.message || 'Failed to load itinerary details',
@@ -201,7 +201,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         },
       });
 
-      // Show result with detailed breakdown
+ // Show result with detailed breakdown
       if (response.data) {
         setCancellationResult(response.data);
         toast({
@@ -218,9 +218,9 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         fetchItineraryDetails();
       }
     } catch (error: any) {
-      console.error('Failed to cancel itinerary', error);
+ console.error('Failed to cancel itinerary', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to cancel itinerary';
-      
+
       if (error.response?.status === 409) {
         toast({
           title: 'Error',
@@ -324,7 +324,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
       });
       await fetchItineraryDetails();
     } catch (error: any) {
-      console.error('Failed to cancel guide slot', error);
+ console.error('Failed to cancel guide slot', error);
       toast({
         title: 'Error',
         description: error?.message || 'Failed to cancel guide slot',
@@ -337,7 +337,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
 
   const handleExportPDF = () => {
     if (!id) return;
-    // Trigger PDF download/export
+ // Trigger PDF download/export
     window.location.href = `/api/confirmed-itinerary/${id}/export-pdf`;
   };
 
@@ -356,7 +356,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
 
   return (
     <div className="min-h-screen bg-[#f8f5fc]">
-      {/* ✅ FIXED HEADER - Stays visible on scroll */}
+ {/* FIXED HEADER - Stays visible on scroll */}
       <div className="sticky top-0 z-50 bg-white border-b border-[#e5d9f2] shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -372,46 +372,46 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                 Booking: <span className="font-bold text-[#4a4260]">#{itinerary.quoteId}</span>
               </div>
             </div>
-            
-            {/* Action Buttons - Fixed Position */}
+
+ {/* Action Buttons - Fixed Position */}
             <div className="flex flex-wrap gap-2 justify-end">
-              <Button 
-                onClick={handleExportPDF} 
-                variant="outline" 
+              <Button
+                onClick={handleExportPDF}
+                variant="outline"
                 className="border-[#d546ab] text-[#d546ab] hover:bg-[#fdf6ff] text-sm"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Pluck Card
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="outline"
                 className="border-[#28a745] text-[#28a745] hover:bg-[#f0f9f0] text-sm"
               >
                 Voucher Details
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="outline"
                 className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fff8f0] text-sm"
               >
                 + Add Incidental Expenses
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="outline"
                 className="border-[#dc3545] text-[#dc3545] hover:bg-[#fdf0f0] text-sm"
               >
                 Modify Itinerary
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="outline"
                 className="border-[#17a2b8] text-[#17a2b8] hover:bg-[#f0f7f9] text-sm"
               >
                 Invoice Tax
               </Button>
-              <Button 
+              <Button
                 onClick={handleExportPDF}
                 variant="outline"
                 className="border-[#fd7e14] text-[#fd7e14] hover:bg-[#fff8f0] text-sm"
@@ -432,10 +432,10 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         </div>
       </div>
 
-      {/* Main Content */}
+ {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-6 space-y-6 pb-8">
 
-      {/* Itinerary Header Card */}
+ {/* Itinerary Header Card */}
       <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -444,14 +444,14 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                 Booking ID: <span className="font-bold text-blue-600">#{itinerary.quoteId}</span>
               </div>
               <div className="text-sm text-gray-600 mt-2">
-                {new Date(itinerary.startDate).toLocaleDateString('en-IN', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })} to {new Date(itinerary.endDate).toLocaleDateString('en-IN', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
+                {new Date(itinerary.startDate).toLocaleDateString('en-IN', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                })} to {new Date(itinerary.endDate).toLocaleDateString('en-IN', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
                 })} ({itinerary.nights}N, {itinerary.days}D)
               </div>
             </div>
@@ -494,7 +494,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         </CardContent>
       </Card>
 
-      {/* Hotel Details Section - ✅ Using HotelList component in read-only mode */}
+ {/* Hotel Details Section - Using HotelList component in read-only mode */}
       {itinerary.guideAssignments && itinerary.guideAssignments.length > 0 && (
         <Card className="border border-[#efdef8] rounded-lg bg-white shadow-none">
           <CardHeader>
@@ -599,7 +599,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         </Card>
       )}
 
-      {/* Empty State - No Hotels */}
+ {/* Empty State - No Hotels */}
       {itinerary && (!itinerary.hotels || itinerary.hotels.length === 0) && (
         <Card className="border border-amber-200 bg-amber-50">
           <CardContent className="pt-6">
@@ -617,7 +617,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         </Card>
       )}
 
-      {/* Total Cost Card */}
+ {/* Total Cost Card */}
       <Card className="border border-[#efdef8] rounded-lg bg-gradient-to-r from-[#f8f4ff] to-[#fff9f3] shadow-none">
         <CardContent className="pt-6">
           <div className="flex justify-between items-center">
@@ -629,14 +629,14 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
         </CardContent>
       </Card>
 
-      {/* Cancellation Status */}
+ {/* Cancellation Status */}
       {itinerary.status === 'cancelled' && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800 text-center font-semibold">
           This itinerary has been cancelled
         </div>
       )}
 
-      {/* Cancellation Dialog */}
+ {/* Cancellation Dialog */}
       <Dialog open={showCancellationDialog} onOpenChange={setShowCancellationDialog}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -646,11 +646,11 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Components to Cancel */}
+ {/* Components to Cancel */}
             <div>
               <Label className="text-sm font-medium text-[#4a4260] mb-2 block">Components to Cancel</Label>
               <div className="space-y-2 border border-[#e5d9f2] rounded-lg p-3 bg-gray-50">
-                {/* Select All */}
+ {/* Select All */}
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -674,8 +674,8 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                   </Label>
                 </div>
                 <div className="text-xs text-gray-500 mt-2 ml-6">Cancel:</div>
-                
-                {/* Modify Hotspot */}
+
+ {/* Modify Hotspot */}
                 <div className="flex items-center space-x-2 ml-4">
                   <input
                     type="checkbox"
@@ -695,7 +695,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                   </Label>
                 </div>
 
-                {/* Modify Hotel */}
+ {/* Modify Hotel */}
                 <div className="flex items-center space-x-2 ml-4">
                   <input
                     type="checkbox"
@@ -715,7 +715,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                   </Label>
                 </div>
 
-                {/* Modify Vehicle */}
+ {/* Modify Vehicle */}
                 <div className="flex items-center space-x-2 ml-4">
                   <input
                     type="checkbox"
@@ -735,7 +735,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                   </Label>
                 </div>
 
-                {/* Modify Guide */}
+ {/* Modify Guide */}
                 <div className="flex items-center space-x-2 ml-4">
                   <input
                     type="checkbox"
@@ -755,7 +755,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
                   </Label>
                 </div>
 
-                {/* Modify Activity */}
+ {/* Modify Activity */}
                 <div className="flex items-center space-x-2 ml-4">
                   <input
                     type="checkbox"
@@ -777,7 +777,7 @@ export const ConfirmedItineraryDetails: React.FC<ConfirmedItineraryDetailsProps>
               </div>
             </div>
 
-            {/* Reason for Cancellation */}
+ {/* Reason for Cancellation */}
             <div>
               <Label htmlFor="cancellationReason" className="text-gray-700">
                 Reason for Cancellation *

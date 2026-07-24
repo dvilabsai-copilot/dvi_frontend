@@ -20,7 +20,7 @@ export function VehicleRouteRestrictionDialog({ message, onClose }: VehicleRoute
   const allowedVehicleMatch = message?.match(/Allowed vehicle types:\s*([\s\S]*)$/i);
   const allowedVehicleTypes = allowedVehicleMatch?.[1]
     ?.replace(/\.$/, '')
-    .split(/,\s*/)
+ .split(/,\s*/)
     .map((name) => name.trim())
     .filter(Boolean) || [];
   const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehicleMatch.index === 'number'

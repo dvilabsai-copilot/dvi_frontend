@@ -8,7 +8,7 @@ import { Copy, FileSpreadsheet, FileText, Pencil, Trash2 } from "lucide-react";
 type ApiCtx = {
   apiGetFirst: (ps: string[]) => Promise<any>;
   apiPost: (p: string, b: any) => Promise<any>;
-  // Optional extras if available in your app (used as fallbacks for PATCH/DELETE)
+ // Optional extras if available in your app (used as fallbacks for PATCH/DELETE)
   apiPatch?: (p: string, b: any) => Promise<any>;
   apiDelete?: (p: string) => Promise<any>;
   API_BASE_URL?: string;
@@ -151,7 +151,7 @@ export default function ReviewStep({
         .catch(() => []),
   });
 
-  // === EDIT/DELETE state ===
+ // === EDIT/DELETE state ===
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const stars = (rating: string) => {
@@ -162,7 +162,7 @@ export default function ReviewStep({
 
   const saveMut = useMutation({
     mutationFn: async (data: ReviewForm) => {
-      // 🔧 IMPORTANT: status must be 1 (active). We send it explicitly.
+ // IMPORTANT: status must be 1 (active). We send it explicitly.
 const ratingValue = data.hotel_rating || "";
 
 const descriptionValue = data.review_description || "";
@@ -182,7 +182,7 @@ const payload = {
 
   status: 1,
 };
-      // If editing → PATCH the review by id, else create
+ // If editing PATCH the review by id, else create
       if (editingId != null) {
         const body = payload;
         const patchPaths = [
@@ -200,7 +200,7 @@ const payload = {
         throw lastErr || new Error("No review update endpoint available");
       }
 
-      // Create (POST)
+ // Create (POST)
       const createPaths = [
   `/api/v1/hotels/${hotelId}/reviews`,
 ];
@@ -256,21 +256,21 @@ const payload = {
   };
   const ratingOptions = [5, 4, 3, 2, 1];
 
-  /** ===== Table UX (client-side like screenshot) ===== */
+ /** ===== Table UX (client-side like screenshot) ===== */
   const [entries, setEntries] = useState(10);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   type Row = {
-    id: number;            // running S.NO
-    reviewId: number;      // real primary id
+ id: number; // running S.NO
+ reviewId: number; // real primary id
     rating: string;
     description: string;
     createdOn: string;
-    _raw?: any;            // original object (for edit prefill)
+ _raw?: any; // original object (for edit prefill)
   };
 
-  // 🔧 Map actual API fields (hotel_review_id, hotel_rating, hotel_description, createdon)
+ // Map actual API fields (hotel_review_id, hotel_rating, hotel_description, createdon)
 const tableRows: Row[] = useMemo(() => {
   const raw: any = reviewsRaw;
 
@@ -278,7 +278,7 @@ const tableRows: Row[] = useMemo(() => {
     ? raw
     : raw?.data ?? raw?.items ?? raw?.reviews ?? raw?.result ?? [];
 
-  console.log("FIRST REVIEW OBJECT:", arr?.[0]);
+ console.log("FIRST REVIEW OBJECT:", arr?.[0]);
 
   const mapped = arr.map((r: any, i: number) => {
     const reviewId =
@@ -361,7 +361,7 @@ const tableRows: Row[] = useMemo(() => {
   const excelDisabled = total === 0;
   const csvDisabled = total === 0;
 
-  // === Actions (Edit/Delete) ===
+ // === Actions (Edit/Delete) ===
 function onEditRow(row: Row) {
   setFormError("");
   const raw = row._raw || {};
@@ -414,11 +414,11 @@ function onEditRow(row: Row) {
 }
   return (
     <>
-      {/* Wizard step title */}
+ {/* Wizard step title */}
       <div className="rv-step-title">Review & Feedback</div>
 
       <div className="rv-grid">
-        {/* Left: Rating + Feedback form */}
+ {/* Left: Rating + Feedback form */}
         <div className="rv-card">
           <div className="rv-card-title">
             {editingId == null ? "Rating" : `Edit Review #${editingId}`}
@@ -489,11 +489,11 @@ function onEditRow(row: Row) {
           </form>
         </div>
 
-        {/* Right: List of Reviews table */}
+ {/* Right: List of Reviews table */}
         <div className="rv-card">
           <div className="rv-card-title">List of Reviews</div>
 
-          {/* toolbar */}
+ {/* toolbar */}
           <div className="rv-toolbar">
             <div className="rv-show">
               <span>Show</span>
@@ -560,7 +560,7 @@ function onEditRow(row: Row) {
             </div>
           </div>
 
-          {/* table */}
+ {/* table */}
           <div className="rv-table-wrap">
             <table className="rv-table">
               <thead>
@@ -645,7 +645,7 @@ function onEditRow(row: Row) {
             </table>
           </div>
 
-          {/* footer: showing + pager */}
+ {/* footer: showing + pager */}
           <div className="rv-footer">
             <div className="rv-showing">
               Showing{" "}
@@ -673,7 +673,7 @@ function onEditRow(row: Row) {
         </div>
       </div>
 
-      {/* bottom nav buttons */}
+ {/* bottom nav buttons */}
       <div className="rv-bottom">
         <button type="button" onClick={onPrev} className="rv-btn rv-btn-back">
           Back
@@ -683,7 +683,7 @@ function onEditRow(row: Row) {
         </button>
       </div>
 
-      {/* ====== Styles ====== */}
+ {/* ====== Styles ====== */}
       <style>{`
         :root{
           --rv-bg:#fdf5ff;

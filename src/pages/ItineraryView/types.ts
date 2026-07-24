@@ -57,7 +57,7 @@ export interface GuideDetails {
   planId: number;
   routeId?: number | null;
   routeDate?: string | null;
-  guideType: number; // 1 = Full itinerary, 2 = Day-wise
+ guideType: number; // 1 = Full itinerary, 2 = Day-wise
   guideId: number;
   guideName: string;
   guideLanguage: string;

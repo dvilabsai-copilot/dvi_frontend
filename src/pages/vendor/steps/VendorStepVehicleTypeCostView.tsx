@@ -27,7 +27,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
       <CardContent className="space-y-6">
         {renderTopTabs()}
 
-        {/* ---------- DRIVER COST TAB ---------- */}
+ {/* ---------- DRIVER COST TAB ---------- */}
         {activeTab === "driverCost" && (
           <div className="pt-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -181,7 +181,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
           </div>
         )}
 
-        {/* ---------- OUTSTATION KM LIMIT TAB ---------- */}
+ {/* ---------- OUTSTATION KM LIMIT TAB ---------- */}
         {activeTab === "outstation" && (
           <div className="pt-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -267,7 +267,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
 </Button>
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
-                        {/* Vendor column: in PHP this is vendor name; here just show current vendorId */}
+ {/* Vendor column: in PHP this is vendor name; here just show current vendorId */}
                         {vendorId ?? "-"}
                       </td>
                       <td className="px-4 py-3 border-b border-gray-100">
@@ -323,7 +323,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
           </div>
         )}
 
-        {/* ---------- LOCAL KM LIMIT TAB ---------- */}
+ {/* ---------- LOCAL KM LIMIT TAB ---------- */}
         {activeTab === "local" && (
           <div className="pt-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -468,7 +468,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
           </div>
         )}
 
-        {/* FOOTER BUTTONS */}
+ {/* FOOTER BUTTONS */}
         <div className="mt-6 flex justify-between">
           <Button variant="outline" type="button" onClick={onBack}>
             Back
@@ -484,11 +484,11 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
         </div>
       </CardContent>
 
-      {/* ============================================================
+ {/* ============================================================
           MODALS
-          ============================================================ */}
+ ============================================================ */}
 
-      {/* DRIVER COST MODAL */}
+ {/* DRIVER COST MODAL */}
       <Dialog
   open={showDriverCostModal}
   onOpenChange={(open) => {
@@ -638,7 +638,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
         </DialogContent>
       </Dialog>
 
-      {/* OUTSTATION KM LIMIT MODAL */}
+ {/* OUTSTATION KM LIMIT MODAL */}
       <Dialog
         open={showOutstationModal}
         onOpenChange={(open) => {
@@ -761,7 +761,7 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
         </DialogContent>
       </Dialog>
 
-      {/* LOCAL KM LIMIT MODAL */}
+ {/* LOCAL KM LIMIT MODAL */}
       <Dialog
         open={showLocalModal}
         onOpenChange={(open) => {
@@ -903,11 +903,11 @@ export function VendorStepVehicleTypeCostView({ context }: { context: Record<str
           </DialogFooter>
         </DialogContent>
 
-        
+
            </Dialog>
 
       <VendorStepVehicleTypeCostDeleteDialogs context={context} />
-    
+
 </Card>
   );
 }

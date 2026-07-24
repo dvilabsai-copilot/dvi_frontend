@@ -72,13 +72,13 @@ export default function ActivityEditPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
-  /* hotspots for dropdown */
+ /* hotspots for dropdown */
   const { data: hotspots } = useQuery({
     queryKey: ["activities", "hotspots"],
     queryFn: () => ActivitiesAPI.hotspots(),
   });
 
-  /* preload when editing */
+ /* preload when editing */
   const { data: details } = useQuery({
     enabled: editing,
     queryKey: ["activities", "details", id],
@@ -126,9 +126,9 @@ export default function ActivityEditPage() {
         specialSlots: [],
       });
     }
-  }, [details, editing]); // eslint-disable-line
+ }, [details, editing]); // eslint-disable-line
 
-  /* ------------------- mutations ------------------- */
+ /* ------------------- mutations ------------------- */
   const createMut = useMutation({
     mutationFn: (body: BasicForm) => ActivitiesAPI.create(body),
     onSuccess: (created) => {
@@ -173,10 +173,10 @@ export default function ActivityEditPage() {
     else createMut.mutate(values);
   };
 
-  /* --------------------------------- UI --------------------------------- */
+ /* --------------------------------- UI --------------------------------- */
   return (
     <div className="p-6">
-      {/* Steps Tabs like PHP with numbered pills */}
+ {/* Steps Tabs like PHP with numbered pills */}
       <Tabs
         defaultValue={
           new URLSearchParams(location.search).get("tab") ?? "basic"
@@ -230,7 +230,7 @@ export default function ActivityEditPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: BASIC */}
+ {/* TAB 1: BASIC */}
         <TabsContent value="basic">
           <Card className={panel}>
             <CardContent className="p-6">
@@ -302,7 +302,7 @@ export default function ActivityEditPage() {
                     />
                   </div>
 
-                  {/* Upload (placeholder – wire your uploader, push names to imageNames) */}
+ {/* Upload (placeholder wire your uploader, push names to imageNames) */}
                   <div className="md:col-span-2">
                     <Label className={labelTxt}>
                       Upload Images <span className="text-rose-500">*</span>
@@ -329,7 +329,7 @@ export default function ActivityEditPage() {
                   <Textarea rows={4} className={borderInput} {...form.register("activity_description")} />
                 </div>
 
-                {/* Default Available Time */}
+ {/* Default Available Time */}
                 <div>
                   <SectionTitle>Default Available Time</SectionTitle>
                   <div className="grid gap-3">
@@ -377,7 +377,7 @@ export default function ActivityEditPage() {
                   </div>
                 </div>
 
-                {/* Special Available Time */}
+ {/* Special Available Time */}
                 <div>
                   <SectionTitle>Special Available Time</SectionTitle>
                   <div className="grid gap-3">
@@ -458,7 +458,7 @@ export default function ActivityEditPage() {
           </Card>
         </TabsContent>
 
-        {/* TAB 2: PRICEBOOK */}
+ {/* TAB 2: PRICEBOOK */}
         <TabsContent value="pricebook">
           <PriceBookTab
             onSave={(payload) => pricebookMut.mutate(payload)}
@@ -466,12 +466,12 @@ export default function ActivityEditPage() {
           />
         </TabsContent>
 
-        {/* TAB 3: FEEDBACK & REVIEW */}
+ {/* TAB 3: FEEDBACK & REVIEW */}
         <TabsContent value="reviews">
           <ReviewsTab onSave={(payload) => addReviewMut.mutate(payload)} />
         </TabsContent>
 
-        {/* TAB 4: PREVIEW */}
+ {/* TAB 4: PREVIEW */}
         <TabsContent value="preview">
           <PreviewEmbed activityId={Number(id)} />
         </TabsContent>

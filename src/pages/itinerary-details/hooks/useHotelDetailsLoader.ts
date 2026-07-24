@@ -130,10 +130,10 @@ export const useHotelDetailsLoader = ({
     if (preference !== 1 && preference !== 3) return null;
     const confirmedPlanId = Number((itinerary as any)?.confirmed_itinerary_plan_ID || 0);
     if (confirmedPlanId > 0) {
-      console.log("[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.", { quoteId, confirmedPlanId });
+ console.log("[ItineraryDetails] Confirmed itinerary detected. Loading confirmed DB hotels only.", { quoteId, confirmedPlanId });
       return loadConfirmedHotelsFromDb(confirmedPlanId);
     }
-    console.log("[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.", { quoteId });
+ console.log("[ItineraryDetails] Draft itinerary detected. Loading dynamic hotel options.", { quoteId });
     return fetchCompleteHotelDetails(quoteId);
   }, [fetchCompleteHotelDetails, loadConfirmedHotelsFromDb]);
 

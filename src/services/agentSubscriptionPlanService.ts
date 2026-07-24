@@ -21,7 +21,7 @@ export type AgentSubscriptionPlanDetails = AgentSubscriptionPlanListItem & {
   adminCount: number;
   staffCount: number;
   additionalChargePerStaff: number;
-  notes: string; // HTML/string (CKEditor-like)
+ notes: string; // HTML/string (CKEditor-like)
 };
 
 export type AgentSubscriptionPlanPayload = {
@@ -48,10 +48,10 @@ type ListResponseDTO<T> = { data: T[]; meta?: any } | T[];
 type OneResponseDTO<T> = { data: T } | T;
 
 type PlanListDTO = Partial<{
-  // Generic identifiers
+ // Generic identifiers
   id: string | number;
 
-  // Legacy DB fields
+ // Legacy DB fields
   agent_subscription_plan_ID: number;
   agent_subscription_plan_title: string;
   itinerary_allowed: number;
@@ -63,7 +63,7 @@ type PlanListDTO = Partial<{
   status: any;
   deleted: any;
 
-  // New API fields (NestJS)
+ // New API fields (NestJS)
   planTitle: string;
   itineraryCount: number;
   cost: number;
@@ -74,14 +74,14 @@ type PlanListDTO = Partial<{
 
 type PlanDetailsDTO = PlanListDTO &
   Partial<{
-    // Legacy / DB
+ // Legacy / DB
     subscription_type: number | string;
     admin_count: number;
     staff_count: number;
     additional_charge_for_per_staff: number;
     subscription_notes: string;
 
-    // New API fields
+ // New API fields
     type: SubscriptionType;
     adminCount: number;
     staffCount: number;
@@ -168,7 +168,7 @@ const toListItem = (r: PlanListDTO): AgentSubscriptionPlanListItem => {
       ? !!r.recommended
       : toBool(r.recommended_status);
 
-  // If "status" is provided, respect it; if "deleted" is true/1, force false.
+ // If "status" is provided, respect it; if "deleted" is true/1, force false.
   let status = true;
   if (typeof r.status !== "undefined") status = toBool(r.status);
   if (typeof r.deleted !== "undefined" && toBool(r.deleted)) status = false;
@@ -224,31 +224,31 @@ const toDetails = (r: PlanDetailsDTO): AgentSubscriptionPlanDetails => {
 };
 
 export const agentSubscriptionPlanService = {
-  /**
+ /**
    * GET /agent-subscription-plans
    * Returns: AgentSubscriptionPlanListItem[]
-   */
+ */
   async list(): Promise<AgentSubscriptionPlanListItem[]> {
     const res = (await api("/agent-subscription-plans")) as ListResponseDTO<PlanListDTO>;
     const { rows } = unwrapList(res);
     return rows.map(toListItem);
   },
 
-  /**
+ /**
    * GET /agent-subscription-plans/:id
    * Returns: AgentSubscriptionPlanDetails
-   */
+ */
   async getOne(id: string | number): Promise<AgentSubscriptionPlanDetails> {
     const res = (await api(`/agent-subscription-plans/${id}`)) as OneResponseDTO<PlanDetailsDTO>;
     const dto = unwrapOne(res);
     return toDetails(dto);
   },
 
-  /**
+ /**
    * POST /agent-subscription-plans
    * Body: AgentSubscriptionPlanPayload
    * Returns: { id: string }
-   */
+ */
   async create(payload: AgentSubscriptionPlanPayload): Promise<{ id: string }> {
     const res = (await api("/agent-subscription-plans", {
       method: "POST",
@@ -276,11 +276,11 @@ export const agentSubscriptionPlanService = {
     return { id: String(id) };
   },
 
-  /**
+ /**
    * PUT /agent-subscription-plans/:id
    * Body: AgentSubscriptionPlanPayload
    * Returns: { ok: true }
-   */
+ */
   async update(
     id: string | number,
     payload: AgentSubscriptionPlanPayload
@@ -306,17 +306,17 @@ export const agentSubscriptionPlanService = {
     return { ok: dto?.ok ?? dto?.success ?? true };
   },
 
-  /**
+ /**
    * DELETE /agent-subscription-plans/:id
    * Returns: { ok: true } or void
-   */
+ */
   async remove(id: string | number): Promise<{ ok: true }> {
     const res = (await api(`/agent-subscription-plans/${id}`, {
       method: "DELETE",
     })) as OneResponseDTO<{ ok?: boolean; success?: boolean }> | void;
 
     if (!res) {
-      // If backend returns empty body, still consider delete successful if no error thrown.
+ // If backend returns empty body, still consider delete successful if no error thrown.
       return { ok: true };
     }
 
@@ -324,10 +324,10 @@ export const agentSubscriptionPlanService = {
     return { ok: dto?.ok ?? dto?.success ?? true };
   },
 
-  /**
+ /**
    * PATCH /agent-subscription-plans/:id/status
    * Body: { status: boolean }
-   */
+ */
   async updateStatus(id: string | number, status: boolean): Promise<{ ok: true }> {
     const res = (await api(`/agent-subscription-plans/${id}/status`, {
       method: "PATCH",
@@ -340,10 +340,10 @@ export const agentSubscriptionPlanService = {
     return { ok: dto?.ok ?? dto?.success ?? true };
   },
 
-  /**
+ /**
    * PATCH /agent-subscription-plans/:id/recommended
    * Body: { recommended: boolean }
-   */
+ */
   async updateRecommended(
     id: string | number,
     recommended: boolean

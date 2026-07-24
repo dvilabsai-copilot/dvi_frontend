@@ -297,7 +297,7 @@ export default function PartnerRegistration() {
         <div className="relative overflow-hidden rounded-[28px] bg-white">
           <div className="absolute right-[-70px] top-[-70px] hidden h-72 w-72 overflow-hidden rounded-full lg:block">
             <img
-              src="https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=900&q=85"
+ src="https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=900&q=85"
               alt="Kerala travel"
               className="h-full w-full object-cover"
             />

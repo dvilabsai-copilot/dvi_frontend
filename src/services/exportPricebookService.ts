@@ -57,7 +57,7 @@ async function downloadExcel(
 
   const blob = await res.blob();
 
-  // Try to pick filename from Content-Disposition
+ // Try to pick filename from Content-Disposition
   const cd = res.headers.get("content-disposition") || "";
   const match = cd.match(/filename="([^"]+)"/i);
   const filename = match?.[1] || filenameFallback;
@@ -91,12 +91,12 @@ function normalizeOptions(input: any, idKeys: string[], labelKeys: string[]): Ma
   const list = Array.isArray(input) ? input : input?.rows ?? input?.data ?? [];
   if (!Array.isArray(list)) return [];
 
-  // array of strings
+ // array of strings
   if (list.every((x) => typeof x === "string")) {
     return list.map((s) => ({ id: s, label: s }));
   }
 
-  // array of objects
+ // array of objects
   return list
     .map((x: any) => {
       if (!x || typeof x !== "object") return null;
@@ -119,7 +119,7 @@ function normalizeOptions(input: any, idKeys: string[], labelKeys: string[]): Ma
 }
 
 export const ExportPricebookAPI = {
-  // ---------------- VEHICLE ----------------
+ // ---------------- VEHICLE ----------------
 
   getVehiclePricebook(q: VehiclePricebookQuery) {
     return api(`/export-pricebook/vehicle${toQueryString(q)}`, {
@@ -132,13 +132,13 @@ export const ExportPricebookAPI = {
     return downloadExcel("/export-pricebook/vehicle/excel", q, `vehicle_price_book.xlsx`);
   },
 
-  // ---------------- HOTEL ROOM (DATE RANGE) ----------------
+ // ---------------- HOTEL ROOM (DATE RANGE) ----------------
 
   downloadHotelRoomExcel(q: HotelRoomExportQuery) {
     return downloadExcel("/export-pricebook/hotel-room/excel", q, `hotel_room_price_book.xlsx`);
   },
 
-  // ---------------- HOTEL AMENITIES ----------------
+ // ---------------- HOTEL AMENITIES ----------------
 
   downloadHotelAmenitiesExcel(q: HotelAmenityExportQuery) {
     return downloadExcel(
@@ -148,19 +148,19 @@ export const ExportPricebookAPI = {
     );
   },
 
-  // ---------------- GUIDE ----------------
+ // ---------------- GUIDE ----------------
 
   downloadGuideExcel(q: GuideExportQuery) {
     return downloadExcel("/export-pricebook/guide/excel", q, `guide_price_book.xlsx`);
   },
 
-  // ---------------- HOTSPOT ----------------
+ // ---------------- HOTSPOT ----------------
 
   downloadHotspotExcel(q: HotspotExportQuery) {
     return downloadExcel("/export-pricebook/hotspot/excel", q, `hotspot_price_book.xlsx`);
   },
 
-  // ---------------- ACTIVITY ----------------
+ // ---------------- ACTIVITY ----------------
 
   getActivityPricebook(q: ActivityQuery) {
     return api(`/export-pricebook/activity${toQueryString(q)}`, {
@@ -173,7 +173,7 @@ export const ExportPricebookAPI = {
     return downloadExcel("/export-pricebook/activity/excel", q, `activity_price_book.xlsx`);
   },
 
-  // ---------------- TOLL ----------------
+ // ---------------- TOLL ----------------
 
   getTollPricebook(q: TollQuery) {
     return api(`/export-pricebook/toll${toQueryString(q)}`, {
@@ -186,7 +186,7 @@ export const ExportPricebookAPI = {
     return downloadExcel("/export-pricebook/toll/excel", q, `toll_price_book.xlsx`);
   },
 
-  // ---------------- PARKING ----------------
+ // ---------------- PARKING ----------------
 
   getParkingPricebook(q: ParkingQuery) {
     return api(`/export-pricebook/parking${toQueryString(q)}`, {
@@ -199,9 +199,9 @@ export const ExportPricebookAPI = {
     return downloadExcel("/export-pricebook/parking/excel", q, `parking_price_book.xlsx`);
   },
 
-  // ============================================================
-  // ✅ MASTERS (Dropdown real APIs) - kept in SAME service file
-  // ============================================================
+ // ============================================================
+ // MASTERS (Dropdown real APIs) - kept in SAME service file
+ // ============================================================
 
   async getStates(countryId = 101): Promise<MasterOption[]> {
     const res = await tryApi<any>([
@@ -267,12 +267,12 @@ export const ExportPricebookAPI = {
 
     const list = Array.isArray(res) ? res : res?.rows ?? res?.data ?? [];
 
-    // If API returns strings
+ // If API returns strings
     if (Array.isArray(list) && list.every((x) => typeof x === "string")) {
       return list.map((s) => ({ id: s, label: s }));
     }
 
-    // If API returns objects containing hotspot_location
+ // If API returns objects containing hotspot_location
     const set = new Set<string>();
     for (const x of list) {
       const loc = x?.hotspot_location ?? x?.location ?? x?.hotspotLocation;

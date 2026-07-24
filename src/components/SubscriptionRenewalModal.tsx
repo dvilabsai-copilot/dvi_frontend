@@ -88,15 +88,15 @@ export function SubscriptionRenewalModal({
   const loadPlans = async () => {
     try {
       setLoadingPlans(true);
-      // Fetch all subscription plans from backend
+ // Fetch all subscription plans from backend
       const response = await api("/agent-subscription-plans");
       const rows = Array.isArray(response) ? response : response?.data || [];
       const allPlans = Array.isArray(rows) ? rows.map(normalizePlan) : [];
-      
+
       if (Array.isArray(allPlans)) {
         setPlans(allPlans);
-        
-        // Set current plan if found
+
+ // Set current plan if found
         if (currentPlanId) {
           const current = allPlans.find((p) => p.agent_subscription_plan_ID === currentPlanId);
           if (current) {
@@ -106,7 +106,7 @@ export function SubscriptionRenewalModal({
         }
       }
     } catch (error) {
-      console.error("Failed to load subscription plans:", error);
+ console.error("Failed to load subscription plans:", error);
       toast.error("Failed to load subscription plans");
     } finally {
       setLoadingPlans(false);
@@ -119,7 +119,7 @@ export function SubscriptionRenewalModal({
       await onSelectPlan(plan, agentSubscribedPlanId);
       onOpenChange(false);
     } catch (error) {
-      console.error("Failed to process plan selection:", error);
+ console.error("Failed to process plan selection:", error);
     }
   };
 
@@ -142,13 +142,13 @@ export function SubscriptionRenewalModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Current Plan Section */}
+ {/* Current Plan Section */}
           {currentPlan && (
             <div>
               <h3 className="text-lg font-semibold mb-4 text-gray-700">Current Plan</h3>
-              <PlanCard 
-                plan={currentPlan} 
-                isRecommended={true} 
+              <PlanCard
+                plan={currentPlan}
+                isRecommended={true}
                 isCurrent={true}
                 isSelected={selectedPlanId === currentPlan.agent_subscription_plan_ID}
                 isLoading={isLoading && selectedPlanId === currentPlan.agent_subscription_plan_ID}
@@ -157,7 +157,7 @@ export function SubscriptionRenewalModal({
             </div>
           )}
 
-          {/* Other Plans Section */}
+ {/* Other Plans Section */}
           {otherPlans.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold mb-4 text-gray-700">Other Available Plans</h3>
@@ -213,7 +213,7 @@ function PlanCard({
     <Card className={`relative p-6 transition-all ${
       isCurrent ? "border-2 border-red-500 bg-red-50" : "border hover:shadow-lg"
     } ${isRecommended && !isCurrent ? "border-2 border-orange-500" : ""}`}>
-      {/* Badge */}
+ {/* Badge */}
       {isCurrent && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
           <div className="bg-red-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
@@ -221,7 +221,7 @@ function PlanCard({
           </div>
         </div>
       )}
-      
+
       {isRecommended && !isCurrent && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
           <div className="bg-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
@@ -243,25 +243,25 @@ function PlanCard({
         </div>
 
         <div className="space-y-2 text-sm">
-          <PlanFeature 
-            icon="✓" 
+          <PlanFeature
+            icon="✓"
             text={`Allowed Itinerary creation (${plan.itinerary_allowed})`}
           />
-          <PlanFeature 
-            icon="✓" 
+          <PlanFeature
+            icon="✓"
             text={`Per Itinerary creating cost (${formatCurrency(plan.per_itinerary_cost)})`}
           />
-          <PlanFeature 
-            icon="✓" 
+          <PlanFeature
+            icon="✓"
             text={`Staff login count (${plan.staff_count})`}
           />
-          <PlanFeature 
-            icon="✓" 
+          <PlanFeature
+            icon="✓"
             text={`Per cost staff for extra login (${formatCurrency(plan.additional_charge_for_per_staff)})`}
           />
           {plan.joining_bonus && plan.joining_bonus > 0 && (
-            <PlanFeature 
-              icon="✓" 
+            <PlanFeature
+              icon="✓"
               text={`Joining Bonus (${formatCurrency(plan.joining_bonus)})`}
               highlight={true}
             />

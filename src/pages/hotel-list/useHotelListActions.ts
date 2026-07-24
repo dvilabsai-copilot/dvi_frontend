@@ -65,11 +65,11 @@ export function useHotelListActions(context: HotelListActionsContext) {
   const hotelService = ItineraryServiceFromContext || ItineraryService;
 
   const handleRowClick = async (hotel: ItineraryHotelRow) => {
-    if (readOnly) return; // Don't expand in read-only mode
+ if (readOnly) return; // Don't expand in read-only mode
 
     const rowKey = getStayKey(hotel);
 
-    // Collapse if already open
+ // Collapse if already open
     if (expandedRowKey === rowKey) {
       setExpandedRowKey(null);
       setRoomDetails([]);
@@ -79,7 +79,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    // Collapse any currently expanded row before loading new one
+ // Collapse any currently expanded row before loading new one
     if (expandedRowKey !== null) {
       setExpandedRowKey(null);
       setRoomDetails([]);
@@ -109,20 +109,20 @@ export function useHotelListActions(context: HotelListActionsContext) {
       ),
     );
 
-    // ✅ Sort to put selected hotel first, then remaining hotels
+ // Sort to put selected hotel first, then remaining hotels
     const selectedHotelId = hotel.hotelId;
     if (selectedHotelId) {
       uniqueHotels.sort((a, b) => {
-        // Selected hotel comes first
+ // Selected hotel comes first
         if (a.hotelId === selectedHotelId) return -1;
         if (b.hotelId === selectedHotelId) return 1;
-        // Keep original order for others
+ // Keep original order for others
         return 0;
       });
     }
 
-    console.log('✅ Filtered from local state:', uniqueHotels.length, 'hotels');
-    
+ console.log(' Filtered from local state:', uniqueHotels.length, 'hotels');
+
     if (uniqueHotels.length > 0) {
       setRoomDetails(uniqueHotels);
       setExpandedRowKey(rowKey);
@@ -132,7 +132,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
   };
 
-  // ---------- HELPER: NORMALIZE API ROOM RESPONSE TO UI SHAPE ----------
+ // ---------- HELPER: NORMALIZE API ROOM RESPONSE TO UI SHAPE ----------
   const normalizeRoom = (r: any): HotelRoomDetail => {
     const perNightAmount = Number(r.perNightAmount ?? r.pricePerNight ?? 0);
     const nights = Number(r.numberOfNights ?? 1);
@@ -163,27 +163,27 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
   };
 
-  // ---------- HANDLER: SYNC FRESH HOTELS FOR ROUTE ----------
+ // ---------- HANDLER: SYNC FRESH HOTELS FOR ROUTE ----------
   const handleSyncRoute = async (routeId: number) => {
     if (!quoteId) return;
-    
-    // ✅ BLOCK sync when in read-only mode (confirmed itinerary)
+
+ // BLOCK sync when in read-only mode (confirmed itinerary)
     if (readOnly) {
-      console.log('⛔ [HotelList] Blocked handleSyncRoute - read-only mode');
+ console.log(' [HotelList] Blocked handleSyncRoute - read-only mode');
       return;
     }
 
-    // ✅ Check for unsaved changes and warn user
+ // Check for unsaved changes and warn user
     if (unsavedSelections.size > 0) {
       const confirmed = window.confirm(
         `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from VSR.\n\nDo you want to continue?`
       );
       if (!confirmed) return;
-      
-      // Clear unsaved selections for this route
+
+ // Clear unsaved selections for this route
       setUnsavedSelections(prev => {
         const newMap = new Map(prev);
-        // Remove selections for this specific route
+ // Remove selections for this specific route
         Array.from(newMap.keys()).forEach(key => {
           if (String(key).startsWith(`${routeId}-`)) {
             newMap.delete(key);
@@ -193,22 +193,22 @@ export function useHotelListActions(context: HotelListActionsContext) {
       });
     }
 
-    // Save current expanded state to restore it after sync
+ // Save current expanded state to restore it after sync
     const currentExpandedKey = expandedRowKey;
-    
-    // ✅ Show loader
+
+ // Show loader
     setIsSyncing(true);
-    
+
     try {
-      // ✅ Pass clearCache: true to force backend to bypass its memory cache
+ // Pass clearCache: true to force backend to bypass its memory cache
       const response = await hotelService.getHotelRoomDetails(quoteId, routeId, true);
-      
-      // ✅ API returns 'rooms' property, not 'roomDetails'
+
+ // API returns 'rooms' property, not 'roomDetails'
       const roomsRaw = response?.rooms || response?.roomDetails || [];
       const normalizedRooms: HotelRoomDetail[] = roomsRaw.map((r: any) => normalizeRoom(r));
-      
-      // Keep STAAH meal-plan variants separate so restricted and open cards can
-      // coexist when "All Meal Plans" is selected.
+
+ // Keep STAAH meal-plan variants separate so restricted and open cards can
+ // coexist when "All Meal Plans" is selected.
       const uniqueRooms = Array.from(
         new Map(
           normalizedRooms.map((r: any) => {
@@ -226,9 +226,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
           }),
         ).values()
       );
-      
+
       if (uniqueRooms.length > 0) {
-        // ✅ Update cache for ALL groupTypes for this route
+ // Update cache for ALL groupTypes for this route
         const groupedByTier = new Map<number, any[]>();
         uniqueRooms.forEach((room: any) => {
           if (!groupedByTier.has(room.groupType)) {
@@ -236,16 +236,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
           }
           groupedByTier.get(room.groupType)!.push(room);
         });
-        
-        // Update cache for each tier
+
+ // Update cache for each tier
         const newCache = { ...roomDetailsCache };
         groupedByTier.forEach((hotels, groupType) => {
           const cacheKey = `${routeId}-${groupType}`;
           newCache[cacheKey] = hotels;
         });
         setRoomDetailsCache(newCache);
-        
-        // If a row is currently expanded, update its display with fresh data
+
+ // If a row is currently expanded, update its display with fresh data
         if (currentExpandedKey) {
           const expandedHotel = currentHotelRows.find((h) => getStayKey(h) === currentExpandedKey);
           if (expandedHotel) {
@@ -254,16 +254,16 @@ export function useHotelListActions(context: HotelListActionsContext) {
           }
           setExpandedRowKey(currentExpandedKey);
         }
-        
+
         toast.success(`Hotels refreshed from VSR (${uniqueRooms.length} options found)`);
       } else {
         toast.error('No hotels found for this route');
       }
     } catch (err) {
-      console.error('Error syncing hotels:', err);
+ console.error('Error syncing hotels:', err);
       toast.error('Failed to sync hotels');
     } finally {
-      // ✅ Hide loader
+ // Hide loader
       setIsSyncing(false);
     }
   };
@@ -469,22 +469,22 @@ export function useHotelListActions(context: HotelListActionsContext) {
     };
   };
 
-  // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
+ // ---------- HANDLER: CHOOSE/UPDATE HOTEL ----------
   const handleChooseOrUpdateHotel = async (room: HotelRoomDetail) => {
-    console.log('🏨 Choose button clicked', room);
-    
-    // ✅ BLOCK hotel selection when in read-only mode (confirmed itinerary)
+ console.log(' Choose button clicked', room);
+
+ // BLOCK hotel selection when in read-only mode (confirmed itinerary)
     if (readOnly || isUpdatingHotel) {
-      console.log('⛔ [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
+ console.log(' [HotelList] Blocked handleChooseOrUpdateHotel - read-only mode');
       return;
     }
-    
+
     const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
     const resolvedRouteId = toNumber((room as any).itineraryRouteId ?? (room as any).itinerary_route_id ?? (room as any).routeId, 0) || getExpandedRouteId();
     const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
     if (!resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-      console.error('❌ Missing required fields:', {
+ console.error(' Missing required fields:', {
         itineraryPlanId: resolvedPlanId,
         itineraryRouteId: resolvedRouteId,
         hotelId: resolvedHotelId,
@@ -563,9 +563,9 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
 
         if (preview?.nights > 1) {
-          // Always surface cross-date restrictions in the modal. A toast is
-          // easy to miss and does not explain whether the selected night or
-          // one of the continuous follow-on nights is blocked.
+ // Always surface cross-date restrictions in the modal. A toast is
+ // easy to miss and does not explain whether the selected night or
+ // one of the continuous follow-on nights is blocked.
           setStayExtensionModalState({
             preview,
             action: pendingActionBase,
@@ -581,7 +581,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
           return;
         }
       } catch (previewError) {
-        console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
+ console.error("[HotelList] stay-extension-preview failed; selection blocked", previewError);
         toast.error("Could not verify hotel availability. The hotel was not selected. Please retry.");
         return;
       }
@@ -622,7 +622,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    // Validate required fields
+ // Validate required fields
     const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
     const resolvedRouteId = toNumber((room as any).itineraryRouteId ?? (room as any).itinerary_route_id ?? (room as any).routeId, 0) || getExpandedRouteId();
     const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
@@ -652,14 +652,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
     setIsUpdatingHotel(true);
     try {
-      console.log("🏨 [HotelList] Storing hotel selection in state:", {
+ console.log(" [HotelList] Storing hotel selection in state:", {
         hotelName: room.hotelName,
         hotelId: room.hotelId,
         groupType: pendingHotelAction.groupType,
         isReplacing,
       });
-      
-      // ✅ Store selection by groupType and routeId
+
+ // Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
       const selectionUpdates = buildSelectionUpdates(
@@ -685,8 +685,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
             .filter((id) => Number.isFinite(id) && id > 0)
         : [routeId];
 
-      // Price the proposed selection before changing any local hotel state.
-      // A failed backend preview therefore leaves the previous selection visible.
+ // Price the proposed selection before changing any local hotel state.
+ // A failed backend preview therefore leaves the previous selection visible.
       const costPreviewSucceeded = onTemporarySelectionCostPreview
         ? await onTemporarySelectionCostPreview(selectionUpdates)
         : true;
@@ -747,8 +747,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
           totalAmountAfterTax: (multiNightSelection as any)?.totalAmountAfterTax || multiNightPreview?.totalAmountAfterTax || (baseHotel as any).totalAmountAfterTax,
         } as any;
       };
-      
-      // Find the full hotel row from localHotels
+
+ // Find the full hotel row from localHotels
       const selectedProvider = String((room as any).provider || '').trim().toLowerCase();
       const selectedBookingCode = String((room as any).bookingCode || '').trim();
       const selectedHotelCode = String((normalizedRoom as any).hotelCode || (normalizedRoom as any).hotelId || '').trim();
@@ -767,13 +767,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
         String(h.roomType || '').trim() === String((room as any).roomTypeName || (room as any).roomType || '').trim() &&
         getHotelDisplayAmount(h) === getHotelDisplayAmount(normalizedRoom),
       ) || (normalizedRoom as unknown as ItineraryHotelRow);
-      
+
       if (!selectedHotel) {
-        // Fallback: provider room may have different bookingCode/roomType than hotel_details row
+ // Fallback: provider room may have different bookingCode/roomType than hotel_details row
 
 
-        // (e.g. HOBSE returns hotel-level id in hotel_details but room-level code in room_details).
-        // Build a synthetic localHotel from the normalizedRoom so selection still works.
+ // (e.g. HOBSE returns hotel-level id in hotel_details but room-level code in room_details).
+ // Build a synthetic localHotel from the normalizedRoom so selection still works.
         const fallbackHotel: ItineraryHotelRow = {
           itineraryRouteId: routeId,
           itineraryPlanId: resolvedPlanId,
@@ -798,8 +798,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
           date: (normalizedRoom as any).checkInDate || '',
           totalAmount: getHotelDisplayAmount(normalizedRoom),
         } as any;
-        console.warn('⚠️ [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
-        // Re-use the normal flow with the fallback
+ console.warn(' [HotelList] Hotel not found in localHotels, using fallback synthetic row for provider:', (normalizedRoom as any).provider);
+ // Re-use the normal flow with the fallback
         const routeScopedFallbackSelections = selectionRouteIds.map((selectedRouteId, index) =>
           buildRouteScopedHotel(fallbackHotel, Number(selectedRouteId), index),
         );
@@ -921,8 +921,8 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
         return next;
       });
-      
-      // Mark as unsaved selection for backend save
+
+ // Mark as unsaved selection for backend save
       setUnsavedSelections(prev => {
         const newMap = new Map(prev);
         selectionRouteIds.forEach((selectedRouteId) => {
@@ -935,17 +935,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
         return newMap;
       });
-      
+
       setShowConfirmDialog(false);
       setPendingHotelAction(null);
 
-      // Emit only this explicit route selection to parent to avoid bulk overwrite of other days.
+ // Emit only this explicit route selection to parent to avoid bulk overwrite of other days.
       if (onHotelSelectionsChange) onHotelSelectionsChange(selectionUpdates);
-      
-      // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
+
+ // Collapse expanded day row after selection to avoid accidental reselection/reset perception.
       setExpandedRowKey(null);
 
-      // Update selectedHotelId so selected state remains reflected in the list.
+ // Update selectedHotelId so selected state remains reflected in the list.
       setSelectedHotelId(Number(normalizedRoom.hotelId));
 
       if (pendingHotelAction.isRateUpdate) {
@@ -967,14 +967,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
         });
         return;
       }
-      
+
       toast.success("Hotel selected! 👍", {
         description: `${normalizedRoom.hotelName} - Changes will be saved when you confirm the quotation`,
       });
-      
-      // Keep user on the current tier tab; auto-switching causes cross-day selection confusion.
+
+ // Keep user on the current tier tab; auto-switching causes cross-day selection confusion.
     } catch (err) {
-      console.error("❌ [HotelList] Error selecting hotel:", err);
+ console.error(" [HotelList] Error selecting hotel:", err);
       setShowConfirmDialog(false);
       setPendingHotelAction(null);
       toast.error("Failed to select hotel", {
@@ -985,17 +985,17 @@ export function useHotelListActions(context: HotelListActionsContext) {
     }
   };
 
-  // ---------- FUNCTION: SAVE ALL HOTEL SELECTIONS TO DB ----------
+ // ---------- FUNCTION: SAVE ALL HOTEL SELECTIONS TO DB ----------
   const saveAllHotelSelections = async () => {
     if (unsavedSelections.size === 0) {
       toast.info("No unsaved hotel selections to save");
       return true;
     }
 
-    console.log(`💾 Saving ${unsavedSelections.size} hotel selections to database...`);
-    
+ console.log(` Saving ${unsavedSelections.size} hotel selections to database...`);
+
     const savePromises: Promise<any>[] = [];
-    
+
     unsavedSelections.forEach((room, selectionKey) => {
       const defaultRoomTypeId = Number(room.availableRoomTypes?.[0]?.roomTypeId ?? 1);
       const resolvedPlanId = toNumber((room as any).itineraryPlanId ?? (room as any).itinerary_plan_id ?? planId, 0);
@@ -1003,10 +1003,10 @@ export function useHotelListActions(context: HotelListActionsContext) {
       const resolvedHotelId = toNumber((room as any).hotelId ?? (room as any).hotel_id ?? (room as any).id, 0);
 
       if (!resolvedPlanId || !resolvedRouteId || !hasSelectableHotelIdentity({ ...room, hotelId: resolvedHotelId })) {
-        console.error('❌ Skipping invalid hotel selection payload:', { selectionKey, room });
+ console.error(' Skipping invalid hotel selection payload:', { selectionKey, room });
         return;
       }
-      
+
       const promise = hotelService.selectHotel(
         resolvedPlanId,
         resolvedRouteId,
@@ -1020,21 +1020,21 @@ export function useHotelListActions(context: HotelListActionsContext) {
         },
         Number(room.groupType ?? 1)
       );
-      
+
       savePromises.push(promise);
     });
 
     try {
       await Promise.all(savePromises);
-      console.log("✅ All hotel selections saved successfully");
-      
-      // Clear unsaved selections
+ console.log(" All hotel selections saved successfully");
+
+ // Clear unsaved selections
       setUnsavedSelections(new Map());
-      
+
       toast.success(`✅ ${savePromises.length} hotel selection(s) saved successfully!`);
       return true;
     } catch (error) {
-      console.error("❌ Error saving hotel selections:", error);
+ console.error(" Error saving hotel selections:", error);
       toast.error("Failed to save some hotel selections");
       return false;
     }

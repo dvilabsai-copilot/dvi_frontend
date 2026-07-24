@@ -37,11 +37,11 @@ import {
 // REPLACE whole DailyMomentRow type with:
 
 type DailyMomentRow = {
-  id: number; // row counter from backend
+ id: number; // row counter from backend
   itineraryPlanId: number;
   itineraryRouteId: number;
 
-  // Guest
+ // Guest
   guestName: string;
   guestMobile: string;
   guestEmail: string;
@@ -62,7 +62,7 @@ type DailyMomentRow = {
   driverMobile: string;
   specialRemark: string;
 
-  // Travel expert
+ // Travel expert
   travelExpert: string;
   travelExpertMobile: string;
   travelExpertEmail: string;
@@ -79,7 +79,7 @@ function formatDateDisplay(date: Date | undefined) {
 }
 
 function formatDateForApi(date: Date | undefined) {
-  // backend expects DD-MM-YYYY (same as PHP)
+ // backend expects DD-MM-YYYY (same as PHP)
   return date ? formatDateDisplay(date) : "";
 }
 
@@ -113,10 +113,10 @@ export const DailyMomentTracker: React.FC = () => {
   const [entriesPerPage, setEntriesPerPage] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
-  // ================== DATA FETCH ==================
+ // ================== DATA FETCH ==================
 
   useEffect(() => {
-    // Load data whenever dates change (mimics PHP behaviour)
+ // Load data whenever dates change (mimics PHP behaviour)
     const fromDateStr = formatDateForApi(fromDateObj);
     const toDateStr = formatDateForApi(toDateObj);
 
@@ -143,7 +143,7 @@ export const DailyMomentTracker: React.FC = () => {
             itineraryPlanId: r.itinerary_plan_ID,
             itineraryRouteId: r.itinerary_route_ID,
 
-            // Guest
+ // Guest
             guestName: cleanText(r.guest_name),
             guestMobile: cleanText(r.guest_mobile),
             guestEmail: cleanText(r.guest_email),
@@ -164,7 +164,7 @@ export const DailyMomentTracker: React.FC = () => {
             driverMobile: cleanText(r.driver_mobile),
             specialRemark: cleanText(r.special_remarks),
 
-            // Travel expert
+ // Travel expert
             travelExpert: cleanText(r.travel_expert_name),
             travelExpertMobile: cleanText(r.travel_expert_mobile),
             travelExpertEmail: cleanText(r.travel_expert_email),
@@ -176,7 +176,7 @@ export const DailyMomentTracker: React.FC = () => {
         setRows(mapped);
         setCurrentPage(1);
       } catch (e: any) {
-        console.error(e);
+ console.error(e);
         if (!cancelled) {
           setError(
             e?.message || "Failed to load Daily Moment data from server."
@@ -195,7 +195,7 @@ export const DailyMomentTracker: React.FC = () => {
     };
   }, [fromDateObj, toDateObj]);
 
-  // ================== TABLE FILTERING + PAGINATION ==================
+ // ================== TABLE FILTERING + PAGINATION ==================
 
   const filteredRows = useMemo(() => {
     let filtered = rows;
@@ -264,7 +264,7 @@ export const DailyMomentTracker: React.FC = () => {
 
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  // ================== EXPORT HELPERS ==================
+ // ================== EXPORT HELPERS ==================
 
   const EXPORT_HEADERS = [
     "Guest Name", "Quote ID", "Route Date", "Type(A/D/O)",
@@ -329,7 +329,7 @@ export const DailyMomentTracker: React.FC = () => {
   const handleExcel = () => {
     const data = [EXPORT_HEADERS, ...filteredRows.map(rowToArray)];
     const ws = XLSX.utils.aoa_to_sheet(data);
-    // Auto column width
+ // Auto column width
     ws["!cols"] = EXPORT_HEADERS.map((h, i) => {
       const maxLen = Math.max(
         h.length,
@@ -342,7 +342,7 @@ export const DailyMomentTracker: React.FC = () => {
     XLSX.writeFile(wb, `daily_moment_${formatDateDisplay(fromDateObj)}_${formatDateDisplay(toDateObj)}.xlsx`);
   };
 
-  // ================== CAR ICON – NAVIGATE TO DAY VIEW ==================
+ // ================== CAR ICON NAVIGATE TO DAY VIEW ==================
 
   const handleOpenDayView = (row: DailyMomentRow) => {
     navigate(
@@ -351,17 +351,17 @@ export const DailyMomentTracker: React.FC = () => {
     );
   };
 
-  // ================== RENDER ==================
+ // ================== RENDER ==================
 
   return (
     <div className="w-full min-h-screen bg-[#fbeef8] p-4 md:p-6">
-      {/* FILTER CARD */}
+ {/* FILTER CARD */}
       <div className="bg-[#fefefe]/40 rounded-xl border border-[#f6dfff] mb-5">
         <div className="px-6 py-5">
           <p className="text-sm font-semibold text-[#4a4260] mb-4">FILTER</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* From Date */}
+ {/* From Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">From Date:</Label>
               <Popover>
@@ -389,7 +389,7 @@ export const DailyMomentTracker: React.FC = () => {
               </Popover>
             </div>
 
-            {/* To Date */}
+ {/* To Date */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">To Date:</Label>
               <Popover>
@@ -418,9 +418,9 @@ export const DailyMomentTracker: React.FC = () => {
         </div>
       </div>
 
-      {/* LIST CARD */}
+ {/* LIST CARD */}
       <div className="bg-white/70 rounded-xl border border-[#f6dfff]">
-        {/* Header: title + search/export */}
+ {/* Header: title + search/export */}
         <div className="px-6 pt-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <p className="text-sm font-semibold text-[#4a4260]">
@@ -461,7 +461,7 @@ export const DailyMomentTracker: React.FC = () => {
             </div>
           </div>
 
-          {/* Show entries */}
+ {/* Show entries */}
           <div className="flex items-center gap-2 mt-4 mb-2 text-xs text-[#4a4260]">
             <span>Show</span>
             <Select
@@ -481,7 +481,7 @@ export const DailyMomentTracker: React.FC = () => {
           </div>
         </div>
 
-        {/* TABLE */}
+ {/* TABLE */}
         <div className="max-h-[460px] overflow-x-auto overflow-y-auto border-t border-[#f3e0ff]">
           <table className="min-w-[1700px] text-xs">
             <thead className="bg-[#fbf2ff] sticky top-0 z-10">
@@ -582,7 +582,7 @@ export const DailyMomentTracker: React.FC = () => {
                         onClick={() => {
                         if (!row.itineraryPlanId) return;
 
-                        // routeId is optional; avoid "undefined" ending up in URL
+ // routeId is optional; avoid "undefined" ending up in URL
                         const safeRouteId =
                             row.itineraryRouteId === null || row.itineraryRouteId === undefined
                             ? 0
@@ -591,7 +591,7 @@ export const DailyMomentTracker: React.FC = () => {
                         navigate(
                             `/daily-moment/day-view/${row.itineraryPlanId}/${safeRouteId}`,
                             {
-                            state: { row }, // pass header row data for Day View
+ state: { row }, // pass header row data for Day View
                             }
                         );
                         }}
@@ -661,7 +661,7 @@ export const DailyMomentTracker: React.FC = () => {
           </table>
         </div>
 
-        {/* FOOTER: entries text + pagination */}
+ {/* FOOTER: entries text + pagination */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-6 py-4 text-xs text-[#4a4260]">
           <div>
             {totalEntries === 0 ? (

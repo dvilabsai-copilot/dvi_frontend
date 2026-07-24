@@ -130,7 +130,7 @@ export default function HotelFormOrchestrator() {
   const goToReviews = (id?: number | string) => goToTab("reviews", id);
   const goToPreview = (id?: number | string) => goToTab("preview", id);
 
-  /* Load existing hotel in edit mode (for Preview & defaults) */
+ /* Load existing hotel in edit mode (for Preview & defaults) */
   useEffect(() => {
     if (!isEdit || !hotelId) return;
     let alive = true;
@@ -158,7 +158,7 @@ export default function HotelFormOrchestrator() {
 
   return (
     <div className="p-4">
-      {/* Stepper */}
+ {/* Stepper */}
       <div className="mb-4 flex justify-center gap-3">
         {steps.map((s, i) => {
           const isActive = s.n === activeStep;
@@ -193,7 +193,7 @@ export default function HotelFormOrchestrator() {
         })}
       </div>
 
-      {/* Card */}
+ {/* Card */}
       <div className="bg-white rounded-2xl shadow p-6">
         {activeStep === 1 && (
           <BasicStep

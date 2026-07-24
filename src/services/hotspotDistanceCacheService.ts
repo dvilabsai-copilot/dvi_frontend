@@ -6,7 +6,7 @@ export type HotspotDistanceCacheListItem = {
   toHotspotId: number;
   fromHotspotName: string;
   toHotspotName: string;
-  travelLocationType: number; // 1 = Local, 2 = Outstation
+ travelLocationType: number; // 1 = Local, 2 = Outstation
   haversineKm: number;
   correctionFactor: number;
   distanceKm: number;
@@ -21,12 +21,12 @@ export type HotspotDistanceCacheFormData = {
   id?: number;
   fromHotspotId: number;
   toHotspotId: number;
-  travelLocationType: number; // 1 = Local, 2 = Outstation
+ travelLocationType: number; // 1 = Local, 2 = Outstation
   haversineKm: number;
   correctionFactor: number;
   distanceKm: number;
   speedKmph: number;
-  travelTime: string; // HH:MM:SS
+ travelTime: string; // HH:MM:SS
   method?: string;
 };
 
@@ -44,7 +44,7 @@ export type ListResponse = {
 };
 
 export const hotspotDistanceCacheService = {
-  // List with pagination, search, and filters
+ // List with pagination, search, and filters
   async list(params: {
     page?: number;
     size?: number;
@@ -70,21 +70,21 @@ export const hotspotDistanceCacheService = {
     }) as Promise<ListResponse>;
   },
 
-  // Get form options (hotspots and travel types)
+ // Get form options (hotspots and travel types)
   async getFormOptions() {
     return api("/hotspot-distance-cache/form-options", {
       method: "GET",
     }) as Promise<FormOptionsResponse>;
   },
 
-  // Get single entry
+ // Get single entry
   async getById(id: number) {
     return api(`/hotspot-distance-cache/${id}`, {
       method: "GET",
     }) as Promise<HotspotDistanceCacheFormData>;
   },
 
-  // Create new entry
+ // Create new entry
   async create(data: Omit<HotspotDistanceCacheFormData, 'id'>) {
     return api("/hotspot-distance-cache", {
       method: "POST",
@@ -92,7 +92,7 @@ export const hotspotDistanceCacheService = {
     }) as Promise<HotspotDistanceCacheFormData>;
   },
 
-  // Update entry
+ // Update entry
   async update(id: number, data: Partial<HotspotDistanceCacheFormData>) {
     return api(`/hotspot-distance-cache/${id}`, {
       method: "PUT",
@@ -100,14 +100,14 @@ export const hotspotDistanceCacheService = {
     }) as Promise<HotspotDistanceCacheFormData>;
   },
 
-  // Delete entry
+ // Delete entry
   async delete(id: number) {
     await api(`/hotspot-distance-cache/${id}`, {
       method: "DELETE",
     });
   },
 
-  // Bulk delete
+ // Bulk delete
   async bulkDelete(ids: number[]) {
     await api("/hotspot-distance-cache/bulk-delete", {
       method: "POST",
@@ -115,7 +115,7 @@ export const hotspotDistanceCacheService = {
     });
   },
 
-  // Export to Excel
+ // Export to Excel
   async exportExcel(params: {
     fromHotspotId?: number;
     toHotspotId?: number;
@@ -138,8 +138,8 @@ export const hotspotDistanceCacheService = {
     if (!response.ok) {
       throw new Error("Failed to export");
     }
-    
-    // Trigger download
+
+ // Trigger download
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

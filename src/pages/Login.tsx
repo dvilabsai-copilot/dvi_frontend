@@ -16,7 +16,7 @@ const loginBannerSlides = [
     title: "Premium Road Journeys",
     message: "Explore South India with Confidence",
     image:
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "Scenic Coastal Highway", top: "30%", left: "12%" },
       { text: "Premium Coach", top: "70%", left: "58%" },
@@ -28,7 +28,7 @@ const loginBannerSlides = [
     title: "Kerala Experiences",
     message: "Curated Kerala Experiences",
     image:
-      "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "Houseboat Stays", top: "35%", left: "15%" },
       { text: "Munnar Tea Gardens", top: "62%", left: "55%" },
@@ -40,7 +40,7 @@ const loginBannerSlides = [
     title: "Temple Tourism",
     message: "Spiritual Journeys Simplified",
     image:
-      "https://images.unsplash.com/photo-1621831714462-bec8edb22fe8?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1621831714462-bec8edb22fe8?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "Meenakshi Temple", top: "32%", left: "13%" },
       { text: "Rameswaram", top: "60%", left: "58%" },
@@ -52,7 +52,7 @@ const loginBannerSlides = [
     title: "Luxury Transport",
     message: "Reliable Transportation Network",
     image:
-      "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "Innova Crysta", top: "34%", left: "14%" },
       { text: "Luxury Coach", top: "62%", left: "56%" },
@@ -64,7 +64,7 @@ const loginBannerSlides = [
     title: "AI Travel Technology",
     message: "Powered by DVI Optima AI",
     image:
-      "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "AI Planner", top: "31%", left: "13%" },
       { text: "Route Intelligence", top: "58%", left: "57%" },
@@ -76,7 +76,7 @@ const loginBannerSlides = [
     title: "MICE & Corporate Travel",
     message: "Corporate Travel & Events",
     image:
-      "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1800&q=85",
+ "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1800&q=85",
     labels: [
       { text: "Conference Setup", top: "33%", left: "13%" },
       { text: "Corporate Groups", top: "61%", left: "57%" },
@@ -238,7 +238,7 @@ export default function Login() {
     }
   };
 
-  
+
 
     return (
 <div className="min-h-screen w-full bg-[#eadfff] flex items-center justify-center px-4 sm:px-8 lg:px-10 py-4 lg:py-5 overflow-hidden">

@@ -91,7 +91,7 @@ export const useVehicleOnlyClipboardAction = ({
     await copyHtmlToClipboard(html, plainText);
     toast.success(type === "recommended" ? "Copy Recommended copied!" : type === "highlights" ? "Copy to Highlights copied!" : "Copy to Para copied!");
   } catch (error) {
-    console.error("Failed to copy vehicle-only clipboard content", error);
+ console.error("Failed to copy vehicle-only clipboard content", error);
     toast.error("Failed to copy clipboard content");
   }
 }, [buildHighlightsHotspotDetailsHtml, copyHtmlToClipboard, htmlToPlainText, itineraryPreference, quoteId, replaceHighlightsHotspotDetailsHtml]);

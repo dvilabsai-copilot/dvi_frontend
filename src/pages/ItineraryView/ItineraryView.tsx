@@ -25,7 +25,7 @@ export const ItineraryView = () => {
   const [loading, setLoading] = useState(true);
   const [itinerary, setItinerary] = useState<ItineraryFullDetails | null>(null);
   const [guideAssignments, setGuideAssignments] = useState<GuideDetails[]>([]);
-  const [expandedRoutes, setExpandedRoutes] = useState<Set<number>>(new Set([0])); // First route expanded by default
+ const [expandedRoutes, setExpandedRoutes] = useState<Set<number>>(new Set([0])); // First route expanded by default
 
   useEffect(() => {
     if (id) {
@@ -44,7 +44,7 @@ export const ItineraryView = () => {
       setItinerary(data as ItineraryFullDetails);
       setGuideAssignments(Array.isArray(assignments) ? assignments as GuideDetails[] : []);
     } catch (error) {
-      console.error("Failed to load itinerary:", error);
+ console.error("Failed to load itinerary:", error);
       setGuideAssignments([]);
       toast({
         title: "Error",
@@ -100,7 +100,7 @@ export const ItineraryView = () => {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
-      {/* Page Title - Sticky */}
+ {/* Page Title - Sticky */}
       <Card className="sticky top-[2px] z-[1001] bg-white shadow-sm mb-3">
         <CardContent className="p-4 py-3">
           <div className="flex items-center justify-between">
@@ -118,10 +118,10 @@ export const ItineraryView = () => {
         </CardContent>
       </Card>
 
-      {/* Header - Sticky */}
+ {/* Header - Sticky */}
       <Card className="sticky top-[60px] z-[1000] bg-purple-50 border-purple-200 shadow-md mb-4">
         <CardContent className="p-4">
-          {/* Top Row */}
+ {/* Top Row */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-4">
               <h6 className="text-purple-700 font-semibold m-0">
@@ -155,7 +155,7 @@ export const ItineraryView = () => {
             </div>
           </div>
 
-          {/* Bottom Row */}
+ {/* Bottom Row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {plan.preferred_room_count !== undefined && (
@@ -191,7 +191,7 @@ export const ItineraryView = () => {
         </CardContent>
       </Card>
 
-      {/* Main Content */}
+ {/* Main Content */}
       <Card>
         <CardContent className="p-4">
           {isWholeItineraryGuideMode && wholeItineraryGuide && (
@@ -217,7 +217,7 @@ export const ItineraryView = () => {
             </div>
           )}
 
-          {/* Routes Accordion */}
+ {/* Routes Accordion */}
           <div className="space-y-2">
             {routes.map((route: ItineraryRoute, index: number) => (
               <RouteDayCard

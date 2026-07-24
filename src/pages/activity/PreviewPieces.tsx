@@ -82,7 +82,7 @@ function BorderedTable({
   headers: string[];
   children: React.ReactNode;
 }) {
-  // Every TH/TD gets a 1px #eadcfb border
+ // Every TH/TD gets a 1px #eadcfb border
   return (
     <div className="overflow-hidden rounded-md border border-[#eadcfb]">
       <Table className="w-full border-collapse [&_th]:border [&_th]:border-[#eadcfb] [&_td]:border [&_td]:border-[#eadcfb]">
@@ -143,7 +143,7 @@ export default function BasicPreview(props: Props) {
 
   return (
     <div className="rounded-xl border border-[#eadcfb] bg-[#fcf7ff] p-6">
-      {/* Basic Info */}
+ {/* Basic Info */}
       <h2 className="text-2xl font-semibold bg-gradient-to-r from-[#6b21a8] via-[#d946ef] to-[#ec4899] bg-clip-text text-transparent">
         Basic Info
       </h2>
@@ -163,7 +163,7 @@ export default function BasicPreview(props: Props) {
 
       <DividerStar />
 
-      {/* Images */}
+ {/* Images */}
       <h3 className="px-1 pb-3 text-[22px] font-semibold bg-gradient-to-r from-[#6b21a8] via-[#d946ef] to-[#ec4899] bg-clip-text text-transparent">
         Images
       </h3>
@@ -193,7 +193,7 @@ export default function BasicPreview(props: Props) {
 
       <DividerStar />
 
-      {/* Default Available Time */}
+ {/* Default Available Time */}
       <h3 className="px-1 pb-3 text-[22px] font-semibold bg-gradient-to-r from-[#6b21a8] via-[#d946ef] to-[#ec4899] bg-clip-text text-transparent">
         Default Available Time
       </h3>
@@ -219,7 +219,7 @@ export default function BasicPreview(props: Props) {
 
       <DividerStar />
 
-      {/* Special Day */}
+ {/* Special Day */}
       <h3 className="px-1 pb-3 text-[22px] font-semibold bg-gradient-to-r from-[#6b21a8] via-[#d946ef] to-[#ec4899] bg-clip-text text-transparent">
         Special Day
       </h3>
@@ -246,7 +246,7 @@ export default function BasicPreview(props: Props) {
 
       <DividerStar />
 
-      {/* Review */}
+ {/* Review */}
       <h3 className="px-1 pb-3 text-[22px] font-semibold bg-gradient-to-r from-[#6b21a8] via-[#d946ef] to-[#ec4899] bg-clip-text text-transparent">
         Review
       </h3>

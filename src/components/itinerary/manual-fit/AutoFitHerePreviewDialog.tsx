@@ -175,7 +175,7 @@ const extractCheckinHotelLabel = (row: any): string => {
   ).trim();
   const stripped = raw
     .replace(/^check-?in\s+(?:to|at)\s+/i, "")
-    .replace(/^hotel\s*:\s*/i, "")
+ .replace(/^hotel\s*:\s*/i, "")
     .trim();
   return stripped || "Hotel";
 };

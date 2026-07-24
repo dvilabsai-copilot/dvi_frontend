@@ -78,7 +78,7 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
         </div>
       )}
 
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">
           {isEdit ? `Edit Guide \u00BB ${name}` : "Add Guide"}
@@ -88,9 +88,9 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
         </div>
       </div>
 
-      {/* Card */}
+ {/* Card */}
       <div className="bg-white rounded-lg border shadow-sm">
-        {/* Tabs */}
+ {/* Tabs */}
         <div className="flex items-center gap-2 p-4 border-b overflow-x-auto">
           {STEPS.map((step, idx) => (
             <div key={step.id} className="flex items-center">
@@ -125,12 +125,12 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
           ))}
         </div>
 
-        {/* Content */}
+ {/* Content */}
         <div className="p-6">
-          {/* STEP 1: Basic Info */}
+ {/* STEP 1: Basic Info */}
           {currentStep === 1 && (
             <div className="space-y-8">
-              {/* Basic Info Fields */}
+ {/* Basic Info Fields */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label>Guide Name *</Label>
@@ -339,7 +339,7 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
                     value={country}
                     onValueChange={(v) => {
                       setCountry(v);
-                      // state / city cleared by effects
+ // state / city cleared by effects
                     }}
                   >
                     <SelectTrigger>
@@ -425,7 +425,7 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
                 </div>
               </div>
 
-              {/* Available Slots */}
+ {/* Available Slots */}
               <div>
                 <Label className="mb-2 block">Guide Available Slots *</Label>
                 <SlotMultiSelect
@@ -440,14 +440,14 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
                 {fieldErrors.availableSlots && <p className="mt-1 text-xs text-red-500">{fieldErrors.availableSlots}</p>}
               </div>
 
-              {/* Divider with star */}
+ {/* Divider with star */}
               <div className="flex items-center justify-center">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
                 <Star className="mx-4 h-5 w-5 text-gray-300" />
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
 
-              {/* Bank Details */}
+ {/* Bank Details */}
               <div>
                 <h3 className="text-lg font-semibold text-pink-500 mb-4">Bank Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -502,14 +502,14 @@ export const GuideFormView = ({ context }: { context: Record<string, any> }) => 
                 </div>
               </div>
 
-              {/* Divider with star */}
+ {/* Divider with star */}
               <div className="flex items-center justify-center">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
                 <Star className="mx-4 h-5 w-5 text-gray-300" />
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
 
-              {/* Guide Preferred For */}
+ {/* Guide Preferred For */}
               <div>
                 <h3 className="text-lg font-semibold text-pink-500 mb-4">Guide Prefered For</h3>
                 <div className="flex items-center gap-6">
@@ -744,7 +744,7 @@ removeActivityToken(val);
                 </div>
               </div>
 
-              {/* Buttons */}
+ {/* Buttons */}
               <div className="flex justify-between pt-4">
                 <Button variant="secondary" onClick={() => navigate("/guide")}>
                   Back
@@ -764,7 +764,7 @@ removeActivityToken(val);
           <GuideFormReviewStep context={context} />
           {currentStep === 4 && (
             <div className="space-y-8">
-              {/* Basic Info Preview */}
+ {/* Basic Info Preview */}
               <div>
                 <h3 className="text-lg font-semibold text-pink-500 mb-4">Basic Info</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -849,14 +849,14 @@ removeActivityToken(val);
                 </div>
               </div>
 
-              {/* Divider */}
+ {/* Divider */}
               <div className="flex items-center justify-center">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
                 <Star className="mx-4 h-5 w-5 text-gray-300" />
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
 
-              {/* Bank Details Preview */}
+ {/* Bank Details Preview */}
               <div>
                 <h3 className="text-lg font-semibold text-pink-500 mb-4">Bank Details</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -883,14 +883,14 @@ removeActivityToken(val);
                 </div>
               </div>
 
-              {/* Divider */}
+ {/* Divider */}
               <div className="flex items-center justify-center">
                 <div className="flex-1 border-t border-dashed border-gray-300" />
                 <Star className="mx-4 h-5 w-5 text-gray-300" />
                 <div className="flex-1 border-t border-dashed border-gray-300" />
               </div>
 
-              {/* Preferred For Preview */}
+ {/* Preferred For Preview */}
               <div>
                 <h3 className="text-lg font-semibold text-pink-500 mb-4">Feedback & Review</h3>
                 <Table>
@@ -923,7 +923,7 @@ removeActivityToken(val);
                 </Table>
               </div>
 
-              {/* Buttons */}
+ {/* Buttons */}
               <div className="flex justify-between pt-4">
                 <Button variant="secondary" onClick={() => setCurrentStep(3)}>
                   Back

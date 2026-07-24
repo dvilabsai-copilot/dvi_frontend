@@ -97,7 +97,7 @@ export const useHotspotPreviewMutation = ({
       if (requestId !== previewRequestIdRef.current) return;
 
       const fullTimeline = Array.isArray(preview?.fullTimeline) ? [...preview.fullTimeline] : [];
-      console.log("[ManualHotspotModal] received_timeline", {
+ console.log("[ManualHotspotModal] received_timeline", {
         hotspotId: Number(hotspotId),
         segments: fullTimeline.length,
         hasPreviewOrder: fullTimeline.some((segment) => Number.isFinite(Number((segment as { matrixPreviewOrder?: unknown; previewOrder?: unknown })?.matrixPreviewOrder ?? (segment as { previewOrder?: unknown })?.previewOrder))),
@@ -135,7 +135,7 @@ export const useHotspotPreviewMutation = ({
       }
     } catch (error) {
       if (requestId !== previewRequestIdRef.current) return;
-      console.error("Failed to preview hotspot", error);
+ console.error("Failed to preview hotspot", error);
       toast.error(getErrorMessage(error));
       setActivePreviewHotspotId(null);
       setSelectedHotspotIds([]);

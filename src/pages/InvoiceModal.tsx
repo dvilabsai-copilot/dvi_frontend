@@ -94,7 +94,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
       const res = await ItineraryService.getInvoiceData(itineraryPlanId);
       setData(res);
     } catch (error) {
-      console.error("Error fetching invoice data:", error);
+ console.error("Error fetching invoice data:", error);
       setData(null);
     } finally {
       setLoading(false);
@@ -108,7 +108,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const companyLogoUrl = useMemo(() => {
     const raw = String(data?.company?.logoUrl || '').trim();
     if (!raw) return '';
-    if (/^https?:\/\//i.test(raw)) return raw;
+ if (/^https?:\/\//i.test(raw)) return raw;
     const base = API_BASE_URL.replace(/\/api\/v1$/i, '');
     return `${base}${raw.startsWith('/') ? raw : `/${raw}`}`;
   }, [data]);

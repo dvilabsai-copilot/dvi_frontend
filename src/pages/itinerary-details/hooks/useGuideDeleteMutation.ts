@@ -37,7 +37,7 @@ export const useGuideDeleteMutation = ({
     setDeleteGuideModal({ open: false, assignment: null, deleting: false });
     toast.success("Guide deleted successfully");
   } catch (error) {
-    console.error("Failed to delete guide assignment", error);
+ console.error("Failed to delete guide assignment", error);
     setDeleteGuideModal((previous) => ({ ...previous, deleting: false }));
     toast.error(error?.message || "Failed to delete guide");
   }

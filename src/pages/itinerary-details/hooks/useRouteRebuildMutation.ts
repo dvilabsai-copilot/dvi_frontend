@@ -40,7 +40,7 @@ export function useRouteRebuildMutation({
   pushRouteProgressStage,
 }: RouteRebuildMutationProps) {
   return useCallback(async (planId: number, routeId: number) => {
-    console.log("[REBUILD_ROUTE_CLICK]", {
+ console.log("[REBUILD_ROUTE_CLICK]", {
       quoteId,
       planId: itinerary?.planId,
       clickedRouteId: routeId,
@@ -105,7 +105,7 @@ export function useRouteRebuildMutation({
         }
       }
     } catch (error) {
-      console.error("Failed to rebuild route", error);
+ console.error("Failed to rebuild route", error);
       const message = error instanceof Error ? error.message : String(error || "");
       toast.error(message || "Failed to rebuild route");
     } finally {

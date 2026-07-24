@@ -121,9 +121,9 @@ export type { ItineraryHotelRow, ItineraryHotelTab, ItineraryVehicleRow } from "
 export const ItineraryDetails: React.FC<ItineraryDetailsProps> = ({ readOnly = false, presentationMode = 'standard' }) => {
 const { id: quoteId } = useParams();
 const location = useLocation();
-  console.log('🔵 ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
-  //Extra
-  console.log('🔵 Current location pathname:', location.pathname);
+ console.log(' ItineraryDetails component MOUNTED with quoteId:', quoteId, 'readOnly:', readOnly);
+ //Extra
+ console.log(' Current location pathname:', location.pathname);
 
   const routeState = useItineraryRouteState(quoteId);
   const {
@@ -257,7 +257,7 @@ const location = useLocation();
     clipboardRatesVisible, setClipboardRatesVisible,
   } = mediaShareState;
 
-  // Hotel Selection State (Multi-Provider)
+ // Hotel Selection State (Multi-Provider)
   const hotelSelectionState = useHotelSelectionState();
   const {
     selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
@@ -318,7 +318,7 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
   itinerary: itinerary as Record<string, unknown> | null,
 });
 
-  // ✅ Para should use recommendation GROUPS, not first 4 random hotels
+ // Para should use recommendation GROUPS, not first 4 random hotels
   const paraRecommendations = useParaRecommendations(hotelDetails);
 
   const clipboardWorkflow = useItineraryClipboardWorkflow({
@@ -422,10 +422,10 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
   });
   const { handleVehicleSelectedTotalChange, shouldShowRebuildHotelsButton, loadPreparedItineraryPage } = preparedPageWorkflow;
 
-  /**
+ /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
    * This prevents the initial page load from making the unnecessary second API call
-   */
+ */
   const ensureHotelDetailsLoaded = useEnsureHotelDetailsLoaded({
     quoteId,
     itinerary,

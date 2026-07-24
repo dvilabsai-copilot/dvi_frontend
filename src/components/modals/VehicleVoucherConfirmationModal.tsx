@@ -84,7 +84,7 @@ export const VehicleVoucherConfirmationModal: React.FC<VehicleVoucherConfirmatio
       setBookingStatus(String(voucher.bookingStatusCode || 1));
       setStatusRemarks(voucher.statusRemarks || '');
     } catch (error) {
-      console.error('Failed to load vehicle confirmation details', error);
+ console.error('Failed to load vehicle confirmation details', error);
       toast.error('Failed to load vehicle confirmation details');
       onOpenChange(false);
     } finally {
@@ -120,7 +120,7 @@ export const VehicleVoucherConfirmationModal: React.FC<VehicleVoucherConfirmatio
         onSuccess?.();
       }
     } catch (error: any) {
-      console.error('Failed to update vehicle confirmation', error);
+ console.error('Failed to update vehicle confirmation', error);
       toast.error(error.message || 'Failed to update vehicle confirmation');
     } finally {
       setIsSubmitting(false);

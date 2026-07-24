@@ -63,8 +63,8 @@ export const HotspotPreviewTimelineRows: React.FC<HotspotPreviewTimelineRowsProp
                         const activityPriority = Number.isFinite(Number(seg?.priority))
                           ? Number(seg.priority)
                           : (Number.isFinite(Number(hotspotMeta?.priority)) ? Number(hotspotMeta?.priority) : null);
-                        
-                        // ✅ FIX: Manual hotspots should display as "Manual / P4", never P0
+
+ // FIX: Manual hotspots should display as "Manual / P4", never P0
                         const computedPriorityLabel = (): string | null => {
                           const isManual = seg?.planOwnWay === true || seg?.isManual === true;
                           const priority = activityPriority;
@@ -90,7 +90,7 @@ export const HotspotPreviewTimelineRows: React.FC<HotspotPreviewTimelineRowsProp
                           || 'Hotel'
                         ).trim();
 
-                        // ✅ FIX: Handle waiting/break synthetic segments
+ // FIX: Handle waiting/break synthetic segments
                         const isWaitingSegment = seg?.type === 'waiting' || seg?.isSyntheticWaiting === true;
                         const travelToLabel = String(
                           seg?.toName
@@ -106,7 +106,7 @@ export const HotspotPreviewTimelineRows: React.FC<HotspotPreviewTimelineRowsProp
                           ? (resolvedTravelToLabel ? `Travel to ${resolvedTravelToLabel}` : (seg?.text || seg?.name || 'Travel'))
                           : (seg?.text || seg?.name || '');
 
-                        // ✅ FIX: Handle hotel check-in zero-duration segments
+ // FIX: Handle hotel check-in zero-duration segments
                         const isZeroDurationHotel = seg?.isZeroDurationHotel === true ||
                           (seg?.type === 'hotel' && seg?.timeRange && seg.timeRange.split(' - ').length === 2 &&
                            seg.timeRange.split(' - ')[0].trim() === seg.timeRange.split(' - ')[1].trim());
@@ -323,7 +323,7 @@ export const HotspotPreviewTimelineRows: React.FC<HotspotPreviewTimelineRowsProp
                           && !shouldSuppressRouteMetrics
                         );
 
-                        // If waiting segment, render a distinct waiting block
+ // If waiting segment, render a distinct waiting block
                         if (isWaitingSegment) {
                           return <HotspotPreviewWaitingSegment segment={seg} index={idx} timeRange={effectiveSegTimeRange} />;
                         }
@@ -405,7 +405,7 @@ export const HotspotPreviewTimelineRows: React.FC<HotspotPreviewTimelineRowsProp
                                   effectiveSegTimeRange={effectiveSegTimeRange}
                                 />
 
-                                  {/* Reschedule Priority Confirmation — shown inline inside the selected card */}
+ {/* Reschedule Priority Confirmation shown inline inside the selected card */}
                                   {pendingPriorityReplacementHotspotId && (
                                     <HotspotPriorityConfirmation
                                       priorityConfirmRef={priorityConfirmRef}

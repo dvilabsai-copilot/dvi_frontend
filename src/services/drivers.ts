@@ -3,7 +3,7 @@ import { api } from "@/lib/api";
 
 /* =========================================================
    EXISTING LIST PAGE TYPES + FUNCTIONS (DO NOT CHANGE)
-   ========================================================= */
+ ========================================================= */
 
 export type Driver = {
   id: number;
@@ -17,7 +17,7 @@ export type Driver = {
 
 export async function listDrivers(): Promise<Driver[]> {
   const res = await api("/drivers");
-  // Backend already sends in correct shape
+ // Backend already sends in correct shape
   return res as Driver[];
 }
 
@@ -37,7 +37,7 @@ export async function deleteDriver(id: number) {
 /* =========================================================
    NEW: ADD DRIVER WIZARD / FORM SERVICE APIs
    (adds capabilities without breaking existing list APIs)
-   ========================================================= */
+ ========================================================= */
 
 export type Id = number | string;
 
@@ -53,9 +53,9 @@ export type DriverBasicInfo = {
   email?: string;
 
   licenseNumber?: string;
-  licenseIssueDate?: string; // ISO
-  licenseExpireDate?: string; // ISO
-  dateOfBirth?: string; // ISO
+ licenseIssueDate?: string; // ISO
+ licenseExpireDate?: string; // ISO
+ dateOfBirth?: string; // ISO
 
   bloodGroup?: string;
   gender?: string;
@@ -66,9 +66,9 @@ export type DriverBasicInfo = {
 
   address?: string;
 
-  // File upload
-  profileFile?: File | null; // local only
-  profileUrl?: string; // server url
+ // File upload
+ profileFile?: File | null; // local only
+ profileUrl?: string; // server url
 };
 
 export type DriverCostDetails = {
@@ -152,14 +152,14 @@ export async function fetchDriverLookups(): Promise<{
   genders: Option[];
   documentTypes: Option[];
 }> {
-  // Preferred: one endpoint
-  // NOTE: api.ts already normalizes base to ".../api/v1",
-  // so do NOT include "/api/v1" here.
+ // Preferred: one endpoint
+ // NOTE: api.ts already normalizes base to ".../api/v1",
+ // so do NOT include "/api/v1" here.
   try {
     const data = await api("/drivers/lookups", { method: "GET" });
     return normalizeLookups(data);
   } catch {
-    // Fallbacks (if you don't have /drivers/lookups yet)
+ // Fallbacks (if you don't have /drivers/lookups yet)
     const [vendors, vehicleTypes] = await Promise.all([
       api("/vendors/options", { method: "GET" }).catch(() => []),
       api("/vehicle-types/options", { method: "GET" }).catch(() => []),
@@ -218,8 +218,8 @@ export async function createOrUpdateDriverBasic(
 ): Promise<{ id: Id }> {
   const hasFile = !!payload.profileFile;
 
-  // Create => POST /drivers
-  // Update basic => PUT /drivers/:id/basic
+ // Create => POST /drivers
+ // Update basic => PUT /drivers/:id/basic
   const path = driverId ? `/drivers/${driverId}/basic` : `/drivers`;
   const method = driverId ? "PUT" : "POST";
 

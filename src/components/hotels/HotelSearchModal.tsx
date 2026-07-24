@@ -128,7 +128,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     return null;
   };
 
-  // Handle search input changes
+ // Handle search input changes
   const handleSearchChange = (query: string, nationalityOverride?: string) => {
     const effectiveNationality = (
       nationalityOverride ?? selectedGuestNationality
@@ -179,7 +179,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     }
   };
 
-  // Handle hotel selection
+ // Handle hotel selection
   const submitHotelSelection = async (hotel: HotelSearchResult) => {
     setSelectedHotel(hotel);
 
@@ -195,7 +195,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
       });
       setSelectedHotel(null);
     } catch (err) {
-      console.error('Failed to select hotel:', err);
+ console.error('Failed to select hotel:', err);
       setSelectedHotel(null);
     }
   };
@@ -219,7 +219,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     }
   };
 
-  // Clear search when modal closes
+ // Clear search when modal closes
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       clearSearch();
@@ -232,7 +232,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     onOpenChange(newOpen);
   };
 
-  // Format date for display
+ // Format date for display
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -311,7 +311,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
             </div>
           )}
 
-          {/* Search Input */}
+ {/* Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
@@ -334,7 +334,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
             </div>
           )}
 
-          {/* Error Message */}
+ {/* Error Message */}
           {error && (
             <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
               <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
@@ -347,7 +347,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
             </div>
           )}
 
-          {/* Results */}
+ {/* Results */}
           {!isSearching && searchQuery.trim() && searchResults.length === 0 && !error && (
             <div className="py-8 text-center">
               <p className="text-gray-500 text-sm">
@@ -398,7 +398,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
           )}
         </div>
 
-        {/* Meal Plan Selection (shown when results exist) */}
+ {/* Meal Plan Selection (shown when results exist) */}
         {searchResults.length > 0 && (
           <div className="border-t pt-4 mt-4">
             <p className="text-xs font-medium text-[#4a4260] mb-3">

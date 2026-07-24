@@ -16,7 +16,7 @@ export const HotelRoomsTab = ({ hotelId, onNext }: HotelRoomsTabProps) => {
           Add Rooms
         </button>
       </div>
-      
+
       <div className="text-sm text-muted-foreground">
         {hotelId ? `Editing hotel #${hotelId}` : "No hotel selected"}
       </div>

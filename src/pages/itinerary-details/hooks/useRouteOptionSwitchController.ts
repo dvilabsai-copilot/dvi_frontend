@@ -107,7 +107,7 @@ export const useRouteOptionSwitchController = ({
     } catch (error) {
       if (latestRouteRequestRef.current !== routeRequestId) return;
       switchedRouteRef.current = null;
-      console.error("Failed to switch itinerary route option", error);
+ console.error("Failed to switch itinerary route option", error);
       toast.error(error?.message || "Failed to load selected route option");
     } finally {
       if (latestRouteRequestRef.current === routeRequestId) {

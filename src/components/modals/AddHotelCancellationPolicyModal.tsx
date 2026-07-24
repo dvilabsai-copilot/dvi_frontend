@@ -76,7 +76,7 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
         if (onSuccess) onSuccess();
       }
     } catch (error: any) {
-      console.error('Failed to add cancellation policy', error);
+ console.error('Failed to add cancellation policy', error);
       toast.error(error.message || 'Failed to add cancellation policy');
     } finally {
       setIsSubmitting(false);
@@ -92,7 +92,7 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
-            {/* Hotel Name - Read Only */}
+ {/* Hotel Name - Read Only */}
             <div>
               <Label className="text-sm font-medium text-[#4a4260] mb-1 block">
                 Hotel Name
@@ -105,7 +105,7 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
               />
             </div>
 
-            {/* Cancellation Date */}
+ {/* Cancellation Date */}
             <div>
               <Label htmlFor="cancellationDate" className="text-sm font-medium text-[#4a4260] mb-1 block">
                 Cancellation Date <span className="text-red-500">*</span>
@@ -123,7 +123,7 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
               </div>
             </div>
 
-            {/* Cancellation Percentage */}
+ {/* Cancellation Percentage */}
             <div>
               <Label htmlFor="cancellationPercentage" className="text-sm font-medium text-[#4a4260] mb-1 block">
                 Cancellation Percentage <span className="text-red-500">*</span>
@@ -150,7 +150,7 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
               </p>
             </div>
 
-            {/* Description */}
+ {/* Description */}
             <div>
               <Label htmlFor="description" className="text-sm font-medium text-[#4a4260] mb-1 block">
                 Description <span className="text-red-500">*</span>
@@ -166,10 +166,10 @@ export const AddHotelCancellationPolicyModal: React.FC<AddHotelCancellationPolic
               />
             </div>
 
-            {/* Info Box */}
+ {/* Info Box */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-xs text-blue-800">
-                <strong>Note:</strong> This cancellation policy will be applied to the hotel voucher. 
+                <strong>Note:</strong> This cancellation policy will be applied to the hotel voucher.
                 Multiple policies can be added based on different cancellation dates.
               </p>
             </div>

@@ -26,7 +26,7 @@ export const useGuideDataRefresh = ({
       const response = await ItineraryService.getGuideAssignments(planId) as ItineraryGuideAssignment[];
       setGuideAssignments(Array.isArray(response) ? response : []);
     } catch (error) {
-      console.error("Failed to load guide assignments", error);
+ console.error("Failed to load guide assignments", error);
       setGuideAssignments([]);
     }
   }, [setGuideAssignments]);
@@ -43,7 +43,7 @@ export const useGuideDataRefresh = ({
           const detailsRes = await ItineraryService.getDetails(quoteId) as ItineraryDetailsResponse;
           setItinerary(detailsRes);
         } catch (error) {
-          console.error("Failed to refresh itinerary details after guide change", error);
+ console.error("Failed to refresh itinerary details after guide change", error);
         }
       })(),
     ]);

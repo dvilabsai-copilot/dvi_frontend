@@ -63,7 +63,7 @@ export const AutoSuggestSelect = forwardRef<
   const inputRef = useRef<HTMLInputElement | null>(null);
   const optionRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Expose focus method via ref
+ // Expose focus method via ref
   useImperativeHandle(ref, () => ({
     focus: () => triggerRef.current?.focus(),
   }), []);
@@ -80,16 +80,16 @@ export const AutoSuggestSelect = forwardRef<
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
-    
-    // Support searching by individual words (e.g., "arab" in "United Arab Emirates")
+
+ // Support searching by individual words (e.g., "arab" in "United Arab Emirates")
     const searchTerms = q.split(/\s+/).filter(Boolean);
-    
+
     return options.filter((opt) => {
       const label = opt.label.toLowerCase();
       const value = opt.value.toLowerCase();
       const combined = `${label} ${value}`.toLowerCase();
-      
-      // Check if all search terms are found in label, value, or combined
+
+ // Check if all search terms are found in label, value, or combined
       return searchTerms.every(term => combined.includes(term));
     });
   }, [options, query]);
@@ -119,7 +119,7 @@ export const AutoSuggestSelect = forwardRef<
     setHighlightIndex(0);
   }
 }, [open, mode, selectedValues, options, scrollToValue]);
-  // Close when clicking outside
+ // Close when clicking outside
   useEffect(() => {
     if (!open) return;
     const handleClick = (e: MouseEvent | globalThis.MouseEvent) => {
@@ -135,7 +135,7 @@ export const AutoSuggestSelect = forwardRef<
       document.removeEventListener("mousedown", handleClick as any);
   }, [open]);
 
-  // Scroll highlighted option into view
+ // Scroll highlighted option into view
 useEffect(() => {
   if (!open) return;
 
@@ -178,7 +178,7 @@ useEffect(() => {
   const handleSelect = (opt: AutoSuggestOption, reason: "click" | "enter" | "tab" = "click") => {
     if (mode === "single") {
       onChange(opt.value);
-      closeDropdown(); // close only for single mode
+ closeDropdown(); // close only for single mode
       triggerRef.current?.focus();
       onSelectionCommit?.(reason);
     } else {
@@ -192,7 +192,7 @@ useEffect(() => {
         current.push(opt.value);
         onChange(current);
       }
-      // DO NOT close dropdown in multi mode
+ // DO NOT close dropdown in multi mode
     }
   };
 
@@ -208,7 +208,7 @@ useEffect(() => {
         openDropdown();
       }
     }
-    // Tab on trigger: let it move to next field, no special handling
+ // Tab on trigger: let it move to next field, no special handling
   };
 
   const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -237,18 +237,18 @@ useEffect(() => {
       closeDropdown();
       triggerRef.current?.focus();
     } else if (e.key === "Tab") {
-      // If dropdown is open and we have options, select highlighted option
-      // and prevent default Tab so parent can move focus
+ // If dropdown is open and we have options, select highlighted option
+ // and prevent default Tab so parent can move focus
       const opt = filteredOptions[highlightIndex];
       if (opt) {
         e.preventDefault();
         handleSelect(opt, "tab");
-        // Parent will be responsible for moving focus to next field
-        // We signal this via onSelectionCommit callback with reason "tab"
+ // Parent will be responsible for moving focus to next field
+ // We signal this via onSelectionCommit callback with reason "tab"
         return;
       }
 
-      // If nothing to select, just close and allow tabbing
+ // If nothing to select, just close and allow tabbing
       closeDropdown();
     }
   };
@@ -259,7 +259,7 @@ useEffect(() => {
       className={open ? "relative isolate" : "relative"}
       style={open ? { zIndex: stackingZIndex } : undefined}
     >
-      {/* Trigger */}
+ {/* Trigger */}
       <button
         ref={triggerRef}
         type="button"
@@ -272,7 +272,7 @@ useEffect(() => {
         onClick={openDropdown}
         onKeyDown={handleTriggerKeyDown}
         onFocus={() => {
-          // Allow consumers to control whether focus should auto-open options.
+ // Allow consumers to control whether focus should auto-open options.
           if (openOnFocus && !open && !disabled && !readOnly) openDropdown();
         }}
       >
@@ -282,7 +282,7 @@ useEffect(() => {
         <ChevronDown className="h-3 w-3 shrink-0 ml-2" />
       </button>
 
-      {/* Dropdown */}
+ {/* Dropdown */}
       {open && (
         <div className="absolute left-0 right-0 top-full mt-1 z-[9999] rounded-md border border-[#f0e7ff] bg-white shadow-sm p-2">
           <Input
@@ -334,7 +334,7 @@ useEffect(() => {
                     key={opt.value}
                     ref={(el) => (optionRefs.current[idx] = el)}
                     onMouseDown={(e) => {
-                      // prevent blur before click
+ // prevent blur before click
                       e.preventDefault();
                       handleSelect(opt, "click");
                     }}

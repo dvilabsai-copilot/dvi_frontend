@@ -54,7 +54,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
   const allowedVehicleMatch = saveErrorMessage?.match(/Allowed vehicle types:\s*([\s\S]*)$/i);
   const allowedVehicleTypes = allowedVehicleMatch?.[1]
     ?.replace(/\.$/, '')
-    .split(/,\s*/)
+ .split(/,\s*/)
     .map((name: string) => name.trim())
     .filter(Boolean) || [];
   const messageWithoutAllowedVehicles = allowedVehicleMatch && typeof allowedVehicleMatch.index === 'number'
@@ -140,7 +140,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
             : ""
         }
       >
-       {/* Show suggested/default routes if itinerary type is Default/Suggested Routes */}
+ {/* Show suggested/default routes if itinerary type is Default/Suggested Routes */}
 {itineraryTypeSelect && isDefaultItineraryTypeSelected() ? (
           <DefaultRoutesSuggestions
   arrivalLocation={arrivalLocation}

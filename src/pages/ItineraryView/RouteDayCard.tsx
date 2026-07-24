@@ -41,13 +41,13 @@ export const RouteDayCard = ({
 
   return (
     <div className="mb-3">
-      {/* Sticky Header */}
+ {/* Sticky Header */}
       <div
         onClick={onToggle}
         className="sticky top-[148px] z-10 cursor-pointer bg-white border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center justify-between">
-          {/* Left Section - Day Info */}
+ {/* Left Section - Day Info */}
           <div className="flex items-center gap-3 flex-1">
             <div className="flex items-center gap-2">
               <Calendar className="w-5 h-5 text-purple-600" />
@@ -60,12 +60,12 @@ export const RouteDayCard = ({
             </div>
           </div>
 
-          {/* Middle Section - Route */}
+ {/* Middle Section - Route */}
           <div className="flex items-center gap-2 flex-1 justify-center">
             <span className="font-medium truncate max-w-[200px]" title={route.location_name}>
               {route.location_name}
             </span>
-            
+
             {viaRoutesText && (
               <>
                 <ArrowRight className="w-4 h-4 text-purple-600" />
@@ -74,14 +74,14 @@ export const RouteDayCard = ({
                 </span>
               </>
             )}
-            
+
             <ArrowRight className="w-4 h-4 text-purple-600" />
             <span className="font-medium truncate max-w-[200px]" title={route.next_visiting_location}>
               {route.next_visiting_location}
             </span>
           </div>
 
-          {/* Right Section - KM */}
+ {/* Right Section - KM */}
           {showKm && (
             <div className="flex items-center gap-2">
               <img src="/assets/img/kilometer.png" alt="KM" className="w-5 h-5" />
@@ -93,11 +93,11 @@ export const RouteDayCard = ({
         </div>
       </div>
 
-      {/* Expandable Content */}
+ {/* Expandable Content */}
       {isExpanded && (
         <Card className="mt-2 border-l-4 border-l-purple-500">
           <CardContent className="p-4">
-            {/* Location Description */}
+ {/* Location Description */}
             {route.location_description && (
               <div className="mb-4 p-4 bg-purple-50 rounded-lg">
                 <div className="flex gap-3">
@@ -110,7 +110,7 @@ export const RouteDayCard = ({
               </div>
             )}
 
-            {/* Time Display */}
+ {/* Time Display */}
             <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
@@ -119,7 +119,7 @@ export const RouteDayCard = ({
                 <span className="font-medium">{formatTime(route.route_end_time)}</span>
               </div>
 
-              {/* Extra Charges Warning */}
+ {/* Extra Charges Warning */}
               {(beforeSixAM || afterEightPM) && (
                 <div className="flex items-center gap-2 text-sm text-orange-600">
                   <i className="ti ti-info-circle-filled" />
@@ -160,8 +160,8 @@ export const RouteDayCard = ({
               </div>
             )}
 
-            {/* Additional route details can be added here */}
-            {/* Hotspots, Activities, Hotels, etc. */}
+ {/* Additional route details can be added here */}
+ {/* Hotspots, Activities, Hotels, etc. */}
           </CardContent>
         </Card>
       )}

@@ -82,23 +82,23 @@ const ActivityForm = () => {
   });
   const [formData, setFormData] = useState<ActivityFormState>(getEmptyActivity());
   const [loading, setLoading] = useState(false);
-  // hotspot dropdown via API
+ // hotspot dropdown via API
   const [hotspotOptions, setHotspotOptions] = useState<HotspotOption[]>([]);
   const [isHotspotOpen, setIsHotspotOpen] = useState(false);
-  // image state (only for client-side preview)
-  // Image state: server-loaded images (with id for delete) + pending local files
+ // image state (only for client-side preview)
+ // Image state: server-loaded images (with id for delete) + pending local files
   const [serverImages, setServerImages] = useState<{ id: number; url: string }[]>([]);
 const [imageFiles, setImageFiles] = useState<File[]>([]);
 const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
-  // Review form state
+ // Review form state
   const [reviewRating, setReviewRating] = useState("");
   const [reviewFeedback, setReviewFeedback] = useState("");
   const [reviewSearch, setReviewSearch] = useState("");
   const [reviewPageSize, setReviewPageSize] = useState(10);
   const [reviewPage, setReviewPage] = useState(1);
   const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
-  // Price book dates (DD/MM/YYYY like Create Itinerary)
+ // Price book dates (DD/MM/YYYY like Create Itinerary)
   const [priceStartDate, setPriceStartDate] = useState<string>("");
   const [priceEndDate, setPriceEndDate] = useState<string>("");
   const [isPriceStartOpen, setIsPriceStartOpen] = useState(false);
@@ -106,9 +106,9 @@ const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
   const [isPriceDatesOpen, setIsPriceDatesOpen] = useState(false);
   const [priceHoveredTo, setPriceHoveredTo] = useState<Date | undefined>(undefined);
   const [priceSelectingEnd, setPriceSelectingEnd] = useState(false);
-  /* ------------------------ load hotspots & activity ------------------------ */
+ /* ------------------------ load hotspots & activity ------------------------ */
   useEffect(() => {
-    // hotspots for dropdown
+ // hotspots for dropdown
     ActivitiesAPI.hotspots()
       .then((res) => setHotspotOptions(res || []))
       .catch(() => setHotspotOptions([]));
@@ -127,7 +127,7 @@ const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
         ActivitiesAPI.preview(numericId).catch(() => null as PreviewPayload | null),
       ]);
       const base = getEmptyActivity();
-      // basic
+ // basic
       base.title = details.activity_title ?? "";
       base.hotspotId = details.hotspot_id ?? undefined;
       base.hotspot = details.hotspot?.hotspot_name ?? "";
@@ -136,7 +136,7 @@ const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
       base.duration = details.activity_duration ?? "00:30:00";
       base.description = details.activity_description ?? "";
       base.status = details.status === 1;
-      // preview extras (time slots, reviews)
+ // preview extras (time slots, reviews)
       if (preview) {
         if (preview.defaultSlots && preview.defaultSlots.length > 0) {
           base.defaultAvailableTimes = preview.defaultSlots.map((s) => ({
@@ -164,7 +164,7 @@ const [deleteImageIndex, setDeleteImageIndex] = useState<number | null>(null);
             createdOn: r.createdon,
           })) ?? [];
       }
-     // Load server images
+ // Load server images
 // Load server images
 if (preview?.images?.length) {
   setServerImages(
@@ -176,8 +176,8 @@ if (preview?.images?.length) {
         img.url ||
         "";
       const imageUrl = buildActivityImageUrl(imageName);
-      console.log("Activity image row:", img);
-      console.log("Activity image url:", imageUrl);
+ console.log("Activity image row:", img);
+ console.log("Activity image url:", imageUrl);
       return {
         id: Number(
           img.activity_image_gallery_details_id ||
@@ -191,7 +191,7 @@ if (preview?.images?.length) {
 } else {
   setServerImages([]);
 }
-      // Load pricebook
+ // Load pricebook
       try {
         const pb = await ActivitiesAPI.getPriceBook(numericId);
         if (pb) {
@@ -208,7 +208,7 @@ if (preview?.images?.length) {
             foreignInfant: pb.nonindian?.infant_cost ?? 0,
             foreignUnitCost: pb.nonindian?.unit_cost ?? 0,
           };
-          // format into DD/MM/YYYY for the picker display
+ // format into DD/MM/YYYY for the picker display
           const fmtDMY = (iso: string) => {
             if (!iso) return "";
             const [y, m, d] = iso.split("-");
@@ -217,16 +217,16 @@ if (preview?.images?.length) {
           setPriceStartDate(fmtDMY(pb.start_date));
           setPriceEndDate(fmtDMY(pb.end_date));
         }
-      } catch { /* non-blocking */ }
+ } catch { /* non-blocking */ }
       setFormData(base);
     } catch (err) {
-      console.error(err);
+ console.error(err);
       toast.error("Failed to load activity");
     } finally {
       setLoading(false);
     }
   };
-  /* ---------------------------- helpers & change ---------------------------- */
+ /* ---------------------------- helpers & change ---------------------------- */
   const handleInputChange = (field: keyof ActivityFormState, value: string | number | boolean | FormTimeSlot[] | FormSpecialDay[] | FormPricing | FormReview[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -244,7 +244,7 @@ if (preview?.images?.length) {
     if (!files?.length) return;
     const newFiles = Array.from(files);
     if (isEdit && id) {
-      // Upload immediately and add to serverImages
+ // Upload immediately and add to serverImages
       ActivitiesAPI.uploadImages(Number(id), newFiles)
         .then((res) => {
           const base64 = ActivitiesAPI.imageBase();
@@ -257,7 +257,7 @@ if (preview?.images?.length) {
         })
         .catch(() => toast.error("Image upload failed"));
     } else {
-      // Queue for upload on submit
+ // Queue for upload on submit
       setImageFiles((prev) => [...prev, ...newFiles]);
       newFiles.forEach((file) => {
         const reader = new FileReader();
@@ -284,7 +284,7 @@ if (preview?.images?.length) {
     setDeleteImageIndex(null);
     toast.success("Deleted Successfully");
   } catch (error) {
-    console.error("Image delete failed:", error);
+ console.error("Image delete failed:", error);
     toast.error("Failed to delete image");
   }
 };
@@ -318,7 +318,7 @@ if (preview?.images?.length) {
       };
     });
   };
-  /* ----------------------------- reviews actions ---------------------------- */
+ /* ----------------------------- reviews actions ---------------------------- */
   const refreshReviewsFromServer = async (activityId: number) => {
     try {
       const preview = await ActivitiesAPI.preview(activityId);
@@ -331,7 +331,7 @@ if (preview?.images?.length) {
         })) ?? [];
       setFormData((prev) => ({ ...prev, reviews }));
     } catch (err) {
-      console.error(err);
+ console.error(err);
       toast.error("Failed to refresh reviews");
     }
   };
@@ -342,7 +342,7 @@ if (preview?.images?.length) {
         ...prev.specialDays,
         {
           date: "",
-          // Keep defaults in state so preview/save matches what UI shows.
+ // Keep defaults in state so preview/save matches what UI shows.
           timeSlots: [{ startTime: "09:00", endTime: "09:00" }],
         },
       ],
@@ -483,8 +483,8 @@ const handleReviewExcel = () => {
     }
     toast.success("Review deleted");
   };
-  /* --------------------------- pricing + submit ---------------------------- */
-  // parse DD/MM/YYYY to Date (matches Create Itinerary format)
+ /* --------------------------- pricing + submit ---------------------------- */
+ // parse DD/MM/YYYY to Date (matches Create Itinerary format)
   const parseDMY = (s: string): Date | null => {
     if (!s) return null;
     const [d, m, y] = s.split("/").map(Number);
@@ -503,7 +503,7 @@ const handleReviewExcel = () => {
     const clicked = formatDMY(day);
     const startObj = parseDMY(priceStartDate);
     if (!startObj || (startObj && parseDMY(priceEndDate))) {
-      // fresh selection
+ // fresh selection
       setPriceStartDate(clicked);
       setPriceEndDate("");
       setPriceSelectingEnd(true);
@@ -529,7 +529,7 @@ const handleReviewExcel = () => {
     }
     return { from: s, to: s };
   }, [priceStartDate, priceEndDate, priceHoveredTo, priceSelectingEnd]);
-  // When both dates selected in edit mode, fetch existing prices from DB
+ // When both dates selected in edit mode, fetch existing prices from DB
   useEffect(() => {
     if (!isEdit || !id) return;
     if (!parseDMY(priceStartDate) || !parseDMY(priceEndDate)) return;
@@ -552,8 +552,8 @@ const handleReviewExcel = () => {
           },
         }));
       })
-      .catch(() => {/* non-blocking */});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+ .catch(() => {/* non-blocking */});
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceStartDate, priceEndDate]);
   const handleUpdatePricing = async () => {
     const start = parseDMY(priceStartDate);
@@ -562,9 +562,9 @@ const handleReviewExcel = () => {
     if (start > end) { toast.error("Start date must be before end date"); return; }
     const startDate = format(start, "yyyy-MM-dd");
     const endDate = format(end, "yyyy-MM-dd");
-    // Capture current pricing values before state update
+ // Capture current pricing values before state update
     const currentPricing = formData.pricing;
-    // Update local state so the table rebuilds
+ // Update local state so the table rebuilds
     setFormData((prev) => ({
       ...prev,
       pricing: {
@@ -573,7 +573,7 @@ const handleReviewExcel = () => {
         endDate,
       },
     }));
-    // If editing an existing activity, persist to DB immediately
+ // If editing an existing activity, persist to DB immediately
     if (isEdit && id) {
       try {
         await ActivitiesAPI.savePriceBook(Number(id), {
@@ -607,7 +607,7 @@ const handleReviewExcel = () => {
     const d = new Date(s);
     return isNaN(d.getTime()) ? null : d;
   };
-  // Only build dates from the COMMITTED values (set via Update button), not live text inputs
+ // Only build dates from the COMMITTED values (set via Update button), not live text inputs
   const getPriceBookDates = () => {
     const start = safeDate(formData.pricing.startDate);
     const end = safeDate(formData.pricing.endDate);
@@ -682,29 +682,29 @@ const handleReviewExcel = () => {
       },
     }));
   }, [priceStartDate, priceEndDate]);
-  /** Upload selected files to Multer endpoint, then persist filenames into gallery table.
+ /** Upload selected files to Multer endpoint, then persist filenames into gallery table.
    * Expects backend route: POST /activities/:id/images/upload (Multer, files field = 'files')
    * Returns server JSON: { files: Array<{ filename: string }> }
-   */
+ */
 // put near other helpers in ActivityForm.tsx
 async function uploadImagesAndSaveGallery(activityId: number, files: File[]) {
   if (!files || files.length === 0) return;
   const fd = new FormData();
-  // NOTE: the backend interceptor expects field name "images"
+ // NOTE: the backend interceptor expects field name "images"
   files.forEach((f) => fd.append("images", f));
   fd.append("createdby", "0");
-  // IMPORTANT: go through api() so it prefixes API_BASE_URL + /api/v1
-  // Resulting URL: http://localhost:4006/api/v1/activities/:id/images/upload
-  console.log("[upload] to", `/activities/${activityId}/images/upload`);
+ // IMPORTANT: go through api() so it prefixes API_BASE_URL + /api/v1
+ // Resulting URL: http://localhost:4006/api/v1/activities/:id/images/upload
+ console.log("[upload] to", `/activities/${activityId}/images/upload`);
   await api(`/activities/${activityId}/images/upload`, {
     method: "POST",
-    body: fd, // do NOT set Content-Type manually
+ body: fd, // do NOT set Content-Type manually
   });
 }
 /** Persist locally-added reviews (added during create flow) after the activity is created */
 const persistPendingReviews = async (activityId: number) => {
   if (!formData.reviews?.length) return;
-  // Only send those without a numeric server id (heuristic: non-numeric ids are local)
+ // Only send those without a numeric server id (heuristic: non-numeric ids are local)
   const pending = formData.reviews.filter((r) => Number.isNaN(Number(r.id)));
   if (!pending.length) return;
   await Promise.all(
@@ -716,13 +716,13 @@ const persistPendingReviews = async (activityId: number) => {
       })
     )
   );
-  // Refresh from server to get canonical ids/timestamps
+ // Refresh from server to get canonical ids/timestamps
   await refreshReviewsFromServer(activityId);
 };
   const handleSubmit = async () => {
     try {
       setLoading(true);
-      // ----------------- BASIC -----------------
+ // ----------------- BASIC -----------------
       const basicPayload = {
         activity_title: formData.title,
         hotspot_id: formData.hotspotId ?? 0,
@@ -738,12 +738,12 @@ const persistPendingReviews = async (activityId: number) => {
         const created = await ActivitiesAPI.create(basicPayload);
         activityIdNum = created.activity_id;
       }
-      // ----------------- IMAGES -----------------
-      // Upload actual files to Multer, then save filenames to DB
+ // ----------------- IMAGES -----------------
+ // Upload actual files to Multer, then save filenames to DB
       if (imageFiles.length > 0) {
         await uploadImagesAndSaveGallery(activityIdNum, imageFiles);
       }
-      // ----------------- TIME SLOTS -----------------
+ // ----------------- TIME SLOTS -----------------
       await ActivitiesAPI.saveTimeSlots(activityIdNum, {
         defaultSlots: formData.defaultAvailableTimes
           .filter((t) => t.startTime && t.endTime)
@@ -764,7 +764,7 @@ const persistPendingReviews = async (activityId: number) => {
             )
           : [],
       });
-      // ----------------- PRICEBOOK -----------------
+ // ----------------- PRICEBOOK -----------------
       if (formData.pricing.startDate && formData.pricing.endDate) {
                 await ActivitiesAPI.savePriceBook(activityIdNum, {
           hotspot_id: formData.hotspotId ?? 0,
@@ -785,27 +785,27 @@ const persistPendingReviews = async (activityId: number) => {
           },
         });
       }
-      // ----------------- REVIEWS (create-flow pending ones) -----------------
+ // ----------------- REVIEWS (create-flow pending ones) -----------------
       if (!isEdit && formData.reviews.length) {
         try {
           await persistPendingReviews(activityIdNum);
         } catch (e) {
-          console.warn("Reviews save failed (non-blocking):", e);
+ console.warn("Reviews save failed (non-blocking):", e);
         }
       }
       toast.success(isEdit ? "Activity updated successfully" : "Activity saved successfully");
       navigate("/activities");
     } catch (err: unknown) {
-      console.error(err);
+ console.error(err);
       const errorMessage = err instanceof Error ? err.message : "Failed to save activity";
       toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
-  /* ------------------------------- misc helpers ------------------------------ */
+ /* ------------------------------- misc helpers ------------------------------ */
   const goToNextTab = async () => {
-    // When leaving Tab 1 in edit mode, persist time slots (incl. special days) immediately
+ // When leaving Tab 1 in edit mode, persist time slots (incl. special days) immediately
     if (activeTab === 1 && isEdit && id) {
       try {
         await ActivitiesAPI.saveTimeSlots(Number(id), {
@@ -822,7 +822,7 @@ const persistPendingReviews = async (activityId: number) => {
             : [],
         });
       } catch {
-        // non-blocking â€” proceed to next tab even if save fails
+ // non-blocking proceed to next tab even if save fails
       }
     }
     if (activeTab < 4) setActiveTab(activeTab + 1);

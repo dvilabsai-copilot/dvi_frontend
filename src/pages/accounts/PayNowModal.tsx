@@ -184,7 +184,7 @@ export const PayNowModal: React.FC<PayNowModalProps> = ({
               </span>
               <input
                 type="file"
-                accept="image/*"
+ accept="image/*"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];

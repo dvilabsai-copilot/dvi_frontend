@@ -27,7 +27,7 @@ export const copyHtmlToClipboard = async (
       await navigator.clipboard.writeText(plainText);
     }
   } catch (error) {
-    console.error('Clipboard copy failed', error);
+ console.error('Clipboard copy failed', error);
     await navigator.clipboard.writeText(plainText);
   }
 };

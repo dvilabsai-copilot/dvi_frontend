@@ -53,16 +53,16 @@ export default function VehicleAvailabilityPage() {
   const initialRange = useMemo(() => defaultMonthRange(), []);
   const today = useMemo(() => toYmd(new Date()), []);
 
-  // filter UI
+ // filter UI
   const [dateFrom, setDateFrom] = useState(initialRange.dateFrom);
   const [dateTo, setDateTo] = useState(initialRange.dateTo);
   const [vendorIds, setVendorIds] = useState<number[]>([]);
   const [vehicleTypeIds, setVehicleTypeIds] = useState<number[]>([]);
   const [agentIds, setAgentIds] = useState<number[]>([]);
-  // Location filter is now string-based (derived from API routeSegments)
+ // Location filter is now string-based (derived from API routeSegments)
   const [locationLabels, setLocationLabels] = useState<string[]>([]);
 
-  // lookups
+ // lookups
   const [vendors, setVendors] = useState<SimpleOption[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<SimpleOption[]>([]);
   const [agents, setAgents] = useState<SimpleOption[]>([]);
@@ -70,12 +70,12 @@ export default function VehicleAvailabilityPage() {
   const [vendorVehicleTypesForFilter, setVendorVehicleTypesForFilter] = useState<SimpleOption[]>([]);
 
 
-  // chart
+ // chart
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [data, setData] = useState<VehicleAvailabilityResponse>({ dates: [], rows: [] });
 
-  // search
+ // search
   const [search, setSearch] = useState("");
   const [addVehicleOpen, setAddVehicleOpen] = useState(false);
   const [addDriverOpen, setAddDriverOpen] = useState(false);
@@ -105,13 +105,13 @@ const [blockReason, setBlockReason] = useState("");
 
     async function loadLocationsBase(q?: string) {
     try {
-      const opts = await fetchLocations(q); // [{ id, label }]
+ const opts = await fetchLocations(q); // [{ id, label }]
       const labels = (opts || []).map(o => o.label).filter(Boolean);
       setLocations(prev =>
         Array.from(new Set([...(prev || []), ...labels])).sort((a, b) => a.localeCompare(b)),
       );
     } catch {
-      // keep silent; locations are optional
+ // keep silent; locations are optional
     }
   }
 
@@ -153,9 +153,9 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
       setVehicleTypes(vt);
       setAgents(a);
 
-      // clear then prefill a base set of locations from backend
+ // clear then prefill a base set of locations from backend
       setLocations([]);
-      await loadLocationsBase(); // fills from arrival/departure labels even if chart has zero rows
+ await loadLocationsBase(); // fills from arrival/departure labels even if chart has zero rows
     } catch (e: any) {
       setError(e?.message || "Failed to load dropdown data.");
       setVendors([]);
@@ -192,13 +192,13 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
         locationLabels: nextLocationLabels.length > 0 ? nextLocationLabels : undefined,
       });
 
-    // 1) Build dynamic dropdown options from routeSegments, then MERGE with base list
+ // 1) Build dynamic dropdown options from routeSegments, then MERGE with base list
     const derivedLocations = extractLocationsFromAvailability(res);
     setLocations(prev =>
       Array.from(new Set([...(prev || []), ...derivedLocations])).sort((x, y) => x.localeCompare(y)),
     );
 
-    // 2) Keep a client-side fallback filter for exact route-label parity.
+ // 2) Keep a client-side fallback filter for exact route-label parity.
     const rowsFilteredByLoc =
       nextLocationLabels.length > 0
         ? res.rows.filter((r) => nextLocationLabels.some((label) => rowHasLocation(r, label)))
@@ -404,9 +404,9 @@ function rowHasLocation(row: VehicleAvailabilityRow, location: string): boolean 
   useEffect(() => {
     loadLookups();
     loadChart();
-    // also try to prefill with a small popular set (no query) at mount
+ // also try to prefill with a small popular set (no query) at mount
     loadLocationsBase();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 const stickyHeaderClass = "sticky top-0 z-30 border border-slate-300 bg-[#9b9b9b] text-white";
@@ -590,7 +590,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         </div>
       ) : null}
 
-      {/* Chart Table */}
+ {/* Chart Table */}
       <div className="rounded-xl border border-slate-200 bg-white">
         <div className="max-h-[75vh] overflow-auto">
           <table className="min-w-max border-collapse text-sm">
@@ -629,8 +629,8 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
   </th>
 ))}
 
-                  
-              
+
+
               </tr>
             </thead>
 
@@ -820,7 +820,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
         open={addVehicleOpen}
           onClose={() => setAddVehicleOpen(false)}
           onCreated={() => {
-            // refresh chart so the newly added vehicle can appear
+ // refresh chart so the newly added vehicle can appear
             loadChart();
           }}
           vendors={vendors}
@@ -833,7 +833,7 @@ const stickyCol2 = "sticky left-[160px] z-40 min-w-[180px] w-[180px] border-r bo
           open={addDriverOpen}
           onClose={() => setAddDriverOpen(false)}
           onCreated={() => {
-            // optional refresh; harmless
+ // optional refresh; harmless
             loadChart();
           }}
           vendors={vendors}

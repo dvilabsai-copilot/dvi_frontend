@@ -39,7 +39,7 @@ export function TimePickerField({
   const [AP, setAP] = useState<"AM" | "PM">(ap);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
-  // Keep internal picker state in sync when parent `value` changes
+ // Keep internal picker state in sync when parent `value` changes
   useEffect(() => {
     const parsed = parse12(value);
     setH(parsed.h);
@@ -47,11 +47,11 @@ export function TimePickerField({
     setAP(parsed.ap);
   }, [value]);
 
-  // ❌ Removed outside-click close handler because shadcn <Select>
-  // uses a portal and clicks inside the dropdown were treated as "outside",
-  // which immediately closed the picker and prevented value from sticking.
+ // Removed outside-click close handler because shadcn <Select>
+ // uses a portal and clicks inside the dropdown were treated as "outside",
+ // which immediately closed the picker and prevented value from sticking.
 
-  // Commit immediately on any change (user selection persists even without pressing "Set")
+ // Commit immediately on any change (user selection persists even without pressing "Set")
   const commit = (nh = H, nm = M, nap = AP) => {
     onChange(fmt12(nh, nm, nap));
   };
@@ -63,7 +63,7 @@ export function TimePickerField({
         onFocus={() => !disabled && setOpen(true)}
         onClick={() => !disabled && setOpen(true)}
         onChange={() => {
-          /* prevent manual typing from desyncing; picker controls value */
+ /* prevent manual typing from desyncing; picker controls value */
         }}
         placeholder={placeholder}
         disabled={disabled}
@@ -72,7 +72,7 @@ export function TimePickerField({
       {open && !disabled && (
         <div className="absolute z-20 mt-2 rounded-md border bg-white p-3 shadow-lg w-[320px]">
           <div className="flex items-center gap-3">
-            {/* Hour */}
+ {/* Hour */}
             <Select
               value={String(H)}
               onValueChange={(v) => {
@@ -95,7 +95,7 @@ export function TimePickerField({
 
             <span className="text-xl leading-none">:</span>
 
-            {/* Minute */}
+ {/* Minute */}
             <Select
               value={String(M).padStart(2, "0")}
               onValueChange={(v) => {
@@ -116,7 +116,7 @@ export function TimePickerField({
               </SelectContent>
             </Select>
 
-            {/* AM/PM */}
+ {/* AM/PM */}
             <Select
               value={AP}
               onValueChange={(v) => {
@@ -140,7 +140,7 @@ export function TimePickerField({
               type="button"
               variant="secondary"
               onClick={() => {
-                // keep already-committed value; just close
+ // keep already-committed value; just close
                 setOpen(false);
               }}
             >

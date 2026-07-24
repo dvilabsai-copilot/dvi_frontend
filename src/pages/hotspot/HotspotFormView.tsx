@@ -12,11 +12,11 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
   return (
     <div className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* ----------------------------- Basic Info ---------------------------- */}
+ {/* ----------------------------- Basic Info ---------------------------- */}
         <div className="bg-white rounded-lg border p-6 space-y-4" data-section="basic-info">
           <h2 className="text-lg font-semibold text-primary">Basic Info</h2>
 
-          {/* Row 1 */}
+ {/* Row 1 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="name">Hotspot Name *</Label>
@@ -61,7 +61,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Row 2 */}
+ {/* Row 2 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="childCost">Child Entry Cost (₹)*</Label>
@@ -100,7 +100,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Row 3 */}
+ {/* Row 3 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="foreignChildCost">Foreign Child Entry Cost (₹)*</Label>
@@ -142,7 +142,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Row 4 */}
+ {/* Row 4 */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="priority">Hotspot Priority *</Label>
@@ -197,7 +197,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Row 5 */}
+ {/* Row 5 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="landmark">Hotspot Landmark *</Label>
@@ -234,7 +234,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Row 6: Hotspot Location (multi-select with type/search) */}
+ {/* Row 6: Hotspot Location (multi-select with type/search) */}
           <div className="space-y-2">
             <Label htmlFor="hotspotLocation">Hotspot Location *</Label>
             <div className="rounded-md border p-2 space-y-2">
@@ -387,7 +387,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
     </div>
   </div>
 </div>
-          {/* Row 7: Gallery | Video URL */}
+ {/* Row 7: Gallery | Video URL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Hotspot Gallery*</Label>
@@ -395,7 +395,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                 ref={galleryInputRef}
                 type="file"
                 multiple
-                accept="image/*"
+ accept="image/*"
                 onChange={(e) => onUploadFiles(e.target.files)}
               />
               {!!pendingGalleryFiles.length && (
@@ -416,7 +416,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
             </div>
           </div>
 
-          {/* Thumbnails preview */}
+ {/* Thumbnails preview */}
           <div className="mt-2">
             <p className="text-sm font-medium mb-2">Uploaded hotspot Gallery</p>
             <div className="flex gap-3 flex-wrap">
@@ -442,7 +442,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
           </div>
         </div>
 
-        {/* ---------------------- Vehicle Parking Charge Details --------------------- */}
+ {/* ---------------------- Vehicle Parking Charge Details --------------------- */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-primary">Vehicle Parking Charge Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -467,11 +467,11 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
           </div>
         </div>
 
-        {/* ----------------------------- Opening Hours ------------------------------ */}
+ {/* ----------------------------- Opening Hours ------------------------------ */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <h2 className="text-lg font-semibold text-primary">Opening Hours</h2>
 
-          {/* header row */}
+ {/* header row */}
           <div className="hidden md:grid grid-cols-12 font-medium text-muted-foreground bg-muted/40 rounded-md px-4 py-2">
             <div className="col-span-3">DAY</div>
             <div className="col-span-2 text-center">OPENS 24 HOURS</div>
@@ -511,7 +511,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                 setDay(next);
               };
 
-              // materialize the first slot so edits persist
+ // materialize the first slot so edits persist
               const updateSlot = (idx: number, key: "start" | "end", val: string) => {
                 const base =
                   current.timeSlots && current.timeSlots.length > 0
@@ -527,10 +527,10 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
 
               return (
                 <div key={day} className="grid grid-cols-1 md:grid-cols-12 border rounded-md px-4 py-3 gap-3">
-                  {/* Day */}
+ {/* Day */}
                   <div className="md:col-span-3 capitalize font-medium">{day}</div>
 
-                  {/* Opens 24 Hours */}
+ {/* Opens 24 Hours */}
                   <div className="md:col-span-2 flex md:justify-center items-center gap-2">
                     <span className="text-xs text-muted-foreground md:hidden">Opens 24 Hours</span>
                     <Switch
@@ -547,7 +547,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                     />
                   </div>
 
-                  {/* Closes 24 Hours */}
+ {/* Closes 24 Hours */}
                   <div className="md:col-span-2 flex md:justify-center items-center gap-2">
                     <span className="text-xs text-muted-foreground md:hidden">Closes 24 Hours</span>
                     <Switch
@@ -564,7 +564,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                     />
                   </div>
 
-                  {/* New Timings */}
+ {/* New Timings */}
                   <div className="md:col-span-4">
                     {current.is24Hours ? (
                       <span className="inline-block text-xs px-3 py-1 rounded-md bg-pink-50 text-pink-600 font-semibold">
@@ -607,7 +607,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                     )}
                   </div>
 
-                  {/* Action */}
+ {/* Action */}
                   <div className="md:col-span-1 flex md:justify-center md:items-start">
                     <Button
                       type="button"
@@ -627,7 +627,7 @@ export const HotspotFormView = ({ context }: { context: Record<string, any> }) =
                   </div>
         </div>
 
-        {/* ---------------------- Monthly Calendar / Special Date Timings ---------------------- */}
+ {/* ---------------------- Monthly Calendar / Special Date Timings ---------------------- */}
         <div className="bg-white rounded-lg border p-6 space-y-4">
           <div>
             <h2 className="text-lg font-semibold text-primary">

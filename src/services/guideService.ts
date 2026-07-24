@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 
 /* -------------------------------------------------------
    Shared: List page helpers (works with multiple shapes)
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 
 type GuideListRowWire = any;
 
@@ -55,10 +55,10 @@ function normalizeRows(input: any): Array<{
 
 /* -------------------------------------------------------
    Export #1: GuideAPI (list/toggle/delete + full CRUD used by form)
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 
 export const GuideAPI = {
-  /** DataTable list */
+ /** DataTable list */
   async list(): Promise<
     Array<{ id: number; name: string; mobileNumber: string; email: string; status: 0 | 1 }>
   > {
@@ -66,7 +66,7 @@ export const GuideAPI = {
     return normalizeRows(res);
   },
 
-  /** DataTable list with optional server-side query */
+ /** DataTable list with optional server-side query */
   async listQuery(params?: {
     q?: string;
     page?: number;
@@ -91,7 +91,7 @@ export const GuideAPI = {
     return normalizeRows(res);
   },
 
-  /** Toggle active/inactive */
+ /** Toggle active/inactive */
   async toggleStatus(id: number, status: 0 | 1): Promise<void> {
     await api(`/guides/${id}/status`, {
       method: "PATCH",
@@ -99,14 +99,14 @@ export const GuideAPI = {
     });
   },
 
-  /** Delete guide */
+ /** Delete guide */
   async delete(id: number): Promise<void> {
     await api(`/guides/${id}`, { method: "DELETE" });
   },
 
-  /* ---------- Added so GuideFormPage compiles & works ---------- */
+ /* ---------- Added so GuideFormPage compiles & works ---------- */
 
-  /** Get one guide for edit/preview */
+ /** Get one guide for edit/preview */
   async get(id: number): Promise<{
     id: number;
     name: string;
@@ -151,21 +151,21 @@ export const GuideAPI = {
     return normalizeGuideForForm(res);
   },
 
-  /** Create */
+ /** Create */
   async create(body: any): Promise<{ id: number }> {
     const res = await api("/guides", { method: "POST", body: mapGuideBasicPayload(body) });
-    // allow either {id} or {data:{id}}
+ // allow either {id} or {data:{id}}
     const id =
       Number(res?.id ?? res?.data?.id ?? res?.guide_id ?? res?.GUIDE_ID ?? 0) || 0;
     return { id };
   },
 
-  /** Update */
+ /** Update */
   async update(id: number, body: any): Promise<void> {
     await api(`/guides/${id}`, { method: "PUT", body: mapGuideBasicPayload(body) });
   },
 
-  /** Fetch pricebook rows for a date range (for the day-by-day display table) */
+ /** Fetch pricebook rows for a date range (for the day-by-day display table) */
   async getPricebook(
     id: number,
     startDate: string,
@@ -178,7 +178,7 @@ export const GuideAPI = {
     return Array.isArray(res?.rows) ? res.rows : [];
   },
 
-  /** Update pricebook only */
+ /** Update pricebook only */
   async updatePricebook(
     id: number,
     data: {
@@ -197,7 +197,7 @@ export const GuideAPI = {
     });
   },
 
-  /** Add a review */
+ /** Add a review */
   async addReview(
     id: number,
     payload: { rating: number; description: string; createdOn?: string }
@@ -211,12 +211,12 @@ export const GuideAPI = {
     };
   },
 
-  /** Delete a review */
+ /** Delete a review */
   async deleteReview(id: number, reviewId: string): Promise<void> {
     await api(`/guides/${id}/reviews/${reviewId}`, { method: "DELETE" });
   },
 
-  /** Update a review */
+ /** Update a review */
   async updateReview(
     id: number,
     reviewId: string,
@@ -513,12 +513,12 @@ function monthNameToIndex(value: string) {
 
 /* -------------------------------------------------------
    Export #2: Preview + options (as you already had)
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 
 export type GuideBasicRow = {
   guide_id: number;
   guide_name: string | null;
-  guide_dob: string | null; // backend may send Date or {}
+ guide_dob: string | null; // backend may send Date or {}
   guide_bloodgroup: string | null;
   guide_gender: number | null;
   guide_primary_mobile_number: string | null;
@@ -551,17 +551,17 @@ export type GuidePreviewView = {
   blood_group_label: string;
   language_label: string;
   state_name: string;
-  country_name: string; // numeric string like "101" to mirror PHP payload
+ country_name: string; // numeric string like "101" to mirror PHP payload
   gst_percent_text: string;
 };
 
 export type GuidePreviewResponse = {
   basic: GuideBasicRow;
-  view?: GuidePreviewView; // new: server-rendered labels
+ view?: GuidePreviewView; // new: server-rendered labels
   reviews: Array<{
     guide_review_id: number;
     guide_id: number;
-    guide_rating: string | null; // "1".."5"
+ guide_rating: string | null; // "1".."5"
     guide_description: string | null;
     createdon?: string | null;
   }>;
@@ -570,7 +570,7 @@ export type GuidePreviewResponse = {
 };
 
 export type OptionsResponse = {
-  // flexible shape; we normalize below
+ // flexible shape; we normalize below
   roles?: Array<{ id: number | string; name: string }>;
   languages?: Array<{ id: number | string; name: string }>;
   countries?: Array<{ id: number; name: string }>;
@@ -587,7 +587,7 @@ export async function getGuidePreview(guideId: number): Promise<GuidePreviewResp
 /* -------------------------------------------------------
    Dropdowns: single loader that works with /guides/options
    (and gracefully tolerates alternate server shapes)
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 
 function mapArray(
   input: any,
@@ -612,10 +612,10 @@ function mapArray(
 }
 
 export async function fetchGuideOptions(): Promise<OptionsResponse> {
-  // Your backend exposes a SINGLE endpoint
+ // Your backend exposes a SINGLE endpoint
   const res = await api(`/guides/options`, { method: "GET" });
 
-  // Normalize multiple possible shapes safely
+ // Normalize multiple possible shapes safely
   const roles = mapArray(
     res?.roles ?? res?.data?.roles,
     ["role_id", "id", "ROLE_ID", "value"],
@@ -665,15 +665,15 @@ export async function fetchGuideOptions(): Promise<OptionsResponse> {
 }
 
 /* Optional helpers if you later split endpoints on the server.
-   These first try split paths; if 404, they fall back to /guides/options. */
+ These first try split paths; if 404, they fall back to /guides/options. */
 
 export const GuideOptions = {
   async loadAll(): Promise<OptionsResponse> {
     try {
-      // primary: single endpoint
+ // primary: single endpoint
       return await fetchGuideOptions();
     } catch {
-      // if something breaks, at least return empty structure
+ // if something breaks, at least return empty structure
       return {
         roles: [],
         languages: [],
@@ -686,7 +686,7 @@ export const GuideOptions = {
   },
 
   async states(countryId: string | number): Promise<Array<{ id: number; name: string; countryId?: number }>> {
-    // try split path first
+ // try split path first
     try {
       const res = await api(`/geo/states?countryId=${countryId}`, { method: "GET" });
       return mapArray(res, ["state_id", "id", "STATE_ID"], ["state_name", "name", "STATE_NAME"], {
@@ -710,19 +710,19 @@ export const GuideOptions = {
     }
   },
 };
- 
+
 /* -------------------------------------------------------
    Legacy exported function kept for compatibility
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 export async function getGuideOptions(): Promise<OptionsResponse> {
   return fetchGuideOptions();
 }
 
 /* -------------------------------------------------------
    Small util
-   ------------------------------------------------------- */
+ ------------------------------------------------------- */
 function cryptoRandomId(): string {
-  // simple fallback for client id
+ // simple fallback for client id
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

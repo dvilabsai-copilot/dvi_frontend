@@ -48,7 +48,7 @@ const toStringOrNull = (value: any): string | null => {
   return s.length ? s : null;
 };
 
-// "12:00 PM" → "12:00"
+// "12:00 PM" "12:00"
 const to24h = (val: string): string => {
   if (!val) return "";
   const ampm = val.trim().match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
@@ -63,7 +63,7 @@ const to24h = (val: string): string => {
   return `${String(h).padStart(2, "0")}:${m}`;
 };
 
-// "12:00" → "12:00 PM"
+// "12:00" "12:00 PM"
 const to12h = (val: string): string => {
   if (!val) return "";
   const m = val.match(/^(\d{2}):(\d{2})$/);
@@ -92,13 +92,13 @@ const getTimeString = (t: any): string => {
 
 /** Generate a non-null room_ref_code if backend didn't give one */
 const generateRoomRefCode = (hotelId: string | number, rowIndex: number) => {
-  const prefix = "DVIR"; // matches existing style like DVIRDEL...
+ const prefix = "DVIR"; // matches existing style like DVIRDEL...
   const hidPart = String(hotelId || "")
     .replace(/\D/g, "")
     .padStart(3, "0")
     .slice(-3);
   const idxPart = String(rowIndex + 1).padStart(2, "0");
-  const rand = Math.floor(100000 + Math.random() * 900000); // 6 digits
+ const rand = Math.floor(100000 + Math.random() * 900000); // 6 digits
   return `${prefix}${hidPart}${idxPart}${rand}`;
 };
 
@@ -156,7 +156,7 @@ export default function RoomsStep({
     max_children: 0,
     check_in_time: "12:00",
     check_out_time: "11:00",
-    // @ts-ignore numeric 1/2 for DB
+ // @ts-ignore numeric 1/2 for DB
     gst_type: 1,
     gst_percentage: 5,
     amenities: [],
@@ -166,13 +166,13 @@ export default function RoomsStep({
     gallery: null,
   };
 
-  /* ========= Meta (GST types) ========= */
+ /* ========= Meta (GST types) ========= */
   const gstTypes = [
     { id: 1 as const, name: "Included" },
     { id: 2 as const, name: "Excluded" },
   ];
 
-  /* ========= GST Percentages ========= */
+ /* ========= GST Percentages ========= */
   const { data: gstPercentsRaw = [] } = useQuery({
     queryKey: ["gstPercentages-room"],
     queryFn: () =>
@@ -207,7 +207,7 @@ export default function RoomsStep({
     return raw;
   }, [gstPercentsRaw]);
 
-  /* ========= Preferred For (static) ========= */
+ /* ========= Preferred For (static) ========= */
   const preferredForOptions = [
     { id: 1, name: "Family" },
     { id: 2, name: "Couple" },
@@ -215,7 +215,7 @@ export default function RoomsStep({
     { id: 4, name: "Group" },
   ];
 
-  /* ========= Room Types ========= */
+ /* ========= Room Types ========= */
   const staticRoomTypesFallback = useMemo(
     () => [
       { id: 1, room_type: "Deluxe Room" },
@@ -254,7 +254,7 @@ export default function RoomsStep({
         const data = await api.apiGetFirst(endpoints);
         return data;
       } catch {
-        console.warn(
+ console.warn(
           "[RoomsStep] Room types endpoint(s) unavailable; using static fallback."
         );
         return staticRoomTypesFallback;
@@ -276,7 +276,7 @@ export default function RoomsStep({
     return map;
   }, [roomTypeOptions]);
 
-  /* ========= Inbuilt Amenities ========= */
+ /* ========= Inbuilt Amenities ========= */
   const { data: inbuiltAmenities = [] } = useQuery({
     queryKey: ["inbuilt-amenities-room"],
     queryFn: () =>
@@ -308,7 +308,7 @@ export default function RoomsStep({
     [inbuiltAmenities]
   );
 
-  /* ========= Load existing rooms ========= */
+ /* ========= Load existing rooms ========= */
   useQuery({
     queryKey: ["hotel-rooms", hotelId],
     enabled: !!hotelId,
@@ -323,7 +323,7 @@ export default function RoomsStep({
       const data = Array.isArray(raw) ? raw : raw?.items ?? raw?.data ?? raw?.rows ?? [];
 
       const mapped = (data as any[]).map((r, index) => {
-        // preferred_for: "1,2" | ["1","2"] | "Family" → array
+ // preferred_for: "1,2" | ["1","2"] | "Family" array
         const prefArr = Array.isArray(r?.preferred_for)
           ? (r.preferred_for as any[])
               .map((x) => String(x).trim())
@@ -333,7 +333,7 @@ export default function RoomsStep({
               .map((s) => s.trim())
               .filter(Boolean);
 
-        // string list "1,5,7" → [1,5,7]
+ // string list "1,5,7" [1,5,7]
         const amenitiesFromString = String(r?.inbuilt_amenities ?? "")
           .split(",")
           .map((s) => s.trim())
@@ -358,7 +358,7 @@ export default function RoomsStep({
           max_children: r.max_children ?? r.total_max_childrens ?? 0,
           check_in_time: ci,
           check_out_time: co,
-          // @ts-ignore keep numeric 1/2
+ // @ts-ignore keep numeric 1/2
           gst_type: toGstNum(r.gst_type ?? 1),
           gst_percentage: Number(r.gst_percentage ?? 5),
           amenities: Array.isArray(r.amenities)
@@ -376,7 +376,7 @@ export default function RoomsStep({
           gallery: null,
         };
 
-        // preserve existing room_ref_code if present; otherwise generate one
+ // preserve existing room_ref_code if present; otherwise generate one
         base.room_ref_code =
           r.room_ref_code ||
           generateRoomRefCode(hotelId ?? hid ?? "", index);
@@ -391,7 +391,7 @@ export default function RoomsStep({
     },
   });
 
-  /* ========= Handlers ========= */
+ /* ========= Handlers ========= */
   const handleChange = (i: number, field: keyof RoomForm, value: any) => {
     setValidationError("");
     setStatusMessage("");
@@ -539,16 +539,16 @@ export default function RoomsStep({
     };
   };
 
-  /* ========= Save ========= */
+ /* ========= Save ========= */
   const saveMut = useMutation({
     mutationFn: async (items: RoomForm[]) => {
       const hotelIdNum = Number(hotelId);
 
       const changedItems = items;
 
-      // ✅ Map UI → dvi_hotel_rooms column names & types
+ // Map UI dvi_hotel_rooms column names & types
       const payload = items.map((r, index) => {
-        // Resolve room_type_id from typed text or numeric value
+ // Resolve room_type_id from typed text or numeric value
         const rawType = (r as any).room_type;
         let room_type_id: number | null = null;
         const asNum = Number(rawType);
@@ -580,7 +580,7 @@ export default function RoomsStep({
           .filter((n) => Number.isFinite(n))
           .join(",");
 
-        // keep existing room_ref_code if present; otherwise generate a new one
+ // keep existing room_ref_code if present; otherwise generate a new one
         const room_ref_code =
           (r as any).room_ref_code ||
           generateRoomRefCode(hotelIdNum || hotelId, index);
@@ -613,7 +613,7 @@ export default function RoomsStep({
           lunch_included: toDbFlag(r.food_lunch),
           dinner_included: toDbFlag(r.food_dinner),
           room_ref_code,
-          // createdby/createdon/updatedon/deleted handled server-side
+ // createdby/createdon/updatedon/deleted handled server-side
         };
       });
 
@@ -630,7 +630,7 @@ export default function RoomsStep({
         chunks.push(payload.slice(i, i + chunkSize));
       }
 
-      // 1) Save room rows as before
+ // 1) Save room rows as before
       const batchResults: any[] = [];
       for (const batch of chunks) {
         jsonResult = null;
@@ -653,9 +653,9 @@ export default function RoomsStep({
       }
       jsonResult = { success: true, batches: batchResults.length, items: batchResults };
 
-      // 2) NEW: upload room gallery files (non-blocking for main flow)
+ // 2) NEW: upload room gallery files (non-blocking for main flow)
       try {
-        // reload rooms to map room_ref_code → room_ID
+ // reload rooms to map room_ref_code room_ID
         const rawAfter = await api
           .apiGetFirst([
             `/api/v1/hotels/${hotelId}/rooms`,
@@ -708,7 +708,7 @@ export default function RoomsStep({
             }).then(async (res) => {
               if (!res.ok) {
                 const text = await res.text().catch(() => "");
-                console.error(
+ console.error(
                   "[RoomsStep] Room gallery upload failed",
                   res.status,
                   text
@@ -722,7 +722,7 @@ export default function RoomsStep({
           await Promise.all(uploadPromises);
         }
       } catch (err) {
-        console.error("[RoomsStep] Room gallery upload error", err);
+ console.error("[RoomsStep] Room gallery upload error", err);
       }
 
       return jsonResult;
@@ -875,7 +875,7 @@ export default function RoomsStep({
             setValidationError("");
             setStatusMessage("");
             setStatusKind("");
-            console.log("[RoomsStep] Update & Continue clicked", {
+ console.log("[RoomsStep] Update & Continue clicked", {
               hotelId,
               rowsCount: rows.length,
             });

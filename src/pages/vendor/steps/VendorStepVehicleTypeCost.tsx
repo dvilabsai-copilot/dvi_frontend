@@ -119,9 +119,9 @@ export const VendorStepVehicleTypeCost: React.FC<Props> = ({
  const [deleteDriverCostId, setDeleteDriverCostId] = useState<number | null>(null);
 const [deleteOutstationId, setDeleteOutstationId] = useState<number | null>(null);
 const [deleteLocalId, setDeleteLocalId] = useState<number | null>(null);
-  // Dropdowns
+ // Dropdowns
   const [vehicleTypeOptions, setVehicleTypeOptions] = useState<Option[]>([]);
-  // ---- Driver Cost state ----
+ // ---- Driver Cost state ----
   const [driverCostRows, setDriverCostRows] = useState<DriverCostRow[]>([]);
   const [driverCostSearch, setDriverCostSearch] = useState("");
   const [showDriverCostModal, setShowDriverCostModal] = useState(false);
@@ -138,7 +138,7 @@ const [driverFormFields, setDriverFormFields] = useState({
   eveningCharges: "0",
 });
   const [driverFieldErrors, setDriverFieldErrors] = useState<DriverFieldErrors>({});
-  // ---- Outstation KM Limit state ----
+ // ---- Outstation KM Limit state ----
   const [outstationRows, setOutstationRows] = useState<OutstationKmLimitRow[]>(
     []
   );
@@ -154,7 +154,7 @@ const [driverFormFields, setDriverFormFields] = useState({
   });
   const [outstationFieldErrors, setOutstationFieldErrors] = useState<OutstationFieldErrors>({});
   const [outstationSaveLocked, setOutstationSaveLocked] = useState(false);
-  // ---- Local KM Limit state ----
+ // ---- Local KM Limit state ----
   const [localRows, setLocalRows] = useState<LocalKmLimitRow[]>([]);
   const [localSearch, setLocalSearch] = useState("");
   const [showLocalModal, setShowLocalModal] = useState(false);
@@ -223,7 +223,7 @@ const numberOrZero = (value: string): number => {
         status: Number(r.status) === 1 ? "Active" : "Inactive",
       })));
     } catch (e) {
-      console.error("Failed to fetch vehicle type costs", e);
+ console.error("Failed to fetch vehicle type costs", e);
     } finally {
       setLoading(false);
     }
@@ -254,10 +254,10 @@ const numberOrZero = (value: string): number => {
   .filter((v) => v.id && v.label)
       );
     } catch (e) {
-      console.error("Failed to fetch dropdowns", e);
+ console.error("Failed to fetch dropdowns", e);
     }
   };
-  // ====== Helpers for tables (simple client-side search) ======
+ // ====== Helpers for tables (simple client-side search) ======
   const filteredDriverCostRows = useMemo(() => {
     if (!driverCostSearch.trim()) return driverCostRows;
     const q = driverCostSearch.toLowerCase();
@@ -364,7 +364,7 @@ await api(
       setDriverFieldErrors({});
       setShowDriverCostModal(false);
     } catch (e) {
-      console.error("Failed to save driver cost", e);
+ console.error("Failed to save driver cost", e);
     } finally {
       setSaving(false);
     }
@@ -380,16 +380,16 @@ const handleDeleteDriverCost = async (rowId: number) => {
     setDriverCostRows((prev) => prev.filter((row) => row.id !== rowId));
     toast.success("Deleted successfully");
   } catch (e) {
-    console.error("Failed to delete driver cost", e);
-    // Keep UI delete working even if backend DELETE route is missing
+ console.error("Failed to delete driver cost", e);
+ // Keep UI delete working even if backend DELETE route is missing
       toast.error("Delete failed. Backend API is not deleting this record.");
   } finally {
     setSaving(false);
   }
 };
-  // ============================================================
-  // Outstation KM modal handlers
-  // ============================================================
+ // ============================================================
+ // Outstation KM modal handlers
+ // ============================================================
   const openAddOutstation = () => {
     setEditingOutstationRow(null);
     setOutstationFormVehicleType("");
@@ -440,7 +440,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setOutstationFieldErrors({});
       setShowOutstationModal(false);
     } catch (e) {
-      console.error("Failed to save outstation limit", e);
+ console.error("Failed to save outstation limit", e);
       const vehicleTypeLabel =
         vehicleTypeOptions.find((opt) => opt.id === outstationFormVehicleType)?.label;
       const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save outstation KM limit", vehicleTypeLabel);
@@ -460,14 +460,14 @@ const handleDeleteDriverCost = async (rowId: number) => {
     });
     setOutstationRows((prev) => prev.filter((row) => row.id !== rowId));
   } catch (e) {
-    console.error("Failed to delete outstation limit", e);
+ console.error("Failed to delete outstation limit", e);
   } finally {
     setSaving(false);
   }
 };
-  // ============================================================
-  // Local KM modal handlers
-  // ============================================================
+ // ============================================================
+ // Local KM modal handlers
+ // ============================================================
   const openAddLocal = () => {
     setEditingLocalRow(null);
     setLocalFormVehicleType("");
@@ -526,7 +526,7 @@ const handleDeleteDriverCost = async (rowId: number) => {
       setLocalFieldErrors({});
       setShowLocalModal(false);
     } catch (e) {
-      console.error("Failed to save local limit", e);
+ console.error("Failed to save local limit", e);
       const vehicleTypeLabel =
         vehicleTypeOptions.find((opt) => opt.id === localFormVehicleType)?.label;
       const isDuplicate = showKmLimitSaveErrorToast(e, "Failed to save local KM limit", vehicleTypeLabel);
@@ -547,15 +547,15 @@ const handleDeleteLocal = async (rowId: number) => {
     setLocalRows((prev) => prev.filter((row) => row.id !== rowId));
     toast.success("Deleted successfully");
   } catch (e) {
-    console.error("Failed to delete local limit", e);
+ console.error("Failed to delete local limit", e);
     toast.error("Delete failed. Backend API is not deleting this record.");
   } finally {
     setSaving(false);
   }
 };
-  // ============================================================
-  // Render helpers
-  // ============================================================
+ // ============================================================
+ // Render helpers
+ // ============================================================
   const renderTopTabs = () => (
     <div className="flex border-b border-gray-200 text-sm font-medium">
       <button
@@ -645,9 +645,9 @@ const handleDeleteLocal = async (rowId: number) => {
     a.click();
     URL.revokeObjectURL(url);
   };
-  // ============================================================
-  // MAIN RENDER
-  // ============================================================
+ // ============================================================
+ // MAIN RENDER
+ // ============================================================
   const vehicleTypeCostViewContext = {
     activeTab,
     deleteDriverCostId,

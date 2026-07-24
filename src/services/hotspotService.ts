@@ -15,12 +15,12 @@ const FILE_BASE = computeFileBase(API_BASE_URL);
 /* ---------- List & Form shapes ---------- */
 type ListRow = {
   modify: number | string;
-  hotspot_photo_url: string; // <img ...> HTML
+ hotspot_photo_url: string; // <img ...> HTML
   hotspot_name: string | null;
   hotspot_priority: number | string | null;
-  hotspot_locations: string | null; // "a<br>b"
-  local_members: string;   // HTML
-  foreign_members: string; // HTML
+ hotspot_locations: string | null; // "a<br>b"
+ local_members: string; // HTML
+ foreign_members: string; // HTML
 };
 
 type FormGetResponse = {
@@ -91,13 +91,13 @@ export type HotspotFormData = {
   videoUrl: string;
   locations: string[];
   toLocations: string[];
-  /** Simple mode: array of URLs or filenames (we’ll extract the filename) */
+ /** Simple mode: array of URLs or filenames (well extract the filename) */
   galleryImages: string[];
-  /** Advanced mode (edit): send objects to preserve IDs and deletes */
+ /** Advanced mode (edit): send objects to preserve IDs and deletes */
   gallery?: Array<{ id?: number | string; name: string; delete?: boolean }>;
-  /** key = vehicleTypeId (string/numbery), value = charge */
+ /** key = vehicleTypeId (string/numbery), value = charge */
   parkingCharges: Record<string, number>;
-  /** NOTE: include closed24Hours for correct persistence */
+ /** NOTE: include closed24Hours for correct persistence */
   openingHours: Record<string, {
     is24Hours?: boolean;
     closed24Hours?: boolean;
@@ -140,7 +140,7 @@ function imgFromHtml(html: string): string {
 function toAbsoluteFileUrl(url: string): string {
   const u = (url || "").trim();
   if (!u) return "";
-  if (/^https?:\/\//i.test(u)) return u;
+ if (/^https?:\/\//i.test(u)) return u;
   return `${FILE_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
 }
 function brToArray(s: string | null): string[] {
@@ -150,7 +150,7 @@ function brToArray(s: string | null): string[] {
     .filter(Boolean);
 }
 function fileNameFromUrl(u: string): string {
-  const p = (u || "").split("?")[0]; // strip query if any
+ const p = (u || "").split("?")[0]; // strip query if any
   const seg = p.split("/");
   return seg[seg.length - 1] || "";
 }
@@ -165,7 +165,7 @@ function normalizeDurationHHmm(v: string | null | undefined): string | null {
   return `${hh}:${mm}`;
 }
 function buildGalleryPayload(form: Partial<HotspotFormData>) {
-  // Prefer advanced mode if provided (preserves ids/deletes on edit)
+ // Prefer advanced mode if provided (preserves ids/deletes on edit)
   if (Array.isArray(form.gallery) && form.gallery.length) {
     return form.gallery.map((g) => ({
       ...(g.id != null ? { id: g.id } : {}),
@@ -173,7 +173,7 @@ function buildGalleryPayload(form: Partial<HotspotFormData>) {
       ...(g.delete ? { delete: true } : {}),
     }));
   }
-  // Fallback to simple mode: turn image URLs into { name }
+ // Fallback to simple mode: turn image URLs into { name }
   return (form.galleryImages ?? []).map((u) => ({ name: fileNameFromUrl(u) }));
 }
 
@@ -181,9 +181,9 @@ function buildGalleryPayload(form: Partial<HotspotFormData>) {
 function toHHmm24(t: string | null | undefined): string | null {
   const s = (t || "").trim();
   if (!s) return null;
-  // Already 24-hr?
+ // Already 24-hr?
   if (/^\d{1,2}:\d{2}$/.test(s) && !/am|pm/i.test(s)) {
-    // normalize hour to 2 digits
+ // normalize hour to 2 digits
     const [h, m] = s.split(":");
     const hh = String(Math.max(0, Math.min(23, Number(h)))).padStart(2, "0");
     const mm = String(Math.max(0, Math.min(59, Number(m)))).padStart(2, "0");
@@ -200,7 +200,7 @@ function toHHmm24(t: string | null | undefined): string | null {
 /* ---------- service ---------- */
 export const hotspotService = {
   async listHotspots(): Promise<HotspotListItem[]> {
-    const json = await api("/hotspots"); // GET
+ const json = await api("/hotspots"); // GET
     const rows: ListRow[] = json.data ?? [];
     return rows.map((r) => ({
       id: String(r.modify),
@@ -221,18 +221,18 @@ export const hotspotService = {
     return api("/hotspots/form-options");
   },
 
-  // ===================== UPDATED: saveHotspot (fixes for timings/parking/gallery) =====================
+ // ===================== UPDATED: saveHotspot (fixes for timings/parking/gallery) =====================
   async saveHotspot(form: Partial<HotspotFormData>): Promise<{ id: number }> {
-    // helpers
+ // helpers
     const DAY_ZERO_INDEX: Record<string, number> = {
       monday: 0, tuesday: 1, wednesday: 2, thursday: 3, friday: 4, saturday: 5, sunday: 6,
     };
 
-    // Build gallery payload (names; upload endpoint inserts rows)
+ // Build gallery payload (names; upload endpoint inserts rows)
     const gallery = buildGalleryPayload(form);
 
-    // Parking charges may arrive either as the form-state object
-    // { [vehicleTypeId]: charge } or as an already-normalized array.
+ // Parking charges may arrive either as the form-state object
+ // { [vehicleTypeId]: charge } or as an already-normalized array.
     const parkingChargesSource = Array.isArray(form.parkingCharges)
       ? form.parkingCharges.map((row) => ({
           id: row?.id,
@@ -248,11 +248,11 @@ export const hotspotService = {
       (x) => Number.isFinite(x.vehicleTypeId) && x.vehicleTypeId > 0 && Number.isFinite(x.charge) && x.charge >= 0
     );
 
-    // sanitize coords
+ // sanitize coords
     const lat = (form.latitude ?? "").toString().trim() || null;
     const lng = (form.longitude ?? "").toString().trim() || null;
 
-    // ---- Convert openingHours (UI) -> operatingHours (backend expects "HH:mm") ----
+ // ---- Convert openingHours (UI) -> operatingHours (backend expects "HH:mm") ----
     const operatingHours = Object.fromEntries(
       Object.entries(form.openingHours ?? {}).map(([day, v]) => [
         day,
@@ -271,13 +271,13 @@ export const hotspotService = {
       ])
     );
 
-    // ---- Optional: also send flattened zero-based `timings` (backend ignores if not used) ----
+ // ---- Optional: also send flattened zero-based `timings` (backend ignores if not used) ----
     type TimingRow = {
-      day: number;               // 0..6 (0=Mon)
+ day: number; // 0..6 (0=Mon)
       open24hrs: boolean;
       closed24hrs: boolean;
-      start_time: string | null; // "HH:mm:ss" or null
-      end_time: string | null;   // "HH:mm:ss" or null
+ start_time: string | null; // "HH:mm:ss" or null
+ end_time: string | null; // "HH:mm:ss" or null
     };
     const timings: TimingRow[] = [];
     for (const [dayKey, def] of Object.entries(form.openingHours ?? {})) {
@@ -325,16 +325,16 @@ export const hotspotService = {
       hotspot_location_list: form.locations ?? [],
       hotspot_to_location_list: form.toLocations ?? [],
 
-      // child tables
-      operatingHours,     // -> dvi_hotspot_timing (backend reads this; now "HH:mm")
-      timings,            // optional helper array (0..6 day index)
-      parkingCharges,     // -> dvi_hotspot_vehicle_parking_charges
-      gallery,            // -> dvi_hotspot_gallery_details
+ // child tables
+ operatingHours, // -> dvi_hotspot_timing (backend reads this; now "HH:mm")
+ timings, // optional helper array (0..6 day index)
+ parkingCharges, // -> dvi_hotspot_vehicle_parking_charges
+ gallery, // -> dvi_hotspot_gallery_details
     };
 
     return api("/hotspots/form", { method: "POST", body });
   },
-  // ==============================================================================
+ // ==============================================================================
 
   async deleteHotspot(id: string): Promise<void> {
     await api(`/hotspots/${id}`, { method: "DELETE" });
@@ -351,14 +351,14 @@ export const hotspotService = {
       method: "POST",
       body: fd,
     });
-    // Normalize returned URL to absolute for the UI preview
+ // Normalize returned URL to absolute for the UI preview
     return {
       ...r,
       url: r?.url?.startsWith("http") ? r.url : `${FILE_BASE}${r.url || ""}`,
     } as { ok: true; id: number | string; name: string; url: string };
   },
 
-  /* ---------- NEW: Parking Charges Bulk Import (CSV) ---------- */
+ /* ---------- NEW: Parking Charges Bulk Import (CSV) ---------- */
   async uploadParkingCsv(file: File): Promise<ParkingUploadResponse> {
     const fd = new FormData();
     fd.append("file", file);

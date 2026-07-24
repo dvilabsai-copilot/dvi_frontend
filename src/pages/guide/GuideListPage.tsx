@@ -225,7 +225,7 @@ export default function GuideListPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">Guide</h1>
         <div className="text-sm text-muted-foreground">
@@ -233,9 +233,9 @@ export default function GuideListPage() {
         </div>
       </div>
 
-      {/* Card */}
+ {/* Card */}
       <div className="bg-white rounded-lg border shadow-sm p-6 space-y-4">
-        {/* Title + Add Button */}
+ {/* Title + Add Button */}
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">List of Guide</h2>
           <Button
@@ -247,7 +247,7 @@ export default function GuideListPage() {
           </Button>
         </div>
 
-        {/* Toolbar */}
+ {/* Toolbar */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm">Show</span>
@@ -318,7 +318,7 @@ export default function GuideListPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -398,7 +398,7 @@ export default function GuideListPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             {filtered.length > 0 ? (

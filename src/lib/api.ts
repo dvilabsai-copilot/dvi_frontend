@@ -23,7 +23,7 @@ export const RAW_API_BASE =
 
 /** Normalize base URL (append /api/v1 if missing). */
 function normalizeBase(base: string) {
-  base = base.replace(/\/+$/, ""); // remove trailing slash
+ base = base.replace(/\/+$/, ""); // remove trailing slash
   if (!/\/api\/v1$/i.test(base)) base = `${base}/api/v1`;
   return base;
 }
@@ -32,10 +32,10 @@ export const API_BASE_URL = RAW_API_BASE ? normalizeBase(RAW_API_BASE) : "/api/v
 
 type ApiOptions = {
   method?: string;
-  auth?: boolean; // default true
+ auth?: boolean; // default true
   headers?: Record<string, string>;
-  body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
-  cache?: RequestCache; // fetch cache option for cache-busting
+ body?: Record<string, unknown> | string | FormData | Blob | ArrayBuffer | null | undefined | object; // if object, will JSON.stringify (except FormData/Blob/ArrayBuffer)
+ cache?: RequestCache; // fetch cache option for cache-busting
 };
 
 /** Token helpers */
@@ -51,7 +51,7 @@ export function clearToken() {
 
 /** Build full URL. If an absolute URL is passed, use it as-is. */
 function buildUrl(path: string) {
-  if (/^https?:\/\//i.test(path)) return path;
+ if (/^https?:\/\//i.test(path)) return path;
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${p}`;
 }
@@ -90,14 +90,14 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     method,
     headers: h,
     body: finalBody,
-    ...(cache && { cache }), // Add cache option if provided
+ ...(cache && { cache }), // Add cache option if provided
   });
 
-  //console.debug(`[api] response ${res.status} ${res.statusText} for ${method} ${url}`);
+ //console.debug(`[api] response ${res.status} ${res.statusText} for ${method} ${url}`);
 
   if (!res.ok) {
-    // Only protected requests represent an expired session. Public login and
-    // OTP requests must stay on their screen so they can show the API error.
+ // Only protected requests represent an expired session. Public login and
+ // OTP requests must stay on their screen so they can show the API error.
     if (res.status === 401 && auth) {
       clearToken();
       window.location.href = '/login';
@@ -122,7 +122,7 @@ export async function api(path: string, opts: ApiOptions = {} ) {
         : '';
       message = conflictMessages || (Array.isArray(apiMessage) ? apiMessage.join(', ') : apiMessage || text);
     } catch {
-      // Keep the raw response when it is not JSON.
+ // Keep the raw response when it is not JSON.
     }
     throw new Error(
       message || `API ${method} ${url} failed: ${res.status} ${res.statusText}`

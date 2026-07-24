@@ -26,7 +26,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
             </p>
           )}
 
-          {/* ========== Vendor Margin Details ========== */}
+ {/* ========== Vendor Margin Details ========== */}
           <section className="rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -97,7 +97,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
             </div>
           </section>
 
-          {/* ========== Driver Cost Details (PHP style) ========== */}
+ {/* ========== Driver Cost Details (PHP style) ========== */}
           <section className="rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -170,7 +170,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
             </div>
           </section>
 
-          {/* ========== Vehicle Extra Cost Details (PHP style rows by vehicle type) ========== */}
+ {/* ========== Vehicle Extra Cost Details (PHP style rows by vehicle type) ========== */}
           <section className="rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -251,7 +251,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
 
           </section>
 
-          {/* ========== Local Pricebook (PHP parity) ========== */}
+ {/* ========== Local Pricebook (PHP parity) ========== */}
           <section className="rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -394,7 +394,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
             )}
           </section>
 
-          {/* ========== Outstation Pricebook (PHP parity) ========== */}
+ {/* ========== Outstation Pricebook (PHP parity) ========== */}
           <section className="rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">
@@ -537,7 +537,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
             )}
           </section>
 
-          {/* Wizard navigation */}
+ {/* Wizard navigation */}
           <div className="mt-4 flex justify-between">
             <Button variant="outline" type="button" onClick={onBack}>
               Back
@@ -554,7 +554,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
         </CardContent>
       </Card>
 
-      {/* ========== Delete Confirm Dialog ========== */}
+ {/* ========== Delete Confirm Dialog ========== */}
       <Dialog open={deleteConfirm.open} onOpenChange={(open) => !open && setDeleteConfirm({ open: false, type: null, id: null, label: "" })}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -574,7 +574,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
         </DialogContent>
       </Dialog>
 
-      {/* ========== Local KM Limit Modal ========== */}
+ {/* ========== Local KM Limit Modal ========== */}
       <Dialog
         open={localKmOpen}
         onOpenChange={(open) => {
@@ -674,7 +674,7 @@ export function VendorStepVehiclePricebookView({ context }: { context: Record<st
         </DialogContent>
       </Dialog>
 
-      {/* ========== Outstation KM Limit Modal ========== */}
+ {/* ========== Outstation KM Limit Modal ========== */}
       <Dialog
         open={outKmOpen}
         onOpenChange={(open) => {

@@ -17,31 +17,31 @@ export interface VehicleType extends VehicleTypeListRow {}
 export type VehicleTypeUpsertInput = {
   title: string;
   occupancy: number;
-  status?: 0 | 1; // UI uses 0/1 like other modules
+ status?: 0 | 1; // UI uses 0/1 like other modules
 };
 
 /** ========= Backend DTO shapes (Nest responses) ========= */
 type VehicleTypeDTO = {
-  // id variants
+ // id variants
   id?: number;
   vehicleTypeId?: number;
   vehicle_type_id?: number;
   vehicle_type_ID?: number;
   vehicleType_ID?: number;
 
-  // title variants
+ // title variants
   title?: string;
   vehicleTypeTitle?: string;
   vehicle_type_title?: string;
   vehicle_type_name?: string;
 
-  // occupancy variants
+ // occupancy variants
   occupancy?: number | string;
   vehicleTypeOccupancy?: number | string;
   vehicle_type_occupancy?: number | string;
   no_of_seats?: number | string;
 
-  // status variants
+ // status variants
   status?: number | string | boolean;
 };
 
@@ -141,20 +141,20 @@ export const VehicleTypesAPI = {
     return toRow(unwrapOne(res));
   },
 
-  /** Soft delete / delete */
+ /** Soft delete / delete */
   async delete(id: number): Promise<void> {
     await api(`/vehicle-types/${id}`, { method: "DELETE" });
   },
 
-  /** Backward-compatible name (some pages call .remove()) */
+ /** Backward-compatible name (some pages call .remove()) */
   async remove(id: number): Promise<void> {
     await VehicleTypesAPI.delete(id);
   },
 
-  /**
+ /**
    * Toggle active/inactive (PHP parity style)
    * NOTE: backend should flip based on the CURRENT status passed (0->1, 1->0)
-   */
+ */
   async toggleStatus(id: number, status: 0 | 1): Promise<void> {
     await api(`/vehicle-types/${id}`, {
       method: "PUT",

@@ -5,7 +5,7 @@ import {
   createVehicle,
   fetchVendorBranches,
   fetchVendorVehicleTypes,
-  fetchLocations, // live suggestions
+ fetchLocations, // live suggestions
 } from "@/services/vehicle-availability";
 import { ChevronDown } from "lucide-react";
 
@@ -15,9 +15,9 @@ type Props = {
   onCreated?: () => void;
 
   vendors: SimpleOption[];
-  /** Optional global types; once vendor is chosen we fetch vendor-scoped types */
+ /** Optional global types; once vendor is chosen we fetch vendor-scoped types */
   vehicleTypes?: SimpleOption[];
-  /** Optional initial origin suggestions (shown when the input is focused and empty) */
+ /** Optional initial origin suggestions (shown when the input is focused and empty) */
   locations?: SimpleOption[];
 
   defaultVendorId?: number | "";
@@ -102,12 +102,12 @@ function Autocomplete({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const debounceRef = useRef<number | null>(null);
 
-  // keep internal query in sync when parent changes value externally
+ // keep internal query in sync when parent changes value externally
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
-  // close on click outside
+ // close on click outside
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!rootRef.current) return;
@@ -120,10 +120,10 @@ function Autocomplete({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  // debounced fetch
+ // debounced fetch
   useEffect(() => {
     if (!open) return;
-    // if empty, show initialSuggestions
+ // if empty, show initialSuggestions
     if (!query.trim()) {
       setItems(initialSuggestions || []);
       setActiveIndex(-1);
@@ -143,7 +143,7 @@ function Autocomplete({
         setLoading(false);
       }
     }, 300);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, open]);
 
   function choose(option: SimpleOption) {
@@ -218,7 +218,7 @@ function Autocomplete({
                 ].join(" ")}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onMouseDown={(e) => {
-                  // mousedown to pick before input blur
+ // mousedown to pick before input blur
                   e.preventDefault();
                   choose(opt);
                 }}
@@ -249,7 +249,7 @@ export function AddVehicleModal({
   const [registrationNumber, setRegistrationNumber] = useState("");
 
   const [vehicleOrigin, setVehicleOrigin] = useState("");
-  const [vehicleExpiryDate, setVehicleExpiryDate] = useState(""); // UI label
+ const [vehicleExpiryDate, setVehicleExpiryDate] = useState(""); // UI label
   const [insuranceStartDate, setInsuranceStartDate] = useState("");
   const [insuranceEndDate, setInsuranceEndDate] = useState("");
 
@@ -264,7 +264,7 @@ export function AddVehicleModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Reset on open
+ // Reset on open
   useEffect(() => {
     if (!open) return;
 
@@ -284,7 +284,7 @@ export function AddVehicleModal({
     setBranches([]);
     setBranchesLoading(false);
 
-    // Preload vendor types for default vendor if provided
+ // Preload vendor types for default vendor if provided
     if (defaultVendorId && Number(defaultVendorId) > 0) {
       setTypesLoading(true);
       fetchVendorVehicleTypes(Number(defaultVendorId))
@@ -296,7 +296,7 @@ export function AddVehicleModal({
     }
   }, [open, defaultVendorId, defaultVehicleTypeId]);
 
-  // Load branches when vendor changes
+ // Load branches when vendor changes
   useEffect(() => {
     if (!open) return;
 
@@ -331,7 +331,7 @@ export function AddVehicleModal({
     };
   }, [vendorId, open]);
 
-  // Load vendor-scoped vehicle types when vendor changes
+ // Load vendor-scoped vehicle types when vendor changes
   useEffect(() => {
     if (!open) return;
 
@@ -366,10 +366,10 @@ export function AddVehicleModal({
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorId]);
 
-  // ---- derive formatted reg (NO hook here; avoids rules-of-hooks error) ----
+ // ---- derive formatted reg (NO hook here; avoids rules-of-hooks error) ----
   const regFormatted = registrationNumber.replace(/\s+/g, " ").trim().toUpperCase();
 
   if (!open) return null;
@@ -412,7 +412,7 @@ export function AddVehicleModal({
 
       await createVehicle({
         vendorId: Number(vendorId),
-        vehicleTypeId: Number(vehicleTypeId), // vendor_vehicle_type_ID
+ vehicleTypeId: Number(vehicleTypeId), // vendor_vehicle_type_ID
         registrationNumber: regFormatted,
 
         vendor_branch_id: Number(vendorBranchId),
@@ -440,7 +440,7 @@ export function AddVehicleModal({
         className="max-h-[calc(100vh-2rem)] w-full max-w-[980px] overflow-y-auto rounded-lg bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+ {/* Header */}
         <div className="pt-10 text-center">
           <h2 className="text-[28px] font-medium text-slate-600">
             Add New Vehicle
@@ -455,7 +455,7 @@ export function AddVehicleModal({
           ) : null}
 
           <div className="grid grid-cols-1 gap-x-10 gap-y-7 md:grid-cols-2">
-            {/* Vendor */}
+ {/* Vendor */}
             <div>
               <div className={labelBase}>
                 Vendor <span className="text-red-500">*</span>
@@ -471,7 +471,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Vendor Branch */}
+ {/* Vendor Branch */}
             <div>
               <div className={labelBase}>
                 Vendor Branch <span className="text-red-500">*</span>
@@ -488,7 +488,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Vehicle Type */}
+ {/* Vehicle Type */}
             <div>
               <div className={labelBase}>
                 Vehicle Type <span className="text-red-500">*</span>
@@ -507,7 +507,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Registration Number */}
+ {/* Registration Number */}
             <div>
               <div className={labelBase}>
                 Registration Number <span className="text-red-500">*</span>
@@ -527,7 +527,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Vehicle Origin (Autocomplete) */}
+ {/* Vehicle Origin (Autocomplete) */}
             <div>
               <div className={labelBase}>
                 Vehicle Origin <span className="text-red-500">*</span>
@@ -543,7 +543,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Vehicle Expiry Date */}
+ {/* Vehicle Expiry Date */}
             <div>
               <div className={labelBase}>
                 Vehicle Expiry Date <span className="text-red-500">*</span>
@@ -558,7 +558,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Insurance Start Date */}
+ {/* Insurance Start Date */}
             <div>
               <div className={labelBase}>
                 Insurance Start Date <span className="text-red-500">*</span>
@@ -573,7 +573,7 @@ export function AddVehicleModal({
               </div>
             </div>
 
-            {/* Insurance End Date */}
+ {/* Insurance End Date */}
             <div>
               <div className={labelBase}>
                 Insurance End Date <span className="text-red-500">*</span>
@@ -589,7 +589,7 @@ export function AddVehicleModal({
             </div>
           </div>
 
-          {/* Footer */}
+ {/* Footer */}
           <div className="mt-12 flex items-center justify-between">
             <button
               type="button"

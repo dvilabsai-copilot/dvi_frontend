@@ -84,7 +84,7 @@ export const usePreviewSlotState = ({
     return safeMatrixSlots.find((slot) => !isInvalid(slot)) || null;
   }, [matrixFit, matrixRequiresBuild, safeMatrixSlots, selectedHotspotId]);
 
-  /** Helper: map route_fit_type to Tailwind badge classes */
+ /** Helper: map route_fit_type to Tailwind badge classes */
   const routeFitBadgeClass = (routeFitType: string | undefined): string => {
     switch (routeFitType) {
       case 'ON_ROUTE':    return 'bg-green-100 text-green-800';
@@ -116,7 +116,7 @@ export const usePreviewSlotState = ({
     destinationHotelDisplayName,
     manualPreviewState?.manualInsertionFit?.hotspotCityContext,
   ]);
-      // Ã¢ââ¬Ã¢ââ¬ From manualInsertionFit.allSlotResults Ã¢ââ¬Ã¢ââ¬
+ // From manualInsertionFit.allSlotResults
   return {
     resolvedRemovalTimelineLeak,
     safeMatrixSlots,

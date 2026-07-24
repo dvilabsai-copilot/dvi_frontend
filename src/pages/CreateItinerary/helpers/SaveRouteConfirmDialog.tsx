@@ -104,7 +104,7 @@ export const SaveRouteConfirmDialog: React.FC<Props> = ({
             <div className="min-h-[20px] text-xs font-medium text-slate-500">
               {friendlyLoadingMessage}
             </div>
-          
+
           </div>
         )}
       </div>

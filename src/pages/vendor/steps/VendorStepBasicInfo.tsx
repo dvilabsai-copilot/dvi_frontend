@@ -496,7 +496,7 @@ if (/^\d{0,3}(\.\d{0,2})?$/.test(value) && Number(value || 0) <= 100) {
             Invoice Details
           </h3>
 
-          {/* Row 1: Company Name, Address, Pincode */}
+ {/* Row 1: Company Name, Address, Pincode */}
           <div className="grid gap-4 md:grid-cols-3">
             <div>
           <Label>Company Name</Label>
@@ -557,7 +557,7 @@ if (/^\d{0,3}(\.\d{0,2})?$/.test(value) && Number(value || 0) <= 100) {
             </div>
           </div>
 
-          {/* Row 2: GSTIN, PAN, Contact No. */}
+ {/* Row 2: GSTIN, PAN, Contact No. */}
           <div className="grid gap-4 md:grid-cols-3 mt-4">
             <div>
               <Label>GSTIN Number</Label>
@@ -642,7 +642,7 @@ onChange={(e) => {
             </div>
           </div>
 
-          {/* Row 3: Email + Logo */}
+ {/* Row 3: Email + Logo */}
           <div className="grid gap-4 md:grid-cols-3 mt-4">
             <div>
               <Label>Email ID</Label>
@@ -676,7 +676,7 @@ onChange={(e) => {
               <Label>Logo</Label>
               <Input
                 type="file"
-                accept="image/*"
+ accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null;
                   setBasicInfo((p) =>

@@ -136,20 +136,20 @@ export function useQuotationConfirmationModalController({
       const plan = asRecord(planDetails.plan);
       const agentId = plan.agent_ID || plan.agent_id || planDetails.agent_ID || planDetails.agent_id || customerInfo.agent_id;
 
-      console.log("[openConfirmQuotationModal] planDetails:", planDetails);
-      console.log("[openConfirmQuotationModal] customerInfo:", customerInfo);
-      console.log("[openConfirmQuotationModal] agentId resolved to:", agentId);
+ console.log("[openConfirmQuotationModal] planDetails:", planDetails);
+ console.log("[openConfirmQuotationModal] customerInfo:", customerInfo);
+ console.log("[openConfirmQuotationModal] agentId resolved to:", agentId);
 
       if (agentId) {
         try {
           await refreshConfirmWalletBalance(Number(agentId));
         } catch (error) {
-          console.warn("Failed to fetch wallet balance:", error);
+ console.warn("Failed to fetch wallet balance:", error);
         }
       }
 
       if (!agentId) {
-        console.error("Failed to load agent information. Available data:", { planDetails, customerInfo });
+ console.error("Failed to load agent information. Available data:", { planDetails, customerInfo });
         toast.error("Failed to load agent information. Please try again.");
         setConfirmQuotationModal(false);
         return;
@@ -223,8 +223,8 @@ export function useQuotationConfirmationModalController({
           getHotelSelectionAmount,
           getCoveredRouteIdsFromHotelSelections,
         });
-        // Do not auto-introduce TBO/VSR rows when the user selected only
-        // non-VSR or offline hotels. That would incorrectly require prebook.
+ // Do not auto-introduce TBO/VSR rows when the user selected only
+ // non-VSR or offline hotels. That would incorrectly require prebook.
         selectedHotelsForPrebook = hasExplicitTboSelection
           ? preparedSelections.selectedHotelsForPrebook
           : { ...selectedHotelBookings };
@@ -262,7 +262,7 @@ export function useQuotationConfirmationModalController({
           searchInitiatedAt: hotelData.searchInitiatedAt,
           passengers: [],
         })) as unknown as Parameters<typeof ItineraryService.prebookHotels>[0]["hotel_bookings"];
-      console.log("[CONFIRM_HOTELS] nonTboSelectedHotelEntries", nonTboSelectedHotelEntries);
+ console.log("[CONFIRM_HOTELS] nonTboSelectedHotelEntries", nonTboSelectedHotelEntries);
 
       if (prebookHotelBookings.length > 0) {
         const staleHotel = prebookHotelBookings.find((booking) => {
@@ -278,7 +278,7 @@ export function useQuotationConfirmationModalController({
           return;
         }
 
-        const clientIp = await fetch("https://api.ipify.org?format=json")
+ const clientIp = await fetch("https://api.ipify.org?format=json")
           .then((response) => response.json())
           .then((data: { ip?: string }) => data.ip || "192.168.1.1")
           .catch(() => "192.168.1.1");
@@ -301,7 +301,7 @@ export function useQuotationConfirmationModalController({
         }
       }
     } catch (error) {
-      console.error("Failed to load customer info", error);
+ console.error("Failed to load customer info", error);
       const message = error instanceof Error ? error.message : "Failed to load customer information";
       toast.error(message);
     } finally {

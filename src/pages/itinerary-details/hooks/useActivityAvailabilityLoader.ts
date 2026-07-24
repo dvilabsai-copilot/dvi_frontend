@@ -33,7 +33,7 @@ export const useActivityAvailabilityLoader = ({
     const activities = await ItineraryService.getAvailableActivities(hotspotId, planId, routeId);
     setAvailableActivities(activities as Activity[]);
   } catch (error) {
-    console.error("Failed to load activities", error);
+ console.error("Failed to load activities", error);
     toast.error(error?.message || "Failed to load activities");
     setAvailableActivities([]);
   } finally {

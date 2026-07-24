@@ -83,7 +83,7 @@ export const parseDisplayTimeToHms = (displayTime: string): string => {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 };
 
-// Returns true for times in the 01:00–07:59 range (early morning, requires previous-day hotel)
+// Returns true for times in the 01:0007:59 range (early morning, requires previous-day hotel)
 export const isEarlyMorningTime = (hms: string): boolean => {
   const [h = 0, m = 0] = hms.split(':').map(Number);
   const totalMinutes = h * 60 + m;
@@ -258,7 +258,7 @@ export const filterAvailableHotspotsForAnchor = (
     );
 
     if (!keep) {
-      console.log('[AddHotspotModal] hiding_route_movement_hotspot_wrong_anchor', {
+ console.log('[AddHotspotModal] hiding_route_movement_hotspot_wrong_anchor', {
         hotspotId: Number(hotspot?.id || 0),
         hotspotName: hotspot?.name,
         hotspotLocation: getHotspotFromLocationText(hotspot),
@@ -414,7 +414,7 @@ export const extractCheckinHotelName = (value: unknown): string => {
 
   const withoutPrefix = raw
     .replace(/^check-?in\s+(?:to|at)\s+/i, '')
-    .replace(/^hotel\s*:\s*/i, '')
+ .replace(/^hotel\s*:\s*/i, '')
     .trim();
 
   if (!withoutPrefix) return 'Hotel';
@@ -564,7 +564,7 @@ export const estimateHotelTravelMinutesFromDistance = (distanceText?: string | n
   const distanceKm = parseDistanceKmValue(distanceText);
   if (distanceKm === null) return null;
 
-  // Keep this conservative for city traffic conditions.
+ // Keep this conservative for city traffic conditions.
   const assumedCitySpeedKmH = 25;
   const estimated = Math.round((distanceKm / assumedCitySpeedKmH) * 60);
   return Math.max(10, estimated);

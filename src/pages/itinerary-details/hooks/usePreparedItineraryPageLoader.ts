@@ -107,7 +107,7 @@ export function usePreparedItineraryPageLoader({
       });
     } catch (error) {
       if (!isMountedRef.current) return;
-      console.error("Failed to load staged itinerary details", error);
+ console.error("Failed to load staged itinerary details", error);
       const message = error instanceof Error ? error.message : String(error || "");
       setVehicleBuildStatus("FAILED");
       setVehicleBuildError(message || "Vehicle pricing failed to prepare");

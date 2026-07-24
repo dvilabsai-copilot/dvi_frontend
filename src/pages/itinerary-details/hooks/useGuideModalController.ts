@@ -90,7 +90,7 @@ export const useGuideModalController = ({
         };
       });
     } catch (error) {
-      console.error("Failed to load guide modal options", error);
+ console.error("Failed to load guide modal options", error);
       setGuideModal((previous) => ({ ...previous, loading: false, open: false }));
       toast.error(error?.message || "Failed to load guide options");
     }

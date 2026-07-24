@@ -91,7 +91,7 @@ export default function VendorFormPage() {
   const [basicFieldErrors, setBasicFieldErrors] = useState<BasicInfoErrors>({});
   const [branchFieldErrors, setBranchFieldErrors] = useState<BranchErrors>({});
 
-  // dropdowns
+ // dropdowns
   const [countryOptions, setCountryOptions] = useState<Option[]>([]);
   const [stateOptions, setStateOptions] = useState<Option[]>([]);
   const [cityOptions, setCityOptions] = useState<Option[]>([]);
@@ -109,7 +109,7 @@ export default function VendorFormPage() {
   const isEdit = Boolean(editingId);
   const maxEnabledStep = vendorId ? 6 : 1;
 
-  /** ---------- Load static dropdowns (countries, roles, GST %) ---------- */
+ /** ---------- Load static dropdowns (countries, roles, GST %) ---------- */
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
@@ -144,26 +144,26 @@ export default function VendorFormPage() {
                 const value =
                 g.value ?? g.gst_value ?? g.gst_percentage ?? g.id ?? "";
 
-                // base number we got from API, e.g. "5", "12", "18", "0"
+ // base number we got from API, e.g. "5", "12", "18", "0"
                 const base = String(g.label ?? g.title ?? value ?? "");
 
-                // formatted label: "5 % GST - %5"
+ // formatted label: "5 % GST - %5"
                 const label = `${base} % GST - %${base}`;
 
                 return {
-                id: String(value), // value sent back to API
-                label,             // pretty label shown in dropdown
+ id: String(value), // value sent back to API
+ label, // pretty label shown in dropdown
                 };
             })
             );
       } catch (e) {
-        console.error("Failed to load dropdowns", e);
+ console.error("Failed to load dropdowns", e);
       }
     };
     fetchDropdowns();
   }, []);
 
-  /** ---------- Dependent dropdowns for Basic Info (state & city) ---------- */
+ /** ---------- Dependent dropdowns for Basic Info (state & city) ---------- */
   useEffect(() => {
     if (!basicInfo.countryId) return;
     const fetchStates = async () => {
@@ -181,7 +181,7 @@ export default function VendorFormPage() {
   )
 );
       } catch (e) {
-        console.error("Failed to load states", e);
+ console.error("Failed to load states", e);
       }
     };
     fetchStates();
@@ -204,13 +204,13 @@ export default function VendorFormPage() {
   )
 );
       } catch (e) {
-        console.error("Failed to load cities", e);
+ console.error("Failed to load cities", e);
       }
     };
     fetchCities();
   }, [basicInfo.stateId]);
 
-  /** ---------- Load vendor when editing ---------- */
+ /** ---------- Load vendor when editing ---------- */
   useEffect(() => {
     if (!editingId) return;
 
@@ -326,7 +326,7 @@ export default function VendorFormPage() {
 
         setBranches(mappedBranches.length ? mappedBranches : [emptyBranch]);
       } catch (e) {
-        console.error("Failed to load vendor", e);
+ console.error("Failed to load vendor", e);
       } finally {
         setLoading(false);
       }
@@ -340,7 +340,7 @@ export default function VendorFormPage() {
     if (activeStep !== 2) setBranchFieldErrors({});
   }, [activeStep]);
 
-  /** ---------- Save handlers (same as earlier single-file version) ---------- */
+ /** ---------- Save handlers (same as earlier single-file version) ---------- */
 
   const isFilled = (value?: string) => Boolean(String(value ?? "").trim());
 
@@ -453,7 +453,7 @@ vendor_alternative_mobile_number:
       const method = vendorId ? "PUT" : "POST";
       const path = vendorId ? `/vendors/${vendorId}` : "/vendors";
 
-      console.log("Vendor basic payload before save:", payload);
+ console.log("Vendor basic payload before save:", payload);
 
 const res = (await api(path, {
         method,
@@ -466,7 +466,7 @@ const res = (await api(path, {
       setActiveStep(2);
       return newVendorId;
     } catch (e) {
-      console.error("Failed to save basic info", e);
+ console.error("Failed to save basic info", e);
       return undefined;
     } finally {
       setSaving(false);
@@ -512,7 +512,7 @@ const res = (await api(path, {
       setBranchFieldErrors({});
       setActiveStep(3);
     } catch (e) {
-      console.error("Failed to save branches", e);
+ console.error("Failed to save branches", e);
     } finally {
       setSaving(false);
     }
@@ -524,13 +524,13 @@ const res = (await api(path, {
       try {
         await api(`/vendors/branches/${branch.id}`, { method: "DELETE" });
       } catch (e) {
-        console.error("Failed to delete branch", e);
+ console.error("Failed to delete branch", e);
       }
     }
     setBranches((prev) => prev.filter((_, i) => i !== index));
   };
 
-  /** ---------- Step header ---------- */
+ /** ---------- Step header ---------- */
 
   const renderStepHeader = () => (
     <div className="mb-6 flex flex-wrap gap-3">
@@ -564,7 +564,7 @@ const res = (await api(path, {
     </div>
   );
 
-  /** ---------- Render active step ---------- */
+ /** ---------- Render active step ---------- */
 
   const renderActiveStep = () => {
     if (activeStep === 1) {

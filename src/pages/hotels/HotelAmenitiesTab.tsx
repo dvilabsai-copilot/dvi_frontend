@@ -8,7 +8,7 @@ export const HotelAmenitiesTab = ({ hotelId, onNext }: HotelAmenitiesTabProps) =
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Amenities</h2>
-      
+
       <div className="text-sm text-muted-foreground">
         {hotelId ? `Editing hotel #${hotelId}` : "No hotel selected"}
       </div>

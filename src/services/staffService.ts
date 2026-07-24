@@ -9,8 +9,8 @@ export interface StaffListRow {
   email: string;
   agentName: string;
   status: 0 | 1;
-  roleAccess: string; // human label (now uses backend roleName)
-  roleId: number;     // carry roleId for edits
+ roleAccess: string; // human label (now uses backend roleName)
+ roleId: number; // carry roleId for edits
 }
 
 export interface Staff {
@@ -18,8 +18,8 @@ export interface Staff {
   name: string;
   mobileNumber: string;
   email: string;
-  roleAccess: string; // human label (now uses backend roleName)
-  roleId: number;     // needed by form / preview
+ roleAccess: string; // human label (now uses backend roleName)
+ roleId: number; // needed by form / preview
   status: 0 | 1;
   agentName: string;
 }
@@ -46,9 +46,9 @@ type StaffViewDTO = {
   createdOn: string | null;
   updatedOn: string | null;
   login: StaffLoginDTO;
-  /** Enriched by backend (dvi_rolemenu.role_name) */
+ /** Enriched by backend (dvi_rolemenu.role_name) */
   roleName?: string;
-  /** Enriched by backend (dvi_agent.agent_name + agent_lastname) */
+ /** Enriched by backend (dvi_agent.agent_name + agent_lastname) */
   agentName?: string;
 };
 
@@ -65,10 +65,10 @@ const toListRow = (r: StaffViewDTO): StaffListRow => ({
   name: r.staffName,
   mobileNumber: r.staffMobile,
   email: r.staffEmail,
-  agentName: r.agentName ?? "-", // now uses backend-provided full name
+ agentName: r.agentName "-", // now uses backend-provided full name
   status: (r.status ?? 0) as 0 | 1,
   roleId: r.roleId ?? 0,
-  roleAccess: r.roleName ?? `Role ${r.roleId}`, // use real role name when provided
+ roleAccess: r.roleName `Role ${r.roleId}`, // use real role name when provided
 });
 
 const toStaff = (r: StaffViewDTO): Staff => ({
@@ -84,7 +84,7 @@ const toStaff = (r: StaffViewDTO): Staff => ({
 
 /** ========= Public API consumed by your pages ========= */
 export const StaffAPI = {
-  /** Fetch list (server returns {total, page, pageSize, data}) */
+ /** Fetch list (server returns {total, page, pageSize, data}) */
   async list(): Promise<StaffListRow[]> {
     const res = (await api("/staff")) as ListResponseDTO;
     if (!res || !Array.isArray(res.data)) {
@@ -93,31 +93,31 @@ export const StaffAPI = {
     return res.data.map(toListRow);
   },
 
-  /** Fetch a single staff by id (used by preview/edit) */
+ /** Fetch a single staff by id (used by preview/edit) */
   async get(id: number): Promise<Staff> {
     const res = (await api(`/staff/${id}`)) as StaffViewDTO;
     return toStaff(res);
   },
 
-  /** Create staff (backend creates login when password is provided) */
+ /** Create staff (backend creates login when password is provided) */
   async create(input: {
     name: string;
     email: string;
     mobileNumber: string;
-    /** If your form has a roles dropdown, pass roleId here */
+ /** If your form has a roles dropdown, pass roleId here */
     roleId?: number;
-    /** Optional label shown in UI; backend uses roleId */
+ /** Optional label shown in UI; backend uses roleId */
     roleAccess?: string;
     agentName: string;
     status: number;
-    password: string; // required on create
+ password: string; // required on create
   }): Promise<Staff> {
     const payload = {
-      agentId: 0, // replace when you have the active agent id
+ agentId: 0, // replace when you have the active agent id
       staffName: input.name,
       staffMobile: input.mobileNumber,
       staffEmail: input.email,
-      roleId: input.roleId ?? 0, // <- pass real roleId (prefer)
+ roleId: input.roleId 0, // <- pass real roleId (prefer)
       status: input.status ?? 1,
       loginEmail: input.email,
       password: input.password,
@@ -131,18 +131,18 @@ export const StaffAPI = {
     return toStaff(res);
   },
 
-  /** Update staff (optionally updates login email/password) */
+ /** Update staff (optionally updates login email/password) */
   async update(
     id: number,
     input: {
       name?: string;
       email?: string;
       mobileNumber?: string;
-      /** pass roleId to actually change role */
+ /** pass roleId to actually change role */
       roleId?: number;
-      /** UI label only */
+ /** UI label only */
       roleAccess?: string;
-      password?: string; // optional on update
+ password?: string; // optional on update
       status?: 0 | 1;
     }
   ): Promise<Staff> {
@@ -167,7 +167,7 @@ export const StaffAPI = {
     return toStaff(res);
   },
 
-  /** Toggle active/inactive */
+ /** Toggle active/inactive */
   async toggleStatus(id: number, status: 0 | 1): Promise<void> {
     await api(`/staff/${id}`, {
       method: "PUT",
@@ -175,7 +175,7 @@ export const StaffAPI = {
     });
   },
 
-  /** Soft delete */
+ /** Soft delete */
   async delete(id: number): Promise<void> {
     await api(`/staff/${id}`, { method: "DELETE" });
   },
@@ -183,7 +183,7 @@ export const StaffAPI = {
 export type RoleOption = { id: number; label: string };
 
 export async function fetchStaffRoles(): Promise<RoleOption[]> {
-  // GET /api/v1/staff/roles  → [{id,label}]
+ // GET /api/v1/staff/roles [{id,label}]
   const res = await api("/staff/roles");
   if (!Array.isArray(res)) return [];
   return res as RoleOption[];

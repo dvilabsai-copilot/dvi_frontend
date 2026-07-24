@@ -158,7 +158,7 @@ export function useHotelArrivalPolicyController({
         toast.info(policy.message);
       }
     } catch (error) {
-      console.error("Failed to resolve arrival hotel policy from arrival-time change", error);
+ console.error("Failed to resolve arrival hotel policy from arrival-time change", error);
       const message = error instanceof Error
         ? error.message
         : error && typeof error === "object" && "message" in error

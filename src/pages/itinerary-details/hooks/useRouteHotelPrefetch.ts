@@ -39,7 +39,7 @@ export function useRouteHotelPrefetch({
           await loadAndCacheRouteHotelDetails(routeQuoteId);
         } catch (error) {
           routeHotelPrefetchedRef.current.delete(routeQuoteId);
-          console.warn('[ItineraryDetails] Failed to prefetch hotels for route quote', {
+ console.warn('[ItineraryDetails] Failed to prefetch hotels for route quote', {
             routeQuoteId,
             error,
           });

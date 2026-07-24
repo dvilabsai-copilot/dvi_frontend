@@ -157,7 +157,7 @@ onRouteSelect?.(firstRoute, 0);
           data.no_routes_message || 'No routes available for this location.',
         );
         setNoRoutesDialogOpen(true);
-        // PHP parity: when no default routes are found, switch to Customize with clean rows.
+ // PHP parity: when no default routes are found, switch to Customize with clean rows.
         setRouteDetails?.(buildBlankRouteDetails());
       }
     } catch (err) {
@@ -167,7 +167,7 @@ onRouteSelect?.(firstRoute, 0);
     }
   };
 
-  // Loading state
+ // Loading state
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12 bg-blue-50 rounded-lg border border-blue-200">
@@ -177,7 +177,7 @@ onRouteSelect?.(firstRoute, 0);
     );
   }
 
-  // Error state
+ // Error state
   if (error) {
     return (
       <Alert variant="destructive">
@@ -187,7 +187,7 @@ onRouteSelect?.(firstRoute, 0);
     );
   }
 
-  // No routes found - show modal alert
+ // No routes found - show modal alert
   if (noRoutesMessage) {
     const handleCloseNoRoutesModal = () => {
       setNoRoutesDialogOpen(false);
@@ -218,12 +218,12 @@ onRouteSelect?.(firstRoute, 0);
             </DialogHeader>
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
               <p className="text-sm text-gray-700">
-                The itinerary type has been switched to <strong>Customize</strong>. 
+                The itinerary type has been switched to <strong>Customize</strong>.
                 Please add routes manually.
               </p>
             </div>
             <DialogFooter className="mt-6">
-              <Button 
+              <Button
                 onClick={handleCloseNoRoutesModal}
                 className="w-full bg-green-600 hover:bg-green-700"
               >
@@ -236,11 +236,11 @@ onRouteSelect?.(firstRoute, 0);
     );
   }
 
-  // Routes found - show tabs + editable form
+ // Routes found - show tabs + editable form
   if (routes.length > 0) {
     return (
       <div className="w-full">
-        {/* Route Tabs */}
+ {/* Route Tabs */}
         <div className="mb-4">
           <label className="text-sm font-medium text-gray-700 mb-2 block">
             Suggested Routes ({routes.length} options available) - Click to load
@@ -253,7 +253,7 @@ onRouteSelect?.(firstRoute, 0);
   setSelectedRouteIdx(idx);
   onRouteSelect?.(route, idx);
 
-  // Load this route's data into form
+ // Load this route's data into form
   const formattedRouteDetails = route.days.map((day, dayIdx) => ({
     id: dayIdx + 1,
     day: day.dayNo,
@@ -280,7 +280,7 @@ className={`px-4 py-2 rounded-lg font-medium transition-colors cursor-pointer ${
           </div>
         </div>
 
-        {/* Editable Route Details Form */}
+ {/* Editable Route Details Form */}
         <RouteDetailsBlock
   routeDetails={routeDetails || []}
   setRouteDetails={setRouteDetails || (() => {})}

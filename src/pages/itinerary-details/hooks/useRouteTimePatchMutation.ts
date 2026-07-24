@@ -112,7 +112,7 @@ export function useRouteTimePatchMutation({
         toast.success(`Day ${dayNumber} times updated`);
       }
     } catch (error) {
-      console.error("Failed to update route times", error);
+ console.error("Failed to update route times", error);
       const message = error instanceof Error ? error.message : String(error || "");
       if (message.includes("unavailable for the selected vehicle because")) {
         setRouteRestrictionError?.(message);

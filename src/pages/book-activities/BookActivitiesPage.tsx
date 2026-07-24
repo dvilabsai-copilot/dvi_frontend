@@ -70,7 +70,7 @@ const fallbackPopularActivities: Activity[] = [
     price: 3499,
     priceLabel: "Rs. 3,499",
     image:
-      "https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=900&q=80",
+ "https://images.unsplash.com/photo-1522163182402-834f871fd851?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 0,
@@ -83,7 +83,7 @@ const fallbackPopularActivities: Activity[] = [
     price: 4999,
     priceLabel: "Rs. 4,999",
     image:
-      "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=900&q=80",
+ "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 0,
@@ -96,7 +96,7 @@ const fallbackPopularActivities: Activity[] = [
     price: 1299,
     priceLabel: "Rs. 1,299",
     image:
-      "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=900&q=80",
+ "https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 0,
@@ -109,7 +109,7 @@ const fallbackPopularActivities: Activity[] = [
     price: 2499,
     priceLabel: "Rs. 2,499",
     image:
-      "https://images.unsplash.com/photo-1549366021-9f761d450615?auto=format&fit=crop&w=900&q=80",
+ "https://images.unsplash.com/photo-1549366021-9f761d450615?auto=format&fit=crop&w=900&q=80",
   },
   {
     id: 0,
@@ -122,7 +122,7 @@ const fallbackPopularActivities: Activity[] = [
     price: 1199,
     priceLabel: "Rs. 1,199",
     image:
-      "https://images.unsplash.com/photo-1521336575822-6da63fb45455?auto=format&fit=crop&w=900&q=80",
+ "https://images.unsplash.com/photo-1521336575822-6da63fb45455?auto=format&fit=crop&w=900&q=80",
   },
 ];
 const benefits = [
@@ -314,7 +314,7 @@ export default function BookActivitiesPage() {
       if (!rows.length) return;
       setCategories(rows.map((row) => toCategory(row.name)));
     } catch (error) {
-      console.error("Failed to load activity categories", error);
+ console.error("Failed to load activity categories", error);
     }
   }, []);
   const loadActivities = useCallback(async (
@@ -352,7 +352,7 @@ export default function BookActivitiesPage() {
       setShowFallbackActivities(false);
       setHasShownLoadError(false);
     } catch (error) {
-      console.error("Failed to load book activities", error);
+ console.error("Failed to load book activities", error);
       if (!hasShownLoadError) {
         toast.error("Failed to load live activities. Showing sample activities.");
         setHasShownLoadError(true);
@@ -386,7 +386,7 @@ export default function BookActivitiesPage() {
       setDestinationOptions(options);
     } catch (error) {
       if (destinationRequestRef.current !== requestId) return;
-      console.error("Failed to load destination route locations", error);
+ console.error("Failed to load destination route locations", error);
       setDestinationOptions([]);
     } finally {
       if (destinationRequestRef.current !== requestId) return;
@@ -409,7 +409,7 @@ export default function BookActivitiesPage() {
       setSourceOptions(options);
     } catch (error) {
       if (sourceRequestRef.current !== requestId) return;
-      console.error("Failed to load source route locations", error);
+ console.error("Failed to load source route locations", error);
       setSourceOptions([]);
     } finally {
       if (sourceRequestRef.current !== requestId) return;
@@ -442,7 +442,7 @@ export default function BookActivitiesPage() {
       const rows = await BookActivitiesAPI.agents();
       setAgents(rows);
     } catch (error) {
-      console.error("Failed to load agents", error);
+ console.error("Failed to load agents", error);
       toast.error("Failed to load agents for activity booking");
     }
   }, []);
@@ -452,7 +452,7 @@ export default function BookActivitiesPage() {
       const rows = await BookActivitiesAPI.wishlist("admin");
       setWishlistItems(rows);
     } catch (error) {
-      console.error("Failed to load wishlist", error);
+ console.error("Failed to load wishlist", error);
       toast.error("Failed to load wishlist");
     } finally {
       setWishlistLoading(false);
@@ -467,7 +467,7 @@ export default function BookActivitiesPage() {
       });
       setMyBookings(response.items || []);
     } catch (error) {
-      console.error("Failed to load activity bookings", error);
+ console.error("Failed to load activity bookings", error);
       toast.error("Failed to load activity bookings");
     } finally {
       setMyBookingsLoading(false);
@@ -497,7 +497,7 @@ export default function BookActivitiesPage() {
         );
       }
     } catch (error) {
-      console.error("Failed to update wishlist", error);
+ console.error("Failed to update wishlist", error);
       toast.error(getErrorMessage(error) || "Failed to update wishlist");
     } finally {
       setWishlistSavingId(null);
@@ -512,7 +512,7 @@ export default function BookActivitiesPage() {
         prev.filter((item) => Number(item.activityId) !== Number(activityId)),
       );
     } catch (error) {
-      console.error("Failed to remove wishlist item", error);
+ console.error("Failed to remove wishlist item", error);
       toast.error(getErrorMessage(error) || "Failed to remove wishlist item");
     } finally {
       setWishlistSavingId(null);
@@ -628,7 +628,7 @@ export default function BookActivitiesPage() {
       void loadMyBookings(bookingSearchText);
       closeBookingModal();
     } catch (error) {
-      console.error("Failed to confirm activity booking", error);
+ console.error("Failed to confirm activity booking", error);
       toast.error(getErrorMessage(error) || "Failed to confirm activity booking");
     } finally {
       setBookingSubmitting(false);
@@ -662,7 +662,7 @@ export default function BookActivitiesPage() {
         );
       } catch (error) {
         if (cancelled) return;
-        console.error("Failed to refresh agent wallet", error);
+ console.error("Failed to refresh agent wallet", error);
         toast.error("Failed to refresh agent wallet balance");
       }
     };

@@ -9,7 +9,7 @@ const ItineraryDetailsLazy = React.lazy(async () => {
   const Resolved = mod?.ItineraryDetails || mod?.default;
 
   if (!Resolved) {
-    console.error('ItineraryDetailsRouter: failed to resolve ItineraryDetails export from lazy import', {
+ console.error('ItineraryDetailsRouter: failed to resolve ItineraryDetails export from lazy import', {
       keys: Object.keys(mod || {}),
     });
 
@@ -48,8 +48,8 @@ export const ItineraryDetailsRouter: React.FC = () => {
 
     const isConfirmedRoute = location.pathname.startsWith('/confirmed-itinerary/');
 
-    // If this is a confirmed itinerary route,
-    // do not call the normal itinerary details API
+ // If this is a confirmed itinerary route,
+ // do not call the normal itinerary details API
     if (isConfirmedRoute) {
       setIsConfirmed(true);
       setError(null);
@@ -66,7 +66,7 @@ export const ItineraryDetailsRouter: React.FC = () => {
         setIsConfirmed(apiConfirmed);
         setError(null);
       } catch (err: any) {
-        console.error('Failed to check itinerary status:', err);
+ console.error('Failed to check itinerary status:', err);
         setIsConfirmed(false);
         setError(err?.message || 'Failed to load itinerary');
       }
@@ -75,7 +75,7 @@ export const ItineraryDetailsRouter: React.FC = () => {
     checkConfirmationStatus();
   }, [id, location.pathname]);
 
-  // Loading state
+ // Loading state
   if (isConfirmed === null) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -87,10 +87,10 @@ export const ItineraryDetailsRouter: React.FC = () => {
     );
   }
 
-  // Confirmed itinerary route
+ // Confirmed itinerary route
   if (location.pathname.startsWith('/confirmed-itinerary/')) {
     if (!ConfirmedItineraryDetails) {
-      console.error('ItineraryDetailsRouter: ConfirmedItineraryDetails component is undefined');
+ console.error('ItineraryDetailsRouter: ConfirmedItineraryDetails component is undefined');
       return (
         <div className="flex items-center justify-center min-h-screen">
           <p className="text-red-600 font-semibold">Unable to load confirmed itinerary component.</p>
@@ -100,9 +100,9 @@ export const ItineraryDetailsRouter: React.FC = () => {
     return <ConfirmedItineraryDetails confirmedPlanId={Number(id)} />;
   }
 
-  // Error state - default to edit mode
+ // Error state - default to edit mode
   if (error) {
-    console.warn('Error checking confirmation status, loading in edit mode:', error);
+ console.warn('Error checking confirmation status, loading in edit mode:', error);
     return (
       <Suspense
         fallback={
@@ -119,7 +119,7 @@ export const ItineraryDetailsRouter: React.FC = () => {
     );
   }
 
-  // Normal itinerary route
+ // Normal itinerary route
   return (
     <Suspense
       fallback={

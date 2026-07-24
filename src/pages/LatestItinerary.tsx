@@ -82,26 +82,26 @@ export const LatestItinerary = () => {
     !isAccounts;
 
   const canDownloadExcel =
-    role === 1 || // Admin
+ role === 1 || // Admin
     isTravelExpert ||
     isAccounts;
 
-  // table state
+ // table state
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
 
-  // ui state
+ // ui state
   const [entriesPerPage, setEntriesPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // dropdown options (fetched from API)
+ // dropdown options (fetched from API)
   const [origins, setOrigins] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
   const [agents, setAgents] = useState<{ id: number; name: string; staff_name?: string }[]>([]);
   const [staffs, setStaffs] = useState<string[]>([]);
 
-  // date objects for calendar
+ // date objects for calendar
   const [startDateObj, setStartDateObj] = useState<Date | undefined>(
     undefined,
   );
@@ -109,7 +109,7 @@ export const LatestItinerary = () => {
     undefined,
   );
 
-  // filters -> to be sent to API
+ // filters -> to be sent to API
   const [filters, setFilters] = useState({
     origin: "",
     destination: "",
@@ -119,7 +119,7 @@ export const LatestItinerary = () => {
     endDate: "",
   });
 
-    // sort (UI only for now; backend always sorts by latest plan ID desc)
+ // sort (UI only for now; backend always sorts by latest plan ID desc)
   const [sortConfig, setSortConfig] = useState<{
     field:
       | "sno"
@@ -137,7 +137,7 @@ export const LatestItinerary = () => {
   });
 
   const [downloadInProgressId, setDownloadInProgressId] = useState<number | null>(null);
-  // Fetch filter options on mount
+ // Fetch filter options on mount
   useEffect(() => {
     const fetchFilterData = async () => {
       try {
@@ -147,26 +147,26 @@ export const LatestItinerary = () => {
         ]);
 
         setAgents(agentsData);
-        
-        // Extract unique locations for both origin and destination
+
+ // Extract unique locations for both origin and destination
         const locationValues = locationsData.map((loc: { value: string }) => loc.value);
         setOrigins(locationValues);
         setDestinations(locationValues);
-        
-        // Extract staff names
+
+ // Extract staff names
         const staffNames = agentsData
           .filter((agent: { staff_name?: string }) => agent.staff_name)
           .map((agent: { staff_name: string }) => agent.staff_name);
         setStaffs(staffNames);
       } catch (error) {
-        console.error('Failed to fetch filter data', error);
+ console.error('Failed to fetch filter data', error);
       }
     };
 
     fetchFilterData();
   }, []);
 
-  // fetch whenever deps change
+ // fetch whenever deps change
   useEffect(() => {
     const load = async () => {
       const pageSize = Number(entriesPerPage);
@@ -183,32 +183,32 @@ export const LatestItinerary = () => {
         staffId: filters.staffId ? Number(filters.staffId) : undefined,
       });
 
-      // API shape from service:
-      // {
-      //   draw,
-      //   recordsTotal,
-      //   recordsFiltered,
-      //   data: [
-      //     {
-      //       counter,
-      //       modify,
-      //       itinerary_quote_ID,
-      //       itinerary_booking_ID,
-      //       arrival_location,
-      //       departure_location,
-      //       itinerary_preference,
-      //       no_of_days_and_nights, // "N& D"
-      //       no_of_person,          // HTML span
-      //       trip_start_date_and_time,
-      //       trip_end_date_and_time,
-      //       total_adult,
-      //       total_children,
-      //       total_infants,
-      //       username,
-      //       createdon,
-      //     }
-      //   ]
-      // }
+ // API shape from service:
+ // {
+ // draw,
+ // recordsTotal,
+ // recordsFiltered,
+ // data: [
+ // {
+ // counter,
+ // modify,
+ // itinerary_quote_ID,
+ // itinerary_booking_ID,
+ // arrival_location,
+ // departure_location,
+ // itinerary_preference,
+ // no_of_days_and_nights, // "N& D"
+ // no_of_person, // HTML span
+ // trip_start_date_and_time,
+ // trip_end_date_and_time,
+ // total_adult,
+ // total_children,
+ // total_infants,
+ // username,
+ // createdon,
+ // }
+ // ]
+ // }
 
       const totalRecords = res?.recordsFiltered ?? res?.recordsTotal ?? 0;
       setTotal(totalRecords);
@@ -267,7 +267,7 @@ export const LatestItinerary = () => {
     currentPage,
     entriesPerPage,
     searchQuery,
-    sortConfig, // kept for future server-side sort if needed
+ sortConfig, // kept for future server-side sort if needed
     filters.origin,
     filters.destination,
     filters.agentId,
@@ -315,7 +315,7 @@ export const LatestItinerary = () => {
       }
       return { field, dir: "asc" };
     });
-    // For now backend sort is fixed (latest first); this is just UI state.
+ // For now backend sort is fixed (latest first); this is just UI state.
     setCurrentPage(1);
   };
 
@@ -366,7 +366,7 @@ export const LatestItinerary = () => {
         `ITINERARY-${itinerary?.quoteId || planId}.xlsx`,
       );
     } catch (error: any) {
-      console.error("Failed to download itinerary Excel", error);
+ console.error("Failed to download itinerary Excel", error);
       alert(error?.message || "Unable to download Excel. Please try again.");
     } finally {
       setDownloadInProgressId(null);
@@ -375,15 +375,15 @@ export const LatestItinerary = () => {
 
   return (
     <div className="w-full max-w-full space-y-6">
-      {/* FILTER CARD */}
+ {/* FILTER CARD */}
       <Card className="border-none shadow-none bg-white">
         <CardContent className="pt-6">
           <h2 className="text-base font-semibold mb-4 text-[#4a4260]">
             FILTER
           </h2>
-          {/* 6 fields like PHP */}
+ {/* 6 fields like PHP */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            {/* Start Date (calendar) */}
+ {/* Start Date (calendar) */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">
                 Start Date
@@ -420,7 +420,7 @@ export const LatestItinerary = () => {
               </Popover>
             </div>
 
-            {/* End Date (calendar) */}
+ {/* End Date (calendar) */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">
                 End Date
@@ -457,7 +457,7 @@ export const LatestItinerary = () => {
               </Popover>
             </div>
 
-            {/* Origin */}
+ {/* Origin */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">Origin</Label>
               <Select
@@ -480,7 +480,7 @@ export const LatestItinerary = () => {
               </Select>
             </div>
 
-            {/* Destination */}
+ {/* Destination */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">
                 Destination
@@ -505,7 +505,7 @@ export const LatestItinerary = () => {
               </Select>
             </div>
 
-            {/* Agent Name */}
+ {/* Agent Name */}
             <div className="space-y-2">
               <Label className="text-sm text-[#4a4260]">
                 Agent Name
@@ -530,7 +530,7 @@ export const LatestItinerary = () => {
               </Select>
             </div>
 
-            {/* Agent Staff + Clear */}
+ {/* Agent Staff + Clear */}
             <div className="space-y-2 flex flex-col gap-2">
               <div>
                 <Label className="text-sm text-[#4a4260]">
@@ -568,10 +568,10 @@ export const LatestItinerary = () => {
         </CardContent>
       </Card>
 
-      {/* LIST CARD */}
+ {/* LIST CARD */}
       <Card className="border-none shadow-none bg-white">
         <CardContent className="pt-6 pb-4">
-          {/* header */}
+ {/* header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
             <h2 className="text-base md:text-lg font-semibold text-[#4a4260]">
               List of Itinerary{" "}
@@ -586,7 +586,7 @@ export const LatestItinerary = () => {
             </Link>
           </div>
 
-          {/* show entries + search */}
+ {/* show entries + search */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-3">
             <div className="flex items-center gap-2 text-sm">
               <span>Show</span>
@@ -626,7 +626,7 @@ export const LatestItinerary = () => {
             </div>
           </div>
 
-          {/* table */}
+ {/* table */}
           <div className="border rounded-md">
             <Table className="w-full">
               <TableHeader>
@@ -700,7 +700,7 @@ export const LatestItinerary = () => {
                     </TableCell>
                     <TableCell className="px-2 py-2">
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        {/* Type badge */}
+ {/* Type badge */}
                         <span
                           className={`inline-flex h-5 min-w-[18px] shrink-0 items-center justify-center rounded px-1 text-[10px] font-bold text-white ${
                             itinerary.type === "Hotel"
@@ -716,13 +716,13 @@ export const LatestItinerary = () => {
                               ? "V"
                               : "B"}
                         </span>
-                        {/* Quote ID */}
+ {/* Quote ID */}
                         <Link to={`/itinerary-details/${itinerary.quoteId}`}>
                           <span className="font-semibold text-[#3b2f55] hover:text-[#d546ab] cursor-pointer text-sm">
                             {itinerary.quoteId}
                           </span>
                         </Link>
-                        {/* Actions — always visible */}
+ {/* Actions always visible */}
                         <Link
                           to={`/create-itinerary?id=${itinerary.id}`}
                           title="Edit Itinerary"
@@ -775,7 +775,7 @@ export const LatestItinerary = () => {
             </Table>
           </div>
 
-          {/* bottom */}
+ {/* bottom */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mt-4">
             <p className="text-sm text-[#4a4260]">
               Showing{" "}

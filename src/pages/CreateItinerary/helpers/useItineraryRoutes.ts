@@ -23,9 +23,9 @@ export type RouteRow = {
   date: string;
   source: string;
   next: string;
-  via: string; // comma separated hotspots for this segment
-  via_routes: ViaRouteItem[]; // array of via route objects for backend
-  no_of_km?: number | string; // intercity distance between source and next
+ via: string; // comma separated hotspots for this segment
+ via_routes: ViaRouteItem[]; // array of via route objects for backend
+ no_of_km?: number | string; // intercity distance between source and next
   directVisit: "Yes" | "No";
 };
 
@@ -75,7 +75,7 @@ export function useItineraryRoutes({
   const [viaRoutesLoading, setViaRoutesLoading] = useState(false);
   const [activeViaRouteIds, setActiveViaRouteIds] = useState<string[]>([]);
 
-  // ----------------- auto-generate routes from dates -----------------
+ // ----------------- auto-generate routes from dates -----------------
 
   useEffect(() => {
     if (!tripStartDate || !tripEndDate) return;
@@ -116,7 +116,7 @@ export function useItineraryRoutes({
       });
       }
 
-      // Prefill DAY 1 source from Arrival
+ // Prefill DAY 1 source from Arrival
       if (arrivalLocation && nextRoutes.length) {
         nextRoutes[0] = {
           ...nextRoutes[0],
@@ -124,7 +124,7 @@ export function useItineraryRoutes({
         };
       }
 
-      // Prefill LAST DAY next destination from Departure
+ // Prefill LAST DAY next destination from Departure
       if (departureLocation && nextRoutes.length) {
         const lastIndex = nextRoutes.length - 1;
         nextRoutes[lastIndex] = {
@@ -137,7 +137,7 @@ export function useItineraryRoutes({
     });
   }, [tripStartDate, tripEndDate, arrivalLocation, departureLocation]);
 
-  // ----------------- handlers: Via Route popup -----------------
+ // ----------------- handlers: Via Route popup -----------------
 
   const openViaRoutes = async (row: RouteRow) => {
     if (!row.source || !row.next) {
@@ -166,21 +166,21 @@ export function useItineraryRoutes({
 
       setViaRoutes(form.options);
 
-      // For EDIT mode: use IDs from backend (form.existingIds)
-      // For NEW mode: use IDs from component state (row.via_routes)
+ // For EDIT mode: use IDs from backend (form.existingIds)
+ // For NEW mode: use IDs from component state (row.via_routes)
       let currentViaIds: string[] = [];
-      
+
       if (itineraryPlanId && form.existingIds && form.existingIds.length > 0) {
-        // Editing existing itinerary - use backend data
+ // Editing existing itinerary - use backend data
         currentViaIds = form.existingIds;
       } else if (row.via_routes && row.via_routes.length > 0) {
-        // New itinerary - use state data
+ // New itinerary - use state data
         currentViaIds = row.via_routes.map(v => String(v.itinerary_via_location_ID));
       }
 
       setActiveViaRouteIds(currentViaIds);
 
-      // Update via text display if we have labels
+ // Update via text display if we have labels
       const viaLabels =
         form.existingLabels && form.existingLabels.length
           ? form.existingLabels
@@ -200,7 +200,7 @@ export function useItineraryRoutes({
         );
       }
     } catch (err) {
-      console.error("Failed to open via routes form", err);
+ console.error("Failed to open via routes form", err);
       setViaRoutes([]);
       setActiveViaRouteIds([]);
     } finally {
@@ -217,7 +217,7 @@ export function useItineraryRoutes({
   try {
     const viaRouteIds = selectedOptions.map((o) => o.id);
 
-    // CASE 1: User removed all via routes → clear VIA and KM only for this row
+ // CASE 1: User removed all via routes clear VIA and KM only for this row
     if (!viaRouteIds.length) {
   const updatedRow: RouteRow = {
     ...activeViaRouteRow,
@@ -234,7 +234,7 @@ export function useItineraryRoutes({
     )
   );
 
-  // Recalculate direct source -> destination distance using the same API
+ // Recalculate direct source -> destination distance using the same API
   await refreshRouteDistance(updatedRow);
 
   setViaDialogOpen(false);
@@ -247,7 +247,7 @@ export function useItineraryRoutes({
 
   return;
 }
-    // CASE 2: We have via routes selected → validate and read total KM
+ // CASE 2: We have via routes selected validate and read total KM
     const checkBody = {
       source: activeViaRouteRow.source,
       destination: activeViaRouteRow.next,
@@ -273,7 +273,7 @@ export function useItineraryRoutes({
       return;
     }
 
-    // Try to read total KM from API response
+ // Try to read total KM from API response
     const rawKm =
       checkData?.data?.total_km ??
       checkData?.data?.total_distance_km ??
@@ -314,7 +314,7 @@ toast({
   description: "Via Route Added Successfully",
 });
   } catch (err) {
-    console.error("Via route submit failed", err);
+ console.error("Via route submit failed", err);
     toast({
       title: "Via Route Error",
       description: "Something went wrong while saving via route.",
@@ -333,11 +333,11 @@ toast({
 
 
 
-// ✅ ADD HERE — inside hook, before return
+// ADD HERE inside hook, before return
 const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => {
   if (!row.source || !row.next) return 0;
   try {
-    // Replace this with your actual API call logic
+ // Replace this with your actual API call logic
     const response = await api(
       "/itinerary-via-routes/check-distance-limit",
       {
@@ -349,10 +349,10 @@ const refreshRouteDistance = async (row: RouteRow): Promise<number | string> => 
         },
       }
     );
-    // Suppose the backend returns { distance: number }
+ // Suppose the backend returns { distance: number }
     return response?.distance ?? 0;
   } catch (err) {
-    // Optionally handle error
+ // Optionally handle error
     return 0;
   }
 };

@@ -164,7 +164,7 @@ export const VoucherDetailsModal: React.FC<VoucherDetailsModalProps> = ({
       const res = await ItineraryService.getVoucherDetails(itineraryPlanId);
       setData(res as VoucherWorkspaceData);
     } catch (error) {
-      console.error("Error fetching voucher workspace:", error);
+ console.error("Error fetching voucher workspace:", error);
       setData(null);
     } finally {
       setLoading(false);

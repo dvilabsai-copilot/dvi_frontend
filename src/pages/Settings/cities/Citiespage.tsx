@@ -91,7 +91,7 @@ export function CitiesPage() {
   const [filtered, setFiltered] = useState<City[]>([]);
   const [search, setSearch] = useState("");
 
-  // ✅ "all" means fetch all states cities
+ // "all" means fetch all states cities
   const [selectedStateId, setSelectedStateId] = useState<string>("all");
 
   const [pageSize, setPageSize] = useState(10);
@@ -107,7 +107,7 @@ export function CitiesPage() {
     loadStates();
   }, []);
 
-  // ✅ fetch whenever state filter changes (after states loaded)
+ // fetch whenever state filter changes (after states loaded)
   useEffect(() => {
     if (!selectedStateId) return;
     if (states.length === 0) return;
@@ -117,10 +117,10 @@ export function CitiesPage() {
     } else {
       loadCitiesByState(Number(selectedStateId));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedStateId, states.length]);
 
-  // search filter
+ // search filter
   useEffect(() => {
     const q = search.toLowerCase().trim();
     const next = !q
@@ -148,7 +148,7 @@ export function CitiesPage() {
     try {
       const citiesData = await citiesService.getCitiesByState(stateId);
 
-      // ensure state object exists (for UI)
+ // ensure state object exists (for UI)
       const st = states.find((s) => s.state_id === stateId);
       const enriched = citiesData.map((c) => ({
         ...c,
@@ -168,7 +168,7 @@ export function CitiesPage() {
 
   async function loadAllCitiesForCountry() {
     try {
-      // fetch per-state (because /cities list is not reliable in your current backend)
+ // fetch per-state (because /cities list is not reliable in your current backend)
       const results = await Promise.all(
         states.map(async (s) => {
           const cities = await citiesService.getCitiesByState(s.state_id);
@@ -179,12 +179,12 @@ export function CitiesPage() {
         })
       );
 
-      // flatten + dedupe by city_id
+ // flatten + dedupe by city_id
       const flat = results.flat();
       const map = new Map<number, City>();
       for (const c of flat) map.set(c.city_id, c);
 
-      // sort newest first (like your tables)
+ // sort newest first (like your tables)
       const merged = Array.from(map.values()).sort((a, b) => b.city_id - a.city_id);
 
       setRows(merged);
@@ -277,7 +277,7 @@ export function CitiesPage() {
       setModalOpen(false);
       setEditing(null);
 
-      // if you are viewing "all" keep it, else reload selected state
+ // if you are viewing "all" keep it, else reload selected state
       if (selectedStateId === "all") {
         await loadAllCitiesForCountry();
       } else if (selectedStateId) {
@@ -290,7 +290,7 @@ export function CitiesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
+ {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-primary">Cities</h1>
@@ -309,7 +309,7 @@ export function CitiesPage() {
       </div>
 
       <div className="bg-white rounded-lg border p-4 space-y-4">
-        {/* Top toolbar */}
+ {/* Top toolbar */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -328,7 +328,7 @@ export function CitiesPage() {
               <span className="text-sm">entries</span>
             </div>
 
-            {/* ✅ State Filter with ALL STATES */}
+ {/* State Filter with ALL STATES */}
             <div className="flex items-center gap-2">
               <span className="text-sm">State:</span>
               <Select value={selectedStateId} onValueChange={setSelectedStateId}>
@@ -401,7 +401,7 @@ export function CitiesPage() {
           </div>
         </div>
 
-        {/* Table */}
+ {/* Table */}
         <Table>
           <TableHeader>
             <TableRow>
@@ -448,7 +448,7 @@ export function CitiesPage() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
+ {/* Pagination */}
         <div className="flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing {filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1} to{" "}
@@ -481,7 +481,7 @@ export function CitiesPage() {
         </div>
       </div>
 
-      {/* Modals */}
+ {/* Modals */}
       <CitiesModal
         open={modalOpen}
         mode={modalMode}

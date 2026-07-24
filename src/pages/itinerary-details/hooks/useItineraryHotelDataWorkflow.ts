@@ -69,7 +69,7 @@ export function useItineraryHotelDataWorkflow({
   });
   const handleHotelSelectionsChange = useCallback((selections: HotelSelectionChangeMap) => {
     setSelectedHotelBookings((previous) => mergeHotelSelections(previous, selections));
-    console.log("🏨 Hotel selections updated from HotelList:", selections);
+ console.log(" Hotel selections updated from HotelList:", selections);
   }, [setSelectedHotelBookings]);
 
   const previewTemporarySelectionCost = useCallback((selections: HotelSelectionChangeMap) => {
@@ -114,8 +114,8 @@ export function useItineraryHotelDataWorkflow({
     )
       .then((response) => {
         if (requestId !== previewSequenceRef.current) {
-          // A newer preview owns the UI; prevent this caller from committing
-          // its pending room/rate state after becoming stale.
+ // A newer preview owns the UI; prevent this caller from committing
+ // its pending room/rate state after becoming stale.
           return false;
         }
         setItinerary(response.itinerary as any);
@@ -123,7 +123,7 @@ export function useItineraryHotelDataWorkflow({
         return true;
       })
       .catch((error) => {
-        console.error("Failed to preview temporary hotel selection cost", error);
+ console.error("Failed to preview temporary hotel selection cost", error);
         if (requestId === previewSequenceRef.current) {
           const typedError = error as any;
           const backendMessage = typedError?.response?.data?.message || typedError?.message || "Unable to calculate the hotel price";

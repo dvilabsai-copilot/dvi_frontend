@@ -41,7 +41,7 @@ export function AgentRegistrationCheckoutButton(props: Props) {
           navigate(`/payments/success?flow=agent_registration_paid&orderId=${encodeURIComponent(order.orderId)}`);
         },
         onFailure: (error) => {
-          console.error(error);
+ console.error(error);
           toast.error("Registration payment verification failed");
         },
         onDismiss: () => {
@@ -49,7 +49,7 @@ export function AgentRegistrationCheckoutButton(props: Props) {
         },
       });
     } catch (error) {
-      console.error(error);
+ console.error(error);
       toast.error("Unable to initiate registration payment");
     } finally {
       setBusy(false);
