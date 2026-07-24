@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { HotelSearchResultCard } from './HotelSearchResultCard';
 import { useHotelSearch, HotelSearchResult } from '@/hooks/useHotelSearch';
+import { Button } from '@/components/ui/button';
 
 interface HotelSearchModalProps {
   open: boolean;
@@ -24,7 +25,7 @@ interface HotelSearchModalProps {
   childAges?: string[];
   guestNationality?: string;
   onChildAgesChange?: (ages: string[]) => void;
-  onSelectHotel: (hotel: HotelSearchResult, mealPlan?: any) => Promise<void>;
+  onSelectHotel: (hotel: HotelSearchResult, mealPlan?: { all: boolean; breakfast: boolean; lunch: boolean; dinner: boolean }) => Promise<void>;
   isSelectingHotel?: boolean;
 }
 
@@ -59,6 +60,8 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   const [selectedHotel, setSelectedHotel] = useState<HotelSearchResult | null>(
     null
   );
+  const [pendingApprovalHotel, setPendingApprovalHotel] = useState<HotelSearchResult | null>(null);
+  const [isApprovalSubmitting, setIsApprovalSubmitting] = useState(false);
 
   const { searchResults, isSearching, error, search, clearSearch } =
     useHotelSearch({ debounceMs: 500 });
@@ -177,15 +180,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   // Handle hotel selection
-  const handleSelectHotel = async (hotelCode: string, hotelName: string, bookingCode?: string) => {
-    const hotel = searchResults.find((h) => {
-      if (bookingCode) {
-        return h.hotelCode === hotelCode && h.bookingCode === bookingCode;
-      }
-      return h.hotelCode === hotelCode;
-    });
-    if (!hotel) return;
-
+  const submitHotelSelection = async (hotel: HotelSearchResult) => {
     setSelectedHotel(hotel);
 
     try {
@@ -205,12 +200,33 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
     }
   };
 
+  const handleSelectHotel = async (hotel: HotelSearchResult) => {
+    if (hotel.requiresHotelApproval === true) {
+      setPendingApprovalHotel(hotel);
+      return;
+    }
+    await submitHotelSelection(hotel);
+  };
+
+  const handleContinueWithPendingApproval = async () => {
+    if (!pendingApprovalHotel || isApprovalSubmitting) return;
+    setIsApprovalSubmitting(true);
+    try {
+      await submitHotelSelection(pendingApprovalHotel);
+      setPendingApprovalHotel(null);
+    } finally {
+      setIsApprovalSubmitting(false);
+    }
+  };
+
   // Clear search when modal closes
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       clearSearch();
       setSearchQuery('');
       setSelectedHotel(null);
+      setPendingApprovalHotel(null);
+      setIsApprovalSubmitting(false);
       setValidationError(null);
     }
     onOpenChange(newOpen);
@@ -231,6 +247,7 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -457,5 +474,27 @@ export const HotelSearchModal: React.FC<HotelSearchModalProps> = ({
         )}
       </DialogContent>
     </Dialog>
+    <Dialog open={Boolean(pendingApprovalHotel)} onOpenChange={(nextOpen) => { if (!nextOpen && !isApprovalSubmitting) setPendingApprovalHotel(null); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Hotel approval required</DialogTitle>
+          <DialogDescription>
+            The displayed price is from our database. Hotel availability, price and final confirmation are subject to hotel approval. The hotel is not live-bookable at this stage.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 text-sm text-slate-700">
+          <p>This selection will be saved as Pending hotel approval.</p>
+          <p>No supplier booking will be placed now.</p>
+          <p>Do you want to continue with this hotel?</p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" disabled={isApprovalSubmitting} onClick={() => setPendingApprovalHotel(null)}>Cancel</Button>
+          <Button type="button" disabled={isApprovalSubmitting} onClick={() => void handleContinueWithPendingApproval()}>
+            {isApprovalSubmitting ? 'Saving...' : 'Continue with pending approval'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };

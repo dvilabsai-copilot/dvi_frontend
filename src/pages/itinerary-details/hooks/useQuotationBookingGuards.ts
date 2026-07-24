@@ -6,6 +6,8 @@ interface BookingRow {
   routeId?: unknown;
   searchInitiatedAt?: unknown;
   netAmount?: unknown;
+  bookingMode?: unknown;
+  requiresHotelApproval?: unknown;
 }
 
 interface PrebookData {
@@ -43,22 +45,6 @@ export const useQuotationBookingGuards = ({
   setHasAcceptedUpdatedPrice,
 }: BookingGuardOptions) => useCallback(async (hotelBookings: BookingRow[]): Promise<BookingGuardResult | null> => {
   const tboCount = hotelBookings.filter((booking) => booking.provider === 'tbo').length;
-  const nonTboRouteIds = hotelBookings
-    .filter((booking) => booking.provider !== 'tbo')
-    .map((booking) => Number(booking.routeId))
-    .filter((id) => Number.isFinite(id));
-
-  if (requiresHotelBookingFlow && tboCount > 0 && nonTboRouteIds.length > 0) {
-    const uniqueNonTboRouteIds = Array.from(new Set(nonTboRouteIds));
-    const shouldContinue = window.confirm(
-      `Mixed providers detected. Non-VSR route ID(s): ${uniqueNonTboRouteIds.join(', ')}.\n\nPress OK to continue with mixed-provider booking, or Cancel to reselect hotels.`,
-    );
-    if (!shouldContinue) {
-      toast.error(`Mixed providers detected. Non-VSR route ID(s): ${uniqueNonTboRouteIds.join(', ')}. Please reselect hotels before confirming.`);
-      return null;
-    }
-    toast.warning('Proceeding with mixed-provider booking as confirmed.');
-  }
 
   if (requiresHotelBookingFlow && hotelBookings.length === 0 && externalStayCount === 0) {
     toast.error('No supplier-bookable hotels selected. Please select available hotels and retry.');

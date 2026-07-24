@@ -34,6 +34,13 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
   };
 
+  const isOfflineSelection = Boolean(
+    pendingHotelAction?.room && (
+      String((pendingHotelAction.room as any).provider || '').trim().toLowerCase() === 'offline' ||
+      (pendingHotelAction.room as any).requiresHotelApproval === true
+    ),
+  );
+
   return (
     <>
       <Dialog
@@ -52,9 +59,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   ? "Restrictions apply to some dates"
                   : "Book continuous stay?"}
               </DialogTitle>
-              <DialogDescription className="pt-2 text-left">
-                {stayExtensionModalState && (
-                  <div className="space-y-3 text-sm text-slate-700">
+              <DialogDescription asChild className="pt-2 text-left">
+                <div className="space-y-3 text-sm text-slate-700">
+                  {stayExtensionModalState && (
+                    <div className="space-y-3 text-sm text-slate-700">
                     {(stayExtensionModalState.preview.blocked ||
                       !stayExtensionModalState.preview.canBookMultiNight) && (
                       <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
@@ -108,9 +116,10 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                       ))}
                     </div>
                   )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </DialogDescription>
+              </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">
             {stayExtensionModalState?.preview.canBookSingleNight && (
@@ -182,8 +191,9 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 ? `Confirm Hotel Modification for ${pendingHotelAction?.routeDate}?`
                 : "Confirm Hotel Update"}
             </DialogTitle>
-            <DialogDescription className="text-center pt-2">
-              {pendingHotelAction?.isRateUpdate ? (
+            <DialogDescription asChild className="text-center pt-2">
+              <div className="pt-2">
+                {pendingHotelAction?.isRateUpdate ? (
                 <div className="space-y-3 text-left text-sm text-slate-700">
                   <div className="text-center">
                     <strong>{pendingHotelAction.newHotelName}</strong>
@@ -231,7 +241,16 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                 <>Are you sure you want to update the hotel details?</>
               )}
 
-              {pendingHotelAction?.manualRoomMealMismatchWarning?.enabled && (
+                {isOfflineSelection && (
+                <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                  <div className="mb-1 font-semibold">Offline hotel - subject to availability</div>
+                  <div>
+                    This option is not confirmed at the time of selection. Availability and rate are subject to confirmation by the hotel. We will request confirmation and contact you if the hotel or rate is unavailable.
+                  </div>
+                </div>
+              )}
+
+                {pendingHotelAction?.manualRoomMealMismatchWarning?.enabled && (
                 <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-xs text-amber-800">
                   <div className="mb-1 font-semibold">Room / meal plan mismatch warning</div>
                   <div>{pendingHotelAction.manualRoomMealMismatchWarning.message}</div>
@@ -240,6 +259,7 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
                   </div>
                 </div>
               )}
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="sm:justify-center">

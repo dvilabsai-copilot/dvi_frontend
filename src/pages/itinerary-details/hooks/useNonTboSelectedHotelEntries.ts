@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
-import { isSupplierBookableHotel } from "../utils/domain.utils";
+import { isManualApprovalHotel, isSupplierBookableHotel } from "../utils/domain.utils";
 import {
   getBookingCodeForBooking,
   getHotelAmountForBooking,
@@ -23,7 +23,7 @@ export const useNonTboSelectedHotelEntries = ({
 }: UseNonTboSelectedHotelEntriesOptions): Array<Record<string, any>> => useMemo(() => {
     return Object.entries(selectedHotelBookings)
     .filter(([routeId, h]) => {
-      if (!isSupplierBookableHotel(h) || normalizeHotelProvider(h) === 'tbo') {
+      if ((!isSupplierBookableHotel(h) && !isManualApprovalHotel(h)) || normalizeHotelProvider(h) === 'tbo') {
         return false;
       }
 
@@ -63,7 +63,7 @@ export const useNonTboSelectedHotelEntries = ({
       const routeRows = (Array.isArray(hotelDetails?.hotels) ? hotelDetails.hotels : []).filter((row) =>
         displayRouteIds.includes(Number(row?.itineraryRouteId || 0)) &&
         normalizeHotelProvider(row) === selectedProvider &&
-        isSupplierBookableHotel(row),
+        (isSupplierBookableHotel(row) || isManualApprovalHotel(row)),
       );
 
       const matchedHotelRow =

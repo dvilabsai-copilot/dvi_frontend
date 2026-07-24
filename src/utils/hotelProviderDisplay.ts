@@ -6,12 +6,22 @@ export const getHotelProviderDisplayName = (
   provider: unknown,
   providerDisplayName?: unknown,
 ): string => {
-  const explicitLabel = String(providerDisplayName ?? '').trim();
-  if (explicitLabel) return explicitLabel;
+  const rawProvider = String(provider ?? '').trim().toLowerCase();
+  const displayNameByProvider: Record<string, string> = {
+    tbo: 'VSR',
+    offline: 'Offline',
+    axisrooms: 'Live Hotel',
+    staah: 'Live Hotel',
+    resavenue: 'Live Hotel',
+    hobse: 'Live Hotel',
+    external: 'Self-arranged stay',
+    'self-arranged': 'Self-arranged stay',
+  };
 
-  const rawProvider = String(provider ?? '').trim();
-  if (rawProvider.toLowerCase() === 'tbo') return 'VSR';
-  return rawProvider;
+  if (displayNameByProvider[rawProvider]) return displayNameByProvider[rawProvider];
+
+  const explicitLabel = String(providerDisplayName ?? '').trim();
+  return explicitLabel || (rawProvider ? 'Partner Hotel' : '');
 };
 
 export const replaceHotelProviderBrandForDisplay = (value: unknown): string =>

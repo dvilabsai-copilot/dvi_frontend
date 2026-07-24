@@ -49,7 +49,8 @@ export const useQuotationHotelSelectionPreparation = ({
   const autoSelectedHotels: Record<number, HotelSelection> = { ...selectedHotelBookings };
   const groupTypeValue = activeHotelGroupType ?? (Number(Object.values(autoSelectedHotels)[0]?.groupType) || Number(hotelDetails?.hotelTabs?.[0]?.groupType) || 1);
   const providers = requiresHotelBookingFlow ? Array.from(new Set(Object.values(autoSelectedHotels).map((hotel) => String(hotel.provider || "").trim().toLowerCase()).filter(Boolean))) : [];
-  const preferredProviderForConfirm = providers.length === 1 ? providers[0] : "";
+  const hasExplicitTboSelection = providers.includes("tbo");
+  const preferredProviderForConfirm = providers.find((provider) => provider !== "tbo") || (hasExplicitTboSelection ? "tbo" : "");
   if (!requiresHotelBookingFlow || !hotelDetails?.hotels?.length) return { autoSelectedHotels, groupTypeValue, preferredProviderForConfirm };
 
   const toAutoSelection = (hotelRow: HotelRow, routeId: number): HotelSelection => {
@@ -75,6 +76,21 @@ export const useQuotationHotelSelectionPreparation = ({
       externalStay: hotelRow.externalStay ?? !supplierBookable,
       availabilityStatus: hotelRow.availabilityStatus || (supplierBookable ? "AVAILABLE" : "NO_SUPPLIER_AVAILABILITY"),
       availabilityMessage: hotelRow.availabilityMessage || (supplierBookable ? null : defaultExternalStayMessage),
+      bookingMode: hotelRow.bookingMode,
+      priceSource: hotelRow.priceSource,
+      requiresHotelApproval: hotelRow.requiresHotelApproval,
+      approvalStatus: hotelRow.approvalStatus,
+      manualConfirmationStatus: hotelRow.manualConfirmationStatus,
+      selectedRateOptionId: hotelRow.selectedRateOptionId || hotelRow.rateOptionId,
+      selectedPricePerNight: hotelRow.selectedPricePerNight || hotelRow.pricePerNight,
+      selectedTotalPrice: hotelRow.selectedTotalPrice || hotelRow.totalStayPrice,
+      selectedCurrency: hotelRow.selectedCurrency || hotelRow.currency,
+      selectedPriceSnapshot: hotelRow.selectedPriceSnapshot,
+      pricePerNight: hotelRow.pricePerNight,
+      totalStayPrice: hotelRow.totalStayPrice,
+      currency: hotelRow.currency,
+      nightlyRates: hotelRow.nightlyRates,
+      nights: hotelRow.numberOfNights,
     };
   };
 
@@ -89,7 +105,12 @@ export const useQuotationHotelSelectionPreparation = ({
       return;
     }
     if (!autoSelectedHotels[routeId]) {
-      const first = preferredProviderForConfirm ? routeHotels.find((hotel) => String(hotel.provider || "").trim().toLowerCase() === preferredProviderForConfirm) : routeHotels[0];
+      const first = preferredProviderForConfirm
+        ? routeHotels.find((hotel) => String(hotel.provider || "").trim().toLowerCase() === preferredProviderForConfirm) ||
+          (!hasExplicitTboSelection
+            ? routeHotels.find((hotel) => String(hotel.provider || "").trim().toLowerCase() !== "tbo")
+            : undefined)
+        : routeHotels[0];
       if (!first && preferredProviderForConfirm && routeHotels.length > 0) skippedRouteIds.push(routeId);
       if (first) autoSelectedHotels[routeId] = toAutoSelection(first, routeId);
     }

@@ -161,6 +161,7 @@ const normalizeNightlyRatesForIdentity = (value: unknown): Array<Record<string, 
 
 /** Complete room/rate identity used for pending-vs-confirmed comparisons. */
 export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify({
+  canonicalHotelId: normalizeRateIdentityMoney(hotel.canonicalHotelId),
   provider: normalizeRateIdentityText(hotel.provider),
   hotelCode: normalizeRateIdentityText(hotel.hotelCode || hotel.hotelId),
   hotelName: normalizeRateIdentityText(hotel.hotelName),
@@ -186,6 +187,7 @@ export const getHotelRateIdentity = (hotel: HotelLike): string => JSON.stringify
 export const getHotelOptionKey = (hotel: HotelLike): string => getHotelRateIdentity(hotel);
 
 export const normalizeHotelIdentity = (hotel: HotelLike): string => [
+  String(hotel.canonicalHotelId || "").trim().toLowerCase() || "",
   String(hotel.provider || "").trim().toLowerCase(),
   String(hotel.hotelCode || hotel.hotelId || "").trim().toLowerCase(),
   String(hotel.hotelName || "").trim().toLowerCase(),
@@ -308,6 +310,8 @@ export const getAutoSkipRoomMealMismatchMessage = (
 };
 
 export const hasSelectableHotelIdentity = (hotel: HotelLike): boolean => {
+  const canonicalHotelId = Number(hotel.canonicalHotelId ?? hotel.canonical_hotel_id ?? NaN);
+  if (Number.isFinite(canonicalHotelId) && canonicalHotelId > 0) return true;
   const hotelId = Number(hotel.hotelId ?? hotel.hotel_id ?? hotel.id ?? NaN);
   if (Number.isFinite(hotelId) && hotelId > 0) return true;
   return Boolean(String(hotel.bookingCode || "").trim() || String(hotel.searchReference || "").trim() || String(hotel.hotelName || "").trim());

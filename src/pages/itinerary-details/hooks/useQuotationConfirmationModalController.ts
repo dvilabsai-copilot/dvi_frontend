@@ -207,6 +207,9 @@ export function useQuotationConfirmationModalController({
       }
 
       let selectedHotelsForPrebook = { ...selectedHotelBookings };
+      const hasExplicitTboSelection = Object.values(selectedHotelBookings).some((hotelData) =>
+        normalizeHotelProvider(hotelData) === "tbo" && isSupplierBookableHotel(hotelData),
+      );
       if (hotelDetails?.hotels?.length) {
         const preferredGroupType = activeHotelGroupType ?? hotelDetails.hotelTabs?.[0]?.groupType ?? 1;
         const preparedSelections = prepareQuotationPrebookSelections({
@@ -220,11 +223,15 @@ export function useQuotationConfirmationModalController({
           getHotelSelectionAmount,
           getCoveredRouteIdsFromHotelSelections,
         });
-        selectedHotelsForPrebook = preparedSelections.selectedHotelsForPrebook;
-        if (Object.keys(preparedSelections.mergedPersisted).length > 0) {
+        // Do not auto-introduce TBO/VSR rows when the user selected only
+        // non-VSR or offline hotels. That would incorrectly require prebook.
+        selectedHotelsForPrebook = hasExplicitTboSelection
+          ? preparedSelections.selectedHotelsForPrebook
+          : { ...selectedHotelBookings };
+        if (hasExplicitTboSelection && Object.keys(preparedSelections.mergedPersisted).length > 0) {
           setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.mergedPersisted }));
         }
-        if (Object.keys(preparedSelections.autoSelections).length > 0) {
+        if (hasExplicitTboSelection && Object.keys(preparedSelections.autoSelections).length > 0) {
           setSelectedHotelBookings((previous) => ({ ...previous, ...preparedSelections.autoSelections }));
         }
       }

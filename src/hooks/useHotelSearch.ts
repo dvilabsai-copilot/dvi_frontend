@@ -4,6 +4,12 @@ import { ItineraryService } from '@/services/itinerary';
 export type HotelSearchResult = {
   provider: string; // Provider source: 'tbo' or 'ResAvenue'
   providerDisplayName?: string;
+  canonicalHotelId?: number | null;
+  providerHotelCode?: string;
+  rateOptionId?: string;
+  roomId?: string | number;
+  roomTypeId?: number;
+  rateOptions?: Array<Record<string, unknown>>;
   hotelCode: string;
   hotelName: string;
   address: string;
@@ -20,13 +26,30 @@ export type HotelSearchResult = {
   facilities?: string[];
   amenities?: string[];
   inclusions?: string[];
-  rateConditions?: any[];
+  rateConditions?: unknown[];
   mealPlan?: string;
   images?: string[];
   availableRooms?: number;
   // API-specific fields
   bookingCode?: string;
   searchReference?: string;
+  bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
+  priceSource?: 'LIVE_API' | 'DATABASE' | 'LEGACY_UNKNOWN';
+  priceLabel?: string;
+  pricePerNight?: number;
+  totalStayPrice?: number;
+  numberOfNights?: number;
+  nightlyRates?: Array<{
+    date: string;
+    baseAmount: number;
+    sellAmount: number;
+  }>;
+  requiresHotelApproval?: boolean;
+  isLiveRate?: boolean;
+  isLiveBookable?: boolean;
+  isSelectable?: boolean;
+  approvalStatus?: 'NOT_REQUESTED' | 'NOT_REQUIRED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  manualConfirmationStatus?: 'NOT_STARTED' | 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'FAILED' | 'CANCELLED';
   totalCost?: number;
   totalRoomCost?: number;
   netAmount?: number;
@@ -39,9 +62,109 @@ export type HotelSearchResult = {
   };
 };
 
+const toRateOption = (hotel: HotelSearchResult): Record<string, unknown> => ({
+  rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode || `${hotel.provider}:${hotel.hotelCode}:${hotel.price}`,
+  canonicalHotelId: hotel.canonicalHotelId ?? null,
+  provider: hotel.provider,
+  providerDisplayName: hotel.providerDisplayName,
+  providerHotelCode: hotel.providerHotelCode,
+  roomId: hotel.roomId,
+  roomTypeId: hotel.roomTypeId ?? hotel.roomTypes?.[0]?.roomCode,
+  roomType: hotel.roomType,
+  mealPlan: hotel.mealPlan,
+  rateId: hotel.rateId,
+  bookingCode: hotel.bookingCode,
+  searchReference: hotel.searchReference,
+  bookingMode: hotel.bookingMode,
+  priceSource: hotel.priceSource,
+  pricePerNight: hotel.pricePerNight ?? hotel.price,
+  totalStayPrice: hotel.totalStayPrice ?? hotel.price,
+  numberOfNights: hotel.numberOfNights,
+  currency: hotel.currency,
+  priceLabel: hotel.priceLabel,
+  isLiveRate: hotel.isLiveRate ?? hotel.provider !== 'offline',
+  isLiveBookable: hotel.isLiveBookable ?? hotel.provider !== 'offline',
+  isSelectable: hotel.isSelectable ?? true,
+  requiresHotelApproval: hotel.requiresHotelApproval ?? hotel.provider === 'offline',
+  availabilityStatus: hotel.availabilityStatus,
+  approvalStatus: hotel.approvalStatus ?? (hotel.provider === 'offline' ? 'NOT_REQUESTED' : 'NOT_REQUIRED'),
+  manualConfirmationStatus: hotel.manualConfirmationStatus ?? 'NOT_STARTED',
+  nightlyRates: hotel.nightlyRates,
+});
+
+export const canonicalizeHotelSearchResults = (results: HotelSearchResult[]): HotelSearchResult[] => {
+  const grouped = new Map<string, HotelSearchResult[]>();
+  results.forEach((hotel) => {
+    const canonicalId = Number(hotel.canonicalHotelId || 0);
+    const key = canonicalId > 0 ? `hotel:${canonicalId}` : `provider:${hotel.provider}:${hotel.hotelCode}`;
+    grouped.set(key, [...(grouped.get(key) || []), hotel]);
+  });
+
+  return Array.from(grouped.values()).map((group) => {
+    const uniqueOptions = new Map<string, Record<string, unknown>>();
+    group.forEach((hotel) => {
+      const options = Array.isArray(hotel.rateOptions) && hotel.rateOptions.length > 0
+        ? hotel.rateOptions
+        : [toRateOption(hotel)];
+      options.forEach((option) => {
+        const key = JSON.stringify([
+          option.provider,
+          option.roomId,
+          option.roomTypeId,
+          option.mealPlan,
+          option.rateId,
+          option.bookingCode,
+          option.searchReference,
+          option.pricePerNight,
+          option.totalStayPrice,
+        ]);
+        if (!uniqueOptions.has(key)) uniqueOptions.set(key, option);
+      });
+    });
+    const rateOptions = Array.from(uniqueOptions.values());
+    const liveOptions = rateOptions.filter((option) => option.isLiveBookable === true && option.provider === 'axisrooms');
+    const offlineOptions = rateOptions.filter((option) => option.provider === 'offline' && option.isSelectable !== false);
+    const defaultOption = [...(liveOptions.length > 0 ? liveOptions : offlineOptions.length > 0 ? offlineOptions : rateOptions)]
+      .sort((a, b) => Number(a.pricePerNight || 0) - Number(b.pricePerNight || 0))[0];
+    const source = group.find((hotel) => hotel.provider === defaultOption?.provider) || group[0];
+    return {
+      ...source,
+      ...defaultOption,
+      rateOptions,
+      rateOptionId: String(defaultOption?.rateOptionId || source.rateOptionId || ''),
+      hotelCode: source.hotelCode,
+      hotelName: source.hotelName,
+      canonicalHotelId: source.canonicalHotelId ?? null,
+    } as HotelSearchResult;
+  });
+};
+
 interface UseHotelSearchOptions {
   debounceMs?: number;
 }
+
+type RawHotelSearchResult = Record<string, unknown> & {
+  searchReference?: string;
+  bookingCode?: string;
+  rooms?: Array<Record<string, unknown>>;
+  inclusions?: unknown;
+  Inclusions?: unknown;
+  inclusion?: unknown;
+  Inclusion?: unknown;
+  amenities?: unknown;
+  Amenities?: unknown;
+  amenity?: unknown;
+  Amenity?: unknown;
+  rateConditions?: unknown;
+  RateConditions?: unknown;
+  rateCondition?: unknown;
+  RateCondition?: unknown;
+  mealPlan?: string;
+  MealPlan?: string;
+  mealType?: string;
+  MealType?: string;
+  meal_type?: string;
+};
 
 export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const MAX_ROOMS = 25;
@@ -53,7 +176,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
   const [error, setError] = useState<string | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const normalizeStringList = (value: any): string[] => {
+  const normalizeStringList = (value: unknown): string[] => {
     if (!value) {
       return [];
     }
@@ -172,7 +295,7 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
           });
 
           // Map searchReference from backend to bookingCode for API compatibility
-          const mapBookingCode = (hotel: any): HotelSearchResult => ({
+          const mapBookingCode = (hotel: RawHotelSearchResult): HotelSearchResult => ({
             ...hotel,
             bookingCode: hotel.searchReference || hotel.bookingCode,
             inclusions: normalizeStringList(
@@ -206,17 +329,17 @@ export const useHotelSearch = (options: UseHotelSearchOptions = {}) => {
 
           if (response?.data?.hotels) {
             const hotels = response.data.hotels.map(mapBookingCode);
-            setSearchResults(hotels);
+            setSearchResults(canonicalizeHotelSearchResults(hotels));
           } else if (response?.hotels) {
             const hotels = response.hotels.map(mapBookingCode);
-            setSearchResults(hotels);
+            setSearchResults(canonicalizeHotelSearchResults(hotels));
           } else {
             setSearchResults([]);
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Hotel search error:', err);
           setError(
-            err?.message ||
+            err instanceof Error ? err.message :
             'Failed to search hotels. Please try again.'
           );
           setSearchResults([]);

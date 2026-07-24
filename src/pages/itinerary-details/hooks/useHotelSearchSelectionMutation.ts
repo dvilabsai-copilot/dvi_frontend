@@ -20,10 +20,18 @@ interface MealPlanSelection {
 }
 
 interface HotelSearchResultLike {
+  canonicalHotelId?: number;
+  hotelId?: number;
   hotelCode?: string | number;
   bookingCode?: string;
   searchReference?: string;
   provider?: string;
+  providerHotelCode?: string;
+  rateOptionId?: string;
+  roomId?: string | number;
+  roomTypeId?: number;
+  requiresHotelApproval?: boolean;
+  priceSource?: string;
   roomTypes?: Array<{ roomCode?: string | number; roomName?: string }>;
   netAmount?: number;
   totalCost?: number;
@@ -87,8 +95,10 @@ export const useHotelSearchSelectionMutation = ({
 
     setIsSelectingHotel(true);
     try {
-      const hotelId = parseInt(String(hotel.hotelCode || ""), 10) || 0;
-      const roomTypeId = hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1;
+      const hotelId =
+        Number(hotel.canonicalHotelId ?? hotel.hotelId ?? Number.parseInt(String(hotel.hotelCode || ""), 10)) || 0;
+      const roomTypeId = Number(hotel.roomTypeId ?? (hotel.roomTypes?.[0]?.roomCode ? parseInt(String(hotel.roomTypes[0].roomCode), 10) : 1)) || 1;
+      const isOffline = String(hotel.provider || '').trim().toLowerCase() === 'offline' || hotel.requiresHotelApproval === true;
       const checkInDate = new Date(hotelSelectionModal.checkInDate || hotelSelectionModal.routeDate);
       const checkOutDate = new Date(hotelSelectionModal.checkOutDate || hotelSelectionModal.routeDate);
       if (!hotelSelectionModal.checkOutDate) checkOutDate.setDate(checkOutDate.getDate() + 1);
@@ -109,7 +119,7 @@ export const useHotelSearchSelectionMutation = ({
         searchInitiatedAt: new Date().toISOString(),
       };
 
-      if (!isSupplierBookableHotel(selectedHotelPayload)) {
+      if (!isOffline && !isSupplierBookableHotel(selectedHotelPayload)) {
         toast.error("This hotel does not have a valid live supplier booking code. Please search again and select an available room.");
         return;
       }
@@ -120,8 +130,11 @@ export const useHotelSearchSelectionMutation = ({
           ...selectedHotelPayload,
           isBookable: true,
           externalStay: false,
-          availabilityStatus: "AVAILABLE",
-          availabilityMessage: null,
+          availabilityStatus: isOffline ? "OFFLINE_APPROVAL_REQUIRED" : "AVAILABLE",
+          availabilityMessage: isOffline ? "Price subject to hotel approval" : null,
+          requiresHotelApproval: isOffline,
+          approvalStatus: isOffline ? "PENDING_APPROVAL" : "NOT_REQUIRED",
+          manualConfirmationStatus: isOffline ? "NOT_STARTED" : undefined,
         },
       }));
       setPrebookData(null);
@@ -134,6 +147,14 @@ export const useHotelSearchSelectionMutation = ({
         hotelId,
         roomTypeId,
         mealPlan || selectedMealPlan,
+        undefined,
+        {
+          canonicalHotelId: hotel.canonicalHotelId ?? hotel.hotelId,
+          rateOptionId: hotel.rateOptionId || hotel.searchReference || hotel.bookingCode,
+          provider: String(hotel.provider || '').trim().toLowerCase(),
+          roomId: hotel.roomId,
+          roomCount: hotelSelectionModal.routeId ? undefined : undefined,
+        },
       );
       toast.success("Hotel selected successfully");
       setHotelSelectionModal({ open: false, planId: null, routeId: null, routeDate: "" });

@@ -1,3 +1,5 @@
+import { isManualApprovalHotel } from "./domain.utils";
+
 type HotelSelectionRecord = Record<string, unknown>;
 
 export interface QuotationHotelBooking {
@@ -42,7 +44,7 @@ export const buildQuotationHotelBookings = ({
   if (!requiresHotelBookingFlow) return [];
 
   return Object.entries(autoSelectedHotels)
-    .filter(([, hotel]) => isSupplierBookableHotel(hotel))
+    .filter(([, hotel]) => isSupplierBookableHotel(hotel) || isManualApprovalHotel(hotel))
     .map(([routeId, hotel]) => ({
       occupancies,
       provider: inferHotelProvider(hotel),
@@ -65,6 +67,16 @@ export const buildQuotationHotelBookings = ({
       externalStay: hotel.externalStay,
       availabilityStatus: hotel.availabilityStatus,
       availabilityMessage: hotel.availabilityMessage,
+      bookingMode: hotel.bookingMode,
+      priceSource: hotel.priceSource,
+      requiresHotelApproval: hotel.requiresHotelApproval,
+      approvalStatus: hotel.approvalStatus,
+      manualConfirmationStatus: hotel.manualConfirmationStatus,
+      selectedRateOptionId: hotel.selectedRateOptionId || hotel.rateOptionId,
+      selectedPricePerNight: hotel.selectedPricePerNight || hotel.pricePerNight,
+      selectedTotalPrice: hotel.selectedTotalPrice || hotel.totalStayPrice,
+      selectedCurrency: hotel.selectedCurrency || hotel.currency,
+      selectedPriceSnapshot: hotel.selectedPriceSnapshot,
       multiNightBooking: hotel.multiNightBooking,
       stayKey: hotel.stayKey,
       routeIds: hotel.routeIds,
