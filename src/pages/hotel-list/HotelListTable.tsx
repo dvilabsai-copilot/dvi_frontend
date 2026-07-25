@@ -475,16 +475,15 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const sorted = [...filtered].sort((a, b) => {
                                   const aIsOffline = String(a.provider || '').trim().toLowerCase() === 'offline';
                                   const bIsOffline = String(b.provider || '').trim().toLowerCase() === 'offline';
+                                  const aSelected = getSelectedHotelMatch(a, selectedForStay);
+                                  const bSelected = getSelectedHotelMatch(b, selectedForStay);
 
-                                  // Keep live supplier options together and place manual-approval
-                                  // options after them, then sort both sections by total rate.
-                                  if (aIsOffline !== bIsOffline) return aIsOffline ? 1 : -1;
-
-                                   const aSelected = getSelectedHotelMatch(a, selectedForStay);
-                                   const bSelected = getSelectedHotelMatch(b, selectedForStay);
-
+                                  // Always surface the selected hotel first. Sort the remaining
+                                  // live and offline sections independently by total rate.
                                   if (aSelected && !bSelected) return -1;
                                   if (!aSelected && bSelected) return 1;
+
+                                  if (aIsOffline !== bIsOffline) return aIsOffline ? 1 : -1;
 
                                   const amountDifference = getHotelDisplayAmount(a) - getHotelDisplayAmount(b);
                                   if (amountDifference !== 0) return amountDifference;
