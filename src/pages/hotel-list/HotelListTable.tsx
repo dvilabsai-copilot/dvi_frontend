@@ -41,6 +41,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
     loadingRowKey,
     activeGroupType,
     selectedByGroup,
+    userSelectedByStay,
     getHotelOptionKey,
     getHotelIdentityKey,
     sortOptionsByPrice,
@@ -455,17 +456,17 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
                               {(() => {
                                 const groupType = activeGroupType || 1;
-                                const selectedForStay = selectedByGroup[groupType]?.[rowKey];
+                                const selectedForStay = selectedByGroup[groupType]?.[rowKey] || userSelectedByStay?.[rowKey] || hotel;
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
-                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
+                                const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
 
-                                 const visibleRoomDetails = roomDetails.filter((h) => {
-                                   const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
-                                   const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
-                                   return showOfflineHotels || !isOffline || isSelectedOffline;
-                                 });
+                                const visibleRoomDetails = roomDetails.filter((h) => {
+                                  const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
+                                  const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
+                                  return showOfflineHotels || !isOffline || isSelectedOffline;
+                                });
 
                                 const filtered = visibleRoomDetails.filter((h) =>
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
