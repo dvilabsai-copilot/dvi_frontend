@@ -102,19 +102,50 @@ const titleStyle =
       weekday: 'short', month: 'short', day: '2-digit', year: 'numeric',
     });
   };
-  const getHotspotLine = (day: UnknownRecord) => {
-    const segments = Array.isArray(day.segments) ? day.segments : [];
-    const attractions = segments.filter((segmentValue) => asRecord(segmentValue).type === 'attraction');
-    if (!attractions.length) return 'No Hotspot Details Available';
-    return attractions.map((segmentValue) => {
+const getHotspotLine = (
+  day: UnknownRecord,
+  isLastDay: boolean,
+) => {
+  const segments = Array.isArray(day.segments)
+    ? day.segments
+    : [];
+
+  const attractions = segments.filter(
+    (segmentValue) =>
+      asRecord(segmentValue).type === 'attraction',
+  );
+
+  if (!attractions.length) {
+    const finalDestination = String(
+      day.arrival || '',
+    ).trim();
+
+    if (isLastDay && finalDestination) {
+      return `After check out proceed to ${escapeHtml(
+        finalDestination,
+      )}`;
+    }
+
+    return 'No Hotspot Details Available';
+  }
+
+  return attractions
+    .map((segmentValue) => {
       const segment = asRecord(segmentValue);
       const name = escapeHtml(segment.name || '');
       const duration = escapeHtml(segment.duration || '');
-      return `<b>${name}</b>${duration ? ` - ${duration}` : ''}`;
-    }).join(', ');
-  };
-  const rowsHtml = days.map((dayValue) => {
-    const day = asRecord(dayValue);
+
+      return `<b>${name}</b>${
+        duration ? ` - ${duration}` : ''
+      }`;
+    })
+    .join(', ');
+};
+ const rowsHtml = days.map((dayValue, dayIndex) => {
+  const day = asRecord(dayValue);
+
+  const isLastDay =
+    dayIndex === days.length - 1;
     const fromText = day.departure || '';
     const toText = day.arrival || '';
     const routeText = fromText || toText ? ` - ${escapeHtml(fromText)} to ${escapeHtml(toText)}` : '';
@@ -127,7 +158,7 @@ const titleStyle =
         </tr>
         <tr>
           <td style="${cellStyle}">
-            ${getHotspotLine(day)}
+            ${getHotspotLine(day, isLastDay)}
           </td>
         </tr>
       `;
