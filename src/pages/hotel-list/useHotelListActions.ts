@@ -632,7 +632,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    const normalizedRoom: HotelRoomDetail = {
+    let normalizedRoom: HotelRoomDetail = {
       ...room,
       itineraryPlanId: resolvedPlanId,
       itineraryRouteId: resolvedRouteId,
@@ -662,7 +662,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
       // ✅ Store selection by groupType and routeId
       const routeId = toNumber(normalizedRoom.itineraryRouteId);
       const groupType = toNumber(pendingHotelAction.groupType ?? activeGroupType, 1);
-      const selectionUpdates = buildSelectionUpdates(
+      let selectionUpdates = buildSelectionUpdates(
         normalizedRoom,
         groupType,
         resolvedHotelId,
@@ -687,11 +687,44 @@ export function useHotelListActions(context: HotelListActionsContext) {
 
       // Price the proposed selection before changing any local hotel state.
       // A failed backend preview therefore leaves the previous selection visible.
-      const costPreviewSucceeded = onTemporarySelectionCostPreview
+      const costPreviewResult = onTemporarySelectionCostPreview
         ? await onTemporarySelectionCostPreview(selectionUpdates)
         : true;
-      if (!costPreviewSucceeded) {
+      if (!costPreviewResult) {
         return;
+      }
+
+      if (costPreviewResult !== true) {
+        const refreshedSelections = costPreviewResult as Record<number, HotelSelectionUpdate | null>;
+        const refreshedSelection = refreshedSelections[routeId];
+        selectionUpdates = {
+          ...refreshedSelections,
+          ...selectionUpdates,
+        };
+        if (refreshedSelection) {
+          selectionUpdates = {
+            ...selectionUpdates,
+            [routeId]: {
+              ...selectionUpdates[routeId],
+              ...refreshedSelection,
+            },
+          };
+          normalizedRoom = {
+            ...normalizedRoom,
+            ...refreshedSelection,
+            hotelId: Number((refreshedSelection as any).hotelId || (normalizedRoom as any).hotelId || 0),
+            hotelCode: refreshedSelection.hotelCode || normalizedRoom.hotelCode,
+            bookingCode: refreshedSelection.bookingCode || normalizedRoom.bookingCode,
+            searchReference: refreshedSelection.searchReference || normalizedRoom.searchReference,
+            hotelName: refreshedSelection.hotelName || normalizedRoom.hotelName,
+            roomType: refreshedSelection.roomType || normalizedRoom.roomType,
+            roomTypeName: refreshedSelection.roomType || normalizedRoom.roomTypeName,
+            mealPlan: refreshedSelection.mealPlan || normalizedRoom.mealPlan,
+            totalAmount: Number(refreshedSelection.totalAmountAfterTax ?? refreshedSelection.netAmount ?? normalizedRoom.totalAmount ?? 0),
+            totalAmountAfterTax: Number(refreshedSelection.totalAmountAfterTax ?? normalizedRoom.totalAmountAfterTax ?? 0),
+            netAmount: Number(refreshedSelection.netAmount ?? normalizedRoom.netAmount ?? 0),
+          } as HotelRoomDetail;
+        }
       }
 
       const getNextDate = (date: string) => {

@@ -118,16 +118,50 @@ export function useItineraryHotelDataWorkflow({
           // its pending room/rate state after becoming stale.
           return false;
         }
-        setItinerary(response.itinerary as any);
+        setItinerary(response.itinerary);
         lastSuccessfulPreviewRef.current = fingerprint;
-        return true;
+
+        const refreshedSelections: HotelSelectionChangeMap = {};
+        const breakdown = Array.isArray(response.selectedHotelBreakdown)
+          ? response.selectedHotelBreakdown
+          : [];
+        Object.entries(mergedSelections).forEach(([routeIdText, selection]) => {
+          if (!selection) return;
+          const routeId = Number(routeIdText);
+          const fresh = breakdown.find((row) => Number(row?.routeId || 0) === routeId);
+          if (!fresh) return;
+
+          refreshedSelections[routeId] = {
+            ...selection,
+            provider: String(fresh.provider || selection.provider || '').trim().toLowerCase(),
+            hotelCode: String(fresh.hotelCode || selection.hotelCode || '').trim(),
+            bookingCode: String(fresh.bookingCode || selection.bookingCode || '').trim(),
+            searchReference: String(fresh.searchReference || selection.searchReference || '').trim() || undefined,
+            roomType: String(fresh.roomType || selection.roomType || '').trim(),
+            mealPlan: String(fresh.mealPlan || selection.mealPlan || '').trim() || undefined,
+            hotelName: String(fresh.hotelName || selection.hotelName || '').trim(),
+            netAmount: Number(fresh.totalAmount ?? selection.netAmount ?? 0),
+            totalAmountAfterTax: Number(fresh.totalAmount ?? selection.totalAmountAfterTax ?? 0),
+            checkInDate: String(fresh.checkInDate || fresh.date || selection.checkInDate || '').trim(),
+            checkOutDate: String(fresh.checkOutDate || selection.checkOutDate || '').trim(),
+            groupType: Number(fresh.groupType || selection.groupType || groupType || 1),
+          };
+        });
+
+        return Object.keys(refreshedSelections).length > 0 ? refreshedSelections : true;
       })
       .catch((error) => {
         console.error("Failed to preview temporary hotel selection cost", error);
         if (requestId === previewSequenceRef.current) {
-          const typedError = error as any;
+          const typedError = error as {
+            response?: { data?: { message?: unknown } };
+            message?: unknown;
+          };
           const backendMessage = typedError?.response?.data?.message || typedError?.message || "Unable to calculate the hotel price";
-          toast.error(Array.isArray(backendMessage) ? backendMessage.join("; ") : String(backendMessage));
+          const message = Array.isArray(backendMessage) ? backendMessage.join("; ") : String(backendMessage);
+          toast.error(/stale|does not belong to this itinerary route/i.test(message)
+            ? "No current hotel availability for this stay"
+            : message);
         }
         return false;
       })

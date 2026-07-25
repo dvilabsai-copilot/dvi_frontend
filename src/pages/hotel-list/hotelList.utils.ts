@@ -5,6 +5,13 @@ export type HotelLike = Partial<ItineraryHotelRow> & Record<string, unknown>;
 
 export const MEAL_CODE_LABEL: Record<string, string> = { CP: "CP", EP: "EP", MAP: "MAP", AP: "AP" };
 
+export const normalizeHotelDisplayName = (value?: string | null): string =>
+  String(value || "")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#38;|&#x26;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export const normalizeMealPlanLabel = (value?: string | null): string => {
   const mealPlanLabelByCode: Record<string, string> = {
     CP: "CP - Continental Plan (Breakfast only)",
@@ -148,7 +155,7 @@ const normalizeRateIdentityMoney = (value: unknown): number => {
 const normalizeNightlyRatesForIdentity = (value: unknown): Array<Record<string, unknown>> => {
   if (!Array.isArray(value)) return [];
 
-  return value.map((night: any) => ({
+  return (value as Array<Record<string, unknown>>).map((night) => ({
     date: normalizeRateIdentityText(night?.date),
     amountAfterTax: normalizeRateIdentityMoney(night?.amountAfterTax ?? night?.totalAmountAfterTax),
     baseAmount: normalizeRateIdentityMoney(night?.baseAmount),

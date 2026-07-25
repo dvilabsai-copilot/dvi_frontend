@@ -9,6 +9,7 @@ export type HotelSelectionUpdate = {
   roomType: string;
   netAmount: number;
   hotelName: string;
+  hotelId?: number;
   checkInDate: string;
   checkOutDate: string;
   groupType: number;
@@ -82,7 +83,9 @@ export type HotelListProps = {
   onTotalChange?: (totalAmount: number) => void;
   roomCount?: number;
   onHotelSelectionsChange?: (selections: Record<number, HotelSelectionUpdate | null>) => void;
-  onTemporarySelectionCostPreview?: (selections: Record<number, HotelSelectionUpdate | null>) => Promise<boolean>;
+  onTemporarySelectionCostPreview?: (
+    selections: Record<number, HotelSelectionUpdate | null>,
+  ) => Promise<boolean | Record<number, HotelSelectionUpdate | null>>;
   dayDestinationFallback?: Record<number, string>;
   pagination?: Record<number, { hasMore: boolean; page: number; pageSize: number; total: number }>;
   routePagination?: Record<string, { hasMore: boolean; page: number; pageSize: number; total: number; groupType: number }>;
