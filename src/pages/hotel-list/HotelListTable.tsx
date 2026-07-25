@@ -682,7 +682,11 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
 
                                 return deduped.map(({ identKey, active: hotel, options: roomTypeOptions }) => {
                                 const roomKey = `hotel-${identKey}`;
-                                const isSelected = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                const hasExactSelectedOption = selectedOptionKey !== '' &&
+                                  roomTypeOptions.some((option) => getHotelOptionKey(option) === selectedOptionKey);
+                                const isSelected = hasExactSelectedOption
+                                  ? getHotelOptionKey(hotel) === selectedOptionKey
+                                  : getSelectedHotelMatch(hotel, selectedForStay);
                                 const isSameSelectedHotel = Boolean(
                                   selectedForStay && isSameHotelIdentity(hotel, selectedForStay),
                                 );
