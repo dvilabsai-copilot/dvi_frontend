@@ -2,6 +2,7 @@
 import React from "react";
 import type { ItineraryHotelRow } from "../ItineraryDetails";
 import type { HotelRoomDetail } from "./hotelList.types";
+import { normalizeHotelDisplayName } from "./hotelList.utils";
 
 type HotelListTableContext = Record<string, any>;
 
@@ -92,6 +93,32 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
         timeZone: 'UTC',
       })
       .replace(':00', '');
+  };
+
+  const getSelectedHotelMatch = (hotel: HotelRoomDetail, selectedHotel: ItineraryHotelRow | null | undefined): boolean => {
+    if (!selectedHotel) return false;
+
+    const hotelRouteId = Number((hotel as any).itineraryRouteId || (hotel as any).routeId || 0);
+    const selectedRouteIds = [
+      Number((selectedHotel as any).itineraryRouteId || (selectedHotel as any).routeId || 0),
+      ...(((selectedHotel as any).routeIds || []) as unknown[]).map((id) => Number(id)),
+    ].filter((id) => Number.isFinite(id) && id > 0);
+    if (hotelRouteId > 0 && selectedRouteIds.length > 0 && !selectedRouteIds.includes(hotelRouteId)) return false;
+
+    const hotelGroup = Number((hotel as any).groupType || 0);
+    const selectedGroup = Number((selectedHotel as any).groupType || 0);
+    if (hotelGroup > 0 && selectedGroup > 0 && hotelGroup !== selectedGroup) return false;
+
+    const hotelProvider = String((hotel as any).provider || '').trim().toLowerCase();
+    const selectedProvider = String((selectedHotel as any).provider || '').trim().toLowerCase();
+    if (hotelProvider && selectedProvider && hotelProvider !== selectedProvider) return false;
+
+    const hotelCode = String((hotel as any).hotelCode || (hotel as any).hotelId || '').trim().toLowerCase();
+    const selectedCode = String((selectedHotel as any).hotelCode || (selectedHotel as any).hotelId || '').trim().toLowerCase();
+    if (hotelCode && selectedCode && hotelCode === selectedCode) return true;
+
+    return normalizeHotelDisplayName((hotel as any).hotelName).toLowerCase() ===
+      normalizeHotelDisplayName((selectedHotel as any).hotelName).toLowerCase();
   };
 
   const tableColumnCount = showRates ? 6 : 5;
@@ -225,12 +252,12 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                           </td>
                           <td className={tableCellClass}>
                             <div className="font-medium leading-5 text-[#3f4149]">
-                              {hotel.hotelName
+                             {hotel.hotelName
                                 ? (() => {
                                     const starCategory = normalizeHotelStarCategory(hotel.category);
                                     return starCategory
-                                      ? `${hotel.hotelName} -${starCategory}*`
-                                      : hotel.hotelName;
+                                      ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                      : normalizeHotelDisplayName(hotel.hotelName);
                                   })()
                                 : '-'}
                             </div>
@@ -302,8 +329,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                               ? (() => {
                                   const starCategory = normalizeHotelStarCategory(hotel.category);
                                   return starCategory
-                                    ? `${hotel.hotelName} -${starCategory}*`
-                                    : hotel.hotelName;
+                                    ? `${normalizeHotelDisplayName(hotel.hotelName)} -${starCategory}*`
+                                    : normalizeHotelDisplayName(hotel.hotelName);
                                 })()
                               : "-"}
                           </div>
@@ -432,13 +459,13 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 const selectedHotelId = Number((selectedForStay as any)?.hotelId || 0);
                                 const selectedBookingCode = String((selectedForStay as any)?.bookingCode || '').trim();
 
-                                const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
+                                 const selectedOptionKey = selectedForStay ? getHotelOptionKey(selectedForStay) : '';
 
-                                const visibleRoomDetails = roomDetails.filter((h) => {
-                                  const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
-                                  const isSelectedOffline = selectedOptionKey !== '' && getHotelOptionKey(h) === selectedOptionKey;
-                                  return showOfflineHotels || !isOffline || isSelectedOffline;
-                                });
+                                 const visibleRoomDetails = roomDetails.filter((h) => {
+                                   const isOffline = String(h.provider || '').trim().toLowerCase() === 'offline';
+                                   const isSelectedOffline = getSelectedHotelMatch(h, selectedForStay);
+                                   return showOfflineHotels || !isOffline || isSelectedOffline;
+                                 });
 
                                 const filtered = visibleRoomDetails.filter((h) =>
                                   h.hotelName?.toLowerCase().includes(hotelSearchQuery.toLowerCase()),
@@ -452,8 +479,8 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   // options after them, then sort both sections by total rate.
                                   if (aIsOffline !== bIsOffline) return aIsOffline ? 1 : -1;
 
-                                  const aSelected = selectedOptionKey !== '' && getHotelOptionKey(a) === selectedOptionKey;
-                                  const bSelected = selectedOptionKey !== '' && getHotelOptionKey(b) === selectedOptionKey;
+                                   const aSelected = getSelectedHotelMatch(a, selectedForStay);
+                                   const bSelected = getSelectedHotelMatch(b, selectedForStay);
 
                                   if (aSelected && !bSelected) return -1;
                                   if (!aSelected && bSelected) return 1;
@@ -467,10 +494,9 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                 // Hide offline duplicates when the same property has a live result.
                                 // Keep a selected offline option visible so an existing choice is never lost.
                                 const getHotelPropertyIdentityKey = (h: any) => {
-                                  const hotelName = String(h.hotelName || '')
-                                    .trim()
-                                    .toLowerCase()
-                                    .replace(/[^a-z0-9]+/g, '');
+                                   const hotelName = normalizeHotelDisplayName(h.hotelName)
+                                     .toLowerCase()
+                                     .replace(/[^a-z0-9]+/g, '');
                                   if (hotelName) return `name:${hotelName}`;
 
                                   const canonicalId = String(
@@ -491,7 +517,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                   if (!isOffline) return true;
 
                                   const propertyKey = getHotelPropertyIdentityKey(hotel);
-                                  const isSelectedOffline = selectedOptionKey !== '' && getHotelOptionKey(hotel) === selectedOptionKey;
+                                   const isSelectedOffline = getSelectedHotelMatch(hotel, selectedForStay);
                                   return !propertyKey || !livePropertyKeys.has(propertyKey) || isSelectedOffline;
                                 });
 
@@ -816,7 +842,7 @@ export const HotelListTable: React.FC<HotelListTableProps> = ({ context }) => {
                                     )}
                                     <div className="absolute inset-0 flex flex-col justify-end p-3 bg-black/30">
                                       <h3 className="text-white font-semibold text-sm">
-                                        {hotel.hotelName}
+                                  {normalizeHotelDisplayName(hotel.hotelName)}
                                       </h3>
                                       <p className="text-white/90 text-xs">
                                         Category: {normalizeHotelStarCategory(hotel.hotelCategory) ?? "-"}*

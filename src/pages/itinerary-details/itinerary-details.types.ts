@@ -424,8 +424,15 @@ export type CostBreakdown = {
     provider: string;
     hotelCode: string;
     hotelName: string;
+    bookingCode?: string;
+    searchReference?: string;
+    roomId?: string;
+    rateId?: string;
+    groupType?: number;
     roomType?: string;
     mealPlan?: string;
+    checkInDate?: string;
+    checkOutDate?: string;
     baseAmount: number;
     roomGstAmount: number;
     marginAmount: number;
