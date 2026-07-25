@@ -53,10 +53,17 @@ export function useHotelSelectionState({
 
   useEffect(() => {
     setLocalHotels(hotels);
-    if (hotels.length === 0) return;
+    // A hotel_details refresh is a fresh options load. Do not rehydrate an
+    // unsaved UI choice or let the persisted hotel-details id win here.
+    // Explicit selection saves happen through confirm or Sync Fresh Hotels.
+    setUserSelectedByStay({});
+    if (hotels.length === 0) {
+      setSelectedByGroup({});
+      return;
+    }
 
-    setSelectedByGroup((previous) => {
-      const next = { ...previous };
+    setSelectedByGroup(() => {
+      const next: Record<number, Record<string, ItineraryHotelRow>> = {};
       const hotelsByGroupAndStay: Record<number, Record<string, ItineraryHotelRow[]>> = {};
 
       // The previous-night early-arrival row is a billing explanation only.
@@ -80,11 +87,6 @@ export function useHotelSelectionState({
         const stickySameRoomMeal = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
         if (stickySameRoomMeal) return stickySameRoomMeal;
 
-        const persistedSelection = [...stayHotels]
-          .filter((option) => Number(option.itineraryPlanHotelDetailsId || 0) > 0 && helpers.isSelectableHotel(option))
-          .sort((a, b) => helpers.getHotelAmountWithRooms(a) - helpers.getHotelAmountWithRooms(b))[0];
-        if (persistedSelection) return persistedSelection;
-
         const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
         const hasRealOptions = stayHotels.some((option) => !helpers.isPlaceholderHotel(option));
         const candidateOptions = selectableOptions.length > 0
@@ -106,15 +108,7 @@ export function useHotelSelectionState({
 
         helpers.sortStayGroupsByDate(Object.values(stayMap)).forEach((stayHotels) => {
           const stayKey = helpers.getStayKey(stayHotels[0]);
-          const existingSelection = next[groupType][stayKey];
           const selectableOptions = helpers.getAutoSelectableHotelsRespectingPreviousRoomMeal(stayHotels, previousSelectedHotel);
-          const existingStillValid = Boolean(
-            existingSelection &&
-            helpers.isSelectableHotel(existingSelection) &&
-            stayHotels.some((option) => helpers.getHotelOptionKey(option) === helpers.getHotelOptionKey(existingSelection)),
-          );
-
-          if (!existingStillValid) delete next[groupType][stayKey];
           const stickySelection = helpers.findMatchingRoomMealInStay(stayHotels, previousSelectedHotel);
           if (stickySelection) {
             next[groupType][stayKey] = stickySelection;
@@ -122,12 +116,10 @@ export function useHotelSelectionState({
             return;
           }
 
-          if (!next[groupType][stayKey]) {
-            const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
-            if (selected) next[groupType][stayKey] = selected;
-          }
-          if (next[groupType][stayKey] && selectableOptions.length > 0) {
-            previousSelectedHotel = next[groupType][stayKey];
+          const selected = chooseDefaultForStay(stayHotels, previousSelectedHotel);
+          if (selected) {
+            next[groupType][stayKey] = selected;
+            if (selectableOptions.length > 0) previousSelectedHotel = selected;
           }
         });
       });

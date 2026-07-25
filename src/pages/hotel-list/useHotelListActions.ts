@@ -228,6 +228,92 @@ export function useHotelListActions(context: HotelListActionsContext) {
       );
       
       if (uniqueRooms.length > 0) {
+        const expandedHotel = currentExpandedKey
+          ? currentHotelRows.find((hotel) => getStayKey(hotel) === currentExpandedKey)
+          : currentHotelRows.find((hotel) => toNumber(hotel.itineraryRouteId, 0) === Number(routeId));
+        const stayKey = expandedHotel ? getStayKey(expandedHotel) : currentExpandedKey || "";
+        const groupType = toNumber(expandedHotel?.groupType ?? activeGroupType, 1);
+        const hotelsForTier = uniqueRooms.filter((room: any) => Number(room.groupType || 1) === groupType);
+        const selectedBeforeSync =
+          (stayKey && userSelectedByStay?.[stayKey]) ||
+          (stayKey && selectedByGroup?.[groupType]?.[stayKey]) ||
+          expandedHotel;
+        const freshSelection =
+          hotelsForTier.find((room: any) => selectedBeforeSync && isSameHotelIdentity(room, selectedBeforeSync)) ||
+          [...hotelsForTier].sort((a: any, b: any) => getHotelDisplayAmount(a) - getHotelDisplayAmount(b))[0] ||
+          uniqueRooms[0];
+
+        if (freshSelection && hasSelectableHotelIdentity(freshSelection)) {
+          const freshHotelId = toNumber(
+            (freshSelection as any).canonicalHotelId ??
+              (freshSelection as any).hotelId ??
+              (freshSelection as any).hotelCode,
+            0,
+          );
+          const freshRoomTypeId = toNumber(
+            (freshSelection as any).roomTypeId ??
+              (freshSelection as any).availableRoomTypes?.[0]?.roomTypeId,
+            1,
+          );
+          const provider = String((freshSelection as any).provider || "").trim().toLowerCase();
+          const rateOptionId = String((freshSelection as any).rateOptionId || "").trim();
+          const mealPlanText = String((freshSelection as any).mealPlan || "").trim().toLowerCase();
+
+          // Sync is the explicit persistence boundary. Include the offline
+          // rate identity so the API records MANUAL_APPROVAL instead of a
+          // live-provider selection.
+          await hotelService.selectHotel(
+            toNumber((freshSelection as any).itineraryPlanId ?? planId, planId),
+            Number(routeId),
+            freshHotelId,
+            freshRoomTypeId,
+            {
+              all: false,
+              breakfast: /breakfast|continental|\bcp\b/.test(mealPlanText),
+              lunch: /lunch|modified american|\bmap\b/.test(mealPlanText),
+              dinner: /dinner|modified american|\bmap\b/.test(mealPlanText),
+            },
+            groupType,
+            {
+              canonicalHotelId: toNumber((freshSelection as any).canonicalHotelId ?? freshHotelId, freshHotelId),
+              rateOptionId: rateOptionId || undefined,
+              provider: provider || undefined,
+              roomId: (freshSelection as any).roomId,
+              roomCount,
+            },
+          );
+
+          if (expandedHotel && stayKey) {
+            const syncedRow = {
+              ...expandedHotel,
+              ...freshSelection,
+              itineraryPlanId: planId,
+              itineraryRouteId: Number(routeId),
+              routeId: Number(routeId),
+              groupType,
+              hotelId: freshHotelId,
+              hotelCode: String((freshSelection as any).hotelCode || freshHotelId),
+              provider: provider || expandedHotel.provider,
+              roomType: String((freshSelection as any).roomTypeName || (freshSelection as any).roomType || expandedHotel.roomType || ""),
+              mealPlan: String((freshSelection as any).mealPlan || expandedHotel.mealPlan || ""),
+              totalHotelCost: getHotelDisplayAmount(freshSelection),
+              totalAmount: getHotelDisplayAmount(freshSelection),
+            } as ItineraryHotelRow;
+
+            setSelectedByGroup((previous) => ({
+              ...previous,
+              [groupType]: {
+                ...previous[groupType],
+                [stayKey]: syncedRow,
+              },
+            }));
+            setUserSelectedByStay((previous) => ({
+              ...previous,
+              [stayKey]: syncedRow,
+            }));
+          }
+        }
+
         // ✅ Update cache for ALL groupTypes for this route
         const groupedByTier = new Map<number, any[]>();
         uniqueRooms.forEach((room: any) => {
@@ -247,15 +333,14 @@ export function useHotelListActions(context: HotelListActionsContext) {
         
         // If a row is currently expanded, update its display with fresh data
         if (currentExpandedKey) {
-          const expandedHotel = currentHotelRows.find((h) => getStayKey(h) === currentExpandedKey);
           if (expandedHotel) {
-            const hotelsForTier = uniqueRooms.filter((r: any) => r.groupType === expandedHotel.groupType);
-            setRoomDetails(hotelsForTier);
+            const expandedHotelsForTier = uniqueRooms.filter((r: any) => Number(r.groupType || 1) === groupType);
+            setRoomDetails(expandedHotelsForTier);
           }
           setExpandedRowKey(currentExpandedKey);
         }
         
-        toast.success(`Hotels refreshed from VSR (${uniqueRooms.length} options found)`);
+        toast.success(`Hotels refreshed and selection saved (${uniqueRooms.length} options found)`);
       } else {
         toast.error('No hotels found for this route');
       }
