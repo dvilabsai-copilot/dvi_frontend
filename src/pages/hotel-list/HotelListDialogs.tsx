@@ -19,6 +19,8 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
     isUpdatingHotel,
     handleConfirmHotelSelection,
     handleCancelHotelAction,
+    syncConfirmationRequest,
+    resolveSyncConfirmation,
     setRoomSelectionModal,
     roomSelectionModal,
     toast,
@@ -43,6 +45,44 @@ export const HotelListDialogs: React.FC<{ context: Record<string, any> }> = ({ c
 
   return (
     <>
+      <Dialog
+        open={Boolean(syncConfirmationRequest)}
+        onOpenChange={(open) => {
+          if (!open) resolveSyncConfirmation(false);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="mb-4 flex justify-center">
+              <div className="rounded-full bg-yellow-100 p-3">
+                <AlertTriangle className="h-6 w-6 text-yellow-600" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">Refresh hotel rates?</DialogTitle>
+            <DialogDescription asChild className="pt-2 text-center">
+              <div className="space-y-3 text-sm text-slate-700">
+                <p>
+                  You have <strong>{syncConfirmationRequest?.selectionCount || 0}</strong> unsaved hotel selection
+                  {syncConfirmationRequest?.selectionCount === 1 ? "" : "s"}.
+                </p>
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-left text-amber-900">
+                  Sync will fetch fresh hotel rates and save the currently selected hotel if it is still available.
+                  This does not confirm a booking.
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button type="button" variant="outline" onClick={() => resolveSyncConfirmation(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => resolveSyncConfirmation(true)}>
+              Continue Sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={Boolean(stayExtensionModalState)}
         onOpenChange={(open) => {

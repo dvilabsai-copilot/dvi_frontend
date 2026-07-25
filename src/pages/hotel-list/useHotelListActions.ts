@@ -11,6 +11,12 @@ import type { StayExtensionPreviewResponse } from "@/services/itinerary";
 
 type HotelListActionsContext = Record<string, any>;
 
+type SyncConfirmationRequest = {
+  routeId: number;
+  selectionCount: number;
+  resolve: (confirmed: boolean) => void;
+};
+
 export function useHotelListActions(context: HotelListActionsContext) {
   const {
     readOnly,
@@ -63,6 +69,18 @@ export function useHotelListActions(context: HotelListActionsContext) {
   } = context;
 
   const hotelService = ItineraryServiceFromContext || ItineraryService;
+  const [syncConfirmationRequest, setSyncConfirmationRequest] = React.useState<SyncConfirmationRequest | null>(null);
+
+  const requestSyncConfirmation = (routeId: number, selectionCount: number): Promise<boolean> =>
+    new Promise((resolve) => {
+      setSyncConfirmationRequest({ routeId, selectionCount, resolve });
+    });
+
+  const resolveSyncConfirmation = (confirmed: boolean) => {
+    const request = syncConfirmationRequest;
+    setSyncConfirmationRequest(null);
+    request?.resolve(confirmed);
+  };
 
   const handleRowClick = async (hotel: ItineraryHotelRow) => {
     if (readOnly) return; // Don't expand in read-only mode
@@ -173,11 +191,13 @@ export function useHotelListActions(context: HotelListActionsContext) {
       return;
     }
 
-    // ✅ Check for unsaved changes and warn user
-    if (unsavedSelections.size > 0) {
-      const confirmed = window.confirm(
-        `⚠️ You have ${unsavedSelections.size} unsaved hotel selection(s).\n\nSyncing will discard your unsaved changes and fetch fresh hotels from VSR.\n\nDo you want to continue?`
-      );
+    // Check for unsaved changes with the application dialog rather than a
+    // browser-native confirm so the message and actions stay in our UI.
+    const routeUnsavedSelectionCount = Array.from(unsavedSelections.keys())
+      .filter((key) => String(key).startsWith(`${routeId}-`))
+      .length;
+    if (routeUnsavedSelectionCount > 0) {
+      const confirmed = await requestSyncConfirmation(routeId, routeUnsavedSelectionCount);
       if (!confirmed) return;
       
       // Clear unsaved selections for this route
@@ -1165,5 +1185,7 @@ export function useHotelListActions(context: HotelListActionsContext) {
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
+    syncConfirmationRequest,
+    resolveSyncConfirmation,
   };
 }

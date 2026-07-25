@@ -734,6 +734,8 @@ const getExpandedRouteId = (): number => {
     handleConfirmHotelSelection,
     handleCancelHotelAction,
     saveAllHotelSelections,
+    syncConfirmationRequest,
+    resolveSyncConfirmation,
   } = useHotelListActions({
     readOnly,
     getStayKey,
@@ -1016,6 +1018,8 @@ const getExpandedRouteId = (): number => {
           isUpdatingHotel,
           handleConfirmHotelSelection,
           handleCancelHotelAction,
+          syncConfirmationRequest,
+          resolveSyncConfirmation,
           setRoomSelectionModal,
           roomSelectionModal,
           toast,
