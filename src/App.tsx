@@ -321,9 +321,10 @@ const App = () => (
                 </MainLayout>
               }
             />
-            <Route path="/pdf-preview/travel-voucher/:id" element={<PdfPreviewPage />} />
-            <Route path="/pdf-preview/hotel-voucher/:id" element={<PdfPreviewPage />} />
-            <Route path="/pdf-preview/pluck-card/:id" element={<PdfPreviewPage />} />
+         <Route path="/pdf-preview/voucher/:id" element={<PdfPreviewPage />} />
+<Route path="/pdf-preview/travel-voucher/:id" element={<PdfPreviewPage />} />
+<Route path="/pdf-preview/hotel-voucher/:id" element={<PdfPreviewPage />} />
+<Route path="/pdf-preview/pluck-card/:id" element={<PdfPreviewPage />} />
 
             <Route
               path="/accounts-manager"

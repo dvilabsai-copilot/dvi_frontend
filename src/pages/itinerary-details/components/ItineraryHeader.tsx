@@ -19,8 +19,9 @@ interface ItineraryHeaderProps {
   backToListHref: string;
   itinerary: ItineraryDetailsResponse;
   isAgentLogin: boolean;
-  handleDownloadPluckCard: () => void | Promise<void>;
-  setVoucherModal: (open: boolean) => void;
+ handleDownloadPluckCard: () => void | Promise<void>;
+handleOpenVoucher: () => void | Promise<void>;
+setVoucherModal: (open: boolean) => void;
   setIncidentalModal: (open: boolean) => void;
   modifyItineraryHref: string;
   handleDownloadInvoice: (type: "tax" | "proforma") => void | Promise<void>;
@@ -35,7 +36,7 @@ export function ItineraryHeader(props: ItineraryHeaderProps) {
   const { summaryStickyRef, itineraryRouteOptions, activeRouteQuoteId, quoteId,
     isSwitchingRouteOption, handleItineraryRouteOptionClick, itineraryPreference,
     scrollToVehicleList, vehicleBuildStatus, scrollToHotelList, backToListHref,
- itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,
+ itinerary, isAgentLogin, handleDownloadPluckCard, setVoucherModal,handleOpenVoucher,
 setIncidentalModal, modifyItineraryHref, handleDownloadInvoice,
 shouldShowRebuildHotelsButton,
     hotelReadOnly, handleRebuildHotels, isRebuildingHotels, overallTripCostWithHotels } = props;
@@ -164,14 +165,17 @@ shouldShowRebuildHotelsButton,
     Download Pluck Card
   </Button>
 )}
-                    <Button
-                      variant="outline"
-                      className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
-                      onClick={() => setVoucherModal(true)}
-                    >
-                      <FileText className="mr-2 h-4 w-4" />
-                      Voucher Details
-                    </Button>
+                   <Button
+  variant="outline"
+  className="border-[#28a745] text-[#28a745] hover:bg-[#28a745] hover:text-white"
+  onClick={() => void handleOpenVoucher()}
+>
+  <FileText className="mr-2 h-4 w-4" />
+{isAgentLogin &&
+[1, 2, 3].includes(Number(itineraryPreference))
+  ? "Download Detailed Voucher"
+  : "Voucher Details"}
+</Button>
                     {!isAgentLogin && (
   <Button
     variant="outline"

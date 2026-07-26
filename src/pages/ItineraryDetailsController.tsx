@@ -359,8 +359,28 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
     confirmRequiredAmount, isWalletInsufficientForConfirm, confirmRoomCount, confirmPassengerMix,
     confirmOccupancyPreview, defaultPassenger, getPassengerFieldError,
   } = quotationState;
-  const { handleDownloadPluckCard, handleDownloadInvoice } = useItineraryDocumentActions(Number(itinerary?.planId || 0));
+const {
+  handleDownloadPluckCard,
+  handleDownloadInvoice,
+  handleDownloadDetailedVoucher,
+} = useItineraryDocumentActions(
+  Number(itinerary?.planId || 0),
+  Number(itineraryPreference || 0),
+);
 
+const handleOpenVoucher = () => {
+  const preference = Number(itineraryPreference || 0);
+
+  if (
+    isAgentLogin &&
+    [1, 2, 3].includes(preference)
+  ) {
+    void handleDownloadDetailedVoucher();
+    return;
+  }
+
+  setVoucherModal(true);
+};
   const { hotelSaveFunctionRef, isMountedRef, currentFetchRef, latestRouteRequestRef, switchedRouteRef } = useItineraryPageRefs();
   const shouldEnableWalletTopUpOnConfirm = confirmQuotationModal === true && Boolean(agentInfo?.agent_id);
   const TBO_SESSION_WINDOW_MS = 35 * 60 * 1000;
@@ -804,7 +824,7 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
       }}
       travelSections={{
         isConfirmedPresentation,
-       header: {
+header: {
   summaryStickyRef,
   itineraryRouteOptions,
   activeRouteQuoteId,
@@ -817,12 +837,13 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
   scrollToHotelList,
   backToListHref: modifyItineraryHref,
   itinerary,
-  isAgentLogin,
-  handleDownloadPluckCard,
-  setVoucherModal,
-  setIncidentalModal,
-  modifyItineraryHref,
-  handleDownloadInvoice,
+isAgentLogin,
+handleDownloadPluckCard,
+handleOpenVoucher,
+setVoucherModal,
+setIncidentalModal,
+modifyItineraryHref,
+handleDownloadInvoice,
   shouldShowRebuildHotelsButton,
   hotelReadOnly,
   handleRebuildHotels,
@@ -860,7 +881,7 @@ const { overallTripCostWithHotels, specialInstructionsText, earlyArrivalPreferen
     : null,
         packageIncludes: itinerary.packageIncludes,
         cost: { itinerary, canViewCostBreakdown, financialTotals },
-        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard, onOpenVoucher: () => setVoucherModal(true),onOpenIncidentalExpenses: () => {
+        actions: { isConfirmedPresentation, onCopyClipboard: handleClipboardMode, onDownloadPluckCard: handleDownloadPluckCard,onOpenVoucher: handleOpenVoucher,onOpenIncidentalExpenses: () => {
   if (!isAgentLogin) {
     setIncidentalModal(true);
   }
