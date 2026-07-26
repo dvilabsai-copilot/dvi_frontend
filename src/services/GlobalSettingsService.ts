@@ -36,10 +36,23 @@ const toNumber = (v: any, fallback = 0): number => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const normalizeTime = (value: string | null | undefined): string | null => {
-  if (!value) return null;
-  if (/^\d{2}:\d{2}$/.test(value)) return `${value}:00`;
+const toTimeInput = (value: string | null | undefined): string => {
+  if (!value) return "";
+
+  const direct = value.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (direct) return `${direct[1].padStart(2, "0")}:${direct[2]}`;
+
+  // Prisma serializes MySQL TIME columns as ISO date strings. Preserve the
+  // stored clock value instead of passing the full ISO value to <input type=time>.
+  const isoTime = value.match(/T(\d{2}):(\d{2})/);
+  if (isoTime) return `${isoTime[1]}:${isoTime[2]}`;
+
   return value;
+};
+
+const normalizeTime = (value: string | null | undefined): string | null => {
+  const time = toTimeInput(value);
+  return time ? `${time}:00` : null;
 };
 
 // ---------- Backend DTO shapes ----------
@@ -148,6 +161,7 @@ export type GlobalSettings = {
   global_settings_ID?: string;
 
   // State configuration – UI only, stored in dvi_states via separate calls
+  state_id?: string;
   state_name?: string;
   onground_support_number?: string;
   escalation_call_number?: string;
@@ -261,6 +275,7 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
     global_settings_ID: String(id),
 
     // UI-only state fields (not coming from dvi_global_settings)
+    state_id: "",
     state_name: "",
     onground_support_number: "",
     escalation_call_number: "",
@@ -277,17 +292,21 @@ const toGlobalSettings = (r: GlobalSettingsDTO): GlobalSettings => {
 
     itinerary_distance_limit: toNumber(r.itinerary_distance_limit, 600),
     allowed_km_per_day: toNumber(r.allowed_km_limit_per_day, 450),
-    common_buffer_time: r.itinerary_common_buffer_time || "01:00:00",
+    common_buffer_time: toTimeInput(r.itinerary_common_buffer_time) || "01:00",
 
     site_seeing_km_limit: toNumber(r.site_seeing_restriction_km_limit, 25),
 
-    flight_buffer_time: r.itinerary_travel_by_flight_buffer_time || "02:00:00",
-    train_buffer_time: r.itinerary_travel_by_train_buffer_time || "01:00:00",
-    road_buffer_time: r.itinerary_travel_by_road_buffer_time || "01:00:00",
+    flight_buffer_time: toTimeInput(r.itinerary_travel_by_flight_buffer_time) || "02:00",
+    train_buffer_time: toTimeInput(r.itinerary_travel_by_train_buffer_time) || "01:00",
+    road_buffer_time: toTimeInput(r.itinerary_travel_by_road_buffer_time) || "01:00",
 
-    journey_start_text: r.itinerary_hotel_start || "",
-    between_day_start_text: r.custom_hotspot_or_activity || "",
-    between_day_end_text: r.accommodation_return || "",
+    // Keep the same field mapping as the PHP form:
+    // Journey Start -> itinerary_break_time,
+    // In-Between Start -> itinerary_hotel_start,
+    // In-Between End -> itinerary_hotel_return.
+    journey_start_text: r.itinerary_break_time || "",
+    between_day_start_text: r.itinerary_hotel_start || "",
+    between_day_end_text: r.itinerary_hotel_return || "",
     hotel_terms_condition: r.hotel_terms_condition || "",
     vehicle_terms_condition: r.vehicle_terms_condition || "",
     hotel_voucher_terms: r.hotel_voucher_terms_condition || "",
@@ -343,7 +362,7 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     childnobed_rate_percentage: g.child_nobed_rate_percentage,
 
     hotel_margin: g.hotel_margin_in_percentage,
-    hotel_margin_gst_type: g.hotel_margin_gst_type ? 1 : 0,
+    hotel_margin_gst_type: g.hotel_margin_gst_type,
     hotel_margin_gst_percentage: g.hotel_margin_gst_percentage,
 
     itinerary_distance_limit: g.itinerary_distance_limit,
@@ -354,9 +373,9 @@ const fromGlobalSettings = (g: GlobalSettings): Partial<GlobalSettingsDTO> => {
     itinerary_travel_by_train_buffer_time: normalizeTime(g.train_buffer_time),
     itinerary_travel_by_road_buffer_time: normalizeTime(g.road_buffer_time),
 
-    itinerary_hotel_start: g.journey_start_text,
-    custom_hotspot_or_activity: g.between_day_start_text,
-    accommodation_return: g.between_day_end_text,
+    itinerary_break_time: g.journey_start_text,
+    itinerary_hotel_start: g.between_day_start_text,
+    itinerary_hotel_return: g.between_day_end_text,
     hotel_terms_condition: g.hotel_terms_condition,
     vehicle_terms_condition: g.vehicle_terms_condition,
     hotel_voucher_terms_condition: g.hotel_voucher_terms,
@@ -516,4 +535,12 @@ export async function updateGlobalSettings(payload: GlobalSettings): Promise<Glo
 
 export async function getStates(countryId?: number): Promise<State[]> {
   return globalSettingsService.listStates(countryId);
+}
+
+export async function getStateConfig(stateId: string | number): Promise<StateConfig> {
+  return globalSettingsService.getStateConfig(stateId);
+}
+
+export async function updateStateConfig(payload: StateConfigUpdatePayload): Promise<StateConfig> {
+  return globalSettingsService.updateStateConfig(payload);
 }

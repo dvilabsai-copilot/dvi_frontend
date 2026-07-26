@@ -1,6 +1,6 @@
 // FILE: src/pages/Settings/GlobalSettings.tsx
 
-import { useCallback, useEffect, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useRef, useState, lazy, Suspense } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ import {
   getGlobalSettings,
   updateGlobalSettings,
   getStates,
+  getStateConfig,
+  updateStateConfig,
   type GlobalSettings,
   type State,
 } from "@/services/GlobalSettingsService";
@@ -29,6 +31,10 @@ export const GlobalSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [states, setStates] = useState<State[]>([]);
+  const commonBufferTimeRef = useRef<HTMLInputElement>(null);
+  const flightBufferTimeRef = useRef<HTMLInputElement>(null);
+  const trainBufferTimeRef = useRef<HTMLInputElement>(null);
+  const roadBufferTimeRef = useRef<HTMLInputElement>(null);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -55,6 +61,30 @@ export const GlobalSettingsPage = () => {
     }
   }, []);
 
+  const handleStateChange = async (stateId: string) => {
+    const selectedState = states.find((state) => state.id === stateId);
+    setSettings((current) => current ? {
+      ...current,
+      state_id: stateId,
+      state_name: selectedState?.name || "",
+      onground_support_number: "",
+      escalation_call_number: "",
+    } : current);
+
+    try {
+      const config = await getStateConfig(stateId);
+      setSettings((current) => current ? {
+        ...current,
+        state_id: String(config.stateId),
+        state_name: config.stateName,
+        onground_support_number: config.vehicleOngroundSupportNumber || "",
+        escalation_call_number: config.vehicleEscalationCallNumber || "",
+      } : current);
+    } catch (error) {
+      console.error("Failed to load state configuration", error);
+    }
+  };
+
   useEffect(() => {
     void loadSettings();
     void loadStates();
@@ -64,8 +94,22 @@ export const GlobalSettingsPage = () => {
     if (!settings) return;
 
     try {
+      const settingsToSave = {
+        ...settings,
+        common_buffer_time: commonBufferTimeRef.current?.value ?? settings.common_buffer_time,
+        flight_buffer_time: flightBufferTimeRef.current?.value ?? settings.flight_buffer_time,
+        train_buffer_time: trainBufferTimeRef.current?.value ?? settings.train_buffer_time,
+        road_buffer_time: roadBufferTimeRef.current?.value ?? settings.road_buffer_time,
+      };
       setSaving(true);
-      await updateGlobalSettings(settings);
+      await updateGlobalSettings(settingsToSave);
+      if (settingsToSave.state_id) {
+        await updateStateConfig({
+          stateId: settingsToSave.state_id,
+          vehicleOngroundSupportNumber: settingsToSave.onground_support_number || null,
+          vehicleEscalationCallNumber: settingsToSave.escalation_call_number || null,
+        });
+      }
       toast({
         description: "Global settings updated successfully",
       });
@@ -104,15 +148,15 @@ export const GlobalSettingsPage = () => {
             <div>
               <Label htmlFor="global-state-name">State Name *</Label>
               <Select
-                value={settings.state_name || ""}
-                onValueChange={(value) => setSettings({ ...settings, state_name: value })}
+                value={settings.state_id || ""}
+                onValueChange={(value) => void handleStateChange(value)}
               >
                 <SelectTrigger id="global-state-name">
                   <SelectValue placeholder="Select State" />
                 </SelectTrigger>
                 <SelectContent>
                   {states.map((state) => (
-                    <SelectItem key={state.id} value={state.name}>
+                    <SelectItem key={state.id} value={state.id}>
                       {state.name}
                     </SelectItem>
                   ))}
@@ -268,7 +312,8 @@ export const GlobalSettingsPage = () => {
               <Label>Common Buffer Time *</Label>
               <Input
                 type="time"
-                value={settings.common_buffer_time || "01:00"}
+                ref={commonBufferTimeRef}
+                defaultValue={settings.common_buffer_time || "01:00"}
                 onChange={(e) => setSettings({ ...settings, common_buffer_time: e.target.value })}
               />
             </div>
@@ -302,7 +347,8 @@ export const GlobalSettingsPage = () => {
               <Label>Flight Buffer Time *</Label>
               <Input
                 type="time"
-                value={settings.flight_buffer_time || "02:00"}
+                ref={flightBufferTimeRef}
+                defaultValue={settings.flight_buffer_time || "02:00"}
                 onChange={(e) => setSettings({ ...settings, flight_buffer_time: e.target.value })}
               />
             </div>
@@ -310,7 +356,8 @@ export const GlobalSettingsPage = () => {
               <Label>Train Buffer Time *</Label>
               <Input
                 type="time"
-                value={settings.train_buffer_time || "01:00"}
+                ref={trainBufferTimeRef}
+                defaultValue={settings.train_buffer_time || "01:00"}
                 onChange={(e) => setSettings({ ...settings, train_buffer_time: e.target.value })}
               />
             </div>
@@ -318,7 +365,8 @@ export const GlobalSettingsPage = () => {
               <Label>Road Buffer Time *</Label>
               <Input
                 type="time"
-                value={settings.road_buffer_time || "01:00"}
+                ref={roadBufferTimeRef}
+                defaultValue={settings.road_buffer_time || "01:00"}
                 onChange={(e) => setSettings({ ...settings, road_buffer_time: e.target.value })}
               />
             </div>
