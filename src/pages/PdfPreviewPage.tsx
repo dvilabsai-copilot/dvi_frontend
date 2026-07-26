@@ -4,13 +4,30 @@ import { Loader2, FileText, Receipt, Ticket, Hotel } from "lucide-react";
 import { ItineraryService } from "@/services/itinerary";
 import { clearToken } from "@/lib/api";
 
-type PdfDocType = "invoice" | "travel-voucher" | "hotel-voucher" | "pluck-card";
+type PdfDocType =
+  | "invoice"
+  | "voucher"
+  | "travel-voucher"
+  | "hotel-voucher"
+  | "pluck-card";
 
-const DOC_META: Record<PdfDocType, { title: string; subtitle: string; authRequired: boolean }> = {
+const DOC_META: Record<
+  PdfDocType,
+  {
+    title: string;
+    subtitle: string;
+    authRequired: boolean;
+  }
+> = {
   invoice: {
     title: "Invoice Viewer",
     subtitle: "Public invoice opened in the browser.",
     authRequired: false,
+  },
+  voucher: {
+    title: "Detailed Voucher Viewer",
+    subtitle: "Protected combined voucher opened in the browser.",
+    authRequired: true,
   },
   "travel-voucher": {
     title: "Transport Voucher Viewer",
@@ -93,19 +110,25 @@ export default function PdfPreviewPage() {
 
       try {
         let result;
-        if (docType === "invoice") {
-          result = await ItineraryService.fetchPdfDocument(
-            `itineraries/${itineraryId}/invoice-pdf?type=${encodeURIComponent(invoiceType)}`,
-            `${invoiceType}-invoice-${itineraryId}.pdf`,
-            { auth: false },
-          );
-        } else if (docType === "travel-voucher") {
-          result = await ItineraryService.fetchPdfDocument(
-            `itineraries/${itineraryId}/vehicle-voucher-pdf`,
-            `transport-voucher-${itineraryId}.pdf`,
-            { auth: true },
-          );
-        } else if (docType === "hotel-voucher") {
+      if (docType === "invoice") {
+  result = await ItineraryService.fetchPdfDocument(
+    `itineraries/${itineraryId}/invoice-pdf?type=${encodeURIComponent(invoiceType)}`,
+    `${invoiceType}-invoice-${itineraryId}.pdf`,
+    { auth: false },
+  );
+} else if (docType === "voucher") {
+  result = await ItineraryService.fetchPdfDocument(
+    `itineraries/${itineraryId}/voucher-pdf`,
+    `voucher-details-${itineraryId}.pdf`,
+    { auth: true },
+  );
+} else if (docType === "travel-voucher") {
+  result = await ItineraryService.fetchPdfDocument(
+    `itineraries/${itineraryId}/vehicle-voucher-pdf`,
+    `transport-voucher-${itineraryId}.pdf`,
+    { auth: true },
+  );
+} else if (docType === "hotel-voucher") {
           result = await ItineraryService.fetchPdfDocument(
             `itineraries/${itineraryId}/hotel-voucher-pdf`,
             `hotel-voucher-${itineraryId}.pdf`,
