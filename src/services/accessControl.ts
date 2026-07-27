@@ -1,4 +1,6 @@
 import { getToken } from "@/lib/api";
+import { USER_ROLES } from "@/constants/systemRoles";
+import { isVehicleAgentRole } from "./vehicleAgentPolicy";
 
 export type AuthTokenPayload = {
   sub?: string | number;
@@ -139,8 +141,25 @@ export function filterMenuItemsForStaff<
   items: T[],
   user: AuthTokenPayload | null = getAuthenticatedUser(),
 ): T[] {
-  if (getAuthenticatedRoleId(user) !== 3) {
-    return items;
+  const role = getAuthenticatedRoleId(user);
+
+  if (isVehicleAgentRole(role)) {
+    return items.filter((item) =>
+      [
+        "dashboard",
+        "create-itinerary",
+        "latest-itinerary",
+        "confirmed-itinerary",
+        "staff",
+        "wallet",
+        "subscription-history",
+      ].includes(item.id),
+    );
+  }
+
+  if (role !== USER_ROLES.STAFF) {
+    const knownRole = Object.values(USER_ROLES).includes(role as never);
+    return knownRole ? items : [];
   }
 
   return items.reduce<T[]>((visibleItems, item) => {
@@ -510,7 +529,26 @@ export function canCurrentUserAccessRoute(
   user: AuthTokenPayload | null =
     getAuthenticatedUser(),
 ): boolean {
-  if (getAuthenticatedRoleId(user) !== 3) {
+  const role = getAuthenticatedRoleId(user);
+
+  if (isVehicleAgentRole(role)) {
+    const cleanPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
+    if (cleanPath === "/restricted" || isPath(cleanPath, "/profile")) return true;
+    return cleanPath === "/" ||
+      isPath(cleanPath, "/create-itinerary") ||
+      isPath(cleanPath, "/latest-itinerary") ||
+      isPath(cleanPath, "/confirmed-itinerary") ||
+      isPath(cleanPath, "/itinerary-details") ||
+      isPath(cleanPath, "/staff") ||
+      isPath(cleanPath, "/wallet") ||
+      isPath(cleanPath, "/wallet-history") ||
+      isPath(cleanPath, "/subscription-history");
+  }
+
+  const knownRole = Object.values(USER_ROLES).includes(role as never);
+  if (!knownRole) return false;
+
+  if (role !== USER_ROLES.STAFF) {
     return true;
   }
 

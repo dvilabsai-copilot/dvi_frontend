@@ -8,10 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { confirmedDashboardTabs, liveVehicleStatusTabs } from "./dashboard.constants";
-import type { AgentDashboardStats, AccountsDashboardStats, VendorDashboardStats } from "@/services/dashboard";
+import type { AgentDashboardStats, AccountsDashboardStats, VendorDashboardStats, VehicleAgentDashboardStats } from "@/services/dashboard";
 
 export function DashboardRoleViews({ context }: { context: Record<string, any> }) {
-  const { dashboardData, loading, isAgent, isTravelExpert, isGuide, isAccounts, isVendor, isProcessingPayment, isTopUpModalOpen, setIsTopUpModalOpen, topUpAmount, setTopUpAmount, handleTopUp, handleRenew } = context;
+  const { dashboardData, loading, isAgent, isVehicleAgent, isTravelExpert, isGuide, isAccounts, isVendor, isProcessingPayment, isTopUpModalOpen, setIsTopUpModalOpen, topUpAmount, setTopUpAmount, handleTopUp, handleRenew } = context;
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -229,6 +229,24 @@ if (isAgent) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+if (isVehicleAgent) {
+  const vehicleData = dashboardData as VehicleAgentDashboardStats;
+  return (
+    <div className="min-h-[calc(100vh-88px)] bg-gray-50/40 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm">
+          <h3 className="text-2xl font-bold text-[#4a4260]">Itinerary Demo Dashboard</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Itineraries assigned to your account.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card className="p-5"><p className="text-sm text-muted-foreground">Itineraries</p><p className="mt-2 text-3xl font-bold text-purple-600">{vehicleData.totalItineraries}</p></Card>
+          <Card className="p-5"><p className="text-sm text-muted-foreground">Confirmed itineraries</p><p className="mt-2 text-3xl font-bold text-pink-600">{vehicleData.confirmedItineraries}</p></Card>
+        </div>
+      </div>
     </div>
   );
 }

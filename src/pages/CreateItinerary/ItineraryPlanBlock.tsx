@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -47,6 +46,7 @@ import {
 import { useItineraryPlanDates } from "./helpers/useItineraryPlanDates";
 import { useItineraryPlanDefaults } from "./helpers/useItineraryPlanDefaults";
 import { useItineraryPlanOptions } from "./helpers/useItineraryPlanOptions";
+import { ItineraryPreferenceControl } from "./ItineraryPreferenceControl";
 import {
   TRANSPORT_EARLY_ARRIVAL_CUTOFF,
   TRANSPORT_DEFAULT_HOTEL_REST_MINUTES,
@@ -69,6 +69,7 @@ type ItineraryPlanBlockProps = {
   agentId: number | null;
   setAgentId: (id: number | null) => void;
   isAgentLocked?: boolean;
+  isVehicleAgent?: boolean;
 
   locations: LocationOption[];
   arrivalLocation: string;
@@ -164,6 +165,7 @@ export const ItineraryPlanBlock = ({
   agentId,
   setAgentId,
   isAgentLocked = false,
+  isVehicleAgent = false,
   locations,
   arrivalLocation,
   setArrivalLocation,
@@ -456,31 +458,15 @@ const handleHotelFacilityChange = (vals: string[]) => {
 
   {/* ROW 1: Itinerary Preference | Agent */}
         <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
-            <Label className="mb-2 block text-sm text-[#4a4260]">
-              Itinerary Preference *
-            </Label>
-            <RadioGroup
-              value={itineraryPreference}
-              onValueChange={(v) =>
-                setItineraryPreference(v as "vehicle" | "hotel" | "both")
-              }
-              className="flex flex-wrap gap-4"
-            >
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="vehicle" id="vehicle" />
-                Vehicle
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="hotel" id="hotel" />
-                Hotel
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <RadioGroupItem value="both" id="both" />
-                Both Hotel and Vehicle
-              </label>
-            </RadioGroup>
-          </div>
+          {!isVehicleAgent && (
+            <div className="flex-1 bg-[#fef8ff] border border-[#e9d4ff] rounded-md p-3">
+              <ItineraryPreferenceControl
+                value={itineraryPreference}
+                onChange={setItineraryPreference}
+                isVehicleAgent={isVehicleAgent}
+              />
+            </div>
+          )}
 
                     {!isAgentLocked && (
             <div

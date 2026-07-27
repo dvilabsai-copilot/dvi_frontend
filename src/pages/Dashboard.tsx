@@ -33,6 +33,7 @@ import {
 import {
   getAuthenticatedUser,
 } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 type ConfirmedDashboardTab = "overall" | "upcoming" | "ongoing" | "cancellation";
 
@@ -399,7 +400,8 @@ const guideId = Number(
 
 const isAdmin = role === 1;
 const isStaff = role === 3;
-const isAgent = role === 4;
+const isAgent = role === USER_ROLES.AGENT;
+const isVehicleAgent = role === USER_ROLES.VEHICLE_AGENT;
 const isGuide = role === 5 || guideId > 0;
 const isAccounts = role === 6;
 const isVendor = role === 2;
@@ -410,6 +412,7 @@ const isTravelExpert =
   !isAdmin &&
   !isStaff &&
   !isAgent &&
+  !isVehicleAgent &&
   !isAccounts &&
   !isVendor &&
   !isGuide &&
@@ -525,7 +528,7 @@ const isTravelExpert =
 }, []);
 
 useEffect(() => {
-  if (isAgent || isAccounts || isVendor || isGuide) return;
+  if (isAgent || isVehicleAgent || isAccounts || isVendor || isGuide) return;
 
   const fetchConfirmedItineraries = async () => {
     try {
@@ -599,13 +602,14 @@ useEffect(() => {
   confirmedSearch,
   confirmedActiveTab,
   isAgent,
+  isVehicleAgent,
   isAccounts,
   isVendor,
   isGuide,
 ]);
 
 useEffect(() => {
-  if (isAgent || isAccounts || isVendor || isGuide) return;
+  if (isAgent || isVehicleAgent || isAccounts || isVendor || isGuide) return;
 
   const fetchAgentWiseConfirmedItineraries = async () => {
     try {
@@ -641,6 +645,7 @@ useEffect(() => {
   agentWiseEntries,
   agentWiseSearch,
   isAgent,
+  isVehicleAgent,
   isAccounts,
   isVendor,
   isGuide,
@@ -648,7 +653,7 @@ useEffect(() => {
 
 
 useEffect(() => {
-  if (isAgent || isAccounts || isVendor || isGuide) return;
+  if (isAgent || isVehicleAgent || isAccounts || isVendor || isGuide) return;
 
   const fetchLiveVehicleStatus = async () => {
     try {
@@ -762,6 +767,7 @@ useEffect(() => {
   liveVehicleSearch,
   liveVehicleActiveTab,
   isAgent,
+  isVehicleAgent,
   isAccounts,
   isVendor,
   isGuide,
@@ -769,7 +775,7 @@ useEffect(() => {
 
 
 useEffect(() => {
-  if (isAgent || isAccounts || isVendor || isGuide) return;
+  if (isAgent || isVehicleAgent || isAccounts || isVendor || isGuide) return;
 
   const fetchMostVisitedHotels = async () => {
     try {
@@ -791,11 +797,12 @@ useEffect(() => {
   };
 
   fetchMostVisitedHotels();
-}, [mostVisitedHotelsYear, isAgent, isAccounts, isVendor, isGuide]);
+}, [mostVisitedHotelsYear, isAgent, isVehicleAgent, isAccounts, isVendor, isGuide]);
   const dashboardViewContext = {
     dashboardData,
     loading,
     isAgent,
+    isVehicleAgent,
     isTravelExpert,
     isGuide,
     isAccounts,
@@ -856,7 +863,7 @@ useEffect(() => {
     formatDashboardDate,
   };
   const roleView = <DashboardRoleViews context={dashboardViewContext} />;
-  if (loading || !dashboardData || isAgent || isTravelExpert || isGuide || isAccounts || isVendor) {
+  if (loading || !dashboardData || isAgent || isVehicleAgent || isTravelExpert || isGuide || isAccounts || isVendor) {
     return roleView;
   }
 

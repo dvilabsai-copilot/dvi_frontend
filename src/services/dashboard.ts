@@ -10,6 +10,11 @@ export interface AgentDashboardStats {
   totalCashWallet: number;
 }
 
+export interface VehicleAgentDashboardStats {
+  totalItineraries: number;
+  confirmedItineraries: number;
+}
+
 export interface AccountsDashboardStats {
   totalPayable: number;
   totalPaid: number;
@@ -81,7 +86,7 @@ export interface MostVisitedHotelRow {
 }
 
 export const DashboardService = {
-  async getStats(): Promise<DashboardStats | AgentDashboardStats> {
+  async getStats(): Promise<DashboardStats | AgentDashboardStats | VehicleAgentDashboardStats> {
     return api('dashboard/stats', {
       method: 'GET',
     });

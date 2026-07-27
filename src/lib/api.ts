@@ -106,8 +106,10 @@ export async function api(path: string, opts: ApiOptions = {} ) {
 
     const text = await res.text().catch(() => "");
     let message = text;
+    let parsedBody: any = null;
     try {
       const parsed = JSON.parse(text);
+      parsedBody = parsed;
       const apiMessage = parsed?.message;
       const conflictMessages = Array.isArray(parsed?.details?.conflicts)
         ? parsed.details.conflicts
@@ -124,6 +126,18 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     } catch {
       // Keep the raw response when it is not JSON.
     }
+
+    const redirectTo =
+      parsedBody &&
+      typeof parsedBody === "object" &&
+      typeof parsedBody.redirectTo === "string" &&
+      parsedBody.redirectTo.startsWith("/")
+        ? parsedBody.redirectTo
+        : "";
+    if (res.status === 403 && auth && redirectTo && typeof window !== "undefined") {
+      window.location.assign(redirectTo);
+    }
+
     throw new Error(
       message || `API ${method} ${url} failed: ${res.status} ${res.statusText}`
     );

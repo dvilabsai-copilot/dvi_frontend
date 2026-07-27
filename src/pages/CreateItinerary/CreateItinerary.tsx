@@ -84,6 +84,11 @@ import {
   getEstimatedSaveMs,
   TRANSPORT_LOADING_MESSAGES,
 } from "./helpers/saveProgress.constants";
+import { USER_ROLES } from "@/constants/systemRoles";
+import {
+  getEffectiveItineraryPreference,
+  isVehicleAgentUser,
+} from "@/services/vehicleAgentPolicy";
 
 // ----------------- types -----------------
 
@@ -113,7 +118,8 @@ export const CreateItinerary = () => {
 
   const itineraryPlanId = id && !Number.isNaN(Number(id)) ? Number(id) : null;
   const loggedInUser = getLoggedInUserContext();
-  const isAgentLogin = loggedInUser.role === 4;
+  const isVehicleAgentLogin = isVehicleAgentUser(loggedInUser as any);
+  const isAgentLogin = loggedInUser.role === USER_ROLES.AGENT || isVehicleAgentLogin;
   const loggedInAgentId = loggedInUser.agentId;
 
   // agents / dropdown data
@@ -136,6 +142,19 @@ export const CreateItinerary = () => {
   const [itineraryPreference, setItineraryPreference] = useState<"vehicle" | "hotel" | "both">(
     "both"
   );
+  const effectiveItineraryPreference = getEffectiveItineraryPreference(
+    loggedInUser as any,
+    itineraryPreference,
+  );
+  const setItineraryPreferenceForRole = (value: "vehicle" | "hotel" | "both") => {
+    if (!isVehicleAgentLogin) setItineraryPreference(value);
+  };
+
+  useEffect(() => {
+    if (isVehicleAgentLogin && itineraryPreference !== "vehicle") {
+      setItineraryPreference("vehicle");
+    }
+  }, [isVehicleAgentLogin, itineraryPreference]);
   const [agentId, setAgentId] = useState<number | null>(null);
 
   const [arrivalLocation, setArrivalLocation] = useState("");
@@ -165,8 +184,8 @@ const [endTime, setEndTime] = useState<string>(DEFAULT_ITINERARY_END_TIME);
     useState<number>(TRANSPORT_DEFAULT_HOTEL_REST_MINUTES);
 
   const needsTransportEarlyArrivalPreference = useMemo(
-    () => requiresTransportEarlyArrivalPreference(itineraryPreference, startTime),
-    [itineraryPreference, startTime],
+    () => requiresTransportEarlyArrivalPreference(effectiveItineraryPreference, startTime),
+    [effectiveItineraryPreference, startTime],
   );
 
   useEffect(() => {
@@ -335,14 +354,14 @@ const [activeDefaultRouteIndex, setActiveDefaultRouteIndex] = useState(0);
   useCreateItineraryEffects({
     setValidationErrors, agentId, arrivalLocation, departureLocation, tripStartDate, tripEndDate,
     itineraryTypeSelect, arrivalType, departureType, budget, entryTicketRequired, guideRequired,
-    nationality, foodPreference, itineraryPreference, selectedHotelCategoryIds, routeDetails,
+    nationality, foodPreference, itineraryPreference: effectiveItineraryPreference, selectedHotelCategoryIds, routeDetails,
     vehicles, vehiclePaxValidationError, stopSaveProgress, setLoading, isAgentLogin,
     loggedInAgentId, setAgents, setLocations, setItineraryTypes, setTravelTypes,
     setEntryTicketOptions, setGuideOptions, setNationalities, setFoodPreferences,
     setMealPlanOptions, setHotelCategoryOptions, setHotelFacilityOptions, itineraryPlanId,
     itineraryService: ItineraryService, setAgentId, setArrivalLocation,
     setDepartureLocation, setTripStartDate, setTripEndDate, setStartTime, setEndTime,
-    setBudget, setArrivalType, setDepartureType, setItineraryPreference,
+    setBudget, setArrivalType, setDepartureType, setItineraryPreference: setItineraryPreferenceForRole,
     setItineraryTypeSelect, setEntryTicketRequired, setGuideRequired, setNationality,
     setFoodPreference, setMealPlanCode, setSpecialInstructions, setSelectedHotelCategoryIds,
     setSelectedHotelFacilityIds, setRouteDetails, setVehicles, setRooms,
@@ -541,7 +560,7 @@ const addDay = () => {
     guideRequired,
     nationality,
     foodPreference,
-    itineraryPreference,
+    itineraryPreference: effectiveItineraryPreference,
     selectedHotelCategoryIds,
     selectedHotelFacilityIds,
     routeDetails,
@@ -760,7 +779,8 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
         agents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
         arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
-        itineraryPreference, setItineraryPreference, travelTypes, arrivalType, setArrivalType,
+        itineraryPreference: effectiveItineraryPreference, setItineraryPreference: setItineraryPreferenceForRole,
+        isVehicleAgentLogin, travelTypes, arrivalType, setArrivalType,
         departureType, setDepartureType, entryTicketOptions, entryTicketRequired,
         setEntryTicketRequired, budget, setBudget, rooms, setRooms, addRoom, removeRoom,
         guideOptions, guideRequired, setGuideRequired, nationalities, nationality, setNationality,
