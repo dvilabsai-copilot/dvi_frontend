@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useRef } from "react";
-import { ApiError } from "@/lib/api";
-import type { ItineraryDetailsLocationState } from "@/pages/itinerary-details/itinerary-details-route-state";
 
 export function useCreateItineraryRouteSave(context: Record<string, any>) {
   const {
@@ -29,19 +27,10 @@ export function useCreateItineraryRouteSave(context: Record<string, any>) {
   } = context;
 
 const isSavingRef = useRef(false);
-const partialSaveRef = useRef<NonNullable<ItineraryDetailsLocationState["partialSave"]> | null>(null);
 
 const handleSaveWithType = async (
   type: "itineary_basic_info" | "itineary_basic_info_with_optimized_route",
 ) => {
-  if (partialSaveRef.current) {
-    const { planId, quoteId } = partialSaveRef.current;
-    navigate(`/itinerary-details/${quoteId}`, {
-      replace: true,
-      state: { partialSave: { planId, quoteId } } satisfies ItineraryDetailsLocationState,
-    });
-    return;
-  }
   if (isSavingRef.current) return; // sync guard ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â prevents double-fire before setState re-render
   isSavingRef.current = true;
   try {
@@ -207,40 +196,6 @@ setShowRouteConfirm(false);
     }
   } catch (err) {
     console.error("Failed to save itinerary", err);
-    const partialPayload = err instanceof ApiError && err.status === 422
-      ? (err.payload as any)
-      : null;
-    if (partialPayload?.creationStatus === "PARTIAL") {
-      const partialPlanId = Number(partialPayload.planId || 0);
-      const partialQuoteId = String(partialPayload.quoteId || "").trim();
-      if (partialPlanId > 0 && partialQuoteId) {
-        const partialVehicleBuild = partialPayload.vehicleBuild && typeof partialPayload.vehicleBuild === "object"
-          ? {
-              status: typeof partialPayload.vehicleBuild.status === "string" ? partialPayload.vehicleBuild.status : undefined,
-              message: typeof partialPayload.vehicleBuild.message === "string" ? partialPayload.vehicleBuild.message : undefined,
-              buildRunId: typeof partialPayload.vehicleBuild.buildRunId === "string" ? partialPayload.vehicleBuild.buildRunId : undefined,
-            }
-          : undefined;
-        const partialSaveState: NonNullable<ItineraryDetailsLocationState["partialSave"]> = {
-          planId: partialPlanId,
-          quoteId: partialQuoteId,
-          vehicleBuild: partialVehicleBuild,
-        };
-        partialSaveRef.current = partialSaveState;
-        setSaveErrorMessage(
-          `Itinerary saved (plan ${partialPlanId}, quote ${partialQuoteId}), but vehicle pricing failed. Opening the recovery page for an explicit retry.`,
-        );
-        toast({
-          title: "Itinerary saved",
-          description: "Vehicle pricing failed. Use the explicit retry on the recovery page.",
-        });
-        navigate(`/itinerary-details/${partialQuoteId}`, {
-          replace: true,
-          state: { partialSave: partialSaveState } satisfies ItineraryDetailsLocationState,
-        });
-        return;
-      }
-    }
     const errorMessage =
       err instanceof Error && err.message.trim()
         ? err.message

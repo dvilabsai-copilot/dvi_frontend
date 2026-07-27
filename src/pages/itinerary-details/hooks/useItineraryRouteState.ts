@@ -5,7 +5,6 @@ import type {
   ItineraryPlanRouteOption,
 } from "../itinerary-details.types";
 import { PAGE_LOADER_STAGE_DETAILS } from "../itinerary-details.constants";
-import type { VehicleBuildUiStatus } from "./usePreparedItineraryPageLoader";
 
 export function useItineraryRouteState(quoteId?: string) {
   const [itinerary, setItinerary] = useState<ItineraryDetailsResponse | null>(null);
@@ -22,7 +21,7 @@ export function useItineraryRouteState(quoteId?: string) {
   const [sourcePreviewError, setSourcePreviewError] = useState<string | null>(null);
   const [sourcePreviewMarkdown, setSourcePreviewMarkdown] = useState("");
   const [sourcePreviewHeading, setSourcePreviewHeading] = useState("");
-  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<VehicleBuildUiStatus>("PENDING");
+  const [vehicleBuildStatus, setVehicleBuildStatus] = useState<"PENDING" | "PROCESSING" | "READY" | "FAILED">("PENDING");
   const [vehicleBuildError, setVehicleBuildError] = useState<string | null>(null);
   const [activeRouteQuoteId, setActiveRouteQuoteId] = useState<string | null>(null);
   const [isSwitchingRouteOption, setIsSwitchingRouteOption] = useState(false);

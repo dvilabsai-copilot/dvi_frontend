@@ -11,7 +11,6 @@ export function useHotelWorkflowState() {
   const [roomSelectionModal, setRoomSelectionModal] = useState<any | null>(null);
   const [availableHotels, setAvailableHotels] = useState<any[]>([]);
   const [loadingHotels, setLoadingHotels] = useState(false);
-  const [hotelError, setHotelError] = useState<string | null>(null);
   const [isRebuildingHotels, setIsRebuildingHotels] = useState(false);
   const [isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate] = useState(false);
   const [routeTimeProgressPercent, setRouteTimeProgressPercent] = useState(0);
@@ -30,7 +29,7 @@ export function useHotelWorkflowState() {
     isResolvingArrivalPolicy, setIsResolvingArrivalPolicy, latestArrivalPolicy, setLatestArrivalPolicy,
     pendingRouteTimeUpdate, setPendingRouteTimeUpdate, lastArrivalPolicyDecisionKey, setLastArrivalPolicyDecisionKey,
     arrivalPolicyConfirmModal, setArrivalPolicyConfirmModal, roomSelectionModal, setRoomSelectionModal,
-    availableHotels, setAvailableHotels, loadingHotels, setLoadingHotels, hotelError, setHotelError, isRebuildingHotels, setIsRebuildingHotels,
+    availableHotels, setAvailableHotels, loadingHotels, setLoadingHotels, isRebuildingHotels, setIsRebuildingHotels,
     isApplyingRouteTimeUpdate, setIsApplyingRouteTimeUpdate, routeTimeProgressPercent, setRouteTimeProgressPercent,
     routeTimeEstimatedMs, setRouteTimeEstimatedMs, routeProgressTitle, setRouteProgressTitle,
     routeProgressDetail, setRouteProgressDetail, routeProgressHistory, setRouteProgressHistory,
