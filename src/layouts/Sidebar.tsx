@@ -26,6 +26,7 @@ import {
   getAuthenticatedRoleId,
   getAuthenticatedUser,
 } from "@/services/accessControl";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 // Helper functions
 function getAgentId() {
@@ -182,7 +183,9 @@ export const Sidebar = ({ mobileOpen, onMobileToggle, collapsed: collapsedProp, 
   const isStaff = role === 3;
 
 const profileName = String(
-  role === 4
+  role === USER_ROLES.VEHICLE_AGENT
+    ? "DVI Demo Itinerary Agent"
+    : role === USER_ROLES.AGENT
     ? "DVI Demo Agent"
     : user?.name ||
       user?.fullName ||
@@ -194,7 +197,9 @@ const profileRoleLabel =
     ? "Super Admin"
     : isStaff
       ? "Staff"
-      : role === 4
+        : role === USER_ROLES.VEHICLE_AGENT
+        ? "Itinerary Agent"
+        : role === USER_ROLES.AGENT
         ? "Agent"
         : "User";
 
@@ -203,7 +208,7 @@ const profileInitial =
 
   useEffect(() => {
     const loadSidebarWallet = async () => {
-      if (role !== 4) return;
+      if (role !== USER_ROLES.AGENT) return;
 
       try {
         const agentId = getAgentId();
@@ -230,7 +235,19 @@ const profileInitial =
 
   const roleFilteredMenuItems = menuItems.filter(
     (item) => {
-  if (role === 4) {
+  if (role === USER_ROLES.VEHICLE_AGENT) {
+    return [
+      "dashboard",
+      "create-itinerary",
+      "latest-itinerary",
+      "confirmed-itinerary",
+      "staff",
+      "wallet",
+      "subscription-history",
+    ].includes(item.id);
+  }
+
+  if (role === USER_ROLES.AGENT) {
     return [
       "dashboard",
       "create-itinerary",
@@ -345,7 +362,7 @@ const profileInitial =
       </nav>
 
       {/* AGENT WALLET */}
-      {role === 4 && !collapsed && (
+      {role === USER_ROLES.AGENT && !collapsed && (
         <div className="px-4 py-3 border-t">
           <div className="bg-gray-100 rounded-lg p-3 flex items-center gap-3">
             <Wallet className="text-yellow-500" />

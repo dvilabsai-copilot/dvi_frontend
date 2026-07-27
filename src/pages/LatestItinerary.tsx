@@ -36,6 +36,7 @@ import { Calendar } from "@/components/ui/calendar";
 
 import { ItineraryService } from "@/services/itinerary";
 import { getToken } from "@/lib/api";
+import { USER_ROLES } from "@/constants/systemRoles";
 
 // ------------------------------------------------------------------
 // small local util (no date-fns)
@@ -70,10 +71,11 @@ export const LatestItinerary = () => {
   const token = getToken();
   const loggedInUser = token ? parseJwt(token) : null;
 
-  const role = Number(loggedInUser?.role ?? 0);
+  const role = Number(loggedInUser?.roleID ?? loggedInUser?.role ?? 0);
   const staffId = Number(loggedInUser?.staffId ?? 0);
 
   const isAgent = role === 4;
+  const isVehicleAgent = role === USER_ROLES.VEHICLE_AGENT;
   const isAccounts = role === 6;
 
   const isTravelExpert =
@@ -140,6 +142,7 @@ export const LatestItinerary = () => {
   // Fetch filter options on mount
   useEffect(() => {
     const fetchFilterData = async () => {
+      if (isVehicleAgent) return;
       try {
         const [agentsData, locationsData] = await Promise.all([
           ItineraryService.getLatestAgents(),
@@ -164,7 +167,7 @@ export const LatestItinerary = () => {
     };
 
     fetchFilterData();
-  }, []);
+  }, [isVehicleAgent]);
 
   // fetch whenever deps change
   useEffect(() => {
@@ -226,8 +229,12 @@ export const LatestItinerary = () => {
         }
       };
 
+      const visibleRows = isVehicleAgent
+        ? (res?.data ?? []).filter((r: any) => Number(r.itinerary_preference ?? 0) === 2)
+        : (res?.data ?? []);
+
       const mapped =
-        (res?.data ?? []).map((r: any) => {
+        visibleRows.map((r: any) => {
           const quoteId =
             r.itinerary_quote_ID || r.itinerary_booking_ID || "";
 
@@ -274,6 +281,7 @@ export const LatestItinerary = () => {
     filters.staffId,
     filters.startDate,
     filters.endDate,
+    isVehicleAgent,
   ]);
 
   const totalPages =

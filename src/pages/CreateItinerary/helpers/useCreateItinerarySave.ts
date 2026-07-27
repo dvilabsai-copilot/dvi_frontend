@@ -581,9 +581,11 @@ const continueToRouteConfirmation = () => {
     const payload = buildPayload();
     setPendingPayload(payload);
 
-    // Transport Only early-arrival handling is an inline preference. It must
-    // not open the hotel previous-day billing modal or create hotel rows/costs.
-    if (itineraryPreference === "vehicle" && requiresTransportEarlyArrivalPreference) {
+    // Vehicle-only plans do not have a hotel stay. Never call the hotel arrival
+    // policy for this preference: besides being unnecessary, that endpoint can
+    // reject vehicle-agent requests as hotel mutations. Early vehicle arrivals
+    // are handled by the transport-only inline preference and backend guard.
+    if (itineraryPreference === "vehicle") {
       continueToRouteConfirmation();
       return;
     }

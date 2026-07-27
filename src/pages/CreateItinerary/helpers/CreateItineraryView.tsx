@@ -20,7 +20,7 @@ import { splitViaString } from "./itineraryUtils";
 
 export const CreateItineraryView = ({ context }: { context: Record<string, any> }) => {
   const {
-    agents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
+    agents, agentId, setAgentId, isAgentLogin, isVehicleAgentLogin, loggedInAgentId, locations,
     arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
     itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
     itineraryPreference, setItineraryPreference, travelTypes, arrivalType, setArrivalType,
@@ -68,6 +68,7 @@ export const CreateItineraryView = ({ context }: { context: Record<string, any> 
         agentId={agentId}
         setAgentId={setAgentId}
         isAgentLocked={Boolean(isAgentLogin && loggedInAgentId)}
+        isVehicleAgent={Boolean(isVehicleAgentLogin)}
         locations={locations}
         arrivalLocation={arrivalLocation}
         setArrivalLocation={setArrivalLocation}

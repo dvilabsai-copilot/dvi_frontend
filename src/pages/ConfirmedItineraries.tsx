@@ -12,6 +12,8 @@ import { Eye, ChevronLeft, ChevronRight, Calendar as CalendarIcon, XCircle } fro
 import { ItineraryService } from '@/services/itinerary';
 import { toast } from 'sonner';
 import { CancelItineraryModal } from '@/components/modals/CancelItineraryModal';
+import { getAuthenticatedRoleId, getAuthenticatedUser } from '@/services/accessControl';
+import { USER_ROLES } from '@/constants/systemRoles';
 
 // Utility function to format dates
 function formatToDDMMYYYY(date: Date | undefined) {
@@ -37,6 +39,7 @@ interface ConfirmedItinerary {
   days: number;
   created_on: string;
   created_by: number;
+  itinerary_preference?: number;
 }
 
 interface Agent {
@@ -51,6 +54,7 @@ interface Location {
 }
 
 export const ConfirmedItineraries: React.FC = () => {
+  const isVehicleAgent = getAuthenticatedRoleId(getAuthenticatedUser()) === USER_ROLES.VEHICLE_AGENT;
   const [itineraries, setItineraries] = useState<ConfirmedItinerary[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -102,7 +106,10 @@ export const ConfirmedItineraries: React.FC = () => {
         search: debouncedSearch || undefined,
       });
 
-      setItineraries(response.data);
+      const visibleData = isVehicleAgent
+        ? response.data.filter((item: ConfirmedItinerary) => Number(item.itinerary_preference) === 2)
+        : response.data;
+      setItineraries(visibleData);
       setTotalRecords(response.recordsTotal);
       setFilteredRecords(response.recordsFiltered);
     } catch (error: unknown) {
@@ -111,9 +118,10 @@ export const ConfirmedItineraries: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, filters, debouncedSearch]);
+  }, [currentPage, pageSize, filters, debouncedSearch, isVehicleAgent]);
 
   const fetchFilterData = async () => {
+    if (isVehicleAgent) return;
     try {
       const [agentsData, locationsData] = await Promise.all([
         ItineraryService.getConfirmedAgents(),
@@ -130,7 +138,7 @@ export const ConfirmedItineraries: React.FC = () => {
 
   useEffect(() => {
     fetchFilterData();
-  }, []);
+  }, [isVehicleAgent]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchItineraries(), 0);
@@ -466,7 +474,7 @@ export const ConfirmedItineraries: React.FC = () => {
     <Eye className="h-4 w-4 text-[#d546ab]" />
   </Button>
 </Link>
-                              <Button
+                              {!isVehicleAgent && <Button
                                 size="sm"
                                 variant="ghost"
                                 className="h-8 w-8 p-0"
@@ -477,7 +485,7 @@ export const ConfirmedItineraries: React.FC = () => {
                                 }}
                               >
                                 <XCircle className="h-4 w-4 text-red-500" />
-                              </Button>
+                              </Button>}
                             </div>
                           </TableCell>
                           <TableCell>{itinerary.agent_name}</TableCell>
