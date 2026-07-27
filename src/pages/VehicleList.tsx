@@ -358,6 +358,7 @@ export type VehicleListProps = {
   vehicleTypeLabel: string;
   vehicles: ItineraryVehicleRow[];
   selectedVendorEligibleId?: number | null;
+  assignedVendorEligibleIds?: number[];
   itineraryPlanId?: number;
   onRefresh?: () => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
@@ -371,6 +372,7 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   vehicleTypeLabel,
   vehicles,
   selectedVendorEligibleId: backendSelectedVendorEligibleId,
+  assignedVendorEligibleIds = [],
   itineraryPlanId,
   onRefresh,
   dateRange,
@@ -848,6 +850,7 @@ const totalRows = [
        showVehicleOriginTooltipFromFocus,
     selectedVendorEligibleId:
       optimisticSelectedVendorEligibleId,
+    assignedVendorEligibleIds,
     carouselIndex,
     handleCarouselPrevious,
     handleCarouselNext,

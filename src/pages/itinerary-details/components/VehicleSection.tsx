@@ -105,6 +105,8 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
 
         const selectedVendorEligibleId =
           backendSelection?.selectedVendorEligibleId ?? null;
+        const assignedVendorEligibleIds =
+          backendSelection?.assignedVendorEligibleIds ?? [];
 
         const vehicleTypeLabel =
           sortedVehicles[0]?.vehicleTypeName ||
@@ -117,6 +119,7 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
             vehicleTypeLabel={vehicleTypeLabel}
             vehicles={sortedVehicles}
             selectedVendorEligibleId={selectedVendorEligibleId}
+            assignedVendorEligibleIds={assignedVendorEligibleIds}
             itineraryPlanId={planId}
             onRefresh={onRefresh}
             dateRange={dateRange}
