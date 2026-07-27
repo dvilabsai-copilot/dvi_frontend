@@ -38,6 +38,18 @@ type ApiOptions = {
   cache?: RequestCache; // fetch cache option for cache-busting
 };
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly payload: unknown;
+
+  constructor(message: string, status: number, payload: unknown = null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 /** Token helpers */
 export function getToken() {
   return localStorage.getItem("accessToken") || "";
@@ -101,13 +113,15 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     if (res.status === 401 && auth) {
       clearToken();
       window.location.href = '/login';
-      throw new Error('Session expired. Please login again.');
+      throw new ApiError('Session expired. Please login again.', res.status);
     }
 
     const text = await res.text().catch(() => "");
     let message = text;
+    let payload: unknown = null;
     try {
       const parsed = JSON.parse(text);
+      payload = parsed;
       const apiMessage = parsed?.message;
       const redirectTo =
         parsed && typeof parsed === "object" && typeof parsed.redirectTo === "string"
@@ -133,8 +147,10 @@ export async function api(path: string, opts: ApiOptions = {} ) {
     } catch {
       // Keep the raw response when it is not JSON.
     }
-    throw new Error(
-      message || `API ${method} ${url} failed: ${res.status} ${res.statusText}`
+    throw new ApiError(
+      message || `API ${method} ${url} failed: ${res.status} ${res.statusText}`,
+      res.status,
+      payload,
     );
   }
 
