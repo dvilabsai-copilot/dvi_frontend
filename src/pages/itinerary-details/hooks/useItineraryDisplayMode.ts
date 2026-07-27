@@ -10,16 +10,19 @@ export function useItineraryDisplayMode(
   const itineraryPreference = Number(itinerary?.itineraryPreference ?? 0);
   const shouldShowHotels = itineraryPreference === 1 || itineraryPreference === 3;
   const shouldShowVehicles = itineraryPreference === 2 || itineraryPreference === 3;
+  const isVehicleOnlyItinerary = shouldShowVehicles && !shouldShowHotels;
 
   return {
     isConfirmedItinerary,
     canViewCostBreakdown: canViewItineraryCostBreakdown(),
     isAgentLogin: getAuthenticatedRole() === 4,
-    hotelReadOnly: Boolean(readOnly || isConfirmedItinerary),
+    // Vehicle-only plans retain the check-in label for itinerary context, but
+    // never expose hotel editing or room-category controls to any role.
+    hotelReadOnly: Boolean(readOnly || isConfirmedItinerary || isVehicleOnlyItinerary),
     isConfirmedPresentation: presentationMode === "confirmed" || Boolean(readOnly || isConfirmedItinerary),
     shouldShowHotels,
     shouldShowVehicles,
-    isVehicleOnlyItinerary: shouldShowVehicles && !shouldShowHotels,
+    isVehicleOnlyItinerary,
     requiresHotelBookingFlow: shouldShowHotels,
   };
 }
