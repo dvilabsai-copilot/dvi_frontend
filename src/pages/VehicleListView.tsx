@@ -13,7 +13,6 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
        showVehicleOriginTooltipFromFocus,
     selectedVendorEligibleId,
-    assignedVendorEligibleIds = [],
     carouselIndex,
     handleCarouselPrevious,
     handleCarouselNext,
@@ -67,11 +66,6 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
         </h5>
         {dateRange && (
           <span className="text-sm text-gray-600">{dateRange}</span>
-        )}
-        {assignedVendorEligibleIds.length > 0 && (
-          <span className="text-sm font-medium text-green-700">
-            Assigned vehicles: {assignedVendorEligibleIds.length}
-          </span>
         )}
       </div>
 
@@ -128,10 +122,6 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
                   : `type-${vehicleTypeId ?? vehicleTypeLabel}-index-${index}`;
               const radioId = `vehicle_${vehicleTypeId ?? "type"}_${v.vendorEligibleId ?? index}`;
               const qty = parseInt(String(v.totalQty || "1"), 10) || 1;
-              const isBackendAssigned = assignedVendorEligibleIds.some(
-                (id: number) => Number(id) === Number(v.vendorEligibleId || 0),
-              );
-
 const subtotalVehicle = readVehicleSubtotal(v);
 const gstPercentage = readVehicleGstPercentage(v);
 const gstAmount = readVehicleGstAmount(v);
@@ -169,11 +159,6 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                           className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
                         />
                         ) : null}
-                        {isBackendAssigned && (
-                          <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-800">
-                            Assigned
-                          </span>
-                        )}
                       </td>
                     {showVendorDetails && <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>}
                     {showVendorDetails && <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>}
