@@ -11,6 +11,7 @@ import { SpecialInstructionsSection } from "./SpecialInstructionsSection";
 import { VehicleSection } from "./VehicleSection";
 import { VehicleUnavailableState } from "./VehicleUnavailableState";
 import { TransportEarlyArrivalPreferenceDialog } from "./TransportEarlyArrivalPreferenceDialog";
+import { VehicleBuildErrorState } from "./VehicleBuildErrorState";
 
 type Props = {
   isConfirmedPresentation: boolean;
@@ -26,6 +27,7 @@ type Props = {
   summaryStickyHeight: number;
   shouldShowHotels: boolean;
   loadingHotels: boolean;
+  hotelError: string | null;
   hotelDetailsPresent: boolean;
   hotelList: ComponentProps<typeof ItineraryHotelListSection>;
   shouldShowVehicles: boolean;
@@ -33,6 +35,7 @@ type Props = {
   hasVehicles: boolean;
   vehicleSection: ComponentProps<typeof VehicleSection>;
   vehicleUnavailable: ComponentProps<typeof VehicleUnavailableState>;
+  vehicleRecovery: ComponentProps<typeof VehicleBuildErrorState> | null;
   incidentalHistory: { planId: number; refreshToken: number } | null;
   packageIncludes: ComponentProps<typeof PackageIncludesCard>["packageIncludes"];
   cost: ComponentProps<typeof ItineraryOverallCost>;
@@ -50,6 +53,7 @@ export function ItineraryDetailsTravelSections({
   summaryStickyHeight,
   shouldShowHotels,
   loadingHotels,
+  hotelError,
   hotelDetailsPresent,
   hotelList,
   shouldShowVehicles,
@@ -57,6 +61,7 @@ export function ItineraryDetailsTravelSections({
   hasVehicles,
   vehicleSection,
   vehicleUnavailable,
+  vehicleRecovery,
   incidentalHistory,
   packageIncludes,
   cost,
@@ -75,7 +80,13 @@ export function ItineraryDetailsTravelSections({
       <ItineraryDaysSection context={daysContext} />
       <SpecialInstructionsSection text={specialInstructionsText} />
       {shouldShowHotels && loadingHotels && <HotelListLoadingState hotelListRef={hotelListRef} summaryStickyHeight={summaryStickyHeight} />}
+      {shouldShowHotels && !loadingHotels && hotelError && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Hotel data could not be loaded: {hotelError}
+        </div>
+      )}
       {shouldShowHotels && !loadingHotels && hotelDetailsPresent && <ItineraryHotelListSection {...hotelList} />}
+      {vehicleRecovery}
       {shouldShowVehicles && vehicleBuildStatus === "READY" && hasVehicles && <VehicleSection {...vehicleSection} />}
       {shouldShowVehicles && vehicleBuildStatus === "READY" && !hasVehicles && <VehicleUnavailableState {...vehicleUnavailable} />}
       {isConfirmedPresentation && incidentalHistory && (

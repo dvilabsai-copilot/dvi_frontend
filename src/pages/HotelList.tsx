@@ -34,6 +34,7 @@ import { HotelListTable } from "./hotel-list/HotelListTable";
 import { useHotelListActions } from "./hotel-list/useHotelListActions";
 import { HotelListDialogs } from "./hotel-list/HotelListDialogs";
 import { MealPlanCell } from "./hotel-list/MealPlanCell";
+import { getInitialHotelGroupType } from "./hotel-list/initialHotelGroupType";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -394,15 +395,9 @@ const getExpandedRouteId = (): number => {
 
   // Initialise active tab from backend groups
   useEffect(() => {
-    if (!activeGroupType && hotelTabs && hotelTabs.length > 0) {
-      const initialGroupType = toNumber(hotelTabs[0].groupType, 1);
-      setActiveGroupType(initialGroupType);
-      // Notify parent of initial group type
-      if (onGroupTypeChange) {
-        onGroupTypeChange(initialGroupType);
-      }
-    }
-  }, [activeGroupType, hotelTabs, onGroupTypeChange]);
+    const initialGroupType = getInitialHotelGroupType(activeGroupType, hotelTabs);
+    if (initialGroupType && !activeGroupType) setActiveGroupType(initialGroupType);
+  }, [activeGroupType, hotelTabs]);
 
   // Keep local switch in sync if backend changes
   useEffect(() => {

@@ -485,6 +485,18 @@ export type ItineraryPlanRouteOption = {
   quote_id?: string;
 };
 
+export type VehiclePricingStateStatus = "READY" | "FAILED" | "NOT_REQUIRED" | "RECOVERY_REQUIRED";
+
+export type VehiclePricingState = {
+  status: VehiclePricingStateStatus;
+  requestedVehicleTypeCount: number;
+  usableVehicleDetailCount: number;
+  selectedVehicleTypeCount: number;
+  requiredSelectionCount: number;
+  buildRunId?: string;
+  failureReason?: string;
+};
+
 export type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
@@ -531,6 +543,7 @@ days: ItineraryDay[];
 
   // VEHICLES
   vehicles: ItineraryVehicleRow[];
+  vehiclePricingState: VehiclePricingState;
   vehicleRateAvailability?: Array<{
     vehicleTypeId: number;
     vehicleTypeName: string;

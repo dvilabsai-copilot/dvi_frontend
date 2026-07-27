@@ -49,6 +49,7 @@ import DriverFormPage from "./pages/drivers/DriverFormPage";
 import DriverViewPage from "./pages/drivers/DriverViewPage";
 import VehicleAvailabilityPage from "./pages/vehicle-availability/VehicleAvailabilityPage";
 import { ItineraryDetailsRouter } from "./pages/ItineraryDetailsRouter";
+import { ConfirmedItineraryDetails } from "./pages/ConfirmedItineraryDetails";
 import HotspotList from "./pages/hotspot/HotspotList";
 import HotspotForm from "./pages/hotspot/HotspotForm";
 import HotspotPreview from "./pages/hotspot/HotspotPreview";
@@ -78,7 +79,6 @@ import SubscriptionHistory from "./pages/agent/SubscriptionHistory";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import DownloadPackages from "./pages/agent/DownloadPackages";
 import PdfPreviewPage from "./pages/PdfPreviewPage";
-
 import PricebookExportPage from "./pages/pricebook-export/PricebookExportPage";
 import { GlobalSettingsPage } from "./pages/Settings/GlobalSettings";
 import { CitiesPage } from "./pages/Settings/cities/Citiespage";
@@ -92,6 +92,11 @@ import { RolePermissionListPage } from "./pages/Settings/RolePermission/RolePerm
 import { AgentSubscriptionPlanFormPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanFormPage";
 import { AgentSubscriptionPlanListPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanListPage";
 import { AgentSubscriptionPlanPreviewPage } from "./pages/Settings/agent-subscription-plan/AgentSubscriptionPlanPreviewPage";
+
+function ConfirmedItineraryRoute() {
+  const { id } = useParams<{ id: string }>();
+  return <ConfirmedItineraryDetails confirmedPlanId={Number(id)} />;
+}
 
 // ── Deep-link helpers: /hotels/:id/<tab> → /hotels/:id/edit?tab=<tab> ──
 const RoomsRedirect = () => {
@@ -301,7 +306,7 @@ const App = () => (
               path="/confirmed-itinerary/:id"
               element={
                 <MainLayout>
-                  <ItineraryDetailsRouter />
+                  <ConfirmedItineraryRoute />
                 </MainLayout>
               }
             />
