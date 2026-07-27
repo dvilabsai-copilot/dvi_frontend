@@ -42,26 +42,49 @@ export function useHotelSelectionState() {
     const [selectedHotels, setSelectedHotels] = useState<{ [key: string]: boolean }>({});
     const [activeHotelGroupType, setActiveHotelGroupType] = useState<number | null>(null);
     const [activeHotelListTotal, setActiveHotelListTotal] = useState<number>(0);
-    const [activeHotelListPriceBreakdown, setActiveHotelListPriceBreakdown] = useState({
-      totalAmount: 0,
-      baseAmount: 0,
-      marginAmount: 0,
-    });
-    const [selectedVehicleTotalsByType, setSelectedVehicleTotalsByType] = useState<
-      Record<number, { totalAmount: number; totalQty: number }>
-    >({});
-  const summaryStickyRef = useRef<HTMLDivElement | null>(null);
+ const [activeHotelListPriceBreakdown, setActiveHotelListPriceBreakdown] =
+  useState({
+    totalAmount: 0,
+    baseAmount: 0,
+    marginAmount: 0,
+  });
+
+const [
+  selectedVehicleTotalsByType,
+  setSelectedVehicleTotalsByType,
+] = useState<
+  Record<
+    number,
+    {
+      totalAmount: number;
+      totalQty: number;
+    }
+  >
+>({});
+
+const summaryStickyRef =
+  useRef<HTMLDivElement | null>(null);
   const hotelListRef = useRef<HTMLDivElement | null>(null);
   const vehicleListRef = useRef<HTMLDivElement | null>(null);
   const [isRoomCostPopoverOpen, setIsRoomCostPopoverOpen] = useState(false);
   const [summaryStickyHeight, setSummaryStickyHeight] = useState(0);
   const [hotelPageByGroupRoute, setHotelPageByGroupRoute] = useState<Record<string, number>>({});
   const [isLoadingMoreHotels, setIsLoadingMoreHotels] = useState(false);
-  return {
-    selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
-    activeHotelGroupType, setActiveHotelGroupType, activeHotelListTotal, setActiveHotelListTotal,
-    activeHotelListPriceBreakdown, setActiveHotelListPriceBreakdown,
-    selectedVehicleTotalsByType, setSelectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
+return {
+  selectedHotelBookings,
+  setSelectedHotelBookings,
+  selectedHotels,
+  setSelectedHotels,
+  activeHotelGroupType,
+  setActiveHotelGroupType,
+  activeHotelListTotal,
+  setActiveHotelListTotal,
+  activeHotelListPriceBreakdown,
+  setActiveHotelListPriceBreakdown,
+  selectedVehicleTotalsByType,
+  setSelectedVehicleTotalsByType,
+  isRoomCostPopoverOpen,
+  setIsRoomCostPopoverOpen,
     summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight, setSummaryStickyHeight,
     hotelPageByGroupRoute, setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
   };

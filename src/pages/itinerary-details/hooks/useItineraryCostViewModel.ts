@@ -5,7 +5,10 @@ import { useHotelsForDisplay } from "./useHotelsForDisplay";
 import { useFinancialTotals } from "./useFinancialTotals";
 import { useHotelHydratedDays } from "./useHotelHydratedDays";
 import { useDisplayItineraryDays } from "./useDisplayItineraryDays";
-import type { RouteStateSnapshot, HotelSelectionStateSnapshot } from "./useItineraryCostViewModel.types";
+import type {
+  RouteStateSnapshot,
+  HotelSelectionStateSnapshot,
+} from "./useItineraryCostViewModel.types";
 
 type ItineraryCostViewModelArgs = {
   itinerary: RouteStateSnapshot["itinerary"];
@@ -15,8 +18,6 @@ type ItineraryCostViewModelArgs = {
   activeHotelGroupType: HotelSelectionStateSnapshot["activeHotelGroupType"];
   shouldShowHotels: boolean;
   shouldShowVehicles: boolean;
-  selectedVehicleTotalsByType: HotelSelectionStateSnapshot["selectedVehicleTotalsByType"];
-  hasRequiredVehicleSelection: boolean;
 };
 
 export function useItineraryCostViewModel({
@@ -27,15 +28,17 @@ export function useItineraryCostViewModel({
   activeHotelGroupType,
   shouldShowHotels,
   shouldShowVehicles,
-  selectedVehicleTotalsByType,
-  hasRequiredVehicleSelection,
 }: ItineraryCostViewModelArgs) {
-  const { selectedHotelTotal, selectedHotelMetaByRoute } = useSelectedHotelSummary({
+  const {
+    selectedHotelTotal,
+    selectedHotelMetaByRoute,
+  } = useSelectedHotelSummary({
     selectedHotelBookings,
     hotelDetails,
     activeHotelGroupType,
     roomCount: itinerary?.roomCount,
   });
+
   const roomBreakdownRoomNights = useRoomBreakdownNights({
     hotelDetails,
     activeHotelGroupType,
@@ -44,12 +47,18 @@ export function useItineraryCostViewModel({
     roomCount: itinerary?.roomCount,
     selectedHotelBookings,
   });
-  const { computedVehicleAmount, computedVehicleQty } = useComputedVehicleTotals({
+
+  const {
+    computedVehicleAmount,
+    computedVehicleQty,
+   } = useComputedVehicleTotals({
     shouldShowVehicles,
-    selectedVehicleTotalsByType,
     costBreakdown: itinerary?.costBreakdown,
   });
-  const entryTicketBreakdownByLocation = itinerary?.costBreakdown?.entryTicketBreakdown || [];
+
+  const entryTicketBreakdownByLocation =
+    itinerary?.costBreakdown?.entryTicketBreakdown || [];
+
   const hotelsForDisplay = useHotelsForDisplay({
     hotelDetails,
     itineraryDays: itinerary?.days,
@@ -58,13 +67,24 @@ export function useItineraryCostViewModel({
     activeHotelGroupType,
     hotelReadOnly,
   });
+
   const financialTotals = useFinancialTotals({
     costBreakdown: itinerary?.costBreakdown,
     overallCost: itinerary?.overallCost,
   });
-  const effectiveEntryTicketAmount = itinerary?.costBreakdown?.totalHotspotCost || 0;
-  const hotelHydratedDays = useHotelHydratedDays({ itineraryDays: itinerary?.days, selectedHotelMetaByRoute });
-  const displayDays = useDisplayItineraryDays({ hotelHydratedDays, itineraryDays: itinerary?.days });
+
+  const effectiveEntryTicketAmount =
+    itinerary?.costBreakdown?.totalHotspotCost || 0;
+
+  const hotelHydratedDays = useHotelHydratedDays({
+    itineraryDays: itinerary?.days,
+    selectedHotelMetaByRoute,
+  });
+
+  const displayDays = useDisplayItineraryDays({
+    hotelHydratedDays,
+    itineraryDays: itinerary?.days,
+  });
 
   return {
     selectedHotelTotal,

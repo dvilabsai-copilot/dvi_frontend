@@ -14,26 +14,46 @@ export type FinancialTotals = {
   additionalMargin: number;
 };
 
-/** Renders the last successful backend pricing response; it never recalculates totals. */
+/**
+ * Displays totals from the latest successful backend pricing response.
+ * The frontend must not independently recalculate quotation totals.
+ */
 export const useFinancialTotals = ({
   costBreakdown,
   overallCost,
-}: FinancialTotalsOptions): FinancialTotals => useMemo(() => {
-  const readMoney = (value: unknown): number => {
-    const amount = Number(value ?? 0);
-    return Number.isFinite(amount) ? amount : 0;
-  };
+}: FinancialTotalsOptions): FinancialTotals =>
+  useMemo(() => {
+    const readMoney = (value: unknown): number => {
+      const amount = Number(value ?? 0);
+      return Number.isFinite(amount) ? amount : 0;
+    };
 
-  const hotelAmount = readMoney(costBreakdown?.totalHotelAmount ?? costBreakdown?.totalRoomCost);
-  const totalAmount = readMoney(costBreakdown?.totalAmount);
-  const netPayable = readMoney(costBreakdown?.netPayable ?? overallCost);
+    const hotelAmount = readMoney(
+      costBreakdown?.totalHotelAmount ??
+        costBreakdown?.totalRoomCost
+    );
 
-  return {
-    hotelAmount,
-    totalAmount: totalAmount || netPayable,
-    netPayable,
-    totalRoundOff: readMoney(costBreakdown?.totalRoundOff),
-    agentMargin: readMoney(costBreakdown?.agentMargin),
-    additionalMargin: readMoney(costBreakdown?.additionalMargin),
-  };
-}, [costBreakdown, overallCost]);
+    const totalAmount = readMoney(
+      costBreakdown?.totalAmount
+    );
+
+    const netPayable = readMoney(
+      costBreakdown?.netPayable ??
+        overallCost
+    );
+
+    return {
+      hotelAmount,
+      totalAmount: totalAmount || netPayable,
+      netPayable,
+      totalRoundOff: readMoney(
+        costBreakdown?.totalRoundOff
+      ),
+      agentMargin: readMoney(
+        costBreakdown?.agentMargin
+      ),
+      additionalMargin: readMoney(
+        costBreakdown?.additionalMargin
+      ),
+    };
+  }, [costBreakdown, overallCost]);

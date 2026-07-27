@@ -6,6 +6,24 @@ import type {
   MatrixPreferredSlotPayload,
 } from "./itinerary";
 
+export type VehicleSelectionApiResponse = {
+  vehicleTypeId: number;
+  selectedVendorEligibleId: number | null;
+  assignedVendorEligibleIds: number[];
+  selectionSource: "auto" | "manual";
+};
+
+export type SelectVehicleVendorResponse = {
+  success: boolean;
+  message: string;
+  vehicleTypeId: number;
+  selectedVendorEligibleId: number | null;
+  assignedVendorEligibleIds: number[];
+  selectionSource: "auto" | "manual";
+  costBreakdown?: Record<string, unknown>;
+  vehicleSelections?: VehicleSelectionApiResponse[];
+};
+
 export const itineraryRouteActions = {
   async deleteHotspot(planId: number, routeId: number, hotspotId: number) {
     return api(`itineraries/hotspot/${planId}/${routeId}/${hotspotId}`, { method: "DELETE" });
@@ -251,8 +269,19 @@ export const itineraryRouteActions = {
     return api("itineraries/hotels/select", { method: "POST", body: { planId, routeId, hotelId, roomTypeId, mealPlan, groupType, ...selection } });
   },
 
-  async selectVehicleVendor(planId: number, vehicleTypeId: number, vendorEligibleId: number) {
-    return api("itineraries/vehicles/select-vendor", { method: "POST", body: { planId, vehicleTypeId, vendorEligibleId } });
+  async selectVehicleVendor(
+    planId: number,
+    vehicleTypeId: number,
+    vendorEligibleId: number,
+  ): Promise<SelectVehicleVendorResponse> {
+    return api("itineraries/vehicles/select-vendor", {
+      method: "POST",
+      body: {
+        planId,
+        vehicleTypeId,
+        vendorEligibleId,
+      },
+    }) as Promise<SelectVehicleVendorResponse>;
   },
 
   async selectVehicleSlab(planId: number, vehicleTypeId: number, vendorEligibleId: number, timeLimitId: number) {
