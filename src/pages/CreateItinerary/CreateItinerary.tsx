@@ -87,8 +87,10 @@ import {
 import { USER_ROLES } from "@/constants/systemRoles";
 import {
   getEffectiveItineraryPreference,
+  isVehicleAgentRole,
   isVehicleAgentUser,
 } from "@/services/vehicleAgentPolicy";
+import { getVisibleAgentOptions } from "./agentOptionVisibility";
 
 // ----------------- types -----------------
 
@@ -156,6 +158,18 @@ export const CreateItinerary = () => {
     }
   }, [isVehicleAgentLogin, itineraryPreference]);
   const [agentId, setAgentId] = useState<number | null>(null);
+  const visibleAgents = useMemo(
+    () => getVisibleAgentOptions(agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId),
+    [agents, effectiveItineraryPreference, isAgentLogin, loggedInAgentId],
+  );
+
+  useEffect(() => {
+    if (effectiveItineraryPreference === "vehicle" || !agentId) return;
+    const selectedAgent = agents.find((agent) => Number(agent.id) === Number(agentId));
+    if (selectedAgent && isVehicleAgentRole(selectedAgent.roleID)) {
+      setAgentId(null);
+    }
+  }, [agentId, agents, effectiveItineraryPreference]);
 
   const [arrivalLocation, setArrivalLocation] = useState("");
   const [departureLocation, setDepartureLocation] = useState("");
@@ -776,7 +790,7 @@ const extractRouteFamilyBaseQuoteId = (response: any, quoteId?: string): string 
   return (
     <CreateItineraryView
       context={{
-        agents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
+        agents: visibleAgents, agentId, setAgentId, isAgentLogin, loggedInAgentId, locations,
         arrivalLocation, setArrivalLocation, departureLocation, setDepartureLocation,
         itineraryTypes, itineraryTypeSelect, setItineraryTypeSelect,
         itineraryPreference: effectiveItineraryPreference, setItineraryPreference: setItineraryPreferenceForRole,

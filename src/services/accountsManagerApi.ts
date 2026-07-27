@@ -69,6 +69,7 @@ export interface QuoteOption {
 export interface AgentOption {
   id: number;
   name: string;
+  roleID?: number | null;
 }
 
 export interface PaymentModeOption {
@@ -207,6 +208,7 @@ export async function fetchAgents(
       return {
         id: Number(agent.agent_ID || agent.id || agent.agent_id),
         name: displayName || "Agent",
+        roleID: Number(agent.roleID ?? agent.role_id ?? agent.user?.roleID ?? 0) || null,
       };
     })
     .filter((agent) => Number.isFinite(agent.id) && agent.id > 0);
