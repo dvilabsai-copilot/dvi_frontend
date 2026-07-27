@@ -259,13 +259,21 @@ const location = useLocation();
 
   // Hotel Selection State (Multi-Provider)
   const hotelSelectionState = useHotelSelectionState();
-  const {
-    selectedHotelBookings, setSelectedHotelBookings, selectedHotels, setSelectedHotels,
-    activeHotelGroupType, setActiveHotelGroupType,
-    activeHotelListTotal, setActiveHotelListTotal,
-    selectedVehicleTotalsByType, isRoomCostPopoverOpen, setIsRoomCostPopoverOpen,
-    summaryStickyRef, hotelListRef, vehicleListRef, summaryStickyHeight,
-    setHotelPageByGroupRoute, isLoadingMoreHotels, setIsLoadingMoreHotels,
+   const {
+    selectedHotelBookings,
+    setSelectedHotelBookings,
+    selectedHotels,
+    setSelectedHotels,
+    activeHotelGroupType,
+    setActiveHotelGroupType,
+    setActiveHotelListTotal,
+    summaryStickyRef,
+    hotelListRef,
+    vehicleListRef,
+    summaryStickyHeight,
+    setHotelPageByGroupRoute,
+    isLoadingMoreHotels,
+    setIsLoadingMoreHotels,
   } = hotelSelectionState;
   const hotelPageWorkflow = useItineraryHotelPageWorkflow({
     itinerary,
@@ -277,7 +285,13 @@ const location = useLocation();
     setIsLoadingMoreHotels,
     setHotelPageByGroupRoute,
   });
-  const { scrollToHotelList, scrollToVehicleList, itineraryPreference, hasRequiredVehicleSelection, canConfirmQuotation, handleHotelLoadMore } = hotelPageWorkflow;
+  const {
+  scrollToHotelList,
+  scrollToVehicleList,
+  itineraryPreference,
+  canConfirmQuotation,
+  handleHotelLoadMore,
+} = hotelPageWorkflow;
 
   const {
     fetchCompleteHotelDetails,
@@ -289,17 +303,15 @@ const location = useLocation();
     dedupeHotelRows: dedupeItineraryHotelRows,
   });
 
-  const costViewModel = useItineraryCostViewModel({
-    itinerary,
-    hotelDetails,
-    hotelReadOnly,
-    selectedHotelBookings,
-    activeHotelGroupType,
-    shouldShowHotels,
-    shouldShowVehicles,
-    selectedVehicleTotalsByType,
-    hasRequiredVehicleSelection,
-  });
+const costViewModel = useItineraryCostViewModel({
+  itinerary,
+  hotelDetails,
+  hotelReadOnly,
+  selectedHotelBookings,
+  activeHotelGroupType,
+  shouldShowHotels,
+  shouldShowVehicles,
+});
   const {
     selectedHotelMetaByRoute,
     roomBreakdownRoomNights,
@@ -440,7 +452,10 @@ const handleOpenVoucher = () => {
     cacheRouteHotelDetails,
     isSupplierBookableHotel,
   });
-  const { handleVehicleSelectedTotalChange, shouldShowRebuildHotelsButton, loadPreparedItineraryPage } = preparedPageWorkflow;
+    const {
+    shouldShowRebuildHotelsButton,
+    loadPreparedItineraryPage,
+  } = preparedPageWorkflow;
 
   /**
    * ⚡ Lazy-load hotel details when needed (e.g., when user opens hotel selection)
@@ -870,7 +885,21 @@ handleDownloadInvoice,
         shouldShowVehicles,
         vehicleBuildStatus,
         hasVehicles: Boolean((itinerary.vehicles && itinerary.vehicles.length) || (itinerary.vehicleRateAvailability && itinerary.vehicleRateAvailability.length)),
-        vehicleSection: { vehicleListRef, summaryStickyHeight, vehicles: itinerary.vehicles, vehicleRateAvailability: itinerary.vehicleRateAvailability, planId: itinerary.planId, dateRange: itinerary.dateRange, days: itinerary.days || [], canViewCostBreakdown, showVendorDetails: !isAgentLogin, onRefresh: refreshVehicleData, onSelectedTotalChange: handleVehicleSelectedTotalChange },
+       vehicleSection: {
+  vehicleListRef,
+  summaryStickyHeight,
+  vehicles: itinerary.vehicles,
+  vehicleSelections:
+    itinerary.vehicleSelections || [],
+  vehicleRateAvailability:
+    itinerary.vehicleRateAvailability,
+  planId: itinerary.planId,
+  dateRange: itinerary.dateRange,
+  days: itinerary.days || [],
+  canViewCostBreakdown,
+  showVendorDetails: !isAgentLogin,
+  onRefresh: refreshVehicleData,
+},
         vehicleUnavailable: { vehicleListRef, summaryStickyHeight },
         incidentalHistory:
   isConfirmedPresentation && !isAgentLogin && itinerary.planId

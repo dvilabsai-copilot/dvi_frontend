@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { useVehicleSelectionTotalsController } from "./useVehicleSelectionTotalsController";
 import { useVehicleBuildController } from "./useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
@@ -49,9 +48,10 @@ export function useItineraryPreparedPageWorkflow({
   cacheRouteHotelDetails: LoaderArgs["cacheRouteHotelDetails"];
   isSupplierBookableHotel: (hotel: unknown) => boolean;
 }) {
-  const { setSelectedVehicleTotalsByType, setActiveHotelListTotal } = hotelSelectionState;
+   const { setActiveHotelListTotal } =
+    hotelSelectionState;
+
   const { setError, setLoading } = routeState;
-  const { handleVehicleSelectedTotalChange } = useVehicleSelectionTotalsController({ setSelectedVehicleTotalsByType });
   const shouldShowRebuildHotelsButton = useMemo(() => {
     if (!hotelDetails?.hotels?.length) return false;
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
@@ -117,5 +117,8 @@ export function useItineraryPreparedPageWorkflow({
     };
   }, [autoLoadStartedQuotes, currentFetchRef, isMountedRef, loadPreparedItineraryPage, pathname, quoteId, setError, setLoading, switchedRouteRef]);
 
-  return { handleVehicleSelectedTotalChange, shouldShowRebuildHotelsButton, loadPreparedItineraryPage };
+    return {
+    shouldShowRebuildHotelsButton,
+    loadPreparedItineraryPage,
+  };
 }

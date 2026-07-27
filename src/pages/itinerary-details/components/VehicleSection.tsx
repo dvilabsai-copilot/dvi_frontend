@@ -1,12 +1,17 @@
 import React, { type RefObject } from "react";
 import { VehicleList } from "../../VehicleList";
 import { getVehicleAmountNumber } from "../utils/domain.utils";
-import type { ItineraryDay, ItineraryVehicleRow } from "../itinerary-details.types";
+import type {
+  ItineraryDay,
+  ItineraryVehicleRow,
+  VehicleSelection,
+} from "../itinerary-details.types";
 
 interface VehicleSectionProps {
   vehicleListRef: RefObject<HTMLDivElement>;
   summaryStickyHeight: number;
-  vehicles: ItineraryVehicleRow[];
+   vehicles: ItineraryVehicleRow[];
+  vehicleSelections?: VehicleSelection[];
   vehicleRateAvailability?: Array<{
     vehicleTypeId: number;
     vehicleTypeName: string;
@@ -17,15 +22,15 @@ interface VehicleSectionProps {
   days: ItineraryDay[];
   canViewCostBreakdown: boolean;
   showVendorDetails: boolean;
-  onRefresh: () => void;
-  onSelectedTotalChange: (payload: { vehicleTypeId: number; totalAmount: number; totalQty: number }) => void;
+    onRefresh: () => void;
 }
 
 /** Groups and renders available vehicles while keeping assignment and sort rules local to the section. */
 export const VehicleSection: React.FC<VehicleSectionProps> = ({
   vehicleListRef,
   summaryStickyHeight,
-  vehicles,
+   vehicles,
+  vehicleSelections = [],
   vehicleRateAvailability = [],
   planId,
   dateRange = "",
@@ -33,7 +38,6 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
   canViewCostBreakdown,
   showVendorDetails,
   onRefresh,
-  onSelectedTotalChange,
 }) => {
   const vehiclesByType = new Map<number, ItineraryVehicleRow[]>();
   const typeOrder: number[] = [];
@@ -87,24 +91,37 @@ export const VehicleSection: React.FC<VehicleSectionProps> = ({
 
         if (rawVehicles.length === 0) return null;
 
-        const sortedVehicles = [...rawVehicles].sort((a, b) => getVehicleAmountNumber(a) - getVehicleAmountNumber(b));
-        const cheapest = sortedVehicles[0];
-        const vehicleKey = (vehicle: ItineraryVehicleRow) => String(
-          vehicle.vendorEligibleId ?? vehicle.vehicleId ?? vehicle.vehicleIds?.[0] ?? `${vehicle.vendorName}-${vehicle.branchName}-${vehicle.totalAmount}`,
+        const sortedVehicles = [...rawVehicles].sort(
+          (a, b) =>
+            getVehicleAmountNumber(a) -
+            getVehicleAmountNumber(b),
         );
-        const cheapestKey = cheapest ? vehicleKey(cheapest) : "";
-        const vehiclesForType = sortedVehicles.map((vehicle) => ({ ...vehicle, isAssigned: vehicleKey(vehicle) === cheapestKey }));
-        const vehicleTypeLabel = vehiclesForType[0]?.vehicleTypeName || `Vehicle Type ${typeId}`;
+
+        const backendSelection = vehicleSelections.find(
+          (selection) =>
+            Number(selection.vehicleTypeId || 0) ===
+            Number(typeId),
+        );
+
+        const selectedVendorEligibleId =
+          backendSelection?.selectedVendorEligibleId ?? null;
+        const assignedVendorEligibleIds =
+          backendSelection?.assignedVendorEligibleIds ?? [];
+
+        const vehicleTypeLabel =
+          sortedVehicles[0]?.vehicleTypeName ||
+          `Vehicle Type ${typeId}`;
 
         return (
           <VehicleList
             key={typeId}
             vehicleTypeId={typeId}
             vehicleTypeLabel={vehicleTypeLabel}
-            vehicles={vehiclesForType}
+            vehicles={sortedVehicles}
+            selectedVendorEligibleId={selectedVendorEligibleId}
+            assignedVendorEligibleIds={assignedVendorEligibleIds}
             itineraryPlanId={planId}
             onRefresh={onRefresh}
-            onSelectedTotalChange={onSelectedTotalChange}
             dateRange={dateRange}
             routes={routes}
             canViewCostBreakdown={canViewCostBreakdown}

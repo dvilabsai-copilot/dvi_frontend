@@ -1,20 +1,15 @@
 /* eslint-disable no-irregular-whitespace, no-useless-escape, no-useless-catch, @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { ItineraryService } from "../services/itinerary";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../components/ui/dialog";
-import { Button } from "../components/ui/button";
-import { AlertTriangle, Check, Copy, Loader2 } from "lucide-react";
-import { FloatingHoverTooltip, getFloatingTooltipPosition } from "../components/FloatingHoverTooltip";
+  getFloatingTooltipPosition,
+} from "../components/FloatingHoverTooltip";
 import { VehicleListView } from "./VehicleListView";
-
 
 export interface DayWisePricingItem {
   date: string; // "2025-12-26"
@@ -357,43 +352,15 @@ const getDayLabelParts = (dayLabel: string | undefined): { dayPart: string; date
   };
 };
 
-const getPreferredVendorEligibleId = (vehicles: ItineraryVehicleRow[]): number | null => {
-  if (!vehicles.length) return null;
-
-  // Always auto-select the lowest displayed amount for each vehicle type.
-  // Do not trust a stale DB assignment for first paint selection.
-  const cheapest = vehicles.reduce((prev, curr) => {
-    const prevAmount = resolveVehicleDisplayAmount(prev);
-    const currAmount = resolveVehicleDisplayAmount(curr);
-
-    if (currAmount < prevAmount) return curr;
-
-    // Stable tie-breaker to avoid visual jumping on equal amounts.
-    if (currAmount === prevAmount) {
-      return Number(curr.vendorEligibleId || 0) < Number(prev.vendorEligibleId || 0)
-        ? curr
-        : prev;
-    }
-
-    return prev;
-  }, vehicles[0]);
-
-  const preferredId = Number(cheapest.vendorEligibleId || 0);
-  return preferredId > 0 ? preferredId : null;
-};
-
 
 export type VehicleListProps = {
   vehicleTypeId?: number;
   vehicleTypeLabel: string;
   vehicles: ItineraryVehicleRow[];
+  selectedVendorEligibleId?: number | null;
+  assignedVendorEligibleIds?: number[];
   itineraryPlanId?: number;
   onRefresh?: () => void;
-  onSelectedTotalChange?: (payload: {
-    vehicleTypeId: number;
-    totalAmount: number;
-    totalQty: number;
-  }) => void;
   dateRange?: string; // e.g., "Dec 26 - Dec 30, 2025"
   routes?: Array<{ date: string; destination: string; label: string }>; // Day-wise route information
   canViewCostBreakdown?: boolean;
@@ -404,9 +371,10 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   vehicleTypeId,
   vehicleTypeLabel,
   vehicles,
+  selectedVendorEligibleId: backendSelectedVendorEligibleId,
+  assignedVendorEligibleIds = [],
   itineraryPlanId,
   onRefresh,
-  onSelectedTotalChange,
   dateRange,
   routes,
   canViewCostBreakdown = true,
@@ -419,7 +387,12 @@ export const VehicleList: React.FC<VehicleListProps> = ({
     top: number;
   } | null>(null);
   const [expandedVendorEligibleId, setExpandedVendorEligibleId] = useState<number | string | null>(null);
-  const [selectedVendorEligibleId, setSelectedVendorEligibleId] = useState<number | null>(null);
+   const [
+    optimisticSelectedVendorEligibleId,
+    setOptimisticSelectedVendorEligibleId,
+  ] = useState<number | null>(
+    backendSelectedVendorEligibleId ?? null,
+  );
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingVendorSelection, setPendingVendorSelection] = useState<{
@@ -430,17 +403,32 @@ export const VehicleList: React.FC<VehicleListProps> = ({
   } | null>(null);
   const [isUpdatingVehicle, setIsUpdatingVehicle] = useState(false);
   const [copiedVendorIndex, setCopiedVendorIndex] = useState<number | null>(null);
-  const vehicleIdentitySignature = useMemo(
-    () =>
-      vehicles
-        .map(
-          (v) =>
-            `${v.vehicleTypeId || 0}:${v.vendorEligibleId || 0}:${v.totalAmount || ""}:${v.dayWisePricing?.map((d) => d.totalKms).join("|") || ""}`
-        )
-        .join(","),
-    [vehicles]
-  );
+const vehicleIdentitySignature = useMemo(
+  () =>
+    vehicles
+      .map(
+        (v) =>
+          `${v.vehicleTypeId || 0}:${v.vendorEligibleId || 0}:${
+            v.totalAmount || ""
+          }:${v.isAssigned ? 1 : 0}:${
+            v.dayWisePricing?.map((d) => d.totalKms).join("|") || ""
+          }`
+      )
+      .join(","),
+  [vehicles]
+);
+  useEffect(() => {
+    const backendId = Number(
+      backendSelectedVendorEligibleId || 0,
+    );
 
+    setOptimisticSelectedVendorEligibleId(
+      backendId > 0 ? backendId : null,
+    );
+  }, [
+    backendSelectedVendorEligibleId,
+    vehicleIdentitySignature,
+  ]);
   useEffect(() => {
     setExpandedVendorEligibleId(null);
     setHoveredTotalAmountIndex(null);
@@ -762,27 +750,6 @@ const totalRows = [
     }
   };
 
-  // Sync selected vendor when assigned vendor changes (from API refresh)
-  // Always auto-select cheapest if no assignment exists
- useEffect(() => {
-  const preferredId = getPreferredVendorEligibleId(vehicles);
-
-  if (preferredId !== null && Number(preferredId) !== Number(selectedVendorEligibleId || 0)) {
-    console.log(
-      `[${vehicleTypeLabel}] Auto-selecting lowest amount vendor:`,
-      preferredId,
-      vehicles.map((v) => ({
-        id: v.vendorEligibleId,
-        totalAmount: v.totalAmount,
-        grandTotal: v.grandTotal,
-        displayAmount: resolveVehicleDisplayAmount(v),
-        isAssigned: v.isAssigned,
-      })),
-    );
-    setSelectedVendorEligibleId(preferredId);
-  }
-}, [vehicles, vehicleTypeLabel, selectedVendorEligibleId]);
-
 
 
   const handleRadioChange = (vendor: ItineraryVehicleRow, index: number) => {
@@ -809,31 +776,50 @@ const totalRows = [
     });
     setShowConfirmDialog(true);
   };
-
   const handleConfirmSelection = async () => {
-    if (!pendingVendorSelection || !itineraryPlanId) return;
+    if (!pendingVendorSelection || !itineraryPlanId) {
+      return;
+    }
 
-    console.log(`[${vehicleTypeLabel}] Confirming vendor selection:`, pendingVendorSelection);
     setIsUpdatingVehicle(true);
+
     try {
-      await ItineraryService.selectVehicleVendor(
-        itineraryPlanId,
-        pendingVendorSelection.vehicleTypeId,
-        pendingVendorSelection.vendorEligibleId
+      const response =
+        await ItineraryService.selectVehicleVendor(
+          itineraryPlanId,
+          pendingVendorSelection.vehicleTypeId,
+          pendingVendorSelection.vendorEligibleId,
+        );
+
+      const confirmedEligibleId = Number(
+        response.selectedVendorEligibleId ??
+          pendingVendorSelection.vendorEligibleId ??
+          0,
       );
 
-      console.log(`[${vehicleTypeLabel}] Selection confirmed, setting selectedVendorEligibleId to:`, pendingVendorSelection.vendorEligibleId);
-      toast.success("Vehicle vendor changed successfully. Please update the amount.");
-      setSelectedVendorEligibleId(pendingVendorSelection.vendorEligibleId);
+      setOptimisticSelectedVendorEligibleId(
+        confirmedEligibleId > 0
+          ? confirmedEligibleId
+          : null,
+      );
+
       setShowConfirmDialog(false);
       setPendingVendorSelection(null);
 
+      toast.success(
+        response.message ||
+          "Vehicle vendor changed successfully",
+      );
+
       if (onRefresh) {
-        console.log(`[${vehicleTypeLabel}] Calling onRefresh`);
-        onRefresh();
+        await Promise.resolve(onRefresh());
       }
     } catch (error) {
-      console.error(`[${vehicleTypeLabel}] Failed to select vehicle vendor:`, error);
+      console.error(
+        `[${vehicleTypeLabel}] Failed to select vehicle vendor:`,
+        error,
+      );
+
       toast.error("Failed to update vehicle vendor");
     } finally {
       setIsUpdatingVehicle(false);
@@ -857,50 +843,22 @@ const totalRows = [
   });
 }, [vehicles]);
 
-  const selectedVehicle =
-    selectedVendorEligibleId != null
-      ? sortedVehicles.find((v) => Number(v.vendorEligibleId || 0) === Number(selectedVendorEligibleId || 0)) || sortedVehicles[0]
-      : sortedVehicles[0];
-  const totalAmount = selectedVehicle ? resolveVehicleDisplayAmount(selectedVehicle) : 0;
-  const totalQty = selectedVehicle ? parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0 : 0;
-
-  useEffect(() => {
-  if (!onSelectedTotalChange || sortedVehicles.length === 0) return;
-
-  const selectedVehicle =
-    selectedVendorEligibleId != null
-      ? sortedVehicles.find(
-          (v) =>
-            Number(v.vendorEligibleId || 0) ===
-            Number(selectedVendorEligibleId || 0)
-        ) || sortedVehicles[0]
-      : sortedVehicles[0];
-
-  if (!selectedVehicle) return;
-
-  const totalAmount = resolveVehicleDisplayAmount(selectedVehicle);
-  const totalQty = parseInt(String(selectedVehicle.totalQty || "0"), 10) || 0;
-
-  const resolvedVehicleTypeId =
-    Number(selectedVehicle.vehicleTypeId || 0) || Number(vehicleTypeId || 0);
-
-  if (!resolvedVehicleTypeId) return;
-
-  onSelectedTotalChange({
-    vehicleTypeId: resolvedVehicleTypeId,
-    totalAmount,
-    totalQty,
-  });
-}, [sortedVehicles, selectedVendorEligibleId, onSelectedTotalChange, vehicleTypeId]);
-
-  const vehicleListViewContext = {
+   const vehicleListViewContext = {
     vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
-    showVehicleOriginTooltipFromFocus, selectedVendorEligibleId, setSelectedVendorEligibleId,
-    carouselIndex, handleCarouselPrevious, handleCarouselNext, copiedVendorIndex, setCopiedVendorIndex,
-    copyVehicleBreakdownForOutlook, selectedVehicle, totalAmount, totalQty,
-    onSelectedTotalChange, expandedVendorEligibleId, setExpandedVendorEligibleId,
+       showVehicleOriginTooltipFromFocus,
+    selectedVendorEligibleId:
+      optimisticSelectedVendorEligibleId,
+    assignedVendorEligibleIds,
+    carouselIndex,
+    handleCarouselPrevious,
+    handleCarouselNext,
+     copiedVendorIndex,
+    setCopiedVendorIndex,
+    copyVehicleBreakdownForOutlook,
+    expandedVendorEligibleId,
+    setExpandedVendorEligibleId,
     handleRadioChange, getDayLabelParts, formatTotalTime, formatMinutesDuration,
     splitDurationLines, isOutstationDay, vehicleHasUnavailableOutstationRate,
     getRentalCellLines, getSlabDisplayText, formatCurrencyINR, formatKm,
