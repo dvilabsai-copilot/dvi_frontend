@@ -264,9 +264,8 @@ export type ItineraryHotelRow = {
   // Optional explicit flag from backend.
   canCancelVoucher?: boolean;
 
-  date?: string;
+    date?: string;
   // ✅ HOBSE-specific fields (optional, used if provider === "HOBSE")
-  hotelCode?: string; // HOBSE hotel code
   bookingCode?: string; // HOBSE booking code
   searchReference?: string;
   checkInDate?: string; // YYYY-MM-DD format
@@ -279,10 +278,9 @@ export type ItineraryHotelRow = {
   hotelierEarlyCheckInNote?: string | null;
   previousDayBillingSynthetic?: boolean;
   // ✅ Hotel distance from route location (calculated via Haversine on backend)
-  hotelDistance?: string | null; // Distance in "XX.XX KM" format
+   hotelDistance?: string | null;
   hotelAddress?: string | null;
   cancellationPolicy?: string[];
-  providerDisplayName?: string;
   bookingMode?: 'LIVE_API' | 'MANUAL_APPROVAL';
   priceSource?: 'LIVE_API' | 'DATABASE' | 'LEGACY_UNKNOWN';
   priceLabel?: string;
@@ -345,8 +343,11 @@ export type ItineraryVehicleRow = {
   vehicleRegistrationStateCode?: string | null;
   vehicleRegistrationStateName?: string | null;
 
-  // vehicle type information
+  // vehicle/vendor identity returned by the backend
   vendorEligibleId?: number;
+  vendorId?: number;
+  vendorBranchId?: number;
+  vendorVehicleTypeId?: number;
   vehicleTypeId?: number;
   vehicleTypeName?: string;
   isAssigned?: boolean;
@@ -471,8 +472,6 @@ export type CostBreakdown = {
 
 // ----------------- Main API response types -----------------
 
-// ----------------- Main API response types -----------------
-
 export type ItineraryPlanRouteOption = {
   label?: string;
   routeName?: string;
@@ -485,6 +484,14 @@ export type ItineraryPlanRouteOption = {
   quote_id?: string;
 };
 
+export type VehicleSelectionSource = "auto" | "manual";
+
+export type VehicleSelection = {
+  vehicleTypeId: number;
+  selectedVendorEligibleId: number | null;
+  assignedVendorEligibleIds: number[];
+  selectionSource: VehicleSelectionSource;
+};
 export type ItineraryDetailsResponse = {
   // planId for routing back to create-itinerary
   planId?: number;
@@ -531,6 +538,7 @@ days: ItineraryDay[];
 
   // VEHICLES
   vehicles: ItineraryVehicleRow[];
+  vehicleSelections?: VehicleSelection[];
   vehicleRateAvailability?: Array<{
     vehicleTypeId: number;
     vehicleTypeName: string;

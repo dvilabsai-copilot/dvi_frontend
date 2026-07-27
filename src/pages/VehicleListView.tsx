@@ -11,10 +11,16 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     vehicleTypeLabel, vehicles, vehicleTypeId, dateRange, routes, canViewCostBreakdown, showVendorDetails,
     vehicleOriginTooltip, hoveredTotalAmountIndex, setHoveredTotalAmountIndex, sortedVehicles,
     showVehicleOriginTooltip, moveVehicleOriginTooltip, hideVehicleOriginTooltip,
-    showVehicleOriginTooltipFromFocus, selectedVendorEligibleId, setSelectedVendorEligibleId,
-    carouselIndex, handleCarouselPrevious, handleCarouselNext, copiedVendorIndex, setCopiedVendorIndex,
-    copyVehicleBreakdownForOutlook, selectedVehicle, totalAmount, totalQty,
-    onSelectedTotalChange, expandedVendorEligibleId, setExpandedVendorEligibleId,
+       showVehicleOriginTooltipFromFocus,
+    selectedVendorEligibleId,
+    carouselIndex,
+    handleCarouselPrevious,
+    handleCarouselNext,
+        copiedVendorIndex,
+    setCopiedVendorIndex,
+    copyVehicleBreakdownForOutlook,
+    expandedVendorEligibleId,
+    setExpandedVendorEligibleId,
     handleRadioChange, getDayLabelParts, formatTotalTime, formatMinutesDuration,
     splitDurationLines, isOutstationDay, vehicleHasUnavailableOutstationRate,
     getRentalCellLines, getSlabDisplayText, formatCurrencyINR, formatKm,
@@ -27,6 +33,30 @@ export const VehicleListView = ({ context }: { context: Record<string, any> }) =
     showConfirmDialog, setShowConfirmDialog, pendingVendorSelection,
     setPendingVendorSelection, isUpdatingVehicle, handleConfirmSelection,
   } = context;
+
+  const vehicleOriginTooltipSuppressedUntilRef = React.useRef(0);
+
+  const suppressVehicleOriginTooltipBriefly = () => {
+    vehicleOriginTooltipSuppressedUntilRef.current = Date.now() + 800;
+    hideVehicleOriginTooltip();
+  };
+
+  const canShowVehicleOriginTooltip = () => {
+    return (
+      !showConfirmDialog &&
+      !isUpdatingVehicle &&
+      Date.now() >= vehicleOriginTooltipSuppressedUntilRef.current
+    );
+  };
+
+  const handleConfirmDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      suppressVehicleOriginTooltipBriefly();
+    }
+
+    setShowConfirmDialog(open);
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
       <div className="flex items-center justify-between mb-4">
@@ -120,11 +150,11 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                         type="radio"
                         id={radioId}
                         name={`selected_vehicle_${vehicleTypeLabel.replace(/\s+/g, '_')}`}
-                        checked={
-                          selectedVendorEligibleId != null
-                            ? Number(selectedVendorEligibleId) === Number(v.vendorEligibleId || 0)
-                            : index === 0
-                        }
+                      checked={
+  Number(selectedVendorEligibleId || 0) > 0 &&
+  Number(selectedVendorEligibleId) ===
+    Number(v.vendorEligibleId || 0)
+}
                         onChange={() => handleRadioChange(v, index)}
                         onClick={(e) => e.stopPropagation()}
                           className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
@@ -133,19 +163,34 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       </td>
                     {showVendorDetails && <td className="py-3 px-3 font-medium text-gray-900">{safe(v.vendorName)}</td>}
                     {showVendorDetails && <td className="py-3 px-3 text-gray-700">{safe(v.branchName)}</td>}
-                    <td
-                      className="py-3 px-3 text-gray-600 text-xs relative"
-                      onMouseEnter={(e) => showVehicleOriginTooltip(index, e)}
-                      onMouseMove={(e) => moveVehicleOriginTooltip(index, e)}
-                      onMouseLeave={hideVehicleOriginTooltip}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span
-                        className="cursor-help underline decoration-dotted underline-offset-2"
-                        tabIndex={0}
-                        onFocus={(e) => showVehicleOriginTooltipFromFocus(index, e)}
-                        onBlur={hideVehicleOriginTooltip}
-                      >
+                 <td
+  className="py-3 px-3 text-gray-600 text-xs relative"
+  onMouseEnter={(e) => {
+    if (!canShowVehicleOriginTooltip()) return;
+
+    showVehicleOriginTooltip(index, e);
+  }}
+  onMouseMove={(e) => {
+    if (!canShowVehicleOriginTooltip()) {
+      hideVehicleOriginTooltip();
+      return;
+    }
+
+    moveVehicleOriginTooltip(index, e);
+  }}
+  onMouseLeave={hideVehicleOriginTooltip}
+  onClick={(e) => e.stopPropagation()}
+>
+  <span
+    className="cursor-help underline decoration-dotted underline-offset-2"
+    tabIndex={0}
+    onFocus={(e) => {
+      if (!canShowVehicleOriginTooltip()) return;
+
+      showVehicleOriginTooltipFromFocus(index, e);
+    }}
+    onBlur={hideVehicleOriginTooltip}
+  >
                         {safe(v.vehicleOrigin) || "-"}
                       </span>
 
@@ -199,14 +244,14 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       )}
                     </td>
                     <td className="py-3 px-3 text-center text-gray-800 font-medium">{qty}</td>
-                    <td 
+                    <td
                       className={`py-3 px-3 text-right font-semibold text-gray-900 ${canViewCostBreakdown ? "" : "[&>span]:hidden"}`}
                       onMouseEnter={() => setHoveredTotalAmountIndex(index)}
                       onMouseLeave={() => setHoveredTotalAmountIndex(null)}
                     >
 {formatCurrencyINR(displayTotalAmount)}
                       <span className="ml-2 text-xs text-gray-500">{isExpanded ? "\u25BC" : "\u25B6"}</span>
-                      
+
                       {/* Hover Tooltip - Price Breakdown */}
                        {canViewCostBreakdown && hoveredTotalAmountIndex === index && (
                         <FloatingHoverTooltip left={0} top={80} style={{ right: "20px", left: "auto" }}>
@@ -248,7 +293,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                       )}
                     </td>
                   </tr>
-                  
+
                   {/* Expanded Row - PHP-style full pricing breakdown */}
                   {canViewCostBreakdown && isExpanded && v.dayWisePricing && v.dayWisePricing.length > 0 && (
                    <tr className="border-b border-gray-100 bg-gray-50">
@@ -262,7 +307,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
     >
       <div className="w-full min-w-0 space-y-3">
 
-                          {/* â”€â”€ Day-wise per-route table â”€â”€ */}
+                          {/* Ã¢â€â‚¬Ã¢â€â‚¬ Day-wise per-route table Ã¢â€â‚¬Ã¢â€â‚¬ */}
                           <div>
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <h6 className="text-sm font-semibold text-gray-900">Day-wise Pricing Breakdown</h6>
@@ -411,7 +456,7 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
                             </div>
                           </div>
 
-    {/* â”€â”€ Full-width stacked summary tables â”€â”€ */}
+    {/* Ã¢â€â‚¬Ã¢â€â‚¬ Full-width stacked summary tables Ã¢â€â‚¬Ã¢â€â‚¬ */}
 <div className="w-full min-w-0 space-y-3">
   <div className="w-full min-w-0 overflow-hidden">
     <table className="w-full table-fixed border-collapse border border-gray-300 bg-white text-sm [overflow-wrap:anywhere]">
@@ -621,7 +666,10 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
       </div>
 
       {/* Confirmation Dialog */}
-      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <Dialog
+  open={showConfirmDialog}
+  onOpenChange={handleConfirmDialogOpenChange}
+>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="flex items-center gap-3">
@@ -636,20 +684,29 @@ const isHoveredTotalAmount = hoveredTotalAmountIndex === index;
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
-              onClick={() => {
-                setShowConfirmDialog(false);
-                setPendingVendorSelection(null);
-              }}
-              disabled={isUpdatingVehicle}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmSelection}
-              className="bg-purple-600 hover:bg-purple-700"
-              disabled={isUpdatingVehicle}
-            >
+  variant="outline"
+  onClick={() => {
+    suppressVehicleOriginTooltipBriefly();
+    setShowConfirmDialog(false);
+    setPendingVendorSelection(null);
+  }}
+  disabled={isUpdatingVehicle}
+>
+  Cancel
+</Button>
+           <Button
+  onClick={async () => {
+    suppressVehicleOriginTooltipBriefly();
+
+    try {
+      await handleConfirmSelection();
+    } finally {
+      suppressVehicleOriginTooltipBriefly();
+    }
+  }}
+  className="bg-purple-600 hover:bg-purple-700"
+  disabled={isUpdatingVehicle}
+>
               {isUpdatingVehicle ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
