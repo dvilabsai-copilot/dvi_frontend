@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { ItineraryService } from "@/services/itinerary";
 import { toast } from "sonner";
 import type { ItineraryDetailsResponse, ItineraryHotelDetailsResponse } from "../itinerary-details.types";
-import type { VehicleBuildUiStatus } from "./usePreparedItineraryPageLoader";
-import { getAuthoritativeVehiclePricingState } from "../utils/vehicleAvailability.utils";
 
 interface RouteOptionSwitchOptions {
   activeRouteQuoteId: string | null;
@@ -25,7 +23,7 @@ interface RouteOptionSwitchOptions {
   setHotelDetails: Dispatch<SetStateAction<ItineraryHotelDetailsResponse | null>>;
   setActiveHotelListTotal: Dispatch<SetStateAction<number>>;
   setVehicleBuildError: Dispatch<SetStateAction<string | null>>;
-  setVehicleBuildStatus: Dispatch<SetStateAction<VehicleBuildUiStatus>>;
+  setVehicleBuildStatus: Dispatch<SetStateAction<"PENDING" | "PROCESSING" | "READY" | "FAILED">>;
   pushPageLoaderStage: (stage: string) => void;
   getDetailsDeduped: (quoteId: string) => Promise<unknown>;
   loadAndCacheRouteHotelDetails: (quoteId: string) => Promise<ItineraryHotelDetailsResponse | null>;
@@ -89,9 +87,7 @@ export const useRouteOptionSwitchController = ({
       const preference = Number(details.itineraryPreference ?? 3);
       const useHotels = preference === 1 || preference === 3;
       const useVehicles = preference === 2 || preference === 3;
-      const vehiclePricingState = getAuthoritativeVehiclePricingState(details);
-      setVehicleBuildStatus(useVehicles ? vehiclePricingState.status : "NOT_REQUIRED");
-      setVehicleBuildError(useVehicles ? vehiclePricingState.failureReason || null : null);
+      setVehicleBuildStatus(useVehicles ? "READY" : "READY");
       if (!useHotels) {
         setHotelDetails(null);
         setActiveHotelListTotal(0);

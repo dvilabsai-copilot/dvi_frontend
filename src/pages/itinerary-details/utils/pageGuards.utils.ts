@@ -23,7 +23,7 @@ export function isItineraryVehicleBuildInProgress({
   shouldShowVehicles: boolean;
   vehicleBuildStatus: string;
 }) {
-  return shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING" || vehicleBuildStatus === "RETRYING");
+  return shouldShowVehicles && (vehicleBuildStatus === "PENDING" || vehicleBuildStatus === "PROCESSING");
 }
 
 export function buildItineraryModifyHref(planId?: number) {

@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { useVehicleSelectionTotalsController } from "./useVehicleSelectionTotalsController";
+import { useVehicleBuildController } from "./useVehicleBuildController";
 import { usePreparedItineraryPageLoader } from "./usePreparedItineraryPageLoader";
 import type { useItineraryRouteState } from "./useItineraryRouteState";
 import type { useHotelWorkflowState } from "./useHotelWorkflowState";
 import type { useHotelSelectionState } from "./useHotelSelectionState";
 import type { ItineraryHotelDetailsResponse } from "../itinerary-details.types";
-import type { ItineraryDetailsLocationState } from "../itinerary-details-route-state";
+import { hasUsableVehicleRows as hasUsableVehicleRowsUtil } from "../utils/vehicleAvailability.utils";
 
 type RouteState = ReturnType<typeof useItineraryRouteState>;
 type HotelWorkflowState = ReturnType<typeof useHotelWorkflowState>;
 type HotelSelectionState = ReturnType<typeof useHotelSelectionState>;
 type LoaderArgs = Parameters<typeof usePreparedItineraryPageLoader>[0];
+type VehicleBuildArgs = Parameters<typeof useVehicleBuildController>[0];
 
 export function useItineraryPreparedPageWorkflow({
   routeState,
@@ -29,7 +31,6 @@ export function useItineraryPreparedPageWorkflow({
   loadHotelDetailsForItinerary,
   cacheRouteHotelDetails,
   isSupplierBookableHotel,
-  partialSave,
 }: {
   routeState: RouteState;
   hotelWorkflowState: HotelWorkflowState;
@@ -47,25 +48,27 @@ export function useItineraryPreparedPageWorkflow({
   loadHotelDetailsForItinerary: LoaderArgs["loadHotelDetailsForItinerary"];
   cacheRouteHotelDetails: LoaderArgs["cacheRouteHotelDetails"];
   isSupplierBookableHotel: (hotel: unknown) => boolean;
-  partialSave?: ItineraryDetailsLocationState["partialSave"];
 }) {
   const { setSelectedVehicleTotalsByType, setActiveHotelListTotal } = hotelSelectionState;
   const { setError, setLoading } = routeState;
-  const partialSaveRef = useRef(partialSave);
-  partialSaveRef.current = partialSave;
   const { handleVehicleSelectedTotalChange } = useVehicleSelectionTotalsController({ setSelectedVehicleTotalsByType });
   const shouldShowRebuildHotelsButton = useMemo(() => {
     if (!hotelDetails?.hotels?.length) return false;
     if (hotelDetails.hotelAvailability?.isPlaceholderOnly) return true;
     return hotelDetails.hotels.every((hotel) => !isSupplierBookableHotel(hotel));
   }, [hotelDetails, isSupplierBookableHotel]);
+  const prepareVehicleBuild = useVehicleBuildController({
+    pushPageLoaderStage,
+    hasUsableVehicleRows: hasUsableVehicleRowsUtil,
+    setVehicleBuildStatus: routeState.setVehicleBuildStatus,
+    setVehicleBuildError: routeState.setVehicleBuildError,
+  } as VehicleBuildArgs);
   const loadPreparedItineraryPage = usePreparedItineraryPageLoader({
     isMountedRef,
     latestRouteRequestRef,
     currentFetchRef,
     setLoading: routeState.setLoading,
     setLoadingHotels: hotelWorkflowState.setLoadingHotels,
-    setHotelError: hotelWorkflowState.setHotelError,
     setPageReady: routeState.setPageReady,
     setError: routeState.setError,
     setPageLoaderHistory: routeState.setPageLoaderHistory,
@@ -78,6 +81,7 @@ export function useItineraryPreparedPageWorkflow({
     setActiveHotelListTotal,
     setVehicleBuildStatus: routeState.setVehicleBuildStatus,
     setVehicleBuildError: routeState.setVehicleBuildError,
+    prepareVehicleBuild,
   });
 
   useEffect(() => {
@@ -105,7 +109,7 @@ export function useItineraryPreparedPageWorkflow({
     autoLoadStartedQuotes.add(quoteId);
     currentFetchRef.current = quoteId;
     isMountedRef.current = true;
-    void loadPreparedItineraryPage(quoteId, { partialSave: partialSaveRef.current });
+    void loadPreparedItineraryPage(quoteId);
     return () => {
       isMountedRef.current = false;
       currentFetchRef.current = null;
